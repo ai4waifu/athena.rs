@@ -14,6 +14,9 @@ athena-types = { path = "projects/athena-types" }
 athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
 athena = { path = "projects/athena" }
+num-bigint = { version = "0.4", default-features = false, features = ["std"] }
+num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
+num-traits = "0.2"
 libloading = "0.8"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

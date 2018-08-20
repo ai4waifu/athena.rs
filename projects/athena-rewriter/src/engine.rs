@@ -74,20 +74,3 @@ fn fold_constants(arena: &mut TermArena, id: TermId) -> Result<bool> {
         TermKind::Atom(_) => Ok(false),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use athena_ir::{AtomKind, TermBuilder, TermKind};
-    use athena_types::{Number, SourceSpan};
-
-    #[test]
-    fn simplify_noop_on_atom() {
-        let mut arena = TermArena::new();
-        let mut b = TermBuilder::new(&mut arena);
-        let n = b.number(Number::small_int(2), SourceSpan::default());
-        let r = Rewriter::new().simplify(&mut arena, n).unwrap();
-        assert!(!r.changed);
-        assert_eq!(arena.get(n), Some(&TermKind::Atom(AtomKind::Number(Number::small_int(2)))));
-    }
-}

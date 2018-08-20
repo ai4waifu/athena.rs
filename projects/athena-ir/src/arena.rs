@@ -82,17 +82,3 @@ fn verify_term(arena: &TermArena, id: TermId, stack: &mut Vec<TermId>) -> Result
     stack.pop();
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::node::{AtomKind, TermKind};
-    use athena_types::Number;
-
-    #[test]
-    fn push_and_verify() {
-        let mut arena = TermArena::new();
-        let n = arena.push(TermKind::Atom(AtomKind::Number(Number::small_int(1))), SourceSpan::default());
-        arena.verify(n).unwrap();
-    }
-}

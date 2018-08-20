@@ -1,6 +1,7 @@
 # Athena
 
-Athena 是 SXO 背后的纯 Rust 计算机代数内核，代码仓库位于 `euler.rs`。它负责数学语义、Core IR、求值、重写与会话状态，并与 Node.js、N-API、WebAssembly 绑定及语言前端保持独立。
+Athena 是 SXO 背后的纯 Rust 计算机代数内核，代码仓库位于 `euler.rs`。它负责数学语义、Core IR、求值、重写与会话状态，并与
+Node.js、N-API、WebAssembly 绑定及语言前端保持独立。
 
 本文档面向希望参与内核建设的贡献者。方言解析、降级和渲染属于 SXO 前端，Athena 不解析 Mathematica 或 MATLAB，也不承载宿主平台集成。
 
@@ -10,12 +11,12 @@ Athena 是 SXO 背后的纯 Rust 计算机代数内核，代码仓库位于 `eul
 SXO 方言前端 → Athena IR / value → AthenaEngine → result / diagnostic
 ```
 
-| Crate | 主要职责 |
-| --- | --- |
-| [`athena-types`](projects/athena-types/README.md) | 数值表示、标识符、源码位置和诊断合同 |
-| [`athena-ir`](projects/athena-ir/README.md) | arena 管理的 Core CAS IR、构建器、验证和哈希 |
-| [`athena-rewriter`](projects/athena-rewriter/README.md) | 规范化与重写基础设施 |
-| [`athena`](projects/athena/README.md) | 引擎门面、求值、会话、领域模块与组合 |
+| Crate                                                   | 主要职责                                     |
+|---------------------------------------------------------|----------------------------------------------|
+| [`athena-types`](projects/athena-types/readme.md)       | 数值表示、标识符、源码位置和诊断合同         |
+| [`athena-ir`](projects/athena-ir/readme.md)             | arena 管理的 Core CAS IR、构建器、验证和哈希 |
+| [`athena-rewriter`](projects/athena-rewriter/readme.md) | 规范化与重写基础设施                         |
+| [`athena`](projects/athena/readme.md)                   | 公共门面、求值、会话、领域模块与组合         |
 
 `athena` 是唯一数学内核。多项式、矩阵、数论和图算法等数学主题应作为内核模块演进，不应拆成一组微型 crate。
 

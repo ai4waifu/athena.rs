@@ -1,14 +1,14 @@
 [package]
 name = "athena-ir"
-version = "0.1.0"
-edition = "2021"
-license = "MPL-2.0"
-authors = ["Aster <aster@vers.site>"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
 description = "athena Core CAS IR — arena, nodes, builder, verifier"
 publish = false
 
 [dependencies]
-athena-types = { path = "../athena-types" }
+athena-types = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
