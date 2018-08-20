@@ -12,3 +12,10 @@ time-travel.*
 # Rust
 target/
 Cargo.lock
+
+
+# Node
+node_modules/
+dist/
+*.txt
+*.log

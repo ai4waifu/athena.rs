@@ -1,0 +1,1 @@
+//! Domain metadata (placeholder).

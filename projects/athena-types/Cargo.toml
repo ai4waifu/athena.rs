@@ -1,0 +1,17 @@
+[package]
+name = "athena-types"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+authors = ["Aster <aster@vers.site>"]
+description = "athena: stable math type contracts (Number, IDs, diagnostics)"
+publish = false
+
+[dependencies]
+num-bigint = { version = "0.4", default-features = false, features = ["std"] }
+num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
+num-traits = "0.2"
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
