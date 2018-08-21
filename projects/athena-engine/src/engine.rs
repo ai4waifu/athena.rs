@@ -1,4 +1,4 @@
-//! Engine facade — stable host entry (implementation grows in submodules).
+//! Execution engine handle — hosts compose requests; math lives in submodules.
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -10,11 +10,11 @@ pub struct EvalOptions {}
 #[derive(Debug, Clone, Default)]
 pub struct SimplifyOptions {}
 
-/// Primary athena engine handle (stateless rules; use [`Session`] for bindings).
+/// Primary Athena engine handle (stateless rules; use [`Session`] for bindings).
 #[derive(Debug, Default)]
-pub struct athenaEngine {}
+pub struct AthenaEngine {}
 
-impl athenaEngine {
+impl AthenaEngine {
     /// Create engine with default operator registry (stub).
     pub fn new() -> Self {
         Self {}
@@ -22,6 +22,9 @@ impl athenaEngine {
 
     /// 求值 — stub，待 `eval` + `ir` 落地。
     pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<(), Diagnostic> {
-        Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "evaluate not yet implemented"))
+        Err(Diagnostic::error(
+            DiagnosticCode::UnsupportedOperation,
+            "evaluate not yet implemented",
+        ))
     }
 }

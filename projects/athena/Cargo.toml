@@ -1,19 +1,18 @@
 [package]
 name = "athena"
-version = "0.1.0"
-edition = "2021"
-license = "MPL-2.0"
-authors = ["Aster <aster@vers.site>"]
-description = "Pure Rust CAS kernel facade"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Athena CAS public Rust facade — stable entry over athena-engine"
 publish = false
 
+[features]
+default = ["pure-rust"]
+pure-rust = ["athena-engine/pure-rust"]
+
 [dependencies]
-athena-types = { path = "../athena-types" }
-athena-ir = { path = "../athena-ir" }
-athena-rewriter = { path = "../athena-rewriter" }
-num-bigint = { version = "0.4", default-features = false, features = ["std"] }
-num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
-num-traits = "0.2"
+athena-engine = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

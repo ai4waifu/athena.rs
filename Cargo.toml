@@ -1,7 +1,13 @@
 [workspace]
 resolver = "2"
 members = ["projects/*"]
-default-members = ["projects/athena-types", "projects/athena-ir", "projects/athena-rewriter", "projects/athena"]
+default-members = [
+    "projects/athena-types",
+    "projects/athena-ir",
+    "projects/athena-rewriter",
+    "projects/athena-engine",
+    "projects/athena",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,6 +19,7 @@ license = "MPL-2.0"
 athena-types = { path = "projects/athena-types" }
 athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
+athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
 num-bigint = { version = "0.4", default-features = false, features = ["std"] }
 num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
