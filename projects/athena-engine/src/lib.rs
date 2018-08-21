@@ -18,6 +18,7 @@ pub mod object;
 pub mod rewriter;
 pub mod session;
 pub mod symbol;
+pub mod term;
 
 mod engine;
 
@@ -28,4 +29,6 @@ pub use athena_types::{
     RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
 };
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
+pub use eval::{evaluate, differentiate as differentiate_term};
 pub use session::Session;
+pub use term::{Atom, Term, number_from_term};

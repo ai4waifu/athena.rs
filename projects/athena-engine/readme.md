@@ -14,10 +14,12 @@
 
 ## 不负责
 
-- Mathematica / MATLAB 等语法解析、`WExpr`、oak
-- 方言 profile、字符串 render、locale
+- **任何 parse**（方言语法、字面量文本、oak、`WExpr`）— 一律属 SXO
+- 字符串 render、locale
 - N-API / WASM / JS handle 生命周期
 - 对外产品兼容边界（见 [`athena`](../athena/readme.md)）
+
+Athena 只接受**已经解码**的 `Number` / IR / runtime `Term`；不得从源文本构造值。
 
 ## 与 `athena` 的边界
 

@@ -1,6 +1,8 @@
 //! Execution engine handle — hosts compose requests; math lives in submodules.
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{Diagnostic, DiagnosticCode, Result};
+
+use crate::term::Term;
 
 /// Evaluation options (placeholder; expands with modes/session).
 #[derive(Debug, Clone, Default)]
@@ -20,8 +22,23 @@ impl AthenaEngine {
         Self {}
     }
 
-    /// 求值 — stub，待 `eval` + `ir` 落地。
-    pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<(), Diagnostic> {
+    /// Evaluate a bridge [`Term`] under built-in definitions.
+    pub fn evaluate_term(&self, expr: &Term) -> Term {
+        crate::eval::evaluate(expr)
+    }
+
+    /// Differentiate then evaluate.
+    pub fn differentiate_term(&self, expr: &Term, var: &str) -> Term {
+        crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
+    }
+
+    /// Simplify via `Simplify` head.
+    pub fn simplify_term(&self, expr: &Term) -> Term {
+        self.evaluate_term(&Term::app("Simplify", vec![expr.clone()]))
+    }
+
+    /// Arena/`()` stub evaluate — retained until IR path lands.
+    pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
         Err(Diagnostic::error(
             DiagnosticCode::UnsupportedOperation,
             "evaluate not yet implemented",
