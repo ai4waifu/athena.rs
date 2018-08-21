@@ -20,6 +20,10 @@ pub struct OperatorId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DomainId(pub u32);
 
+/// 假设集合 id（Session / 请求附着）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AssumptionSetId(pub u32);
+
 /// 源码位置（字节偏移）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SourceSpan {

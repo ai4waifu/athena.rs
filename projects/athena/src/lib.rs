@@ -11,8 +11,11 @@
 #![deny(missing_docs)]
 
 pub use athena_engine::{
-    AthenaEngine, Atom, AtomKind, Diagnostic, DiagnosticCode, DomainId, ExactNumber, EvalOptions, NodeId, Number,
-    NumericDomain, OperatorId, Precision, RealNumber, Result, RewriteOptions, RewriteResult, Rewriter,
-    RoundingMode, SerializationVersion, Session, Severity, SimplifyOptions, SourceSpan, SymbolId, SymbolTable,
-    Term, TermArena, TermBuilder, TermId, TermKind, canonical_hash, differentiate_term, evaluate, number_from_term,
+    AssumptionSet, AssumptionSetId, AthenaEngine, Atom, AtomKind, CalculusRequest, CalculusResult, Condition,
+    ConditionalResult, DerivativeOrder, Diagnostic, DiagnosticCode, DomainId, DomainRequest, ExactNumber, EvalOptions,
+    LimitApproach, LimitDirection, NodeId, Number, NumericDomain, OperatorId, Precision, Predicate, RealNumber, Result,
+    RewriteOptions, RewriteResult, Rewriter, RoundingMode, SerializationVersion, Session, Severity, SimplifyOptions,
+    SourceSpan, SymbolId, SymbolTable, Term, TermArena, TermBuilder, TermId, TermKind, canonical_hash, differentiate,
+    differentiate_checked, differentiate_term, evaluate, execute_calculus, execute_domain, integrate, integrate_checked,
+    limit_checked, number_from_term,
 };

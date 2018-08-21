@@ -1,12 +1,11 @@
-//! Differentiation and integration on bridge [`Term`].
+//! Differentiation on bridge [`Term`].
 
-use num_bigint::BigInt;
-use num_traits::Zero;
-
-use athena_types::{Number, RealNumber};
+use athena_types::{AssumptionSet, Predicate};
 
 use crate::eval::evaluate;
 use crate::term::{Atom, Term, number_from_term};
+
+use super::result::{ConditionalResult, unresolved};
 
 /// Symbolic differentiation on `Term`.
 pub fn differentiate(expr: &Term, var: &str) -> Term {
@@ -40,8 +39,9 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                                 differentiate(base, var),
                             ],
                         ))
-                    }
-                    else if let Some(Number::Real(RealNumber::Machine(nf))) = number_from_term(exp).cloned() {
+                    } else if let Some(athena_types::Number::Real(athena_types::RealNumber::Machine(nf))) =
+                        number_from_term(exp).cloned()
+                    {
                         evaluate(&Term::app(
                             "Times",
                             vec![
@@ -50,8 +50,7 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                                 differentiate(base, var),
                             ],
                         ))
-                    }
-                    else {
+                    } else {
                         Term::app("D", vec![expr.clone(), Term::symbol(var)])
                     }
                 }
@@ -76,6 +75,14 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                     "Times",
                     vec![Term::app("Power", vec![args[0].clone(), Term::int(-1)]), differentiate(&args[0], var)],
                 )),
+                "Abs" if args.len() == 1 => {
+                    // Unconditional Abs' is not emitted; callers use [`differentiate_checked`].
+                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
+                }
+                "Sqrt" if args.len() == 1 => {
+                    // √u ' = u' / (2 √u); domain conditions live in [`differentiate_checked`].
+                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
+                }
                 "Subtract" if args.len() == 2 => evaluate(&Term::app(
                     "Plus",
                     vec![differentiate(&args[0], var), Term::app("Times", vec![Term::int(-1), differentiate(&args[1], var)])],
@@ -103,52 +110,62 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
     }
 }
 
-/// Symbolic integration on `Term` (polynomial / elementary subset).
-pub fn integrate(expr: &Term, var: &str) -> Term {
-    match expr {
-        Term::Atom(Atom::Number(n)) => Term::app("Times", vec![Term::number(n.clone()), Term::symbol(var)]),
-        Term::Atom(Atom::String(_)) => Term::app("Integrate", vec![expr.clone(), Term::symbol(var)]),
-        Term::Atom(Atom::Symbol(s)) if s == var => evaluate(&Term::app("Divide", vec![
-            Term::app("Power", vec![Term::symbol(var), Term::int(2)]),
-            Term::int(2),
-        ])),
-        Term::Atom(Atom::Symbol(_)) => Term::app("Times", vec![expr.clone(), Term::symbol(var)]),
-        Term::List(items) => Term::List(items.iter().map(|i| integrate(i, var)).collect()),
-        Term::App { head, args } => {
-            let h = head.head_name().unwrap_or("");
-            match h {
-                "Plus" => evaluate(&Term::app("Plus", args.iter().map(|a| integrate(a, var)).collect())),
-                "Times" if args.len() == 2 => {
-                    let (coeff, rest) = if number_from_term(&args[0]).is_some() {
-                        (&args[0], &args[1])
-                    }
-                    else if number_from_term(&args[1]).is_some() {
-                        (&args[1], &args[0])
-                    }
-                    else {
-                        return Term::app("Integrate", vec![expr.clone(), Term::symbol(var)]);
-                    };
-                    evaluate(&Term::app("Times", vec![coeff.clone(), integrate(rest, var)]))
-                }
-                "Power" if args.len() == 2 && args[0].is_symbol(var) => {
-                    if let Some(n) = number_from_term(&args[1]).and_then(|e| e.as_integer_exp()) {
-                        if (n.clone() + 1) != BigInt::zero() {
-                            return evaluate(&Term::app("Divide", vec![
-                                Term::app("Power", vec![args[0].clone(), Term::integer(n.clone() + 1i64)]),
-                                Term::integer(n + 1i64),
-                            ]));
-                        }
-                    }
-                    Term::app("Integrate", vec![expr.clone(), Term::symbol(var)])
-                }
-                "Sin" if args.len() == 1 && args[0].is_symbol(var) => {
-                    evaluate(&Term::app("Times", vec![Term::int(-1), Term::app("Cos", args.clone())]))
-                }
-                "Cos" if args.len() == 1 && args[0].is_symbol(var) => Term::app("Sin", args.clone()),
-                "Exp" if args.len() == 1 && args[0].is_symbol(var) => Term::app("Exp", args.clone()),
-                _ => Term::app("Integrate", vec![expr.clone(), Term::symbol(var)]),
+/// Differentiate under assumptions, returning conditions instead of a bare term.
+pub fn differentiate_checked(
+    expr: &Term,
+    var: &str,
+    assumptions: &AssumptionSet,
+) -> ConditionalResult<Term> {
+    if let Term::App { head, args } = expr {
+        if head.is_symbol("Abs") && args.len() == 1 {
+            let inner = &args[0];
+            let candidate = evaluate(&Term::app(
+                "Times",
+                vec![
+                    Term::app("Abs", vec![inner.clone()]),
+                    Term::app("Power", vec![inner.clone(), Term::int(-1)]),
+                    differentiate(inner, var),
+                ],
+            ));
+            let needs_nonzero = !assumptions
+                .predicates
+                .iter()
+                .any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
+            if needs_nonzero {
+                // TermId(0) is a bridge placeholder until Abs-arg binding lands.
+                return ConditionalResult::with_unresolved(
+                    candidate,
+                    vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))],
+                );
             }
+            return ConditionalResult::exact(candidate);
+        }
+        if head.is_symbol("Sqrt") && args.len() == 1 {
+            let inner = &args[0];
+            let candidate = evaluate(&Term::app(
+                "Times",
+                vec![
+                    Term::app(
+                        "Power",
+                        vec![
+                            Term::app("Times", vec![Term::int(2), Term::app("Sqrt", vec![inner.clone()])]),
+                            Term::int(-1),
+                        ],
+                    ),
+                    differentiate(inner, var),
+                ],
+            ));
+            let needs_nonneg = !assumptions.predicates.iter().any(|p| {
+                matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_))
+            });
+            if needs_nonneg {
+                return ConditionalResult::with_unresolved(
+                    candidate,
+                    vec![unresolved(Predicate::NonNegative(athena_types::TermId(0)))],
+                );
+            }
+            return ConditionalResult::exact(candidate);
         }
     }
+    ConditionalResult::exact(evaluate(&differentiate(expr, var)))
 }
-

@@ -2,12 +2,16 @@
 
 #![deny(missing_docs)]
 
+mod assumption;
 mod diagnostic;
 mod ids;
 mod number;
 
+pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Result, Severity};
-pub use ids::{DomainId, NodeId, OperatorId, SerializationVersion, SourceSpan, SymbolId, TermId};
+pub use ids::{
+    AssumptionSetId, DomainId, NodeId, OperatorId, SerializationVersion, SourceSpan, SymbolId, TermId,
+};
 pub use number::{ExactNumber, Number, RealNumber, normalize_rational};
 
 /// Numeric scalar domain identifier (wire-stable).

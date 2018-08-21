@@ -25,8 +25,13 @@ mod engine;
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
-    Diagnostic, DiagnosticCode, DomainId, ExactNumber, NodeId, Number, NumericDomain, OperatorId, Precision,
-    RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
+    AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DomainId, ExactNumber, NodeId, Number,
+    NumericDomain, OperatorId, Precision, Predicate, RealNumber, Result, RoundingMode, SerializationVersion, Severity,
+    SourceSpan, SymbolId, TermId,
+};
+pub use calculus::{
+    CalculusRequest, CalculusResult, ConditionalResult, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection,
+    differentiate, differentiate_checked, execute_calculus, execute_domain, integrate, integrate_checked, limit_checked,
 };
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::{evaluate, differentiate as differentiate_term};

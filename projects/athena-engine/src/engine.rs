@@ -2,6 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
+use crate::calculus::{CalculusResult, DomainRequest, execute_domain as dispatch_domain};
 use crate::term::Term;
 
 /// Evaluation options (placeholder; expands with modes/session).
@@ -27,9 +28,14 @@ impl AthenaEngine {
         crate::eval::evaluate(expr)
     }
 
-    /// Differentiate then evaluate.
+    /// Differentiate then evaluate (legacy bridge; prefer [`Self::execute_domain`]).
     pub fn differentiate_term(&self, expr: &Term, var: &str) -> Term {
         crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
+    }
+
+    /// Domain dispatch — calculus returns [`CalculusResult`], not a bare term.
+    pub fn execute_domain(&self, request: DomainRequest) -> Result<CalculusResult<Term>> {
+        dispatch_domain(request)
     }
 
     /// Simplify via `Simplify` head.
