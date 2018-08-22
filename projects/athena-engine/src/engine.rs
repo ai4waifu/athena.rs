@@ -2,7 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::calculus::{CalculusResult, DomainRequest, execute_domain as dispatch_domain};
+use crate::calculus::{CalculusResult, CalculusValue, DomainRequest, execute_domain as dispatch_domain};
 use crate::term::Term;
 
 /// Evaluation options (placeholder; expands with modes/session).
@@ -34,7 +34,7 @@ impl AthenaEngine {
     }
 
     /// Domain dispatch — calculus returns [`CalculusResult`], not a bare term.
-    pub fn execute_domain(&self, request: DomainRequest) -> Result<CalculusResult<Term>> {
+    pub fn execute_domain(&self, request: DomainRequest) -> Result<CalculusResult<CalculusValue>> {
         dispatch_domain(request)
     }
 

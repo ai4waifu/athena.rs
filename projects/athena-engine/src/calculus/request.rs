@@ -78,6 +78,19 @@ pub enum CalculusRequest {
         /// Assumptions.
         assumptions: AssumptionSet,
     },
+    /// Taylor / power series about a center.
+    Series {
+        /// Expression.
+        expression: Term,
+        /// Expansion variable.
+        variable: String,
+        /// Center (already decoded).
+        center: Term,
+        /// Max power included.
+        order: u32,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
 }
 
 /// Top-level domain request enum (calculus first; other domains extend later).

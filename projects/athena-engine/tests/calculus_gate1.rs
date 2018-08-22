@@ -1,10 +1,10 @@
-//! Gate 1 calculus: ConditionalResult, DomainRequest, Abs assumptions.
+//! Gate 1+ calculus: ConditionalResult, DomainRequest, Abs/Sqrt, limit, series.
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
 use athena_engine::{
-    AthenaEngine, CalculusRequest, CalculusResult, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection,
-    Term, differentiate_checked, integrate_checked,
+    AthenaEngine, CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder, DomainRequest, LimitApproach,
+    LimitDirection, Remainder, Term, differentiate_checked, integrate_checked,
 };
 
 #[test]
@@ -18,11 +18,14 @@ fn derivative_power_via_domain() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact { value, .. } => {
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => {
             let text = format!("{value:?}");
             assert!(text.contains("x") || text.contains("3"), "got {text}");
         }
-        other => panic!("expected Exact, got {other:?}"),
+        other => panic!("expected Exact expression, got {other:?}"),
     }
 }
 
@@ -37,12 +40,14 @@ fn repeated_derivative() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact { value, .. } => {
-            // d²/dx² x³ = 6x
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => {
             let text = format!("{value:?}");
             assert!(text.contains("x"), "got {text}");
         }
-        other => panic!("expected Exact, got {other:?}"),
+        other => panic!("expected Exact expression, got {other:?}"),
     }
 }
 
@@ -98,7 +103,10 @@ fn limit_finite_polynomial() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact { value, .. } => assert_eq!(value, Term::int(5)),
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => assert_eq!(value, Term::int(5)),
         other => panic!("expected Exact 5, got {other:?}"),
     }
 }
@@ -130,4 +138,34 @@ fn sqrt_derivative_requires_assumption() {
     let with = AssumptionSet::from_predicates(vec![Predicate::NonNegative(TermId(0))]);
     let checked = differentiate_checked(&expr, "x", &with);
     assert!(checked.unresolved.is_empty());
+}
+
+#[test]
+fn taylor_polynomial_exact() {
+    let engine = AthenaEngine::new();
+    let req = DomainRequest::Calculus(CalculusRequest::Series {
+        expression: Term::app(
+            "Plus",
+            vec![
+                Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
+                Term::int(1),
+            ],
+        ),
+        variable: "x".into(),
+        center: Term::int(0),
+        order: 3,
+        assumptions: AssumptionSet::empty(),
+    });
+    let out = engine.execute_domain(req).expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Series(series),
+            ..
+        } => {
+            assert_eq!(series.remainder, Remainder::ExactTruncation);
+            let t = format!("{:?}", series.to_term());
+            assert!(t.contains('1') && t.contains('x'), "got {t}");
+        }
+        other => panic!("expected Exact Series, got {other:?}"),
+    }
 }

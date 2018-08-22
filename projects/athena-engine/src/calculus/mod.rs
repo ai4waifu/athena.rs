@@ -1,4 +1,4 @@
-//! Higher mathematics — derivative, integral, limit scaffolding.
+//! Higher mathematics — derivative, integral, limit, series scaffolding.
 //!
 //! Results are [`CalculusResult`] / [`ConditionalResult`], not bare unconditional terms.
 //! Source-text parse is forbidden here; hosts pass already-decoded [`Term`] values.
@@ -8,20 +8,23 @@ mod integral;
 mod limit;
 mod request;
 mod result;
+mod series;
+mod value;
 
 pub use derivative::{differentiate, differentiate_checked};
 pub use integral::{integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
+pub use series::{Remainder, Series, taylor};
+pub use value::{CalculusValue, map_series_result, map_term_result};
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::eval::evaluate;
-use crate::term::Term;
 
 /// Dispatch a calculus domain request to the appropriate submodule.
-pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<Term> {
+pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValue> {
     match request {
         CalculusRequest::Derivative {
             expression,
@@ -35,7 +38,7 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<Term> {
             };
             if times == 0 {
                 return CalculusResult::Exact {
-                    value: expression,
+                    value: CalculusValue::Expression(expression),
                     conditions: Vec::new(),
                 };
             }
@@ -46,29 +49,42 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<Term> {
                 last = differentiate_checked(&value, &variable, &assumptions);
                 value = evaluate(&last.value);
             }
-            CalculusResult::from_conditional(ConditionalResult {
+            map_term_result(CalculusResult::from_conditional(ConditionalResult {
                 value,
                 conditions: last.conditions,
                 unresolved: last.unresolved,
-            })
+            }))
         }
         CalculusRequest::Integral {
             expression,
             variable,
             assumptions: _,
-        } => integrate_checked(&expression, &variable),
+        } => map_term_result(integrate_checked(&expression, &variable)),
         CalculusRequest::Limit {
             expression,
             variable,
             approach,
             direction,
             assumptions,
-        } => limit_checked(&expression, &variable, &approach, direction, &assumptions),
+        } => map_term_result(limit_checked(
+            &expression,
+            &variable,
+            &approach,
+            direction,
+            &assumptions,
+        )),
+        CalculusRequest::Series {
+            expression,
+            variable,
+            center,
+            order,
+            assumptions: _,
+        } => map_series_result(taylor(&expression, &variable, &center, order)),
     }
 }
 
 /// Dispatch a top-level [`DomainRequest`].
-pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<Term>, Diagnostic> {
+pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<CalculusValue>, Diagnostic> {
     match request {
         DomainRequest::Calculus(req) => Ok(execute_calculus(req)),
     }
@@ -77,5 +93,8 @@ pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<Term>, Di
 /// Convenience error when a domain is not yet wired.
 #[allow(dead_code)]
 fn domain_unsupported(name: &str) -> Diagnostic {
-    Diagnostic::error(DiagnosticCode::UnsupportedOperation, format!("domain `{name}` not implemented"))
+    Diagnostic::error(
+        DiagnosticCode::UnsupportedOperation,
+        format!("domain `{name}` not implemented"),
+    )
 }
