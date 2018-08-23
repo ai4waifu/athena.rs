@@ -16,6 +16,6 @@ pub use athena_engine::{
     EvalOptions, LimitApproach, LimitDirection, NodeId, Number, NumericDomain, OperatorId, Precision, Predicate,
     RealNumber, Remainder, Result, RewriteOptions, RewriteResult, Rewriter, RoundingMode, SerializationVersion, Series,
     Session, Severity, SimplifyOptions, SourceSpan, SymbolId, SymbolTable, Term, TermArena, TermBuilder, TermId,
-    TermKind, canonical_hash, differentiate, differentiate_checked, differentiate_term, evaluate, execute_calculus,
-    execute_domain, integrate, integrate_checked, limit_checked, number_from_term, taylor,
+    TermKind, canonical_hash, definite_integrate_checked, differentiate, differentiate_checked, differentiate_term,
+    evaluate, execute_calculus, execute_domain, integrate, integrate_checked, limit_checked, number_from_term, taylor,
 };

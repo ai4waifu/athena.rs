@@ -78,6 +78,19 @@ pub enum CalculusRequest {
         /// Assumptions.
         assumptions: AssumptionSet,
     },
+    /// Definite integral on a finite interval.
+    DefiniteIntegral {
+        /// Expression.
+        expression: Term,
+        /// Integration variable.
+        variable: String,
+        /// Lower bound (already decoded).
+        lower: Term,
+        /// Upper bound (already decoded).
+        upper: Term,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
     /// Taylor / power series about a center.
     Series {
         /// Expression.

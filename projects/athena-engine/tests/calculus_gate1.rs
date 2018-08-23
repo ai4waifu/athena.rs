@@ -169,3 +169,129 @@ fn taylor_polynomial_exact() {
         other => panic!("expected Exact Series, got {other:?}"),
     }
 }
+
+#[test]
+fn limit_poly_at_infinity() {
+    let engine = AthenaEngine::new();
+    let req = DomainRequest::Calculus(CalculusRequest::Limit {
+        expression: Term::app(
+            "Plus",
+            vec![
+                Term::app("Times", vec![Term::int(-2), Term::symbol("x")]),
+                Term::int(5),
+            ],
+        ),
+        variable: "x".into(),
+        approach: LimitApproach::PositiveInfinity,
+        direction: LimitDirection::TwoSided,
+        assumptions: AssumptionSet::empty(),
+    });
+    let out = engine.execute_domain(req).expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => {
+            assert_eq!(
+                value,
+                Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+            );
+        }
+        other => panic!("expected -Infinity, got {other:?}"),
+    }
+}
+
+#[test]
+fn onesided_simple_pole() {
+    let engine = AthenaEngine::new();
+    let expr = Term::app("Divide", vec![Term::int(1), Term::symbol("x")]);
+    let above = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
+            expression: expr.clone(),
+            variable: "x".into(),
+            approach: LimitApproach::Finite(Term::int(0)),
+            direction: LimitDirection::FromAbove,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match above {
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => assert_eq!(value, Term::symbol("Infinity")),
+        other => panic!("expected +Infinity, got {other:?}"),
+    }
+    let below = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
+            expression: expr,
+            variable: "x".into(),
+            approach: LimitApproach::Finite(Term::int(0)),
+            direction: LimitDirection::FromBelow,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match below {
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => assert_eq!(
+            value,
+            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+        ),
+        other => panic!("expected -Infinity, got {other:?}"),
+    }
+}
+
+#[test]
+fn definite_integral_power() {
+    let engine = AthenaEngine::new();
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::DefiniteIntegral {
+            expression: Term::symbol("x"),
+            variable: "x".into(),
+            lower: Term::int(0),
+            upper: Term::int(2),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Expression(value),
+            ..
+        } => assert_eq!(value, Term::int(2)),
+        other => panic!("expected Exact 2, got {other:?}"),
+    }
+}
+
+#[test]
+fn taylor_nonzero_center() {
+    let engine = AthenaEngine::new();
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Series {
+            expression: Term::app(
+                "Power",
+                vec![
+                    Term::app(
+                        "Plus",
+                        vec![Term::symbol("x"), Term::app("Times", vec![Term::int(-1), Term::int(1)])],
+                    ),
+                    Term::int(2),
+                ],
+            ),
+            variable: "x".into(),
+            center: Term::int(1),
+            order: 3,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Series(series),
+            ..
+        } => {
+            assert_eq!(series.remainder, Remainder::ExactTruncation);
+            assert_eq!(series.center, Term::int(1));
+        }
+        other => panic!("expected Exact Series, got {other:?}"),
+    }
+}

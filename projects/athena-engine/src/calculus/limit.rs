@@ -1,12 +1,13 @@
-//! Limit evaluation — finite substitution first; ∞ / sides later.
+//! Limit evaluation — finite substitution, one-sided poles, polynomial ∞.
 
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
 use crate::eval::evaluate;
-use crate::term::{Atom, Term, number_from_term};
+use crate::term::{Term, number_from_term};
 
 use super::request::{LimitApproach, LimitDirection};
 use super::result::CalculusResult;
+use super::term_util::{contains_symbol, replace_symbol};
 
 /// Attempt a limit under assumptions.
 pub fn limit_checked(
@@ -17,54 +18,271 @@ pub fn limit_checked(
     _assumptions: &AssumptionSet,
 ) -> CalculusResult<Term> {
     match approach {
-        LimitApproach::Finite(point) if direction == LimitDirection::TwoSided => {
-            limit_finite_twosided(expression, variable, point)
-        }
-        _ => unevaluated_limit(expression, variable, approach, direction, "limit approach not implemented yet"),
+        LimitApproach::Finite(point) => limit_finite(expression, variable, point, direction),
+        LimitApproach::PositiveInfinity => limit_infinity(expression, variable, true),
+        LimitApproach::NegativeInfinity => limit_infinity(expression, variable, false),
     }
 }
 
-fn limit_finite_twosided(expression: &Term, variable: &str, point: &Term) -> CalculusResult<Term> {
+fn limit_finite(
+    expression: &Term,
+    variable: &str,
+    point: &Term,
+    direction: LimitDirection,
+) -> CalculusResult<Term> {
     let substituted = replace_symbol(expression, variable, point);
     let value = evaluate(&substituted);
-    if contains_symbol(&value, variable) {
-        return unevaluated_limit(
-            expression,
-            variable,
-            &LimitApproach::Finite(point.clone()),
-            LimitDirection::TwoSided,
-            "limit still depends on the variable after substitution",
-        );
-    }
+
     if is_indeterminate_form(&value) {
         return CalculusResult::Unevaluated {
-            expression: Term::app(
-                "Limit",
-                vec![
-                    expression.clone(),
-                    Term::List(vec![Term::symbol(variable), point.clone()]),
-                ],
-            ),
+            expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
             reason: Diagnostic::error(
                 DiagnosticCode::LimitDoesNotExist,
                 "indeterminate form after direct substitution",
             ),
         };
     }
-    // Residual Limit / unevaluated specials → not closed.
-    if matches!(&value, Term::App { head, .. } if head.is_symbol("Limit") || head.is_symbol("Indeterminate")) {
-        return unevaluated_limit(
-            expression,
-            variable,
-            &LimitApproach::Finite(point.clone()),
-            LimitDirection::TwoSided,
-            "limit did not reduce to a closed value",
-        );
+
+    if is_singular_form(&value) {
+        if direction != LimitDirection::TwoSided {
+            if let Some(v) = try_onesided_simple_pole(expression, variable, point, direction) {
+                return CalculusResult::Exact {
+                    value: v,
+                    conditions: Vec::new(),
+                };
+            }
+        }
+        return CalculusResult::Unevaluated {
+            expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
+            reason: Diagnostic::error(
+                DiagnosticCode::LimitDoesNotExist,
+                "singular form after direct substitution",
+            ),
+        };
     }
-    CalculusResult::Exact {
-        value,
-        conditions: Vec::new(),
+
+    if !contains_symbol(&value, variable) && !is_open_limit_head(&value) {
+        return CalculusResult::Exact {
+            value,
+            conditions: Vec::new(),
+        };
     }
+
+    if direction != LimitDirection::TwoSided {
+        if let Some(v) = try_onesided_simple_pole(expression, variable, point, direction) {
+            return CalculusResult::Exact {
+                value: v,
+                conditions: Vec::new(),
+            };
+        }
+    }
+
+    unevaluated_limit(
+        expression,
+        variable,
+        &LimitApproach::Finite(point.clone()),
+        direction,
+        "limit did not reduce to a closed value",
+    )
+}
+
+/// Simple poles `c / (x - a)` (and `c / x`) from one side.
+fn try_onesided_simple_pole(
+    expression: &Term,
+    variable: &str,
+    point: &Term,
+    direction: LimitDirection,
+) -> Option<Term> {
+    let (num, den) = match expression {
+        Term::App { head, args } if head.is_symbol("Divide") && args.len() == 2 => {
+            (args[0].clone(), args[1].clone())
+        }
+        Term::App { head, args } if head.is_symbol("Power") && args.len() == 2 => {
+            if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some((-1).into())) {
+                (Term::int(1), args[0].clone())
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    let num_at = evaluate(&replace_symbol(&num, variable, point));
+    let den_at = evaluate(&replace_symbol(&den, variable, point));
+    let num_n = number_from_term(&num_at)?;
+    let den_n = number_from_term(&den_at)?;
+    if den_n.is_zero() && !num_n.is_zero() {
+        // Probe den at point ± ε (ε = 1) to read the side sign.
+        let eps = Term::int(1);
+        let probe = match direction {
+            LimitDirection::FromAbove => evaluate(&Term::app("Plus", vec![point.clone(), eps])),
+            LimitDirection::FromBelow => {
+                evaluate(&Term::app("Plus", vec![point.clone(), Term::app("Times", vec![Term::int(-1), eps])]))
+            }
+            LimitDirection::TwoSided => return None,
+        };
+        let den_side = evaluate(&replace_symbol(&den, variable, &probe));
+        let den_side_n = number_from_term(&den_side)?;
+        let sign_den = den_side_n.compare(&Number::small_int(0))?;
+        let sign_num = num_n.compare(&Number::small_int(0))?;
+        use std::cmp::Ordering::*;
+        let positive = match (sign_num, sign_den) {
+            (Greater, Greater) | (Less, Less) => true,
+            (Greater, Less) | (Less, Greater) => false,
+            _ => return None,
+        };
+        return Some(if positive {
+            Term::symbol("Infinity")
+        } else {
+            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+        });
+    }
+    None
+}
+
+fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> CalculusResult<Term> {
+    if let Some((degree, leading)) = polynomial_degree_leading(expression, variable) {
+        if degree == 0 {
+            return CalculusResult::Exact {
+                value: Term::number(leading),
+                conditions: Vec::new(),
+            };
+        }
+        if degree < 0 {
+            return CalculusResult::Exact {
+                value: Term::int(0),
+                conditions: Vec::new(),
+            };
+        }
+        // degree > 0: ± → ± * leading, with (-∞)^degree for negative approach.
+        let mut sign_positive = leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
+        if leading.is_zero() {
+            return unevaluated_limit(
+                expression,
+                variable,
+                if positive {
+                    &LimitApproach::PositiveInfinity
+                } else {
+                    &LimitApproach::NegativeInfinity
+                },
+                LimitDirection::TwoSided,
+                "leading coefficient is zero after poly analysis",
+            );
+        }
+        if leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
+            sign_positive = false;
+        }
+        if !positive && degree % 2 == 1 {
+            sign_positive = !sign_positive;
+        }
+        let value = if sign_positive {
+            Term::symbol("Infinity")
+        } else {
+            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+        };
+        return CalculusResult::Exact {
+            value,
+            conditions: Vec::new(),
+        };
+    }
+    unevaluated_limit(
+        expression,
+        variable,
+        if positive {
+            &LimitApproach::PositiveInfinity
+        } else {
+            &LimitApproach::NegativeInfinity
+        },
+        LimitDirection::TwoSided,
+        "infinity limit requires a polynomial subset",
+    )
+}
+
+/// Degree and leading coefficient for a restricted polynomial language.
+fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
+    match expr {
+        Term::Atom(_) if number_from_term(expr).is_some() => {
+            Some((0, number_from_term(expr)?.clone()))
+        }
+        Term::Atom(_) if expr.is_symbol(var) => Some((1, Number::small_int(1))),
+        Term::Atom(_) => None,
+        Term::App { head, args } => {
+            let h = head.head_name()?;
+            match h {
+                "Plus" => {
+                    let mut best: Option<(i64, Number)> = None;
+                    for a in args {
+                        let (d, c) = polynomial_degree_leading(a, var)?;
+                        best = match best {
+                            None => Some((d, c)),
+                            Some((bd, _bc)) if d > bd => Some((d, c)),
+                            Some((bd, bc)) if d == bd => Some((bd, bc.add(c).ok()?)),
+                            Some(b) => Some(b),
+                        };
+                    }
+                    best
+                }
+                "Times" => {
+                    let mut deg = 0i64;
+                    let mut coeff = Number::small_int(1);
+                    for a in args {
+                        let (d, c) = polynomial_degree_leading(a, var)?;
+                        deg += d;
+                        coeff = coeff.mul(c).ok()?;
+                    }
+                    Some((deg, coeff))
+                }
+                "Power" if args.len() == 2 && args[0].is_symbol(var) => {
+                    let n = number_from_term(&args[1])?.as_integer_exp()?;
+                    let n_i64 = i64::try_from(&n).ok()?;
+                    Some((n_i64, Number::small_int(1)))
+                }
+                "Subtract" if args.len() == 2 => polynomial_degree_leading(
+                    &Term::app(
+                        "Plus",
+                        vec![
+                            args[0].clone(),
+                            Term::app("Times", vec![Term::int(-1), args[1].clone()]),
+                        ],
+                    ),
+                    var,
+                ),
+                _ => None,
+            }
+        }
+        Term::List(_) => None,
+    }
+}
+
+fn is_open_limit_head(expr: &Term) -> bool {
+    matches!(expr, Term::App { head, .. } if head.is_symbol("Limit") || head.is_symbol("Indeterminate"))
+}
+
+fn limit_form(
+    expression: &Term,
+    variable: &str,
+    approach: &LimitApproach,
+    direction: LimitDirection,
+) -> Term {
+    let approach_term = match approach {
+        LimitApproach::Finite(t) => t.clone(),
+        LimitApproach::PositiveInfinity => Term::symbol("Infinity"),
+        LimitApproach::NegativeInfinity => {
+            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+        }
+    };
+    let mut args = vec![
+        expression.clone(),
+        Term::List(vec![Term::symbol(variable), approach_term]),
+    ];
+    if direction != LimitDirection::TwoSided {
+        args.push(Term::symbol(match direction {
+            LimitDirection::FromBelow => "FromBelow",
+            LimitDirection::FromAbove => "FromAbove",
+            LimitDirection::TwoSided => unreachable!(),
+        }));
+    }
+    Term::app("Limit", args)
 }
 
 fn unevaluated_limit(
@@ -74,54 +292,34 @@ fn unevaluated_limit(
     direction: LimitDirection,
     detail: &str,
 ) -> CalculusResult<Term> {
-    let approach_term = match approach {
-        LimitApproach::Finite(t) => t.clone(),
-        LimitApproach::PositiveInfinity => Term::symbol("Infinity"),
-        LimitApproach::NegativeInfinity => Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")]),
-    };
-    let mut args = vec![expression.clone(), Term::List(vec![Term::symbol(variable), approach_term])];
-    if direction != LimitDirection::TwoSided {
-        args.push(Term::symbol(match direction {
-            LimitDirection::FromBelow => "FromBelow",
-            LimitDirection::FromAbove => "FromAbove",
-            LimitDirection::TwoSided => unreachable!(),
-        }));
-    }
     CalculusResult::Unevaluated {
-        expression: Term::app("Limit", args),
+        expression: limit_form(expression, variable, approach, direction),
         reason: Diagnostic::error(DiagnosticCode::UnsupportedOperation, detail),
     }
 }
 
-fn replace_symbol(expr: &Term, var: &str, with: &Term) -> Term {
-    match expr {
-        Term::Atom(Atom::Symbol(s)) if s == var => with.clone(),
-        Term::Atom(_) => expr.clone(),
-        Term::List(items) => Term::List(items.iter().map(|i| replace_symbol(i, var, with)).collect()),
-        Term::App { head, args } => Term::App {
-            head: Box::new(replace_symbol(head, var, with)),
-            args: args.iter().map(|a| replace_symbol(a, var, with)).collect(),
-        },
-    }
-}
-
-fn contains_symbol(expr: &Term, var: &str) -> bool {
-    match expr {
-        Term::Atom(Atom::Symbol(s)) => s == var,
-        Term::Atom(_) => false,
-        Term::List(items) => items.iter().any(|i| contains_symbol(i, var)),
-        Term::App { head, args } => contains_symbol(head, var) || args.iter().any(|a| contains_symbol(a, var)),
-    }
-}
-
 fn is_indeterminate_form(expr: &Term) -> bool {
-    // Direct 0/0 after eval often remains as Divide/Power with zeros.
     match expr {
         Term::App { head, args } if head.is_symbol("Divide") && args.len() == 2 => {
             number_from_term(&args[0]).is_some_and(|n| n.is_zero())
                 && number_from_term(&args[1]).is_some_and(|n| n.is_zero())
         }
-        Term::App { head, args } if head.is_symbol("Indeterminate") => true,
+        Term::App { head, .. } if head.is_symbol("Indeterminate") => true,
+        _ => false,
+    }
+}
+
+/// Non-indeterminate singularity such as `c/0` or `0^negative`.
+fn is_singular_form(expr: &Term) -> bool {
+    match expr {
+        Term::App { head, args } if head.is_symbol("Divide") && args.len() == 2 => {
+            number_from_term(&args[1]).is_some_and(|n| n.is_zero())
+                && number_from_term(&args[0]).is_some_and(|n| !n.is_zero())
+        }
+        Term::App { head, args } if head.is_symbol("Power") && args.len() == 2 => {
+            number_from_term(&args[0]).is_some_and(|n| n.is_zero())
+                && number_from_term(&args[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0.into())
+        }
         _ => false,
     }
 }

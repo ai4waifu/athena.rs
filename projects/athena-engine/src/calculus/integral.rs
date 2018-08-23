@@ -1,12 +1,15 @@
-//! Indefinite integration on bridge [`Term`] (elementary subset).
+//! Indefinite and definite integration on bridge [`Term`] (elementary subset).
 
 use num_bigint::BigInt;
 use num_traits::Zero;
+
+use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::eval::evaluate;
 use crate::term::{Atom, Term, number_from_term};
 
 use super::result::CalculusResult;
+use super::term_util::{contains_symbol, replace_symbol};
 
 /// Symbolic integration on `Term` (polynomial / elementary subset).
 pub fn integrate(expr: &Term, var: &str) -> Term {
@@ -67,8 +70,8 @@ pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
     if matches!(&value, Term::App { head, .. } if head.is_symbol("Integrate")) {
         CalculusResult::Unevaluated {
             expression: value,
-            reason: athena_types::Diagnostic::error(
-                athena_types::DiagnosticCode::IntegralNotElementary,
+            reason: Diagnostic::error(
+                DiagnosticCode::IntegralNotElementary,
                 "no elementary antiderivative in current subset",
             ),
         }
@@ -77,5 +80,65 @@ pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
             value,
             conditions: Vec::new(),
         }
+    }
+}
+
+/// Definite integral via antiderivative evaluation `F(upper) - F(lower)`.
+pub fn definite_integrate_checked(
+    expr: &Term,
+    var: &str,
+    lower: &Term,
+    upper: &Term,
+) -> CalculusResult<Term> {
+    match integrate_checked(expr, var) {
+        CalculusResult::Exact {
+            value: antideriv,
+            conditions,
+        } => {
+            let at_upper = evaluate(&replace_symbol(&antideriv, var, upper));
+            let at_lower = evaluate(&replace_symbol(&antideriv, var, lower));
+            if contains_symbol(&at_upper, var) || contains_symbol(&at_lower, var) {
+                return CalculusResult::Unevaluated {
+                    expression: Term::app(
+                        "Integrate",
+                        vec![
+                            expr.clone(),
+                            Term::List(vec![Term::symbol(var), lower.clone(), upper.clone()]),
+                        ],
+                    ),
+                    reason: Diagnostic::error(
+                        DiagnosticCode::IntegrationDomainInvalid,
+                        "definite integral bounds left free variables",
+                    ),
+                };
+            }
+            let value = evaluate(&Term::app(
+                "Plus",
+                vec![at_upper, Term::app("Times", vec![Term::int(-1), at_lower])],
+            ));
+            CalculusResult::Exact { value, conditions }
+        }
+        CalculusResult::Conditional {
+            value: antideriv,
+            conditions,
+        } => {
+            let at_upper = evaluate(&replace_symbol(&antideriv, var, upper));
+            let at_lower = evaluate(&replace_symbol(&antideriv, var, lower));
+            let value = evaluate(&Term::app(
+                "Plus",
+                vec![at_upper, Term::app("Times", vec![Term::int(-1), at_lower])],
+            ));
+            CalculusResult::Conditional { value, conditions }
+        }
+        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
+            expression: Term::app(
+                "Integrate",
+                vec![
+                    expr.clone(),
+                    Term::List(vec![Term::symbol(var), lower.clone(), upper.clone()]),
+                ],
+            ),
+            reason,
+        },
     }
 }

@@ -31,8 +31,8 @@ pub use athena_types::{
 };
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, DerivativeOrder, DomainRequest, LimitApproach,
-    LimitDirection, Remainder, Series, differentiate, differentiate_checked, execute_calculus, execute_domain, integrate,
-    integrate_checked, limit_checked, taylor,
+    LimitDirection, Remainder, Series, definite_integrate_checked, differentiate, differentiate_checked,
+    execute_calculus, execute_domain, integrate, integrate_checked, limit_checked, taylor,
 };
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::{evaluate, differentiate as differentiate_term};

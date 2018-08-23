@@ -9,10 +9,11 @@ mod limit;
 mod request;
 mod result;
 mod series;
+mod term_util;
 mod value;
 
 pub use derivative::{differentiate, differentiate_checked};
-pub use integral::{integrate, integrate_checked};
+pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
@@ -60,6 +61,18 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             variable,
             assumptions: _,
         } => map_term_result(integrate_checked(&expression, &variable)),
+        CalculusRequest::DefiniteIntegral {
+            expression,
+            variable,
+            lower,
+            upper,
+            assumptions: _,
+        } => map_term_result(definite_integrate_checked(
+            &expression,
+            &variable,
+            &lower,
+            &upper,
+        )),
         CalculusRequest::Limit {
             expression,
             variable,
