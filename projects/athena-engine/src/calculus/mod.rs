@@ -1,4 +1,4 @@
-//! Higher mathematics — derivative, integral, limit, series scaffolding.
+//! Higher mathematics — derivative, integral, limit, series, vector calculus.
 //!
 //! Results are [`CalculusResult`] / [`ConditionalResult`], not bare unconditional terms.
 //! Source-text parse is forbidden here; hosts pass already-decoded [`Term`] values.
@@ -11,6 +11,7 @@ mod result;
 mod series;
 mod term_util;
 mod value;
+mod vector;
 
 pub use derivative::{differentiate, differentiate_checked};
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};
@@ -18,7 +19,12 @@ pub use limit::limit_checked;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, taylor};
-pub use value::{CalculusValue, map_series_result, map_term_result};
+pub use value::{
+    CalculusValue, map_gradient_result, map_hessian_result, map_jacobian_result, map_series_result, map_term_result,
+};
+pub use vector::{
+    Gradient, Hessian, Jacobian, gradient_checked, hessian_checked, jacobian_checked,
+};
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -93,6 +99,21 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             order,
             assumptions: _,
         } => map_series_result(taylor(&expression, &variable, &center, order)),
+        CalculusRequest::Gradient {
+            expression,
+            variables,
+            assumptions,
+        } => map_gradient_result(gradient_checked(&expression, &variables, &assumptions)),
+        CalculusRequest::Jacobian {
+            expressions,
+            variables,
+            assumptions,
+        } => map_jacobian_result(jacobian_checked(&expressions, &variables, &assumptions)),
+        CalculusRequest::Hessian {
+            expression,
+            variables,
+            assumptions,
+        } => map_hessian_result(hessian_checked(&expression, &variables, &assumptions)),
     }
 }
 

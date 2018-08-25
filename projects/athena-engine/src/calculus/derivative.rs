@@ -2,8 +2,10 @@
 
 use athena_types::{AssumptionSet, Predicate};
 
-use crate::eval::evaluate;
-use crate::term::{Atom, Term, number_from_term};
+use crate::{
+    eval::evaluate,
+    term::{Atom, Term, number_from_term},
+};
 
 use super::result::{ConditionalResult, unresolved};
 
@@ -14,7 +16,7 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
         Term::Atom(Atom::Symbol(s)) if s == var => Term::int(1),
         Term::Atom(Atom::Symbol(_)) => Term::int(0),
         Term::List(items) => Term::List(items.iter().map(|i| differentiate(i, var)).collect()),
-        Term::App { head, args } => {
+        Term::Application { head, arguments: args } => {
             let h = head.head_name().unwrap_or("");
             match h {
                 "Plus" => evaluate(&Term::app("Plus", args.iter().map(|a| differentiate(a, var)).collect())),
@@ -39,7 +41,8 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                                 differentiate(base, var),
                             ],
                         ))
-                    } else if let Some(athena_types::Number::Real(athena_types::RealNumber::Machine(nf))) =
+                    }
+                    else if let Some(athena_types::Number::Real(athena_types::RealNumber::Machine(nf))) =
                         number_from_term(exp).cloned()
                     {
                         evaluate(&Term::app(
@@ -50,7 +53,8 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                                 differentiate(base, var),
                             ],
                         ))
-                    } else {
+                    }
+                    else {
                         Term::app("D", vec![expr.clone(), Term::symbol(var)])
                     }
                 }
@@ -111,12 +115,8 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
 }
 
 /// Differentiate under assumptions, returning conditions instead of a bare term.
-pub fn differentiate_checked(
-    expr: &Term,
-    var: &str,
-    assumptions: &AssumptionSet,
-) -> ConditionalResult<Term> {
-    if let Term::App { head, args } = expr {
+pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet) -> ConditionalResult<Term> {
+    if let Term::Application { head, arguments: args } = expr {
         if head.is_symbol("Abs") && args.len() == 1 {
             let inner = &args[0];
             let candidate = evaluate(&Term::app(
@@ -127,10 +127,8 @@ pub fn differentiate_checked(
                     differentiate(inner, var),
                 ],
             ));
-            let needs_nonzero = !assumptions
-                .predicates
-                .iter()
-                .any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
+            let needs_nonzero =
+                !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
                 // TermId(0) is a bridge placeholder until Abs-arg binding lands.
                 return ConditionalResult::with_unresolved(
@@ -147,17 +145,13 @@ pub fn differentiate_checked(
                 vec![
                     Term::app(
                         "Power",
-                        vec![
-                            Term::app("Times", vec![Term::int(2), Term::app("Sqrt", vec![inner.clone()])]),
-                            Term::int(-1),
-                        ],
+                        vec![Term::app("Times", vec![Term::int(2), Term::app("Sqrt", vec![inner.clone()])]), Term::int(-1)],
                     ),
                     differentiate(inner, var),
                 ],
             ));
-            let needs_nonneg = !assumptions.predicates.iter().any(|p| {
-                matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_))
-            });
+            let needs_nonneg =
+                !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
             if needs_nonneg {
                 return ConditionalResult::with_unresolved(
                     candidate,

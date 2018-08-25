@@ -53,28 +53,33 @@ pub enum CalculusResult<T = Term> {
     },
 }
 
-impl CalculusResult<Term> {
+impl<T> CalculusResult<T> {
     /// Convert a [`ConditionalResult`] into the public enum.
-    pub fn from_conditional(c: ConditionalResult<Term>) -> Self {
+    pub fn from_conditional(c: ConditionalResult<T>) -> Self {
         if c.unresolved.is_empty() && c.conditions.is_empty() {
-            Self::Exact { value: c.value, conditions: Vec::new() }
+            Self::Exact {
+                value: c.value,
+                conditions: Vec::new(),
+            }
         } else if c.unresolved.is_empty() {
-            Self::Conditional { value: c.value, conditions: c.conditions }
+            Self::Conditional {
+                value: c.value,
+                conditions: c.conditions,
+            }
         } else {
             let mut conditions = c.conditions;
             conditions.extend(c.unresolved.iter().cloned());
-            Self::Conditional { value: c.value, conditions }
+            Self::Conditional {
+                value: c.value,
+                conditions,
+            }
         }
     }
 }
 
 /// Build unresolved conditions from an assumption set that was not fully used.
 pub fn unresolved_from_assumptions(set: &AssumptionSet) -> Vec<Condition> {
-    set.predicates
-        .iter()
-        .cloned()
-        .map(|predicate| Condition { predicate, resolved: false })
-        .collect()
+    set.predicates.iter().cloned().map(|predicate| Condition { predicate, resolved: false }).collect()
 }
 
 /// Helper: mark a predicate as unresolved.

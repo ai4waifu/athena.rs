@@ -18,10 +18,7 @@ fn derivative_power_via_domain() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => {
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
             let text = format!("{value:?}");
             assert!(text.contains("x") || text.contains("3"), "got {text}");
         }
@@ -40,10 +37,7 @@ fn repeated_derivative() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => {
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
             let text = format!("{value:?}");
             assert!(text.contains("x"), "got {text}");
         }
@@ -89,13 +83,7 @@ fn integrate_checked_unevaluated() {
 fn limit_finite_polynomial() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Limit {
-        expression: Term::app(
-            "Plus",
-            vec![
-                Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
-                Term::int(1),
-            ],
-        ),
+        expression: Term::app("Plus", vec![Term::app("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]),
         variable: "x".into(),
         approach: LimitApproach::Finite(Term::int(2)),
         direction: LimitDirection::TwoSided,
@@ -103,10 +91,7 @@ fn limit_finite_polynomial() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => assert_eq!(value, Term::int(5)),
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::int(5)),
         other => panic!("expected Exact 5, got {other:?}"),
     }
 }
@@ -144,13 +129,7 @@ fn sqrt_derivative_requires_assumption() {
 fn taylor_polynomial_exact() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Series {
-        expression: Term::app(
-            "Plus",
-            vec![
-                Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
-                Term::int(1),
-            ],
-        ),
+        expression: Term::app("Plus", vec![Term::app("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]),
         variable: "x".into(),
         center: Term::int(0),
         order: 3,
@@ -158,10 +137,7 @@ fn taylor_polynomial_exact() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Series(series),
-            ..
-        } => {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
             assert_eq!(series.remainder, Remainder::ExactTruncation);
             let t = format!("{:?}", series.to_term());
             assert!(t.contains('1') && t.contains('x'), "got {t}");
@@ -174,13 +150,7 @@ fn taylor_polynomial_exact() {
 fn limit_poly_at_infinity() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Limit {
-        expression: Term::app(
-            "Plus",
-            vec![
-                Term::app("Times", vec![Term::int(-2), Term::symbol("x")]),
-                Term::int(5),
-            ],
-        ),
+        expression: Term::app("Plus", vec![Term::app("Times", vec![Term::int(-2), Term::symbol("x")]), Term::int(5)]),
         variable: "x".into(),
         approach: LimitApproach::PositiveInfinity,
         direction: LimitDirection::TwoSided,
@@ -188,14 +158,8 @@ fn limit_poly_at_infinity() {
     });
     let out = engine.execute_domain(req).expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => {
-            assert_eq!(
-                value,
-                Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
-            );
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
+            assert_eq!(value, Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")]));
         }
         other => panic!("expected -Infinity, got {other:?}"),
     }
@@ -215,10 +179,7 @@ fn onesided_simple_pole() {
         }))
         .expect("ok");
     match above {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => assert_eq!(value, Term::symbol("Infinity")),
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::symbol("Infinity")),
         other => panic!("expected +Infinity, got {other:?}"),
     }
     let below = engine
@@ -231,13 +192,9 @@ fn onesided_simple_pole() {
         }))
         .expect("ok");
     match below {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => assert_eq!(
-            value,
-            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
-        ),
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
+            assert_eq!(value, Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")]))
+        }
         other => panic!("expected -Infinity, got {other:?}"),
     }
 }
@@ -255,10 +212,7 @@ fn definite_integral_power() {
         }))
         .expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Expression(value),
-            ..
-        } => assert_eq!(value, Term::int(2)),
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::int(2)),
         other => panic!("expected Exact 2, got {other:?}"),
     }
 }
@@ -271,10 +225,7 @@ fn taylor_nonzero_center() {
             expression: Term::app(
                 "Power",
                 vec![
-                    Term::app(
-                        "Plus",
-                        vec![Term::symbol("x"), Term::app("Times", vec![Term::int(-1), Term::int(1)])],
-                    ),
+                    Term::app("Plus", vec![Term::symbol("x"), Term::app("Times", vec![Term::int(-1), Term::int(1)])]),
                     Term::int(2),
                 ],
             ),
@@ -285,13 +236,101 @@ fn taylor_nonzero_center() {
         }))
         .expect("ok");
     match out {
-        CalculusResult::Exact {
-            value: CalculusValue::Series(series),
-            ..
-        } => {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
             assert_eq!(series.remainder, Remainder::ExactTruncation);
             assert_eq!(series.center, Term::int(1));
         }
         other => panic!("expected Exact Series, got {other:?}"),
+    }
+}
+
+#[test]
+fn gradient_of_quadratic() {
+    let engine = AthenaEngine::new();
+    let expr = Term::app(
+        "Plus",
+        vec![
+            Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
+            Term::app("Power", vec![Term::symbol("y"), Term::int(2)]),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Gradient {
+            expression: expr,
+            variables: vec!["x".into(), "y".into()],
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Gradient(g),
+            ..
+        } => {
+            assert_eq!(g.variables, vec!["x".to_string(), "y".to_string()]);
+            assert_eq!(g.components.len(), 2);
+            let cx = format!("{:?}", g.components[0]);
+            let cy = format!("{:?}", g.components[1]);
+            assert!(cx.contains('x'), "got {cx}");
+            assert!(cy.contains('y'), "got {cy}");
+        }
+        other => panic!("expected Gradient, got {other:?}"),
+    }
+}
+
+#[test]
+fn jacobian_linear_map() {
+    let engine = AthenaEngine::new();
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Jacobian {
+            expressions: vec![
+                Term::app("Plus", vec![Term::symbol("x"), Term::symbol("y")]),
+                Term::symbol("x"),
+            ],
+            variables: vec!["x".into(), "y".into()],
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Jacobian(j),
+            ..
+        } => {
+            assert_eq!(j.rows.len(), 2);
+            assert_eq!(j.rows[0], vec![Term::int(1), Term::int(1)]);
+            assert_eq!(j.rows[1], vec![Term::int(1), Term::int(0)]);
+        }
+        other => panic!("expected Jacobian, got {other:?}"),
+    }
+}
+
+#[test]
+fn hessian_quadratic() {
+    let engine = AthenaEngine::new();
+    let expr = Term::app(
+        "Plus",
+        vec![
+            Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
+            Term::app("Times", vec![Term::symbol("x"), Term::symbol("y")]),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Hessian {
+            expression: expr,
+            variables: vec!["x".into(), "y".into()],
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Hessian(h),
+            ..
+        } => {
+            assert_eq!(h.entries.len(), 2);
+            assert_eq!(h.entries[0][0], Term::int(2));
+            assert_eq!(h.entries[0][1], Term::int(1));
+            assert_eq!(h.entries[1][0], Term::int(1));
+            assert_eq!(h.entries[1][1], Term::int(0));
+        }
+        other => panic!("expected Hessian, got {other:?}"),
     }
 }

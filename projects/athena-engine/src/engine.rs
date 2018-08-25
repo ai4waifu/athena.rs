@@ -2,8 +2,10 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::calculus::{CalculusResult, CalculusValue, DomainRequest, execute_domain as dispatch_domain};
-use crate::term::Term;
+use crate::{
+    calculus::{CalculusResult, CalculusValue, DomainRequest, execute_domain as dispatch_domain},
+    term::Term,
+};
 
 /// Evaluation options (placeholder; expands with modes/session).
 #[derive(Debug, Clone, Default)]
@@ -45,9 +47,6 @@ impl AthenaEngine {
 
     /// Arena/`()` stub evaluate — retained until IR path lands.
     pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
-        Err(Diagnostic::error(
-            DiagnosticCode::UnsupportedOperation,
-            "evaluate not yet implemented",
-        ))
+        Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "evaluate not yet implemented"))
     }
 }

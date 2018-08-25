@@ -6,8 +6,8 @@ use num_traits::ToPrimitive;
 
 use athena_types::{Number, Result};
 
-use crate::calculus::integrate;
 pub use crate::calculus::differentiate;
+use crate::calculus::integrate;
 
 use crate::term::{Atom, Term, number_from_term};
 
@@ -27,7 +27,7 @@ fn evaluate_depth(expr: &Term, depth: u32) -> Term {
     match expr {
         Term::Atom(_) => expr.clone(),
         Term::List(items) => Term::List(items.iter().map(|i| evaluate_depth(i, depth + 1)).collect()),
-        Term::App { head, args } => {
+        Term::Application { head, arguments: args } => {
             let head_e = evaluate_depth(head, depth + 1);
             let args_e: Vec<Term> = args.iter().map(|a| evaluate_depth(a, depth + 1)).collect();
             apply_builtin(&head_e, args_e, depth)
@@ -39,7 +39,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
     let name = match head {
         Term::Atom(Atom::Symbol(s)) => s.as_str(),
         _ => {
-            return Term::App { head: Box::new(head.clone()), args };
+            return Term::Application { head: Box::new(head.clone()), arguments: args };
         }
     };
 
@@ -51,7 +51,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Divide" if args.len() == 2 => eval_times(vec![args[0].clone(), eval_power(args[1].clone(), Term::int(-1))]),
         "List" => Term::List(args),
         "Simplify" if args.len() == 1 => eval_simplify(&args[0], depth),
-        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => Term::App { head: Box::new(head.clone()), args },
+        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => Term::Application { head: Box::new(head.clone()), arguments: args },
         "Sqrt" if args.len() == 1 => eval_sqrt(&args[0]),
         "Abs" if args.len() == 1 => eval_abs(&args[0]),
         "Factorial" if args.len() == 1 => eval_factorial(&args[0]),
@@ -85,18 +85,18 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
             evaluate_depth(&integrate(&args[0], &var), depth + 1)
         }
         "CompoundExpression" if !args.is_empty() => evaluate_depth(args.last().unwrap(), depth + 1),
-        "Function" => Term::App { head: Box::new(Term::symbol("Function")), args },
+        "Function" => Term::Application { head: Box::new(Term::symbol("Function")), arguments: args },
         "ReplaceAll" if args.len() == 2 => eval_replace_all(&args[0], &args[1], depth),
         "Part" if args.len() == 2 => eval_part(&args[0], &args[1]),
-        "Rule" | "RuleDelayed" if args.len() == 2 => Term::App { head: Box::new(head.clone()), args },
+        "Rule" | "RuleDelayed" if args.len() == 2 => Term::Application { head: Box::new(head.clone()), arguments: args },
         _ => {
-            if let Term::App { head: fh, args: fargs } = head {
+            if let Term::Application { head: fh, arguments: fargs } = head {
                 if fh.is_symbol("Function") && fargs.len() == 1 && args.len() == 1 {
                     let body = substitute_slot(&fargs[0], &args[0]);
                     return evaluate_depth(&body, depth + 1);
                 }
             }
-            Term::App { head: Box::new(head.clone()), args }
+            Term::Application { head: Box::new(head.clone()), arguments: args }
         }
     }
 }
@@ -124,7 +124,7 @@ fn eval_plus(args: Vec<Term>) -> Term {
 
 fn flatten_plus(a: Term, flat: &mut Vec<Term>, sum: &mut Option<Number>) {
     match a {
-        Term::App { head, args } if head.is_symbol("Plus") => {
+        Term::Application { head, arguments: args } if head.is_symbol("Plus") => {
             for x in args {
                 flatten_plus(x, flat, sum);
             }
@@ -171,7 +171,7 @@ fn eval_times(args: Vec<Term>) -> Term {
 
 fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {
     match a {
-        Term::App { head, args } if head.is_symbol("Times") => {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
             for x in args {
                 flatten_times(x, flat, prod);
             }
@@ -306,7 +306,7 @@ fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {
 fn map_one(func: &Term, item: &Term) -> Term {
     match func {
         Term::Atom(Atom::Symbol(name)) => Term::app(name.clone(), vec![item.clone()]),
-        Term::App { head, args } if head.is_symbol("Function") && args.len() == 1 => substitute_slot(&args[0], item),
+        Term::Application { head, arguments: args } if head.is_symbol("Function") && args.len() == 1 => substitute_slot(&args[0], item),
         _ => Term::app("Map", vec![func.clone(), item.clone()]),
     }
 }
@@ -314,7 +314,7 @@ fn map_one(func: &Term, item: &Term) -> Term {
 /// Sin[x]^2 + Cos[x]^2 → 1 (and swapped).
 fn try_pythagorean(expr: &Term) -> Option<Term> {
     let terms = match expr {
-        Term::App { head, args } if head.is_symbol("Plus") => args.as_slice(),
+        Term::Application { head, arguments: args } if head.is_symbol("Plus") => args.as_slice(),
         _ => return None,
     };
     if terms.len() != 2 {
@@ -332,9 +332,9 @@ fn try_pythagorean(expr: &Term) -> Option<Term> {
 
 fn is_trig_sq(expr: &Term, name: &str) -> bool {
     match expr {
-        Term::App { head, args } if head.is_symbol("Power") && args.len() == 2 => {
+        Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
             matches!(number_from_term(&args[1]), Some(n) if *n == Number::small_int(2))
-                && matches!(&args[0], Term::App { head: h, args: a } if h.is_symbol(name) && a.len() == 1)
+                && matches!(&args[0], Term::Application { head: h, arguments: a } if h.is_symbol(name) && a.len() == 1)
         }
         _ => false,
     }
@@ -343,8 +343,8 @@ fn is_trig_sq(expr: &Term, name: &str) -> bool {
 fn same_trig_arg(a: &Term, b: &Term) -> bool {
     fn arg(expr: &Term) -> Option<&Term> {
         match expr {
-            Term::App { head, args } if head.is_symbol("Power") && args.len() == 2 => match &args[0] {
-                Term::App { args: inner, .. } if inner.len() == 1 => Some(&inner[0]),
+            Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => match &args[0] {
+                Term::Application { arguments: inner, .. } if inner.len() == 1 => Some(&inner[0]),
                 _ => None,
             },
             _ => None,
@@ -370,7 +370,7 @@ fn eval_replace_all(expr: &Term, rules: &Term, depth: u32) -> Term {
 
 fn rule_pair(expr: &Term) -> Option<(Term, Term)> {
     match expr {
-        Term::App { head, args } if args.len() == 2 && (head.is_symbol("Rule") || head.is_symbol("RuleDelayed")) => {
+        Term::Application { head, arguments: args } if args.len() == 2 && (head.is_symbol("Rule") || head.is_symbol("RuleDelayed")) => {
             Some((args[0].clone(), args[1].clone()))
         }
         _ => None,
@@ -383,9 +383,9 @@ fn replace_literal(expr: &Term, lhs: &Term, rhs: &Term) -> Term {
     }
     match expr {
         Term::List(items) => Term::List(items.iter().map(|i| replace_literal(i, lhs, rhs)).collect()),
-        Term::App { head, args } => Term::App {
+        Term::Application { head, arguments: args } => Term::Application {
             head: Box::new(replace_literal(head, lhs, rhs)),
-            args: args.iter().map(|a| replace_literal(a, lhs, rhs)).collect(),
+            arguments: args.iter().map(|a| replace_literal(a, lhs, rhs)).collect(),
         },
         other => other.clone(),
     }
@@ -421,74 +421,9 @@ fn substitute_slot(body: &Term, value: &Term) -> Term {
         Term::Atom(Atom::Symbol(s)) if s == "#" || s == "#1" => value.clone(),
         Term::Atom(_) => body.clone(),
         Term::List(items) => Term::List(items.iter().map(|i| substitute_slot(i, value)).collect()),
-        Term::App { head, args } => Term::App {
+        Term::Application { head, arguments: args } => Term::Application {
             head: Box::new(substitute_slot(head, value)),
-            args: args.iter().map(|a| substitute_slot(a, value)).collect(),
+            arguments: args.iter().map(|a| substitute_slot(a, value)).collect(),
         },
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn plus_fold() {
-        let e = evaluate(&Term::app("Plus", vec![Term::int(1), Term::int(2), Term::symbol("x")]));
-        assert_eq!(e, Term::app("Plus", vec![Term::int(3), Term::symbol("x")]));
-    }
-
-    #[test]
-    fn power_one() {
-        let e = evaluate(&Term::app("Power", vec![Term::symbol("x"), Term::int(1)]));
-        assert_eq!(e, Term::symbol("x"));
-    }
-
-    #[test]
-    fn list_eval() {
-        let e = evaluate(&Term::List(vec![Term::int(1), Term::app("Plus", vec![Term::int(2), Term::int(2)])]));
-        assert_eq!(e, Term::List(vec![Term::int(1), Term::int(4)]));
-    }
-
-    #[test]
-    fn d_power() {
-        let e = evaluate(&Term::app("D", vec![Term::app("Power", vec![Term::symbol("x"), Term::int(3)]), Term::symbol("x")]));
-        assert!(matches!(e, Term::App { .. }));
-        let text = format!("{e:?}");
-        assert!(text.contains("x"), "got {text}");
-    }
-
-    #[test]
-    fn pythagorean() {
-        let sin2 = Term::app("Power", vec![Term::app("Sin", vec![Term::symbol("x")]), Term::int(2)]);
-        let cos2 = Term::app("Power", vec![Term::app("Cos", vec![Term::symbol("x")]), Term::int(2)]);
-        let e = evaluate(&Term::app("Simplify", vec![Term::app("Plus", vec![sin2, cos2])]));
-        assert_eq!(e, Term::int(1));
-    }
-
-    #[test]
-    fn compound_expression_returns_last() {
-        let e = evaluate(&Term::app("CompoundExpression", vec![Term::int(1), Term::int(2), Term::int(3)]));
-        assert_eq!(e, Term::int(3));
-    }
-
-    #[test]
-    fn integrate_power() {
-        let e = evaluate(&Term::app("Integrate", vec![Term::app("Power", vec![Term::symbol("x"), Term::int(2)]), Term::symbol("x")]));
-        let text = format!("{e:?}");
-        assert!(text.contains("x"), "got {text}");
-    }
-
-    #[test]
-    fn map_sin_list() {
-        let e = evaluate(&Term::app("Map", vec![Term::symbol("Sin"), Term::List(vec![Term::int(0)])]));
-        assert!(matches!(e, Term::List(_)));
-    }
-
-    #[test]
-    fn truthy_exact_zero() {
-        assert_eq!(truthy(&Term::int(0)), Some(false));
-        assert_eq!(truthy(&Term::int(1)), Some(true));
-    }
-}
-

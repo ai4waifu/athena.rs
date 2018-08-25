@@ -34,11 +34,11 @@ pub enum Term {
     /// Ordered collection.
     List(Vec<Term>),
     /// Application `head(args…)`.
-    App {
+    Application {
         /// Head term (usually a symbol).
         head: Box<Term>,
         /// Arguments.
-        args: Vec<Term>,
+        arguments: Vec<Term>,
     },
 }
 
@@ -75,13 +75,13 @@ impl Term {
 
     /// `head(args…)` with symbol head.
     pub fn app(head: impl Into<String>, args: Vec<Term>) -> Self {
-        Self::App { head: Box::new(Self::symbol(head)), args }
+        Self::Application { head: Box::new(Self::symbol(head)), arguments: args }
     }
 
     /// Head symbol name, if any.
     pub fn head_name(&self) -> Option<&str> {
         match self {
-            Self::App { head, .. } => match head.as_ref() {
+            Self::Application { head, .. } => match head.as_ref() {
                 Self::Atom(Atom::Symbol(s)) => Some(s.as_str()),
                 _ => None,
             },

@@ -104,6 +104,33 @@ pub enum CalculusRequest {
         /// Assumptions.
         assumptions: AssumptionSet,
     },
+    /// Gradient of a scalar field.
+    Gradient {
+        /// Scalar expression.
+        expression: Term,
+        /// Variables in order.
+        variables: Vec<String>,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
+    /// Jacobian of a vector-valued map.
+    Jacobian {
+        /// Component expressions.
+        expressions: Vec<Term>,
+        /// Independent variables.
+        variables: Vec<String>,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
+    /// Hessian of a scalar field.
+    Hessian {
+        /// Scalar expression.
+        expression: Term,
+        /// Variables in order (mixed partials keep this order).
+        variables: Vec<String>,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
 }
 
 /// Top-level domain request enum (calculus first; other domains extend later).

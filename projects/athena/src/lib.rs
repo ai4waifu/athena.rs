@@ -12,10 +12,11 @@
 
 pub use athena_engine::{
     AssumptionSet, AssumptionSetId, AthenaEngine, Atom, AtomKind, CalculusRequest, CalculusResult, CalculusValue,
-    Condition, ConditionalResult, DerivativeOrder, Diagnostic, DiagnosticCode, DomainId, DomainRequest, ExactNumber,
-    EvalOptions, LimitApproach, LimitDirection, NodeId, Number, NumericDomain, OperatorId, Precision, Predicate,
-    RealNumber, Remainder, Result, RewriteOptions, RewriteResult, Rewriter, RoundingMode, SerializationVersion, Series,
-    Session, Severity, SimplifyOptions, SourceSpan, SymbolId, SymbolTable, Term, TermArena, TermBuilder, TermId,
-    TermKind, canonical_hash, definite_integrate_checked, differentiate, differentiate_checked, differentiate_term,
-    evaluate, execute_calculus, execute_domain, integrate, integrate_checked, limit_checked, number_from_term, taylor,
+    Condition, ConditionalResult, DerivativeOrder, Diagnostic, DiagnosticCode, DomainId, DomainRequest, EvalOptions,
+    ExactNumber, Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, NodeId, Number, NumericDomain, OperatorId,
+    Precision, Predicate, RealNumber, Remainder, Result, RewriteOptions, RewriteResult, Rewriter, RoundingMode,
+    SerializationVersion, Series, Session, Severity, SimplifyOptions, SourceSpan, SymbolId, SymbolTable, Term,
+    TermArena, TermBuilder, TermId, TermKind, canonical_hash, definite_integrate_checked, differentiate,
+    differentiate_checked, differentiate_term, evaluate, execute_calculus, execute_domain, gradient_checked,
+    hessian_checked, integrate, integrate_checked, jacobian_checked, limit_checked, number_from_term, taylor,
 };

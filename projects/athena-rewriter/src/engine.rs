@@ -22,7 +22,7 @@ pub struct RewriteResult {
 /// 规则驱动的 rewriter（作用于 [`TermArena`]）。
 #[derive(Debug, Default)]
 pub struct Rewriter {
-    opts: RewriteOptions,
+    options: RewriteOptions,
 }
 
 impl Rewriter {
@@ -33,13 +33,13 @@ impl Rewriter {
 
     /// 带选项构造。
     pub fn with_options(opts: RewriteOptions) -> Self {
-        Self { opts }
+        Self { options: opts }
     }
 
     /// 化简 term（stub：可选叶节点常量折叠）。
     pub fn simplify(&self, arena: &mut TermArena, root: TermId) -> Result<RewriteResult> {
         arena.verify(root)?;
-        if !self.opts.constant_fold {
+        if !self.options.constant_fold {
             return Ok(RewriteResult { root, changed: false });
         }
         let changed = fold_constants(arena, root)?;
