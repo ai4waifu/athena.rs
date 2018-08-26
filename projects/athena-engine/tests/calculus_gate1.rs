@@ -334,3 +334,77 @@ fn hessian_quadratic() {
         other => panic!("expected Hessian, got {other:?}"),
     }
 }
+
+#[test]
+fn ode_y_prime_equals_const() {
+    let engine = AthenaEngine::new();
+    let eq = Term::app(
+        "Equal",
+        vec![
+            Term::app("D", vec![Term::symbol("y"), Term::symbol("x")]),
+            Term::int(2),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq,
+            dependent: "y".into(),
+            independent: "x".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::DifferentialSolution(sol),
+            ..
+        } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            assert_eq!(
+                sol.explicit,
+                Term::app("Times", vec![Term::int(2), Term::symbol("x")])
+            );
+        }
+        other => panic!("expected verified ODE solution, got {other:?}"),
+    }
+}
+
+#[test]
+fn try_calculus_request_d_limit_series() {
+    let d = Term::app("D", vec![Term::app("Power", vec![Term::symbol("x"), Term::int(2)]), Term::symbol("x")]);
+    assert!(matches!(
+        athena_engine::try_calculus_request(&d),
+        Some(CalculusRequest::Derivative { .. })
+    ));
+    let lim = Term::app(
+        "Limit",
+        vec![
+            Term::symbol("x"),
+            Term::app("Rule", vec![Term::symbol("x"), Term::int(1)]),
+        ],
+    );
+    assert!(matches!(
+        athena_engine::try_calculus_request(&lim),
+        Some(CalculusRequest::Limit { .. })
+    ));
+    let series = Term::app(
+        "Series",
+        vec![
+            Term::app("Power", vec![Term::symbol("x"), Term::int(2)]),
+            Term::List(vec![Term::symbol("x"), Term::int(0), Term::int(3)]),
+        ],
+    );
+    assert!(matches!(
+        athena_engine::try_calculus_request(&series),
+        Some(CalculusRequest::Series { .. })
+    ));
+}
+
+#[test]
+fn evaluate_routes_d_through_domain() {
+    let e = athena_engine::evaluate(&Term::app(
+        "D",
+        vec![Term::app("Power", vec![Term::symbol("x"), Term::int(3)]), Term::symbol("x")],
+    ));
+    let text = format!("{e:?}");
+    assert!(text.contains('x'), "got {text}");
+}

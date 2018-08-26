@@ -1,0 +1,191 @@
+//! Recognize already-decoded calculus [`Term`] heads as [`CalculusRequest`].
+
+use athena_types::AssumptionSet;
+
+use crate::term::{Atom, Term, number_from_term};
+
+use super::request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
+
+/// Map a bridge [`Term`] application into a calculus domain request, if recognized.
+///
+/// Language-neutral Term shapes only — dialect text parse stays in hosts (SXO).
+pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
+    let Term::Application { head, arguments: args } = term else {
+        return None;
+    };
+    let name = head.head_name()?;
+    match name {
+        "D" => lower_d(args),
+        "Integrate" => lower_integrate(args),
+        "Limit" => lower_limit(args),
+        "Series" => lower_series(args),
+        "DSolve" => lower_dsolve(args),
+        _ => None,
+    }
+}
+
+fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
+    match args {
+        [expr, var] => {
+            if let Some(v) = symbol_name(var) {
+                return Some(CalculusRequest::Derivative {
+                    expression: expr.clone(),
+                    variable: v,
+                    order: DerivativeOrder::First,
+                    assumptions: AssumptionSet::empty(),
+                });
+            }
+            if let Term::List(items) = var {
+                if items.len() == 2 {
+                    let v = symbol_name(&items[0])?;
+                    let n = number_from_term(&items[1]).and_then(|e| e.as_integer_exp())?;
+                    let n_u = u32::try_from(&n).ok()?;
+                    return Some(CalculusRequest::Derivative {
+                        expression: expr.clone(),
+                        variable: v,
+                        order: if n_u <= 1 {
+                            DerivativeOrder::First
+                        } else {
+                            DerivativeOrder::Repeated(n_u)
+                        },
+                        assumptions: AssumptionSet::empty(),
+                    });
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn lower_integrate(args: &[Term]) -> Option<CalculusRequest> {
+    match args {
+        [expr, var] => {
+            if let Some(v) = symbol_name(var) {
+                return Some(CalculusRequest::Integral {
+                    expression: expr.clone(),
+                    variable: v,
+                    assumptions: AssumptionSet::empty(),
+                });
+            }
+            if let Term::List(items) = var {
+                if items.len() == 3 {
+                    let v = symbol_name(&items[0])?;
+                    return Some(CalculusRequest::DefiniteIntegral {
+                        expression: expr.clone(),
+                        variable: v,
+                        lower: items[1].clone(),
+                        upper: items[2].clone(),
+                        assumptions: AssumptionSet::empty(),
+                    });
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn lower_limit(args: &[Term]) -> Option<CalculusRequest> {
+    let (expr, variable, approach, direction) = match args {
+        [expr, spec] => {
+            let (v, approach) = parse_limit_spec(spec)?;
+            (expr.clone(), v, approach, LimitDirection::TwoSided)
+        }
+        [expr, spec, dir] => {
+            let (v, approach) = parse_limit_spec(spec)?;
+            let direction = match symbol_name(dir).as_deref() {
+                Some("FromBelow") | Some("Left") => LimitDirection::FromBelow,
+                Some("FromAbove") | Some("Right") => LimitDirection::FromAbove,
+                _ => LimitDirection::TwoSided,
+            };
+            (expr.clone(), v, approach, direction)
+        }
+        _ => return None,
+    };
+    Some(CalculusRequest::Limit {
+        expression: expr,
+        variable,
+        approach,
+        direction,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn parse_limit_spec(spec: &Term) -> Option<(String, LimitApproach)> {
+    match spec {
+        Term::Application { head, arguments: args } if head.is_symbol("Rule") && args.len() == 2 => {
+            let v = symbol_name(&args[0])?;
+            Some((v, approach_from_term(&args[1])))
+        }
+        Term::List(items) if items.len() == 2 => {
+            let v = symbol_name(&items[0])?;
+            Some((v, approach_from_term(&items[1])))
+        }
+        _ => None,
+    }
+}
+
+fn approach_from_term(term: &Term) -> LimitApproach {
+    if term.is_symbol("Infinity") {
+        return LimitApproach::PositiveInfinity;
+    }
+    if let Term::Application { head, arguments: args } = term {
+        if head.is_symbol("Times")
+            && args.len() == 2
+            && number_from_term(&args[0]).is_some_and(|n| n.as_integer_exp() == Some((-1).into()))
+            && args[1].is_symbol("Infinity")
+        {
+            return LimitApproach::NegativeInfinity;
+        }
+    }
+    LimitApproach::Finite(term.clone())
+}
+
+fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
+    let [expr, spec] = args else {
+        return None;
+    };
+    let Term::List(items) = spec else {
+        return None;
+    };
+    if items.len() < 2 {
+        return None;
+    }
+    let variable = symbol_name(&items[0])?;
+    let center = items[1].clone();
+    let order = if items.len() >= 3 {
+        let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
+        u32::try_from(&n).ok()?
+    } else {
+        3
+    };
+    Some(CalculusRequest::Series {
+        expression: expr.clone(),
+        variable,
+        center,
+        order,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
+    let [equation, dep, indep] = args else {
+        return None;
+    };
+    let dependent = symbol_name(dep)?;
+    let independent = symbol_name(indep)?;
+    Some(CalculusRequest::SolveOde {
+        equation: equation.clone(),
+        dependent,
+        independent,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn symbol_name(term: &Term) -> Option<String> {
+    match term {
+        Term::Atom(Atom::Symbol(s)) => Some(s.clone()),
+        _ => None,
+    }
+}

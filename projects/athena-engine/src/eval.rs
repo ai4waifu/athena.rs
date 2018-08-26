@@ -7,7 +7,6 @@ use num_traits::ToPrimitive;
 use athena_types::{Number, Result};
 
 pub use crate::calculus::differentiate;
-use crate::calculus::integrate;
 
 use crate::term::{Atom, Term, number_from_term};
 
@@ -66,23 +65,16 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Or" if args.len() == 2 => eval_logic_or(&args[0], &args[1]),
         "Not" if args.len() == 1 => eval_logic_not(&args[0]),
         "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth(&args[1], depth + 1),
-        "D" if args.len() == 2 => {
-            let var = match &args[1] {
-                Term::Atom(Atom::Symbol(s)) => s.clone(),
-                _ => {
-                    return Term::app("D", args);
-                }
+        "D" | "Integrate" | "Limit" | "Series" | "DSolve" => {
+            let term = Term::Application {
+                head: Box::new(head.clone()),
+                arguments: args,
             };
-            evaluate_depth(&differentiate(&args[0], &var), depth + 1)
-        }
-        "Integrate" if args.len() == 2 => {
-            let var = match &args[1] {
-                Term::Atom(Atom::Symbol(s)) => s.clone(),
-                _ => {
-                    return Term::app("Integrate", args);
-                }
-            };
-            evaluate_depth(&integrate(&args[0], &var), depth + 1)
+            if let Some(req) = crate::calculus::try_calculus_request(&term) {
+                let result = crate::calculus::execute_calculus(req);
+                return crate::calculus::calculus_result_bridge_term(&result);
+            }
+            term
         }
         "CompoundExpression" if !args.is_empty() => evaluate_depth(args.last().unwrap(), depth + 1),
         "Function" => Term::Application { head: Box::new(Term::symbol("Function")), arguments: args },

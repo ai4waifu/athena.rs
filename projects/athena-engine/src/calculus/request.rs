@@ -131,6 +131,17 @@ pub enum CalculusRequest {
         /// Assumptions.
         assumptions: AssumptionSet,
     },
+    /// First-order ODE solve (bootstrap subset).
+    SolveOde {
+        /// Equation term (`Equal[…]`).
+        equation: Term,
+        /// Dependent variable.
+        dependent: String,
+        /// Independent variable.
+        independent: String,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
 }
 
 /// Top-level domain request enum (calculus first; other domains extend later).

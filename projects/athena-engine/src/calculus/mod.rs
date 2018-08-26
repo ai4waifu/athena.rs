@@ -1,11 +1,13 @@
-//! Higher mathematics — derivative, integral, limit, series, vector calculus.
+//! Higher mathematics — derivative, integral, limit, series, vector, ODE.
 //!
 //! Results are [`CalculusResult`] / [`ConditionalResult`], not bare unconditional terms.
 //! Source-text parse is forbidden here; hosts pass already-decoded [`Term`] values.
 
 mod derivative;
+mod differential;
 mod integral;
 mod limit;
+mod lower;
 mod request;
 mod result;
 mod series;
@@ -14,13 +16,16 @@ mod value;
 mod vector;
 
 pub use derivative::{differentiate, differentiate_checked};
+pub use differential::{DifferentialSolution, VerificationStatus, solve_ode_checked};
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
+pub use lower::try_calculus_request;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, taylor};
 pub use value::{
-    CalculusValue, map_gradient_result, map_hessian_result, map_jacobian_result, map_series_result, map_term_result,
+    CalculusValue, calculus_result_bridge_term, map_gradient_result, map_hessian_result, map_jacobian_result,
+    map_ode_result, map_series_result, map_term_result,
 };
 pub use vector::{
     Gradient, Hessian, Jacobian, gradient_checked, hessian_checked, jacobian_checked,
@@ -114,6 +119,17 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             variables,
             assumptions,
         } => map_hessian_result(hessian_checked(&expression, &variables, &assumptions)),
+        CalculusRequest::SolveOde {
+            equation,
+            dependent,
+            independent,
+            assumptions,
+        } => map_ode_result(solve_ode_checked(
+            &equation,
+            &dependent,
+            &independent,
+            &assumptions,
+        )),
     }
 }
 
