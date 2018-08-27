@@ -65,7 +65,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Or" if args.len() == 2 => eval_logic_or(&args[0], &args[1]),
         "Not" if args.len() == 1 => eval_logic_not(&args[0]),
         "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth(&args[1], depth + 1),
-        "D" | "Integrate" | "Limit" | "Series" | "DSolve" => {
+        "D" | "Integrate" | "Limit" | "Series" | "DSolve" | "LaplaceTransform" => {
             let term = Term::Application {
                 head: Box::new(head.clone()),
                 arguments: args,

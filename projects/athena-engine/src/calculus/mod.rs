@@ -1,4 +1,4 @@
-//! Higher mathematics — derivative, integral, limit, series, vector, ODE.
+//! Higher mathematics — derivative, integral, limit, series, vector, ODE, transforms.
 //!
 //! Results are [`CalculusResult`] / [`ConditionalResult`], not bare unconditional terms.
 //! Source-text parse is forbidden here; hosts pass already-decoded [`Term`] values.
@@ -12,6 +12,7 @@ mod request;
 mod result;
 mod series;
 mod term_util;
+mod transform;
 mod value;
 mod vector;
 
@@ -20,12 +21,15 @@ pub use differential::{DifferentialSolution, VerificationStatus, solve_ode_check
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use lower::try_calculus_request;
-pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection};
+pub use request::{
+    CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection, TransformKind,
+};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, taylor};
+pub use transform::{RegionOfConvergence, TransformResult, laplace_checked};
 pub use value::{
     CalculusValue, calculus_result_bridge_term, map_gradient_result, map_hessian_result, map_jacobian_result,
-    map_ode_result, map_series_result, map_term_result,
+    map_ode_result, map_series_result, map_term_result, map_transform_result,
 };
 pub use vector::{
     Gradient, Hessian, Jacobian, gradient_checked, hessian_checked, jacobian_checked,
@@ -123,13 +127,47 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             equation,
             dependent,
             independent,
+            initial,
             assumptions,
         } => map_ode_result(solve_ode_checked(
             &equation,
             &dependent,
             &independent,
+            initial.as_ref(),
             &assumptions,
         )),
+        CalculusRequest::Transform {
+            kind,
+            expression,
+            time_variable,
+            transform_variable,
+            assumptions,
+        } => match kind {
+            TransformKind::Laplace => map_transform_result(laplace_checked(
+                &expression,
+                &time_variable,
+                &transform_variable,
+                &assumptions,
+            )),
+            TransformKind::Fourier | TransformKind::Z => CalculusResult::Unevaluated {
+                expression: CalculusValue::Expression(Term::app(
+                    match kind {
+                        TransformKind::Fourier => "FourierTransform",
+                        TransformKind::Z => "ZTransform",
+                        TransformKind::Laplace => unreachable!(),
+                    },
+                    vec![
+                        expression,
+                        Term::symbol(time_variable),
+                        Term::symbol(transform_variable),
+                    ],
+                )),
+                reason: Diagnostic::error(
+                    DiagnosticCode::UnsupportedOperation,
+                    "Fourier/Z transforms not implemented in bootstrap",
+                ),
+            },
+        },
     }
 }
 
@@ -139,6 +177,8 @@ pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<CalculusV
         DomainRequest::Calculus(req) => Ok(execute_calculus(req)),
     }
 }
+
+use crate::term::Term;
 
 /// Convenience error when a domain is not yet wired.
 #[allow(dead_code)]

@@ -66,13 +66,14 @@ pub fn solve_ode_checked(
     equation: &Term,
     dependent: &str,
     independent: &str,
+    initial: Option<&(Term, Term)>,
     _assumptions: &AssumptionSet,
 ) -> CalculusResult<DifferentialSolution> {
     let Some(rhs) = recognize_y_prime_equals(equation, dependent, independent) else {
         return unsupported(dependent, independent, equation);
     };
 
-    let explicit = if let Some(a) = number_from_term(&rhs.f).cloned() {
+    let mut explicit = if let Some(a) = number_from_term(&rhs.f).cloned() {
         evaluate(&Term::app("Times", vec![Term::number(a), Term::symbol(independent)]))
     } else if let Some(a) = match_times_const_y(&rhs.f, dependent) {
         Term::app(
@@ -83,7 +84,6 @@ pub fn solve_ode_checked(
             ))],
         )
     } else if let Some((p, q)) = match_as_linear_forced(&rhs.f, dependent) {
-        // y' = q - p y  came from y' + p y = q
         if p.is_zero() {
             return CalculusResult::Unevaluated {
                 expression: placeholder(dependent, independent, equation.clone()),
@@ -95,8 +95,23 @@ pub fn solve_ode_checked(
         return unsupported(dependent, independent, equation);
     };
 
+    if let Some((x0, y0)) = initial {
+        explicit = apply_ivp(dependent, independent, &rhs.f, &explicit, x0, y0);
+    }
+
     let residual = residual_of(dependent, independent, &rhs.f, &explicit);
-    if is_zero_term(&residual) {
+    let ivp_ok = match initial {
+        Some((x0, y0)) => {
+            let at = evaluate(&replace_symbol(&explicit, independent, x0));
+            is_zero_term(&evaluate(&Term::app(
+                "Plus",
+                vec![at, Term::app("Times", vec![Term::int(-1), y0.clone()])],
+            )))
+        }
+        None => true,
+    };
+
+    if is_zero_term(&residual) && ivp_ok {
         CalculusResult::Exact {
             value: DifferentialSolution {
                 dependent: dependent.to_string(),
@@ -118,10 +133,51 @@ pub fn solve_ode_checked(
             },
             reason: Diagnostic::error(
                 DiagnosticCode::OdeSolutionUnverified,
-                format!("ODE residual did not vanish: {residual:?}"),
+                format!("ODE residual/IVP did not vanish: residual={residual:?}"),
             ),
         }
     }
+}
+
+fn apply_ivp(
+    dependent: &str,
+    independent: &str,
+    f: &Term,
+    particular: &Term,
+    x0: &Term,
+    y0: &Term,
+) -> Term {
+    // y' = a (const) → y = a x + C, C = y0 - a x0
+    if let Some(a) = number_from_term(f).cloned() {
+        let ax0 = evaluate(&Term::app("Times", vec![Term::number(a.clone()), x0.clone()]));
+        let c = evaluate(&Term::app("Plus", vec![y0.clone(), Term::app("Times", vec![Term::int(-1), ax0])]));
+        return evaluate(&Term::app(
+            "Plus",
+            vec![
+                Term::app("Times", vec![Term::number(a), Term::symbol(independent)]),
+                c,
+            ],
+        ));
+    }
+    // y' = a y → y = y0 Exp[a (x - x0)]
+    if let Some(a) = match_times_const_y(f, dependent) {
+        let delta = evaluate(&Term::app(
+            "Plus",
+            vec![Term::symbol(independent), Term::app("Times", vec![Term::int(-1), x0.clone()])],
+        ));
+        return evaluate(&Term::app(
+            "Times",
+            vec![
+                y0.clone(),
+                Term::app("Exp", vec![Term::app("Times", vec![Term::number(a), delta])]),
+            ],
+        ));
+    }
+    // constant particular: shift if needed
+    if number_from_term(particular).is_some() {
+        return y0.clone();
+    }
+    particular.clone()
 }
 
 fn residual_of(dependent: &str, independent: &str, f: &Term, explicit: &Term) -> Term {

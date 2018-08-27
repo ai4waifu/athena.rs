@@ -42,6 +42,17 @@ pub enum LimitDirection {
     FromAbove,
 }
 
+/// Which integral transform to compute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransformKind {
+    /// Unilateral Laplace transform.
+    Laplace,
+    /// Fourier transform.
+    Fourier,
+    /// Z-transform.
+    Z,
+}
+
 /// Calculus domain request — hosts map dialect forms here.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CalculusRequest {
@@ -139,6 +150,21 @@ pub enum CalculusRequest {
         dependent: String,
         /// Independent variable.
         independent: String,
+        /// Optional IVP `(x0, y0)` already decoded.
+        initial: Option<(Term, Term)>,
+        /// Assumptions.
+        assumptions: AssumptionSet,
+    },
+    /// Integral transform (Laplace / Fourier / Z).
+    Transform {
+        /// Kind.
+        kind: TransformKind,
+        /// Time-domain expression.
+        expression: Term,
+        /// Time / sequence variable.
+        time_variable: String,
+        /// Transform variable.
+        transform_variable: String,
         /// Assumptions.
         assumptions: AssumptionSet,
     },

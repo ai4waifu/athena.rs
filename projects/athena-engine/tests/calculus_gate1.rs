@@ -350,6 +350,7 @@ fn ode_y_prime_equals_const() {
             equation: eq,
             dependent: "y".into(),
             independent: "x".into(),
+            initial: None,
             assumptions: AssumptionSet::empty(),
         }))
         .expect("ok");
@@ -366,6 +367,84 @@ fn ode_y_prime_equals_const() {
         }
         other => panic!("expected verified ODE solution, got {other:?}"),
     }
+}
+
+#[test]
+fn ode_ivp_y_prime_const() {
+    let engine = AthenaEngine::new();
+    let eq = Term::app(
+        "Equal",
+        vec![
+            Term::app("D", vec![Term::symbol("y"), Term::symbol("x")]),
+            Term::int(2),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq,
+            dependent: "y".into(),
+            independent: "x".into(),
+            initial: Some((Term::int(0), Term::int(1))),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::DifferentialSolution(sol),
+            ..
+        } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            // y = 2x + 1
+            let text = format!("{:?}", sol.explicit);
+            assert!(text.contains('x') && text.contains('1'), "got {text}");
+        }
+        other => panic!("expected IVP solution, got {other:?}"),
+    }
+}
+
+#[test]
+fn laplace_exp_and_sin() {
+    let engine = AthenaEngine::new();
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
+            kind: athena_engine::TransformKind::Laplace,
+            expression: Term::app(
+                "Exp",
+                vec![Term::app("Times", vec![Term::int(2), Term::symbol("t")])],
+            ),
+            time_variable: "t".into(),
+            transform_variable: "s".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact {
+            value: CalculusValue::Transform(tr),
+            ..
+        } => {
+            assert!(tr.region_of_convergence.known);
+            let text = format!("{:?}", tr.expression);
+            assert!(text.contains('s'), "got {text}");
+        }
+        other => panic!("expected Laplace Transform, got {other:?}"),
+    }
+
+    let sin = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
+            kind: athena_engine::TransformKind::Laplace,
+            expression: Term::app("Sin", vec![Term::symbol("t")]),
+            time_variable: "t".into(),
+            transform_variable: "s".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    assert!(matches!(
+        sin,
+        CalculusResult::Exact {
+            value: CalculusValue::Transform(_),
+            ..
+        }
+    ));
 }
 
 #[test]

@@ -5,6 +5,7 @@ use crate::term::Term;
 use super::differential::DifferentialSolution;
 use super::result::CalculusResult;
 use super::series::Series;
+use super::transform::TransformResult;
 use super::vector::{Gradient, Hessian, Jacobian};
 
 /// Value carried by a domain / calculus response.
@@ -22,6 +23,8 @@ pub enum CalculusValue {
     Hessian(Hessian),
     /// ODE solution object (verified residual).
     DifferentialSolution(DifferentialSolution),
+    /// Integral transform with ROC.
+    Transform(TransformResult),
 }
 
 impl From<Term> for CalculusValue {
@@ -60,6 +63,12 @@ impl From<DifferentialSolution> for CalculusValue {
     }
 }
 
+impl From<TransformResult> for CalculusValue {
+    fn from(value: TransformResult) -> Self {
+        Self::Transform(value)
+    }
+}
+
 impl CalculusValue {
     /// Flatten to a bridge [`Term`] for hosts that still need a single expression.
     pub fn to_bridge_term(&self) -> Term {
@@ -70,6 +79,7 @@ impl CalculusValue {
             Self::Jacobian(j) => j.to_list_term(),
             Self::Hessian(h) => h.to_list_term(),
             Self::DifferentialSolution(d) => d.to_equal_term(),
+            Self::Transform(t) => t.to_bridge_term(),
         }
     }
 }
@@ -177,6 +187,24 @@ pub fn map_ode_result(r: CalculusResult<DifferentialSolution>) -> CalculusResult
         },
         CalculusResult::Unevaluated { expression, reason } => CalculusResult::Unevaluated {
             expression: CalculusValue::DifferentialSolution(expression),
+            reason,
+        },
+    }
+}
+
+/// Map transform result.
+pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResult<CalculusValue> {
+    match r {
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact {
+            value: CalculusValue::Transform(value),
+            conditions,
+        },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional {
+            value: CalculusValue::Transform(value),
+            conditions,
+        },
+        CalculusResult::Unevaluated { expression, reason } => CalculusResult::Unevaluated {
+            expression: CalculusValue::Transform(expression),
             reason,
         },
     }

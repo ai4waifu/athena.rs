@@ -20,6 +20,7 @@ pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
         "Limit" => lower_limit(args),
         "Series" => lower_series(args),
         "DSolve" => lower_dsolve(args),
+        "LaplaceTransform" => lower_laplace(args),
         _ => None,
     }
 }
@@ -179,6 +180,21 @@ fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
         equation: equation.clone(),
         dependent,
         independent,
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
+    // LaplaceTransform[expr, t, s]
+    let [expression, time, transform] = args else {
+        return None;
+    };
+    Some(CalculusRequest::Transform {
+        kind: super::request::TransformKind::Laplace,
+        expression: expression.clone(),
+        time_variable: symbol_name(time)?,
+        transform_variable: symbol_name(transform)?,
         assumptions: AssumptionSet::empty(),
     })
 }
