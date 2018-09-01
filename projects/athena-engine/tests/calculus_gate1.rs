@@ -348,11 +348,7 @@ fn curl_of_linear_3d_field() {
     // F = (−y, x, 0) ⇒ curl = (0, 0, 2)
     let out = engine
         .execute_domain(DomainRequest::Calculus(CalculusRequest::Curl {
-            components: vec![
-                Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]),
-                Term::symbol("x"),
-                Term::int(0),
-            ],
+            components: vec![Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]), Term::symbol("x"), Term::int(0)],
             variables: vec!["x".into(), "y".into(), "z".into()],
             assumptions: AssumptionSet::empty(),
         }))
@@ -462,6 +458,95 @@ fn laplace_exp_and_sin() {
         }))
         .expect("ok");
     assert!(matches!(sin, CalculusResult::Exact { value: CalculusValue::Transform(_), .. }));
+}
+
+#[test]
+fn fourier_exp_abs_decay() {
+    let engine = AthenaEngine::new();
+    // Exp[-Abs[t]] → 2/(1+ω²)
+    let expr = Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Abs", vec![Term::symbol("t")])])]);
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
+            kind: athena_engine::TransformKind::Fourier,
+            expression: expr,
+            time_variable: "t".into(),
+            transform_variable: "w".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
+            assert!(tr.region_of_convergence.known);
+            assert_eq!(tr.kind, athena_engine::TransformKind::Fourier);
+            let text = format!("{:?}", tr.expression);
+            assert!(text.contains('w'), "got {text}");
+            // 2 / (1 + w^2)
+            assert_eq!(
+                tr.expression,
+                Term::apply(
+                    "Times",
+                    vec![
+                        Term::int(2),
+                        Term::apply(
+                            "Power",
+                            vec![
+                                Term::apply(
+                                    "Plus",
+                                    vec![Term::int(1), Term::apply("Power", vec![Term::symbol("w"), Term::int(2)])],
+                                ),
+                                Term::int(-1),
+                            ],
+                        ),
+                    ],
+                )
+            );
+        }
+        other => panic!("expected Fourier Transform, got {other:?}"),
+    }
+}
+
+#[test]
+fn fourier_gaussian_and_lowering() {
+    let engine = AthenaEngine::new();
+    let expr = Term::apply(
+        "Exp",
+        vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![Term::symbol("t"), Term::int(2)])])],
+    );
+    let term = Term::apply("FourierTransform", vec![expr.clone(), Term::symbol("t"), Term::symbol("w")]);
+    let req = try_calculus_request(&term).expect("lower Fourier");
+    let out = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
+            assert!(tr.region_of_convergence.known);
+            let text = format!("{:?}", tr.expression);
+            assert!(text.contains("Sqrt") || text.contains("Pi") || text.contains('w'), "got {text}");
+        }
+        other => panic!("expected Fourier Transform, got {other:?}"),
+    }
+
+    let causal = Term::apply(
+        "Times",
+        vec![
+            Term::apply("UnitStep", vec![Term::symbol("t")]),
+            Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(-2), Term::symbol("t")])]),
+        ],
+    );
+    let causal_out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
+            kind: athena_engine::TransformKind::Fourier,
+            expression: causal,
+            time_variable: "t".into(),
+            transform_variable: "w".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match causal_out {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
+            let text = format!("{:?}", tr.expression);
+            assert!(text.contains('I') && text.contains('w'), "got {text}");
+        }
+        other => panic!("expected causal Fourier, got {other:?}"),
+    }
 }
 
 #[test]

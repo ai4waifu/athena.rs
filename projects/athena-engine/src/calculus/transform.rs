@@ -1,4 +1,4 @@
-//! 积分变换 — 带显式 ROC 的 Laplace bootstrap。
+//! 积分变换 — 带显式 ROC 的 Laplace / Fourier bootstrap。
 
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
@@ -23,6 +23,14 @@ impl RegionOfConvergence {
     pub fn re_s_greater(s: &str, a: Number) -> Self {
         Self {
             predicate: Some(Term::app("Greater", vec![Term::app("Re", vec![Term::symbol(s)]), Term::number(a)])),
+            known: true,
+        }
+    }
+
+    /// 傅里叶频率在实轴上（经典 L¹ / Schwartz 像）。
+    pub fn real_line(omega: &str) -> Self {
+        Self {
+            predicate: Some(Term::app("Element", vec![Term::symbol(omega), Term::symbol("Reals")])),
             known: true,
         }
     }
@@ -102,6 +110,45 @@ pub fn laplace_checked(
             reason: Diagnostic::error(
                 DiagnosticCode::TransformRocUnknown,
                 "Laplace 变换不在 bootstrap 表内（poly/exp/sin/cos/linear）",
+            ),
+        },
+    }
+}
+
+/// 傅里叶变换（非单位角频率约定 `∫ f(t) e^{-I ω t} dt`）。
+///
+/// Bootstrap：双边指数衰减、高斯、因果指数，以及标量 / 加法线性组合。结果始终携带 ROC。
+pub fn fourier_checked(
+    expression: &Term,
+    time_variable: &str,
+    transform_variable: &str,
+    _assumptions: &AssumptionSet,
+) -> CalculusResult<TransformResult> {
+    match fourier_one(expression, time_variable, transform_variable) {
+        Some((expr, roc)) => CalculusResult::Exact {
+            value: TransformResult {
+                kind: TransformKind::Fourier,
+                expression: expr,
+                time_variable: time_variable.to_string(),
+                transform_variable: transform_variable.to_string(),
+                region_of_convergence: roc,
+            },
+            conditions: Vec::new(),
+        },
+        None => CalculusResult::Unevaluated {
+            expression: TransformResult {
+                kind: TransformKind::Fourier,
+                expression: Term::app(
+                    "FourierTransform",
+                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
+                ),
+                time_variable: time_variable.to_string(),
+                transform_variable: transform_variable.to_string(),
+                region_of_convergence: RegionOfConvergence::unknown(),
+            },
+            reason: Diagnostic::error(
+                DiagnosticCode::TransformRocUnknown,
+                "Fourier 变换不在 bootstrap 表内（Exp[-a Abs[t]] / 高斯 / 因果指数 / 线性）",
             ),
         },
     }
@@ -218,6 +265,212 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
         Term::List(_) => None,
         Term::Atom(_) => None,
     }
+}
+
+fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConvergence)> {
+    match expr {
+        Term::Application { head, arguments: args } => {
+            let h = head.head_name()?;
+            match h {
+                "Plus" => {
+                    let mut parts = Vec::new();
+                    for a in args {
+                        let (fa, roc) = fourier_one(a, t, omega)?;
+                        if !roc.known {
+                            return None;
+                        }
+                        parts.push(fa);
+                    }
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
+                    Some((body, RegionOfConvergence::real_line(omega)))
+                }
+                "Times" if args.len() == 2 => {
+                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                        let (inner, roc) = fourier_one(&args[1], t, omega)?;
+                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        return Some((body, roc));
+                    }
+                    if let Some(c) = number_from_term(&args[1]).cloned() {
+                        let (inner, roc) = fourier_one(&args[0], t, omega)?;
+                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        return Some((body, roc));
+                    }
+                    // UnitStep[t] * Exp[-a t] → 1/(a + I ω), a>0
+                    if let Some(rest) = split_unit_step(args, t) {
+                        return fourier_causal_exp(rest, t, omega);
+                    }
+                    None
+                }
+                "Exp" if args.len() == 1 => {
+                    if let Some(a) = match_neg_coeff_abs_var(&args[0], t) {
+                        // Exp[-a Abs[t]] → 2a / (a² + ω²), a>0
+                        if !number_is_positive(&a) {
+                            return None;
+                        }
+                        let den = evaluate(&Term::app(
+                            "Plus",
+                            vec![
+                                Term::app("Power", vec![Term::number(a.clone()), Term::int(2)]),
+                                Term::app("Power", vec![Term::symbol(omega), Term::int(2)]),
+                            ],
+                        ));
+                        let body = evaluate(&Term::app(
+                            "Times",
+                            vec![
+                                Term::app("Times", vec![Term::int(2), Term::number(a)]),
+                                Term::app("Power", vec![den, Term::int(-1)]),
+                            ],
+                        ));
+                        return Some((body, RegionOfConvergence::real_line(omega)));
+                    }
+                    if let Some(a) = match_neg_coeff_square_var(&args[0], t) {
+                        // Exp[-a t²] → √(π/a) Exp[-ω²/(4a)], a>0
+                        if !number_is_positive(&a) {
+                            return None;
+                        }
+                        let scale = Term::app(
+                            "Sqrt",
+                            vec![Term::app(
+                                "Times",
+                                vec![Term::symbol("Pi"), Term::app("Power", vec![Term::number(a.clone()), Term::int(-1)])],
+                            )],
+                        );
+                        let exp_arg = evaluate(&Term::app(
+                            "Times",
+                            vec![
+                                Term::int(-1),
+                                Term::app(
+                                    "Times",
+                                    vec![
+                                        Term::app("Power", vec![Term::symbol(omega), Term::int(2)]),
+                                        Term::app(
+                                            "Power",
+                                            vec![Term::app("Times", vec![Term::int(4), Term::number(a)]), Term::int(-1)],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ));
+                        let body = evaluate(&Term::app("Times", vec![scale, Term::app("Exp", vec![exp_arg])]));
+                        return Some((body, RegionOfConvergence::real_line(omega)));
+                    }
+                    None
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn fourier_causal_exp(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConvergence)> {
+    // Exp[-a t] with a>0 → 1/(a + I ω)
+    let Term::Application { head, arguments: args } = expr
+    else {
+        return None;
+    };
+    if !head.is_symbol("Exp") || args.len() != 1 {
+        return None;
+    }
+    let a_signed = match_coeff_times_var(&args[0], t)?;
+    let zero = Number::small_int(0);
+    if a_signed.compare(&zero) != Some(std::cmp::Ordering::Less) {
+        return None;
+    }
+    let a = evaluate_neg_number(&a_signed)?;
+    let den = evaluate(&Term::app(
+        "Plus",
+        vec![Term::number(a), Term::app("Times", vec![Term::symbol("I"), Term::symbol(omega)])],
+    ));
+    let body = evaluate(&Term::app("Power", vec![den, Term::int(-1)]));
+    Some((body, RegionOfConvergence::real_line(omega)))
+}
+
+fn split_unit_step<'a>(args: &'a [Term], t: &str) -> Option<&'a Term> {
+    match args {
+        [a, b] if is_unit_step(a, t) => Some(b),
+        [a, b] if is_unit_step(b, t) => Some(a),
+        _ => None,
+    }
+}
+
+fn is_unit_step(term: &Term, t: &str) -> bool {
+    matches!(
+        term,
+        Term::Application { head, arguments: args }
+            if (head.is_symbol("UnitStep") || head.is_symbol("HeavisideTheta"))
+                && args.len() == 1
+                && args[0].is_symbol(t)
+    )
+}
+
+/// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
+fn match_neg_coeff_abs_var(term: &Term, var: &str) -> Option<Number> {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
+            let coeff = if is_abs_of(&args[1], var) {
+                number_from_term(&args[0]).cloned()?
+            } else if is_abs_of(&args[0], var) {
+                number_from_term(&args[1]).cloned()?
+            } else {
+                return None;
+            };
+            let zero = Number::small_int(0);
+            if coeff.compare(&zero) != Some(std::cmp::Ordering::Less) {
+                return None;
+            }
+            evaluate_neg_number(&coeff)
+        }
+        _ => None,
+    }
+}
+
+fn is_abs_of(term: &Term, var: &str) -> bool {
+    matches!(
+        term,
+        Term::Application { head, arguments: args } if head.is_symbol("Abs") && args.len() == 1 && args[0].is_symbol(var)
+    )
+}
+
+/// `Times[-a, Power[t, 2]]`，返回 a>0。
+fn match_neg_coeff_square_var(term: &Term, var: &str) -> Option<Number> {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
+            let coeff = if is_square_of(&args[1], var) {
+                number_from_term(&args[0]).cloned()?
+            } else if is_square_of(&args[0], var) {
+                number_from_term(&args[1]).cloned()?
+            } else {
+                return None;
+            };
+            let zero = Number::small_int(0);
+            if coeff.compare(&zero) != Some(std::cmp::Ordering::Less) {
+                return None;
+            }
+            evaluate_neg_number(&coeff)
+        }
+        _ => None,
+    }
+}
+
+fn is_square_of(term: &Term, var: &str) -> bool {
+    matches!(
+        term,
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power")
+                && args.len() == 2
+                && args[0].is_symbol(var)
+                && number_from_term(&args[1]).and_then(|n| n.as_integer_exp()) == Some(2.into())
+    )
+}
+
+fn evaluate_neg_number(n: &Number) -> Option<Number> {
+    let t = evaluate(&Term::app("Times", vec![Term::int(-1), Term::number(n.clone())]));
+    number_from_term(&t).cloned()
+}
+
+fn number_is_positive(n: &Number) -> bool {
+    n.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Greater)
 }
 
 fn match_coeff_times_var(term: &Term, var: &str) -> Option<Number> {
