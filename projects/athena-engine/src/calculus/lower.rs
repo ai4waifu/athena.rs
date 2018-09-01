@@ -22,6 +22,8 @@ pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
         "Series" => lower_series(args),
         "DSolve" => lower_dsolve(args),
         "LaplaceTransform" => lower_laplace(args),
+        "Divergence" => lower_divergence(args),
+        "Curl" => lower_curl(args),
         _ => None,
     }
 }
@@ -185,6 +187,50 @@ fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
         expression: expression.clone(),
         time_variable: symbol_name(time)?,
         transform_variable: symbol_name(transform)?,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn lower_divergence(args: &[Term]) -> Option<CalculusRequest> {
+    // Divergence[{F1,…}, {x1,…}]
+    let [comps, vars] = args
+    else {
+        return None;
+    };
+    let Term::List(components) = comps
+    else {
+        return None;
+    };
+    let Term::List(var_terms) = vars
+    else {
+        return None;
+    };
+    let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
+    Some(CalculusRequest::Divergence {
+        components: components.clone(),
+        variables: variables?,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn lower_curl(args: &[Term]) -> Option<CalculusRequest> {
+    // Curl[{Fx,Fy,Fz}, {x,y,z}]
+    let [comps, vars] = args
+    else {
+        return None;
+    };
+    let Term::List(components) = comps
+    else {
+        return None;
+    };
+    let Term::List(var_terms) = vars
+    else {
+        return None;
+    };
+    let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
+    Some(CalculusRequest::Curl {
+        components: components.clone(),
+        variables: variables?,
         assumptions: AssumptionSet::empty(),
     })
 }

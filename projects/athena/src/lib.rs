@@ -11,12 +11,13 @@
 
 pub use athena_engine::{
     AssumptionSet, AssumptionSetId, AthenaEngine, Atom, AtomKind, CalculusRequest, CalculusResult, CalculusValue, Condition,
-    ConditionalResult, DerivativeOrder, Diagnostic, DiagnosticCode, DifferentialSolution, DomainId, DomainRequest, EvalOptions,
-    ExactNumber, Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, NodeId, Number, NumericDomain, OperatorId,
-    Precision, Predicate, RealNumber, RegionOfConvergence, Remainder, Result, RewriteOptions, RewriteResult, Rewriter,
-    RoundingMode, SerializationVersion, Series, Session, Severity, SimplifyOptions, SourceSpan, SymbolId, SymbolTable, Term,
-    TermArena, TermBuilder, TermId, TermKind, TransformKind, TransformResult, VerificationStatus, calculus_result_bridge_term,
-    canonical_hash, definite_integrate_checked, differentiate, differentiate_checked, differentiate_term, evaluate,
-    execute_calculus, execute_domain, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked,
-    laplace_checked, limit_checked, number_from_term, solve_ode_checked, taylor, try_calculus_request,
+    ConditionalResult, Curl, DerivativeOrder, Diagnostic, DiagnosticCode, DifferentialSolution, Divergence, DomainId,
+    DomainRequest, EvalOptions, ExactNumber, Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, NodeId, Number,
+    NumericDomain, OperatorId, Precision, Predicate, RealNumber, RegionOfConvergence, Remainder, Result, RewriteOptions,
+    RewriteResult, Rewriter, RoundingMode, SerializationVersion, Series, Session, Severity, SimplifyOptions, SourceSpan,
+    SymbolId, SymbolTable, Term, TermArena, TermBuilder, TermId, TermKind, TransformKind, TransformResult, VerificationStatus,
+    calculus_result_bridge_term, canonical_hash, curl_checked, definite_integrate_checked, differentiate, differentiate_checked,
+    differentiate_term, divergence_checked, evaluate, execute_calculus, execute_domain, gradient_checked, hessian_checked,
+    integrate, integrate_checked, jacobian_checked, laplace_checked, limit_checked, number_from_term, solve_ode_checked, taylor,
+    try_calculus_request,
 };

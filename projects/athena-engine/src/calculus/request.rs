@@ -142,6 +142,24 @@ pub enum CalculusRequest {
         /// 假设。
         assumptions: AssumptionSet,
     },
+    /// 向量场散度。
+    Divergence {
+        /// 分量 F₁…Fₙ。
+        components: Vec<Term>,
+        /// 坐标变量（与分量同序）。
+        variables: Vec<String>,
+        /// 假设。
+        assumptions: AssumptionSet,
+    },
+    /// 三维向量场旋度。
+    Curl {
+        /// 分量 (Fₓ, Fᵧ, F_z)。
+        components: Vec<Term>,
+        /// 坐标 (x, y, z)。
+        variables: Vec<String>,
+        /// 假设。
+        assumptions: AssumptionSet,
+    },
     /// 一阶 ODE 求解（bootstrap 子集）。
     SolveOde {
         /// 方程项（`Equal[…]`）。

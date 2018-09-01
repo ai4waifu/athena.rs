@@ -26,10 +26,13 @@ pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_
 pub use series::{Remainder, Series, taylor};
 pub use transform::{RegionOfConvergence, TransformResult, laplace_checked};
 pub use value::{
-    CalculusValue, calculus_result_bridge_term, map_gradient_result, map_hessian_result, map_jacobian_result, map_ode_result,
-    map_series_result, map_term_result, map_transform_result,
+    CalculusValue, calculus_result_bridge_term, map_curl_result, map_divergence_result, map_gradient_result, map_hessian_result,
+    map_jacobian_result, map_ode_result, map_series_result, map_term_result, map_transform_result,
 };
-pub use vector::{Gradient, Hessian, Jacobian, gradient_checked, hessian_checked, jacobian_checked};
+pub use vector::{
+    Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked,
+    jacobian_checked,
+};
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -79,6 +82,12 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
         }
         CalculusRequest::Hessian { expression, variables, assumptions } => {
             map_hessian_result(hessian_checked(&expression, &variables, &assumptions))
+        }
+        CalculusRequest::Divergence { components, variables, assumptions } => {
+            map_divergence_result(divergence_checked(&components, &variables, &assumptions))
+        }
+        CalculusRequest::Curl { components, variables, assumptions } => {
+            map_curl_result(curl_checked(&components, &variables, &assumptions))
         }
         CalculusRequest::SolveOde { equation, dependent, independent, initial, assumptions } => {
             map_ode_result(solve_ode_checked(&equation, &dependent, &independent, initial.as_ref(), &assumptions))

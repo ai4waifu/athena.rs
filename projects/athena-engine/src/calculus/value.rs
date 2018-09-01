@@ -7,7 +7,7 @@ use super::{
     result::CalculusResult,
     series::Series,
     transform::TransformResult,
-    vector::{Gradient, Hessian, Jacobian},
+    vector::{Curl, Divergence, Gradient, Hessian, Jacobian},
 };
 
 /// 域 / 微积分响应所携带的值。
@@ -23,6 +23,10 @@ pub enum CalculusValue {
     Jacobian(Jacobian),
     /// Hessian 矩阵对象。
     Hessian(Hessian),
+    /// 散度对象（标量值）。
+    Divergence(Divergence),
+    /// 旋度对象（三维向量）。
+    Curl(Curl),
     /// ODE 解对象（残差已验证）。
     DifferentialSolution(DifferentialSolution),
     /// 带 ROC 的积分变换。
@@ -59,6 +63,18 @@ impl From<Hessian> for CalculusValue {
     }
 }
 
+impl From<Divergence> for CalculusValue {
+    fn from(value: Divergence) -> Self {
+        Self::Divergence(value)
+    }
+}
+
+impl From<Curl> for CalculusValue {
+    fn from(value: Curl) -> Self {
+        Self::Curl(value)
+    }
+}
+
 impl From<DifferentialSolution> for CalculusValue {
     fn from(value: DifferentialSolution) -> Self {
         Self::DifferentialSolution(value)
@@ -80,6 +96,8 @@ impl CalculusValue {
             Self::Gradient(g) => g.to_list_term(),
             Self::Jacobian(j) => j.to_list_term(),
             Self::Hessian(h) => h.to_list_term(),
+            Self::Divergence(d) => d.to_bridge_term(),
+            Self::Curl(c) => c.to_list_term(),
             Self::DifferentialSolution(d) => d.to_equal_term(),
             Self::Transform(t) => t.to_bridge_term(),
         }
@@ -157,6 +175,36 @@ pub fn map_hessian_result(r: CalculusResult<Hessian>) -> CalculusResult<Calculus
         }
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Hessian(expression), reason }
+        }
+    }
+}
+
+/// 映射散度结果。
+pub fn map_divergence_result(r: CalculusResult<Divergence>) -> CalculusResult<CalculusValue> {
+    match r {
+        CalculusResult::Exact { value, conditions } => {
+            CalculusResult::Exact { value: CalculusValue::Divergence(value), conditions }
+        }
+        CalculusResult::Conditional { value, conditions } => {
+            CalculusResult::Conditional { value: CalculusValue::Divergence(value), conditions }
+        }
+        CalculusResult::Unevaluated { expression, reason } => {
+            CalculusResult::Unevaluated { expression: CalculusValue::Divergence(expression), reason }
+        }
+    }
+}
+
+/// 映射旋度结果。
+pub fn map_curl_result(r: CalculusResult<Curl>) -> CalculusResult<CalculusValue> {
+    match r {
+        CalculusResult::Exact { value, conditions } => {
+            CalculusResult::Exact { value: CalculusValue::Curl(value), conditions }
+        }
+        CalculusResult::Conditional { value, conditions } => {
+            CalculusResult::Conditional { value: CalculusValue::Curl(value), conditions }
+        }
+        CalculusResult::Unevaluated { expression, reason } => {
+            CalculusResult::Unevaluated { expression: CalculusValue::Curl(expression), reason }
         }
     }
 }

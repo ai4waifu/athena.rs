@@ -4,7 +4,7 @@ use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
 use athena_engine::{
     AthenaEngine, CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder, DomainRequest, LimitApproach,
-    LimitDirection, Remainder, Term, differentiate_checked, integrate_checked,
+    LimitDirection, Remainder, Term, differentiate_checked, integrate_checked, try_calculus_request,
 };
 
 #[test]
@@ -320,6 +320,68 @@ fn hessian_quadratic() {
             assert_eq!(h.entries[1][1], Term::int(0));
         }
         other => panic!("expected Hessian, got {other:?}"),
+    }
+}
+
+#[test]
+fn divergence_of_linear_field() {
+    let engine = AthenaEngine::new();
+    // F = (x, y) ⇒ div = 2
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Divergence {
+            components: vec![Term::symbol("x"), Term::symbol("y")],
+            variables: vec!["x".into(), "y".into()],
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Divergence(d), .. } => {
+            assert_eq!(d.value, Term::int(2));
+        }
+        other => panic!("expected Divergence, got {other:?}"),
+    }
+}
+
+#[test]
+fn curl_of_linear_3d_field() {
+    let engine = AthenaEngine::new();
+    // F = (−y, x, 0) ⇒ curl = (0, 0, 2)
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Curl {
+            components: vec![
+                Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]),
+                Term::symbol("x"),
+                Term::int(0),
+            ],
+            variables: vec!["x".into(), "y".into(), "z".into()],
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Curl(c), .. } => {
+            assert_eq!(c.curl_components, vec![Term::int(0), Term::int(0), Term::int(2)]);
+        }
+        other => panic!("expected Curl, got {other:?}"),
+    }
+}
+
+#[test]
+fn divergence_via_term_lowering() {
+    let engine = AthenaEngine::new();
+    let term = Term::apply(
+        "Divergence",
+        vec![
+            Term::List(vec![Term::symbol("x"), Term::symbol("y"), Term::symbol("z")]),
+            Term::List(vec![Term::symbol("x"), Term::symbol("y"), Term::symbol("z")]),
+        ],
+    );
+    let req = try_calculus_request(&term).expect("lower");
+    let out = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Divergence(d), .. } => {
+            assert_eq!(d.value, Term::int(3));
+        }
+        other => panic!("expected Divergence, got {other:?}"),
     }
 }
 
