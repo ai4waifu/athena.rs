@@ -1,4 +1,4 @@
-//! Execution engine handle — hosts compose requests; math lives in submodules.
+//! 执行引擎句柄 — 宿主组合请求；数学逻辑在子模块中。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -7,45 +7,45 @@ use crate::{
     term::Term,
 };
 
-/// Evaluation options (placeholder; expands with modes/session).
+/// 求值选项（占位；随后随模式 / Session 扩展）。
 #[derive(Debug, Clone, Default)]
 pub struct EvalOptions {}
 
-/// Simplification options.
+/// 化简选项。
 #[derive(Debug, Clone, Default)]
 pub struct SimplifyOptions {}
 
-/// Primary Athena engine handle (stateless rules; use [`Session`] for bindings).
+/// Athena 主引擎句柄（无状态规则；绑定请用 [`Session`]）。
 #[derive(Debug, Default)]
 pub struct AthenaEngine {}
 
 impl AthenaEngine {
-    /// Create engine with default operator registry (stub).
+    /// 以默认算子注册表创建引擎（桩）。
     pub fn new() -> Self {
         Self {}
     }
 
-    /// Evaluate a bridge [`Term`] under built-in definitions.
+    /// 在内建定义下求值桥接 [`Term`]。
     pub fn evaluate_term(&self, expr: &Term) -> Term {
         crate::eval::evaluate(expr)
     }
 
-    /// Differentiate then evaluate (legacy bridge; prefer [`Self::execute_domain`]).
+    /// 先求导再求值（遗留桥接；优先使用 [`Self::execute_domain`]）。
     pub fn differentiate_term(&self, expr: &Term, var: &str) -> Term {
         crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
     }
 
-    /// Domain dispatch — calculus returns [`CalculusResult`], not a bare term.
+    /// 域分派 — 微积分返回 [`CalculusResult`]，而非裸项。
     pub fn execute_domain(&self, request: DomainRequest) -> Result<CalculusResult<CalculusValue>> {
         dispatch_domain(request)
     }
 
-    /// Simplify via `Simplify` head.
+    /// 经 `Simplify` 头部化简。
     pub fn simplify_term(&self, expr: &Term) -> Term {
-        self.evaluate_term(&Term::app("Simplify", vec![expr.clone()]))
+        self.evaluate_term(&Term::apply("Simplify", vec![expr.clone()]))
     }
 
-    /// Arena/`()` stub evaluate — retained until IR path lands.
+    /// Arena/`()` 桩求值 — 保留至 IR 路径落地。
     pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
         Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "evaluate not yet implemented"))
     }

@@ -1,88 +1,81 @@
-//! Calculus result contracts — expression + conditions + completeness.
+//! 微积分结果契约 — 表达式 + 条件 + 完备性。
 
 use athena_types::{AssumptionSet, Condition, Diagnostic, Predicate};
 
 use crate::term::Term;
 
-/// Result carrying a value plus applicability conditions.
+/// 携带值及其适用条件的结果。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConditionalResult<T> {
-    /// Computed value.
+    /// 计算得到的值。
     pub value: T,
-    /// Conditions under which `value` is valid.
+    /// `value` 成立所需条件。
     pub conditions: Vec<Condition>,
-    /// Conditions the engine could not discharge.
+    /// 引擎未能消解的条件。
     pub unresolved: Vec<Condition>,
 }
 
 impl<T> ConditionalResult<T> {
-    /// Exact result with no conditions.
+    /// 无条件的精确结果。
     pub fn exact(value: T) -> Self {
         Self { value, conditions: Vec::new(), unresolved: Vec::new() }
     }
 
-    /// Result with unresolved predicates (caller must not treat as unconditional).
+    /// 带未消解谓词的结果（调用方不得视为无条件）。
     pub fn with_unresolved(value: T, unresolved: Vec<Condition>) -> Self {
         Self { value, conditions: Vec::new(), unresolved }
     }
 }
 
-/// Unified calculus outcome (not a bare [`Term`]).
+/// 统一的微积分结果（非裸 [`Term`]）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum CalculusResult<T = Term> {
-    /// Exact symbolic result.
+    /// 精确符号结果。
     Exact {
-        /// Value.
+        /// 值。
         value: T,
-        /// Discharged conditions.
+        /// 已消解条件。
         conditions: Vec<Condition>,
     },
-    /// Result valid only under listed conditions.
+    /// 仅在所列条件下成立的结果。
     Conditional {
-        /// Value.
+        /// 值。
         value: T,
-        /// Conditions.
+        /// 条件。
         conditions: Vec<Condition>,
     },
-    /// Left unevaluated with a structured reason.
+    /// 未求值，并附结构化原因。
     Unevaluated {
-        /// Original or residual expression.
+        /// 原始或残余表达式。
         expression: T,
-        /// Why evaluation stopped.
+        /// 求值停止原因。
         reason: Diagnostic,
     },
 }
 
 impl<T> CalculusResult<T> {
-    /// Convert a [`ConditionalResult`] into the public enum.
+    /// 将 [`ConditionalResult`] 转为公开枚举。
     pub fn from_conditional(c: ConditionalResult<T>) -> Self {
         if c.unresolved.is_empty() && c.conditions.is_empty() {
-            Self::Exact {
-                value: c.value,
-                conditions: Vec::new(),
-            }
-        } else if c.unresolved.is_empty() {
-            Self::Conditional {
-                value: c.value,
-                conditions: c.conditions,
-            }
-        } else {
+            Self::Exact { value: c.value, conditions: Vec::new() }
+        }
+        else if c.unresolved.is_empty() {
+            Self::Conditional { value: c.value, conditions: c.conditions }
+        }
+        else {
             let mut conditions = c.conditions;
             conditions.extend(c.unresolved.iter().cloned());
-            Self::Conditional {
-                value: c.value,
-                conditions,
-            }
+            Self::Conditional { value: c.value, conditions }
         }
     }
 }
 
-/// Build unresolved conditions from an assumption set that was not fully used.
+/// 从未充分使用的假设集构建未消解条件。
 pub fn unresolved_from_assumptions(set: &AssumptionSet) -> Vec<Condition> {
     set.predicates.iter().cloned().map(|predicate| Condition { predicate, resolved: false }).collect()
 }
 
-/// Helper: mark a predicate as unresolved.
+/// 辅助：将谓词标记为未消解。
 pub fn unresolved(predicate: Predicate) -> Condition {
     Condition { predicate, resolved: false }
 }

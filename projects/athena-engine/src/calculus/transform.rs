@@ -1,74 +1,64 @@
-//! Integral transforms — Laplace bootstrap with explicit ROC.
+//! 积分变换 — 带显式 ROC 的 Laplace bootstrap。
 
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
-use crate::eval::evaluate;
-use crate::term::{Atom, Term, number_from_term};
+use crate::{
+    eval::evaluate,
+    term::{Atom, Term, number_from_term},
+};
 
-use super::request::TransformKind;
-use super::result::CalculusResult;
+use super::{request::TransformKind, result::CalculusResult};
 
-/// Region of convergence — required on every transform result.
+/// 收敛域 — 每个变换结果都必须携带。
 #[derive(Debug, Clone, PartialEq)]
 pub struct RegionOfConvergence {
-    /// Structured / bridge predicate when known (e.g. `Greater[Re[s], a]`).
+    /// 已知时的结构化 / 桥接谓词（如 `Greater[Re[s], a]`）。
     pub predicate: Option<Term>,
-    /// Whether ROC is known (false ⇒ must not pretend absolute convergence).
+    /// ROC 是否已知（false ⇒ 不得假装绝对收敛）。
     pub known: bool,
 }
 
 impl RegionOfConvergence {
-    /// Known half-plane `Re[s] > a` for real `a`.
+    /// 已知半平面 `Re[s] > a`（实数 `a`）。
     pub fn re_s_greater(s: &str, a: Number) -> Self {
         Self {
-            predicate: Some(Term::app(
-                "Greater",
-                vec![
-                    Term::app("Re", vec![Term::symbol(s)]),
-                    Term::number(a),
-                ],
-            )),
+            predicate: Some(Term::app("Greater", vec![Term::app("Re", vec![Term::symbol(s)]), Term::number(a)])),
             known: true,
         }
     }
 
-    /// ROC unknown — still attached, never omitted.
+    /// ROC 未知 — 仍须附着，不可省略。
     pub fn unknown() -> Self {
-        Self {
-            predicate: None,
-            known: false,
-        }
+        Self { predicate: None, known: false }
     }
 }
 
-/// Transform result object (not a bare expression).
+/// 变换结果对象（非裸表达式）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformResult {
-    /// Kind.
+    /// 种类。
     pub kind: TransformKind,
-    /// Transformed expression in the transform variable.
+    /// 变换变量下的像函数表达式。
     pub expression: Term,
-    /// Time / sequence variable.
+    /// 时间 / 序列变量。
     pub time_variable: String,
-    /// Transform variable (`s`, `ω`, `z`, …).
+    /// 变换变量（`s`、`ω`、`z` 等）。
     pub transform_variable: String,
-    /// Region of convergence.
+    /// 收敛域。
     pub region_of_convergence: RegionOfConvergence,
 }
 
 impl TransformResult {
-    /// Bridge form `LaplaceTransform[F, {t,s}, ROC]` for hosts that need a Term.
+    /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`，供仍需要 Term 的宿主。
     pub fn to_bridge_term(&self) -> Term {
         let mut args = vec![
             self.expression.clone(),
-            Term::List(vec![
-                Term::symbol(&self.time_variable),
-                Term::symbol(&self.transform_variable),
-            ]),
+            Term::List(vec![Term::symbol(&self.time_variable), Term::symbol(&self.transform_variable)]),
         ];
         if let Some(roc) = &self.region_of_convergence.predicate {
             args.push(roc.clone());
-        } else {
+        }
+        else {
             args.push(Term::symbol("ROCUnknown"));
         }
         let head = match self.kind {
@@ -80,7 +70,7 @@ impl TransformResult {
     }
 }
 
-/// Unilateral Laplace transform of an already-decoded expression.
+/// 已解码表达式的单边 Laplace 变换。
 pub fn laplace_checked(
     expression: &Term,
     time_variable: &str,
@@ -103,11 +93,7 @@ pub fn laplace_checked(
                 kind: TransformKind::Laplace,
                 expression: Term::app(
                     "LaplaceTransform",
-                    vec![
-                        expression.clone(),
-                        Term::symbol(time_variable),
-                        Term::symbol(transform_variable),
-                    ],
+                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
@@ -115,7 +101,7 @@ pub fn laplace_checked(
             },
             reason: Diagnostic::error(
                 DiagnosticCode::TransformRocUnknown,
-                "Laplace transform not in bootstrap table (poly/exp/sin/cos/linear)",
+                "Laplace 变换不在 bootstrap 表内（poly/exp/sin/cos/linear）",
             ),
         },
     }
@@ -124,7 +110,8 @@ pub fn laplace_checked(
 fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergence)> {
     if let Some(n) = number_from_term(expr).cloned() {
         // L{c} = c/s, Re(s)>0
-        let body = evaluate(&Term::app("Times", vec![Term::number(n), Term::app("Power", vec![Term::symbol(s), Term::int(-1)])]));
+        let body =
+            evaluate(&Term::app("Times", vec![Term::number(n), Term::app("Power", vec![Term::symbol(s), Term::int(-1)])]));
         return Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))));
     }
     if expr.is_symbol(t) {
@@ -145,16 +132,13 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                             if b.compare(&roc_bound) == Some(std::cmp::Ordering::Greater) {
                                 roc_bound = b;
                             }
-                        } else if !roc.known {
+                        }
+                        else if !roc.known {
                             return None;
                         }
                         parts.push(fa);
                     }
-                    let body = if parts.len() == 1 {
-                        parts.pop().unwrap()
-                    } else {
-                        evaluate(&Term::app("Plus", parts))
-                    };
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
                     return Some((body, RegionOfConvergence::re_s_greater(s, roc_bound)));
                 }
                 "Times" if args.len() == 2 => {
@@ -180,17 +164,14 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     let fact = factorial_u32(n_u)?;
                     let body = evaluate(&Term::app(
                         "Times",
-                        vec![
-                            Term::integer(fact),
-                            Term::app("Power", vec![Term::symbol(s), Term::integer(-(n_u as i64 + 1))]),
-                        ],
+                        vec![Term::integer(fact), Term::app("Power", vec![Term::symbol(s), Term::integer(-(n_u as i64 + 1))])],
                     ));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 "Exp" if args.len() == 1 => {
-                    // Exp[a t] or Exp[Times[a,t]]
+                    // Exp[a t] 或 Exp[Times[a,t]]
                     let a = match_coeff_times_var(&args[0], t)?;
-                    // 1/(s-a), Re(s)>a (for real a)
+                    // 1/(s-a), Re(s)>a（实数 a）
                     let body = evaluate(&Term::app(
                         "Power",
                         vec![
@@ -213,7 +194,8 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                             Term::app("Power", vec![Term::number(w.clone()), Term::int(2)]),
                         ],
                     ));
-                    let body = evaluate(&Term::app("Times", vec![Term::number(w), Term::app("Power", vec![den, Term::int(-1)])]));
+                    let body =
+                        evaluate(&Term::app("Times", vec![Term::number(w), Term::app("Power", vec![den, Term::int(-1)])]));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 "Cos" if args.len() == 1 => {
@@ -225,10 +207,8 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                             Term::app("Power", vec![Term::number(w), Term::int(2)]),
                         ],
                     ));
-                    let body = evaluate(&Term::app(
-                        "Times",
-                        vec![Term::symbol(s), Term::app("Power", vec![den, Term::int(-1)])],
-                    ));
+                    let body =
+                        evaluate(&Term::app("Times", vec![Term::symbol(s), Term::app("Power", vec![den, Term::int(-1)])]));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 _ => None,
@@ -262,9 +242,7 @@ fn roc_half_plane_bound(roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate.as_ref()?;
     // Greater[Re[s], a]
     match pred {
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Greater") && args.len() == 2 =>
-        {
+        Term::Application { head, arguments: args } if head.is_symbol("Greater") && args.len() == 2 => {
             number_from_term(&args[1]).cloned()
         }
         _ => None,

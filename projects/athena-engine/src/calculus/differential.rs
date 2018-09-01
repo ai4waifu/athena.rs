@@ -1,67 +1,64 @@
-//! Ordinary differential equations — first-order subset with residual verification.
+//! 常微分方程 — 带残差验证的一阶子集。
 
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
-use crate::eval::evaluate;
-use crate::term::{Atom, Term, number_from_term};
+use crate::{
+    eval::evaluate,
+    term::{Atom, Term, number_from_term},
+};
 
-use super::derivative::differentiate;
-use super::result::CalculusResult;
-use super::term_util::replace_symbol;
+use super::{derivative::differentiate, result::CalculusResult, term_util::replace_symbol};
 
-/// Whether a candidate ODE solution was verified by residual substitution.
+/// 候选 ODE 解是否已通过残差代入验证。
 #[derive(Debug, Clone, PartialEq)]
 pub enum VerificationStatus {
-    /// Residual evaluates to zero.
+    /// 残差求值为零。
     Verified {
-        /// Residual expression after substitution (should be 0).
+        /// 代入后的残差表达式（应为 0）。
         residual: Term,
     },
-    /// Residual did not reduce to zero.
+    /// 残差未化简为零。
     Failed {
-        /// Non-zero residual.
+        /// 非零残差。
         residual: Term,
     },
 }
 
-/// Explicit first-order ODE solution object (not a bare term).
+/// 显式一阶 ODE 解对象（非裸项）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentialSolution {
-    /// Dependent variable name (bridge).
+    /// 因变量名（桥接）。
     pub dependent: String,
-    /// Independent variable name.
+    /// 自变量名。
     pub independent: String,
-    /// Explicit particular solution right-hand side for `y(x)`.
+    /// `y(x)` 的显式特解右端。
     pub explicit: Term,
-    /// Residual verification status — required for emitted solutions.
+    /// 残差验证状态 — 发出解时必填。
     pub verified: VerificationStatus,
 }
 
 impl DifferentialSolution {
-    /// Bridge term `Equal[y[x], explicit]`.
+    /// 桥接项 `Equal[y[x], explicit]`。
     pub fn to_equal_term(&self) -> Term {
         Term::app(
             "Equal",
-            vec![
-                Term::app(self.dependent.as_str(), vec![Term::symbol(&self.independent)]),
-                self.explicit.clone(),
-            ],
+            vec![Term::app(self.dependent.as_str(), vec![Term::symbol(&self.independent)]), self.explicit.clone()],
         )
     }
 }
 
-/// Right-hand side of `y' = f(x, y)` after recognition.
+/// 识别后的 `y' = f(x, y)` 右端。
 struct FirstOrderRhs {
-    /// `f` still possibly containing the dependent symbol.
+    /// `f`，仍可能含因变量符号。
     f: Term,
 }
 
-/// Solve a first-order ODE given as an already-decoded equation term.
+/// 求解已解码方程项给出的一阶 ODE。
 ///
-/// Bootstrap forms:
-/// - `Equal[D[y, x], a]` → particular `y = a x`
-/// - `Equal[D[y, x], Times[a, y]]` → particular `y = Exp[a x]`
-/// - `Equal[Plus[D[y, x], Times[p, y]], q]` (numeric `p≠0`) → particular `y = q/p`
+/// Bootstrap 形态：
+/// - `Equal[D[y, x], a]` → 特解 `y = a x`
+/// - `Equal[D[y, x], Times[a, y]]` → 特解 `y = Exp[a x]`
+/// - `Equal[Plus[D[y, x], Times[p, y]], q]`（数值 `p≠0`）→ 特解 `y = q/p`
 pub fn solve_ode_checked(
     equation: &Term,
     dependent: &str,
@@ -69,29 +66,27 @@ pub fn solve_ode_checked(
     initial: Option<&(Term, Term)>,
     _assumptions: &AssumptionSet,
 ) -> CalculusResult<DifferentialSolution> {
-    let Some(rhs) = recognize_y_prime_equals(equation, dependent, independent) else {
+    let Some(rhs) = recognize_y_prime_equals(equation, dependent, independent)
+    else {
         return unsupported(dependent, independent, equation);
     };
 
     let mut explicit = if let Some(a) = number_from_term(&rhs.f).cloned() {
         evaluate(&Term::app("Times", vec![Term::number(a), Term::symbol(independent)]))
-    } else if let Some(a) = match_times_const_y(&rhs.f, dependent) {
-        Term::app(
-            "Exp",
-            vec![evaluate(&Term::app(
-                "Times",
-                vec![Term::number(a), Term::symbol(independent)],
-            ))],
-        )
-    } else if let Some((p, q)) = match_as_linear_forced(&rhs.f, dependent) {
+    }
+    else if let Some(a) = match_times_const_y(&rhs.f, dependent) {
+        Term::app("Exp", vec![evaluate(&Term::app("Times", vec![Term::number(a), Term::symbol(independent)]))])
+    }
+    else if let Some((p, q)) = match_as_linear_forced(&rhs.f, dependent) {
         if p.is_zero() {
             return CalculusResult::Unevaluated {
                 expression: placeholder(dependent, independent, equation.clone()),
-                reason: Diagnostic::error(DiagnosticCode::OdeUnsupported, "linear ODE has zero damping"),
+                reason: Diagnostic::error(DiagnosticCode::OdeUnsupported, "线性 ODE 阻尼系数为 0"),
             };
         }
         evaluate(&Term::app("Divide", vec![Term::number(q), Term::number(p)]))
-    } else {
+    }
+    else {
         return unsupported(dependent, independent, equation);
     };
 
@@ -103,10 +98,7 @@ pub fn solve_ode_checked(
     let ivp_ok = match initial {
         Some((x0, y0)) => {
             let at = evaluate(&replace_symbol(&explicit, independent, x0));
-            is_zero_term(&evaluate(&Term::app(
-                "Plus",
-                vec![at, Term::app("Times", vec![Term::int(-1), y0.clone()])],
-            )))
+            is_zero_term(&evaluate(&Term::app("Plus", vec![at, Term::app("Times", vec![Term::int(-1), y0.clone()])])))
         }
         None => true,
     };
@@ -121,59 +113,40 @@ pub fn solve_ode_checked(
             },
             conditions: Vec::new(),
         }
-    } else {
+    }
+    else {
         CalculusResult::Unevaluated {
             expression: DifferentialSolution {
                 dependent: dependent.to_string(),
                 independent: independent.to_string(),
                 explicit,
-                verified: VerificationStatus::Failed {
-                    residual: residual.clone(),
-                },
+                verified: VerificationStatus::Failed { residual: residual.clone() },
             },
             reason: Diagnostic::error(
                 DiagnosticCode::OdeSolutionUnverified,
-                format!("ODE residual/IVP did not vanish: residual={residual:?}"),
+                format!("ODE 残差/初值未归零: residual={residual:?}"),
             ),
         }
     }
 }
 
-fn apply_ivp(
-    dependent: &str,
-    independent: &str,
-    f: &Term,
-    particular: &Term,
-    x0: &Term,
-    y0: &Term,
-) -> Term {
-    // y' = a (const) → y = a x + C, C = y0 - a x0
+fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0: &Term, y0: &Term) -> Term {
+    // y' = a (常数) → y = a x + C, C = y0 - a x0
     if let Some(a) = number_from_term(f).cloned() {
         let ax0 = evaluate(&Term::app("Times", vec![Term::number(a.clone()), x0.clone()]));
         let c = evaluate(&Term::app("Plus", vec![y0.clone(), Term::app("Times", vec![Term::int(-1), ax0])]));
-        return evaluate(&Term::app(
-            "Plus",
-            vec![
-                Term::app("Times", vec![Term::number(a), Term::symbol(independent)]),
-                c,
-            ],
-        ));
+        return evaluate(&Term::app("Plus", vec![Term::app("Times", vec![Term::number(a), Term::symbol(independent)]), c]));
     }
     // y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(f, dependent) {
-        let delta = evaluate(&Term::app(
-            "Plus",
-            vec![Term::symbol(independent), Term::app("Times", vec![Term::int(-1), x0.clone()])],
-        ));
+        let delta =
+            evaluate(&Term::app("Plus", vec![Term::symbol(independent), Term::app("Times", vec![Term::int(-1), x0.clone()])]));
         return evaluate(&Term::app(
             "Times",
-            vec![
-                y0.clone(),
-                Term::app("Exp", vec![Term::app("Times", vec![Term::number(a), delta])]),
-            ],
+            vec![y0.clone(), Term::app("Exp", vec![Term::app("Times", vec![Term::number(a), delta])])],
         ));
     }
-    // constant particular: shift if needed
+    // 常数特解：必要时平移
     if number_from_term(particular).is_some() {
         return y0.clone();
     }
@@ -183,10 +156,7 @@ fn apply_ivp(
 fn residual_of(dependent: &str, independent: &str, f: &Term, explicit: &Term) -> Term {
     let yp = evaluate(&differentiate(explicit, independent));
     let f_sub = evaluate(&replace_symbol(f, dependent, explicit));
-    evaluate(&Term::app(
-        "Plus",
-        vec![yp, Term::app("Times", vec![Term::int(-1), f_sub])],
-    ))
+    evaluate(&Term::app("Plus", vec![yp, Term::app("Times", vec![Term::int(-1), f_sub])]))
 }
 
 fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
@@ -204,10 +174,7 @@ fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str)
                 let q = number_from_term(&args[1]).cloned().unwrap_or_else(|| Number::small_int(0));
                 let f = evaluate(&Term::app(
                     "Plus",
-                    vec![
-                        Term::number(q),
-                        Term::app("Times", vec![Term::int(-1), Term::number(p), Term::symbol(dependent)]),
-                    ],
+                    vec![Term::number(q), Term::app("Times", vec![Term::int(-1), Term::number(p), Term::symbol(dependent)])],
                 ));
                 return Some(FirstOrderRhs { f });
             }
@@ -217,7 +184,8 @@ fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str)
 }
 
 fn match_d_plus_p_y(term: &Term, dependent: &str, independent: &str) -> Option<Number> {
-    let Term::Application { head, arguments: args } = term else {
+    let Term::Application { head, arguments: args } = term
+    else {
         return None;
     };
     if !head.is_symbol("Plus") || args.len() != 2 {
@@ -233,39 +201,44 @@ fn match_d_plus_p_y(term: &Term, dependent: &str, independent: &str) -> Option<N
 }
 
 fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)> {
-    // f = q + Times[-1, p, y] or Plus[q, Times[-p, y]]
+    // f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
     match f {
         Term::Application { head, arguments: args } if head.is_symbol("Plus") && args.len() == 2 => {
             let (q_term, py_term) = if number_from_term(&args[0]).is_some() {
                 (&args[0], &args[1])
-            } else if number_from_term(&args[1]).is_some() {
+            }
+            else if number_from_term(&args[1]).is_some() {
                 (&args[1], &args[0])
-            } else {
+            }
+            else {
                 return None;
             };
             let q = number_from_term(q_term)?.clone();
-            let Term::Application { head: th, arguments: targs } = py_term else {
+            let Term::Application { head: th, arguments: targs } = py_term
+            else {
                 return None;
             };
             if !th.is_symbol("Times") {
                 return None;
             }
-            // Times[-1, p, y] or Times[-p, y]
+            // Times[-1, p, y] 或 Times[-p, y]
             let mut coef = Number::small_int(1);
             let mut saw_y = false;
             for t in targs {
                 if t.is_symbol(dependent) {
                     saw_y = true;
-                } else if let Some(n) = number_from_term(t) {
+                }
+                else if let Some(n) = number_from_term(t) {
                     coef = coef.mul(n.clone()).ok()?;
-                } else {
+                }
+                else {
                     return None;
                 }
             }
             if !saw_y {
                 return None;
             }
-            // f = q + coef*y with coef = -p ⇒ p = -coef
+            // f = q + coef*y 且 coef = -p ⇒ p = -coef
             let p = coef.mul(Number::small_int(-1)).ok()?;
             Some((p, q))
         }
@@ -309,18 +282,13 @@ fn placeholder(dependent: &str, independent: &str, equation: Term) -> Differenti
         dependent: dependent.to_string(),
         independent: independent.to_string(),
         explicit: equation,
-        verified: VerificationStatus::Failed {
-            residual: Term::symbol("Unevaluated"),
-        },
+        verified: VerificationStatus::Failed { residual: Term::symbol("Unevaluated") },
     }
 }
 
 fn unsupported(dependent: &str, independent: &str, equation: &Term) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(dependent, independent, equation.clone()),
-        reason: Diagnostic::error(
-            DiagnosticCode::OdeUnsupported,
-            "ODE class not in first-order bootstrap subset",
-        ),
+        reason: Diagnostic::error(DiagnosticCode::OdeUnsupported, "ODE 类型不在一阶 bootstrap 子集内"),
     }
 }

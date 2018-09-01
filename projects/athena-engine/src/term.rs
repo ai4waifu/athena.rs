@@ -1,4 +1,4 @@
-//! Runtime expression tree [`Term`] for transitional eval (not arena IR).
+//! 过渡求值用的运行时表达式树 [`Term`]（非 arena IR）。
 
 use std::fmt;
 
@@ -7,7 +7,7 @@ use num_rational::BigRational;
 
 use athena_types::Number;
 
-/// Extract kernel number from a term atom.
+/// 从项原子中提取内核数字。
 pub fn number_from_term(term: &Term) -> Option<&Number> {
     match term {
         Term::Atom(Atom::Number(n)) => Some(n),
@@ -15,70 +15,75 @@ pub fn number_from_term(term: &Term) -> Option<&Number> {
     }
 }
 
-/// Atomic value in the engine IR.
+/// 引擎 IR 中的原子值。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {
-    /// Unified kernel number (sole numeric truth source).
+    /// 统一内核数字（唯一数值真相源）。
     Number(Number),
-    /// String value (already decoded by the host/dialect layer).
+    /// 字符串值（已由宿主 / 方言层解码）。
     String(String),
-    /// Symbol name.
+    /// 符号名。
     Symbol(String),
 }
 
-/// Runtime expression tree for transitional eval (not dialect AST, not arena IR).
+/// 过渡求值用的运行时表达式树（非方言 AST，非 arena IR）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Term {
-    /// Atom.
+    /// 原子。
     Atom(Atom),
-    /// Ordered collection.
+    /// 有序集合。
     List(Vec<Term>),
-    /// Application `head(args…)`.
+    /// 应用 `head(args…)`。
     Application {
-        /// Head term (usually a symbol).
+        /// 头部项（通常为符号）。
         head: Box<Term>,
-        /// Arguments.
+        /// 参数。
         arguments: Vec<Term>,
     },
 }
 
 impl Term {
-    /// Symbol atom.
+    /// 符号原子。
     pub fn symbol(name: impl Into<String>) -> Self {
         Self::Atom(Atom::Symbol(name.into()))
     }
 
-    /// Small exact integer convenience.
+    /// 小型精确整数便捷构造。
     pub fn int(n: i64) -> Self {
         Self::number(Number::small_int(n))
     }
 
-    /// Arbitrary-precision exact integer.
+    /// 任意精度精确整数。
     pub fn integer(n: impl Into<BigInt>) -> Self {
         Self::number(Number::integer(n))
     }
 
-    /// Exact rational (normalized).
+    /// 精确有理数（已规范化）。
     pub fn rational(r: BigRational) -> Self {
         Self::number(Number::rational(r))
     }
 
-    /// Machine real from an already-decoded `f64` value.
+    /// 由已解码的 `f64` 构造机器实数。
     pub fn real(n: f64) -> Self {
         Self::number(Number::machine(n))
     }
 
-    /// Unified number atom from an already-decoded [`Number`].
+    /// 由已解码的 [`Number`] 构造统一数字原子。
     pub fn number(n: Number) -> Self {
         Self::Atom(Atom::Number(n))
     }
 
-    /// `head(args…)` with symbol head.
+    /// 符号头部的应用 `head(args…)`。
     pub fn app(head: impl Into<String>, args: Vec<Term>) -> Self {
         Self::Application { head: Box::new(Self::symbol(head)), arguments: args }
     }
 
-    /// Head symbol name, if any.
+    /// [`Self::app`] 的别名。
+    pub fn apply(head: impl Into<String>, args: Vec<Term>) -> Self {
+        Self::app(head, args)
+    }
+
+    /// 头部符号名（若有）。
     pub fn head_name(&self) -> Option<&str> {
         match self {
             Self::Application { head, .. } => match head.as_ref() {
@@ -91,22 +96,22 @@ impl Term {
         }
     }
 
-    /// Kernel number reference (no precision loss).
+    /// 内核数字引用（无精度损失）。
     pub fn as_number(&self) -> Option<&Number> {
         number_from_term(self)
     }
 
-    /// Lossy `f64` — display / host hints only.
+    /// 有损 `f64` — 仅用于显示 / 宿主提示。
     pub fn as_f64_lossy(&self) -> Option<f64> {
         self.as_number().and_then(Number::to_f64_lossy)
     }
 
-    /// Whether this is the given symbol.
+    /// 是否为给定符号。
     pub fn is_symbol(&self, name: &str) -> bool {
         matches!(self, Self::Atom(Atom::Symbol(s)) if s == name)
     }
 
-    /// Whether numeric `-1`.
+    /// 是否为数值 `-1`。
     pub fn is_neg_one(&self) -> bool {
         self.as_number().is_some_and(Number::is_neg_one)
     }

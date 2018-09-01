@@ -1,4 +1,4 @@
-//! Differentiation on bridge [`Term`].
+//! 桥接 [`Term`] 上的求导。
 
 use athena_types::{AssumptionSet, Predicate};
 
@@ -9,7 +9,7 @@ use crate::{
 
 use super::result::{ConditionalResult, unresolved};
 
-/// Symbolic differentiation on `Term`.
+/// 在 `Term` 上做符号求导。
 pub fn differentiate(expr: &Term, var: &str) -> Term {
     match expr {
         Term::Atom(Atom::Number(_)) | Term::Atom(Atom::String(_)) => Term::int(0),
@@ -80,11 +80,11 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                     vec![Term::app("Power", vec![args[0].clone(), Term::int(-1)]), differentiate(&args[0], var)],
                 )),
                 "Abs" if args.len() == 1 => {
-                    // Unconditional Abs' is not emitted; callers use [`differentiate_checked`].
+                    // 不发出无条件 Abs'；调用方应使用 [`differentiate_checked`]。
                     Term::app("D", vec![expr.clone(), Term::symbol(var)])
                 }
                 "Sqrt" if args.len() == 1 => {
-                    // √u ' = u' / (2 √u); domain conditions live in [`differentiate_checked`].
+                    // √u ' = u' / (2 √u)；定义域条件在 [`differentiate_checked`] 中处理。
                     Term::app("D", vec![expr.clone(), Term::symbol(var)])
                 }
                 "Subtract" if args.len() == 2 => evaluate(&Term::app(
@@ -114,7 +114,7 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
     }
 }
 
-/// Differentiate under assumptions, returning conditions instead of a bare term.
+/// 在假设下求导，返回条件而非裸项。
 pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet) -> ConditionalResult<Term> {
     if let Term::Application { head, arguments: args } = expr {
         if head.is_symbol("Abs") && args.len() == 1 {
@@ -130,7 +130,7 @@ pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet
             let needs_nonzero =
                 !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
-                // TermId(0) is a bridge placeholder until Abs-arg binding lands.
+                // TermId(0) 为桥接占位，直至 Abs 参数绑定落地。
                 return ConditionalResult::with_unresolved(
                     candidate,
                     vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))],

@@ -1,4 +1,4 @@
-//! athena ecosystem base types — contracts only, no eval/parser/IO.
+//! athena 生态基础类型 — 仅合同，无求值 / 解析 / IO。
 
 #![deny(missing_docs)]
 
@@ -12,40 +12,40 @@ pub use diagnostic::{Diagnostic, DiagnosticCode, Result, Severity};
 pub use ids::{AssumptionSetId, DomainId, NodeId, OperatorId, SerializationVersion, SourceSpan, SymbolId, TermId};
 pub use number::{ExactNumber, Number, RealNumber, normalize_rational};
 
-/// Numeric scalar domain identifier (wire-stable).
+/// 数值标量域标识（wire 稳定）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericDomain {
-    /// Exact integers.
+    /// 精确整数。
     Integer,
-    /// Exact rationals.
+    /// 精确有理数。
     Rational,
-    /// Inexact reals.
+    /// 非精确实数。
     Real,
-    /// Complex numbers.
+    /// 复数。
     Complex,
 }
 
-/// Rounding mode for approximate arithmetic (contract).
+/// 近似算术的舍入模式（合同）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RoundingMode {
-    /// Round to nearest, ties to even.
+    /// 四舍六入五成双（最近偶数）。
     #[default]
     Nearest,
-    /// Toward zero.
+    /// 向零舍入。
     Truncate,
-    /// Toward +∞.
+    /// 向 +∞。
     Ceiling,
-    /// Toward -∞.
+    /// 向 -∞。
     Floor,
 }
 
-/// Precision policy (contract).
+/// 精度策略（合同）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Precision {
-    /// Exact arithmetic.
+    /// 精确算术。
     Exact,
-    /// IEEE binary64.
+    /// IEEE binary64。
     Machine,
-    /// Arbitrary bits.
+    /// 任意比特精度。
     ArbitraryBits(u32),
 }

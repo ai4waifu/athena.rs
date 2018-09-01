@@ -1,80 +1,73 @@
-//! Vector calculus objects — Gradient, Jacobian, Hessian (not bare lists).
+//! 向量微积分对象 — Gradient、Jacobian、Hessian（非裸列表）。
 
 use athena_types::{AssumptionSet, Condition};
 
-use crate::eval::evaluate;
-use crate::term::Term;
+use crate::{eval::evaluate, term::Term};
 
-use super::derivative::differentiate_checked;
-use super::result::{CalculusResult, ConditionalResult};
+use super::{
+    derivative::differentiate_checked,
+    result::{CalculusResult, ConditionalResult},
+};
 
-/// Gradient of a scalar field: independent object with ordered components.
+/// 标量场梯度：带有序分量的独立对象。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Gradient {
-    /// Source scalar expression.
+    /// 源标量表达式。
     pub expression: Term,
-    /// Variables in differentiation order.
+    /// 求导变量顺序。
     pub variables: Vec<String>,
-    /// ∂f/∂xᵢ components (same order as `variables`).
+    /// ∂f/∂xᵢ 分量（与 `variables` 同序）。
     pub components: Vec<Term>,
 }
 
 impl Gradient {
-    /// Bridge list form for hosts that still need a [`Term`] list.
+    /// 桥接列表形态，供仍需要 [`Term`] 列表的宿主。
     pub fn to_list_term(&self) -> Term {
         Term::List(self.components.clone())
     }
 }
 
-/// Jacobian matrix of a vector-valued map.
+/// 向量值映射的 Jacobian 矩阵。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Jacobian {
-    /// Component expressions f₁…fₘ.
+    /// 分量表达式 f₁…fₘ。
     pub expressions: Vec<Term>,
-    /// Independent variables x₁…xₙ.
+    /// 自变量 x₁…xₙ。
     pub variables: Vec<String>,
-    /// Rows: `rows[i][j] = ∂fᵢ/∂xⱼ`.
+    /// 行：`rows[i][j] = ∂fᵢ/∂xⱼ`。
     pub rows: Vec<Vec<Term>>,
 }
 
 impl Jacobian {
-    /// Nested list term `{{…},…}` bridge.
+    /// 嵌套列表项 `{{…},…}` 桥接。
     pub fn to_list_term(&self) -> Term {
         Term::List(self.rows.iter().map(|r| Term::List(r.clone())).collect())
     }
 }
 
-/// Hessian matrix of a scalar field (second partials).
+/// 标量场 Hessian 矩阵（二阶偏导）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hessian {
-    /// Source scalar expression.
+    /// 源标量表达式。
     pub expression: Term,
-    /// Variables in order.
+    /// 按序变量。
     pub variables: Vec<String>,
-    /// `entries[i][j] = ∂²f / ∂xᵢ∂xⱼ` (variable order preserved; no silent swap).
+    /// `entries[i][j] = ∂²f / ∂xᵢ∂xⱼ`（保持变量顺序；不静默交换）。
     pub entries: Vec<Vec<Term>>,
 }
 
 impl Hessian {
-    /// Nested list term bridge.
+    /// 嵌套列表项桥接。
     pub fn to_list_term(&self) -> Term {
         Term::List(self.entries.iter().map(|r| Term::List(r.clone())).collect())
     }
 }
 
-/// ∇f with respect to `variables`.
-pub fn gradient_checked(
-    expression: &Term,
-    variables: &[String],
-    assumptions: &AssumptionSet,
-) -> CalculusResult<Gradient> {
+/// 关于 `variables` 的 ∇f。
+pub fn gradient_checked(expression: &Term, variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Gradient> {
     if variables.is_empty() {
         return CalculusResult::Exact {
-            value: Gradient {
-                expression: expression.clone(),
-                variables: Vec::new(),
-                components: Vec::new(),
-            },
+            value: Gradient { expression: expression.clone(), variables: Vec::new(), components: Vec::new() },
             conditions: Vec::new(),
         };
     }
@@ -87,22 +80,14 @@ pub fn gradient_checked(
         components.push(evaluate(&part.value));
     }
     finish_vector(
-        Gradient {
-            expression: expression.clone(),
-            variables: variables.to_vec(),
-            components,
-        },
+        Gradient { expression: expression.clone(), variables: variables.to_vec(), components },
         conditions,
         unresolved,
     )
 }
 
-/// Jacobian of `expressions` w.r.t. `variables`.
-pub fn jacobian_checked(
-    expressions: &[Term],
-    variables: &[String],
-    assumptions: &AssumptionSet,
-) -> CalculusResult<Jacobian> {
+/// `expressions` 关于 `variables` 的 Jacobian。
+pub fn jacobian_checked(expressions: &[Term], variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Jacobian> {
     let mut rows = Vec::with_capacity(expressions.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
@@ -115,53 +100,28 @@ pub fn jacobian_checked(
         }
         rows.push(row);
     }
-    finish_vector(
-        Jacobian {
-            expressions: expressions.to_vec(),
-            variables: variables.to_vec(),
-            rows,
-        },
-        conditions,
-        unresolved,
-    )
+    finish_vector(Jacobian { expressions: expressions.to_vec(), variables: variables.to_vec(), rows }, conditions, unresolved)
 }
 
-/// Hessian of a scalar: ∂/∂xᵢ of (∂f/∂xⱼ), keeping variable order.
-pub fn hessian_checked(
-    expression: &Term,
-    variables: &[String],
-    assumptions: &AssumptionSet,
-) -> CalculusResult<Hessian> {
+/// 标量 Hessian：先 ∂/∂xᵢ 再对 (∂f/∂xⱼ)，保持变量顺序。
+pub fn hessian_checked(expression: &Term, variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Hessian> {
     let mut entries = Vec::with_capacity(variables.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for vi in variables {
         let first = differentiate_checked(expression, vi, assumptions);
-        merge_conditions(
-            &mut conditions,
-            &mut unresolved,
-            first.conditions.clone(),
-            first.unresolved.clone(),
-        );
+        merge_conditions(&mut conditions, &mut unresolved, first.conditions.clone(), first.unresolved.clone());
         let first_val = evaluate(&first.value);
         let mut row = Vec::with_capacity(variables.len());
         for vj in variables {
-            // Order: differentiate first w.r.t. vi, then w.r.t. vj (no commute rewrite).
+            // 顺序：先对 vi 求导，再对 vj（不做交换改写）。
             let second = differentiate_checked(&first_val, vj, assumptions);
             merge_conditions(&mut conditions, &mut unresolved, second.conditions, second.unresolved);
             row.push(evaluate(&second.value));
         }
         entries.push(row);
     }
-    finish_vector(
-        Hessian {
-            expression: expression.clone(),
-            variables: variables.to_vec(),
-            entries,
-        },
-        conditions,
-        unresolved,
-    )
+    finish_vector(Hessian { expression: expression.clone(), variables: variables.to_vec(), entries }, conditions, unresolved)
 }
 
 fn merge_conditions(
@@ -174,14 +134,6 @@ fn merge_conditions(
     unresolved.extend(more_u);
 }
 
-fn finish_vector<T>(
-    value: T,
-    conditions: Vec<Condition>,
-    unresolved: Vec<Condition>,
-) -> CalculusResult<T> {
-    CalculusResult::from_conditional(ConditionalResult {
-        value,
-        conditions,
-        unresolved,
-    })
+fn finish_vector<T>(value: T, conditions: Vec<Condition>, unresolved: Vec<Condition>) -> CalculusResult<T> {
+    CalculusResult::from_conditional(ConditionalResult { value, conditions, unresolved })
 }

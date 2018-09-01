@@ -1,71 +1,71 @@
-//! Assumption sets for calculus and domain-conditioned results.
+//! 微积分与域条件结果所用的假设集。
 
 use crate::ids::{AssumptionSetId, SymbolId, TermId};
 
-/// Atomic assumption predicate (language-neutral).
+/// 原子假设谓词（语言中立）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Predicate {
-    /// `lhs = rhs`.
+    /// `lhs = rhs`。
     Equal(TermId, TermId),
-    /// `lhs ≠ rhs`.
+    /// `lhs ≠ rhs`。
     NotEqual(TermId, TermId),
-    /// `lhs < rhs`.
+    /// `lhs < rhs`。
     Less(TermId, TermId),
-    /// `lhs ≤ rhs`.
+    /// `lhs ≤ rhs`。
     LessEqual(TermId, TermId),
-    /// `lhs > rhs`.
+    /// `lhs > rhs`。
     Greater(TermId, TermId),
-    /// `lhs ≥ rhs`.
+    /// `lhs ≥ rhs`。
     GreaterEqual(TermId, TermId),
-    /// Value is an integer.
+    /// 值为整数。
     Integer(TermId),
-    /// Value is strictly positive.
+    /// 值严格为正。
     Positive(TermId),
-    /// Value is non-negative.
+    /// 值非负。
     NonNegative(TermId),
-    /// Value is real.
+    /// 值为实数。
     Real(TermId),
-    /// Value is complex.
+    /// 值为复数。
     Complex(TermId),
-    /// Value is non-zero.
+    /// 值非零。
     NonZero(TermId),
-    /// Symbol is non-zero (bridge until TermId binding lands).
+    /// 符号非零（桥接，直至 TermId 绑定落地）。
     SymbolNonZero(SymbolId),
-    /// Symbol is real.
+    /// 符号为实数。
     SymbolReal(SymbolId),
 }
 
-/// Ordered set of predicates attached to a request or result.
+/// 附着于请求或结果的有序谓词集合。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AssumptionSet {
-    /// Stable id when stored in a session registry.
+    /// 存入 Session 注册表时的稳定 id。
     pub id: Option<AssumptionSetId>,
-    /// Predicates.
+    /// 谓词列表。
     pub predicates: Vec<Predicate>,
 }
 
 impl AssumptionSet {
-    /// Empty assumption set.
+    /// 空假设集。
     pub fn empty() -> Self {
         Self::default()
     }
 
-    /// Build from predicates.
+    /// 由谓词列表构建。
     pub fn from_predicates(predicates: Vec<Predicate>) -> Self {
         Self { id: None, predicates }
     }
 
-    /// Whether the set is empty.
+    /// 集合是否为空。
     pub fn is_empty(&self) -> bool {
         self.predicates.is_empty()
     }
 }
 
-/// A condition that qualifies a calculus (or domain) result.
+/// 限定微积分（或域）结果适用性的条件。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Condition {
-    /// Predicate that must hold for `value` to be valid.
+    /// `value` 有效时必须成立的谓词。
     pub predicate: Predicate,
-    /// Whether this condition was discharged by the engine.
+    /// 该条件是否已被引擎消解。
     pub resolved: bool,
 }

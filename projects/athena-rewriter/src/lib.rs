@@ -1,4 +1,4 @@
-//! Rewriter over Core IR (rules, canonicalization, simplification).
+//! 面向 Core IR 的改写器（规则、规范化、化简）。
 
 #![deny(missing_docs)]
 

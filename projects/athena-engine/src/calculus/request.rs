@@ -1,15 +1,15 @@
-//! Calculus domain requests (stable wire shape for hosts).
+//! 微积分域请求（面向宿主的稳定 wire 形态）。
 
 use athena_types::AssumptionSet;
 
 use crate::term::Term;
 
-/// Order of differentiation.
+/// 求导阶数。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DerivativeOrder {
-    /// First derivative.
+    /// 一阶导数。
     First,
-    /// Repeated ordinary derivative.
+    /// 高阶常导数。
     Repeated(u32),
 }
 
@@ -19,160 +19,160 @@ impl Default for DerivativeOrder {
     }
 }
 
-/// How a limit approaches its point.
+/// 极限趋近方式。
 #[derive(Debug, Clone, PartialEq)]
 pub enum LimitApproach {
-    /// Finite point (already-decoded term, not source text).
+    /// 有限点（已解码项，非源码文本）。
     Finite(Term),
-    /// +∞.
+    /// +∞。
     PositiveInfinity,
-    /// −∞.
+    /// −∞。
     NegativeInfinity,
 }
 
-/// Side of a real limit.
+/// 实极限的侧向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LimitDirection {
-    /// Two-sided.
+    /// 双侧。
     #[default]
     TwoSided,
-    /// From below.
+    /// 左极限。
     FromBelow,
-    /// From above.
+    /// 右极限。
     FromAbove,
 }
 
-/// Which integral transform to compute.
+/// 要计算的积分变换种类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformKind {
-    /// Unilateral Laplace transform.
+    /// 单边 Laplace 变换。
     Laplace,
-    /// Fourier transform.
+    /// Fourier 变换。
     Fourier,
-    /// Z-transform.
+    /// Z 变换。
     Z,
 }
 
-/// Calculus domain request — hosts map dialect forms here.
+/// 微积分域请求 — 宿主将方言形态映射至此。
 #[derive(Debug, Clone, PartialEq)]
 pub enum CalculusRequest {
-    /// Ordinary / repeated derivative.
+    /// 常导数 / 高阶导数。
     Derivative {
-        /// Expression (already decoded).
+        /// 表达式（已解码）。
         expression: Term,
-        /// Differentiation variable name (bridge until SymbolId binding).
+        /// 求导变量名（在 SymbolId 绑定落地前的桥接）。
         variable: String,
-        /// Order.
+        /// 阶数。
         order: DerivativeOrder,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Limit.
+    /// 极限。
     Limit {
-        /// Expression.
+        /// 表达式。
         expression: Term,
-        /// Variable.
+        /// 变量。
         variable: String,
-        /// Approach.
+        /// 趋近点。
         approach: LimitApproach,
-        /// Direction.
+        /// 侧向。
         direction: LimitDirection,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Indefinite integral.
+    /// 不定积分。
     Integral {
-        /// Expression.
+        /// 表达式。
         expression: Term,
-        /// Integration variable.
+        /// 积分变量。
         variable: String,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Definite integral on a finite interval.
+    /// 有限区间上的定积分。
     DefiniteIntegral {
-        /// Expression.
+        /// 表达式。
         expression: Term,
-        /// Integration variable.
+        /// 积分变量。
         variable: String,
-        /// Lower bound (already decoded).
+        /// 下限（已解码）。
         lower: Term,
-        /// Upper bound (already decoded).
+        /// 上限（已解码）。
         upper: Term,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Taylor / power series about a center.
+    /// 关于展开中心的 Taylor / 幂级数。
     Series {
-        /// Expression.
+        /// 表达式。
         expression: Term,
-        /// Expansion variable.
+        /// 展开变量。
         variable: String,
-        /// Center (already decoded).
+        /// 展开中心（已解码）。
         center: Term,
-        /// Max power included.
+        /// 包含的最高幂次。
         order: u32,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Gradient of a scalar field.
+    /// 标量场的梯度。
     Gradient {
-        /// Scalar expression.
+        /// 标量表达式。
         expression: Term,
-        /// Variables in order.
+        /// 按序变量。
         variables: Vec<String>,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Jacobian of a vector-valued map.
+    /// 向量值映射的 Jacobian。
     Jacobian {
-        /// Component expressions.
+        /// 分量表达式。
         expressions: Vec<Term>,
-        /// Independent variables.
+        /// 自变量。
         variables: Vec<String>,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Hessian of a scalar field.
+    /// 标量场的 Hessian。
     Hessian {
-        /// Scalar expression.
+        /// 标量表达式。
         expression: Term,
-        /// Variables in order (mixed partials keep this order).
+        /// 按序变量（混合偏导保持此顺序）。
         variables: Vec<String>,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// First-order ODE solve (bootstrap subset).
+    /// 一阶 ODE 求解（bootstrap 子集）。
     SolveOde {
-        /// Equation term (`Equal[…]`).
+        /// 方程项（`Equal[…]`）。
         equation: Term,
-        /// Dependent variable.
+        /// 因变量。
         dependent: String,
-        /// Independent variable.
+        /// 自变量。
         independent: String,
-        /// Optional IVP `(x0, y0)` already decoded.
+        /// 可选初值问题 `(x0, y0)`（已解码）。
         initial: Option<(Term, Term)>,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
-    /// Integral transform (Laplace / Fourier / Z).
+    /// 积分变换（Laplace / Fourier / Z）。
     Transform {
-        /// Kind.
+        /// 种类。
         kind: TransformKind,
-        /// Time-domain expression.
+        /// 时域表达式。
         expression: Term,
-        /// Time / sequence variable.
+        /// 时间 / 序列变量。
         time_variable: String,
-        /// Transform variable.
+        /// 变换变量。
         transform_variable: String,
-        /// Assumptions.
+        /// 假设。
         assumptions: AssumptionSet,
     },
 }
 
-/// Top-level domain request enum (calculus first; other domains extend later).
+/// 顶层域请求枚举（微积分优先；其他域后续扩展）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum DomainRequest {
-    /// Calculus / higher mathematics.
+    /// 微积分 / 高等数学。
     Calculus(CalculusRequest),
 }

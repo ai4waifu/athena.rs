@@ -1,4 +1,4 @@
-//! Indefinite and definite integration on bridge [`Term`] (elementary subset).
+//! 桥接 [`Term`] 上的不定 / 定积分（初等子集）。
 
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -15,7 +15,7 @@ use super::{
     term_util::{contains_symbol, replace_symbol},
 };
 
-/// Symbolic integration on `Term` (polynomial / elementary subset).
+/// 在 `Term` 上做符号积分（多项式 / 初等子集）。
 pub fn integrate(expr: &Term, var: &str) -> Term {
     match expr {
         Term::Atom(Atom::Number(n)) => Term::app("Times", vec![Term::number(n.clone()), Term::symbol(var)]),
@@ -66,13 +66,13 @@ pub fn integrate(expr: &Term, var: &str) -> Term {
     }
 }
 
-/// Integrate and wrap as [`CalculusResult`] (elementary vs unevaluated).
+/// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。
 pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
     let value = integrate(expr, var);
     if matches!(&value, Term::Application { head, .. } if head.is_symbol("Integrate")) {
         CalculusResult::Unevaluated {
             expression: value,
-            reason: Diagnostic::error(DiagnosticCode::IntegralNotElementary, "no elementary antiderivative in current subset"),
+            reason: Diagnostic::error(DiagnosticCode::IntegralNotElementary, "当前子集无初等原函数"),
         }
     }
     else {
@@ -80,7 +80,7 @@ pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
     }
 }
 
-/// Definite integral via antiderivative evaluation `F(upper) - F(lower)`.
+/// 经原函数求值 `F(upper) - F(lower)` 的定积分。
 pub fn definite_integrate_checked(expr: &Term, var: &str, lower: &Term, upper: &Term) -> CalculusResult<Term> {
     match integrate_checked(expr, var) {
         CalculusResult::Exact { value: antideriv, conditions } => {
@@ -94,7 +94,7 @@ pub fn definite_integrate_checked(expr: &Term, var: &str, lower: &Term, upper: &
                     ),
                     reason: Diagnostic::error(
                         DiagnosticCode::IntegrationDomainInvalid,
-                        "definite integral bounds left free variables",
+                        "定积分上下限仍含自由变量",
                     ),
                 };
             }

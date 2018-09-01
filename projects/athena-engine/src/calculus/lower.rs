@@ -1,4 +1,4 @@
-//! Recognize already-decoded calculus [`Term`] heads as [`CalculusRequest`].
+//! 将已解码微积分 [`Term`] 头部识别为 [`CalculusRequest`]。
 
 use athena_types::AssumptionSet;
 
@@ -6,11 +6,12 @@ use crate::term::{Atom, Term, number_from_term};
 
 use super::request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
 
-/// Map a bridge [`Term`] application into a calculus domain request, if recognized.
+/// 若可识别，将桥接 [`Term`] 应用映射为微积分域请求。
 ///
-/// Language-neutral Term shapes only — dialect text parse stays in hosts (SXO).
+/// 仅语言中立的 Term 形态 — 方言文本解析留在宿主（SXO）。
 pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
-    let Term::Application { head, arguments: args } = term else {
+    let Term::Application { head, arguments: args } = term
+    else {
         return None;
     };
     let name = head.head_name()?;
@@ -44,11 +45,7 @@ fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
                     return Some(CalculusRequest::Derivative {
                         expression: expr.clone(),
                         variable: v,
-                        order: if n_u <= 1 {
-                            DerivativeOrder::First
-                        } else {
-                            DerivativeOrder::Repeated(n_u)
-                        },
+                        order: if n_u <= 1 { DerivativeOrder::First } else { DerivativeOrder::Repeated(n_u) },
                         assumptions: AssumptionSet::empty(),
                     });
                 }
@@ -104,13 +101,7 @@ fn lower_limit(args: &[Term]) -> Option<CalculusRequest> {
         }
         _ => return None,
     };
-    Some(CalculusRequest::Limit {
-        expression: expr,
-        variable,
-        approach,
-        direction,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::Limit { expression: expr, variable, approach, direction, assumptions: AssumptionSet::empty() })
 }
 
 fn parse_limit_spec(spec: &Term) -> Option<(String, LimitApproach)> {
@@ -144,10 +135,12 @@ fn approach_from_term(term: &Term) -> LimitApproach {
 }
 
 fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
-    let [expr, spec] = args else {
+    let [expr, spec] = args
+    else {
         return None;
     };
-    let Term::List(items) = spec else {
+    let Term::List(items) = spec
+    else {
         return None;
     };
     if items.len() < 2 {
@@ -158,20 +151,16 @@ fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
         u32::try_from(&n).ok()?
-    } else {
+    }
+    else {
         3
     };
-    Some(CalculusRequest::Series {
-        expression: expr.clone(),
-        variable,
-        center,
-        order,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::Series { expression: expr.clone(), variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
-    let [equation, dep, indep] = args else {
+    let [equation, dep, indep] = args
+    else {
         return None;
     };
     let dependent = symbol_name(dep)?;
@@ -187,7 +176,8 @@ fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
 
 fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
     // LaplaceTransform[expr, t, s]
-    let [expression, time, transform] = args else {
+    let [expression, time, transform] = args
+    else {
         return None;
     };
     Some(CalculusRequest::Transform {

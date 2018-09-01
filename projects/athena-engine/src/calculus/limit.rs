@@ -1,4 +1,4 @@
-//! Limit evaluation — finite substitution, one-sided poles, polynomial ∞.
+//! 极限求值 — 有限代入、单侧极点、多项式 ∞。
 
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
@@ -13,7 +13,7 @@ use super::{
     term_util::{contains_symbol, replace_symbol},
 };
 
-/// Attempt a limit under assumptions.
+/// 在假设下尝试求极限。
 pub fn limit_checked(
     expression: &Term,
     variable: &str,
@@ -35,7 +35,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
     if is_indeterminate_form(&value) {
         return CalculusResult::Unevaluated {
             expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
-            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "indeterminate form after direct substitution"),
+            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "直接代入后为不定式"),
         };
     }
 
@@ -47,7 +47,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
         }
         return CalculusResult::Unevaluated {
             expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
-            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "singular form after direct substitution"),
+            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "直接代入后为奇异式"),
         };
     }
 
@@ -66,14 +66,16 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
         variable,
         &LimitApproach::Finite(point.clone()),
         direction,
-        "limit did not reduce to a closed value",
+        "极限未化简为封闭值",
     )
 }
 
-/// Simple poles `c / (x - a)` (and `c / x`) from one side.
+/// 单侧简单极点 `c / (x - a)`（以及 `c / x`）。
 fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, direction: LimitDirection) -> Option<Term> {
     let (num, den) = match expression {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => (args[0].clone(), args[1].clone()),
+        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
+            (args[0].clone(), args[1].clone())
+        }
         Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
             if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some((-1).into())) {
                 (Term::int(1), args[0].clone())
@@ -90,7 +92,7 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
     let num_n = number_from_term(&num_at)?;
     let den_n = number_from_term(&den_at)?;
     if den_n.is_zero() && !num_n.is_zero() {
-        // Probe den at point ± ε (ε = 1) to read the side sign.
+        // 在 point ± ε（ε = 1）探测 den，读取侧向符号。
         let eps = Term::int(1);
         let probe = match direction {
             LimitDirection::FromAbove => evaluate(&Term::app("Plus", vec![point.clone(), eps])),
@@ -127,7 +129,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
         if degree < 0 {
             return CalculusResult::Exact { value: Term::int(0), conditions: Vec::new() };
         }
-        // degree > 0: ± → ± * leading, with (-∞)^degree for negative approach.
+        // degree > 0: ∞ → ∞ * leading；负向趋近时用 (−∞)^degree。
         let mut sign_positive = leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
         if leading.is_zero() {
             return unevaluated_limit(
@@ -135,7 +137,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
                 variable,
                 if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
                 LimitDirection::TwoSided,
-                "leading coefficient is zero after poly analysis",
+                "多项式分析后首项系数为 0",
             );
         }
         if leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
@@ -157,11 +159,11 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
         variable,
         if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
         LimitDirection::TwoSided,
-        "infinity limit requires a polynomial subset",
+        "无穷极限需要多项式子集",
     )
 }
 
-/// Degree and leading coefficient for a restricted polynomial language.
+/// 受限多项式语言的次数与首项系数。
 fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
     match expr {
         Term::Atom(_) if number_from_term(expr).is_some() => Some((0, number_from_term(expr)?.clone())),
@@ -253,7 +255,7 @@ fn is_indeterminate_form(expr: &Term) -> bool {
     }
 }
 
-/// Non-indeterminate singularity such as `c/0` or `0^negative`.
+/// 非不定式奇异，如 `c/0` 或 `0^negative`。
 fn is_singular_form(expr: &Term) -> bool {
     match expr {
         Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {

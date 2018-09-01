@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["projects/*"]
+exclude = ["projects/athena-benchmark"]
 default-members = [
     "projects/athena-types",
     "projects/athena-ir",

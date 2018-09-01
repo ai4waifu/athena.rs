@@ -1,81 +1,81 @@
-//! Structured diagnostics — language-neutral.
+//! 结构化诊断 — 语言中立。
 
-/// Severity.
+/// 严重级别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
-    /// Hard failure.
+    /// 硬失败。
     Error,
-    /// Warning.
+    /// 警告。
     Warning,
 }
 
-/// Stable athena diagnostic code (`athena_*`).
+/// 稳定的 athena 诊断码（`athena_*`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticCode {
-    /// Invalid numeric literal.
+    /// 非法数字字面量。
     InvalidNumber,
-    /// Domain error.
+    /// 域错误。
     DomainError,
-    /// Division by zero.
+    /// 除以零。
     DivideByZero,
-    /// Type mismatch.
+    /// 类型不匹配。
     TypeMismatch,
-    /// Shape mismatch.
+    /// 形状不匹配。
     ShapeMismatch,
-    /// Unbound symbol.
+    /// 未绑定符号。
     UnboundSymbol,
-    /// Unknown operator.
+    /// 未知算子。
     UnknownOperator,
-    /// Unsupported operation.
+    /// 不支持的操作。
     UnsupportedOperation,
-    /// Invalid index.
+    /// 非法下标。
     InvalidIndex,
-    /// Precision loss when forbidden.
+    /// 禁止精度损失时发生精度损失。
     PrecisionLoss,
-    /// Assignment error.
+    /// 赋值错误。
     AssignmentError,
-    /// Non-convergent.
+    /// 不收敛。
     NonConvergent,
-    /// Numeric promotion failed.
+    /// 数值提升失败。
     PromotionFailed,
-    /// Exponent out of range.
+    /// 指数越界。
     ExponentOutOfRange,
-    /// Calculus expression undefined under current assumptions.
+    /// 当前假设下微积分表达式无定义。
     CalculusUndefined,
-    /// Derivative does not exist at the point / under assumptions.
+    /// 在该点 / 假设下导数不存在。
     DerivativeNotExist,
-    /// Limit does not exist.
+    /// 极限不存在。
     LimitDoesNotExist,
-    /// Limit is oscillatory.
+    /// 极限振荡。
     LimitOscillatory,
-    /// Integral diverges.
+    /// 积分发散。
     IntegralDivergent,
-    /// No elementary antiderivative found.
+    /// 未找到初等原函数。
     IntegralNotElementary,
-    /// Integration domain invalid.
+    /// 积分域非法。
     IntegrationDomainInvalid,
-    /// Branch choice ambiguous.
+    /// 分支选择歧义。
     BranchAmbiguous,
-    /// Required assumption unresolved.
+    /// 所需假设未消解。
     AssumptionUnresolved,
-    /// Series order / remainder limit hit.
+    /// 触及级数阶数 / 余项上限。
     SeriesOrderLimit,
-    /// Series remainder unknown.
+    /// 级数余项未知。
     SeriesRemainderUnknown,
-    /// ODE class unsupported.
+    /// ODE 类别不支持。
     OdeUnsupported,
-    /// ODE solution failed verification.
+    /// ODE 解未通过验证。
     OdeSolutionUnverified,
-    /// Transform region of convergence unknown.
+    /// 变换收敛域（ROC）未知。
     TransformRocUnknown,
-    /// Numeric result is not certified.
+    /// 数值结果未认证。
     NumericNotCertified,
-    /// Calculus resource / rewrite limit.
+    /// 微积分资源 / 改写上限。
     CalculusResourceLimit,
 }
 
 impl DiagnosticCode {
-    /// Wire string.
+    /// Wire 字符串。
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::InvalidNumber => "athena_INVALID_NUMBER",
@@ -112,19 +112,19 @@ impl DiagnosticCode {
     }
 }
 
-/// Structured diagnostic.
+/// 结构化诊断。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// Code.
+    /// 诊断码。
     pub code: DiagnosticCode,
-    /// Severity.
+    /// 严重级别。
     pub severity: Severity,
-    /// Neutral detail (not localized).
+    /// 中立细节（不本地化）。
     pub detail: String,
 }
 
 impl Diagnostic {
-    /// Error diagnostic.
+    /// 错误级诊断。
     pub fn error(code: DiagnosticCode, detail: impl Into<String>) -> Self {
         Self { code, severity: Severity::Error, detail: detail.into() }
     }
@@ -138,5 +138,5 @@ impl std::fmt::Display for Diagnostic {
 
 impl std::error::Error for Diagnostic {}
 
-/// Result alias.
+/// Result 别名。
 pub type Result<T> = std::result::Result<T, Diagnostic>;

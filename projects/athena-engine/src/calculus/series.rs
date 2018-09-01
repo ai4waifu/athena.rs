@@ -1,4 +1,4 @@
-//! Series objects — Taylor bootstrap (about arbitrary finite center).
+//! 级数对象 — Taylor bootstrap（关于任意有限中心）。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -13,34 +13,34 @@ use super::{
     term_util::{contains_symbol, replace_symbol},
 };
 
-/// Remainder annotation for truncated series.
+/// 截断级数的余项标注。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Remainder {
-    /// Exact truncation (polynomial degree ≤ order).
+    /// 精确截断（多项式次数 ≤ order）。
     ExactTruncation,
-    /// Big-O remainder term (expression).
+    /// Big-O 余项（表达式）。
     BigO(Term),
-    /// Remainder unknown.
+    /// 余项未知。
     Unknown,
 }
 
-/// Independent series value (not a bare polynomial list).
+/// 独立级数值（非裸多项式列表）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Series {
-    /// Expansion variable.
+    /// 展开变量。
     pub variable: String,
-    /// Center point (already decoded).
+    /// 展开中心（已解码）。
     pub center: Term,
-    /// Power terms `(coefficient, power)` for `coeff * (variable - center)^power`.
+    /// 幂次项 `(coefficient, power)`，对应 `coeff * (variable - center)^power`。
     pub terms: Vec<(Term, i64)>,
-    /// Truncation order (max power included).
+    /// 截断阶（包含的最高幂次）。
     pub order: u32,
-    /// Remainder.
+    /// 余项。
     pub remainder: Remainder,
 }
 
 impl Series {
-    /// Power of `(variable - center)`.
+    /// `(variable - center)` 的幂。
     fn delta_power(&self, power: i64) -> Term {
         let delta = if is_zero_term(&self.center) {
             Term::symbol(&self.variable)
@@ -62,7 +62,7 @@ impl Series {
         }
     }
 
-    /// Convert to a Plus/Times/Power polynomial term when exact.
+    /// 精确时转为 Plus/Times/Power 多项式项。
     pub fn to_term(&self) -> Term {
         if self.terms.is_empty() {
             return Term::int(0);
@@ -93,14 +93,14 @@ fn residual_series(expression: &Term, variable: &str, center: &Term, order: u32)
     }
 }
 
-/// Taylor expand about `center` up to `order` (inclusive power).
+/// 关于 `center` 展开到 `order`（含该幂次）的 Taylor 展开。
 pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> CalculusResult<Series> {
     const SHIFT: &str = "__athena_taylor_t";
     let working = if is_zero_term(center) {
         expression.clone()
     }
     else {
-        // f(x) about c  ≡  f(t + c) about t = 0.
+        // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
         let shifted_var = evaluate(&Term::app("Plus", vec![Term::symbol(SHIFT), center.clone()]));
         replace_symbol(expression, variable, &shifted_var)
     };
@@ -120,7 +120,7 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
                 expression: residual_series(expression, variable, center, order),
                 reason: Diagnostic::error(
                     DiagnosticCode::SeriesRemainderUnknown,
-                    "Taylor coefficient still depends on the variable",
+                    "Taylor 系数仍依赖展开变量",
                 ),
             };
         }

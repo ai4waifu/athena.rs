@@ -1,4 +1,4 @@
-//! Builtin evaluation on engine bridge [`Term`].
+//! 引擎桥接 [`Term`] 上的内建求值。
 
 use std::cmp::Ordering;
 
@@ -14,7 +14,7 @@ fn map_num<T>(r: Result<T>) -> Result<T> {
     r
 }
 
-/// Evaluate expr under built-in definitions. Unknown heads stay as App.
+/// 在内建定义下求值表达式。未知头部保留为 Application。
 pub fn evaluate(expr: &Term) -> Term {
     evaluate_depth(expr, 0)
 }
@@ -50,7 +50,9 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Divide" if args.len() == 2 => eval_times(vec![args[0].clone(), eval_power(args[1].clone(), Term::int(-1))]),
         "List" => Term::List(args),
         "Simplify" if args.len() == 1 => eval_simplify(&args[0], depth),
-        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => Term::Application { head: Box::new(head.clone()), arguments: args },
+        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => {
+            Term::Application { head: Box::new(head.clone()), arguments: args }
+        }
         "Sqrt" if args.len() == 1 => eval_sqrt(&args[0]),
         "Abs" if args.len() == 1 => eval_abs(&args[0]),
         "Factorial" if args.len() == 1 => eval_factorial(&args[0]),
@@ -66,10 +68,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Not" if args.len() == 1 => eval_logic_not(&args[0]),
         "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth(&args[1], depth + 1),
         "D" | "Integrate" | "Limit" | "Series" | "DSolve" | "LaplaceTransform" => {
-            let term = Term::Application {
-                head: Box::new(head.clone()),
-                arguments: args,
-            };
+            let term = Term::Application { head: Box::new(head.clone()), arguments: args };
             if let Some(req) = crate::calculus::try_calculus_request(&term) {
                 let result = crate::calculus::execute_calculus(req);
                 return crate::calculus::calculus_result_bridge_term(&result);
@@ -110,7 +109,7 @@ fn eval_plus(args: Vec<Term>) -> Term {
     match flat.len() {
         0 => Term::int(0),
         1 => flat.pop().unwrap(),
-        _ => Term::app("Plus", flat),
+        _ => Term::apply("Plus", flat),
     }
 }
 
@@ -157,7 +156,7 @@ fn eval_times(args: Vec<Term>) -> Term {
     match flat.len() {
         0 => Term::int(1),
         1 => flat.pop().unwrap(),
-        _ => Term::app("Times", flat),
+        _ => Term::apply("Times", flat),
     }
 }
 
@@ -207,7 +206,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
             return Term::number(v);
         }
     }
-    Term::app("Power", vec![base, exp])
+    Term::apply("Power", vec![base, exp])
 }
 
 fn eval_simplify(expr: &Term, depth: u32) -> Term {
@@ -224,14 +223,14 @@ fn eval_sqrt(arg: &Term) -> Term {
             return Term::number(v);
         }
     }
-    Term::app("Sqrt", vec![arg.clone()])
+    Term::apply("Sqrt", vec![arg.clone()])
 }
 
 fn eval_abs(arg: &Term) -> Term {
     if let Some(n) = number_from_term(arg).cloned() {
         return Term::number(n.abs());
     }
-    Term::app("Abs", vec![arg.clone()])
+    Term::apply("Abs", vec![arg.clone()])
 }
 
 fn eval_factorial(arg: &Term) -> Term {
@@ -240,7 +239,7 @@ fn eval_factorial(arg: &Term) -> Term {
             return Term::number(v);
         }
     }
-    Term::app("Factorial", vec![arg.clone()])
+    Term::apply("Factorial", vec![arg.clone()])
 }
 
 fn eval_compare<F>(head: &str, left: &Term, right: &Term, cmp: F) -> Term
@@ -252,27 +251,27 @@ where
             return Term::int(if cmp(ord) { 1 } else { 0 });
         }
     }
-    Term::app(head, vec![left.clone(), right.clone()])
+    Term::apply(head, vec![left.clone(), right.clone()])
 }
 
 fn eval_logic_and(left: &Term, right: &Term) -> Term {
     match (truthy(left), truthy(right)) {
         (Some(a), Some(b)) => Term::int(if a && b { 1 } else { 0 }),
-        _ => Term::app("And", vec![left.clone(), right.clone()]),
+        _ => Term::apply("And", vec![left.clone(), right.clone()]),
     }
 }
 
 fn eval_logic_or(left: &Term, right: &Term) -> Term {
     match (truthy(left), truthy(right)) {
         (Some(a), Some(b)) => Term::int(if a || b { 1 } else { 0 }),
-        _ => Term::app("Or", vec![left.clone(), right.clone()]),
+        _ => Term::apply("Or", vec![left.clone(), right.clone()]),
     }
 }
 
 fn eval_logic_not(arg: &Term) -> Term {
     match truthy(arg) {
         Some(v) => Term::int(if v { 0 } else { 1 }),
-        None => Term::app("Not", vec![arg.clone()]),
+        None => Term::apply("Not", vec![arg.clone()]),
     }
 }
 
@@ -283,7 +282,7 @@ fn truthy(expr: &Term) -> Option<bool> {
 fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {
     let list = match target {
         Term::List(items) => items,
-        other => return Term::app("Map", vec![func.clone(), other.clone()]),
+        other => return Term::apply("Map", vec![func.clone(), other.clone()]),
     };
     Term::List(
         list.iter()
@@ -297,13 +296,15 @@ fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {
 
 fn map_one(func: &Term, item: &Term) -> Term {
     match func {
-        Term::Atom(Atom::Symbol(name)) => Term::app(name.clone(), vec![item.clone()]),
-        Term::Application { head, arguments: args } if head.is_symbol("Function") && args.len() == 1 => substitute_slot(&args[0], item),
-        _ => Term::app("Map", vec![func.clone(), item.clone()]),
+        Term::Atom(Atom::Symbol(name)) => Term::apply(name.clone(), vec![item.clone()]),
+        Term::Application { head, arguments: args } if head.is_symbol("Function") && args.len() == 1 => {
+            substitute_slot(&args[0], item)
+        }
+        _ => Term::apply("Map", vec![func.clone(), item.clone()]),
     }
 }
 
-/// Sin[x]^2 + Cos[x]^2 → 1 (and swapped).
+/// Sin[x]^2 + Cos[x]^2 → 1（顺序可交换）。
 fn try_pythagorean(expr: &Term) -> Option<Term> {
     let terms = match expr {
         Term::Application { head, arguments: args } if head.is_symbol("Plus") => args.as_slice(),
@@ -362,7 +363,9 @@ fn eval_replace_all(expr: &Term, rules: &Term, depth: u32) -> Term {
 
 fn rule_pair(expr: &Term) -> Option<(Term, Term)> {
     match expr {
-        Term::Application { head, arguments: args } if args.len() == 2 && (head.is_symbol("Rule") || head.is_symbol("RuleDelayed")) => {
+        Term::Application { head, arguments: args }
+            if args.len() == 2 && (head.is_symbol("Rule") || head.is_symbol("RuleDelayed")) =>
+        {
             Some((args[0].clone(), args[1].clone()))
         }
         _ => None,
@@ -387,9 +390,9 @@ fn eval_part(expr: &Term, index: &Term) -> Term {
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
         Some(n) => match n.to_i64() {
             Some(v) => v,
-            None => return Term::app("Part", vec![expr.clone(), index.clone()]),
+            None => return Term::apply("Part", vec![expr.clone(), index.clone()]),
         },
-        None => return Term::app("Part", vec![expr.clone(), index.clone()]),
+        None => return Term::apply("Part", vec![expr.clone(), index.clone()]),
     };
     match expr {
         Term::List(items) => {
@@ -400,11 +403,11 @@ fn eval_part(expr: &Term, index: &Term) -> Term {
                 items.len().wrapping_add(idx as usize)
             }
             else {
-                return Term::app("Part", vec![expr.clone(), index.clone()]);
+                return Term::apply("Part", vec![expr.clone(), index.clone()]);
             };
-            items.get(i).cloned().unwrap_or_else(|| Term::app("Part", vec![expr.clone(), index.clone()]))
+            items.get(i).cloned().unwrap_or_else(|| Term::apply("Part", vec![expr.clone(), index.clone()]))
         }
-        _ => Term::app("Part", vec![expr.clone(), index.clone()]),
+        _ => Term::apply("Part", vec![expr.clone(), index.clone()]),
     }
 }
 
