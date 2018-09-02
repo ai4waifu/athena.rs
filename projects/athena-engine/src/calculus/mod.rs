@@ -24,7 +24,7 @@ pub use lower::try_calculus_request;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection, TransformKind};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, taylor};
-pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, laplace_checked};
+pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, laplace_checked, z_checked};
 pub use value::{
     CalculusValue, calculus_result_bridge_term, map_curl_result, map_divergence_result, map_gradient_result,
     map_hessian_result, map_jacobian_result, map_ode_result, map_series_result, map_term_result, map_transform_result,
@@ -99,13 +99,9 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             TransformKind::Fourier => {
                 map_transform_result(fourier_checked(&expression, &time_variable, &transform_variable, &assumptions))
             }
-            TransformKind::Z => CalculusResult::Unevaluated {
-                expression: CalculusValue::Expression(Term::app(
-                    "ZTransform",
-                    vec![expression, Term::symbol(time_variable), Term::symbol(transform_variable)],
-                )),
-                reason: Diagnostic::error(DiagnosticCode::UnsupportedOperation, "Z 变换尚未在 bootstrap 中实现"),
-            },
+            TransformKind::Z => {
+                map_transform_result(z_checked(&expression, &time_variable, &transform_variable, &assumptions))
+            }
         },
     }
 }
@@ -116,8 +112,6 @@ pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<CalculusV
         DomainRequest::Calculus(req) => Ok(execute_calculus(req)),
     }
 }
-
-use crate::term::Term;
 
 /// 域尚未接入时的便捷错误。
 #[allow(dead_code)]

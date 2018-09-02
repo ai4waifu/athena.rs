@@ -550,6 +550,45 @@ fn fourier_gaussian_and_lowering() {
 }
 
 #[test]
+fn z_transform_geometric_and_delta() {
+    let engine = AthenaEngine::new();
+    // 2^n → z/(z-2), |z|>2
+    let geom = Term::apply("Power", vec![Term::int(2), Term::symbol("n")]);
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
+            kind: athena_engine::TransformKind::Z,
+            expression: geom,
+            time_variable: "n".into(),
+            transform_variable: "z".into(),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
+            assert!(tr.region_of_convergence.known);
+            assert_eq!(tr.kind, athena_engine::TransformKind::Z);
+            let text = format!("{:?}", tr.expression);
+            assert!(text.contains('z'), "got {text}");
+            let roc = format!("{:?}", tr.region_of_convergence.predicate);
+            assert!(roc.contains("Abs"), "got {roc}");
+        }
+        other => panic!("expected Z Transform, got {other:?}"),
+    }
+
+    let delta = Term::apply("KroneckerDelta", vec![Term::symbol("n")]);
+    let term = Term::apply("ZTransform", vec![delta, Term::symbol("n"), Term::symbol("z")]);
+    let req = try_calculus_request(&term).expect("lower Z");
+    let delta_out = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match delta_out {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
+            assert_eq!(tr.expression, Term::int(1));
+            assert!(tr.region_of_convergence.known);
+        }
+        other => panic!("expected delta Z, got {other:?}"),
+    }
+}
+
+#[test]
 fn try_calculus_request_d_limit_series() {
     let d = Term::apply("D", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::symbol("x")]);
     assert!(matches!(athena_engine::try_calculus_request(&d), Some(CalculusRequest::Derivative { .. })));

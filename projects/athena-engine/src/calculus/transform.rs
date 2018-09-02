@@ -1,4 +1,4 @@
-//! 积分变换 — 带显式 ROC 的 Laplace / Fourier bootstrap。
+//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z bootstrap。
 
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
 
@@ -31,6 +31,22 @@ impl RegionOfConvergence {
     pub fn real_line(omega: &str) -> Self {
         Self {
             predicate: Some(Term::app("Element", vec![Term::symbol(omega), Term::symbol("Reals")])),
+            known: true,
+        }
+    }
+
+    /// Z 变换外半径 `Abs[z] > r`。
+    pub fn abs_z_greater(z: &str, r: Number) -> Self {
+        Self {
+            predicate: Some(Term::app("Greater", vec![Term::app("Abs", vec![Term::symbol(z)]), Term::number(r)])),
+            known: true,
+        }
+    }
+
+    /// 全平面收敛（如 `KroneckerDelta[n]`）。
+    pub fn entire_plane(z: &str) -> Self {
+        Self {
+            predicate: Some(Term::app("Element", vec![Term::symbol(z), Term::symbol("Complexes")])),
             known: true,
         }
     }
@@ -149,6 +165,45 @@ pub fn fourier_checked(
             reason: Diagnostic::error(
                 DiagnosticCode::TransformRocUnknown,
                 "Fourier 变换不在 bootstrap 表内（Exp[-a Abs[t]] / 高斯 / 因果指数 / 线性）",
+            ),
+        },
+    }
+}
+
+/// 单边 Z 变换 `X(z) = Σ_{n=0}^{∞} x[n] z^{-n}`。
+///
+/// Bootstrap：`KroneckerDelta`、单位阶跃 / 常数、`a^n`、`n a^n`，以及标量 / 加法线性组合。结果始终携带 ROC。
+pub fn z_checked(
+    expression: &Term,
+    time_variable: &str,
+    transform_variable: &str,
+    _assumptions: &AssumptionSet,
+) -> CalculusResult<TransformResult> {
+    match z_one(expression, time_variable, transform_variable) {
+        Some((expr, roc)) => CalculusResult::Exact {
+            value: TransformResult {
+                kind: TransformKind::Z,
+                expression: expr,
+                time_variable: time_variable.to_string(),
+                transform_variable: transform_variable.to_string(),
+                region_of_convergence: roc,
+            },
+            conditions: Vec::new(),
+        },
+        None => CalculusResult::Unevaluated {
+            expression: TransformResult {
+                kind: TransformKind::Z,
+                expression: Term::app(
+                    "ZTransform",
+                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
+                ),
+                time_variable: time_variable.to_string(),
+                transform_variable: transform_variable.to_string(),
+                region_of_convergence: RegionOfConvergence::unknown(),
+            },
+            reason: Diagnostic::error(
+                DiagnosticCode::TransformRocUnknown,
+                "Z 变换不在 bootstrap 表内（delta / UnitStep / a^n / n a^n / 线性）",
             ),
         },
     }
@@ -496,6 +551,166 @@ fn roc_half_plane_bound(roc: &RegionOfConvergence) -> Option<Number> {
     // Greater[Re[s], a]
     match pred {
         Term::Application { head, arguments: args } if head.is_symbol("Greater") && args.len() == 2 => {
+            number_from_term(&args[1]).cloned()
+        }
+        _ => None,
+    }
+}
+
+fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
+    if let Some(c) = number_from_term(expr).cloned() {
+        // c · u[n] → c z/(z-1), |z|>1
+        let body = z_over_z_minus(z, &Number::small_int(1));
+        let body = evaluate(&Term::app("Times", vec![Term::number(c), body]));
+        return Some((body, RegionOfConvergence::abs_z_greater(z, Number::small_int(1))));
+    }
+    if is_kronecker_delta(expr, n) {
+        return Some((Term::int(1), RegionOfConvergence::entire_plane(z)));
+    }
+    if is_unit_step(expr, n) {
+        return Some((z_over_z_minus(z, &Number::small_int(1)), RegionOfConvergence::abs_z_greater(z, Number::small_int(1))));
+    }
+    match expr {
+        Term::Application { head, arguments: args } => {
+            let h = head.head_name()?;
+            match h {
+                "Plus" => {
+                    let mut parts = Vec::new();
+                    let mut radius = Number::small_int(0);
+                    let mut all_entire = true;
+                    for a in args {
+                        let (fa, roc) = z_one(a, n, z)?;
+                        if let Some(r) = roc_abs_radius(&roc) {
+                            all_entire = false;
+                            if r.compare(&radius) == Some(std::cmp::Ordering::Greater) {
+                                radius = r;
+                            }
+                        } else if matches!(
+                            roc.predicate.as_ref(),
+                            Some(Term::Application { head, .. }) if head.is_symbol("Element")
+                        ) {
+                            // entire plane — radius stays
+                        } else if !roc.known {
+                            return None;
+                        } else {
+                            all_entire = false;
+                        }
+                        parts.push(fa);
+                    }
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
+                    let roc = if all_entire {
+                        RegionOfConvergence::entire_plane(z)
+                    } else {
+                        RegionOfConvergence::abs_z_greater(z, radius)
+                    };
+                    Some((body, roc))
+                }
+                "Times" if args.len() == 2 => {
+                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                        let (inner, roc) = z_one(&args[1], n, z)?;
+                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        return Some((body, roc));
+                    }
+                    if let Some(c) = number_from_term(&args[1]).cloned() {
+                        let (inner, roc) = z_one(&args[0], n, z)?;
+                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        return Some((body, roc));
+                    }
+                    // n * a^n → a z / (z-a)^2
+                    if let Some(a) = match_n_times_power(args, n) {
+                        let radius = a.clone().abs();
+                        let den = evaluate(&Term::app(
+                            "Power",
+                            vec![
+                                Term::app(
+                                    "Plus",
+                                    vec![Term::symbol(z), Term::app("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                                ),
+                                Term::int(2),
+                            ],
+                        ));
+                        let body = evaluate(&Term::app(
+                            "Times",
+                            vec![Term::number(a), Term::symbol(z), Term::app("Power", vec![den, Term::int(-1)])],
+                        ));
+                        return Some((body, RegionOfConvergence::abs_z_greater(z, radius)));
+                    }
+                    // UnitStep[n] * Power[a,n]
+                    if let Some(rest) = split_unit_step(args, n) {
+                        return z_one(rest, n, z);
+                    }
+                    None
+                }
+                "Power" if args.len() == 2 && args[1].is_symbol(n) => {
+                    let a = number_from_term(&args[0]).cloned()?;
+                    // a^n → z/(z-a), |z|>|a|
+                    let radius = a.clone().abs();
+                    Some((z_over_z_minus(z, &a), RegionOfConvergence::abs_z_greater(z, radius)))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn z_over_z_minus(z: &str, a: &Number) -> Term {
+    evaluate(&Term::app(
+        "Times",
+        vec![
+            Term::symbol(z),
+            Term::app(
+                "Power",
+                vec![
+                    Term::app(
+                        "Plus",
+                        vec![Term::symbol(z), Term::app("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                    ),
+                    Term::int(-1),
+                ],
+            ),
+        ],
+    ))
+}
+
+fn is_kronecker_delta(term: &Term, n: &str) -> bool {
+    matches!(
+        term,
+        Term::Application { head, arguments: args }
+            if (head.is_symbol("KroneckerDelta") || head.is_symbol("DiscreteDelta"))
+                && args.len() == 1
+                && args[0].is_symbol(n)
+    )
+}
+
+fn match_n_times_power(args: &[Term], n: &str) -> Option<Number> {
+    match args {
+        [a, b] if a.is_symbol(n) => match_power_base(b, n),
+        [a, b] if b.is_symbol(n) => match_power_base(a, n),
+        _ => None,
+    }
+}
+
+fn match_power_base(term: &Term, n: &str) -> Option<Number> {
+    match term {
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power") && args.len() == 2 && args[1].is_symbol(n) =>
+        {
+            number_from_term(&args[0]).cloned()
+        }
+        _ => None,
+    }
+}
+
+fn roc_abs_radius(roc: &RegionOfConvergence) -> Option<Number> {
+    let pred = roc.predicate.as_ref()?;
+    // Greater[Abs[z], r]
+    match pred {
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Greater")
+                && args.len() == 2
+                && matches!(&args[0], Term::Application { head, arguments: inner } if head.is_symbol("Abs") && inner.len() == 1) =>
+        {
             number_from_term(&args[1]).cloned()
         }
         _ => None,

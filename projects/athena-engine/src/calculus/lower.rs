@@ -23,6 +23,7 @@ pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
         "DSolve" => lower_dsolve(args),
         "LaplaceTransform" => lower_laplace(args),
         "FourierTransform" => lower_fourier(args),
+        "ZTransform" => lower_z(args),
         "Divergence" => lower_divergence(args),
         "Curl" => lower_curl(args),
         _ => None,
@@ -200,6 +201,21 @@ fn lower_fourier(args: &[Term]) -> Option<CalculusRequest> {
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Fourier,
+        expression: expression.clone(),
+        time_variable: symbol_name(time)?,
+        transform_variable: symbol_name(transform)?,
+        assumptions: AssumptionSet::empty(),
+    })
+}
+
+fn lower_z(args: &[Term]) -> Option<CalculusRequest> {
+    // ZTransform[expr, n, z]
+    let [expression, time, transform] = args
+    else {
+        return None;
+    };
+    Some(CalculusRequest::Transform {
+        kind: super::request::TransformKind::Z,
         expression: expression.clone(),
         time_variable: symbol_name(time)?,
         transform_variable: symbol_name(transform)?,
