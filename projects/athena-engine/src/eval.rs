@@ -153,11 +153,63 @@ fn eval_times(args: Vec<Term>) -> Term {
     else if flat.is_empty() {
         return Term::int(1);
     }
+    let flat = canonicalize_times_factors(combine_like_powers(flat));
     match flat.len() {
         0 => Term::int(1),
-        1 => flat.pop().unwrap(),
+        1 => flat.into_iter().next().unwrap(),
         _ => Term::apply("Times", flat),
     }
+}
+
+/// 数值系数前置，保持与历史 Times 规范一致。
+fn canonicalize_times_factors(factors: Vec<Term>) -> Vec<Term> {
+    let mut nums = Vec::new();
+    let mut rest = Vec::new();
+    for f in factors {
+        if number_from_term(&f).is_some() {
+            nums.push(f);
+        } else {
+            rest.push(f);
+        }
+    }
+    nums.extend(rest);
+    nums
+}
+
+/// 合并 `Power[b,e1] * Power[b,e2]`（裸符号视为 `Power[b,1]`）。
+fn combine_like_powers(factors: Vec<Term>) -> Vec<Term> {
+    let mut out: Vec<(Term, Term)> = Vec::new(); // (base, exp)
+    let mut rest = Vec::new();
+    for f in factors {
+        let (base, exp) = match &f {
+            Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
+                (args[0].clone(), args[1].clone())
+            }
+            Term::Atom(Atom::Symbol(_)) => (f.clone(), Term::int(1)),
+            _ => {
+                rest.push(f);
+                continue;
+            }
+        };
+        if let Some((_, e)) = out.iter_mut().find(|(b, _)| b == &base) {
+            *e = eval_plus(vec![e.clone(), exp]);
+        } else {
+            out.push((base, exp));
+        }
+    }
+    let mut merged: Vec<Term> = out
+        .into_iter()
+        .filter_map(|(base, exp)| {
+            let p = eval_power(base, exp);
+            if number_from_term(&p).is_some_and(|n| n.is_one()) {
+                None
+            } else {
+                Some(p)
+            }
+        })
+        .collect();
+    merged.extend(rest);
+    merged
 }
 
 fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {

@@ -156,6 +156,98 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
     }
 }
 
+/// 关于 `center` 的 Laurent 展开：先清除有限阶极点，再 Taylor，再平移幂次。
+///
+/// `order` 为正则部分（非负幂）截断的最高幂次。主部在可清除时完整保留。
+pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> CalculusResult<Series> {
+    const MAX_POLE: u32 = 8;
+    let delta = if is_zero_term(center) {
+        Term::symbol(variable)
+    } else {
+        evaluate(&Term::app(
+            "Plus",
+            vec![Term::symbol(variable), Term::app("Times", vec![Term::int(-1), center.clone()])],
+        ))
+    };
+
+    for m in 0..=MAX_POLE {
+        let cleared = if m == 0 {
+            expression.clone()
+        } else {
+            evaluate(&Term::app("Times", vec![expression.clone(), Term::app("Power", vec![delta.clone(), Term::int(m as i64)])]))
+        };
+        match taylor(&cleared, variable, center, order.saturating_add(m)) {
+            CalculusResult::Exact { value: series, conditions } => {
+                if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(coeff)) {
+                    continue;
+                }
+                let terms: Vec<(Term, i64)> =
+                    series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
+                let remainder = match series.remainder {
+                    Remainder::ExactTruncation => Remainder::ExactTruncation,
+                    Remainder::BigO(_) => Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)])),
+                    Remainder::Unknown => Remainder::Unknown,
+                };
+                return CalculusResult::Exact {
+                    value: Series {
+                        variable: variable.to_string(),
+                        center: center.clone(),
+                        terms,
+                        order,
+                        remainder,
+                    },
+                    conditions,
+                };
+            }
+            CalculusResult::Conditional { value: series, conditions } => {
+                if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(coeff)) {
+                    continue;
+                }
+                let terms: Vec<(Term, i64)> =
+                    series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
+                let remainder = match series.remainder {
+                    Remainder::ExactTruncation => Remainder::ExactTruncation,
+                    Remainder::BigO(_) => Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)])),
+                    Remainder::Unknown => Remainder::Unknown,
+                };
+                return CalculusResult::Conditional {
+                    value: Series {
+                        variable: variable.to_string(),
+                        center: center.clone(),
+                        terms,
+                        order,
+                        remainder,
+                    },
+                    conditions,
+                };
+            }
+            CalculusResult::Unevaluated { .. } => continue,
+        }
+    }
+
+    CalculusResult::Unevaluated {
+        expression: residual_series(expression, variable, center, order),
+        reason: Diagnostic::error(
+            DiagnosticCode::SeriesRemainderUnknown,
+            format!("Laurent 展开未能在极点阶 ≤ {MAX_POLE} 内清除"),
+        ),
+    }
+}
+
+/// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。
+fn term_has_singular_zero_power(term: &Term) -> bool {
+    match term {
+        Term::Application { head, arguments: args } => {
+            if head.is_symbol("Power") && args.len() == 2 && is_zero_term(&args[0]) {
+                return !is_zero_term(&args[1]);
+            }
+            args.iter().any(term_has_singular_zero_power)
+        }
+        Term::List(items) => items.iter().any(term_has_singular_zero_power),
+        Term::Atom(_) => false,
+    }
+}
+
 fn is_zero_term(expr: &Term) -> bool {
     number_from_term(expr).is_some_and(|n| n.is_zero())
 }

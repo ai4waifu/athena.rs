@@ -147,6 +147,51 @@ fn taylor_polynomial_exact() {
 }
 
 #[test]
+fn laurent_simple_pole() {
+    let engine = AthenaEngine::new();
+    // 1/x about 0 → x^{-1}
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Laurent {
+            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+            variable: "x".into(),
+            center: Term::int(0),
+            order: 2,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
+            assert!(series.terms.iter().any(|(c, p)| *p == -1 && c == &Term::int(1)), "got {:?}", series.terms);
+            assert_eq!(series.remainder, Remainder::ExactTruncation);
+        }
+        other => panic!("expected Laurent Series, got {other:?}"),
+    }
+
+    // (1+x)/x about 0 → x^{-1} + 1
+    let expr = Term::apply(
+        "Times",
+        vec![
+            Term::apply("Plus", vec![Term::int(1), Term::symbol("x")]),
+            Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+        ],
+    );
+    let term = Term::apply(
+        "LaurentSeries",
+        vec![expr, Term::List(vec![Term::symbol("x"), Term::int(0), Term::int(2)])],
+    );
+    let req = try_calculus_request(&term).expect("lower Laurent");
+    let out2 = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match out2 {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
+            let powers: Vec<i64> = series.terms.iter().map(|(_, p)| *p).collect();
+            assert!(powers.contains(&-1), "got {powers:?}");
+            assert!(powers.contains(&0), "got {powers:?}");
+        }
+        other => panic!("expected Laurent Series, got {other:?}"),
+    }
+}
+
+#[test]
 fn limit_poly_at_infinity() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Limit {

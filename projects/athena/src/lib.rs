@@ -19,5 +19,5 @@ pub use athena_engine::{
     calculus_result_bridge_term, canonical_hash, curl_checked, definite_integrate_checked, differentiate,
     differentiate_checked, differentiate_term, divergence_checked, evaluate, execute_calculus, execute_domain,
     fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked,
-    limit_checked, number_from_term, solve_ode_checked, taylor, try_calculus_request, z_checked,
+    laurent, limit_checked, number_from_term, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };

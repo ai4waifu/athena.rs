@@ -115,6 +115,19 @@ pub enum CalculusRequest {
         /// 假设。
         assumptions: AssumptionSet,
     },
+    /// 关于展开中心的 Laurent 级数（允许负幂）。
+    Laurent {
+        /// 表达式。
+        expression: Term,
+        /// 展开变量。
+        variable: String,
+        /// 展开中心（已解码）。
+        center: Term,
+        /// 正则部分包含的最高幂次。
+        order: u32,
+        /// 假设。
+        assumptions: AssumptionSet,
+    },
     /// 标量场的梯度。
     Gradient {
         /// 标量表达式。
