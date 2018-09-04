@@ -7,7 +7,12 @@ use crate::{
     term::{Atom, Term, number_from_term},
 };
 
-use super::{derivative::differentiate, result::CalculusResult, term_util::replace_symbol};
+use super::{
+    derivative::differentiate,
+    integral::integrate,
+    result::CalculusResult,
+    term_util::{contains_symbol, replace_symbol},
+};
 
 /// 候选 ODE 解是否已通过残差代入验证。
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +64,10 @@ struct FirstOrderRhs {
 /// - `Equal[D[y, x], a]` → 特解 `y = a x`
 /// - `Equal[D[y, x], Times[a, y]]` → 特解 `y = Exp[a x]`
 /// - `Equal[Plus[D[y, x], Times[p, y]], q]`（数值 `p≠0`）→ 特解 `y = q/p`
+/// - `y' = g(x)`（无 `y`）→ `y = ∫ g`
+/// - `y' = c y^n`（`n≠1`）→ 幂律特解（如 `n=2` ⇒ `-1/(c x)`）
+/// - Bernoulli 常系数 `y' = a y + b y^n`（`n≠0,1`）→ 常数特解 / 退化幂律
+/// - 可分离 `y' = g(x) y^n`（`n=2`）→ `y = -1/∫g`
 pub fn solve_ode_checked(
     equation: &Term,
     dependent: &str,
@@ -85,6 +94,18 @@ pub fn solve_ode_checked(
             };
         }
         evaluate(&Term::app("Divide", vec![Term::number(q), Term::number(p)]))
+    }
+    else if let Some(sol) = try_rhs_independent_of_y(&rhs.f, dependent, independent) {
+        sol
+    }
+    else if let Some(sol) = try_power_of_y(&rhs.f, dependent, independent) {
+        sol
+    }
+    else if let Some(sol) = try_bernoulli_const(&rhs.f, dependent, independent) {
+        sol
+    }
+    else if let Some(sol) = try_separable_g_y_power(&rhs.f, dependent, independent) {
+        sol
     }
     else {
         return unsupported(dependent, independent, equation);
@@ -146,6 +167,12 @@ fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0
             vec![y0.clone(), Term::app("Exp", vec![Term::app("Times", vec![Term::number(a), delta])])],
         ));
     }
+    // y' = g(x)（无 y）→ y = ∫g + C, C = y0 - F(x0)
+    if !contains_symbol(f, dependent) {
+        let fx0 = evaluate(&replace_symbol(particular, independent, x0));
+        let c = evaluate(&Term::app("Plus", vec![y0.clone(), Term::app("Times", vec![Term::int(-1), fx0])]));
+        return evaluate(&Term::app("Plus", vec![particular.clone(), c]));
+    }
     // 常数特解：必要时平移
     if number_from_term(particular).is_some() {
         return y0.clone();
@@ -157,6 +184,182 @@ fn residual_of(dependent: &str, independent: &str, f: &Term, explicit: &Term) ->
     let yp = evaluate(&differentiate(explicit, independent));
     let f_sub = evaluate(&replace_symbol(f, dependent, explicit));
     evaluate(&Term::app("Plus", vec![yp, Term::app("Times", vec![Term::int(-1), f_sub])]))
+}
+
+/// `y' = g(x)`：右端不含因变量。
+fn try_rhs_independent_of_y(f: &Term, dependent: &str, independent: &str) -> Option<Term> {
+    if contains_symbol(f, dependent) {
+        return None;
+    }
+    let anti = integrate(f, independent);
+    if matches!(&anti, Term::Application { head, .. } if head.is_symbol("Integrate")) {
+        return None;
+    }
+    Some(anti)
+}
+
+/// `y' = c y^n`（`n≠1`）。`n=2` ⇒ `y = -1/(c x)`。
+fn try_power_of_y(f: &Term, dependent: &str, independent: &str) -> Option<Term> {
+    let (c, n) = match_scaled_power_of_y(f, dependent)?;
+    if n == 1 {
+        return None;
+    }
+    if n == 2 {
+        // y = -1/(c x)
+        let den = evaluate(&Term::app("Times", vec![Term::number(c), Term::symbol(independent)]));
+        return Some(evaluate(&Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![den, Term::int(-1)])])));
+    }
+    // y = ((1-n) c x)^{1/(1-n)} — 仅当指数为 ±1 时构造，便于求值验证
+    let one_minus_n = 1i64 - n;
+    if one_minus_n == 0 {
+        return None;
+    }
+    let inner = evaluate(&Term::app(
+        "Times",
+        vec![Term::integer(one_minus_n), Term::number(c), Term::symbol(independent)],
+    ));
+    if one_minus_n == 1 {
+        Some(inner)
+    } else if one_minus_n == -1 {
+        Some(evaluate(&Term::app("Power", vec![inner, Term::int(-1)])))
+    } else {
+        None
+    }
+}
+
+/// 常系数 Bernoulli：`y' = a y + b y^n`（`n≠0,1`）。
+/// `a≠0` ⇒ 常数特解 `y^{n-1} = -a/b`（优先 `n=2` ⇒ `y = -a/b`）。
+fn try_bernoulli_const(f: &Term, dependent: &str, independent: &str) -> Option<Term> {
+    let (a, b, n) = match_bernoulli_const_rhs(f, dependent)?;
+    if n == 0 || n == 1 {
+        return None;
+    }
+    if a.is_zero() {
+        // 退化为 c y^n
+        return try_power_of_y(
+            &evaluate(&Term::app(
+                "Times",
+                vec![Term::number(b), Term::app("Power", vec![Term::symbol(dependent), Term::integer(n)])],
+            )),
+            dependent,
+            independent,
+        );
+    }
+    if b.is_zero() {
+        return None;
+    }
+    if n == 2 {
+        // y = -a/b
+        return Some(evaluate(&Term::app(
+            "Times",
+            vec![Term::int(-1), Term::app("Divide", vec![Term::number(a), Term::number(b)])],
+        )));
+    }
+    None
+}
+
+/// 可分离 `y' = g(x) y^n`（bootstrap：`n=2` ⇒ `y = -1/∫g`）。
+fn try_separable_g_y_power(f: &Term, dependent: &str, independent: &str) -> Option<Term> {
+    let (g, n) = match_g_times_y_power(f, dependent)?;
+    if n != 2 {
+        return None;
+    }
+    if number_from_term(&g).is_some() {
+        // 已由 try_power_of_y 覆盖
+        return None;
+    }
+    if contains_symbol(&g, dependent) || !contains_symbol(&g, independent) {
+        return None;
+    }
+    let anti = integrate(&g, independent);
+    if matches!(&anti, Term::Application { head, .. } if head.is_symbol("Integrate")) {
+        return None;
+    }
+    Some(evaluate(&Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![anti, Term::int(-1)])])))
+}
+
+fn match_scaled_power_of_y(f: &Term, dependent: &str) -> Option<(Number, i64)> {
+    match f {
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power") && args.len() == 2 && args[0].is_symbol(dependent) =>
+        {
+            let n = number_from_term(&args[1]).and_then(|e| e.as_integer_exp())?;
+            let n_i = i64::try_from(&n).ok()?;
+            Some((Number::small_int(1), n_i))
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
+            if let Some(c) = number_from_term(&args[0]).cloned() {
+                let (one, n) = match_scaled_power_of_y(&args[1], dependent)?;
+                if !one.is_one() {
+                    return None;
+                }
+                return Some((c, n));
+            }
+            if let Some(c) = number_from_term(&args[1]).cloned() {
+                let (one, n) = match_scaled_power_of_y(&args[0], dependent)?;
+                if !one.is_one() {
+                    return None;
+                }
+                return Some((c, n));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn match_bernoulli_const_rhs(f: &Term, dependent: &str) -> Option<(Number, Number, i64)> {
+    // Plus[Times[a,y], Times[b, Power[y,n]]] （两项，顺序任意）
+    let Term::Application { head, arguments: args } = f
+    else {
+        return None;
+    };
+    if !head.is_symbol("Plus") || args.len() != 2 {
+        return None;
+    }
+    let mut linear: Option<Number> = None;
+    let mut power: Option<(Number, i64)> = None;
+    for part in args {
+        if let Some(a) = match_times_const_y(part, dependent) {
+            if linear.replace(a).is_some() {
+                return None;
+            }
+        } else if let Some((b, n)) = match_scaled_power_of_y(part, dependent) {
+            if n == 1 {
+                if linear.replace(b).is_some() {
+                    return None;
+                }
+            } else if power.replace((b, n)).is_some() {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    }
+    let a = linear.unwrap_or_else(|| Number::small_int(0));
+    let (b, n) = power?;
+    Some((a, b, n))
+}
+
+fn match_g_times_y_power(f: &Term, dependent: &str) -> Option<(Term, i64)> {
+    let Term::Application { head, arguments: args } = f
+    else {
+        return None;
+    };
+    if !head.is_symbol("Times") || args.len() != 2 {
+        return None;
+    }
+    if let Some((one, n)) = match_scaled_power_of_y(&args[0], dependent) {
+        if one.is_one() {
+            return Some((args[1].clone(), n));
+        }
+    }
+    if let Some((one, n)) = match_scaled_power_of_y(&args[1], dependent) {
+        if one.is_one() {
+            return Some((args[0].clone(), n));
+        }
+    }
+    None
 }
 
 fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
@@ -221,7 +424,6 @@ fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)>
             if !th.is_symbol("Times") {
                 return None;
             }
-            // Times[-1, p, y] 或 Times[-p, y]
             let mut coef = Number::small_int(1);
             let mut saw_y = false;
             for t in targs {
@@ -238,7 +440,6 @@ fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)>
             if !saw_y {
                 return None;
             }
-            // f = q + coef*y 且 coef = -p ⇒ p = -coef
             let p = coef.mul(Number::small_int(-1)).ok()?;
             Some((p, q))
         }

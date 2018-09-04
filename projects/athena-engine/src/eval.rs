@@ -106,10 +106,79 @@ fn eval_plus(args: Vec<Term>) -> Term {
     else if flat.is_empty() {
         return Term::int(0);
     }
+    let flat = combine_like_plus_terms(flat);
     match flat.len() {
         0 => Term::int(0),
-        1 => flat.pop().unwrap(),
+        1 => flat.into_iter().next().unwrap(),
         _ => Term::apply("Plus", flat),
+    }
+}
+
+/// 合并 `c1·k + c2·k`（含裸 `k` 视为系数 1）。
+fn combine_like_plus_terms(terms: Vec<Term>) -> Vec<Term> {
+    let mut groups: Vec<(Term, Number)> = Vec::new();
+    for t in terms {
+        let (coef, kernel) = split_numeric_coeff(t);
+        if let Some((_, acc)) = groups.iter_mut().find(|(k, _)| k == &kernel) {
+            *acc = match acc.clone().add(coef) {
+                Ok(v) => v,
+                Err(_) => return groups_to_plus_terms(groups), // 回退：放弃合并
+            };
+        } else {
+            groups.push((kernel, coef));
+        }
+    }
+    groups_to_plus_terms(groups)
+}
+
+fn groups_to_plus_terms(groups: Vec<(Term, Number)>) -> Vec<Term> {
+    groups
+        .into_iter()
+        .filter_map(|(kernel, coef)| {
+            if coef.is_zero() {
+                None
+            } else if is_one_kernel(&kernel) {
+                Some(Term::number(coef))
+            } else if coef.is_one() {
+                Some(kernel)
+            } else {
+                Some(eval_times(vec![Term::number(coef), kernel]))
+            }
+        })
+        .collect()
+}
+
+fn is_one_kernel(term: &Term) -> bool {
+    number_from_term(term).is_some_and(|n| n.is_one())
+}
+
+/// 拆出数值系数：`Times[c, rest…]` / 纯数 / 其它。
+fn split_numeric_coeff(term: Term) -> (Number, Term) {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && !args.is_empty() => {
+            let mut coef = Number::small_int(1);
+            let mut rest = Vec::new();
+            for a in args {
+                if let Some(n) = number_from_term(&a).cloned() {
+                    coef = coef.clone().mul(n).unwrap_or(coef);
+                } else {
+                    rest.push(a);
+                }
+            }
+            let kernel = match rest.len() {
+                0 => Term::int(1),
+                1 => rest.pop().unwrap(),
+                _ => Term::apply("Times", rest),
+            };
+            (coef, kernel)
+        }
+        other => {
+            if let Some(n) = number_from_term(&other).cloned() {
+                (n, Term::int(1))
+            } else {
+                (Number::small_int(1), other)
+            }
+        }
     }
 }
 
@@ -251,6 +320,34 @@ fn eval_power(base: Term, exp: Term) -> Term {
                     return Term::number(v);
                 }
             }
+        }
+        // (c * u)^n → c^n * u^n（整数 n）
+        if let Some(n) = e.as_integer_exp() {
+            if let Term::Application { head, arguments: args } = &base {
+                if head.is_symbol("Times") && args.len() >= 2 {
+                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                        if let Ok(cp) = map_num(c.pow(&e)) {
+                            let rest = if args.len() == 2 {
+                                args[1].clone()
+                            } else {
+                                Term::apply("Times", args[1..].to_vec())
+                            };
+                            return eval_times(vec![Term::number(cp), eval_power(rest, exp.clone())]);
+                        }
+                    }
+                }
+            }
+            // (u^a)^b → u^(a*b)（a,b 为数）
+            if let Term::Application { head, arguments: args } = &base {
+                if head.is_symbol("Power") && args.len() == 2 {
+                    if let Some(a) = number_from_term(&args[1]).cloned() {
+                        if let Ok(ab) = map_num(a.mul(e.clone())) {
+                            return eval_power(args[0].clone(), Term::number(ab));
+                        }
+                    }
+                }
+            }
+            let _ = n;
         }
     }
     if let (Some(b), Some(e)) = (number_from_term(&base).cloned(), number_from_term(&exp).cloned()) {

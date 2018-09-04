@@ -473,6 +473,123 @@ fn ode_ivp_y_prime_const() {
 }
 
 #[test]
+fn ode_separable_g_of_x() {
+    let engine = AthenaEngine::new();
+    // y' = x ⇒ y = x^2/2
+    let eq = Term::apply("Equal", vec![Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]), Term::symbol("x")]);
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq,
+            dependent: "y".into(),
+            independent: "x".into(),
+            initial: None,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            let text = format!("{:?}", sol.explicit);
+            assert!(text.contains('x'), "got {text}");
+        }
+        other => panic!("expected separable g(x) solution, got {other:?}"),
+    }
+}
+
+#[test]
+fn ode_power_y_squared() {
+    let engine = AthenaEngine::new();
+    // y' = y^2 ⇒ y = -1/x
+    let eq = Term::apply(
+        "Equal",
+        vec![
+            Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]),
+            Term::apply("Power", vec![Term::symbol("y"), Term::int(2)]),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq,
+            dependent: "y".into(),
+            independent: "x".into(),
+            initial: None,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            assert_eq!(
+                sol.explicit,
+                Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)])])
+            );
+        }
+        other => panic!("expected y=-1/x, got {other:?}"),
+    }
+}
+
+#[test]
+fn ode_bernoulli_const_and_separable_xy2() {
+    let engine = AthenaEngine::new();
+    // y' = 2y + y^2 ⇒ y = -2
+    let eq = Term::apply(
+        "Equal",
+        vec![
+            Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]),
+            Term::apply(
+                "Plus",
+                vec![
+                    Term::apply("Times", vec![Term::int(2), Term::symbol("y")]),
+                    Term::apply("Power", vec![Term::symbol("y"), Term::int(2)]),
+                ],
+            ),
+        ],
+    );
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq,
+            dependent: "y".into(),
+            independent: "x".into(),
+            initial: None,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            assert_eq!(sol.explicit, Term::int(-2));
+        }
+        other => panic!("expected Bernoulli constant y=-2, got {other:?}"),
+    }
+
+    // y' = x y^2 ⇒ y = -1/(x^2/2) = -2/x^2
+    let eq2 = Term::apply(
+        "Equal",
+        vec![
+            Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]),
+            Term::apply("Times", vec![Term::symbol("x"), Term::apply("Power", vec![Term::symbol("y"), Term::int(2)])]),
+        ],
+    );
+    let out2 = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
+            equation: eq2,
+            dependent: "y".into(),
+            independent: "x".into(),
+            initial: None,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out2 {
+        CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
+            assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
+            let text = format!("{:?}", sol.explicit);
+            assert!(text.contains('x'), "got {text}");
+        }
+        other => panic!("expected separable x y^2 solution, got {other:?}"),
+    }
+}
+
+#[test]
 fn laplace_exp_and_sin() {
     let engine = AthenaEngine::new();
     let out = engine
