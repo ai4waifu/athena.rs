@@ -4,6 +4,7 @@ use athena_types::{AssumptionSet, Predicate};
 
 use crate::{
     eval::evaluate,
+    function::lookup_function,
     term::{Atom, Term, number_from_term},
 };
 
@@ -58,35 +59,6 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                         Term::app("D", vec![expr.clone(), Term::symbol(var)])
                     }
                 }
-                "Sin" if args.len() == 1 => {
-                    evaluate(&Term::app("Times", vec![Term::app("Cos", vec![args[0].clone()]), differentiate(&args[0], var)]))
-                }
-                "Cos" if args.len() == 1 => evaluate(&Term::app(
-                    "Times",
-                    vec![Term::int(-1), Term::app("Sin", vec![args[0].clone()]), differentiate(&args[0], var)],
-                )),
-                "Tan" if args.len() == 1 => evaluate(&Term::app(
-                    "Times",
-                    vec![
-                        Term::app("Power", vec![Term::app("Cos", vec![args[0].clone()]), Term::int(-2)]),
-                        differentiate(&args[0], var),
-                    ],
-                )),
-                "Exp" if args.len() == 1 => {
-                    evaluate(&Term::app("Times", vec![Term::app("Exp", vec![args[0].clone()]), differentiate(&args[0], var)]))
-                }
-                "Log" if args.len() == 1 => evaluate(&Term::app(
-                    "Times",
-                    vec![Term::app("Power", vec![args[0].clone(), Term::int(-1)]), differentiate(&args[0], var)],
-                )),
-                "Abs" if args.len() == 1 => {
-                    // 不发出无条件 Abs'；调用方应使用 [`differentiate_checked`]。
-                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
-                }
-                "Sqrt" if args.len() == 1 => {
-                    // √u ' = u' / (2 √u)；定义域条件在 [`differentiate_checked`] 中处理。
-                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
-                }
                 "Subtract" if args.len() == 2 => evaluate(&Term::app(
                     "Plus",
                     vec![differentiate(&args[0], var), Term::app("Times", vec![Term::int(-1), differentiate(&args[1], var)])],
@@ -108,7 +80,22 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                         ],
                     ))
                 }
-                _ => Term::int(0),
+                // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
+                "Abs" | "Sqrt" if args.len() == 1 => Term::app("D", vec![expr.clone(), Term::symbol(var)]),
+                _ => {
+                    if let Some(def) = lookup_function(h) {
+                        if def.arity == 1 && args.len() == 1 {
+                            if let Some(df) = def.unary_derivative {
+                                return evaluate(&Term::app(
+                                    "Times",
+                                    vec![df(&args[0]), differentiate(&args[0], var)],
+                                ));
+                            }
+                        }
+                    }
+                    // 未知头部：保留 D，禁止静默当成 0。
+                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
+                }
             }
         }
     }

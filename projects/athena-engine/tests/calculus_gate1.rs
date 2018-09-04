@@ -192,6 +192,31 @@ fn laurent_simple_pole() {
 }
 
 #[test]
+fn special_function_registry_derivatives() {
+    // Sinh' = Cosh
+    let d_sinh = athena_engine::differentiate(&Term::apply("Sinh", vec![Term::symbol("x")]), "x");
+    assert_eq!(d_sinh, Term::apply("Cosh", vec![Term::symbol("x")]));
+
+    // ArcTan' = 1/(1+x^2)
+    let d_atan = athena_engine::differentiate(&Term::apply("ArcTan", vec![Term::symbol("x")]), "x");
+    let text = format!("{d_atan:?}");
+    assert!(text.contains('1') || text.contains("Power"), "got {text}");
+
+    // Erf' contains Exp and Pi
+    let d_erf = athena_engine::differentiate(&Term::apply("Erf", vec![Term::symbol("x")]), "x");
+    let text = format!("{d_erf:?}");
+    assert!(text.contains("Exp") && text.contains("Pi"), "got {text}");
+
+    // Gamma' = Gamma * PolyGamma[0, ·]
+    let d_gamma = athena_engine::differentiate(&Term::apply("Gamma", vec![Term::symbol("x")]), "x");
+    let text = format!("{d_gamma:?}");
+    assert!(text.contains("Gamma") && text.contains("PolyGamma"), "got {text}");
+
+    assert!(athena_engine::lookup_function("Erf").is_some());
+    assert!(athena_engine::registered_function_names().any(|n| n == "Gamma"));
+}
+
+#[test]
 fn asymptotic_at_infinity() {
     let engine = AthenaEngine::new();
     // x^2 + 1 as x→∞
