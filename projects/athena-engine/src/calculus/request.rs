@@ -128,6 +128,17 @@ pub enum CalculusRequest {
         /// 假设。
         assumptions: AssumptionSet,
     },
+    /// 当变量趋于 `+∞` 的渐近级数。
+    Asymptotic {
+        /// 表达式。
+        expression: Term,
+        /// 展开变量。
+        variable: String,
+        /// 保留的 `t=1/x` 最高幂次。
+        order: u32,
+        /// 假设。
+        assumptions: AssumptionSet,
+    },
     /// 标量场的梯度。
     Gradient {
         /// 标量表达式。

@@ -1,4 +1,4 @@
-//! 级数对象 — Taylor bootstrap（关于任意有限中心）。
+//! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）bootstrap。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -20,6 +20,8 @@ pub enum Remainder {
     ExactTruncation,
     /// Big-O 余项（表达式）。
     BigO(Term),
+    /// Little-o 余项（表达式）。
+    LittleO(Term),
     /// 余项未知。
     Unknown,
 }
@@ -29,19 +31,30 @@ pub enum Remainder {
 pub struct Series {
     /// 展开变量。
     pub variable: String,
-    /// 展开中心（已解码）。
+    /// 展开中心（已解码；渐近于 ∞ 时为符号 `Infinity`）。
     pub center: Term,
-    /// 幂次项 `(coefficient, power)`，对应 `coeff * (variable - center)^power`。
+    /// 幂次项 `(coefficient, power)`：
+    /// - 有限中心：`coeff * (variable - center)^power`
+    /// - `Infinity`：`coeff * variable^power`
     pub terms: Vec<(Term, i64)>,
-    /// 截断阶（包含的最高幂次）。
+    /// 截断阶（有限中心：最高幂次；渐近：保留的 `t=1/x` 最高幂次）。
     pub order: u32,
     /// 余项。
     pub remainder: Remainder,
 }
 
 impl Series {
-    /// `(variable - center)` 的幂。
+    /// 展开基幂：有限中心用 `(x-c)^p`，无穷用 `x^p`。
     fn delta_power(&self, power: i64) -> Term {
+        if self.center.is_symbol("Infinity") {
+            if power == 0 {
+                return Term::int(1);
+            }
+            if power == 1 {
+                return Term::symbol(&self.variable);
+            }
+            return Term::app("Power", vec![Term::symbol(&self.variable), Term::integer(power)]);
+        }
         let delta = if is_zero_term(&self.center) {
             Term::symbol(&self.variable)
         }
@@ -181,21 +194,8 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
                 if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(coeff)) {
                     continue;
                 }
-                let terms: Vec<(Term, i64)> =
-                    series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
-                let remainder = match series.remainder {
-                    Remainder::ExactTruncation => Remainder::ExactTruncation,
-                    Remainder::BigO(_) => Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)])),
-                    Remainder::Unknown => Remainder::Unknown,
-                };
                 return CalculusResult::Exact {
-                    value: Series {
-                        variable: variable.to_string(),
-                        center: center.clone(),
-                        terms,
-                        order,
-                        remainder,
-                    },
+                    value: remap_laurent_series(series, variable, center, order, m, &delta),
                     conditions,
                 };
             }
@@ -203,21 +203,8 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
                 if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(coeff)) {
                     continue;
                 }
-                let terms: Vec<(Term, i64)> =
-                    series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
-                let remainder = match series.remainder {
-                    Remainder::ExactTruncation => Remainder::ExactTruncation,
-                    Remainder::BigO(_) => Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)])),
-                    Remainder::Unknown => Remainder::Unknown,
-                };
                 return CalculusResult::Conditional {
-                    value: Series {
-                        variable: variable.to_string(),
-                        center: center.clone(),
-                        terms,
-                        order,
-                        remainder,
-                    },
+                    value: remap_laurent_series(series, variable, center, order, m, &delta),
                     conditions,
                 };
             }
@@ -231,6 +218,171 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
             DiagnosticCode::SeriesRemainderUnknown,
             format!("Laurent 展开未能在极点阶 ≤ {MAX_POLE} 内清除"),
         ),
+    }
+}
+
+fn remap_laurent_series(
+    series: Series,
+    variable: &str,
+    center: &Term,
+    order: u32,
+    m: u32,
+    delta: &Term,
+) -> Series {
+    let terms: Vec<(Term, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
+    let remainder = match series.remainder {
+        Remainder::ExactTruncation => Remainder::ExactTruncation,
+        Remainder::BigO(_) | Remainder::LittleO(_) => {
+            Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)]))
+        }
+        Remainder::Unknown => Remainder::Unknown,
+    };
+    Series {
+        variable: variable.to_string(),
+        center: center.clone(),
+        terms,
+        order,
+        remainder,
+    }
+}
+
+/// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
+///
+/// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
+pub fn asymptotic(expression: &Term, variable: &str, order: u32) -> CalculusResult<Series> {
+    const T: &str = "__athena_asymp_t";
+    let infinity = Term::symbol("Infinity");
+    let inv = Term::app("Power", vec![Term::symbol(T), Term::int(-1)]);
+    let g = evaluate(&replace_symbol(expression, variable, &inv));
+    let g = clear_negative_powers_of_var(&g, T);
+    match laurent(&g, T, &Term::int(0), order) {
+        CalculusResult::Exact { value: series, conditions } => {
+            CalculusResult::Exact { value: remap_asymptotic_series(series, variable, order), conditions }
+        }
+        CalculusResult::Conditional { value: series, conditions } => {
+            CalculusResult::Conditional { value: remap_asymptotic_series(series, variable, order), conditions }
+        }
+        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
+            expression: residual_series(expression, variable, &infinity, order),
+            reason: Diagnostic::error(
+                DiagnosticCode::SeriesRemainderUnknown,
+                format!("渐近展开失败: {}", reason.detail),
+            ),
+        },
+    }
+}
+
+/// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
+fn clear_negative_powers_of_var(expr: &Term, var: &str) -> Term {
+    match expr {
+        Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
+            if number_from_term(&args[1]).is_some_and(|n| n.is_neg_one()) {
+                if let Some(k) = negative_valuation(&args[0], var) {
+                    if k > 0 {
+                        let scale = Term::app("Power", vec![Term::symbol(var), Term::int(k as i64)]);
+                        let cleared_den = evaluate(&Term::app("Times", vec![args[0].clone(), scale.clone()]));
+                        return evaluate(&Term::app(
+                            "Times",
+                            vec![scale, Term::app("Power", vec![cleared_den, Term::int(-1)])],
+                        ));
+                    }
+                }
+            }
+            Term::app("Power", vec![clear_negative_powers_of_var(&args[0], var), args[1].clone()])
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Plus") => {
+            evaluate(&Term::app(
+                "Plus",
+                args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
+            ))
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
+            evaluate(&Term::app(
+                "Times",
+                args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
+            ))
+        }
+        Term::Application { head, arguments: args } => Term::Application {
+            head: Box::new(clear_negative_powers_of_var(head, var)),
+            arguments: args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
+        },
+        Term::List(items) => Term::List(items.iter().map(|i| clear_negative_powers_of_var(i, var)).collect()),
+        Term::Atom(_) => expr.clone(),
+    }
+}
+
+/// `var` 在表达式中的最低整数幂次；若无负幂则 `None`。
+fn negative_valuation(expr: &Term, var: &str) -> Option<u32> {
+    let v = valuation(expr, var)?;
+    if v < 0 { Some((-v) as u32) } else { None }
+}
+
+fn valuation(expr: &Term, var: &str) -> Option<i64> {
+    match expr {
+        Term::Atom(crate::term::Atom::Symbol(s)) if s == var => Some(1),
+        Term::Atom(_) => Some(0),
+        Term::List(items) => {
+            let mut m = i64::MAX;
+            for i in items {
+                m = m.min(valuation(i, var)?);
+            }
+            if m == i64::MAX { Some(0) } else { Some(m) }
+        }
+        Term::Application { head, arguments: args } => {
+            let h = head.head_name().unwrap_or("");
+            match h {
+                "Plus" => {
+                    let mut m = i64::MAX;
+                    for a in args {
+                        m = m.min(valuation(a, var)?);
+                    }
+                    if m == i64::MAX { Some(0) } else { Some(m) }
+                }
+                "Times" => {
+                    let mut s = 0i64;
+                    for a in args {
+                        s = s.saturating_add(valuation(a, var)?);
+                    }
+                    Some(s)
+                }
+                "Power" if args.len() == 2 => {
+                    let base_v = valuation(&args[0], var)?;
+                    let exp = number_from_term(&args[1]).and_then(|e| e.as_integer_exp())?;
+                    let e = i64::try_from(&exp).ok()?;
+                    Some(base_v.saturating_mul(e))
+                }
+                _ => {
+                    // 未知头部：若参数含 var 则保守拒绝清除
+                    if args.iter().any(|a| contains_symbol(a, var)) || contains_symbol(head, var) {
+                        None
+                    } else {
+                        Some(0)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn remap_asymptotic_series(series: Series, variable: &str, order: u32) -> Series {
+    // g(t)=f(1/t) ~ Σ a_k t^k  ⇒  f(x) ~ Σ a_k x^{-k}
+    let terms: Vec<(Term, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, -power)).collect();
+    let remainder = match series.remainder {
+        Remainder::ExactTruncation => Remainder::ExactTruncation,
+        Remainder::BigO(_) | Remainder::LittleO(_) => {
+            Remainder::BigO(Term::app(
+                "Power",
+                vec![Term::symbol(variable), Term::integer(-(order as i64 + 1))],
+            ))
+        }
+        Remainder::Unknown => Remainder::Unknown,
+    };
+    Series {
+        variable: variable.to_string(),
+        center: Term::symbol("Infinity"),
+        terms,
+        order,
+        remainder,
     }
 }
 

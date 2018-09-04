@@ -222,6 +222,21 @@ fn eval_times(args: Vec<Term>) -> Term {
     else if flat.is_empty() {
         return Term::int(1);
     }
+    // Times 对 Plus 分配：c·(a+b) → c·a + c·b（仅单层，避免爆炸）
+    if let Some(idx) = flat.iter().position(|t| matches!(t, Term::Application { head, .. } if head.is_symbol("Plus"))) {
+        let plus = flat.remove(idx);
+        if let Term::Application { arguments: summands, .. } = plus {
+            let parts: Vec<Term> = summands
+                .into_iter()
+                .map(|s| {
+                    let mut factors = flat.clone();
+                    factors.push(s);
+                    eval_times(factors)
+                })
+                .collect();
+            return eval_plus(parts);
+        }
+    }
     let flat = canonicalize_times_factors(combine_like_powers(flat));
     match flat.len() {
         0 => Term::int(1),

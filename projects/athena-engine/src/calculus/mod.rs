@@ -23,7 +23,7 @@ pub use limit::limit_checked;
 pub use lower::try_calculus_request;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection, TransformKind};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
-pub use series::{Remainder, Series, laurent, taylor};
+pub use series::{Remainder, Series, asymptotic, laurent, taylor};
 pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, laplace_checked, z_checked};
 pub use value::{
     CalculusValue, calculus_result_bridge_term, map_curl_result, map_divergence_result, map_gradient_result,
@@ -76,6 +76,9 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
         }
         CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
             map_series_result(laurent(&expression, &variable, &center, order))
+        }
+        CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
+            map_series_result(asymptotic(&expression, &variable, order))
         }
         CalculusRequest::Gradient { expression, variables, assumptions } => {
             map_gradient_result(gradient_checked(&expression, &variables, &assumptions))

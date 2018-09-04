@@ -192,6 +192,52 @@ fn laurent_simple_pole() {
 }
 
 #[test]
+fn asymptotic_at_infinity() {
+    let engine = AthenaEngine::new();
+    // x^2 + 1 as x→∞
+    let poly = Term::apply("Plus", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]);
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Asymptotic {
+            expression: poly,
+            variable: "x".into(),
+            order: 2,
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
+            assert!(series.center.is_symbol("Infinity"));
+            let powers: Vec<i64> = series.terms.iter().map(|(_, p)| *p).collect();
+            assert!(powers.contains(&2), "got {powers:?}");
+            assert!(powers.contains(&0), "got {powers:?}");
+            assert_eq!(series.remainder, Remainder::ExactTruncation);
+        }
+        other => panic!("expected asymptotic Series, got {other:?}"),
+    }
+
+    // 1/(x+1) ~ x^{-1} - x^{-2} + …
+    let rat = Term::apply(
+        "Power",
+        vec![Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]), Term::int(-1)],
+    );
+    let term = Term::apply(
+        "Asymptotic",
+        vec![rat, Term::List(vec![Term::symbol("x"), Term::symbol("Infinity"), Term::int(2)])],
+    );
+    let req = try_calculus_request(&term).expect("lower Asymptotic");
+    let out2 = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match out2 {
+        CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
+            assert!(series.center.is_symbol("Infinity"));
+            let powers: Vec<i64> = series.terms.iter().map(|(_, p)| *p).collect();
+            assert!(powers.contains(&-1), "got {powers:?}");
+            assert!(powers.iter().any(|p| *p <= -1), "got {powers:?}");
+        }
+        other => panic!("expected rational asymptotic, got {other:?}"),
+    }
+}
+
+#[test]
 fn limit_poly_at_infinity() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Limit {

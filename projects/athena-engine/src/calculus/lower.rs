@@ -21,6 +21,7 @@ pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
         "Limit" => lower_limit(args),
         "Series" => lower_series(args),
         "LaurentSeries" => lower_laurent(args),
+        "Asymptotic" => lower_asymptotic(args),
         "DSolve" => lower_dsolve(args),
         "LaplaceTransform" => lower_laplace(args),
         "FourierTransform" => lower_fourier(args),
@@ -191,6 +192,49 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
         order,
         assumptions: AssumptionSet::empty(),
     })
+}
+
+fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
+    // Asymptotic[expr, {x, Infinity, n}] 或 Asymptotic[expr, x, n]
+    match args {
+        [expr, spec] => {
+            let Term::List(items) = spec
+            else {
+                return None;
+            };
+            if items.len() < 2 {
+                return None;
+            }
+            let variable = symbol_name(&items[0])?;
+            if !items[1].is_symbol("Infinity") {
+                return None;
+            }
+            let order = if items.len() >= 3 {
+                let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
+                u32::try_from(&n).ok()?
+            } else {
+                3
+            };
+            Some(CalculusRequest::Asymptotic {
+                expression: expr.clone(),
+                variable,
+                order,
+                assumptions: AssumptionSet::empty(),
+            })
+        }
+        [expr, var, order_term] => {
+            let variable = symbol_name(var)?;
+            let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
+            let order = u32::try_from(&n).ok()?;
+            Some(CalculusRequest::Asymptotic {
+                expression: expr.clone(),
+                variable,
+                order,
+                assumptions: AssumptionSet::empty(),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
