@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    calculus::{CalculusResult, CalculusValue, DomainRequest, execute_domain as dispatch_domain},
+    domain::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     term::Term,
 };
 
@@ -35,8 +35,8 @@ impl AthenaEngine {
         crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
     }
 
-    /// 域分派 — 微积分返回 [`CalculusResult`]，而非裸项。
-    pub fn execute_domain(&self, request: DomainRequest) -> Result<CalculusResult<CalculusValue>> {
+    /// 域分派 — 返回按域区分的 [`DomainResult`]。
+    pub fn execute_domain(&self, request: DomainRequest) -> Result<DomainResult> {
         dispatch_domain(request)
     }
 

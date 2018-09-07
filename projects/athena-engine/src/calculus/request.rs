@@ -222,10 +222,3 @@ pub enum CalculusRequest {
         assumptions: AssumptionSet,
     },
 }
-
-/// 顶层域请求枚举（微积分优先；其他域后续扩展）。
-#[derive(Debug, Clone, PartialEq)]
-pub enum DomainRequest {
-    /// 微积分 / 高等数学。
-    Calculus(CalculusRequest),
-}

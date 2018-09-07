@@ -22,7 +22,7 @@ pub use differential::{DifferentialSolution, VerificationStatus, solve_ode_check
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use lower::try_calculus_request;
-pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection, TransformKind};
+pub use request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection, TransformKind};
 pub use residue::{Residue, residue_checked};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, asymptotic, laurent, taylor};
@@ -111,17 +111,8 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
             TransformKind::Fourier => {
                 map_transform_result(fourier_checked(&expression, &time_variable, &transform_variable, &assumptions))
             }
-            TransformKind::Z => {
-                map_transform_result(z_checked(&expression, &time_variable, &transform_variable, &assumptions))
-            }
+            TransformKind::Z => map_transform_result(z_checked(&expression, &time_variable, &transform_variable, &assumptions)),
         },
-    }
-}
-
-/// 分派顶层 [`DomainRequest`]。
-pub fn execute_domain(request: DomainRequest) -> Result<CalculusResult<CalculusValue>, Diagnostic> {
-    match request {
-        DomainRequest::Calculus(req) => Ok(execute_calculus(req)),
     }
 }
 

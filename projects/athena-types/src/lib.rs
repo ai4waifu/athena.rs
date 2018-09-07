@@ -5,11 +5,13 @@
 mod assumption;
 mod diagnostic;
 mod ids;
+mod modulus;
 mod number;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, Result, Severity};
 pub use ids::{AssumptionSetId, DomainId, NodeId, OperatorId, SerializationVersion, SourceSpan, SymbolId, TermId};
+pub use modulus::{ModularValue, Modulus};
 pub use number::{ExactNumber, Number, RealNumber, normalize_rational};
 
 /// 数值标量域标识（wire 稳定）。

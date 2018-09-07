@@ -72,6 +72,28 @@ pub enum DiagnosticCode {
     NumericNotCertified,
     /// 微积分资源 / 改写上限。
     CalculusResourceLimit,
+    /// 域 / 模数绑定不匹配。
+    DomainMismatch,
+    /// 因式分解不完整（带结构化 metadata 时仍可返回部分结果）。
+    FactorIncomplete,
+    /// 素性判定未决。
+    PrimeTestInconclusive,
+    /// 模数非法（非 `> 1` 等）。
+    ModulusInvalid,
+    /// 模逆不存在（与模不互素）。
+    ModularInverseMissing,
+    /// 同余系统无解 / 不一致。
+    CongruenceInconsistent,
+    /// 多项式在非域上非法除法。
+    PolynomialNonFieldDivision,
+    /// 多项式除零。
+    PolynomialDivisionByZero,
+    /// 多项式变量集不匹配。
+    PolynomialVariableMismatch,
+    /// 多项式过大（资源）。
+    PolynomialTooLarge,
+    /// Gröbner 资源上限。
+    GroebnerResourceLimit,
 }
 
 impl DiagnosticCode {
@@ -108,6 +130,17 @@ impl DiagnosticCode {
             Self::TransformRocUnknown => "athena_TRANSFORM_ROC_UNKNOWN",
             Self::NumericNotCertified => "athena_NUMERIC_NOT_CERTIFIED",
             Self::CalculusResourceLimit => "athena_CALCULUS_RESOURCE_LIMIT",
+            Self::DomainMismatch => "athena_DOMAIN_MISMATCH",
+            Self::FactorIncomplete => "athena_FACTOR_INCOMPLETE",
+            Self::PrimeTestInconclusive => "athena_PRIME_TEST_INCONCLUSIVE",
+            Self::ModulusInvalid => "athena_MODULUS_INVALID",
+            Self::ModularInverseMissing => "athena_MODULAR_INVERSE_MISSING",
+            Self::CongruenceInconsistent => "athena_CONGRUENCE_INCONSISTENT",
+            Self::PolynomialNonFieldDivision => "athena_POLYNOMIAL_NON_FIELD_DIVISION",
+            Self::PolynomialDivisionByZero => "athena_POLYNOMIAL_DIVISION_BY_ZERO",
+            Self::PolynomialVariableMismatch => "athena_POLYNOMIAL_VARIABLE_MISMATCH",
+            Self::PolynomialTooLarge => "athena_POLYNOMIAL_TOO_LARGE",
+            Self::GroebnerResourceLimit => "athena_GROEBNER_RESOURCE_LIMIT",
         }
     }
 }
