@@ -1,4 +1,4 @@
-//! 高等数学 — 求导、积分、极限、级数、向量微积分、ODE、变换。
+//! 高等数学 — 求导、积分、极限、级数、向量微积分、ODE、变换、留数。
 //!
 //! 结果为 [`CalculusResult`] / [`ConditionalResult`]，而非无条件裸项。
 //! 此处禁止源码文本解析；宿主须传入已解码的 [`Term`]。
@@ -9,6 +9,7 @@ mod integral;
 mod limit;
 mod lower;
 mod request;
+mod residue;
 mod result;
 mod series;
 mod term_util;
@@ -22,12 +23,14 @@ pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use lower::try_calculus_request;
 pub use request::{CalculusRequest, DerivativeOrder, DomainRequest, LimitApproach, LimitDirection, TransformKind};
+pub use residue::{Residue, residue_checked};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, asymptotic, laurent, taylor};
 pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, laplace_checked, z_checked};
 pub use value::{
     CalculusValue, calculus_result_bridge_term, map_curl_result, map_divergence_result, map_gradient_result,
-    map_hessian_result, map_jacobian_result, map_ode_result, map_series_result, map_term_result, map_transform_result,
+    map_hessian_result, map_jacobian_result, map_ode_result, map_residue_result, map_series_result, map_term_result,
+    map_transform_result,
 };
 pub use vector::{
     Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked,
@@ -79,6 +82,9 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
         }
         CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
             map_series_result(asymptotic(&expression, &variable, order))
+        }
+        CalculusRequest::Residue { expression, variable, point, assumptions: _ } => {
+            map_residue_result(residue_checked(&expression, &variable, &point))
         }
         CalculusRequest::Gradient { expression, variables, assumptions } => {
             map_gradient_result(gradient_checked(&expression, &variables, &assumptions))

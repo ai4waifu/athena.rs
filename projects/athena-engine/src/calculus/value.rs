@@ -8,6 +8,7 @@ use super::{
     series::Series,
     transform::TransformResult,
     vector::{Curl, Divergence, Gradient, Hessian, Jacobian},
+    residue::Residue,
 };
 
 /// 域 / 微积分响应所携带的值。
@@ -27,6 +28,8 @@ pub enum CalculusValue {
     Divergence(Divergence),
     /// 旋度对象（三维向量）。
     Curl(Curl),
+    /// 复留数对象。
+    Residue(Residue),
     /// ODE 解对象（残差已验证）。
     DifferentialSolution(DifferentialSolution),
     /// 带 ROC 的积分变换。
@@ -75,6 +78,12 @@ impl From<Curl> for CalculusValue {
     }
 }
 
+impl From<Residue> for CalculusValue {
+    fn from(value: Residue) -> Self {
+        Self::Residue(value)
+    }
+}
+
 impl From<DifferentialSolution> for CalculusValue {
     fn from(value: DifferentialSolution) -> Self {
         Self::DifferentialSolution(value)
@@ -98,6 +107,7 @@ impl CalculusValue {
             Self::Hessian(h) => h.to_list_term(),
             Self::Divergence(d) => d.to_bridge_term(),
             Self::Curl(c) => c.to_list_term(),
+            Self::Residue(r) => r.to_bridge_term(),
             Self::DifferentialSolution(d) => d.to_equal_term(),
             Self::Transform(t) => t.to_bridge_term(),
         }
@@ -205,6 +215,21 @@ pub fn map_curl_result(r: CalculusResult<Curl>) -> CalculusResult<CalculusValue>
         }
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Curl(expression), reason }
+        }
+    }
+}
+
+/// 映射留数结果。
+pub fn map_residue_result(r: CalculusResult<Residue>) -> CalculusResult<CalculusValue> {
+    match r {
+        CalculusResult::Exact { value, conditions } => {
+            CalculusResult::Exact { value: CalculusValue::Residue(value), conditions }
+        }
+        CalculusResult::Conditional { value, conditions } => {
+            CalculusResult::Conditional { value: CalculusValue::Residue(value), conditions }
+        }
+        CalculusResult::Unevaluated { expression, reason } => {
+            CalculusResult::Unevaluated { expression: CalculusValue::Residue(expression), reason }
         }
     }
 }

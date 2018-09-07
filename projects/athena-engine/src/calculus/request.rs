@@ -139,6 +139,17 @@ pub enum CalculusRequest {
         /// 假设。
         assumptions: AssumptionSet,
     },
+    /// 复留数 `Res(f, z→a)`。
+    Residue {
+        /// 被积 / 被展表达式。
+        expression: Term,
+        /// 复变量。
+        variable: String,
+        /// 奇点 / 展开点（已解码）。
+        point: Term,
+        /// 假设。
+        assumptions: AssumptionSet,
+    },
     /// 标量场的梯度。
     Gradient {
         /// 标量表达式。

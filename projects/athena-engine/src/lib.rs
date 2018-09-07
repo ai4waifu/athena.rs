@@ -32,10 +32,10 @@ pub use athena_types::{
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution,
     Divergence, DomainRequest, Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, RegionOfConvergence, Remainder,
-    Series, TransformKind, TransformResult, VerificationStatus, asymptotic, calculus_result_bridge_term, curl_checked,
-    definite_integrate_checked, differentiate, differentiate_checked, divergence_checked, execute_calculus, execute_domain,
-    fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked,
-    laurent, limit_checked, solve_ode_checked, taylor, try_calculus_request, z_checked,
+    Residue, Series, TransformKind, TransformResult, VerificationStatus, asymptotic, calculus_result_bridge_term,
+    curl_checked, definite_integrate_checked, differentiate, differentiate_checked, divergence_checked, execute_calculus,
+    execute_domain, fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked,
+    laplace_checked, laurent, limit_checked, residue_checked, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::{differentiate as differentiate_term, evaluate};

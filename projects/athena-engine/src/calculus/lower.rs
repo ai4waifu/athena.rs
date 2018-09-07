@@ -22,6 +22,7 @@ pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
         "Series" => lower_series(args),
         "LaurentSeries" => lower_laurent(args),
         "Asymptotic" => lower_asymptotic(args),
+        "Residue" => lower_residue(args),
         "DSolve" => lower_dsolve(args),
         "LaplaceTransform" => lower_laplace(args),
         "FourierTransform" => lower_fourier(args),
@@ -230,6 +231,38 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
                 expression: expr.clone(),
                 variable,
                 order,
+                assumptions: AssumptionSet::empty(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn lower_residue(args: &[Term]) -> Option<CalculusRequest> {
+    // Residue[expr, {z, a}] 或 Residue[expr, z, a]
+    match args {
+        [expr, spec] => {
+            let Term::List(items) = spec
+            else {
+                return None;
+            };
+            if items.len() < 2 {
+                return None;
+            }
+            let variable = symbol_name(&items[0])?;
+            Some(CalculusRequest::Residue {
+                expression: expr.clone(),
+                variable,
+                point: items[1].clone(),
+                assumptions: AssumptionSet::empty(),
+            })
+        }
+        [expr, var, point] => {
+            let variable = symbol_name(var)?;
+            Some(CalculusRequest::Residue {
+                expression: expr.clone(),
+                variable,
+                point: point.clone(),
                 assumptions: AssumptionSet::empty(),
             })
         }

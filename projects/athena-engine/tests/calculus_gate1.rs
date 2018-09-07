@@ -192,6 +192,62 @@ fn laurent_simple_pole() {
 }
 
 #[test]
+fn residue_simple_poles() {
+    let engine = AthenaEngine::new();
+    // Res(1/x, 0) = 1
+    let out = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
+            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+            variable: "x".into(),
+            point: Term::int(0),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => {
+            assert_eq!(r.value, Term::int(1));
+            assert_eq!(r.pole_order, 1);
+        }
+        other => panic!("expected Residue Exact, got {other:?}"),
+    }
+
+    // Res(1/x^2, 0) = 0（二阶极点，无 x^{-1}）
+    let out2 = engine
+        .execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
+            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-2)]),
+            variable: "x".into(),
+            point: Term::int(0),
+            assumptions: AssumptionSet::empty(),
+        }))
+        .expect("ok");
+    match out2 {
+        CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => {
+            assert_eq!(r.value, Term::int(0));
+            assert_eq!(r.pole_order, 2);
+        }
+        other => panic!("expected Residue Exact for 1/x^2, got {other:?}"),
+    }
+
+    // Residue[(1+x)/x, {x, 0}] → 1
+    let expr = Term::apply(
+        "Times",
+        vec![
+            Term::apply("Plus", vec![Term::int(1), Term::symbol("x")]),
+            Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+        ],
+    );
+    let term = Term::apply("Residue", vec![expr, Term::List(vec![Term::symbol("x"), Term::int(0)])]);
+    let req = try_calculus_request(&term).expect("lower Residue");
+    let out3 = engine.execute_domain(DomainRequest::Calculus(req)).expect("ok");
+    match out3 {
+        CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => {
+            assert_eq!(r.value, Term::int(1));
+        }
+        other => panic!("expected Residue from lower, got {other:?}"),
+    }
+}
+
+#[test]
 fn special_function_registry_derivatives() {
     // Sinh' = Cosh
     let d_sinh = athena_engine::differentiate(&Term::apply("Sinh", vec![Term::symbol("x")]), "x");
