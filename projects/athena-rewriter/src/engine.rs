@@ -50,7 +50,7 @@ impl Rewriter {
 fn fold_constants(arena: &mut TermArena, id: TermId) -> Result<bool> {
     let Some(kind) = arena.get(id).cloned()
     else {
-        return Err(Diagnostic::error(DiagnosticCode::InvalidIndex, "invalid TermId"));
+        return Err(Diagnostic::new(DiagnosticCode::InvalidIndex));
     };
     match kind {
         TermKind::List(items) => {

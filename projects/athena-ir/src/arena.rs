@@ -64,11 +64,11 @@ impl TermArena {
 
 fn verify_term(arena: &TermArena, id: TermId, stack: &mut Vec<TermId>) -> Result<()> {
     if stack.contains(&id) {
-        return Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "IR cycle detected"));
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation));
     }
     let Some(kind) = arena.get(id)
     else {
-        return Err(Diagnostic::error(DiagnosticCode::InvalidIndex, "invalid TermId"));
+        return Err(Diagnostic::new(DiagnosticCode::InvalidIndex));
     };
     stack.push(id);
     match kind {
