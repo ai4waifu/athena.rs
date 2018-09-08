@@ -9,7 +9,7 @@ mod modulus;
 mod number;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
-pub use diagnostic::{Diagnostic, DiagnosticCode, Result, Severity};
+pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{AssumptionSetId, DomainId, NodeId, OperatorId, SerializationVersion, SourceSpan, SymbolId, TermId};
 pub use modulus::{ModularValue, Modulus};
 pub use number::{ExactNumber, Number, RealNumber, normalize_rational};

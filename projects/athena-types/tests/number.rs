@@ -13,5 +13,5 @@ fn exact_add_rational() {
 fn div_by_zero_is_athena_code() {
     let err = Number::small_int(1).div(Number::small_int(0)).unwrap_err();
     assert_eq!(err.code, DiagnosticCode::DivideByZero);
-    assert_eq!(err.code.as_str(), "athena_DIVIDE_BY_ZERO");
+    assert_eq!(err.code.as_str(), "ATHENA_DIVIDE_BY_ZERO");
 }

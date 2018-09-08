@@ -1,4 +1,11 @@
-//! 结构化诊断 — 语言中立。
+//! 结构化诊断 wire — 语言中立，不含自然语言文案。
+//!
+//! 稳定身份：`code + severity + args + details + span + path`。
+//! 本地化由产品 catalog + `@vmz/diagnostic` 完成，不在本 crate。
+
+use std::{collections::BTreeMap, fmt};
+
+use crate::ids::SourceSpan;
 
 /// 严重级别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,7 +16,87 @@ pub enum Severity {
     Warning,
 }
 
-/// 稳定的 athena 诊断码（`athena_*`）。
+/// Catalog / details 中的机器可读标量（非用户文案）。
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DiagnosticValue {
+    /// 布尔。
+    Bool(bool),
+    /// 有符号整数。
+    Int(i64),
+    /// 无符号整数。
+    UInt(u64),
+    /// 机器标识符或已解码字面量（禁止整句自然语言）。
+    Text(String),
+}
+
+impl From<bool> for DiagnosticValue {
+    fn from(v: bool) -> Self {
+        Self::Bool(v)
+    }
+}
+
+impl From<i64> for DiagnosticValue {
+    fn from(v: i64) -> Self {
+        Self::Int(v)
+    }
+}
+
+impl From<u64> for DiagnosticValue {
+    fn from(v: u64) -> Self {
+        Self::UInt(v)
+    }
+}
+
+impl From<u32> for DiagnosticValue {
+    fn from(v: u32) -> Self {
+        Self::UInt(u64::from(v))
+    }
+}
+
+impl From<i32> for DiagnosticValue {
+    fn from(v: i32) -> Self {
+        Self::Int(i64::from(v))
+    }
+}
+
+impl From<String> for DiagnosticValue {
+    fn from(v: String) -> Self {
+        Self::Text(v)
+    }
+}
+
+impl From<&str> for DiagnosticValue {
+    fn from(v: &str) -> Self {
+        Self::Text(v.to_string())
+    }
+}
+
+impl fmt::Display for DiagnosticValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bool(v) => write!(f, "{v}"),
+            Self::Int(v) => write!(f, "{v}"),
+            Self::UInt(v) => write!(f, "{v}"),
+            Self::Text(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+/// 对象 / 请求路径（机器可读段，非展示句）。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DiagnosticPath {
+    /// 路径段（如 `session`、`request`、`modulus`）。
+    pub segments: Vec<String>,
+}
+
+impl DiagnosticPath {
+    /// 由段列表构造。
+    pub fn from_segments(segments: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self { segments: segments.into_iter().map(Into::into).collect() }
+    }
+}
+
+/// 稳定的 Athena 诊断码（wire：`ATHENA_*`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticCode {
     /// 非法数字字面量。
@@ -97,75 +184,132 @@ pub enum DiagnosticCode {
 }
 
 impl DiagnosticCode {
-    /// Wire 字符串。
+    /// Wire 字符串（`ATHENA_*`，稳定 identity）。
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::InvalidNumber => "athena_INVALID_NUMBER",
-            Self::DomainError => "athena_DOMAIN_ERROR",
-            Self::DivideByZero => "athena_DIVIDE_BY_ZERO",
-            Self::TypeMismatch => "athena_TYPE_MISMATCH",
-            Self::ShapeMismatch => "athena_SHAPE_MISMATCH",
-            Self::UnboundSymbol => "athena_UNBOUND_SYMBOL",
-            Self::UnknownOperator => "athena_UNKNOWN_OPERATOR",
-            Self::UnsupportedOperation => "athena_UNSUPPORTED_OPERATION",
-            Self::InvalidIndex => "athena_INVALID_INDEX",
-            Self::PrecisionLoss => "athena_PRECISION_LOSS",
-            Self::AssignmentError => "athena_ASSIGNMENT_ERROR",
-            Self::NonConvergent => "athena_NON_CONVERGENT",
-            Self::PromotionFailed => "athena_PROMOTION_FAILED",
-            Self::ExponentOutOfRange => "athena_EXPONENT_OUT_OF_RANGE",
-            Self::CalculusUndefined => "athena_CALCULUS_UNDEFINED",
-            Self::DerivativeNotExist => "athena_DERIVATIVE_NOT_EXIST",
-            Self::LimitDoesNotExist => "athena_LIMIT_DOES_NOT_EXIST",
-            Self::LimitOscillatory => "athena_LIMIT_OSCILLATORY",
-            Self::IntegralDivergent => "athena_INTEGRAL_DIVERGENT",
-            Self::IntegralNotElementary => "athena_INTEGRAL_NOT_ELEMENTARY",
-            Self::IntegrationDomainInvalid => "athena_INTEGRATION_DOMAIN_INVALID",
-            Self::BranchAmbiguous => "athena_BRANCH_AMBIGUOUS",
-            Self::AssumptionUnresolved => "athena_ASSUMPTION_UNRESOLVED",
-            Self::SeriesOrderLimit => "athena_SERIES_ORDER_LIMIT",
-            Self::SeriesRemainderUnknown => "athena_SERIES_REMAINDER_UNKNOWN",
-            Self::OdeUnsupported => "athena_ODE_UNSUPPORTED",
-            Self::OdeSolutionUnverified => "athena_ODE_SOLUTION_UNVERIFIED",
-            Self::TransformRocUnknown => "athena_TRANSFORM_ROC_UNKNOWN",
-            Self::NumericNotCertified => "athena_NUMERIC_NOT_CERTIFIED",
-            Self::CalculusResourceLimit => "athena_CALCULUS_RESOURCE_LIMIT",
-            Self::DomainMismatch => "athena_DOMAIN_MISMATCH",
-            Self::FactorIncomplete => "athena_FACTOR_INCOMPLETE",
-            Self::PrimeTestInconclusive => "athena_PRIME_TEST_INCONCLUSIVE",
-            Self::ModulusInvalid => "athena_MODULUS_INVALID",
-            Self::ModularInverseMissing => "athena_MODULAR_INVERSE_MISSING",
-            Self::CongruenceInconsistent => "athena_CONGRUENCE_INCONSISTENT",
-            Self::PolynomialNonFieldDivision => "athena_POLYNOMIAL_NON_FIELD_DIVISION",
-            Self::PolynomialDivisionByZero => "athena_POLYNOMIAL_DIVISION_BY_ZERO",
-            Self::PolynomialVariableMismatch => "athena_POLYNOMIAL_VARIABLE_MISMATCH",
-            Self::PolynomialTooLarge => "athena_POLYNOMIAL_TOO_LARGE",
-            Self::GroebnerResourceLimit => "athena_GROEBNER_RESOURCE_LIMIT",
+            Self::InvalidNumber => "ATHENA_INVALID_NUMBER",
+            Self::DomainError => "ATHENA_DOMAIN_ERROR",
+            Self::DivideByZero => "ATHENA_DIVIDE_BY_ZERO",
+            Self::TypeMismatch => "ATHENA_TYPE_MISMATCH",
+            Self::ShapeMismatch => "ATHENA_SHAPE_MISMATCH",
+            Self::UnboundSymbol => "ATHENA_UNBOUND_SYMBOL",
+            Self::UnknownOperator => "ATHENA_UNKNOWN_OPERATOR",
+            Self::UnsupportedOperation => "ATHENA_UNSUPPORTED_OPERATION",
+            Self::InvalidIndex => "ATHENA_INVALID_INDEX",
+            Self::PrecisionLoss => "ATHENA_PRECISION_LOSS",
+            Self::AssignmentError => "ATHENA_ASSIGNMENT_ERROR",
+            Self::NonConvergent => "ATHENA_NON_CONVERGENT",
+            Self::PromotionFailed => "ATHENA_PROMOTION_FAILED",
+            Self::ExponentOutOfRange => "ATHENA_EXPONENT_OUT_OF_RANGE",
+            Self::CalculusUndefined => "ATHENA_CALCULUS_UNDEFINED",
+            Self::DerivativeNotExist => "ATHENA_DERIVATIVE_NOT_EXIST",
+            Self::LimitDoesNotExist => "ATHENA_LIMIT_DOES_NOT_EXIST",
+            Self::LimitOscillatory => "ATHENA_LIMIT_OSCILLATORY",
+            Self::IntegralDivergent => "ATHENA_INTEGRAL_DIVERGENT",
+            Self::IntegralNotElementary => "ATHENA_INTEGRAL_NOT_ELEMENTARY",
+            Self::IntegrationDomainInvalid => "ATHENA_INTEGRATION_DOMAIN_INVALID",
+            Self::BranchAmbiguous => "ATHENA_BRANCH_AMBIGUOUS",
+            Self::AssumptionUnresolved => "ATHENA_ASSUMPTION_UNRESOLVED",
+            Self::SeriesOrderLimit => "ATHENA_SERIES_ORDER_LIMIT",
+            Self::SeriesRemainderUnknown => "ATHENA_SERIES_REMAINDER_UNKNOWN",
+            Self::OdeUnsupported => "ATHENA_ODE_UNSUPPORTED",
+            Self::OdeSolutionUnverified => "ATHENA_ODE_SOLUTION_UNVERIFIED",
+            Self::TransformRocUnknown => "ATHENA_TRANSFORM_ROC_UNKNOWN",
+            Self::NumericNotCertified => "ATHENA_NUMERIC_NOT_CERTIFIED",
+            Self::CalculusResourceLimit => "ATHENA_CALCULUS_RESOURCE_LIMIT",
+            Self::DomainMismatch => "ATHENA_DOMAIN_MISMATCH",
+            Self::FactorIncomplete => "ATHENA_FACTOR_INCOMPLETE",
+            Self::PrimeTestInconclusive => "ATHENA_PRIME_TEST_INCONCLUSIVE",
+            Self::ModulusInvalid => "ATHENA_MODULUS_INVALID",
+            Self::ModularInverseMissing => "ATHENA_MODULAR_INVERSE_MISSING",
+            Self::CongruenceInconsistent => "ATHENA_CONGRUENCE_INCONSISTENT",
+            Self::PolynomialNonFieldDivision => "ATHENA_POLYNOMIAL_NON_FIELD_DIVISION",
+            Self::PolynomialDivisionByZero => "ATHENA_POLYNOMIAL_DIVISION_BY_ZERO",
+            Self::PolynomialVariableMismatch => "ATHENA_POLYNOMIAL_VARIABLE_MISMATCH",
+            Self::PolynomialTooLarge => "ATHENA_POLYNOMIAL_TOO_LARGE",
+            Self::GroebnerResourceLimit => "ATHENA_GROEBNER_RESOURCE_LIMIT",
         }
     }
 }
 
-/// 结构化诊断。
+/// 结构化诊断（无自然语言 `message` / `detail: String`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// 诊断码。
+    /// 稳定诊断码。
     pub code: DiagnosticCode,
     /// 严重级别。
     pub severity: Severity,
-    /// 中立细节（不本地化）。
-    pub detail: String,
+    /// Catalog 插值参数。
+    pub args: BTreeMap<String, DiagnosticValue>,
+    /// 机器可读上下文（domain、operation、limits 等）。
+    pub details: BTreeMap<String, DiagnosticValue>,
+    /// 源码偏移（若有）。
+    pub span: Option<SourceSpan>,
+    /// 对象 / 请求路径（若有）。
+    pub path: Option<DiagnosticPath>,
 }
 
 impl Diagnostic {
-    /// 错误级诊断。
-    pub fn error(code: DiagnosticCode, detail: impl Into<String>) -> Self {
-        Self { code, severity: Severity::Error, detail: detail.into() }
+    /// 错误级诊断（无文案）。
+    pub fn new(code: DiagnosticCode) -> Self {
+        Self { code, severity: Severity::Error, args: BTreeMap::new(), details: BTreeMap::new(), span: None, path: None }
+    }
+
+    /// 警告级诊断。
+    pub fn warning(code: DiagnosticCode) -> Self {
+        Self { severity: Severity::Warning, ..Self::new(code) }
+    }
+
+    /// 追加 catalog 插值参数。
+    pub fn arg(mut self, key: impl Into<String>, value: impl Into<DiagnosticValue>) -> Self {
+        self.args.insert(key.into(), value.into());
+        self
+    }
+
+    /// 追加机器可读 detail 字段。
+    pub fn detail(mut self, key: impl Into<String>, value: impl Into<DiagnosticValue>) -> Self {
+        self.details.insert(key.into(), value.into());
+        self
+    }
+
+    /// 绑定源码 span。
+    pub fn with_span(mut self, span: SourceSpan) -> Self {
+        self.span = Some(span);
+        self
+    }
+
+    /// 绑定诊断路径。
+    pub fn with_path(mut self, path: DiagnosticPath) -> Self {
+        self.path = Some(path);
+        self
     }
 }
 
-impl std::fmt::Display for Diagnostic {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.code.as_str(), self.detail)
+impl fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Debug/log only: wire code. Localized prose belongs in the product catalog.
+        write!(f, "{}", self.code.as_str())?;
+        if !self.args.is_empty() {
+            write!(f, " args={{")?;
+            for (i, (k, v)) in self.args.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{k}={v}")?;
+            }
+            write!(f, "}}")?;
+        }
+        if !self.details.is_empty() {
+            write!(f, " details={{")?;
+            for (i, (k, v)) in self.details.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{k}={v}")?;
+            }
+            write!(f, "}}")?;
+        }
+        Ok(())
     }
 }
 

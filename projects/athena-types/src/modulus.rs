@@ -16,7 +16,7 @@ impl Modulus {
     pub fn new(value: impl Into<BigInt>) -> Result<Self, Diagnostic> {
         let value = value.into();
         if value <= BigInt::one() {
-            return Err(Diagnostic::error(DiagnosticCode::ModulusInvalid, format!("模数必须大于 1，得到 {value}")));
+            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid).detail("value", value.to_string()));
         }
         Ok(Self { value })
     }
@@ -68,10 +68,10 @@ impl ModularValue {
             Ok(())
         }
         else {
-            Err(Diagnostic::error(
-                DiagnosticCode::DomainMismatch,
-                format!("跨模运算：{} 与 {}", self.modulus.value(), other.modulus.value()),
-            ))
+            Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .arg("left_modulus", self.modulus.value().to_string())
+                .arg("right_modulus", other.modulus.value().to_string())
+                .detail("operation", "modular_binop"))
         }
     }
 }

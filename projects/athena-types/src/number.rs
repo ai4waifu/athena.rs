@@ -194,12 +194,8 @@ impl Number {
         match (self, other) {
             (Self::Exact(a), Self::Exact(b)) => Ok(Self::Exact(add_exact(a, b))),
             (a, b) => {
-                let x = a
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "add promotion failed"))?;
-                let y = b
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "add promotion failed"))?;
+                let x = a.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
+                let y = b.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
                 Ok(Self::Real(RealNumber::Machine(x + y)))
             }
         }
@@ -211,12 +207,8 @@ impl Number {
         match (self, other) {
             (Self::Exact(a), Self::Exact(b)) => Ok(Self::Exact(mul_exact(a, b))),
             (a, b) => {
-                let x = a
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "mul promotion failed"))?;
-                let y = b
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "mul promotion failed"))?;
+                let x = a.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
+                let y = b.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
                 Ok(Self::Real(RealNumber::Machine(x * y)))
             }
         }
@@ -226,19 +218,15 @@ impl Number {
     pub fn div(self, other: Self) -> crate::Result<Self> {
         use crate::{Diagnostic, DiagnosticCode};
         if other.is_zero() {
-            return Err(Diagnostic::error(DiagnosticCode::DivideByZero, "division by zero"));
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero));
         }
         match (self, other) {
             (Self::Exact(a), Self::Exact(b)) => {
                 Ok(Self::Exact(normalize_rational(exact_to_rational(&a) / exact_to_rational(&b))))
             }
             (a, b) => {
-                let x = a
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "div promotion failed"))?;
-                let y = b
-                    .to_f64_lossy()
-                    .ok_or_else(|| Diagnostic::error(DiagnosticCode::PromotionFailed, "div promotion failed"))?;
+                let x = a.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
+                let y = b.to_f64_lossy().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed))?;
                 Ok(Self::Real(RealNumber::Machine(x / y)))
             }
         }
@@ -261,8 +249,7 @@ impl Number {
             (Self::Exact(base), Self::Exact(ExactNumber::Integer(e))) if !e.is_negative() => match base {
                 ExactNumber::Integer(n) => Ok(Self::Exact(ExactNumber::Integer(pow_bigint(n, e)?))),
                 ExactNumber::Rational(r) => {
-                    let exp = u32::try_from(e)
-                        .map_err(|_| Diagnostic::error(DiagnosticCode::ExponentOutOfRange, "exponent too large"))?;
+                    let exp = u32::try_from(e).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
                     Ok(Self::Exact(normalize_rational(Pow::pow(r, exp))))
                 }
             },
@@ -275,16 +262,16 @@ impl Number {
                     }
                     return self.pow(&Self::Exact(ExactNumber::Integer(e)));
                 }
-                Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "non-integer exact exponent"))
+                Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation))
             }
             (Self::Real(RealNumber::Machine(b)), Self::Exact(ExactNumber::Integer(e))) => {
-                let ef = e.to_f64().ok_or_else(|| Diagnostic::error(DiagnosticCode::ExponentOutOfRange, "exp overflow"))?;
+                let ef = e.to_f64().ok_or_else(|| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
                 Ok(Self::Real(RealNumber::Machine(b.powf(ef))))
             }
             (Self::Real(RealNumber::Machine(b)), Self::Real(RealNumber::Machine(e))) => {
                 Ok(Self::Real(RealNumber::Machine(b.powf(*e))))
             }
-            _ => Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "unsupported power combination")),
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)),
         }
     }
 
@@ -294,16 +281,16 @@ impl Number {
         use num_traits::One;
         let n = match self {
             Self::Exact(ExactNumber::Integer(n)) if n.is_negative() => {
-                return Err(Diagnostic::error(DiagnosticCode::DomainError, "factorial of negative"));
+                return Err(Diagnostic::new(DiagnosticCode::DomainError));
             }
             Self::Exact(ExactNumber::Integer(n)) => n.clone(),
             Self::Exact(ExactNumber::Rational(r)) if r.denom().is_one() && !r.numer().is_negative() => r.numer().clone(),
             _ => {
-                return Err(Diagnostic::error(DiagnosticCode::TypeMismatch, "factorial requires exact integer"));
+                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch));
             }
         };
         if n > 10_000u32.into() {
-            return Err(Diagnostic::error(DiagnosticCode::DomainError, "factorial bound exceeded"));
+            return Err(Diagnostic::new(DiagnosticCode::DomainError));
         }
         let mut acc = num_bigint::BigInt::one();
         let mut i = num_bigint::BigInt::from(2);
@@ -387,7 +374,7 @@ fn pow_bigint(n: &num_bigint::BigInt, e: &num_bigint::BigInt) -> crate::Result<n
     use crate::{Diagnostic, DiagnosticCode};
     use num_traits::{Pow, Signed};
     if e.is_negative() {
-        return Err(Diagnostic::error(DiagnosticCode::DomainError, "negative integer power"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainError));
     }
     if let Ok(u) = u32::try_from(e) {
         return Ok(n.pow(u));
@@ -395,7 +382,7 @@ fn pow_bigint(n: &num_bigint::BigInt, e: &num_bigint::BigInt) -> crate::Result<n
     if let Some(bu) = e.to_biguint() {
         return Ok(Pow::pow(n, bu));
     }
-    Err(Diagnostic::error(DiagnosticCode::ExponentOutOfRange, "exponent too large"))
+    Err(Diagnostic::new(DiagnosticCode::ExponentOutOfRange))
 }
 
 /// Normalize rational to integer when denominator is one.
