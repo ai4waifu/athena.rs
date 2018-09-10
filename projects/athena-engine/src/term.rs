@@ -74,13 +74,8 @@ impl Term {
     }
 
     /// 符号头部的应用 `head(args…)`。
-    pub fn app(head: impl Into<String>, args: Vec<Term>) -> Self {
-        Self::Application { head: Box::new(Self::symbol(head)), arguments: args }
-    }
-
-    /// [`Self::app`] 的别名。
     pub fn apply(head: impl Into<String>, args: Vec<Term>) -> Self {
-        Self::app(head, args)
+        Self::Application { head: Box::new(Self::symbol(head)), arguments: args }
     }
 
     /// 头部符号名（若有）。

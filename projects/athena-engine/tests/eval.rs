@@ -44,8 +44,10 @@ fn compound_expression_returns_last() {
 
 #[test]
 fn integrate_power() {
-    let e =
-        evaluate(&Term::apply("Integrate", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::symbol("x")]));
+    let e = evaluate(&Term::apply(
+        "Integrate",
+        vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::symbol("x")],
+    ));
     let text = format!("{e:?}");
     assert!(text.contains("x"), "got {text}");
 }

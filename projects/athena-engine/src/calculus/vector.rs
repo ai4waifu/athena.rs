@@ -171,19 +171,12 @@ pub fn divergence_checked(
             expression: Divergence {
                 components: components.to_vec(),
                 variables: variables.to_vec(),
-                value: Term::app(
+                value: Term::apply(
                     "Divergence",
                     vec![Term::List(components.to_vec()), Term::List(variables.iter().map(Term::symbol).collect())],
                 ),
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::UnsupportedOperation,
-                format!(
-                    "散度要求分量与变量个数相同，得到 {} 与 {}",
-                    components.len(),
-                    variables.len()
-                ),
-            ),
+            reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
         };
     }
     if components.is_empty() {
@@ -200,35 +193,16 @@ pub fn divergence_checked(
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
         parts.push(evaluate(&part.value));
     }
-    let value = if parts.len() == 1 {
-        parts.pop().unwrap()
-    } else {
-        evaluate(&Term::app("Plus", parts))
-    };
-    finish_vector(
-        Divergence { components: components.to_vec(), variables: variables.to_vec(), value },
-        conditions,
-        unresolved,
-    )
+    let value = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::apply("Plus", parts)) };
+    finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved)
 }
 
 /// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
 pub fn curl_checked(components: &[Term], variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Curl> {
     if components.len() != 3 || variables.len() != 3 {
         return CalculusResult::Unevaluated {
-            expression: Curl {
-                components: components.to_vec(),
-                variables: variables.to_vec(),
-                curl_components: Vec::new(),
-            },
-            reason: Diagnostic::error(
-                DiagnosticCode::UnsupportedOperation,
-                format!(
-                    "旋度 bootstrap 仅支持三维，得到分量 {}、变量 {}",
-                    components.len(),
-                    variables.len()
-                ),
-            ),
+            expression: Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: Vec::new() },
+            reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
         };
     }
     let fx = &components[0];
@@ -260,18 +234,14 @@ pub fn curl_checked(components: &[Term], variables: &[String], assumptions: &Ass
     let cz = sub_terms(&evaluate(&d_fy_dx.value), &evaluate(&d_fx_dy.value));
 
     finish_vector(
-        Curl {
-            components: components.to_vec(),
-            variables: variables.to_vec(),
-            curl_components: vec![cx, cy, cz],
-        },
+        Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: vec![cx, cy, cz] },
         conditions,
         unresolved,
     )
 }
 
 fn sub_terms(a: &Term, b: &Term) -> Term {
-    evaluate(&Term::app("Plus", vec![a.clone(), Term::app("Times", vec![Term::int(-1), b.clone()])]))
+    evaluate(&Term::apply("Plus", vec![a.clone(), Term::apply("Times", vec![Term::int(-1), b.clone()])]))
 }
 
 fn merge_conditions(

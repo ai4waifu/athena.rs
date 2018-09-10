@@ -12,17 +12,14 @@ pub fn mod_inverse(a: &BigInt, modulus: &Modulus) -> Result<ModularValue, Diagno
     let m = modulus.value();
     let aa = modulus.reduce(a);
     if aa.is_zero() {
-        return Err(Diagnostic::error(
-            DiagnosticCode::ModularInverseMissing,
-            "0 无模逆",
-        ));
+        return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).detail("residue", "0"));
     }
     let eg = extended_gcd(&aa, m);
     if eg.g != BigInt::one() {
-        return Err(Diagnostic::error(
-            DiagnosticCode::ModularInverseMissing,
-            format!("gcd({}, {}) = {} ≠ 1", aa, m, eg.g),
-        ));
+        return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing)
+            .arg("gcd", eg.g.to_string())
+            .detail("residue", aa.to_string())
+            .detail("modulus", m.to_string()));
     }
     Ok(ModularValue::new(eg.s, modulus.clone()))
 }

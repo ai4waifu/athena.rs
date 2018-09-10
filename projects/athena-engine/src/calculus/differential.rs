@@ -45,9 +45,9 @@ pub struct DifferentialSolution {
 impl DifferentialSolution {
     /// 桥接项 `Equal[y[x], explicit]`。
     pub fn to_equal_term(&self) -> Term {
-        Term::app(
+        Term::apply(
             "Equal",
-            vec![Term::app(self.dependent.as_str(), vec![Term::symbol(&self.independent)]), self.explicit.clone()],
+            vec![Term::apply(self.dependent.as_str(), vec![Term::symbol(&self.independent)]), self.explicit.clone()],
         )
     }
 }
@@ -81,19 +81,19 @@ pub fn solve_ode_checked(
     };
 
     let mut explicit = if let Some(a) = number_from_term(&rhs.f).cloned() {
-        evaluate(&Term::app("Times", vec![Term::number(a), Term::symbol(independent)]))
+        evaluate(&Term::apply("Times", vec![Term::number(a), Term::symbol(independent)]))
     }
     else if let Some(a) = match_times_const_y(&rhs.f, dependent) {
-        Term::app("Exp", vec![evaluate(&Term::app("Times", vec![Term::number(a), Term::symbol(independent)]))])
+        Term::apply("Exp", vec![evaluate(&Term::apply("Times", vec![Term::number(a), Term::symbol(independent)]))])
     }
     else if let Some((p, q)) = match_as_linear_forced(&rhs.f, dependent) {
         if p.is_zero() {
             return CalculusResult::Unevaluated {
                 expression: placeholder(dependent, independent, equation.clone()),
-                reason: Diagnostic::error(DiagnosticCode::OdeUnsupported, "线性 ODE 阻尼系数为 0"),
+                reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),
             };
         }
-        evaluate(&Term::app("Divide", vec![Term::number(q), Term::number(p)]))
+        evaluate(&Term::apply("Divide", vec![Term::number(q), Term::number(p)]))
     }
     else if let Some(sol) = try_rhs_independent_of_y(&rhs.f, dependent, independent) {
         sol
@@ -119,7 +119,7 @@ pub fn solve_ode_checked(
     let ivp_ok = match initial {
         Some((x0, y0)) => {
             let at = evaluate(&replace_symbol(&explicit, independent, x0));
-            is_zero_term(&evaluate(&Term::app("Plus", vec![at, Term::app("Times", vec![Term::int(-1), y0.clone()])])))
+            is_zero_term(&evaluate(&Term::apply("Plus", vec![at, Term::apply("Times", vec![Term::int(-1), y0.clone()])])))
         }
         None => true,
     };
@@ -143,10 +143,7 @@ pub fn solve_ode_checked(
                 explicit,
                 verified: VerificationStatus::Failed { residual: residual.clone() },
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::OdeSolutionUnverified,
-                format!("ODE 残差/初值未归零: residual={residual:?}"),
-            ),
+            reason: Diagnostic::new(DiagnosticCode::OdeSolutionUnverified),
         }
     }
 }
@@ -154,24 +151,26 @@ pub fn solve_ode_checked(
 fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0: &Term, y0: &Term) -> Term {
     // y' = a (常数) → y = a x + C, C = y0 - a x0
     if let Some(a) = number_from_term(f).cloned() {
-        let ax0 = evaluate(&Term::app("Times", vec![Term::number(a.clone()), x0.clone()]));
-        let c = evaluate(&Term::app("Plus", vec![y0.clone(), Term::app("Times", vec![Term::int(-1), ax0])]));
-        return evaluate(&Term::app("Plus", vec![Term::app("Times", vec![Term::number(a), Term::symbol(independent)]), c]));
+        let ax0 = evaluate(&Term::apply("Times", vec![Term::number(a.clone()), x0.clone()]));
+        let c = evaluate(&Term::apply("Plus", vec![y0.clone(), Term::apply("Times", vec![Term::int(-1), ax0])]));
+        return evaluate(&Term::apply("Plus", vec![Term::apply("Times", vec![Term::number(a), Term::symbol(independent)]), c]));
     }
     // y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(f, dependent) {
-        let delta =
-            evaluate(&Term::app("Plus", vec![Term::symbol(independent), Term::app("Times", vec![Term::int(-1), x0.clone()])]));
-        return evaluate(&Term::app(
+        let delta = evaluate(&Term::apply(
+            "Plus",
+            vec![Term::symbol(independent), Term::apply("Times", vec![Term::int(-1), x0.clone()])],
+        ));
+        return evaluate(&Term::apply(
             "Times",
-            vec![y0.clone(), Term::app("Exp", vec![Term::app("Times", vec![Term::number(a), delta])])],
+            vec![y0.clone(), Term::apply("Exp", vec![Term::apply("Times", vec![Term::number(a), delta])])],
         ));
     }
     // y' = g(x)（无 y）→ y = ∫g + C, C = y0 - F(x0)
     if !contains_symbol(f, dependent) {
         let fx0 = evaluate(&replace_symbol(particular, independent, x0));
-        let c = evaluate(&Term::app("Plus", vec![y0.clone(), Term::app("Times", vec![Term::int(-1), fx0])]));
-        return evaluate(&Term::app("Plus", vec![particular.clone(), c]));
+        let c = evaluate(&Term::apply("Plus", vec![y0.clone(), Term::apply("Times", vec![Term::int(-1), fx0])]));
+        return evaluate(&Term::apply("Plus", vec![particular.clone(), c]));
     }
     // 常数特解：必要时平移
     if number_from_term(particular).is_some() {
@@ -183,7 +182,7 @@ fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0
 fn residual_of(dependent: &str, independent: &str, f: &Term, explicit: &Term) -> Term {
     let yp = evaluate(&differentiate(explicit, independent));
     let f_sub = evaluate(&replace_symbol(f, dependent, explicit));
-    evaluate(&Term::app("Plus", vec![yp, Term::app("Times", vec![Term::int(-1), f_sub])]))
+    evaluate(&Term::apply("Plus", vec![yp, Term::apply("Times", vec![Term::int(-1), f_sub])]))
 }
 
 /// `y' = g(x)`：右端不含因变量。
@@ -206,23 +205,22 @@ fn try_power_of_y(f: &Term, dependent: &str, independent: &str) -> Option<Term> 
     }
     if n == 2 {
         // y = -1/(c x)
-        let den = evaluate(&Term::app("Times", vec![Term::number(c), Term::symbol(independent)]));
-        return Some(evaluate(&Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![den, Term::int(-1)])])));
+        let den = evaluate(&Term::apply("Times", vec![Term::number(c), Term::symbol(independent)]));
+        return Some(evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![den, Term::int(-1)])])));
     }
     // y = ((1-n) c x)^{1/(1-n)} — 仅当指数为 ±1 时构造，便于求值验证
     let one_minus_n = 1i64 - n;
     if one_minus_n == 0 {
         return None;
     }
-    let inner = evaluate(&Term::app(
-        "Times",
-        vec![Term::integer(one_minus_n), Term::number(c), Term::symbol(independent)],
-    ));
+    let inner = evaluate(&Term::apply("Times", vec![Term::integer(one_minus_n), Term::number(c), Term::symbol(independent)]));
     if one_minus_n == 1 {
         Some(inner)
-    } else if one_minus_n == -1 {
-        Some(evaluate(&Term::app("Power", vec![inner, Term::int(-1)])))
-    } else {
+    }
+    else if one_minus_n == -1 {
+        Some(evaluate(&Term::apply("Power", vec![inner, Term::int(-1)])))
+    }
+    else {
         None
     }
 }
@@ -237,9 +235,9 @@ fn try_bernoulli_const(f: &Term, dependent: &str, independent: &str) -> Option<T
     if a.is_zero() {
         // 退化为 c y^n
         return try_power_of_y(
-            &evaluate(&Term::app(
+            &evaluate(&Term::apply(
                 "Times",
-                vec![Term::number(b), Term::app("Power", vec![Term::symbol(dependent), Term::integer(n)])],
+                vec![Term::number(b), Term::apply("Power", vec![Term::symbol(dependent), Term::integer(n)])],
             )),
             dependent,
             independent,
@@ -250,9 +248,9 @@ fn try_bernoulli_const(f: &Term, dependent: &str, independent: &str) -> Option<T
     }
     if n == 2 {
         // y = -a/b
-        return Some(evaluate(&Term::app(
+        return Some(evaluate(&Term::apply(
             "Times",
-            vec![Term::int(-1), Term::app("Divide", vec![Term::number(a), Term::number(b)])],
+            vec![Term::int(-1), Term::apply("Divide", vec![Term::number(a), Term::number(b)])],
         )));
     }
     None
@@ -275,7 +273,7 @@ fn try_separable_g_y_power(f: &Term, dependent: &str, independent: &str) -> Opti
     if matches!(&anti, Term::Application { head, .. } if head.is_symbol("Integrate")) {
         return None;
     }
-    Some(evaluate(&Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![anti, Term::int(-1)])])))
+    Some(evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![anti, Term::int(-1)])])))
 }
 
 fn match_scaled_power_of_y(f: &Term, dependent: &str) -> Option<(Number, i64)> {
@@ -324,15 +322,18 @@ fn match_bernoulli_const_rhs(f: &Term, dependent: &str) -> Option<(Number, Numbe
             if linear.replace(a).is_some() {
                 return None;
             }
-        } else if let Some((b, n)) = match_scaled_power_of_y(part, dependent) {
+        }
+        else if let Some((b, n)) = match_scaled_power_of_y(part, dependent) {
             if n == 1 {
                 if linear.replace(b).is_some() {
                     return None;
                 }
-            } else if power.replace((b, n)).is_some() {
+            }
+            else if power.replace((b, n)).is_some() {
                 return None;
             }
-        } else {
+        }
+        else {
             return None;
         }
     }
@@ -375,9 +376,9 @@ fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str)
         if head.is_symbol("Equal") && args.len() == 2 {
             if let Some(p) = match_d_plus_p_y(&args[0], dependent, independent) {
                 let q = number_from_term(&args[1]).cloned().unwrap_or_else(|| Number::small_int(0));
-                let f = evaluate(&Term::app(
+                let f = evaluate(&Term::apply(
                     "Plus",
-                    vec![Term::number(q), Term::app("Times", vec![Term::int(-1), Term::number(p), Term::symbol(dependent)])],
+                    vec![Term::number(q), Term::apply("Times", vec![Term::int(-1), Term::number(p), Term::symbol(dependent)])],
                 ));
                 return Some(FirstOrderRhs { f });
             }
@@ -490,6 +491,6 @@ fn placeholder(dependent: &str, independent: &str, equation: Term) -> Differenti
 fn unsupported(dependent: &str, independent: &str, equation: &Term) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(dependent, independent, equation.clone()),
-        reason: Diagnostic::error(DiagnosticCode::OdeUnsupported, "ODE 类型不在一阶 bootstrap 子集内"),
+        reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),
     }
 }

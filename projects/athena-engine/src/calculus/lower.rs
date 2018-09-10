@@ -183,16 +183,11 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
         u32::try_from(&n).ok()?
-    } else {
+    }
+    else {
         3
     };
-    Some(CalculusRequest::Laurent {
-        expression: expr.clone(),
-        variable,
-        center,
-        order,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::Laurent { expression: expr.clone(), variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
@@ -213,26 +208,17 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
             let order = if items.len() >= 3 {
                 let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
                 u32::try_from(&n).ok()?
-            } else {
+            }
+            else {
                 3
             };
-            Some(CalculusRequest::Asymptotic {
-                expression: expr.clone(),
-                variable,
-                order,
-                assumptions: AssumptionSet::empty(),
-            })
+            Some(CalculusRequest::Asymptotic { expression: expr.clone(), variable, order, assumptions: AssumptionSet::empty() })
         }
         [expr, var, order_term] => {
             let variable = symbol_name(var)?;
             let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
             let order = u32::try_from(&n).ok()?;
-            Some(CalculusRequest::Asymptotic {
-                expression: expr.clone(),
-                variable,
-                order,
-                assumptions: AssumptionSet::empty(),
-            })
+            Some(CalculusRequest::Asymptotic { expression: expr.clone(), variable, order, assumptions: AssumptionSet::empty() })
         }
         _ => None,
     }

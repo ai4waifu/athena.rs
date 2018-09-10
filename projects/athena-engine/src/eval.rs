@@ -124,7 +124,8 @@ fn combine_like_plus_terms(terms: Vec<Term>) -> Vec<Term> {
                 Ok(v) => v,
                 Err(_) => return groups_to_plus_terms(groups), // 回退：放弃合并
             };
-        } else {
+        }
+        else {
             groups.push((kernel, coef));
         }
     }
@@ -137,11 +138,14 @@ fn groups_to_plus_terms(groups: Vec<(Term, Number)>) -> Vec<Term> {
         .filter_map(|(kernel, coef)| {
             if coef.is_zero() {
                 None
-            } else if is_one_kernel(&kernel) {
+            }
+            else if is_one_kernel(&kernel) {
                 Some(Term::number(coef))
-            } else if coef.is_one() {
+            }
+            else if coef.is_one() {
                 Some(kernel)
-            } else {
+            }
+            else {
                 Some(eval_times(vec![Term::number(coef), kernel]))
             }
         })
@@ -161,7 +165,8 @@ fn split_numeric_coeff(term: Term) -> (Number, Term) {
             for a in args {
                 if let Some(n) = number_from_term(&a).cloned() {
                     coef = coef.clone().mul(n).unwrap_or(coef);
-                } else {
+                }
+                else {
                     rest.push(a);
                 }
             }
@@ -175,7 +180,8 @@ fn split_numeric_coeff(term: Term) -> (Number, Term) {
         other => {
             if let Some(n) = number_from_term(&other).cloned() {
                 (n, Term::int(1))
-            } else {
+            }
+            else {
                 (Number::small_int(1), other)
             }
         }
@@ -252,7 +258,8 @@ fn canonicalize_times_factors(factors: Vec<Term>) -> Vec<Term> {
     for f in factors {
         if number_from_term(&f).is_some() {
             nums.push(f);
-        } else {
+        }
+        else {
             rest.push(f);
         }
     }
@@ -277,7 +284,8 @@ fn combine_like_powers(factors: Vec<Term>) -> Vec<Term> {
         };
         if let Some((_, e)) = out.iter_mut().find(|(b, _)| b == &base) {
             *e = eval_plus(vec![e.clone(), exp]);
-        } else {
+        }
+        else {
             out.push((base, exp));
         }
     }
@@ -285,11 +293,7 @@ fn combine_like_powers(factors: Vec<Term>) -> Vec<Term> {
         .into_iter()
         .filter_map(|(base, exp)| {
             let p = eval_power(base, exp);
-            if number_from_term(&p).is_some_and(|n| n.is_one()) {
-                None
-            } else {
-                Some(p)
-            }
+            if number_from_term(&p).is_some_and(|n| n.is_one()) { None } else { Some(p) }
         })
         .collect();
     merged.extend(rest);
@@ -342,11 +346,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
                 if head.is_symbol("Times") && args.len() >= 2 {
                     if let Some(c) = number_from_term(&args[0]).cloned() {
                         if let Ok(cp) = map_num(c.pow(&e)) {
-                            let rest = if args.len() == 2 {
-                                args[1].clone()
-                            } else {
-                                Term::apply("Times", args[1..].to_vec())
-                            };
+                            let rest = if args.len() == 2 { args[1].clone() } else { Term::apply("Times", args[1..].to_vec()) };
                             return eval_times(vec![Term::number(cp), eval_power(rest, exp.clone())]);
                         }
                     }

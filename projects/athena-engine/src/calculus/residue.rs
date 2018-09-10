@@ -37,18 +37,9 @@ impl Residue {
 pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> CalculusResult<Residue> {
     match laurent(expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {
-            let pole_order = series
-                .terms
-                .iter()
-                .filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None })
-                .max()
-                .unwrap_or(0);
-            let value = series
-                .terms
-                .iter()
-                .find(|(_, p)| *p == -1)
-                .map(|(c, _)| c.clone())
-                .unwrap_or_else(|| Term::int(0));
+            let pole_order =
+                series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
+            let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| c.clone()).unwrap_or_else(|| Term::int(0));
             // 若余项未知且无主部，不假装精确 0
             if matches!(series.remainder, Remainder::Unknown) && pole_order == 0 && is_zero_like(&value) {
                 return CalculusResult::Unevaluated {
@@ -56,13 +47,13 @@ pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> Calcu
                         expression: expression.clone(),
                         variable: variable.to_string(),
                         point: point.clone(),
-                        value: Term::app(
+                        value: Term::apply(
                             "Residue",
                             vec![expression.clone(), Term::List(vec![Term::symbol(variable), point.clone()])],
                         ),
                         pole_order: 0,
                     },
-                    reason: Diagnostic::error(DiagnosticCode::SeriesRemainderUnknown, "留数：Laurent 余项未知且未见主部"),
+                    reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
                 };
             }
             let _ = conditions;
@@ -78,18 +69,9 @@ pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> Calcu
             }
         }
         CalculusResult::Conditional { value: series, conditions } => {
-            let pole_order = series
-                .terms
-                .iter()
-                .filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None })
-                .max()
-                .unwrap_or(0);
-            let value = series
-                .terms
-                .iter()
-                .find(|(_, p)| *p == -1)
-                .map(|(c, _)| c.clone())
-                .unwrap_or_else(|| Term::int(0));
+            let pole_order =
+                series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
+            let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| c.clone()).unwrap_or_else(|| Term::int(0));
             CalculusResult::Conditional {
                 value: Residue {
                     expression: expression.clone(),
@@ -101,21 +83,18 @@ pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> Calcu
                 conditions,
             }
         }
-        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
+        CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
             expression: Residue {
                 expression: expression.clone(),
                 variable: variable.to_string(),
                 point: point.clone(),
-                value: Term::app(
+                value: Term::apply(
                     "Residue",
                     vec![expression.clone(), Term::List(vec![Term::symbol(variable), point.clone()])],
                 ),
                 pole_order: 0,
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::SeriesRemainderUnknown,
-                format!("留数展开失败: {}", reason.detail),
-            ),
+            reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
         },
     }
 }

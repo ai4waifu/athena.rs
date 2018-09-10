@@ -19,10 +19,7 @@ pub struct FactorLimits {
 
 impl Default for FactorLimits {
     fn default() -> Self {
-        Self {
-            max_trial: 1_000_000,
-            max_bits: 256,
-        }
+        Self { max_trial: 1_000_000, max_bits: 256 }
     }
 }
 
@@ -80,7 +77,8 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
             if ps.saturating_mul(ps) > ms && m > BigInt::one() {
                 break;
             }
-        } else if &pb * &pb > m && m > BigInt::one() {
+        }
+        else if &pb * &pb > m && m > BigInt::one() {
             break;
         }
 
@@ -90,10 +88,7 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
             e += 1;
         }
         if e > 0 {
-            factors.push(PrimePower {
-                base: pb,
-                exponent: e,
-            });
+            factors.push(PrimePower { base: pb, exponent: e });
         }
         p = p.saturating_add(2);
         if p > trial_cap {
@@ -102,52 +97,23 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
     }
 
     if m.is_one() {
-        return Factorization {
-            unit,
-            factors,
-            remainder: BigInt::one(),
-            completeness: FactorizationCompleteness::Complete,
-        };
+        return Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Complete };
     }
 
     // 剩余可能为素数 / 合数 / 超出试除
     match primality_test(&m, None) {
         Primality::Prime => {
-            factors.push(PrimePower {
-                base: m,
-                exponent: 1,
-            });
-            Factorization {
-                unit,
-                factors,
-                remainder: BigInt::one(),
-                completeness: FactorizationCompleteness::Complete,
-            }
+            factors.push(PrimePower { base: m, exponent: 1 });
+            Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Complete }
         }
         Primality::ProbablePrime { .. } => {
-            factors.push(PrimePower {
-                base: m,
-                exponent: 1,
-            });
-            Factorization {
-                unit,
-                factors,
-                remainder: BigInt::one(),
-                completeness: FactorizationCompleteness::Probable,
-            }
+            factors.push(PrimePower { base: m, exponent: 1 });
+            Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Probable }
         }
         Primality::Composite | Primality::Unknown => {
-            let completeness = if m.bits() > 40 {
-                FactorizationCompleteness::ResourceLimited
-            } else {
-                FactorizationCompleteness::Partial
-            };
-            Factorization {
-                unit,
-                factors,
-                remainder: m,
-                completeness,
-            }
+            let completeness =
+                if m.bits() > 40 { FactorizationCompleteness::ResourceLimited } else { FactorizationCompleteness::Partial };
+            Factorization { unit, factors, remainder: m, completeness }
         }
     }
 }

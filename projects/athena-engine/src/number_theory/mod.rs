@@ -17,6 +17,4 @@ pub use modular::{mod_inverse, mod_pow};
 pub use primes::primality_test;
 pub use request::NumberTheoryRequest;
 pub use result::{NumberTheoryResult, execute_number_theory};
-pub use value::{
-    ExtendedGcd, Factorization, FactorizationCompleteness, NumberTheoryValue, Primality, PrimePower,
-};
+pub use value::{ExtendedGcd, Factorization, FactorizationCompleteness, NumberTheoryValue, Primality, PrimePower};

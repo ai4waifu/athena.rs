@@ -25,18 +25,10 @@ pub fn primality_test(n: &BigInt, miller_rabin_rounds: Option<u32>) -> Primality
 
     if let Some(small) = n.to_u64() {
         if small <= DETERMINISTIC_TRIAL_BOUND {
-            return if is_prime_u64_trial(small) {
-                Primality::Prime
-            } else {
-                Primality::Composite
-            };
+            return if is_prime_u64_trial(small) { Primality::Prime } else { Primality::Composite };
         }
         // u64：确定性 Miller-Rabin 见证集
-        return if miller_rabin_u64_deterministic(small) {
-            Primality::Prime
-        } else {
-            Primality::Composite
-        };
+        return if miller_rabin_u64_deterministic(small) { Primality::Prime } else { Primality::Composite };
     }
 
     // 先剔除小因子
@@ -45,11 +37,7 @@ pub fn primality_test(n: &BigInt, miller_rabin_rounds: Option<u32>) -> Primality
     }
 
     let rounds = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
-    if miller_rabin_bigint(n, rounds) {
-        Primality::ProbablePrime { rounds }
-    } else {
-        Primality::Composite
-    }
+    if miller_rabin_bigint(n, rounds) { Primality::ProbablePrime { rounds } } else { Primality::Composite }
 }
 
 fn is_prime_u64_trial(n: u64) -> bool {
@@ -125,9 +113,7 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64 {
 }
 
 fn has_small_factor(n: &BigInt) -> bool {
-    const SMALL: &[u32] = &[
-        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-    ];
+    const SMALL: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
     for &p in SMALL {
         let pb = BigInt::from(p);
         if n == &pb {

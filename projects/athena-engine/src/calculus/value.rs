@@ -4,11 +4,11 @@ use crate::term::Term;
 
 use super::{
     differential::DifferentialSolution,
+    residue::Residue,
     result::CalculusResult,
     series::Series,
     transform::TransformResult,
     vector::{Curl, Divergence, Gradient, Hessian, Jacobian},
-    residue::Residue,
 };
 
 /// 域 / 微积分响应所携带的值。
@@ -207,9 +207,7 @@ pub fn map_divergence_result(r: CalculusResult<Divergence>) -> CalculusResult<Ca
 /// 映射旋度结果。
 pub fn map_curl_result(r: CalculusResult<Curl>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Curl(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Curl(value), conditions },
         CalculusResult::Conditional { value, conditions } => {
             CalculusResult::Conditional { value: CalculusValue::Curl(value), conditions }
         }

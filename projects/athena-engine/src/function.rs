@@ -64,47 +64,50 @@ static REGISTRY: &[FunctionDefinition] = &[
 ];
 
 fn deriv_exp(arg: &Term) -> Term {
-    Term::app("Exp", vec![arg.clone()])
+    Term::apply("Exp", vec![arg.clone()])
 }
 
 fn deriv_log(arg: &Term) -> Term {
-    Term::app("Power", vec![arg.clone(), Term::int(-1)])
+    Term::apply("Power", vec![arg.clone(), Term::int(-1)])
 }
 
 fn deriv_sin(arg: &Term) -> Term {
-    Term::app("Cos", vec![arg.clone()])
+    Term::apply("Cos", vec![arg.clone()])
 }
 
 fn deriv_cos(arg: &Term) -> Term {
-    Term::app("Times", vec![Term::int(-1), Term::app("Sin", vec![arg.clone()])])
+    Term::apply("Times", vec![Term::int(-1), Term::apply("Sin", vec![arg.clone()])])
 }
 
 fn deriv_tan(arg: &Term) -> Term {
-    Term::app("Power", vec![Term::app("Cos", vec![arg.clone()]), Term::int(-2)])
+    Term::apply("Power", vec![Term::apply("Cos", vec![arg.clone()]), Term::int(-2)])
 }
 
 fn deriv_sinh(arg: &Term) -> Term {
-    Term::app("Cosh", vec![arg.clone()])
+    Term::apply("Cosh", vec![arg.clone()])
 }
 
 fn deriv_cosh(arg: &Term) -> Term {
-    Term::app("Sinh", vec![arg.clone()])
+    Term::apply("Sinh", vec![arg.clone()])
 }
 
 fn deriv_tanh(arg: &Term) -> Term {
-    Term::app("Power", vec![Term::app("Cosh", vec![arg.clone()]), Term::int(-2)])
+    Term::apply("Power", vec![Term::apply("Cosh", vec![arg.clone()]), Term::int(-2)])
 }
 
 fn deriv_arcsin(arg: &Term) -> Term {
     // 1/Sqrt[1-u^2]
-    Term::app(
+    Term::apply(
         "Power",
         vec![
-            Term::app(
+            Term::apply(
                 "Sqrt",
-                vec![Term::app(
+                vec![Term::apply(
                     "Plus",
-                    vec![Term::int(1), Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![arg.clone(), Term::int(2)])])],
+                    vec![
+                        Term::int(1),
+                        Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![arg.clone(), Term::int(2)])]),
+                    ],
                 )],
             ),
             Term::int(-1),
@@ -113,31 +116,25 @@ fn deriv_arcsin(arg: &Term) -> Term {
 }
 
 fn deriv_arccos(arg: &Term) -> Term {
-    Term::app("Times", vec![Term::int(-1), deriv_arcsin(arg)])
+    Term::apply("Times", vec![Term::int(-1), deriv_arcsin(arg)])
 }
 
 fn deriv_arctan(arg: &Term) -> Term {
     // 1/(1+u^2)
-    Term::app(
+    Term::apply(
         "Power",
-        vec![
-            Term::app("Plus", vec![Term::int(1), Term::app("Power", vec![arg.clone(), Term::int(2)])]),
-            Term::int(-1),
-        ],
+        vec![Term::apply("Plus", vec![Term::int(1), Term::apply("Power", vec![arg.clone(), Term::int(2)])]), Term::int(-1)],
     )
 }
 
 fn deriv_sqrt(arg: &Term) -> Term {
     // 1/(2 Sqrt[u])
-    Term::app(
-        "Power",
-        vec![Term::app("Times", vec![Term::int(2), Term::app("Sqrt", vec![arg.clone()])]), Term::int(-1)],
-    )
+    Term::apply("Power", vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![arg.clone()])]), Term::int(-1)])
 }
 
 fn deriv_abs(arg: &Term) -> Term {
     // Abs[u]/u  （条件在 differentiate_checked）
-    Term::app("Times", vec![Term::app("Abs", vec![arg.clone()]), Term::app("Power", vec![arg.clone(), Term::int(-1)])])
+    Term::apply("Times", vec![Term::apply("Abs", vec![arg.clone()]), Term::apply("Power", vec![arg.clone(), Term::int(-1)])])
 }
 
 fn deriv_sign(_arg: &Term) -> Term {
@@ -147,22 +144,22 @@ fn deriv_sign(_arg: &Term) -> Term {
 
 fn deriv_gamma(arg: &Term) -> Term {
     // Γ'(z) = Γ(z) PolyGamma[0, z]
-    Term::app(
+    Term::apply(
         "Times",
-        vec![Term::app("Gamma", vec![arg.clone()]), Term::app("PolyGamma", vec![Term::int(0), arg.clone()])],
+        vec![Term::apply("Gamma", vec![arg.clone()]), Term::apply("PolyGamma", vec![Term::int(0), arg.clone()])],
     )
 }
 
 fn deriv_erf(arg: &Term) -> Term {
     // (2/Sqrt[Pi]) Exp[-u^2]
-    Term::app(
+    Term::apply(
         "Times",
         vec![
             Term::int(2),
-            Term::app("Power", vec![Term::app("Sqrt", vec![Term::symbol("Pi")]), Term::int(-1)]),
-            Term::app(
+            Term::apply("Power", vec![Term::apply("Sqrt", vec![Term::symbol("Pi")]), Term::int(-1)]),
+            Term::apply(
                 "Exp",
-                vec![Term::app("Times", vec![Term::int(-1), Term::app("Power", vec![arg.clone(), Term::int(2)])])],
+                vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![arg.clone(), Term::int(2)])])],
             ),
         ],
     )

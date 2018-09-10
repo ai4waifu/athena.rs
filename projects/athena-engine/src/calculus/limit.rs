@@ -35,7 +35,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
     if is_indeterminate_form(&value) {
         return CalculusResult::Unevaluated {
             expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
-            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "直接代入后为不定式"),
+            reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
 
@@ -47,7 +47,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
         }
         return CalculusResult::Unevaluated {
             expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
-            reason: Diagnostic::error(DiagnosticCode::LimitDoesNotExist, "直接代入后为奇异式"),
+            reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
 
@@ -61,13 +61,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
         }
     }
 
-    unevaluated_limit(
-        expression,
-        variable,
-        &LimitApproach::Finite(point.clone()),
-        direction,
-        "极限未化简为封闭值",
-    )
+    unevaluated_limit(expression, variable, &LimitApproach::Finite(point.clone()), direction)
 }
 
 /// 单侧简单极点 `c / (x - a)`（以及 `c / x`）。
@@ -95,9 +89,9 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
         // 在 point ± ε（ε = 1）探测 den，读取侧向符号。
         let eps = Term::int(1);
         let probe = match direction {
-            LimitDirection::FromAbove => evaluate(&Term::app("Plus", vec![point.clone(), eps])),
+            LimitDirection::FromAbove => evaluate(&Term::apply("Plus", vec![point.clone(), eps])),
             LimitDirection::FromBelow => {
-                evaluate(&Term::app("Plus", vec![point.clone(), Term::app("Times", vec![Term::int(-1), eps])]))
+                evaluate(&Term::apply("Plus", vec![point.clone(), Term::apply("Times", vec![Term::int(-1), eps])]))
             }
             LimitDirection::TwoSided => return None,
         };
@@ -115,7 +109,7 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
             Term::symbol("Infinity")
         }
         else {
-            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+            Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")])
         });
     }
     None
@@ -137,7 +131,6 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
                 variable,
                 if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
                 LimitDirection::TwoSided,
-                "多项式分析后首项系数为 0",
             );
         }
         if leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
@@ -150,7 +143,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
             Term::symbol("Infinity")
         }
         else {
-            Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")])
+            Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")])
         };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
@@ -159,7 +152,6 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
         variable,
         if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
         LimitDirection::TwoSided,
-        "无穷极限需要多项式子集",
     )
 }
 
@@ -201,7 +193,7 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                     Some((n_i64, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => polynomial_degree_leading(
-                    &Term::app("Plus", vec![args[0].clone(), Term::app("Times", vec![Term::int(-1), args[1].clone()])]),
+                    &Term::apply("Plus", vec![args[0].clone(), Term::apply("Times", vec![Term::int(-1), args[1].clone()])]),
                     var,
                 ),
                 _ => None,
@@ -219,7 +211,7 @@ fn limit_form(expression: &Term, variable: &str, approach: &LimitApproach, direc
     let approach_term = match approach {
         LimitApproach::Finite(t) => t.clone(),
         LimitApproach::PositiveInfinity => Term::symbol("Infinity"),
-        LimitApproach::NegativeInfinity => Term::app("Times", vec![Term::int(-1), Term::symbol("Infinity")]),
+        LimitApproach::NegativeInfinity => Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")]),
     };
     let mut args = vec![expression.clone(), Term::List(vec![Term::symbol(variable), approach_term])];
     if direction != LimitDirection::TwoSided {
@@ -229,7 +221,7 @@ fn limit_form(expression: &Term, variable: &str, approach: &LimitApproach, direc
             LimitDirection::TwoSided => unreachable!(),
         }));
     }
-    Term::app("Limit", args)
+    Term::apply("Limit", args)
 }
 
 fn unevaluated_limit(
@@ -237,11 +229,10 @@ fn unevaluated_limit(
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
-    detail: &str,
 ) -> CalculusResult<Term> {
     CalculusResult::Unevaluated {
         expression: limit_form(expression, variable, approach, direction),
-        reason: Diagnostic::error(DiagnosticCode::UnsupportedOperation, detail),
+        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
     }
 }
 

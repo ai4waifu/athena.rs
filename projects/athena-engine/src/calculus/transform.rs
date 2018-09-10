@@ -22,33 +22,27 @@ impl RegionOfConvergence {
     /// 已知半平面 `Re[s] > a`（实数 `a`）。
     pub fn re_s_greater(s: &str, a: Number) -> Self {
         Self {
-            predicate: Some(Term::app("Greater", vec![Term::app("Re", vec![Term::symbol(s)]), Term::number(a)])),
+            predicate: Some(Term::apply("Greater", vec![Term::apply("Re", vec![Term::symbol(s)]), Term::number(a)])),
             known: true,
         }
     }
 
     /// 傅里叶频率在实轴上（经典 L¹ / Schwartz 像）。
     pub fn real_line(omega: &str) -> Self {
-        Self {
-            predicate: Some(Term::app("Element", vec![Term::symbol(omega), Term::symbol("Reals")])),
-            known: true,
-        }
+        Self { predicate: Some(Term::apply("Element", vec![Term::symbol(omega), Term::symbol("Reals")])), known: true }
     }
 
     /// Z 变换外半径 `Abs[z] > r`。
     pub fn abs_z_greater(z: &str, r: Number) -> Self {
         Self {
-            predicate: Some(Term::app("Greater", vec![Term::app("Abs", vec![Term::symbol(z)]), Term::number(r)])),
+            predicate: Some(Term::apply("Greater", vec![Term::apply("Abs", vec![Term::symbol(z)]), Term::number(r)])),
             known: true,
         }
     }
 
     /// 全平面收敛（如 `KroneckerDelta[n]`）。
     pub fn entire_plane(z: &str) -> Self {
-        Self {
-            predicate: Some(Term::app("Element", vec![Term::symbol(z), Term::symbol("Complexes")])),
-            known: true,
-        }
+        Self { predicate: Some(Term::apply("Element", vec![Term::symbol(z), Term::symbol("Complexes")])), known: true }
     }
 
     /// ROC 未知 — 仍须附着，不可省略。
@@ -90,7 +84,7 @@ impl TransformResult {
             TransformKind::Fourier => "FourierTransform",
             TransformKind::Z => "ZTransform",
         };
-        Term::app(head, args)
+        Term::apply(head, args)
     }
 }
 
@@ -115,7 +109,7 @@ pub fn laplace_checked(
         None => CalculusResult::Unevaluated {
             expression: TransformResult {
                 kind: TransformKind::Laplace,
-                expression: Term::app(
+                expression: Term::apply(
                     "LaplaceTransform",
                     vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
@@ -123,10 +117,7 @@ pub fn laplace_checked(
                 transform_variable: transform_variable.to_string(),
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::TransformRocUnknown,
-                "Laplace 变换不在 bootstrap 表内（poly/exp/sin/cos/linear）",
-            ),
+            reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),
         },
     }
 }
@@ -154,7 +145,7 @@ pub fn fourier_checked(
         None => CalculusResult::Unevaluated {
             expression: TransformResult {
                 kind: TransformKind::Fourier,
-                expression: Term::app(
+                expression: Term::apply(
                     "FourierTransform",
                     vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
@@ -162,10 +153,7 @@ pub fn fourier_checked(
                 transform_variable: transform_variable.to_string(),
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::TransformRocUnknown,
-                "Fourier 变换不在 bootstrap 表内（Exp[-a Abs[t]] / 高斯 / 因果指数 / 线性）",
-            ),
+            reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),
         },
     }
 }
@@ -193,7 +181,7 @@ pub fn z_checked(
         None => CalculusResult::Unevaluated {
             expression: TransformResult {
                 kind: TransformKind::Z,
-                expression: Term::app(
+                expression: Term::apply(
                     "ZTransform",
                     vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
@@ -201,10 +189,7 @@ pub fn z_checked(
                 transform_variable: transform_variable.to_string(),
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
-            reason: Diagnostic::error(
-                DiagnosticCode::TransformRocUnknown,
-                "Z 变换不在 bootstrap 表内（delta / UnitStep / a^n / n a^n / 线性）",
-            ),
+            reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),
         },
     }
 }
@@ -213,12 +198,12 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
     if let Some(n) = number_from_term(expr).cloned() {
         // L{c} = c/s, Re(s)>0
         let body =
-            evaluate(&Term::app("Times", vec![Term::number(n), Term::app("Power", vec![Term::symbol(s), Term::int(-1)])]));
+            evaluate(&Term::apply("Times", vec![Term::number(n), Term::apply("Power", vec![Term::symbol(s), Term::int(-1)])]));
         return Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))));
     }
     if expr.is_symbol(t) {
         // L{t} = 1/s^2
-        let body = Term::app("Power", vec![Term::symbol(s), Term::int(-2)]);
+        let body = Term::apply("Power", vec![Term::symbol(s), Term::int(-2)]);
         return Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))));
     }
     match expr {
@@ -240,18 +225,18 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         }
                         parts.push(fa);
                     }
-                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::apply("Plus", parts)) };
                     return Some((body, RegionOfConvergence::re_s_greater(s, roc_bound)));
                 }
                 "Times" if args.len() == 2 => {
                     if let Some(c) = number_from_term(&args[0]).cloned() {
                         let (inner, roc) = laplace_one(&args[1], t, s)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     if let Some(c) = number_from_term(&args[1]).cloned() {
                         let (inner, roc) = laplace_one(&args[0], t, s)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     None
@@ -264,9 +249,12 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     let n_u = u32::try_from(&n).ok()?;
                     // L{t^n} = n! / s^{n+1}
                     let fact = factorial_u32(n_u)?;
-                    let body = evaluate(&Term::app(
+                    let body = evaluate(&Term::apply(
                         "Times",
-                        vec![Term::integer(fact), Term::app("Power", vec![Term::symbol(s), Term::integer(-(n_u as i64 + 1))])],
+                        vec![
+                            Term::integer(fact),
+                            Term::apply("Power", vec![Term::symbol(s), Term::integer(-(n_u as i64 + 1))]),
+                        ],
                     ));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
@@ -274,12 +262,12 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     // Exp[a t] 或 Exp[Times[a,t]]
                     let a = match_coeff_times_var(&args[0], t)?;
                     // 1/(s-a), Re(s)>a（实数 a）
-                    let body = evaluate(&Term::app(
+                    let body = evaluate(&Term::apply(
                         "Power",
                         vec![
-                            Term::app(
+                            Term::apply(
                                 "Plus",
-                                vec![Term::symbol(s), Term::app("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
                             ),
                             Term::int(-1),
                         ],
@@ -289,28 +277,28 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                 "Sin" if args.len() == 1 => {
                     let w = match_coeff_times_var(&args[0], t)?;
                     // w / (s^2 + w^2)
-                    let den = evaluate(&Term::app(
+                    let den = evaluate(&Term::apply(
                         "Plus",
                         vec![
-                            Term::app("Power", vec![Term::symbol(s), Term::int(2)]),
-                            Term::app("Power", vec![Term::number(w.clone()), Term::int(2)]),
+                            Term::apply("Power", vec![Term::symbol(s), Term::int(2)]),
+                            Term::apply("Power", vec![Term::number(w.clone()), Term::int(2)]),
                         ],
                     ));
                     let body =
-                        evaluate(&Term::app("Times", vec![Term::number(w), Term::app("Power", vec![den, Term::int(-1)])]));
+                        evaluate(&Term::apply("Times", vec![Term::number(w), Term::apply("Power", vec![den, Term::int(-1)])]));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 "Cos" if args.len() == 1 => {
                     let w = match_coeff_times_var(&args[0], t)?;
-                    let den = evaluate(&Term::app(
+                    let den = evaluate(&Term::apply(
                         "Plus",
                         vec![
-                            Term::app("Power", vec![Term::symbol(s), Term::int(2)]),
-                            Term::app("Power", vec![Term::number(w), Term::int(2)]),
+                            Term::apply("Power", vec![Term::symbol(s), Term::int(2)]),
+                            Term::apply("Power", vec![Term::number(w), Term::int(2)]),
                         ],
                     ));
                     let body =
-                        evaluate(&Term::app("Times", vec![Term::symbol(s), Term::app("Power", vec![den, Term::int(-1)])]));
+                        evaluate(&Term::apply("Times", vec![Term::symbol(s), Term::apply("Power", vec![den, Term::int(-1)])]));
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 _ => None,
@@ -336,18 +324,18 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         }
                         parts.push(fa);
                     }
-                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::apply("Plus", parts)) };
                     Some((body, RegionOfConvergence::real_line(omega)))
                 }
                 "Times" if args.len() == 2 => {
                     if let Some(c) = number_from_term(&args[0]).cloned() {
                         let (inner, roc) = fourier_one(&args[1], t, omega)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     if let Some(c) = number_from_term(&args[1]).cloned() {
                         let (inner, roc) = fourier_one(&args[0], t, omega)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     // UnitStep[t] * Exp[-a t] → 1/(a + I ω), a>0
@@ -362,18 +350,18 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         if !number_is_positive(&a) {
                             return None;
                         }
-                        let den = evaluate(&Term::app(
+                        let den = evaluate(&Term::apply(
                             "Plus",
                             vec![
-                                Term::app("Power", vec![Term::number(a.clone()), Term::int(2)]),
-                                Term::app("Power", vec![Term::symbol(omega), Term::int(2)]),
+                                Term::apply("Power", vec![Term::number(a.clone()), Term::int(2)]),
+                                Term::apply("Power", vec![Term::symbol(omega), Term::int(2)]),
                             ],
                         ));
-                        let body = evaluate(&Term::app(
+                        let body = evaluate(&Term::apply(
                             "Times",
                             vec![
-                                Term::app("Times", vec![Term::int(2), Term::number(a)]),
-                                Term::app("Power", vec![den, Term::int(-1)]),
+                                Term::apply("Times", vec![Term::int(2), Term::number(a)]),
+                                Term::apply("Power", vec![den, Term::int(-1)]),
                             ],
                         ));
                         return Some((body, RegionOfConvergence::real_line(omega)));
@@ -383,30 +371,30 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         if !number_is_positive(&a) {
                             return None;
                         }
-                        let scale = Term::app(
+                        let scale = Term::apply(
                             "Sqrt",
-                            vec![Term::app(
+                            vec![Term::apply(
                                 "Times",
-                                vec![Term::symbol("Pi"), Term::app("Power", vec![Term::number(a.clone()), Term::int(-1)])],
+                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(a.clone()), Term::int(-1)])],
                             )],
                         );
-                        let exp_arg = evaluate(&Term::app(
+                        let exp_arg = evaluate(&Term::apply(
                             "Times",
                             vec![
                                 Term::int(-1),
-                                Term::app(
+                                Term::apply(
                                     "Times",
                                     vec![
-                                        Term::app("Power", vec![Term::symbol(omega), Term::int(2)]),
-                                        Term::app(
+                                        Term::apply("Power", vec![Term::symbol(omega), Term::int(2)]),
+                                        Term::apply(
                                             "Power",
-                                            vec![Term::app("Times", vec![Term::int(4), Term::number(a)]), Term::int(-1)],
+                                            vec![Term::apply("Times", vec![Term::int(4), Term::number(a)]), Term::int(-1)],
                                         ),
                                     ],
                                 ),
                             ],
                         ));
-                        let body = evaluate(&Term::app("Times", vec![scale, Term::app("Exp", vec![exp_arg])]));
+                        let body = evaluate(&Term::apply("Times", vec![scale, Term::apply("Exp", vec![exp_arg])]));
                         return Some((body, RegionOfConvergence::real_line(omega)));
                     }
                     None
@@ -433,11 +421,11 @@ fn fourier_causal_exp(expr: &Term, t: &str, omega: &str) -> Option<(Term, Region
         return None;
     }
     let a = evaluate_neg_number(&a_signed)?;
-    let den = evaluate(&Term::app(
+    let den = evaluate(&Term::apply(
         "Plus",
-        vec![Term::number(a), Term::app("Times", vec![Term::symbol("I"), Term::symbol(omega)])],
+        vec![Term::number(a), Term::apply("Times", vec![Term::symbol("I"), Term::symbol(omega)])],
     ));
-    let body = evaluate(&Term::app("Power", vec![den, Term::int(-1)]));
+    let body = evaluate(&Term::apply("Power", vec![den, Term::int(-1)]));
     Some((body, RegionOfConvergence::real_line(omega)))
 }
 
@@ -465,9 +453,11 @@ fn match_neg_coeff_abs_var(term: &Term, var: &str) -> Option<Number> {
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             let coeff = if is_abs_of(&args[1], var) {
                 number_from_term(&args[0]).cloned()?
-            } else if is_abs_of(&args[0], var) {
+            }
+            else if is_abs_of(&args[0], var) {
                 number_from_term(&args[1]).cloned()?
-            } else {
+            }
+            else {
                 return None;
             };
             let zero = Number::small_int(0);
@@ -493,9 +483,11 @@ fn match_neg_coeff_square_var(term: &Term, var: &str) -> Option<Number> {
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             let coeff = if is_square_of(&args[1], var) {
                 number_from_term(&args[0]).cloned()?
-            } else if is_square_of(&args[0], var) {
+            }
+            else if is_square_of(&args[0], var) {
                 number_from_term(&args[1]).cloned()?
-            } else {
+            }
+            else {
                 return None;
             };
             let zero = Number::small_int(0);
@@ -520,7 +512,7 @@ fn is_square_of(term: &Term, var: &str) -> bool {
 }
 
 fn evaluate_neg_number(n: &Number) -> Option<Number> {
-    let t = evaluate(&Term::app("Times", vec![Term::int(-1), Term::number(n.clone())]));
+    let t = evaluate(&Term::apply("Times", vec![Term::int(-1), Term::number(n.clone())]));
     number_from_term(&t).cloned()
 }
 
@@ -561,7 +553,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
     if let Some(c) = number_from_term(expr).cloned() {
         // c · u[n] → c z/(z-1), |z|>1
         let body = z_over_z_minus(z, &Number::small_int(1));
-        let body = evaluate(&Term::app("Times", vec![Term::number(c), body]));
+        let body = evaluate(&Term::apply("Times", vec![Term::number(c), body]));
         return Some((body, RegionOfConvergence::abs_z_greater(z, Number::small_int(1))));
     }
     if is_kronecker_delta(expr, n) {
@@ -585,22 +577,26 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                             if r.compare(&radius) == Some(std::cmp::Ordering::Greater) {
                                 radius = r;
                             }
-                        } else if matches!(
+                        }
+                        else if matches!(
                             roc.predicate.as_ref(),
                             Some(Term::Application { head, .. }) if head.is_symbol("Element")
                         ) {
                             // entire plane — radius stays
-                        } else if !roc.known {
+                        }
+                        else if !roc.known {
                             return None;
-                        } else {
+                        }
+                        else {
                             all_entire = false;
                         }
                         parts.push(fa);
                     }
-                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::app("Plus", parts)) };
+                    let body = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::apply("Plus", parts)) };
                     let roc = if all_entire {
                         RegionOfConvergence::entire_plane(z)
-                    } else {
+                    }
+                    else {
                         RegionOfConvergence::abs_z_greater(z, radius)
                     };
                     Some((body, roc))
@@ -608,30 +604,30 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                 "Times" if args.len() == 2 => {
                     if let Some(c) = number_from_term(&args[0]).cloned() {
                         let (inner, roc) = z_one(&args[1], n, z)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     if let Some(c) = number_from_term(&args[1]).cloned() {
                         let (inner, roc) = z_one(&args[0], n, z)?;
-                        let body = evaluate(&Term::app("Times", vec![Term::number(c), inner]));
+                        let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     // n * a^n → a z / (z-a)^2
                     if let Some(a) = match_n_times_power(args, n) {
                         let radius = a.clone().abs();
-                        let den = evaluate(&Term::app(
+                        let den = evaluate(&Term::apply(
                             "Power",
                             vec![
-                                Term::app(
+                                Term::apply(
                                     "Plus",
-                                    vec![Term::symbol(z), Term::app("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
                                 ),
                                 Term::int(2),
                             ],
                         ));
-                        let body = evaluate(&Term::app(
+                        let body = evaluate(&Term::apply(
                             "Times",
-                            vec![Term::number(a), Term::symbol(z), Term::app("Power", vec![den, Term::int(-1)])],
+                            vec![Term::number(a), Term::symbol(z), Term::apply("Power", vec![den, Term::int(-1)])],
                         ));
                         return Some((body, RegionOfConvergence::abs_z_greater(z, radius)));
                     }
@@ -655,16 +651,16 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
 }
 
 fn z_over_z_minus(z: &str, a: &Number) -> Term {
-    evaluate(&Term::app(
+    evaluate(&Term::apply(
         "Times",
         vec![
             Term::symbol(z),
-            Term::app(
+            Term::apply(
                 "Power",
                 vec![
-                    Term::app(
+                    Term::apply(
                         "Plus",
-                        vec![Term::symbol(z), Term::app("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                        vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
                     ),
                     Term::int(-1),
                 ],
@@ -693,9 +689,7 @@ fn match_n_times_power(args: &[Term], n: &str) -> Option<Number> {
 
 fn match_power_base(term: &Term, n: &str) -> Option<Number> {
     match term {
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Power") && args.len() == 2 && args[1].is_symbol(n) =>
-        {
+        Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 && args[1].is_symbol(n) => {
             number_from_term(&args[0]).cloned()
         }
         _ => None,

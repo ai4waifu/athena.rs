@@ -158,12 +158,12 @@ fn laurent_simple_pole() {
     let engine = AthenaEngine::new();
     // 1/x about 0 → x^{-1}
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Laurent {
-            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
-            variable: "x".into(),
-            center: Term::int(0),
-            order: 2,
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+        variable: "x".into(),
+        center: Term::int(0),
+        order: 2,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
             assert!(series.terms.iter().any(|(c, p)| *p == -1 && c == &Term::int(1)), "got {:?}", series.terms);
@@ -180,10 +180,7 @@ fn laurent_simple_pole() {
             Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
         ],
     );
-    let term = Term::apply(
-        "LaurentSeries",
-        vec![expr, Term::List(vec![Term::symbol("x"), Term::int(0), Term::int(2)])],
-    );
+    let term = Term::apply("LaurentSeries", vec![expr, Term::List(vec![Term::symbol("x"), Term::int(0), Term::int(2)])]);
     let req = try_calculus_request(&term).expect("lower Laurent");
     let out2 = expect_calculus(engine.execute_domain(DomainRequest::Calculus(req)));
     match out2 {
@@ -201,11 +198,11 @@ fn residue_simple_poles() {
     let engine = AthenaEngine::new();
     // Res(1/x, 0) = 1
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
-            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
-            variable: "x".into(),
-            point: Term::int(0),
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+        variable: "x".into(),
+        point: Term::int(0),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => {
             assert_eq!(r.value, Term::int(1));
@@ -216,11 +213,11 @@ fn residue_simple_poles() {
 
     // Res(1/x^2, 0) = 0（二阶极点，无 x^{-1}）
     let out2 = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
-            expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-2)]),
-            variable: "x".into(),
-            point: Term::int(0),
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-2)]),
+        variable: "x".into(),
+        point: Term::int(0),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out2 {
         CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => {
             assert_eq!(r.value, Term::int(0));
@@ -279,11 +276,11 @@ fn asymptotic_at_infinity() {
     // x^2 + 1 as x→∞
     let poly = Term::apply("Plus", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Asymptotic {
-            expression: poly,
-            variable: "x".into(),
-            order: 2,
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: poly,
+        variable: "x".into(),
+        order: 2,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
             assert!(series.center.is_symbol("Infinity"));
@@ -296,14 +293,9 @@ fn asymptotic_at_infinity() {
     }
 
     // 1/(x+1) ~ x^{-1} - x^{-2} + …
-    let rat = Term::apply(
-        "Power",
-        vec![Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]), Term::int(-1)],
-    );
-    let term = Term::apply(
-        "Asymptotic",
-        vec![rat, Term::List(vec![Term::symbol("x"), Term::symbol("Infinity"), Term::int(2)])],
-    );
+    let rat = Term::apply("Power", vec![Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]), Term::int(-1)]);
+    let term =
+        Term::apply("Asymptotic", vec![rat, Term::List(vec![Term::symbol("x"), Term::symbol("Infinity"), Term::int(2)])]);
     let req = try_calculus_request(&term).expect("lower Asymptotic");
     let out2 = expect_calculus(engine.execute_domain(DomainRequest::Calculus(req)));
     match out2 {
@@ -341,23 +333,23 @@ fn onesided_simple_pole() {
     let engine = AthenaEngine::new();
     let expr = Term::apply("Divide", vec![Term::int(1), Term::symbol("x")]);
     let above = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
-            expression: expr.clone(),
-            variable: "x".into(),
-            approach: LimitApproach::Finite(Term::int(0)),
-            direction: LimitDirection::FromAbove,
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: expr.clone(),
+        variable: "x".into(),
+        approach: LimitApproach::Finite(Term::int(0)),
+        direction: LimitDirection::FromAbove,
+        assumptions: AssumptionSet::empty(),
+    })));
     match above {
         CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::symbol("Infinity")),
         other => panic!("expected +Infinity, got {other:?}"),
     }
     let below = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
-            expression: expr,
-            variable: "x".into(),
-            approach: LimitApproach::Finite(Term::int(0)),
-            direction: LimitDirection::FromBelow,
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: expr,
+        variable: "x".into(),
+        approach: LimitApproach::Finite(Term::int(0)),
+        direction: LimitDirection::FromBelow,
+        assumptions: AssumptionSet::empty(),
+    })));
     match below {
         CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
             assert_eq!(value, Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")]))
@@ -370,12 +362,12 @@ fn onesided_simple_pole() {
 fn definite_integral_power() {
     let engine = AthenaEngine::new();
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::DefiniteIntegral {
-            expression: Term::symbol("x"),
-            variable: "x".into(),
-            lower: Term::int(0),
-            upper: Term::int(2),
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: Term::symbol("x"),
+        variable: "x".into(),
+        lower: Term::int(0),
+        upper: Term::int(2),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::int(2)),
         other => panic!("expected Exact 2, got {other:?}"),
@@ -386,18 +378,18 @@ fn definite_integral_power() {
 fn taylor_nonzero_center() {
     let engine = AthenaEngine::new();
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Series {
-            expression: Term::apply(
-                "Power",
-                vec![
-                    Term::apply("Plus", vec![Term::symbol("x"), Term::apply("Times", vec![Term::int(-1), Term::int(1)])]),
-                    Term::int(2),
-                ],
-            ),
-            variable: "x".into(),
-            center: Term::int(1),
-            order: 3,
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: Term::apply(
+            "Power",
+            vec![
+                Term::apply("Plus", vec![Term::symbol("x"), Term::apply("Times", vec![Term::int(-1), Term::int(1)])]),
+                Term::int(2),
+            ],
+        ),
+        variable: "x".into(),
+        center: Term::int(1),
+        order: 3,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Series(series), .. } => {
             assert_eq!(series.remainder, Remainder::ExactTruncation);
@@ -418,10 +410,10 @@ fn gradient_of_quadratic() {
         ],
     );
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Gradient {
-            expression: expr,
-            variables: vec!["x".into(), "y".into()],
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: expr,
+        variables: vec!["x".into(), "y".into()],
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Gradient(g), .. } => {
             assert_eq!(g.variables, vec!["x".to_string(), "y".to_string()]);
@@ -439,10 +431,10 @@ fn gradient_of_quadratic() {
 fn jacobian_linear_map() {
     let engine = AthenaEngine::new();
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Jacobian {
-            expressions: vec![Term::apply("Plus", vec![Term::symbol("x"), Term::symbol("y")]), Term::symbol("x")],
-            variables: vec!["x".into(), "y".into()],
-            assumptions: AssumptionSet::empty(),
-        })));
+        expressions: vec![Term::apply("Plus", vec![Term::symbol("x"), Term::symbol("y")]), Term::symbol("x")],
+        variables: vec!["x".into(), "y".into()],
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Jacobian(j), .. } => {
             assert_eq!(j.rows.len(), 2);
@@ -464,10 +456,10 @@ fn hessian_quadratic() {
         ],
     );
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Hessian {
-            expression: expr,
-            variables: vec!["x".into(), "y".into()],
-            assumptions: AssumptionSet::empty(),
-        })));
+        expression: expr,
+        variables: vec!["x".into(), "y".into()],
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Hessian(h), .. } => {
             assert_eq!(h.entries.len(), 2);
@@ -485,10 +477,10 @@ fn divergence_of_linear_field() {
     let engine = AthenaEngine::new();
     // F = (x, y) ⇒ div = 2
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Divergence {
-            components: vec![Term::symbol("x"), Term::symbol("y")],
-            variables: vec!["x".into(), "y".into()],
-            assumptions: AssumptionSet::empty(),
-        })));
+        components: vec![Term::symbol("x"), Term::symbol("y")],
+        variables: vec!["x".into(), "y".into()],
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Divergence(d), .. } => {
             assert_eq!(d.value, Term::int(2));
@@ -502,10 +494,10 @@ fn curl_of_linear_3d_field() {
     let engine = AthenaEngine::new();
     // F = (−y, x, 0) ⇒ curl = (0, 0, 2)
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Curl {
-            components: vec![Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]), Term::symbol("x"), Term::int(0)],
-            variables: vec!["x".into(), "y".into(), "z".into()],
-            assumptions: AssumptionSet::empty(),
-        })));
+        components: vec![Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]), Term::symbol("x"), Term::int(0)],
+        variables: vec!["x".into(), "y".into(), "z".into()],
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Curl(c), .. } => {
             assert_eq!(c.curl_components, vec![Term::int(0), Term::int(0), Term::int(2)]);
@@ -539,12 +531,12 @@ fn ode_y_prime_equals_const() {
     let engine = AthenaEngine::new();
     let eq = Term::apply("Equal", vec![Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]), Term::int(2)]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: None,
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -559,12 +551,12 @@ fn ode_ivp_y_prime_const() {
     let engine = AthenaEngine::new();
     let eq = Term::apply("Equal", vec![Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]), Term::int(2)]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: Some((Term::int(0), Term::int(1))),
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: Some((Term::int(0), Term::int(1))),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -582,12 +574,12 @@ fn ode_separable_g_of_x() {
     // y' = x ⇒ y = x^2/2
     let eq = Term::apply("Equal", vec![Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]), Term::symbol("x")]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: None,
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -610,12 +602,12 @@ fn ode_power_y_squared() {
         ],
     );
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: None,
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -646,12 +638,12 @@ fn ode_bernoulli_const_and_separable_xy2() {
         ],
     );
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: None,
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -669,12 +661,12 @@ fn ode_bernoulli_const_and_separable_xy2() {
         ],
     );
     let out2 = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
-            equation: eq2,
-            dependent: "y".into(),
-            independent: "x".into(),
-            initial: None,
-            assumptions: AssumptionSet::empty(),
-        })));
+        equation: eq2,
+        dependent: "y".into(),
+        independent: "x".into(),
+        initial: None,
+        assumptions: AssumptionSet::empty(),
+    })));
     match out2 {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
@@ -689,12 +681,12 @@ fn ode_bernoulli_const_and_separable_xy2() {
 fn laplace_exp_and_sin() {
     let engine = AthenaEngine::new();
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
-            kind: athena_engine::TransformKind::Laplace,
-            expression: Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(2), Term::symbol("t")])]),
-            time_variable: "t".into(),
-            transform_variable: "s".into(),
-            assumptions: AssumptionSet::empty(),
-        })));
+        kind: athena_engine::TransformKind::Laplace,
+        expression: Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(2), Term::symbol("t")])]),
+        time_variable: "t".into(),
+        transform_variable: "s".into(),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
             assert!(tr.region_of_convergence.known);
@@ -705,12 +697,12 @@ fn laplace_exp_and_sin() {
     }
 
     let sin = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
-            kind: athena_engine::TransformKind::Laplace,
-            expression: Term::apply("Sin", vec![Term::symbol("t")]),
-            time_variable: "t".into(),
-            transform_variable: "s".into(),
-            assumptions: AssumptionSet::empty(),
-        })));
+        kind: athena_engine::TransformKind::Laplace,
+        expression: Term::apply("Sin", vec![Term::symbol("t")]),
+        time_variable: "t".into(),
+        transform_variable: "s".into(),
+        assumptions: AssumptionSet::empty(),
+    })));
     assert!(matches!(sin, CalculusResult::Exact { value: CalculusValue::Transform(_), .. }));
 }
 
@@ -720,12 +712,12 @@ fn fourier_exp_abs_decay() {
     // Exp[-Abs[t]] → 2/(1+ω²)
     let expr = Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Abs", vec![Term::symbol("t")])])]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
-            kind: athena_engine::TransformKind::Fourier,
-            expression: expr,
-            time_variable: "t".into(),
-            transform_variable: "w".into(),
-            assumptions: AssumptionSet::empty(),
-        })));
+        kind: athena_engine::TransformKind::Fourier,
+        expression: expr,
+        time_variable: "t".into(),
+        transform_variable: "w".into(),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
             assert!(tr.region_of_convergence.known);
@@ -784,12 +776,12 @@ fn fourier_gaussian_and_lowering() {
         ],
     );
     let causal_out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
-            kind: athena_engine::TransformKind::Fourier,
-            expression: causal,
-            time_variable: "t".into(),
-            transform_variable: "w".into(),
-            assumptions: AssumptionSet::empty(),
-        })));
+        kind: athena_engine::TransformKind::Fourier,
+        expression: causal,
+        time_variable: "t".into(),
+        transform_variable: "w".into(),
+        assumptions: AssumptionSet::empty(),
+    })));
     match causal_out {
         CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
             let text = format!("{:?}", tr.expression);
@@ -805,12 +797,12 @@ fn z_transform_geometric_and_delta() {
     // 2^n → z/(z-2), |z|>2
     let geom = Term::apply("Power", vec![Term::int(2), Term::symbol("n")]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
-            kind: athena_engine::TransformKind::Z,
-            expression: geom,
-            time_variable: "n".into(),
-            transform_variable: "z".into(),
-            assumptions: AssumptionSet::empty(),
-        })));
+        kind: athena_engine::TransformKind::Z,
+        expression: geom,
+        time_variable: "n".into(),
+        transform_variable: "z".into(),
+        assumptions: AssumptionSet::empty(),
+    })));
     match out {
         CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => {
             assert!(tr.region_of_convergence.known);

@@ -47,6 +47,6 @@ impl AthenaEngine {
 
     /// Arena/`()` 桩求值 — 保留至 IR 路径落地。
     pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
-        Err(Diagnostic::error(DiagnosticCode::UnsupportedOperation, "evaluate not yet implemented"))
+        Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation))
     }
 }

@@ -17,36 +17,25 @@ fn expect_nt(r: Result<DomainResult, athena_types::Diagnostic>) -> NumberTheoryR
 #[test]
 fn gcd_lcm_egcd_via_domain() {
     let engine = AthenaEngine::new();
-    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
-        a: 48.into(),
-        b: 18.into(),
-    })));
+    let out =
+        expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd { a: 48.into(), b: 18.into() })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(g),
-        } => assert_eq!(g, BigInt::from(6)),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(g) } => assert_eq!(g, BigInt::from(6)),
         other => panic!("gcd: {other:?}"),
     }
 
-    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::Lcm {
-        a: 4.into(),
-        b: 6.into(),
-    })));
+    let out =
+        expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::Lcm { a: 4.into(), b: 6.into() })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(l),
-        } => assert_eq!(l, BigInt::from(12)),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(l) } => assert_eq!(l, BigInt::from(12)),
         other => panic!("lcm: {other:?}"),
     }
 
-    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ExtendedGcd {
-        a: 240.into(),
-        b: 46.into(),
-    })));
+    let out = expect_nt(
+        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ExtendedGcd { a: 240.into(), b: 46.into() })),
+    );
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::ExtendedGcd(e),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(e) } => {
             assert_eq!(e.g, BigInt::from(2));
             assert_eq!(&e.s * BigInt::from(240) + &e.t * BigInt::from(46), e.g);
         }
@@ -62,9 +51,7 @@ fn primality_distinguishes_probable() {
         miller_rabin_rounds: None,
     })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Primality(Primality::Prime),
-        } => {}
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Prime) } => {}
         other => panic!("97 should be Prime: {other:?}"),
     }
 
@@ -73,9 +60,7 @@ fn primality_distinguishes_probable() {
         miller_rabin_rounds: None,
     })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Primality(Primality::Composite),
-        } => {}
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Composite) } => {}
         other => panic!("91 composite: {other:?}"),
     }
 }
@@ -88,9 +73,7 @@ fn factor_integer_complete_small() {
         limits: FactorLimits::default(),
     })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Factorization(f),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Factorization(f) } => {
             assert_eq!(f.unit, BigInt::from(-1));
             assert_eq!(f.completeness, FactorizationCompleteness::Complete);
             assert_eq!(f.remainder, BigInt::from(1));
@@ -107,14 +90,11 @@ fn factor_integer_complete_small() {
 fn modular_inverse_and_pow() {
     let engine = AthenaEngine::new();
     let m = Modulus::new(17).unwrap();
-    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse {
-        a: 3.into(),
-        modulus: m.clone(),
-    })));
+    let out = expect_nt(
+        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 3.into(), modulus: m.clone() })),
+    );
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Modular(v),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => {
             assert_eq!(v.residue(), &BigInt::from(6)); // 3*6=18≡1
             assert_eq!(v.modulus(), &m);
         }
@@ -127,9 +107,7 @@ fn modular_inverse_and_pow() {
         modulus: m,
     })));
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Modular(v),
-        } => assert_eq!(v.residue(), &BigInt::from(5)), // 243 ≡ 5 (mod 17)
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), &BigInt::from(5)), /* 243 ≡ 5 (mod 17) */
         other => panic!("pow: {other:?}"),
     }
 }
@@ -138,10 +116,9 @@ fn modular_inverse_and_pow() {
 fn modular_inverse_missing() {
     let engine = AthenaEngine::new();
     let m = Modulus::new(15).unwrap();
-    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse {
-        a: 6.into(),
-        modulus: m,
-    })));
+    let out = expect_nt(
+        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 6.into(), modulus: m })),
+    );
     match out {
         NumberTheoryResult::Unevaluated { reason } => {
             assert_eq!(reason.code, DiagnosticCode::ModularInverseMissing);

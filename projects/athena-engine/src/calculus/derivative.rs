@@ -20,25 +20,25 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
         Term::Application { head, arguments: args } => {
             let h = head.head_name().unwrap_or("");
             match h {
-                "Plus" => evaluate(&Term::app("Plus", args.iter().map(|a| differentiate(a, var)).collect())),
+                "Plus" => evaluate(&Term::apply("Plus", args.iter().map(|a| differentiate(a, var)).collect())),
                 "Times" => {
                     let mut terms = Vec::new();
                     for i in 0..args.len() {
                         let mut factors = args.clone();
                         factors[i] = differentiate(&args[i], var);
-                        terms.push(Term::app("Times", factors));
+                        terms.push(Term::apply("Times", factors));
                     }
-                    evaluate(&Term::app("Plus", terms))
+                    evaluate(&Term::apply("Plus", terms))
                 }
                 "Power" if args.len() == 2 => {
                     let base = &args[0];
                     let exp = &args[1];
                     if let Some(n) = number_from_term(exp).and_then(|e| e.as_integer_exp()) {
-                        evaluate(&Term::app(
+                        evaluate(&Term::apply(
                             "Times",
                             vec![
                                 Term::integer(n.clone()),
-                                Term::app("Power", vec![base.clone(), Term::integer(n - 1i64)]),
+                                Term::apply("Power", vec![base.clone(), Term::integer(n - 1i64)]),
                                 differentiate(base, var),
                             ],
                         ))
@@ -46,55 +46,52 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                     else if let Some(athena_types::Number::Real(athena_types::RealNumber::Machine(nf))) =
                         number_from_term(exp).cloned()
                     {
-                        evaluate(&Term::app(
+                        evaluate(&Term::apply(
                             "Times",
                             vec![
                                 Term::real(nf),
-                                Term::app("Power", vec![base.clone(), Term::real(nf - 1.0)]),
+                                Term::apply("Power", vec![base.clone(), Term::real(nf - 1.0)]),
                                 differentiate(base, var),
                             ],
                         ))
                     }
                     else {
-                        Term::app("D", vec![expr.clone(), Term::symbol(var)])
+                        Term::apply("D", vec![expr.clone(), Term::symbol(var)])
                     }
                 }
-                "Subtract" if args.len() == 2 => evaluate(&Term::app(
+                "Subtract" if args.len() == 2 => evaluate(&Term::apply(
                     "Plus",
-                    vec![differentiate(&args[0], var), Term::app("Times", vec![Term::int(-1), differentiate(&args[1], var)])],
+                    vec![differentiate(&args[0], var), Term::apply("Times", vec![Term::int(-1), differentiate(&args[1], var)])],
                 )),
                 "Divide" if args.len() == 2 => {
                     let a = &args[0];
                     let b = &args[1];
-                    evaluate(&Term::app(
+                    evaluate(&Term::apply(
                         "Times",
                         vec![
-                            Term::app(
+                            Term::apply(
                                 "Plus",
                                 vec![
-                                    Term::app("Times", vec![differentiate(a, var), b.clone()]),
-                                    Term::app("Times", vec![Term::int(-1), a.clone(), differentiate(b, var)]),
+                                    Term::apply("Times", vec![differentiate(a, var), b.clone()]),
+                                    Term::apply("Times", vec![Term::int(-1), a.clone(), differentiate(b, var)]),
                                 ],
                             ),
-                            Term::app("Power", vec![b.clone(), Term::int(-2)]),
+                            Term::apply("Power", vec![b.clone(), Term::int(-2)]),
                         ],
                     ))
                 }
                 // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
-                "Abs" | "Sqrt" if args.len() == 1 => Term::app("D", vec![expr.clone(), Term::symbol(var)]),
+                "Abs" | "Sqrt" if args.len() == 1 => Term::apply("D", vec![expr.clone(), Term::symbol(var)]),
                 _ => {
                     if let Some(def) = lookup_function(h) {
                         if def.arity == 1 && args.len() == 1 {
                             if let Some(df) = def.unary_derivative {
-                                return evaluate(&Term::app(
-                                    "Times",
-                                    vec![df(&args[0]), differentiate(&args[0], var)],
-                                ));
+                                return evaluate(&Term::apply("Times", vec![df(&args[0]), differentiate(&args[0], var)]));
                             }
                         }
                     }
                     // 未知头部：保留 D，禁止静默当成 0。
-                    Term::app("D", vec![expr.clone(), Term::symbol(var)])
+                    Term::apply("D", vec![expr.clone(), Term::symbol(var)])
                 }
             }
         }
@@ -106,11 +103,11 @@ pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet
     if let Term::Application { head, arguments: args } = expr {
         if head.is_symbol("Abs") && args.len() == 1 {
             let inner = &args[0];
-            let candidate = evaluate(&Term::app(
+            let candidate = evaluate(&Term::apply(
                 "Times",
                 vec![
-                    Term::app("Abs", vec![inner.clone()]),
-                    Term::app("Power", vec![inner.clone(), Term::int(-1)]),
+                    Term::apply("Abs", vec![inner.clone()]),
+                    Term::apply("Power", vec![inner.clone(), Term::int(-1)]),
                     differentiate(inner, var),
                 ],
             ));
@@ -127,12 +124,12 @@ pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet
         }
         if head.is_symbol("Sqrt") && args.len() == 1 {
             let inner = &args[0];
-            let candidate = evaluate(&Term::app(
+            let candidate = evaluate(&Term::apply(
                 "Times",
                 vec![
-                    Term::app(
+                    Term::apply(
                         "Power",
-                        vec![Term::app("Times", vec![Term::int(2), Term::app("Sqrt", vec![inner.clone()])]), Term::int(-1)],
+                        vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![inner.clone()])]), Term::int(-1)],
                     ),
                     differentiate(inner, var),
                 ],

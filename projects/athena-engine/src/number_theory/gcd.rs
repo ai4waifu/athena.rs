@@ -48,11 +48,7 @@ pub fn extended_gcd(a: &BigInt, b: &BigInt) -> ExtendedGcd {
         old_t = t;
         t = next_t;
     }
-    ExtendedGcd {
-        g: old_r,
-        s: old_s * a_sign,
-        t: old_t * b_sign,
-    }
+    ExtendedGcd { g: old_r, s: old_s * a_sign, t: old_t * b_sign }
 }
 
 #[cfg(test)]

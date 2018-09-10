@@ -29,31 +29,23 @@ pub enum NumberTheoryResult {
 /// 执行数论域请求。
 pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult {
     match request {
-        NumberTheoryRequest::Gcd { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(gcd(&a, &b)),
-        },
-        NumberTheoryRequest::Lcm { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(lcm(&a, &b)),
-        },
-        NumberTheoryRequest::ExtendedGcd { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)),
-        },
-        NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Primality(primality_test(&n, miller_rabin_rounds)),
-        },
-        NumberTheoryRequest::FactorInteger { n, limits } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Factorization(factor_integer(&n, &limits)),
-        },
+        NumberTheoryRequest::Gcd { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(gcd(&a, &b)) },
+        NumberTheoryRequest::Lcm { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(lcm(&a, &b)) },
+        NumberTheoryRequest::ExtendedGcd { a, b } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)) }
+        }
+        NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(primality_test(&n, miller_rabin_rounds)) }
+        }
+        NumberTheoryRequest::FactorInteger { n, limits } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::Factorization(factor_integer(&n, &limits)) }
+        }
         NumberTheoryRequest::ModInverse { a, modulus } => match mod_inverse(&a, &modulus) {
-            Ok(v) => NumberTheoryResult::Exact {
-                value: NumberTheoryValue::Modular(v),
-            },
+            Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) },
             Err(reason) => NumberTheoryResult::Unevaluated { reason },
         },
         NumberTheoryRequest::ModPow { base, exp, modulus } => match mod_pow(&base, &exp, &modulus) {
-            Ok(v) => NumberTheoryResult::Exact {
-                value: NumberTheoryValue::Modular(v),
-            },
+            Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) },
             Err(reason) => NumberTheoryResult::Unevaluated { reason },
         },
     }

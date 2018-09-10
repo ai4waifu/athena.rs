@@ -53,15 +53,15 @@ impl Series {
             if power == 1 {
                 return Term::symbol(&self.variable);
             }
-            return Term::app("Power", vec![Term::symbol(&self.variable), Term::integer(power)]);
+            return Term::apply("Power", vec![Term::symbol(&self.variable), Term::integer(power)]);
         }
         let delta = if is_zero_term(&self.center) {
             Term::symbol(&self.variable)
         }
         else {
-            evaluate(&Term::app(
+            evaluate(&Term::apply(
                 "Plus",
-                vec![Term::symbol(&self.variable), Term::app("Times", vec![Term::int(-1), self.center.clone()])],
+                vec![Term::symbol(&self.variable), Term::apply("Times", vec![Term::int(-1), self.center.clone()])],
             ))
         };
         if power == 0 {
@@ -71,7 +71,7 @@ impl Series {
             delta
         }
         else {
-            Term::app("Power", vec![delta, Term::integer(power)])
+            Term::apply("Power", vec![delta, Term::integer(power)])
         }
     }
 
@@ -88,11 +88,11 @@ impl Series {
                     coeff.clone()
                 }
                 else {
-                    evaluate(&Term::app("Times", vec![coeff.clone(), self.delta_power(*power)]))
+                    evaluate(&Term::apply("Times", vec![coeff.clone(), self.delta_power(*power)]))
                 }
             })
             .collect();
-        if parts.len() == 1 { parts.into_iter().next().unwrap() } else { evaluate(&Term::app("Plus", parts)) }
+        if parts.len() == 1 { parts.into_iter().next().unwrap() } else { evaluate(&Term::apply("Plus", parts)) }
     }
 }
 
@@ -114,7 +114,7 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
     }
     else {
         // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
-        let shifted_var = evaluate(&Term::app("Plus", vec![Term::symbol(SHIFT), center.clone()]));
+        let shifted_var = evaluate(&Term::apply("Plus", vec![Term::symbol(SHIFT), center.clone()]));
         replace_symbol(expression, variable, &shifted_var)
     };
     let expand_var = if is_zero_term(center) { variable } else { SHIFT };
@@ -131,17 +131,14 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
         if contains_symbol(&at_zero, expand_var) {
             return CalculusResult::Unevaluated {
                 expression: residual_series(expression, variable, center, order),
-                reason: Diagnostic::error(
-                    DiagnosticCode::SeriesRemainderUnknown,
-                    "Taylor 系数仍依赖展开变量",
-                ),
+                reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
             };
         }
         let coeff = if n == 0 || factorial == 1 {
             at_zero
         }
         else {
-            evaluate(&Term::app("Divide", vec![at_zero, Term::int(factorial)]))
+            evaluate(&Term::apply("Divide", vec![at_zero, Term::int(factorial)]))
         };
         if !is_zero_term(&coeff) {
             terms.push((coeff, n as i64));
@@ -158,9 +155,12 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
             Term::symbol(variable)
         }
         else {
-            evaluate(&Term::app("Plus", vec![Term::symbol(variable), Term::app("Times", vec![Term::int(-1), center.clone()])]))
+            evaluate(&Term::apply(
+                "Plus",
+                vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), center.clone()])],
+            ))
         };
-        Remainder::BigO(Term::app("Power", vec![delta, Term::int((order + 1) as i64)]))
+        Remainder::BigO(Term::apply("Power", vec![delta, Term::int((order + 1) as i64)]))
     };
 
     CalculusResult::Exact {
@@ -176,18 +176,20 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
     const MAX_POLE: u32 = 8;
     let delta = if is_zero_term(center) {
         Term::symbol(variable)
-    } else {
-        evaluate(&Term::app(
-            "Plus",
-            vec![Term::symbol(variable), Term::app("Times", vec![Term::int(-1), center.clone()])],
-        ))
+    }
+    else {
+        evaluate(&Term::apply("Plus", vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), center.clone()])]))
     };
 
     for m in 0..=MAX_POLE {
         let cleared = if m == 0 {
             expression.clone()
-        } else {
-            evaluate(&Term::app("Times", vec![expression.clone(), Term::app("Power", vec![delta.clone(), Term::int(m as i64)])]))
+        }
+        else {
+            evaluate(&Term::apply(
+                "Times",
+                vec![expression.clone(), Term::apply("Power", vec![delta.clone(), Term::int(m as i64)])],
+            ))
         };
         match taylor(&cleared, variable, center, order.saturating_add(m)) {
             CalculusResult::Exact { value: series, conditions } => {
@@ -214,36 +216,20 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
 
     CalculusResult::Unevaluated {
         expression: residual_series(expression, variable, center, order),
-        reason: Diagnostic::error(
-            DiagnosticCode::SeriesRemainderUnknown,
-            format!("Laurent 展开未能在极点阶 ≤ {MAX_POLE} 内清除"),
-        ),
+        reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
     }
 }
 
-fn remap_laurent_series(
-    series: Series,
-    variable: &str,
-    center: &Term,
-    order: u32,
-    m: u32,
-    delta: &Term,
-) -> Series {
+fn remap_laurent_series(series: Series, variable: &str, center: &Term, order: u32, m: u32, delta: &Term) -> Series {
     let terms: Vec<(Term, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            Remainder::BigO(Term::app("Power", vec![delta.clone(), Term::int((order + 1) as i64)]))
+            Remainder::BigO(Term::apply("Power", vec![delta.clone(), Term::int((order + 1) as i64)]))
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    Series {
-        variable: variable.to_string(),
-        center: center.clone(),
-        terms,
-        order,
-        remainder,
-    }
+    Series { variable: variable.to_string(), center: center.clone(), terms, order, remainder }
 }
 
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
@@ -252,7 +238,7 @@ fn remap_laurent_series(
 pub fn asymptotic(expression: &Term, variable: &str, order: u32) -> CalculusResult<Series> {
     const T: &str = "__athena_asymp_t";
     let infinity = Term::symbol("Infinity");
-    let inv = Term::app("Power", vec![Term::symbol(T), Term::int(-1)]);
+    let inv = Term::apply("Power", vec![Term::symbol(T), Term::int(-1)]);
     let g = evaluate(&replace_symbol(expression, variable, &inv));
     let g = clear_negative_powers_of_var(&g, T);
     match laurent(&g, T, &Term::int(0), order) {
@@ -262,12 +248,9 @@ pub fn asymptotic(expression: &Term, variable: &str, order: u32) -> CalculusResu
         CalculusResult::Conditional { value: series, conditions } => {
             CalculusResult::Conditional { value: remap_asymptotic_series(series, variable, order), conditions }
         }
-        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
+        CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
             expression: residual_series(expression, variable, &infinity, order),
-            reason: Diagnostic::error(
-                DiagnosticCode::SeriesRemainderUnknown,
-                format!("渐近展开失败: {}", reason.detail),
-            ),
+            reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
         },
     }
 }
@@ -279,28 +262,22 @@ fn clear_negative_powers_of_var(expr: &Term, var: &str) -> Term {
             if number_from_term(&args[1]).is_some_and(|n| n.is_neg_one()) {
                 if let Some(k) = negative_valuation(&args[0], var) {
                     if k > 0 {
-                        let scale = Term::app("Power", vec![Term::symbol(var), Term::int(k as i64)]);
-                        let cleared_den = evaluate(&Term::app("Times", vec![args[0].clone(), scale.clone()]));
-                        return evaluate(&Term::app(
+                        let scale = Term::apply("Power", vec![Term::symbol(var), Term::int(k as i64)]);
+                        let cleared_den = evaluate(&Term::apply("Times", vec![args[0].clone(), scale.clone()]));
+                        return evaluate(&Term::apply(
                             "Times",
-                            vec![scale, Term::app("Power", vec![cleared_den, Term::int(-1)])],
+                            vec![scale, Term::apply("Power", vec![cleared_den, Term::int(-1)])],
                         ));
                     }
                 }
             }
-            Term::app("Power", vec![clear_negative_powers_of_var(&args[0], var), args[1].clone()])
+            Term::apply("Power", vec![clear_negative_powers_of_var(&args[0], var), args[1].clone()])
         }
         Term::Application { head, arguments: args } if head.is_symbol("Plus") => {
-            evaluate(&Term::app(
-                "Plus",
-                args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
-            ))
+            evaluate(&Term::apply("Plus", args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect()))
         }
         Term::Application { head, arguments: args } if head.is_symbol("Times") => {
-            evaluate(&Term::app(
-                "Times",
-                args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
-            ))
+            evaluate(&Term::apply("Times", args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect()))
         }
         Term::Application { head, arguments: args } => Term::Application {
             head: Box::new(clear_negative_powers_of_var(head, var)),
@@ -353,11 +330,7 @@ fn valuation(expr: &Term, var: &str) -> Option<i64> {
                 }
                 _ => {
                     // 未知头部：若参数含 var 则保守拒绝清除
-                    if args.iter().any(|a| contains_symbol(a, var)) || contains_symbol(head, var) {
-                        None
-                    } else {
-                        Some(0)
-                    }
+                    if args.iter().any(|a| contains_symbol(a, var)) || contains_symbol(head, var) { None } else { Some(0) }
                 }
             }
         }
@@ -370,20 +343,11 @@ fn remap_asymptotic_series(series: Series, variable: &str, order: u32) -> Series
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            Remainder::BigO(Term::app(
-                "Power",
-                vec![Term::symbol(variable), Term::integer(-(order as i64 + 1))],
-            ))
+            Remainder::BigO(Term::apply("Power", vec![Term::symbol(variable), Term::integer(-(order as i64 + 1))]))
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    Series {
-        variable: variable.to_string(),
-        center: Term::symbol("Infinity"),
-        terms,
-        order,
-        remainder,
-    }
+    Series { variable: variable.to_string(), center: Term::symbol("Infinity"), terms, order, remainder }
 }
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。

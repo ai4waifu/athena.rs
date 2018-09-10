@@ -118,6 +118,6 @@ pub fn execute_calculus(request: CalculusRequest) -> CalculusResult<CalculusValu
 
 /// 域尚未接入时的便捷错误。
 #[allow(dead_code)]
-fn domain_unsupported(name: &str) -> Diagnostic {
-    Diagnostic::error(DiagnosticCode::UnsupportedOperation, format!("域 `{name}` 尚未实现"))
+fn domain_unsupported(_name: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
 }
