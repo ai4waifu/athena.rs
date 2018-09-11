@@ -20,6 +20,22 @@ pub struct OperatorId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DomainId(pub u32);
 
+/// 群对象 id（Session / 注册表句柄）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct GroupId(pub u32);
+
+/// 群元素 id（绑定所属群，禁止跨群运算）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct GroupElementId(pub u32);
+
+/// 域对象 id。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FieldId(pub u32);
+
+/// 域扩张 id。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ExtensionId(pub u32);
+
 /// 假设集合 id（Session / 请求附着）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionSetId(pub u32);

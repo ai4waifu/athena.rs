@@ -181,6 +181,40 @@ pub enum DiagnosticCode {
     PolynomialTooLarge,
     /// Gröbner 资源上限。
     GroebnerResourceLimit,
+    /// 群对象不匹配。
+    GroupMismatch,
+    /// 群元素非法。
+    GroupElementInvalid,
+    /// 群非有限。
+    GroupNotFinite,
+    /// 子群不正规。
+    GroupNotNormal,
+    /// 群阶未知。
+    GroupOrderUnknown,
+    /// 同构判定未决。
+    GroupIsomorphismInconclusive,
+    /// 置换非法。
+    PermutationInvalid,
+    /// 域对象不匹配。
+    FieldMismatch,
+    /// 域元素非法。
+    FieldElementInvalid,
+    /// 有限域模多项式可约。
+    FieldModulusReducible,
+    /// 域扩张非法。
+    FieldExtensionInvalid,
+    /// 扩张不可分。
+    ExtensionNotSeparable,
+    /// 扩张不正规。
+    ExtensionNotNormal,
+    /// 伽罗瓦群不完整。
+    GaloisGroupIncomplete,
+    /// 伽罗瓦资源上限。
+    GaloisResourceLimit,
+    /// 自同构非法。
+    AutomorphismInvalid,
+    /// 固定域不可用。
+    FixedFieldUnavailable,
 }
 
 impl DiagnosticCode {
@@ -228,6 +262,23 @@ impl DiagnosticCode {
             Self::PolynomialVariableMismatch => "ATHENA_POLYNOMIAL_VARIABLE_MISMATCH",
             Self::PolynomialTooLarge => "ATHENA_POLYNOMIAL_TOO_LARGE",
             Self::GroebnerResourceLimit => "ATHENA_GROEBNER_RESOURCE_LIMIT",
+            Self::GroupMismatch => "ATHENA_GROUP_MISMATCH",
+            Self::GroupElementInvalid => "ATHENA_GROUP_ELEMENT_INVALID",
+            Self::GroupNotFinite => "ATHENA_GROUP_NOT_FINITE",
+            Self::GroupNotNormal => "ATHENA_GROUP_NOT_NORMAL",
+            Self::GroupOrderUnknown => "ATHENA_GROUP_ORDER_UNKNOWN",
+            Self::GroupIsomorphismInconclusive => "ATHENA_GROUP_ISOMORPHISM_INCONCLUSIVE",
+            Self::PermutationInvalid => "ATHENA_PERMUTATION_INVALID",
+            Self::FieldMismatch => "ATHENA_FIELD_MISMATCH",
+            Self::FieldElementInvalid => "ATHENA_FIELD_ELEMENT_INVALID",
+            Self::FieldModulusReducible => "ATHENA_FIELD_MODULUS_REDUCIBLE",
+            Self::FieldExtensionInvalid => "ATHENA_FIELD_EXTENSION_INVALID",
+            Self::ExtensionNotSeparable => "ATHENA_EXTENSION_NOT_SEPARABLE",
+            Self::ExtensionNotNormal => "ATHENA_EXTENSION_NOT_NORMAL",
+            Self::GaloisGroupIncomplete => "ATHENA_GALOIS_GROUP_INCOMPLETE",
+            Self::GaloisResourceLimit => "ATHENA_GALOIS_RESOURCE_LIMIT",
+            Self::AutomorphismInvalid => "ATHENA_AUTOMORPHISM_INVALID",
+            Self::FixedFieldUnavailable => "ATHENA_FIXED_FIELD_UNAVAILABLE",
         }
     }
 }
