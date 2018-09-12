@@ -3,6 +3,8 @@
 use athena_types::Diagnostic;
 
 use super::{
+    algebraic::algebraic_scaffold,
+    congruence::solve_linear_congruence,
     factor::factor_integer,
     gcd::{extended_gcd, gcd, lcm},
     modular::{mod_inverse, mod_pow},
@@ -48,5 +50,7 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
             Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) },
             Err(reason) => NumberTheoryResult::Unevaluated { reason },
         },
+        NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => solve_linear_congruence(&a, &b, &modulus),
+        NumberTheoryRequest::AlgebraicScaffold => algebraic_scaffold(),
     }
 }

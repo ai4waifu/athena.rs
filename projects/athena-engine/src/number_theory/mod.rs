@@ -3,6 +3,8 @@
 //! 结果带完整性与确定性元数据；禁止把 probable 素性当成确定 `Prime`，
 //! 禁止裸 `Vec` 让宿主猜测分解是否完整。
 
+mod algebraic;
+mod congruence;
 mod factor;
 mod gcd;
 mod modular;

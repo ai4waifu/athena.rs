@@ -60,4 +60,15 @@ pub enum NumberTheoryRequest {
         /// 模数。
         modulus: Modulus,
     },
+    /// 线性同余 `a x ≡ b (mod m)`（骨架）。
+    SolveLinearCongruence {
+        /// `a`。
+        a: BigInt,
+        /// `b`。
+        b: BigInt,
+        /// 模 `m`。
+        modulus: BigInt,
+    },
+    /// 代数整数相关（骨架占位）。
+    AlgebraicScaffold,
 }

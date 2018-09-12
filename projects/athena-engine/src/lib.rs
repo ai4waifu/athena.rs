@@ -12,10 +12,14 @@
 pub mod calculus;
 pub mod domain;
 pub mod eval;
+pub mod field;
 pub mod function;
+pub mod galois;
+pub mod group;
 pub mod ir;
 pub mod number_theory;
 pub mod object;
+pub mod polynomial;
 pub mod rewriter;
 pub mod session;
 pub mod symbol;
@@ -27,8 +31,9 @@ pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, can
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
-    ExactNumber, ModularValue, Modulus, NodeId, Number, NumericDomain, OperatorId, Precision, Predicate, RealNumber, Result,
-    RoundingMode, SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
+    ExactNumber, ExtensionId, FieldId, GroupElementId, GroupId, ModularValue, Modulus, NodeId, Number, NumericDomain,
+    OperatorId, Precision, Predicate, RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan,
+    SymbolId, TermId,
 };
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution, Divergence,
@@ -41,11 +46,21 @@ pub use calculus::{
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::{differentiate as differentiate_term, evaluate};
+pub use field::{Field, FieldDomainValue, FieldElement, FieldKind, FieldRequest, FieldResult, execute_field};
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
+pub use galois::{Automorphism, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois};
+pub use group::{
+    Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation,
+    execute_group,
+};
 pub use number_theory::{
     ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,
     NumberTheoryValue, Primality, PrimePower, execute_number_theory, extended_gcd, factor_integer, gcd, lcm, mod_inverse,
     mod_pow, primality_test,
+};
+pub use polynomial::{
+    CoefficientRing, DivisionPolicy, MonomialTerm, Polynomial, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
+    PolynomialValue, execute_polynomial,
 };
 pub use session::Session;
 pub use term::{Atom, Term, number_from_term};
