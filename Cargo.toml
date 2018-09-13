@@ -4,6 +4,7 @@ members = ["projects/*"]
 exclude = ["projects/athena-benchmark"]
 default-members = [
     "projects/athena-types",
+    "projects/athena-numeric",
     "projects/athena-ir",
     "projects/athena-rewriter",
     "projects/athena-engine",
@@ -14,18 +15,19 @@ default-members = [
 version = "0.1.0"
 edition = "2024"
 authors = ["Aster <192607617@qq.com>"]
-license = "MPL-2.0"
+license = "Apache-2.0"
 
 [workspace.dependencies]
 athena-types = { path = "projects/athena-types" }
+athena-numeric = { path = "projects/athena-numeric" }
 athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
 athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
-num-bigint = { version = "0.4", default-features = false, features = ["std"] }
+num-bigint = { version = "0.5.1", default-features = false, features = ["std"] }
 num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
 num-traits = "0.2"
-libloading = "0.8"
+libloading = "0.9.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 clap = { version = "4.5.48", features = ["derive"] }
