@@ -215,6 +215,16 @@ pub enum DiagnosticCode {
     AutomorphismInvalid,
     /// 固定域不可用。
     FixedFieldUnavailable,
+    /// 数值域不匹配。
+    NumericDomainMismatch,
+    /// 数值 promotion 失败。
+    NumericPromotionFailed,
+    /// 数值精度损失。
+    NumericPrecisionLoss,
+    /// 数值后端不可用。
+    NumericBackendUnavailable,
+    /// 数值转换禁止。
+    NumericConversionForbidden,
 }
 
 impl DiagnosticCode {
@@ -279,6 +289,11 @@ impl DiagnosticCode {
             Self::GaloisResourceLimit => "ATHENA_GALOIS_RESOURCE_LIMIT",
             Self::AutomorphismInvalid => "ATHENA_AUTOMORPHISM_INVALID",
             Self::FixedFieldUnavailable => "ATHENA_FIXED_FIELD_UNAVAILABLE",
+            Self::NumericDomainMismatch => "ATHENA_NUMERIC_DOMAIN_MISMATCH",
+            Self::NumericPromotionFailed => "ATHENA_NUMERIC_PROMOTION_FAILED",
+            Self::NumericPrecisionLoss => "ATHENA_NUMERIC_PRECISION_LOSS",
+            Self::NumericBackendUnavailable => "ATHENA_NUMERIC_BACKEND_UNAVAILABLE",
+            Self::NumericConversionForbidden => "ATHENA_NUMERIC_CONVERSION_FORBIDDEN",
         }
     }
 }

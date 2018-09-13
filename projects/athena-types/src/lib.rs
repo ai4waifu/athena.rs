@@ -7,6 +7,7 @@ mod diagnostic;
 mod ids;
 mod modulus;
 mod number;
+mod numeric_kind;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
@@ -16,6 +17,7 @@ pub use ids::{
 };
 pub use modulus::{ModularValue, Modulus};
 pub use number::{ExactNumber, Number, RealNumber, normalize_rational};
+pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};
 
 /// 数值标量域标识（wire 稳定）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
