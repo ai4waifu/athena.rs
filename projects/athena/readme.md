@@ -1,6 +1,7 @@
 # `athena`
 
-`athena` 是 Athena 计算机代数内核的**稳定公共 Rust 门面**。它很薄：re-export `athena-engine` 与必要的 IR/types 合同，并控制公开 API 面积。
+`athena` 是 Athena 计算机代数内核的 **稳定公共 Rust 门面**。它很薄：re-export `athena-engine` 与必要的 IR/types 合同，并控制公开
+API 面积。
 
 ## 职责
 
@@ -16,19 +17,19 @@
 
 ## 与 `athena-engine` 的边界
 
-| Crate | 边界 |
-|-------|------|
+| Crate           | 边界                   |
+|-----------------|------------------------|
 | `athena-engine` | 执行实现边界（怎么算） |
-| `athena` | 公开兼容边界（怎么接） |
+| `athena`        | 公开兼容边界（怎么接） |
 
 依赖方向只能是 `athena → athena-engine`。禁止反向。不得通过重命名单 crate 代替拆分。
 
-## 与 SXO 的边界
+## 外部调用边界
 
-Athena 不解析 Mathematica 或 MATLAB，也不提供 N-API 或 WebAssembly 绑定。SXO 宿主（`sxo-napi` / `sxo-lite-wasm`）应依赖 **`athena`**；方言 crate 只依赖 `athena-ir` / `athena-types`。
+Athena 不解析外部语言，也不提供 N-API、WebAssembly 或其他平台绑定。外部调用方应构造符合 `athena-types` 和 `athena-ir` 合同的请求，并通过 `athena` 使用公共 API。
 
 ```text
-SXO 前端 → Athena IR/value → athena（门面）→ athena-engine → result/diagnostic
+外部调用方 → Athena IR/value → athena（门面）→ athena-engine → result/diagnostic
 ```
 
 ```sh

@@ -1,11 +1,12 @@
 # `athena-engine`
 
-`athena-engine` 是 Athena 的**唯一执行引擎**。它决定数学表达式「怎么算」，不知道用户「怎么写」或结果「怎么显示」。
+`athena-engine` 是 Athena 的 **唯一执行引擎**。它决定数学表达式「怎么算」，不知道用户「怎么写」或结果「怎么显示」。
 
 ## 职责
 
 - Core IR 求值与数值 promotion
 - `Session`、符号绑定与作用域
+- M-Graph 状态 / 闭包与 solver reflector 协议（骨架）
 - 化简 / 重写流水线编排（调用 `athena-rewriter`）
 - 微分、积分及其他领域操作编排
 - 资源 / 递归限制与取消检查
@@ -14,19 +15,19 @@
 
 ## 不负责
 
-- **任何 parse**（方言语法、字面量文本、oak、`WExpr`）— 一律属 SXO
+- 任何源语言 parse、文本字面量解析或前端 AST 转换
 - 字符串 render、locale
 - N-API / WASM / JS handle 生命周期
-- 对外产品兼容边界（见 [`athena`](../athena/readme.md)）
+- 公开兼容边界（由 [`athena`](../athena/readme.md) 负责）
 
-Athena 只接受**已经解码**的 `Number` / IR / runtime `Term`；不得从源文本构造值。
+Athena 只接受 **已经构造**的 `Number` / IR / runtime `Term`；不得从源文本构造值。
 
 ## 与 `athena` 的边界
 
-| Crate | 边界 |
-|-------|------|
-| `athena-engine` | 执行实现边界 |
-| `athena` | 公开兼容边界（薄门面，re-export 本 crate） |
+| Crate           | 边界                                       |
+|-----------------|--------------------------------------------|
+| `athena-engine` | 执行实现边界                               |
+| `athena`        | 公开兼容边界（薄门面，re-export 本 crate） |
 
 依赖方向只能是 `athena → athena-engine`。禁止反向依赖。不得把「单 crate 改名」当成两者拆分已完成。
 

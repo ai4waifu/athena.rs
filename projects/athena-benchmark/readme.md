@@ -1,1 +1,5 @@
-和 Mathematica，Matlab 等工具进行 benchmark
+# `athena-benchmark`
+
+用于测量 Athena 内核在固定输入集上的执行性能和资源开销。
+
+基准应记录输入规模、数值域、重写选项、运行次数和硬件环境。外部软件对照属于可选实验，不是 Athena 的运行时依赖，也不定义公共 API。

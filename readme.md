@@ -1,33 +1,57 @@
 # Athena
 
-Athena 是 SXO 背后的纯 Rust 计算机代数内核，代码仓库位于 `euler.rs`（远程 `athena.rs`）。它负责数学语义、Core IR、求值、重写与会话状态，并与
-Node.js、N-API、WebAssembly 绑定及语言前端保持独立。
+Athena 是一个纯 Rust 计算机代数内核。它把数值、符号表达式和计算请求转换为可验证的 Core IR，在统一的求值、重写和会话模型中执行，并返回结构化结果或诊断。
 
-本文档面向希望参与内核建设的贡献者。方言解析、降级和渲染属于 SXO 前端，Athena 不解析 Mathematica 或 MATLAB，也不承载宿主平台集成。
+Athena 适合需要精确数值、符号变换、代数化简、微积分和领域算法的 Rust 程序。它不解析源语言文本，不包含命令行界面，不持有设备或平台对象。调用方负责把输入构造成 Athena 的类型和 IR，再通过公共门面提交计算。
 
-## 代码分层
+## 能力边界
+
+Athena 内核负责：
+
+- 精确整数、有理数及其它数值域的表示、精度和 promotion。
+- Arena 管理的 Core IR、稳定 ID、结构共享、验证和确定性哈希。
+- 求值、符号绑定、作用域、会话状态和资源限制。
+- 规范化、规则重写、化简以及可组合的 rewrite pipeline。
+- 微分、积分、级数、变换、数论和其它领域算法。
+- 语言无关的结构化诊断和可取消的计算流程。
+
+内核不负责源文本解析、语法树、渲染、用户界面、平台绑定或应用工作流。任何外部输入都必须先转换为 `athena-types` 和 `athena-ir` 能理解的值或节点。
+
+## 计算路径
 
 ```text
-SXO 方言前端 → Athena IR / value → athena（门面）→ athena-engine → result / diagnostic
+构造 Number / Core IR
+        ↓
+athena（稳定公共门面）
+        ↓
+athena-engine（求值、重写、Session、领域算法）
+        ↓
+RuntimeValue / Diagnostic
 ```
 
-| Crate | 主要职责 |
-|-------|----------|
-| [`athena-types`](projects/athena-types/readme.md) | 数值表示、标识符、源码位置和诊断合同 |
-| [`athena-ir`](projects/athena-ir/readme.md) | arena 管理的 Core CAS IR、构建器、验证和哈希 |
-| [`athena-rewriter`](projects/athena-rewriter/readme.md) | 规范化与重写基础设施 |
-| [`athena-engine`](projects/athena-engine/readme.md) | **唯一执行引擎**：Session、求值、领域编排 |
-| [`athena`](projects/athena/readme.md) | **薄公共门面**：稳定 re-export 与构造入口 |
+`athena` 负责公开 API 和兼容边界，`athena-engine` 负责执行实现。依赖方向只能是 `athena → athena-engine`，不得反向依赖，也不得在 facade 中复制另一套求值或会话语义。
 
-`athena-engine` 是执行实现边界；`athena` 是公开兼容边界。依赖只能是 `athena → athena-engine`。多项式、矩阵、数论和图算法等数学主题应作为 `athena-engine` 模块演进，不应拆成一组微型 crate。
+## Crate 分层
 
-## 当前阶段
+| Crate | 作用 |
+|---|---|
+| [`athena-types`](projects/athena-types/readme.md) | 共享 ID、数值元数据、诊断、span 和版本合同 |
+| [`athena-numeric`](projects/athena-numeric/readme.md) | 数值塔、精度、promotion 和数值证书 |
+| [`athena-ir`](projects/athena-ir/readme.md) | Core IR、arena、构建器、验证和哈希 |
+| [`athena-rewriter`](projects/athena-rewriter/readme.md) | 规范化、规则匹配、重写结果和重写诊断 |
+| [`athena-engine`](projects/athena-engine/readme.md) | 唯一执行引擎，包含 Session、M-Graph、solver 和领域编排 |
+| [`athena`](projects/athena/readme.md) | 薄公共门面和稳定 re-export |
+| [`athena-benchmark`](projects/athena-benchmark/readme.md) | 固定输入集上的性能和资源基准 |
 
-项目仍在先稳定公共类型合同与 crate 边界、再扩展求值和领域能力的阶段。目录中出现的类型或模块不等于功能已经生产就绪。提交新语义时，请明确它增加或维护了哪些不变量，并用针对性测试证明行为。
+数学主题应作为已有 crate 中职责清晰的模块演进。除非依赖关系、版本生命周期和测试边界确实独立，否则不要新增微型 crate。M-Graph 和 solver 继续归属于 `athena-engine`，不另建同名 crate。
+
+## 当前状态
+
+基础数值合同、Core IR arena、重写器、公共门面以及多个求值和领域模块已经存在。部分领域能力仍处于逐步扩展阶段，代码中出现的类型或模块不代表已经具备稳定的生产兼容承诺。判断一项能力是否可用，应以对应测试、边界行为和错误路径为准。
 
 ## 开发与验证
 
-需要稳定版 Rust 工具链和 Cargo。
+需要 Rust 工具链和 Cargo。常用验证命令：
 
 ```sh
 cargo test --workspace
@@ -35,17 +59,20 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-迭代单个 crate 时可运行 `cargo test -p <crate>`。
+迭代单个 crate：
 
-## 贡献约定
+```sh
+cargo test -p athena-engine
+cargo test -p athena-ir
+cargo doc -p athena --no-deps
+```
 
-- 先阅读类型合同和 IR 验证逻辑，再添加新的数学语义。
-- 保持诊断语言无关：提供稳定 code、结构化参数和 source span，文案交给 SXO 等宿主前端。
-- 不在本仓库加入方言解析器、平台绑定或 JavaScript 集成。
-- 只有依赖关系和发布生命周期确实独立时才新增 crate，否则优先新增 `athena-engine` 模块。
-- 修改求值、重写或对象语义时，同时覆盖正常结果、边界输入和错误路径。
-- 默认保持纯 Rust（含 wasm32）；不得让门面或 default feature 链接 MKL/BLAS。
+修改数值、IR、求值、重写或对象语义时，应同时覆盖正常结果、边界输入、资源限制和结构化错误路径。默认保持纯 Rust，并确保 `wasm32` 构建不依赖系统 GPU、MKL 或 BLAS。
+
+## 诊断与数值原则
+
+诊断使用稳定 code、结构化参数、详情和 source span，不在内核中写面向用户界面的自然语言文案。数值转换必须显式表达精度和 promotion，禁止通过隐式机器浮点转换丢失精确性。
 
 ## 许可证
 
-MPL-2.0，见 [`License.md`](License.md)。
+Apache-2.0，见 [`License.md`](License.md)。
