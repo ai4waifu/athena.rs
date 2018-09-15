@@ -1,21 +1,21 @@
 [package]
-name = "athena-engine"
+name = "athena-numeric"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena CAS execution engine — Session, eval, rewrite orchestration"
+description = "Athena numeric tower — values, domains, precision, promotion, certificates"
 publish = false
 
 [features]
 default = ["pure-rust"]
 pure-rust = []
+native-accelerated = []
+mkl = ["native-accelerated"]
+blas = ["native-accelerated"]
 
 [dependencies]
 athena-types = { workspace = true }
-athena-numeric = { workspace = true }
-athena-ir = { workspace = true }
-athena-rewriter = { workspace = true }
 num-bigint = { workspace = true }
 num-rational = { workspace = true }
 num-traits = { workspace = true }

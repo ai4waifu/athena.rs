@@ -1,10 +1,10 @@
 //! Athena CAS 执行引擎 — 唯一决定「怎么算」的地方。
 //!
 //! ```text
-//! athena-types → athena-ir → athena-rewriter → athena-engine → athena
+//! athena-types → athena-numeric → athena-ir → athena-rewriter → athena-engine → athena
 //! ```
 //!
-//! 本 crate 拥有求值、Session、改写编排、域分派与 `ATHENA_*` 诊断。
+//! 本 crate 拥有求值、Session、M-Graph、solver、改写编排、域分派与 `ATHENA_*` 诊断。
 //! 不解析方言、不渲染字符串、也不绑定 N-API/WASM。
 
 #![deny(missing_docs)]
@@ -17,15 +17,20 @@ pub mod function;
 pub mod galois;
 pub mod group;
 pub mod ir;
+pub mod mgraph;
 pub mod number_theory;
 pub mod object;
 pub mod polynomial;
 pub mod rewriter;
 pub mod session;
+pub mod solver;
 pub mod symbol;
 pub mod term;
 
 mod engine;
+
+/// 数值塔（N0；与过渡期 `athena_types::Number` 并存）。
+pub use athena_numeric as numeric;
 
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
@@ -62,5 +67,14 @@ pub use polynomial::{
     CoefficientRing, DivisionPolicy, MonomialTerm, Polynomial, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
     PolynomialValue, execute_polynomial,
 };
+pub use mgraph::{
+    ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses,
+    ExactnessLevel, HyperEdge, MGraphState, RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore,
+    run_closure_step,
+};
 pub use session::Session;
+pub use solver::{
+    DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation,
+    SolverRegistry, SolverRequest, score_candidate,
+};
 pub use term::{Atom, Term, number_from_term};
