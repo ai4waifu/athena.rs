@@ -32,21 +32,16 @@ pub struct PrecisionInfo {
 impl PrecisionInfo {
     /// 精确值。
     pub fn exact() -> Self {
-        Self {
-            kind: PrecisionKind::Exact,
-            bits: None,
-            decimal_digits: None,
-            guaranteed: true,
-        }
+        Self { kind: PrecisionKind::Exact, bits: None, decimal_digits: None, guaranteed: true }
     }
 
     /// 机器实数。
     pub fn machine() -> Self {
-        Self {
-            kind: PrecisionKind::Machine,
-            bits: Some(53),
-            decimal_digits: None,
-            guaranteed: false,
-        }
+        Self { kind: PrecisionKind::Machine, bits: Some(53), decimal_digits: None, guaranteed: false }
+    }
+
+    /// 任意精度（比特）。
+    pub fn arbitrary(bits: u32) -> Self {
+        Self { kind: PrecisionKind::Arbitrary, bits: Some(bits), decimal_digits: None, guaranteed: false }
     }
 }

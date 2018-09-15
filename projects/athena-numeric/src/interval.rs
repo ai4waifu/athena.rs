@@ -1,7 +1,6 @@
 //! 区间算术骨架。
 
-use crate::precision::PrecisionKind;
-use crate::real::Real;
+use crate::{precision::PrecisionKind, real::Real};
 
 /// IEEE 1788 风格 decoration（骨架）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -31,11 +30,7 @@ pub struct Interval {
 impl Interval {
     /// 点区间。
     pub fn point(x: Real) -> Self {
-        Self {
-            lower: x.clone(),
-            upper: x,
-            decoration: IntervalDecoration::Certain,
-        }
+        Self { lower: x.clone(), upper: x, decoration: IntervalDecoration::Certain }
     }
 
     /// 精度种类提示。

@@ -1,4 +1,4 @@
-//! Athena 数值塔 — 表示、运算、精度、promotion、证书（Living `16` N0 骨架）。
+//! Athena 数值塔 — 表示、运算、精度、promotion、证书（Living `16` N0–N2）。
 //!
 //! `num-*` 仅作内部存储候选，不作为公共语义。公共 API 不暴露 `num_bigint::BigInt`。
 
@@ -30,14 +30,14 @@ pub use comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, Nu
 pub use complex::{BranchPolicy, Complex};
 pub use domain::NumericDomain;
 pub use finite_field::FiniteFieldValue;
-pub use integer::Integer;
+pub use integer::{ExactInteger, Integer, Sign};
 pub use interval::{Interval, IntervalDecoration};
 pub use modular::ModularValue;
 pub use number::{NumericProvenance, NumericRepr, NumericValue};
 pub use p_adic::PAdicValue;
 pub use precision::{PrecisionInfo, PrecisionKind};
 pub use promotion::{DefaultPromotion, Promotion, PromotionPolicy};
-pub use rational::Rational;
+pub use rational::{ExactRational, Rational};
 pub use real::Real;
 pub use rounding::RoundingPolicy;
 pub use serialization::NumericValueWire;
