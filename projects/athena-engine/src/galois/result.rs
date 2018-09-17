@@ -28,8 +28,6 @@ pub fn execute_galois(request: GaloisRequest) -> GaloisResult {
         GaloisRequest::FixedField { .. } => "fixed_field",
     };
     GaloisResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "galois")
-            .detail("operation", op),
+        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "galois").detail("operation", op),
     }
 }

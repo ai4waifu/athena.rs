@@ -1,7 +1,6 @@
 //! 求解器注册表。
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -26,14 +25,11 @@ impl SolverRegistry {
 
     /// 查找。
     pub fn get(&self, id: SolverId) -> Result<&dyn Reflector, Diagnostic> {
-        self.reflectors
-            .get(&id.0)
-            .map(|r| r.as_ref())
-            .ok_or_else(|| {
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("domain", "solver")
-                    .detail("operation", "lookup")
-                    .arg("solver_id", id.0)
-            })
+        self.reflectors.get(&id.0).map(|r| r.as_ref()).ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "solver")
+                .detail("operation", "lookup")
+                .arg("solver_id", id.0)
+        })
     }
 }

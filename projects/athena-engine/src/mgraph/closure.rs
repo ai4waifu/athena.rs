@@ -33,8 +33,10 @@ pub fn run_closure_step(state: &MGraphState, _limits: &ClosureLimits) -> Closure
     ClosureResult {
         state: state.clone(),
         complete: false,
-        diagnostics: vec![Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "mgraph")
-            .detail("operation", "closure_step")],
+        diagnostics: vec![
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "mgraph")
+                .detail("operation", "closure_step"),
+        ],
     }
 }

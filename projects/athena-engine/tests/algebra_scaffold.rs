@@ -11,9 +11,7 @@ use athena_engine::{
 fn polynomial_scaffold_unevaluated() {
     let engine = AthenaEngine::new();
     let p = Polynomial::zero(CoefficientRing::Integer, vec!["x".into()]);
-    let out = engine
-        .execute_domain(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: p }))
-        .expect("ok");
+    let out = engine.execute_domain(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: p })).expect("ok");
     match out {
         DomainResult::Polynomial(PolynomialResult::Unevaluated { reason }) => {
             assert_eq!(reason.code, DiagnosticCode::UnsupportedOperation);
@@ -27,14 +25,10 @@ fn polynomial_scaffold_unevaluated() {
 fn group_field_galois_scaffolds_unevaluated() {
     let engine = AthenaEngine::new();
 
-    let g = engine
-        .execute_domain(DomainRequest::GroupTheory(GroupRequest::Cyclic { order: BigInt::from(5) }))
-        .expect("ok");
+    let g = engine.execute_domain(DomainRequest::GroupTheory(GroupRequest::Cyclic { order: BigInt::from(5) })).expect("ok");
     assert!(matches!(g, DomainResult::GroupTheory(_)));
 
-    let f = engine
-        .execute_domain(DomainRequest::FieldTheory(FieldRequest::Rationals))
-        .expect("ok");
+    let f = engine.execute_domain(DomainRequest::FieldTheory(FieldRequest::Rationals)).expect("ok");
     assert!(matches!(f, DomainResult::FieldTheory(_)));
 
     let gal = engine
@@ -59,10 +53,7 @@ fn number_theory_congruence_scaffold() {
     match out {
         DomainResult::NumberTheory(athena_engine::NumberTheoryResult::Unevaluated { reason }) => {
             assert_eq!(reason.code, DiagnosticCode::UnsupportedOperation);
-            assert_eq!(
-                reason.details.get("operation").map(|v| v.to_string()).as_deref(),
-                Some("solve_linear_congruence")
-            );
+            assert_eq!(reason.details.get("operation").map(|v| v.to_string()).as_deref(), Some("solve_linear_congruence"));
         }
         other => panic!("expected congruence scaffold, got {other:?}"),
     }

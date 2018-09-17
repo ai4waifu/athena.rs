@@ -30,8 +30,6 @@ pub fn execute_group(request: GroupRequest) -> GroupResult {
         GroupRequest::IsAbelian { .. } => "is_abelian",
     };
     GroupResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "group")
-            .detail("operation", op),
+        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "group").detail("operation", op),
     }
 }
