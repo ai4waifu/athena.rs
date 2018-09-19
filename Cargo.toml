@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = ["projects/*"]
-exclude = ["projects/athena-benchmark"]
 default-members = [
     "projects/athena-types",
     "projects/athena-numeric",
@@ -24,10 +23,11 @@ athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
 athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
+athena-benchmark = { path = "projects/athena-benchmark" }
 num-bigint = { version = "0.4", default-features = false, features = ["std"] }
 num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
 num-traits = "0.2"
-libloading = "0.8"
+libloading = "0.9.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 clap = { version = "4.5.48", features = ["derive"] }

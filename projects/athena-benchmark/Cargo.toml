@@ -1,0 +1,31 @@
+[package]
+name = "athena-benchmark"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Athena kernel benchmarks — deterministic fixtures and machine-readable reports"
+publish = false
+
+[[bin]]
+name = "athena-bench"
+path = "src/bin/athena-bench.rs"
+
+[features]
+default = []
+# Reserved for athena-jit; without a JIT crate the jit group is skipped.
+jit = []
+
+[dependencies]
+athena-numeric = { workspace = true }
+athena-ir = { workspace = true }
+athena-rewriter = { workspace = true }
+athena-engine = { workspace = true }
+athena-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
