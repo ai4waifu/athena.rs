@@ -49,7 +49,7 @@ impl NumericCompare for DefaultNumericCompare {
         if std::ptr::eq(lhs, rhs) {
             return Ok(NumericComparison::Identity);
         }
-        if lhs.domain != rhs.domain {
+        if lhs.domain() != rhs.domain() {
             let domain = DefaultPromotion::common_domain(lhs, rhs, &policy.promotion)?;
             let a = DefaultPromotion::promote(lhs.clone(), &domain, &policy.promotion)?;
             let b = DefaultPromotion::promote(rhs.clone(), &domain, &policy.promotion)?;
@@ -65,7 +65,7 @@ impl DefaultNumericCompare {
         rhs: &NumericValue,
         _policy: &ComparisonPolicy,
     ) -> Result<NumericComparison, Diagnostic> {
-        match (&lhs.value, &rhs.value) {
+        match (lhs.repr(), rhs.repr()) {
             (NumericRepr::Integer(a), NumericRepr::Integer(b)) => {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
             }
@@ -78,6 +78,9 @@ impl DefaultNumericCompare {
                     (Real::Machine(x), Real::Machine(y)) if x.is_finite() && y.is_finite() => {
                         let tol = 1e-12 * (1.0 + x.abs() + y.abs());
                         Ok(if (x - y).abs() <= tol { NumericComparison::ApproximateEqual } else { NumericComparison::Unequal })
+                    }
+                    (Real::Arbitrary { ieee754_bits: x, .. }, Real::Arbitrary { ieee754_bits: y, .. }) => {
+                        Ok(if x == y { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                     }
                     _ => Ok(NumericComparison::Unknown),
                 }

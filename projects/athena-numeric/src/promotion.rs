@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use crate::{
     domain::NumericDomain,
     integer::Integer,
-    number::{NumericRepr, NumericValue},
+    number::{NumericProvenance, NumericRepr, NumericValue},
     precision::{PrecisionInfo, PrecisionKind},
     rational::Rational,
     real::Real,
@@ -40,15 +40,15 @@ pub struct DefaultPromotion;
 
 impl Promotion for DefaultPromotion {
     fn common_domain(lhs: &NumericValue, rhs: &NumericValue, policy: &PromotionPolicy) -> Result<NumericDomain, Diagnostic> {
-        if lhs.domain == rhs.domain {
-            return Ok(match (&lhs.domain, &lhs.precision.kind, &rhs.precision.kind) {
+        if lhs.domain() == rhs.domain() {
+            return Ok(match (lhs.domain(), lhs.precision().kind, rhs.precision().kind) {
                 (NumericDomain::Real, PrecisionKind::Machine, PrecisionKind::Arbitrary)
                 | (NumericDomain::Real, PrecisionKind::Arbitrary, PrecisionKind::Machine)
                 | (NumericDomain::Real, PrecisionKind::Arbitrary, PrecisionKind::Arbitrary) => NumericDomain::Real,
-                _ => lhs.domain.clone(),
+                _ => lhs.domain().clone(),
             });
         }
-        match (&lhs.domain, &rhs.domain) {
+        match (lhs.domain(), rhs.domain()) {
             (NumericDomain::Integer, NumericDomain::Rational) | (NumericDomain::Rational, NumericDomain::Integer) => {
                 Ok(NumericDomain::Rational)
             }
@@ -68,17 +68,11 @@ impl Promotion for DefaultPromotion {
     }
 
     fn promote(value: NumericValue, target: &NumericDomain, policy: &PromotionPolicy) -> Result<NumericValue, Diagnostic> {
-        if &value.domain == target {
-            return match (target, value.precision.kind) {
-                (NumericDomain::Real, PrecisionKind::Machine) => {
-                    // 同域 Machine → Arbitrary 由调用方传 Arbitrary 精度目标时走下方分支；此处恒等。
-                    Ok(value)
-                }
-                _ => Ok(value),
-            };
+        if value.domain() == target {
+            return Ok(value);
         }
 
-        match (&value.domain, target, &value.value) {
+        match (value.domain(), target, value.repr()) {
             (NumericDomain::Integer, NumericDomain::Rational, NumericRepr::Integer(n)) => {
                 Ok(NumericValue::rational(Rational::from_integer(n.clone())))
             }
@@ -103,28 +97,32 @@ impl DefaultPromotion {
         target_kind: PrecisionKind,
         policy: &PromotionPolicy,
     ) -> Result<NumericValue, Diagnostic> {
-        if value.domain != NumericDomain::Real {
+        if value.domain() != &NumericDomain::Real {
             return Err(mismatch("promote_real_precision"));
         }
-        if value.precision.kind == target_kind {
+        if value.precision().kind == target_kind {
             return Ok(value);
         }
-        match (&value.value, value.precision.kind, target_kind) {
-            (NumericRepr::Real(Real::Machine(x)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => Ok(NumericValue {
-                domain: NumericDomain::Real,
-                value: NumericRepr::Real(Real::Arbitrary { decimal: format!("{x}"), precision: PrecisionInfo::arbitrary(53) }),
-                precision: PrecisionInfo::arbitrary(53),
-                provenance: value.provenance,
-            }),
-            (NumericRepr::Real(Real::Arbitrary { decimal, .. }), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
+        match (value.repr(), value.precision().kind, target_kind) {
+            (NumericRepr::Real(Real::Machine(x)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
+                if !x.is_finite() {
+                    return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                        .detail("domain", "numeric")
+                        .detail("operation", "machine_non_finite_to_arbitrary"));
+                }
+                const WORKING_BITS: u32 = 53;
+                NumericValue::try_new(
+                    NumericDomain::Real,
+                    NumericRepr::Real(Real::from_machine_promoted(*x, WORKING_BITS)),
+                    PrecisionInfo::arbitrary(WORKING_BITS),
+                    NumericProvenance::default(),
+                )
+            }
+            (NumericRepr::Real(Real::Arbitrary { ieee754_bits, .. }), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
                 if !policy.allow_arbitrary_to_machine {
                     return Err(forbidden("arbitrary_to_machine"));
                 }
-                let x: f64 = decimal.parse().map_err(|_| {
-                    Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                        .detail("domain", "numeric")
-                        .detail("operation", "arbitrary_parse")
-                })?;
+                let x = f64::from_bits(*ieee754_bits);
                 if !x.is_finite() {
                     return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                         .detail("domain", "numeric")
@@ -141,7 +139,7 @@ fn exact_to_machine_int(n: &Integer, policy: &PromotionPolicy) -> Result<Numeric
     if !policy.allow_exact_to_machine {
         return Err(forbidden("exact_to_machine"));
     }
-    match n.to_f64_exact_machine() {
+    match n.try_to_f64_exact() {
         Some(x) => Ok(NumericValue::machine_real(x)),
         None => Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss)
             .detail("domain", "numeric")
@@ -153,7 +151,7 @@ fn exact_to_machine_rat(r: &Rational, policy: &PromotionPolicy) -> Result<Numeri
     if !policy.allow_exact_to_machine {
         return Err(forbidden("exact_to_machine"));
     }
-    match r.to_f64_exact_machine() {
+    match r.try_to_f64_exact() {
         Some(x) => Ok(NumericValue::machine_real(x)),
         None => Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss)
             .detail("domain", "numeric")

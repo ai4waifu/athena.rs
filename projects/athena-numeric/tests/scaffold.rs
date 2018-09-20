@@ -2,7 +2,7 @@
 
 use athena_numeric::{
     DefaultNumericCompare, DefaultPromotion, Integer, NumericBackend, NumericCompare, NumericComparison, NumericDomain,
-    NumericValue, NumericValueWire, PrecisionKind, Promotion, PromotionPolicy, PureRustBackend, Rational, Sign,
+    NumericRepr, NumericValue, NumericValueWire, PrecisionKind, Promotion, PromotionPolicy, PureRustBackend, Rational, Sign,
 };
 
 #[test]
@@ -36,7 +36,7 @@ fn serialize_integer_rational_roundtrip() {
     let v = NumericValue::integer(Integer::from_i64(99));
     let wire = NumericValueWire::encode(&v).unwrap();
     let back = wire.decode().unwrap();
-    assert!(matches!(back.value, athena_numeric::NumericRepr::Integer(_)));
+    assert!(matches!(back.repr(), NumericRepr::Integer(_)));
     assert_eq!(DefaultNumericCompare::compare(&v, &back, &Default::default()).unwrap(), NumericComparison::ExactEqual);
 
     let r = NumericValue::rational(Rational::new(Integer::from_i64(3), Integer::from_i64(6)));
@@ -59,9 +59,9 @@ fn promotion_integer_to_rational() {
     let a = NumericValue::integer(Integer::from_i64(5));
     let domain = NumericDomain::Rational;
     let promoted = DefaultPromotion::promote(a, &domain, &PromotionPolicy::default()).unwrap();
-    assert_eq!(promoted.domain, NumericDomain::Rational);
-    match promoted.value {
-        athena_numeric::NumericRepr::Rational(r) => {
+    assert_eq!(*promoted.domain(), NumericDomain::Rational);
+    match promoted.repr() {
+        NumericRepr::Rational(r) => {
             assert_eq!(r.numerator().to_decimal_string(), "5");
             assert_eq!(r.denominator().to_decimal_string(), "1");
         }
@@ -77,15 +77,15 @@ fn promotion_exact_to_machine_requires_policy() {
 
     let policy = PromotionPolicy { allow_exact_to_machine: true, allow_arbitrary_to_machine: false };
     let m = DefaultPromotion::promote(a, &NumericDomain::Real, &policy).unwrap();
-    assert_eq!(m.domain, NumericDomain::Real);
-    assert_eq!(m.precision.kind, PrecisionKind::Machine);
+    assert_eq!(*m.domain(), NumericDomain::Real);
+    assert_eq!(m.precision().kind, PrecisionKind::Machine);
 }
 
 #[test]
 fn promotion_machine_arbitrary_roundtrip() {
     let m = NumericValue::machine_real(1.5);
     let arb = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).unwrap();
-    assert_eq!(arb.precision.kind, PrecisionKind::Arbitrary);
+    assert_eq!(arb.precision().kind, PrecisionKind::Arbitrary);
 
     let err =
         DefaultPromotion::promote_real_precision(arb.clone(), PrecisionKind::Machine, &PromotionPolicy::default()).unwrap_err();
@@ -93,7 +93,8 @@ fn promotion_machine_arbitrary_roundtrip() {
 
     let policy = PromotionPolicy { allow_exact_to_machine: false, allow_arbitrary_to_machine: true };
     let back = DefaultPromotion::promote_real_precision(arb, PrecisionKind::Machine, &policy).unwrap();
-    assert_eq!(back.precision.kind, PrecisionKind::Machine);
+    assert_eq!(back.precision().kind, PrecisionKind::Machine);
+    assert_eq!(back.as_machine_f64(), Some(1.5));
 }
 
 #[test]
@@ -108,4 +109,17 @@ fn promotion_domain_mismatch() {
 fn pure_rust_backend_is_wasm_safe() {
     assert!(PureRustBackend.wasm_safe());
     assert_eq!(PureRustBackend.name(), "pure-rust");
+}
+
+#[test]
+fn try_new_rejects_domain_repr_mismatch() {
+    use athena_numeric::{NumericProvenance, PrecisionInfo};
+    let err = NumericValue::try_new(
+        NumericDomain::Integer,
+        NumericRepr::Real(athena_numeric::Real::machine(1.0)),
+        PrecisionInfo::exact(),
+        NumericProvenance::default(),
+    )
+    .unwrap_err();
+    assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_DOMAIN_MISMATCH");
 }

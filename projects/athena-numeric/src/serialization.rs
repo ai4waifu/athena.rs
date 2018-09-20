@@ -32,19 +32,19 @@ impl NumericValueWire {
 
     /// 编码 [`NumericValue`]（N1 覆盖 Integer / Rational）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
-        match &value.value {
+        match value.repr() {
             NumericRepr::Integer(n) => Ok(Self {
                 kind: NumericKind::Integer,
                 domain_payload: Vec::new(),
                 payload: n.to_decimal_string().into_bytes(),
-                precision: value.precision.clone(),
+                precision: value.precision().clone(),
                 version: Self::current_version(),
             }),
             NumericRepr::Rational(r) => Ok(Self {
                 kind: NumericKind::Rational,
                 domain_payload: Vec::new(),
                 payload: r.to_wire_string().into_bytes(),
-                precision: value.precision.clone(),
+                precision: value.precision().clone(),
                 version: Self::current_version(),
             }),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

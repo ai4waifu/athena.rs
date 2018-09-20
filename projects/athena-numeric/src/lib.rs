@@ -1,7 +1,4 @@
 //! Athena 数值塔 — 表示、运算、精度、promotion、证书（Living `16` N0–N2）。
-//!
-//! `num-*` 仅作内部存储候选，不作为公共语义。公共 API 不暴露 `num_bigint::BigInt`。
-
 #![deny(missing_docs)]
 
 pub mod algebraic;
@@ -13,8 +10,11 @@ pub mod domain;
 pub mod finite_field;
 pub mod integer;
 pub mod interval;
+pub mod kernel_number;
 pub mod modular;
+pub mod natural;
 pub mod number;
+pub mod number_wire;
 pub mod p_adic;
 pub mod precision;
 pub mod promotion;
@@ -32,8 +32,10 @@ pub use domain::NumericDomain;
 pub use finite_field::FiniteFieldValue;
 pub use integer::{ExactInteger, Integer, Sign};
 pub use interval::{Interval, IntervalDecoration};
-pub use modular::ModularValue;
-pub use number::{NumericProvenance, NumericRepr, NumericValue};
+pub use kernel_number::{abs, add, compare, div, factorial, mul, neg, pow, sqrt, to_f64_lossy};
+pub use modular::{ModularValue, Modulus};
+pub use number::{Number, NumericProvenance, NumericRepr, NumericValue};
+pub use number_wire::{from_wire as number_from_wire, to_wire as number_to_wire};
 pub use p_adic::PAdicValue;
 pub use precision::{PrecisionInfo, PrecisionKind};
 pub use promotion::{DefaultPromotion, Promotion, PromotionPolicy};

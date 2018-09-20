@@ -1,8 +1,8 @@
 //! 数值域上下文（显式，禁止静默跨域）。
 
-use athena_types::{FieldId, Modulus};
+use athena_types::FieldId;
 
-use crate::integer::Integer;
+use crate::{integer::Integer, modular::Modulus};
 
 /// 运算所处的数值域。
 #[derive(Debug, Clone, PartialEq, Eq)]
