@@ -1,7 +1,6 @@
 //! 群论域请求。
 
-use num_bigint::BigInt;
-
+use athena_numeric::Integer;
 use athena_types::GroupId;
 
 use super::types::{GroupElement, Permutation};
@@ -12,7 +11,7 @@ pub enum GroupRequest {
     /// 构造循环群。
     Cyclic {
         /// 阶。
-        order: BigInt,
+        order: Integer,
     },
     /// 由生成置换构造置换群。
     PermutationGroup {

@@ -1,6 +1,7 @@
 //! 受控 IR 构造 API。
 
-use athena_types::{Number, OperatorId, SourceSpan, SymbolId, TermId};
+use athena_numeric::NumericValue;
+use athena_types::{OperatorId, SourceSpan, SymbolId, TermId};
 
 use crate::{
     arena::TermArena,
@@ -21,7 +22,7 @@ impl<'a> TermBuilder<'a> {
     }
 
     /// 数字原子 term。
-    pub fn number(&mut self, n: Number, span: SourceSpan) -> TermId {
+    pub fn number(&mut self, n: NumericValue, span: SourceSpan) -> TermId {
         self.arena.push(TermKind::Atom(AtomKind::Number(n)), span)
     }
 

@@ -1,6 +1,7 @@
 //! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z bootstrap。
 
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
+use athena_numeric::{Number, abs as num_abs, compare as num_compare};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
 use crate::{
     eval::evaluate,
@@ -216,7 +217,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     for a in args {
                         let (fa, roc) = laplace_one(a, t, s)?;
                         if let Some(b) = roc_half_plane_bound(&roc) {
-                            if b.compare(&roc_bound) == Some(std::cmp::Ordering::Greater) {
+                            if num_compare(&b, &roc_bound) == Some(std::cmp::Ordering::Greater) {
                                 roc_bound = b;
                             }
                         }
@@ -243,16 +244,16 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                 }
                 "Power" if args.len() == 2 && args[0].is_symbol(t) => {
                     let n = number_from_term(&args[1]).and_then(|e| e.as_integer_exp())?;
-                    if n < 0.into() {
+                    if n < 0 {
                         return None;
                     }
-                    let n_u = u32::try_from(&n).ok()?;
+                    let n_u = u32::try_from(n).ok()?;
                     // L{t^n} = n! / s^{n+1}
                     let fact = factorial_u32(n_u)?;
                     let body = evaluate(&Term::apply(
                         "Times",
                         vec![
-                            Term::integer(fact),
+                            Term::integer(i64::from(fact)),
                             Term::apply("Power", vec![Term::symbol(s), Term::integer(-(n_u as i64 + 1))]),
                         ],
                     ));
@@ -417,7 +418,7 @@ fn fourier_causal_exp(expr: &Term, t: &str, omega: &str) -> Option<(Term, Region
     }
     let a_signed = match_coeff_times_var(&args[0], t)?;
     let zero = Number::small_int(0);
-    if a_signed.compare(&zero) != Some(std::cmp::Ordering::Less) {
+    if num_compare(&a_signed, &zero) != Some(std::cmp::Ordering::Less) {
         return None;
     }
     let a = evaluate_neg_number(&a_signed)?;
@@ -461,7 +462,7 @@ fn match_neg_coeff_abs_var(term: &Term, var: &str) -> Option<Number> {
                 return None;
             };
             let zero = Number::small_int(0);
-            if coeff.compare(&zero) != Some(std::cmp::Ordering::Less) {
+            if num_compare(&coeff, &zero) != Some(std::cmp::Ordering::Less) {
                 return None;
             }
             evaluate_neg_number(&coeff)
@@ -491,7 +492,7 @@ fn match_neg_coeff_square_var(term: &Term, var: &str) -> Option<Number> {
                 return None;
             };
             let zero = Number::small_int(0);
-            if coeff.compare(&zero) != Some(std::cmp::Ordering::Less) {
+            if num_compare(&coeff, &zero) != Some(std::cmp::Ordering::Less) {
                 return None;
             }
             evaluate_neg_number(&coeff)
@@ -507,7 +508,7 @@ fn is_square_of(term: &Term, var: &str) -> bool {
             if head.is_symbol("Power")
                 && args.len() == 2
                 && args[0].is_symbol(var)
-                && number_from_term(&args[1]).and_then(|n| n.as_integer_exp()) == Some(2.into())
+                && number_from_term(&args[1]).and_then(|n| n.as_integer_exp()) == Some(2)
     )
 }
 
@@ -517,7 +518,7 @@ fn evaluate_neg_number(n: &Number) -> Option<Number> {
 }
 
 fn number_is_positive(n: &Number) -> bool {
-    n.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Greater)
+    num_compare(n, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater)
 }
 
 fn match_coeff_times_var(term: &Term, var: &str) -> Option<Number> {
@@ -574,7 +575,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                         let (fa, roc) = z_one(a, n, z)?;
                         if let Some(r) = roc_abs_radius(&roc) {
                             all_entire = false;
-                            if r.compare(&radius) == Some(std::cmp::Ordering::Greater) {
+                            if num_compare(&r, &radius) == Some(std::cmp::Ordering::Greater) {
                                 radius = r;
                             }
                         }
@@ -614,7 +615,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                     }
                     // n * a^n → a z / (z-a)^2
                     if let Some(a) = match_n_times_power(args, n) {
-                        let radius = a.clone().abs();
+                        let radius = num_abs(a.clone());
                         let den = evaluate(&Term::apply(
                             "Power",
                             vec![
@@ -640,7 +641,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                 "Power" if args.len() == 2 && args[1].is_symbol(n) => {
                     let a = number_from_term(&args[0]).cloned()?;
                     // a^n → z/(z-a), |z|>|a|
-                    let radius = a.clone().abs();
+                    let radius = num_abs(a.clone());
                     Some((z_over_z_minus(z, &a), RegionOfConvergence::abs_z_greater(z, radius)))
                 }
                 _ => None,

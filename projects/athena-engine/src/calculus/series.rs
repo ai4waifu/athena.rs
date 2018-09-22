@@ -325,8 +325,7 @@ fn valuation(expr: &Term, var: &str) -> Option<i64> {
                 "Power" if args.len() == 2 => {
                     let base_v = valuation(&args[0], var)?;
                     let exp = number_from_term(&args[1]).and_then(|e| e.as_integer_exp())?;
-                    let e = i64::try_from(&exp).ok()?;
-                    Some(base_v.saturating_mul(e))
+                    Some(base_v.saturating_mul(exp))
                 }
                 _ => {
                     // 未知头部：若参数含 var 则保守拒绝清除

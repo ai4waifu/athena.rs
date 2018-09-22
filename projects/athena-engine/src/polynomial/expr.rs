@@ -1,6 +1,6 @@
 //! 稀疏多项式对象（规范化后才可 hash）。
 
-use athena_types::Number;
+use athena_numeric::Number;
 
 use super::ring::CoefficientRing;
 

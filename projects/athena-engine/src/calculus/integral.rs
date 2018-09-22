@@ -1,8 +1,5 @@
 //! 桥接 [`Term`] 上的不定 / 定积分（初等子集）。
 
-use num_bigint::BigInt;
-use num_traits::Zero;
-
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
@@ -43,13 +40,10 @@ pub fn integrate(expr: &Term, var: &str) -> Term {
                 }
                 "Power" if args.len() == 2 && args[0].is_symbol(var) => {
                     if let Some(n) = number_from_term(&args[1]).and_then(|e| e.as_integer_exp()) {
-                        if (n.clone() + 1) != BigInt::zero() {
+                        if n != -1 {
                             return evaluate(&Term::apply(
                                 "Divide",
-                                vec![
-                                    Term::apply("Power", vec![args[0].clone(), Term::integer(n.clone() + 1i64)]),
-                                    Term::integer(n + 1i64),
-                                ],
+                                vec![Term::apply("Power", vec![args[0].clone(), Term::integer(n + 1)]), Term::integer(n + 1)],
                             ));
                         }
                     }

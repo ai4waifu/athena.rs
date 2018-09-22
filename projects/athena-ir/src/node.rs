@@ -1,12 +1,13 @@
 //! Core CAS IR term 种类（arena 持有，由 [`TermId`](athena_types::TermId) 引用）。
 
-use athena_types::{Number, OperatorId, SourceSpan, SymbolId, TermId};
+use athena_numeric::NumericValue;
+use athena_types::{OperatorId, SourceSpan, SymbolId, TermId};
 
 /// 原子 term 载荷。
 #[derive(Debug, Clone, PartialEq)]
 pub enum AtomKind {
-    /// 内核数字。
-    Number(Number),
+    /// 内核数字（唯一数值真相源：[`NumericValue`]）。
+    Number(NumericValue),
     /// 字符串字面量。
     String(String),
     /// intern 符号。

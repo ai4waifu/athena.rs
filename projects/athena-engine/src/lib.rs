@@ -30,16 +30,16 @@ pub mod term;
 
 mod engine;
 
-/// 数值塔（N0；与过渡期 `athena_types::Number` 并存）。
+/// 数值塔（Living `16`：[`NumericValue`] 为唯一执行真相源）。
 pub use athena_numeric as numeric;
 
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
+pub use athena_numeric::{ExactInteger, Integer, ModularValue, Modulus, Number, NumericDomain, NumericValue};
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
-    ExactNumber, ExtensionId, FieldId, GroupElementId, GroupId, ModularValue, Modulus, NodeId, Number, NumericDomain,
-    OperatorId, Precision, Predicate, RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SymbolId,
-    TermId,
+    ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision, Predicate, Result, RoundingMode,
+    SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
 };
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution, Divergence,
@@ -51,7 +51,8 @@ pub use calculus::{
 };
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use eval::{differentiate as differentiate_term, evaluate};
+pub use eval::evaluate;
+pub use calculus::differentiate as differentiate_term;
 pub use field::{Field, FieldDomainValue, FieldElement, FieldKind, FieldRequest, FieldResult, execute_field};
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
 pub use galois::{Automorphism, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois};

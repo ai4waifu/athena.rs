@@ -1,7 +1,6 @@
 //! 域论域请求。
 
-use num_bigint::BigInt;
-
+use athena_numeric::Integer;
 use athena_types::FieldId;
 
 use super::types::FieldElement;
@@ -12,7 +11,7 @@ pub enum FieldRequest {
     /// 素域 𝔽_p。
     PrimeField {
         /// 素数 p。
-        characteristic: BigInt,
+        characteristic: Integer,
     },
     /// 有理数域。
     Rationals,

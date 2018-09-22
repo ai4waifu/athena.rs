@@ -1,6 +1,7 @@
 //! 均匀网格 1D 采样。
 
-use athena_types::{Diagnostic, DiagnosticCode, Number, Result};
+use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
+use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     calculus::replace_symbol,
@@ -47,7 +48,7 @@ pub fn sample_1d(expr: &Term, var: &str, domain: SampleDomain, policy: SamplingP
         let x = domain.start + span * t;
         let substituted = replace_symbol(expr, var, &Term::number(Number::machine(x)));
         let value = evaluate(&substituted);
-        let (y, valid) = match number_from_term(&value).and_then(|num| num.to_f64_lossy()) {
+        let (y, valid) = match number_from_term(&value).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
         };

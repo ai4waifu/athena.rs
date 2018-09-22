@@ -16,9 +16,6 @@ athena-types = { workspace = true }
 athena-numeric = { workspace = true }
 athena-ir = { workspace = true }
 athena-rewriter = { workspace = true }
-num-bigint = { workspace = true }
-num-rational = { workspace = true }
-num-traits = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

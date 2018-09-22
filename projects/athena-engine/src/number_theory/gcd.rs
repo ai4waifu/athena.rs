@@ -1,54 +1,46 @@
 //! 整数 gcd / lcm / 扩展欧几里得。
 
-use num_bigint::BigInt;
-use num_traits::{Signed, Zero};
+use athena_numeric::Integer;
 
 use super::value::ExtendedGcd;
 
 /// 非负最大公约数；`gcd(0,0) = 0`。
-pub fn gcd(a: &BigInt, b: &BigInt) -> BigInt {
-    let mut a = a.abs();
-    let mut b = b.abs();
-    while !b.is_zero() {
-        let r = &a % &b;
-        a = b;
-        b = r;
-    }
-    a
+pub fn gcd(a: &Integer, b: &Integer) -> Integer {
+    a.gcd(b)
 }
 
 /// 非负最小公倍数；`lcm(0,0) = 0`，`lcm(0,n)=0`。
-pub fn lcm(a: &BigInt, b: &BigInt) -> BigInt {
+pub fn lcm(a: &Integer, b: &Integer) -> Integer {
     if a.is_zero() || b.is_zero() {
-        return BigInt::zero();
+        return Integer::zero();
     }
     let g = gcd(a, b);
-    (a.abs() / g) * b.abs()
+    a.abs().div(&g).mul(&b.abs())
 }
 
 /// 扩展欧几里得：返回 `g = gcd(|a|,|b|)` 与 Bézout，使 `s·a + t·b = ±g` 对齐到 `s·a + t·b = g`（对原符号校正）。
-pub fn extended_gcd(a: &BigInt, b: &BigInt) -> ExtendedGcd {
-    let a_sign = if a.is_negative() { BigInt::from(-1) } else { BigInt::from(1) };
-    let b_sign = if b.is_negative() { BigInt::from(-1) } else { BigInt::from(1) };
+pub fn extended_gcd(a: &Integer, b: &Integer) -> ExtendedGcd {
+    let a_sign = if a.is_negative() { Integer::from_i64(-1) } else { Integer::one() };
+    let b_sign = if b.is_negative() { Integer::from_i64(-1) } else { Integer::one() };
     let mut old_r = a.abs();
     let mut r = b.abs();
-    let mut old_s = BigInt::from(1);
-    let mut s = BigInt::zero();
-    let mut old_t = BigInt::zero();
-    let mut t = BigInt::from(1);
+    let mut old_s = Integer::one();
+    let mut s = Integer::zero();
+    let mut old_t = Integer::zero();
+    let mut t = Integer::one();
     while !r.is_zero() {
-        let q = &old_r / &r;
-        let next_r = &old_r - &q * &r;
+        let q = old_r.div(&r);
+        let next_r = old_r.sub(&q.mul(&r));
         old_r = r;
         r = next_r;
-        let next_s = &old_s - &q * &s;
+        let next_s = old_s.sub(&q.mul(&s));
         old_s = s;
         s = next_s;
-        let next_t = &old_t - &q * &t;
+        let next_t = old_t.sub(&q.mul(&t));
         old_t = t;
         t = next_t;
     }
-    ExtendedGcd { g: old_r, s: old_s * a_sign, t: old_t * b_sign }
+    ExtendedGcd { g: old_r, s: old_s.mul(&a_sign), t: old_t.mul(&b_sign) }
 }
 
 #[cfg(test)]
@@ -57,17 +49,17 @@ mod tests {
 
     #[test]
     fn gcd_basic() {
-        assert_eq!(gcd(&12.into(), &18.into()), BigInt::from(6));
-        assert_eq!(gcd(&(-12).into(), &18.into()), BigInt::from(6));
-        assert_eq!(gcd(&0.into(), &0.into()), BigInt::zero());
+        assert_eq!(gcd(&12.into(), &18.into()), Integer::from_i64(6));
+        assert_eq!(gcd(&(-12).into(), &18.into()), Integer::from_i64(6));
+        assert_eq!(gcd(&0.into(), &0.into()), Integer::zero());
     }
 
     #[test]
     fn egcd_bezout() {
-        let a = BigInt::from(240);
-        let b = BigInt::from(46);
+        let a = Integer::from_i64(240);
+        let b = Integer::from_i64(46);
         let e = extended_gcd(&a, &b);
-        assert_eq!(&e.s * &a + &e.t * &b, e.g);
-        assert_eq!(e.g, BigInt::from(2));
+        assert_eq!(e.s.mul(&a).add(&e.t.mul(&b)), e.g);
+        assert_eq!(e.g, Integer::from_i64(2));
     }
 }

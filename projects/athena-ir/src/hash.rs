@@ -34,7 +34,8 @@ fn hash_term(arena: &TermArena, id: TermId, h: &mut DefaultHasher, seen: &mut Ve
     match kind {
         TermKind::Atom(AtomKind::Number(n)) => {
             "num".hash(h);
-            format!("{n:?}").hash(h);
+            n.to_render_string().hash(h);
+            format!("{:?}", n.domain()).hash(h);
         }
         TermKind::Atom(AtomKind::String(s)) => {
             "str".hash(h);

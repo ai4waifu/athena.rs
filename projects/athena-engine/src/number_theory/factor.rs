@@ -1,7 +1,6 @@
 //! 整数试除因式分解（bootstrap）。
 
-use num_bigint::BigInt;
-use num_traits::{One, Signed, ToPrimitive, Zero};
+use athena_numeric::Integer;
 
 use super::{
     primes::primality_test,
@@ -24,24 +23,24 @@ impl Default for FactorLimits {
 }
 
 /// 整数因式分解（试除 bootstrap）。
-pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
+pub fn factor_integer(n: &Integer, limits: &FactorLimits) -> Factorization {
     if n.is_zero() {
         return Factorization {
-            unit: BigInt::one(),
+            unit: Integer::one(),
             factors: Vec::new(),
-            remainder: BigInt::zero(),
+            remainder: Integer::zero(),
             completeness: FactorizationCompleteness::Partial,
         };
     }
 
-    let unit = if n.is_negative() { BigInt::from(-1) } else { BigInt::one() };
+    let unit = if n.is_negative() { Integer::from_i64(-1) } else { Integer::one() };
     let mut m = n.abs();
 
     if m.is_one() {
         return Factorization {
             unit,
             factors: Vec::new(),
-            remainder: BigInt::one(),
+            remainder: Integer::one(),
             completeness: FactorizationCompleteness::Complete,
         };
     }
@@ -57,11 +56,10 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
 
     let mut factors: Vec<PrimePower> = Vec::new();
 
-    // 因子 2
-    let two = BigInt::from(2);
+    let two = Integer::from_i64(2);
     let mut exp2 = 0u32;
-    while (&m % &two).is_zero() {
-        m /= &two;
+    while m.rem(&two).is_zero() {
+        m = m.div(&two);
         exp2 += 1;
     }
     if exp2 > 0 {
@@ -71,20 +69,19 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
     let mut p: u64 = 3;
     let trial_cap = limits.max_trial;
     while p <= trial_cap {
-        let pb = BigInt::from(p);
-        // p*p > m → 剩余为 1 或素数
+        let pb = Integer::from_u64(p);
         if let (Some(ps), Some(ms)) = (pb.to_u128(), m.to_u128()) {
-            if ps.saturating_mul(ps) > ms && m > BigInt::one() {
+            if ps.saturating_mul(ps) > ms && m > Integer::one() {
                 break;
             }
         }
-        else if &pb * &pb > m && m > BigInt::one() {
+        else if pb.mul(&pb) > m && m > Integer::one() {
             break;
         }
 
         let mut e = 0u32;
-        while (&m % &pb).is_zero() {
-            m /= &pb;
+        while m.rem(&pb).is_zero() {
+            m = m.div(&pb);
             e += 1;
         }
         if e > 0 {
@@ -97,18 +94,17 @@ pub fn factor_integer(n: &BigInt, limits: &FactorLimits) -> Factorization {
     }
 
     if m.is_one() {
-        return Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Complete };
+        return Factorization { unit, factors, remainder: Integer::one(), completeness: FactorizationCompleteness::Complete };
     }
 
-    // 剩余可能为素数 / 合数 / 超出试除
     match primality_test(&m, None) {
         Primality::Prime => {
             factors.push(PrimePower { base: m, exponent: 1 });
-            Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Complete }
+            Factorization { unit, factors, remainder: Integer::one(), completeness: FactorizationCompleteness::Complete }
         }
         Primality::ProbablePrime { .. } => {
             factors.push(PrimePower { base: m, exponent: 1 });
-            Factorization { unit, factors, remainder: BigInt::one(), completeness: FactorizationCompleteness::Probable }
+            Factorization { unit, factors, remainder: Integer::one(), completeness: FactorizationCompleteness::Probable }
         }
         Primality::Composite | Primality::Unknown => {
             let completeness =
@@ -126,18 +122,18 @@ mod tests {
     fn factor_12() {
         let f = factor_integer(&12.into(), &FactorLimits::default());
         assert_eq!(f.completeness, FactorizationCompleteness::Complete);
-        assert_eq!(f.unit, BigInt::one());
+        assert_eq!(f.unit, Integer::one());
         assert_eq!(f.factors.len(), 2);
-        assert_eq!(f.factors[0].base, BigInt::from(2));
+        assert_eq!(f.factors[0].base, Integer::from_i64(2));
         assert_eq!(f.factors[0].exponent, 2);
-        assert_eq!(f.factors[1].base, BigInt::from(3));
+        assert_eq!(f.factors[1].base, Integer::from_i64(3));
         assert_eq!(f.factors[1].exponent, 1);
     }
 
     #[test]
     fn factor_negative() {
         let f = factor_integer(&(-100).into(), &FactorLimits::default());
-        assert_eq!(f.unit, BigInt::from(-1));
+        assert_eq!(f.unit, Integer::from_i64(-1));
         assert_eq!(f.completeness, FactorizationCompleteness::Complete);
     }
 }

@@ -1,5 +1,7 @@
 //! 群论域值。
 
+use athena_numeric::Integer;
+
 use super::types::{Group, GroupElement};
 
 /// 群论域返回值。
@@ -12,7 +14,7 @@ pub enum GroupDomainValue {
     /// 布尔性质。
     Boolean(bool),
     /// 整数（阶等）。
-    Integer(num_bigint::BigInt),
+    Integer(Integer),
     /// 占位。
     Placeholder,
 }

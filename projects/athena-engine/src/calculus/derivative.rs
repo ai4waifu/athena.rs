@@ -37,23 +37,26 @@ pub fn differentiate(expr: &Term, var: &str) -> Term {
                         evaluate(&Term::apply(
                             "Times",
                             vec![
-                                Term::integer(n.clone()),
-                                Term::apply("Power", vec![base.clone(), Term::integer(n - 1i64)]),
+                                Term::integer(n),
+                                Term::apply("Power", vec![base.clone(), Term::integer(n - 1)]),
                                 differentiate(base, var),
                             ],
                         ))
                     }
-                    else if let Some(athena_types::Number::Real(athena_types::RealNumber::Machine(nf))) =
-                        number_from_term(exp).cloned()
-                    {
-                        evaluate(&Term::apply(
-                            "Times",
-                            vec![
-                                Term::real(nf),
-                                Term::apply("Power", vec![base.clone(), Term::real(nf - 1.0)]),
-                                differentiate(base, var),
-                            ],
-                        ))
+                    else if let Some(n) = number_from_term(exp).cloned() {
+                        if let Some(nf) = n.as_machine_f64() {
+                            evaluate(&Term::apply(
+                                "Times",
+                                vec![
+                                    Term::real(nf),
+                                    Term::apply("Power", vec![base.clone(), Term::real(nf - 1.0)]),
+                                    differentiate(base, var),
+                                ],
+                            ))
+                        }
+                        else {
+                            Term::apply("D", vec![expr.clone(), Term::symbol(var)])
+                        }
                     }
                     else {
                         Term::apply("D", vec![expr.clone(), Term::symbol(var)])

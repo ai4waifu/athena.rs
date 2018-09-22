@@ -1,6 +1,7 @@
 //! 常微分方程 — 带残差验证的一阶子集。
 
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
+use athena_numeric::{Number, mul as num_mul};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
 use crate::{
     eval::evaluate,
@@ -282,8 +283,7 @@ fn match_scaled_power_of_y(f: &Term, dependent: &str) -> Option<(Number, i64)> {
             if head.is_symbol("Power") && args.len() == 2 && args[0].is_symbol(dependent) =>
         {
             let n = number_from_term(&args[1]).and_then(|e| e.as_integer_exp())?;
-            let n_i = i64::try_from(&n).ok()?;
-            Some((Number::small_int(1), n_i))
+            Some((Number::small_int(1), n))
         }
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             if let Some(c) = number_from_term(&args[0]).cloned() {
@@ -432,7 +432,7 @@ fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)>
                     saw_y = true;
                 }
                 else if let Some(n) = number_from_term(t) {
-                    coef = coef.mul(n.clone()).ok()?;
+                    coef = num_mul(coef, n.clone()).ok()?;
                 }
                 else {
                     return None;
@@ -441,7 +441,7 @@ fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)>
             if !saw_y {
                 return None;
             }
-            let p = coef.mul(Number::small_int(-1)).ok()?;
+            let p = num_mul(coef, Number::small_int(-1)).ok()?;
             Some((p, q))
         }
         _ => None,

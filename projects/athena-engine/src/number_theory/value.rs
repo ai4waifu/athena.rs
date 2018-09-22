@@ -1,8 +1,6 @@
 //! 数论结果对象（非裸整数列表）。
 
-use num_bigint::BigInt;
-
-use athena_types::ModularValue;
+use athena_numeric::{Integer, ModularValue};
 
 /// 素性判定结果 — 禁止把 Miller-Rabin probable 写成确定 `true`。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +22,7 @@ pub enum Primality {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrimePower {
     /// 底数（素数或未证素数基）。
-    pub base: BigInt,
+    pub base: Integer,
     /// 指数。
     pub exponent: u32,
 }
@@ -46,11 +44,11 @@ pub enum FactorizationCompleteness {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Factorization {
     /// 单位（符号：`±1`）。
-    pub unit: BigInt,
+    pub unit: Integer,
     /// 素幂因子（升序底）。
     pub factors: Vec<PrimePower>,
     /// 未分解余因子（`Partial` / `ResourceLimited` 时可能非 1）。
-    pub remainder: BigInt,
+    pub remainder: Integer,
     /// 完整性。
     pub completeness: FactorizationCompleteness,
 }
@@ -59,18 +57,18 @@ pub struct Factorization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtendedGcd {
     /// `gcd(|a|,|b|)`（非负）。
-    pub g: BigInt,
+    pub g: Integer,
     /// Bézout `s`。
-    pub s: BigInt,
+    pub s: Integer,
     /// Bézout `t`。
-    pub t: BigInt,
+    pub t: Integer,
 }
 
 /// 数论域值。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NumberTheoryValue {
     /// 整数标量（gcd / lcm 等）。
-    Integer(BigInt),
+    Integer(Integer),
     /// 扩展 gcd。
     ExtendedGcd(ExtendedGcd),
     /// 素性。

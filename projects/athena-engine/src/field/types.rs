@@ -1,7 +1,6 @@
 //! 域与域元素对象（骨架）。
 
-use num_bigint::BigInt;
-
+use athena_numeric::Integer;
 use athena_types::{ExtensionId, FieldId};
 
 /// 域种类。
@@ -12,7 +11,7 @@ pub enum FieldKind {
     /// 素域 𝔽_p。
     Prime {
         /// 素数特征。
-        characteristic: BigInt,
+        characteristic: Integer,
     },
     /// 有限扩张（模不可约多项式等，细节后续）。
     FiniteExtension {

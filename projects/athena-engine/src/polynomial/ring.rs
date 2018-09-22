@@ -1,6 +1,7 @@
 //! 系数环与除法策略。
 
-use athena_types::{FieldId, Modulus};
+use athena_numeric::Modulus;
+use athena_types::FieldId;
 
 /// 第一阶段系数环标识（非泛型擦除入口）。
 #[derive(Debug, Clone, PartialEq, Eq)]

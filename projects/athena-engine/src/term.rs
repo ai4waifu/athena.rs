@@ -2,10 +2,7 @@
 
 use std::fmt;
 
-use num_bigint::BigInt;
-use num_rational::BigRational;
-
-use athena_types::Number;
+use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
 
 /// 从项原子中提取内核数字。
 pub fn number_from_term(term: &Term) -> Option<&Number> {
@@ -18,7 +15,7 @@ pub fn number_from_term(term: &Term) -> Option<&Number> {
 /// 引擎 IR 中的原子值。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {
-    /// 统一内核数字（唯一数值真相源）。
+    /// 统一内核数字（唯一数值真相源：[`Number`] = [`athena_numeric::NumericValue`]）。
     Number(Number),
     /// 字符串值（已由宿主 / 方言层解码）。
     String(String),
@@ -53,14 +50,19 @@ impl Term {
         Self::number(Number::small_int(n))
     }
 
-    /// 任意精度精确整数。
-    pub fn integer(n: impl Into<BigInt>) -> Self {
-        Self::number(Number::integer(n))
+    /// 精确整数（`i64` 范围；更大请用 [`Self::integer_decimal`]）。
+    pub fn integer(n: i64) -> Self {
+        Self::int(n)
     }
 
-    /// 精确有理数（已规范化）。
-    pub fn rational(r: BigRational) -> Self {
-        Self::number(Number::rational(r))
+    /// 由十进制字符串构造精确整数。
+    pub fn integer_decimal(s: &str) -> Option<Self> {
+        Number::from_decimal_str(s).map(Self::number)
+    }
+
+    /// 精确有理数（`i64` 分子分母）。
+    pub fn rational_i64(num: i64, den: i64) -> crate::Result<Self> {
+        Ok(Self::number(Number::rational_i64(num, den)?))
     }
 
     /// 由已解码的 `f64` 构造机器实数。
@@ -98,7 +100,7 @@ impl Term {
 
     /// 有损 `f64` — 仅用于显示 / 宿主提示。
     pub fn as_f64_lossy(&self) -> Option<f64> {
-        self.as_number().and_then(Number::to_f64_lossy)
+        self.as_number().and_then(|n| num_to_f64_lossy(n))
     }
 
     /// 是否为给定符号。

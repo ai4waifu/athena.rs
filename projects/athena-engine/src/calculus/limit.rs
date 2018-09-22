@@ -1,6 +1,7 @@
 //! 极限求值 — 有限代入、单侧极点、多项式 ∞。
 
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Number};
+use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
 use crate::{
     eval::evaluate,
@@ -71,7 +72,7 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
             (args[0].clone(), args[1].clone())
         }
         Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
-            if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some((-1).into())) {
+            if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1)) {
                 (Term::int(1), args[0].clone())
             }
             else {
@@ -97,8 +98,8 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
         };
         let den_side = evaluate(&replace_symbol(&den, variable, &probe));
         let den_side_n = number_from_term(&den_side)?;
-        let sign_den = den_side_n.compare(&Number::small_int(0))?;
-        let sign_num = num_n.compare(&Number::small_int(0))?;
+        let sign_den = num_compare(&den_side_n, &Number::small_int(0))?;
+        let sign_num = num_compare(&num_n, &Number::small_int(0))?;
         use std::cmp::Ordering::*;
         let positive = match (sign_num, sign_den) {
             (Greater, Greater) | (Less, Less) => true,
@@ -124,7 +125,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
             return CalculusResult::Exact { value: Term::int(0), conditions: Vec::new() };
         }
         // degree > 0: ∞ → ∞ * leading；负向趋近时用 (−∞)^degree。
-        let mut sign_positive = leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
+        let mut sign_positive = num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
         if leading.is_zero() {
             return unevaluated_limit(
                 expression,
@@ -133,7 +134,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
                 LimitDirection::TwoSided,
             );
         }
-        if leading.compare(&Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
+        if num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
             sign_positive = false;
         }
         if !positive && degree % 2 == 1 {
@@ -171,7 +172,7 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                         best = match best {
                             None => Some((d, c)),
                             Some((bd, _bc)) if d > bd => Some((d, c)),
-                            Some((bd, bc)) if d == bd => Some((bd, bc.add(c).ok()?)),
+                            Some((bd, bc)) if d == bd => Some((bd, num_add(bc, c).ok()?)),
                             Some(b) => Some(b),
                         };
                     }
@@ -183,14 +184,13 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                     for a in args {
                         let (d, c) = polynomial_degree_leading(a, var)?;
                         deg += d;
-                        coeff = coeff.mul(c).ok()?;
+                        coeff = num_mul(coeff, c).ok()?;
                     }
                     Some((deg, coeff))
                 }
                 "Power" if args.len() == 2 && args[0].is_symbol(var) => {
                     let n = number_from_term(&args[1])?.as_integer_exp()?;
-                    let n_i64 = i64::try_from(&n).ok()?;
-                    Some((n_i64, Number::small_int(1)))
+                    Some((n, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => polynomial_degree_leading(
                     &Term::apply("Plus", vec![args[0].clone(), Term::apply("Times", vec![Term::int(-1), args[1].clone()])]),
@@ -254,7 +254,7 @@ fn is_singular_form(expr: &Term) -> bool {
         }
         Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
             number_from_term(&args[0]).is_some_and(|n| n.is_zero())
-                && number_from_term(&args[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0.into())
+                && number_from_term(&args[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0)
         }
         _ => false,
     }

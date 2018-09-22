@@ -1,10 +1,8 @@
 //! 代数域骨架：polynomial / group / field / galois 经 DomainRequest 可分派。
 
-use num_bigint::BigInt;
-
 use athena_engine::{
     AthenaEngine, CoefficientRing, DiagnosticCode, DomainRequest, DomainResult, FieldRequest, GaloisRequest, GroupRequest,
-    NumberTheoryRequest, Polynomial, PolynomialRequest, PolynomialResult,
+    Integer, NumberTheoryRequest, Polynomial, PolynomialRequest, PolynomialResult,
 };
 
 #[test]
@@ -25,7 +23,8 @@ fn polynomial_scaffold_unevaluated() {
 fn group_field_galois_scaffolds_unevaluated() {
     let engine = AthenaEngine::new();
 
-    let g = engine.execute_domain(DomainRequest::GroupTheory(GroupRequest::Cyclic { order: BigInt::from(5) })).expect("ok");
+    let g =
+        engine.execute_domain(DomainRequest::GroupTheory(GroupRequest::Cyclic { order: Integer::from_i64(5) })).expect("ok");
     assert!(matches!(g, DomainResult::GroupTheory(_)));
 
     let f = engine.execute_domain(DomainRequest::FieldTheory(FieldRequest::Rationals)).expect("ok");

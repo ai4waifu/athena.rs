@@ -1,8 +1,6 @@
 //! 数论域请求。
 
-use num_bigint::BigInt;
-
-use athena_types::Modulus;
+use athena_numeric::{Integer, Modulus};
 
 use super::factor::FactorLimits;
 
@@ -12,62 +10,62 @@ pub enum NumberTheoryRequest {
     /// `gcd(a, b)`（非负）。
     Gcd {
         /// 左操作数。
-        a: BigInt,
+        a: Integer,
         /// 右操作数。
-        b: BigInt,
+        b: Integer,
     },
     /// `lcm(a, b)`（非负；`0` 约定 `lcm(0,0)=0`）。
     Lcm {
         /// 左操作数。
-        a: BigInt,
+        a: Integer,
         /// 右操作数。
-        b: BigInt,
+        b: Integer,
     },
     /// 扩展欧几里得。
     ExtendedGcd {
         /// `a`。
-        a: BigInt,
+        a: Integer,
         /// `b`。
-        b: BigInt,
+        b: Integer,
     },
     /// 素性测试。
     PrimalityTest {
         /// 待测整数。
-        n: BigInt,
+        n: Integer,
         /// Miller-Rabin 额外轮数（大整数）；`None` 用默认。
         miller_rabin_rounds: Option<u32>,
     },
     /// 整数因式分解。
     FactorInteger {
         /// 待分解整数。
-        n: BigInt,
+        n: Integer,
         /// 资源上限。
         limits: FactorLimits,
     },
     /// 模逆 `a⁻¹ (mod m)`。
     ModInverse {
         /// 被逆元。
-        a: BigInt,
+        a: Integer,
         /// 模数。
         modulus: Modulus,
     },
     /// 模幂 `base^exp mod m`（`exp ≥ 0`）。
     ModPow {
         /// 底。
-        base: BigInt,
+        base: Integer,
         /// 非负指数。
-        exp: BigInt,
+        exp: Integer,
         /// 模数。
         modulus: Modulus,
     },
     /// 线性同余 `a x ≡ b (mod m)`（骨架）。
     SolveLinearCongruence {
         /// `a`。
-        a: BigInt,
+        a: Integer,
         /// `b`。
-        b: BigInt,
+        b: Integer,
         /// 模 `m`。
-        modulus: BigInt,
+        modulus: Integer,
     },
     /// 代数整数相关（骨架占位）。
     AlgebraicScaffold,

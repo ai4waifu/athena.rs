@@ -48,7 +48,7 @@ fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
                 if items.len() == 2 {
                     let v = symbol_name(&items[0])?;
                     let n = number_from_term(&items[1]).and_then(|e| e.as_integer_exp())?;
-                    let n_u = u32::try_from(&n).ok()?;
+                    let n_u = u32::try_from(n).ok()?;
                     return Some(CalculusRequest::Derivative {
                         expression: expr.clone(),
                         variable: v,
@@ -132,7 +132,7 @@ fn approach_from_term(term: &Term) -> LimitApproach {
     if let Term::Application { head, arguments: args } = term {
         if head.is_symbol("Times")
             && args.len() == 2
-            && number_from_term(&args[0]).is_some_and(|n| n.as_integer_exp() == Some((-1).into()))
+            && number_from_term(&args[0]).is_some_and(|n| n.as_integer_exp() == Some(-1))
             && args[1].is_symbol("Infinity")
         {
             return LimitApproach::NegativeInfinity;
@@ -157,7 +157,7 @@ fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
     let center = items[1].clone();
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
-        u32::try_from(&n).ok()?
+        u32::try_from(n).ok()?
     }
     else {
         3
@@ -182,7 +182,7 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
     let center = items[1].clone();
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
-        u32::try_from(&n).ok()?
+        u32::try_from(n).ok()?
     }
     else {
         3
@@ -207,7 +207,7 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
             }
             let order = if items.len() >= 3 {
                 let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
-                u32::try_from(&n).ok()?
+                u32::try_from(n).ok()?
             }
             else {
                 3
@@ -217,7 +217,7 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
         [expr, var, order_term] => {
             let variable = symbol_name(var)?;
             let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
-            let order = u32::try_from(&n).ok()?;
+            let order = u32::try_from(n).ok()?;
             Some(CalculusRequest::Asymptotic { expression: expr.clone(), variable, order, assumptions: AssumptionSet::empty() })
         }
         _ => None,

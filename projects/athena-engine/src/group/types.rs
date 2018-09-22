@@ -1,7 +1,6 @@
 //! 群与元素对象合同（骨架）。
 
-use num_bigint::BigInt;
-
+use athena_numeric::Integer;
 use athena_types::{GroupElementId, GroupId};
 
 /// 群种类（第一阶段：有限 / 置换 / 循环）。
@@ -10,7 +9,7 @@ pub enum GroupKind {
     /// 抽象有限群（内部 index 表示）。
     Finite {
         /// 阶。
-        order: BigInt,
+        order: Integer,
     },
     /// 置换群（对称群子群）。
     Permutation {
@@ -20,7 +19,7 @@ pub enum GroupKind {
     /// 循环群。
     Cyclic {
         /// 阶。
-        order: BigInt,
+        order: Integer,
     },
 }
 
@@ -32,7 +31,7 @@ pub struct Group {
     /// 种类。
     pub kind: GroupKind,
     /// 阶（若已知）。
-    pub order: Option<BigInt>,
+    pub order: Option<Integer>,
 }
 
 /// 置换：像列表 `π(i) = images[i]`（0-based）。

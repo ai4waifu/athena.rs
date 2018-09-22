@@ -1,7 +1,6 @@
 //! 素性测试 — 小整数确定；大整数 Miller-Rabin → `ProbablePrime`。
 
-use num_bigint::BigInt;
-use num_traits::{One, ToPrimitive, Zero};
+use athena_numeric::Integer;
 
 use super::value::Primality;
 
@@ -12,14 +11,14 @@ pub const DEFAULT_MR_ROUNDS: u32 = 16;
 const DETERMINISTIC_TRIAL_BOUND: u64 = 1_000_000;
 
 /// 素性测试。
-pub fn primality_test(n: &BigInt, miller_rabin_rounds: Option<u32>) -> Primality {
-    if n <= &BigInt::one() {
+pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primality {
+    if !n.is_positive() || n.is_one() {
         return Primality::Composite;
     }
-    if n == &BigInt::from(2) || n == &BigInt::from(3) {
+    if n == &Integer::from_i64(2) || n == &Integer::from_i64(3) {
         return Primality::Prime;
     }
-    if (n % 2u32).is_zero() {
+    if n.rem(&Integer::from_i64(2)).is_zero() {
         return Primality::Composite;
     }
 
@@ -27,17 +26,15 @@ pub fn primality_test(n: &BigInt, miller_rabin_rounds: Option<u32>) -> Primality
         if small <= DETERMINISTIC_TRIAL_BOUND {
             return if is_prime_u64_trial(small) { Primality::Prime } else { Primality::Composite };
         }
-        // u64：确定性 Miller-Rabin 见证集
         return if miller_rabin_u64_deterministic(small) { Primality::Prime } else { Primality::Composite };
     }
 
-    // 先剔除小因子
     if has_small_factor(n) {
         return Primality::Composite;
     }
 
     let rounds = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
-    if miller_rabin_bigint(n, rounds) { Primality::ProbablePrime { rounds } } else { Primality::Composite }
+    if miller_rabin_integer(n, rounds) { Primality::ProbablePrime { rounds } } else { Primality::Composite }
 }
 
 fn is_prime_u64_trial(n: u64) -> bool {
@@ -60,7 +57,6 @@ fn is_prime_u64_trial(n: u64) -> bool {
     true
 }
 
-/// 对所有 `u64` 充分的确定性见证（Jaeschke / 扩展集）。
 fn miller_rabin_u64_deterministic(n: u64) -> bool {
     const WITNESSES: &[u64] = &[2, 3, 5, 7, 11, 13, 23];
     miller_rabin_u64(n, WITNESSES)
@@ -112,45 +108,44 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64 {
     ((a as u128 * b as u128) % m as u128) as u64
 }
 
-fn has_small_factor(n: &BigInt) -> bool {
+fn has_small_factor(n: &Integer) -> bool {
     const SMALL: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
     for &p in SMALL {
-        let pb = BigInt::from(p);
+        let pb = Integer::from(p);
         if n == &pb {
             return false;
         }
-        if (n % &pb).is_zero() {
+        if n.rem(&pb).is_zero() {
             return true;
         }
     }
     false
 }
 
-fn miller_rabin_bigint(n: &BigInt, rounds: u32) -> bool {
-    let one = BigInt::one();
-    let two = BigInt::from(2);
-    let n_minus_one = n - &one;
+fn miller_rabin_integer(n: &Integer, rounds: u32) -> bool {
+    let one = Integer::one();
+    let two = Integer::from_i64(2);
+    let n_minus_one = n.sub(&one);
     let mut d = n_minus_one.clone();
     let mut s = 0u32;
-    while (&d % &two).is_zero() {
-        d /= &two;
+    while d.rem(&two).is_zero() {
+        d = d.div(&two);
         s += 1;
     }
-    // 固定小见证 + 轮数截断
     const BASES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
     let use_rounds = (rounds as usize).min(BASES.len()).max(1);
     for &a in &BASES[..use_rounds] {
-        let base = BigInt::from(a);
-        if &base % n == BigInt::zero() {
+        let base = Integer::from(a);
+        if base.rem(n).is_zero() {
             continue;
         }
-        let mut x = base.modpow(&d, n);
+        let mut x = base.mod_pow(&d, n);
         if x == one || x == n_minus_one {
             continue;
         }
         let mut composite = true;
         for _ in 1..s {
-            x = x.modpow(&two, n);
+            x = x.mod_pow(&two, n);
             if x == n_minus_one {
                 composite = false;
                 break;

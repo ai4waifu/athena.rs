@@ -2,11 +2,11 @@
 
 use std::cmp::Ordering;
 
-use num_traits::ToPrimitive;
-
-use athena_types::{Number, Result};
-
-pub use crate::calculus::differentiate;
+use athena_numeric::{
+    abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial, mul as num_mul,
+    pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy, Number,
+};
+use athena_types::Result;
 
 use crate::term::{Atom, Term, number_from_term};
 
@@ -118,7 +118,7 @@ fn combine_like_plus_terms(terms: Vec<Term>) -> Vec<Term> {
     for t in terms {
         let (coef, kernel) = split_numeric_coeff(t);
         if let Some((_, acc)) = groups.iter_mut().find(|(k, _)| k == &kernel) {
-            *acc = match acc.clone().add(coef) {
+            *acc = match num_add(acc.clone(), coef) {
                 Ok(v) => v,
                 Err(_) => return groups_to_plus_terms(groups), // 回退：放弃合并
             };
@@ -162,7 +162,7 @@ fn split_numeric_coeff(term: Term) -> (Number, Term) {
             let mut rest = Vec::new();
             for a in args {
                 if let Some(n) = number_from_term(&a).cloned() {
-                    coef = coef.clone().mul(n).unwrap_or(coef);
+                    coef = num_mul(coef.clone(), n).unwrap_or(coef);
                 }
                 else {
                     rest.push(a);
@@ -200,7 +200,7 @@ fn flatten_plus(a: Term, flat: &mut Vec<Term>, sum: &mut Option<Number>) {
 fn push_plus_term(a: Term, flat: &mut Vec<Term>, sum: &mut Option<Number>) {
     if let Some(n) = number_from_term(&a).cloned() {
         *sum = Some(match sum.take() {
-            Some(s) => map_num(s.clone().add(n)).unwrap_or(s),
+            Some(s) => map_num(num_add(s.clone(), n)).unwrap_or(s),
             None => n,
         });
     }
@@ -312,7 +312,7 @@ fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {
                     return;
                 }
                 *prod = Some(match prod.take() {
-                    Some(p) => map_num(p.clone().mul(n)).unwrap_or(p),
+                    Some(p) => map_num(num_mul(p.clone(), n)).unwrap_or(p),
                     None => n,
                 });
             }
@@ -333,7 +333,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
         }
         if e.is_neg_one() {
             if let Some(b) = number_from_term(&base).cloned() {
-                if let Ok(v) = map_num(Number::small_int(1).div(b)) {
+                if let Ok(v) = map_num(num_div(Number::small_int(1), b)) {
                     return Term::number(v);
                 }
             }
@@ -343,7 +343,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
             if let Term::Application { head, arguments: args } = &base {
                 if head.is_symbol("Times") && args.len() >= 2 {
                     if let Some(c) = number_from_term(&args[0]).cloned() {
-                        if let Ok(cp) = map_num(c.pow(&e)) {
+                        if let Ok(cp) = map_num(num_pow(&c, &e)) {
                             let rest = if args.len() == 2 { args[1].clone() } else { Term::apply("Times", args[1..].to_vec()) };
                             return eval_times(vec![Term::number(cp), eval_power(rest, exp.clone())]);
                         }
@@ -354,7 +354,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
             if let Term::Application { head, arguments: args } = &base {
                 if head.is_symbol("Power") && args.len() == 2 {
                     if let Some(a) = number_from_term(&args[1]).cloned() {
-                        if let Ok(ab) = map_num(a.mul(e.clone())) {
+                        if let Ok(ab) = map_num(num_mul(a, e.clone())) {
                             return eval_power(args[0].clone(), Term::number(ab));
                         }
                     }
@@ -364,7 +364,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
         }
     }
     if let (Some(b), Some(e)) = (number_from_term(&base).cloned(), number_from_term(&exp).cloned()) {
-        if let Ok(v) = map_num(b.pow(&e)) {
+        if let Ok(v) = map_num(num_pow(&b, &e)) {
             return Term::number(v);
         }
     }
@@ -380,7 +380,7 @@ fn eval_simplify(expr: &Term, depth: u32) -> Term {
 }
 
 fn eval_machine_unary(name: &str, arg: &Term) -> Term {
-    let Some(x) = number_from_term(arg).and_then(Number::to_f64_lossy)
+    let Some(x) = number_from_term(arg).and_then(|n| num_to_f64_lossy(&n))
     else {
         return Term::apply(name, vec![arg.clone()]);
     };
@@ -397,7 +397,7 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
 
 fn eval_sqrt(arg: &Term) -> Term {
     if let Some(n) = number_from_term(arg).cloned() {
-        if let Ok(Some(v)) = map_num(n.sqrt()) {
+        if let Ok(Some(v)) = map_num(num_sqrt(&n)) {
             return Term::number(v);
         }
     }
@@ -406,14 +406,14 @@ fn eval_sqrt(arg: &Term) -> Term {
 
 fn eval_abs(arg: &Term) -> Term {
     if let Some(n) = number_from_term(arg).cloned() {
-        return Term::number(n.abs());
+        return Term::number(num_abs(n));
     }
     Term::apply("Abs", vec![arg.clone()])
 }
 
 fn eval_factorial(arg: &Term) -> Term {
     if let Some(n) = number_from_term(arg).cloned() {
-        if let Ok(v) = map_num(n.factorial()) {
+        if let Ok(v) = map_num(num_factorial(&n)) {
             return Term::number(v);
         }
     }
@@ -425,7 +425,7 @@ where
     F: Fn(Ordering) -> bool,
 {
     if let (Some(a), Some(b)) = (number_from_term(left), number_from_term(right)) {
-        if let Some(ord) = a.compare(b) {
+        if let Some(ord) = num_compare(a, b) {
             return Term::int(if cmp(ord) { 1 } else { 0 });
         }
     }
@@ -566,10 +566,7 @@ fn replace_literal(expr: &Term, lhs: &Term, rhs: &Term) -> Term {
 
 fn eval_part(expr: &Term, index: &Term) -> Term {
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
-        Some(n) => match n.to_i64() {
-            Some(v) => v,
-            None => return Term::apply("Part", vec![expr.clone(), index.clone()]),
-        },
+        Some(v) => v,
         None => return Term::apply("Part", vec![expr.clone(), index.clone()]),
     };
     match expr {
