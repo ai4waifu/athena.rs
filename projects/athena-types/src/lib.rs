@@ -7,9 +7,9 @@
 mod assumption;
 mod diagnostic;
 mod ids;
+mod numeric_kind;
 /// 过渡期宿主 wire（十进制字符串）；执行路径请用 `athena_numeric::NumericValue`。
 pub mod wire;
-mod numeric_kind;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};

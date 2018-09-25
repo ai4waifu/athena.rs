@@ -1,6 +1,7 @@
 //! 数值序列化 wire（N1：Integer / Rational）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
+use std::str::FromStr;
 
 use crate::{
     integer::Integer,
@@ -66,9 +67,14 @@ impl NumericValueWire {
                 .detail("domain", "numeric")
                 .detail("operation", "deserialize_utf8")
         })?;
+        if self.payload.len() as u32 > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+            return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_payload_limit"));
+        }
         match self.kind {
             NumericKind::Integer => {
-                let n = Integer::from_decimal_str(text).map_err(|_| {
+                let n = Integer::from_str(text).map_err(|_| {
                     Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                         .detail("domain", "numeric")
                         .detail("operation", "deserialize_integer")
@@ -76,7 +82,7 @@ impl NumericValueWire {
                 Ok(NumericValue::integer(n))
             }
             NumericKind::Rational => {
-                let r = Rational::from_wire_string(text)?;
+                let r = Rational::decode_wire_payload(text)?;
                 Ok(NumericValue::rational(r))
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

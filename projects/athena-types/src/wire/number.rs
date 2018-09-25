@@ -115,13 +115,36 @@ impl Number {
         Self::Exact(ExactNumber::Integer(n.to_string()))
     }
 
-    /// Parse decimal integer string（可含 `+/-`）。
+    /// Parse decimal integer string (optional `+/-`).
     pub fn from_decimal_str(s: &str) -> Option<Self> {
+        Self::from_exact_literal(s)
+    }
+
+    /// Parse exact literal: integer or `numer/denom` decimal wire (SXO / host frontend).
+    pub fn from_exact_literal(s: &str) -> Option<Self> {
         let t = s.trim();
-        if t.is_empty() || !is_decimal_int_wire(t) {
+        if t.is_empty() {
             return None;
         }
-        Some(Self::Exact(ExactNumber::Integer(normalize_int_wire(t))))
+        if let Some((numer, denom)) = t.split_once('/') {
+            let numer = numer.trim();
+            let denom = denom.trim();
+            if !is_decimal_int_wire(numer) || !is_decimal_int_wire(denom) {
+                return None;
+            }
+            let numer = normalize_int_wire(numer);
+            let denom = normalize_int_wire(denom);
+            if decimal_is_zero(&denom) {
+                return None;
+            }
+            Some(Self::Exact(ExactNumber::Rational { numer, denom }))
+        }
+        else if is_decimal_int_wire(t) {
+            Some(Self::Exact(ExactNumber::Integer(normalize_int_wire(t))))
+        }
+        else {
+            None
+        }
     }
 
     /// Exact rational from `i64` numerator / denominator.
@@ -244,21 +267,4 @@ fn decimal_as_i64(s: &str) -> Option<i64> {
         return None;
     }
     t.parse::<i64>().ok()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rational_i64_normalizes() {
-        let e = ExactNumber::rational_i64(2, 4);
-        assert_eq!(e, ExactNumber::Rational { numer: "1".into(), denom: "2".into() });
-    }
-
-    #[test]
-    fn from_decimal_str_big() {
-        let n = Number::from_decimal_str("99999999999999999999").unwrap();
-        assert_eq!(n.to_render_string(), "99999999999999999999");
-    }
 }

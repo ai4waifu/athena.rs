@@ -1,32 +1,29 @@
-//! 废弃：旧 `athena_types::wire::WireNumber` 桥。执行路径请用 [`NumericValue`]。
+//! Wire decode: `athena_types::wire::WireNumber` → [`NumericValue`].
 //!
-//! 本模块仅保留给尚未迁完的宿主适配；新代码禁止依赖。
+//! SXO / 宿主 frontend 负责源文本 parse → wire。数值内核只接受已规范化的 wire 载荷。
 
 use athena_types::{
     Diagnostic, DiagnosticCode, Result,
     wire::{ExactNumber, RealNumber, WireNumber},
 };
+use std::str::FromStr;
 
 use crate::{integer::Integer, number::NumericValue, rational::Rational};
 
-/// wire → [`NumericValue`]。
+/// Decode host wire into execution [`NumericValue`].
 pub fn from_wire(n: &WireNumber) -> Result<NumericValue> {
     match n {
-        WireNumber::Exact(ExactNumber::Integer(s)) => Integer::from_decimal_str(s)
-            .map(NumericValue::integer)
-            .map_err(|_| Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("operation", "from_wire")),
+        WireNumber::Exact(ExactNumber::Integer(s)) => decode_wire_integer(s).map(NumericValue::integer),
         WireNumber::Exact(ExactNumber::Rational { numer, denom }) => {
-            let n = Integer::from_decimal_str(numer)
-                .map_err(|_| Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("operation", "from_wire"))?;
-            let d = Integer::from_decimal_str(denom)
-                .map_err(|_| Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("operation", "from_wire"))?;
+            let n = decode_wire_integer(numer)?;
+            let d = decode_wire_integer(denom)?;
             Ok(NumericValue::from_rational_normalized(Rational::try_new(n, d)?))
         }
         WireNumber::Real(RealNumber::Machine(x)) => Ok(NumericValue::machine(*x)),
     }
 }
 
-/// [`NumericValue`] → wire（宿主渲染过渡）。
+/// [`NumericValue`] → wire（宿主渲染 / 序列化过渡）。
 pub fn to_wire(n: &NumericValue) -> WireNumber {
     match n.repr() {
         crate::number::NumericRepr::Integer(i) => WireNumber::Exact(ExactNumber::Integer(i.to_decimal_string())),
@@ -44,4 +41,16 @@ pub fn to_wire(n: &NumericValue) -> WireNumber {
         crate::number::NumericRepr::Real(crate::real::Real::Machine(x)) => WireNumber::machine(*x),
         _ => WireNumber::Exact(ExactNumber::Integer(n.to_render_string())),
     }
+}
+
+fn decode_wire_integer(s: &str) -> Result<Integer> {
+    let payload_len = s.len() as u32;
+    if payload_len > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+        return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+            .detail("domain", "numeric")
+            .detail("operation", "wire_payload_limit"));
+    }
+    Integer::from_str(s).map_err(|_| {
+        Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", "from_wire")
+    })
 }
