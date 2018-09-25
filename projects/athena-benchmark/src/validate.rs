@@ -46,13 +46,7 @@ pub struct ValidationSummary {
 impl ValidationSummary {
     /// 构造通过摘要。
     pub fn passed(exactness: ExactnessKind, determinacy: DeterminacyKind, notes: impl Into<String>) -> Self {
-        Self {
-            ok: true,
-            exactness,
-            determinacy,
-            diagnostic_codes: Vec::new(),
-            notes: notes.into(),
-        }
+        Self { ok: true, exactness, determinacy, diagnostic_codes: Vec::new(), notes: notes.into() }
     }
 
     /// 校验失败摘要。

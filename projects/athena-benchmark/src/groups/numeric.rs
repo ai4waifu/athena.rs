@@ -1,22 +1,17 @@
 //! `numeric` 分组种子 fixture。
 
-use athena_numeric::{
-    DefaultPromotion, Integer, NumericDomain, NumericValue, Promotion, PromotionPolicy, Rational,
-};
+use athena_numeric::{DefaultPromotion, Integer, NumericDomain, NumericValue, Promotion, PromotionPolicy, Rational};
 
-use crate::fixture::{BenchGroup, Fixture, FixtureMeta, Suite};
-use crate::validate::{DeterminacyKind, ExactnessKind, ValidationSummary};
+use crate::{
+    fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
+    validate::{DeterminacyKind, ExactnessKind, ValidationSummary},
+};
 
 struct IntegerGcdFixture;
 
 impl Fixture for IntegerGcdFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta {
-            id: "numeric.integer_gcd",
-            group: BenchGroup::Numeric,
-            scale: "i64_pair",
-            domain: "exact_integer",
-        }
+        FixtureMeta { id: "numeric.integer_gcd", group: BenchGroup::Numeric, scale: "i64_pair", domain: "exact_integer" }
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -24,11 +19,7 @@ impl Fixture for IntegerGcdFixture {
         if g.to_decimal_string() != "6" {
             return Err(format!("gcd expected 6, got {}", g.to_decimal_string()));
         }
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "gcd(48,18)=6",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "gcd(48,18)=6"))
     }
 
     fn run_once(&self) {
@@ -60,7 +51,7 @@ impl Fixture for RationalNormalizeFixture {
         let a = NumericValue::integer(Integer::from_i64(5));
         let promoted = DefaultPromotion::promote(a, &NumericDomain::Rational, &PromotionPolicy::default())
             .map_err(|d| d.code.as_str().to_string())?;
-        if promoted.domain != NumericDomain::Rational {
+        if promoted.domain() != &NumericDomain::Rational {
             return Err("promotion to rational failed".into());
         }
         Ok(ValidationSummary::passed(

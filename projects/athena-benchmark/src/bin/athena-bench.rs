@@ -2,15 +2,17 @@
 
 use std::process::ExitCode;
 
-use athena_benchmark::fixture::{BenchGroup, RunConfig};
-use athena_benchmark::groups::default_suite;
-use athena_benchmark::run_suite;
+use athena_benchmark::{
+    fixture::{BenchGroup, RunConfig},
+    groups::default_suite,
+    run_suite,
+};
 use clap::Parser;
 
 #[derive(Debug, Parser)]
 #[command(name = "athena-bench", about = "Athena kernel benchmarks (deterministic fixtures)")]
 struct Args {
-    /// Comma-separated groups: numeric,ir,rewriter,engine,domains,jit (default: all)
+    /// Comma-separated groups: numeric,bigint,ir,rewriter,engine,domains,jit (default: all)
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
 
@@ -34,17 +36,13 @@ fn main() -> ExitCode {
         match BenchGroup::parse(g) {
             Some(group) => groups.push(group),
             None => {
-                eprintln!("unknown group `{g}` (expected numeric|ir|rewriter|engine|domains|jit)");
+                eprintln!("unknown group `{g}` (expected numeric|bigint|ir|rewriter|engine|domains|jit)");
                 return ExitCode::from(2);
             }
         }
     }
 
-    let config = RunConfig {
-        groups,
-        warmup: args.warmup,
-        samples: args.samples,
-    };
+    let config = RunConfig { groups, warmup: args.warmup, samples: args.samples };
 
     let suite = default_suite();
     match run_suite(&suite, &config) {
@@ -57,7 +55,8 @@ fn main() -> ExitCode {
                         return ExitCode::FAILURE;
                     }
                 }
-            } else {
+            }
+            else {
                 println!(
                     "athena-bench  commit={}  rustc={}  target={}  threads={}  jit={}",
                     report.env.commit.as_deref().unwrap_or("?"),
@@ -68,12 +67,9 @@ fn main() -> ExitCode {
                 );
                 for f in &report.fixtures {
                     if f.skipped {
-                        println!(
-                            "  SKIP  {:<32}  ({})",
-                            f.id,
-                            f.fallback_reason.as_deref().unwrap_or("skipped")
-                        );
-                    } else {
+                        println!("  SKIP  {:<32}  ({})", f.id, f.fallback_reason.as_deref().unwrap_or("skipped"));
+                    }
+                    else {
                         println!(
                             "  OK    {:<32}  p50={}ns  p95={}ns  {}",
                             f.id,

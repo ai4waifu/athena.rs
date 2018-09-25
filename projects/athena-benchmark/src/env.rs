@@ -48,11 +48,7 @@ fn git_head() -> Option<String> {
         return None;
     }
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
-    }
+    if s.is_empty() { None } else { Some(s) }
 }
 
 fn rustc_version() -> Option<String> {
@@ -67,11 +63,7 @@ fn cpu_brand() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         let out = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)",
-            ])
+            .args(["-NoProfile", "-Command", "(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)"])
             .output()
             .ok()?;
         if !out.status.success() {

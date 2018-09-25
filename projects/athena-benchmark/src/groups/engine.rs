@@ -2,19 +2,16 @@
 
 use athena_engine::{Term, evaluate};
 
-use crate::fixture::{BenchGroup, Fixture, FixtureMeta, Suite};
-use crate::validate::{DeterminacyKind, ExactnessKind, ValidationSummary};
+use crate::{
+    fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
+    validate::{DeterminacyKind, ExactnessKind, ValidationSummary},
+};
 
 struct EvalPowerFixture;
 
 impl Fixture for EvalPowerFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta {
-            id: "engine.eval_power",
-            group: BenchGroup::Engine,
-            scale: "small_term",
-            domain: "machine_real",
-        }
+        FixtureMeta { id: "engine.eval_power", group: BenchGroup::Engine, scale: "small_term", domain: "machine_real" }
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -26,11 +23,7 @@ impl Fixture for EvalPowerFixture {
         if (x - 1024.0).abs() > 1e-9 {
             return Err(format!("expected 1024, got {x}"));
         }
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Mixed,
-            DeterminacyKind::Deterministic,
-            "Power(2,10)=1024",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Mixed, DeterminacyKind::Deterministic, "Power(2,10)=1024"))
     }
 
     fn run_once(&self) {

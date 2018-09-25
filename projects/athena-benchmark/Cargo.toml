@@ -11,10 +11,18 @@ publish = false
 name = "athena-bench"
 path = "src/bin/athena-bench.rs"
 
+[[bench]]
+name = "bigint_compare"
+harness = false
+required-features = ["bigint-compare"]
+
 [features]
 default = []
 # Reserved for athena-jit; without a JIT crate the jit group is skipped.
 jit = []
+# Criterion microbench vs external bigints. Does not affect athena-* core crates.
+# `ramp` is deprecated / nightly-only; `ibig` is the pure-Rust stand-in.
+bigint-compare = ["dep:num-bigint", "dep:num-traits", "dep:ibig"]
 
 [dependencies]
 athena-numeric = { workspace = true }
@@ -25,6 +33,12 @@ athena-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true }
+num-bigint = { workspace = true, optional = true }
+num-traits = { workspace = true, optional = true }
+ibig = { version = "0.3.6", optional = true, default-features = false, features = ["std"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [lints.rust]
 missing_docs = "warn"

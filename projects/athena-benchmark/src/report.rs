@@ -2,8 +2,7 @@
 
 use serde::Serialize;
 
-use crate::env::BenchEnv;
-use crate::validate::ValidationSummary;
+use crate::{env::BenchEnv, validate::ValidationSummary};
 
 /// 完整报告（一次 `athena-bench` 运行）。
 #[derive(Debug, Clone, Serialize)]

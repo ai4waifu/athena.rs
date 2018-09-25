@@ -3,19 +3,16 @@
 use athena_ir::{TermArena, TermBuilder, canonical_hash};
 use athena_types::{Number, SourceSpan};
 
-use crate::fixture::{BenchGroup, Fixture, FixtureMeta, Suite};
-use crate::validate::{DeterminacyKind, ExactnessKind, ValidationSummary};
+use crate::{
+    fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
+    validate::{DeterminacyKind, ExactnessKind, ValidationSummary},
+};
 
 struct ArenaHashFixture;
 
 impl Fixture for ArenaHashFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta {
-            id: "ir.arena_canonical_hash",
-            group: BenchGroup::Ir,
-            scale: "small_app_tree",
-            domain: "core_ir",
-        }
+        FixtureMeta { id: "ir.arena_canonical_hash", group: BenchGroup::Ir, scale: "small_app_tree", domain: "core_ir" }
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -32,11 +29,7 @@ impl Fixture for ArenaHashFixture {
             return Err(format!("canonical hash mismatch: {h1:#x} vs {h2:#x}"));
         }
         let _ = root;
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "verify + canonical_hash stable",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "verify + canonical_hash stable"))
     }
 
     fn run_once(&self) {

@@ -2,10 +2,7 @@
 
 use std::fmt;
 
-use crate::env::BenchEnv;
-use crate::report::FixtureReport;
-use crate::timing::measure;
-use crate::validate::ValidationSummary;
+use crate::{env::BenchEnv, report::FixtureReport, timing::measure, validate::ValidationSummary};
 
 /// Living `17` 基准分组。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -100,11 +97,7 @@ pub struct RunConfig {
 
 impl Default for RunConfig {
     fn default() -> Self {
-        Self {
-            groups: Vec::new(),
-            warmup: 3,
-            samples: 25,
-        }
+        Self { groups: Vec::new(), warmup: 3, samples: 25 }
     }
 }
 
@@ -183,15 +176,9 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         });
     }
 
-    let validation = fixture.validate().map_err(|reason| SuiteError::Validation {
-        id: meta.id.to_string(),
-        reason,
-    })?;
+    let validation = fixture.validate().map_err(|reason| SuiteError::Validation { id: meta.id.to_string(), reason })?;
     if !validation.ok {
-        return Err(SuiteError::Validation {
-            id: meta.id.to_string(),
-            reason: validation.notes.clone(),
-        });
+        return Err(SuiteError::Validation { id: meta.id.to_string(), reason: validation.notes.clone() });
     }
 
     let stats = measure(config.warmup, config.samples, || fixture.run_once());
@@ -218,11 +205,7 @@ fn peak_rss_bytes() -> Option<u64> {
     {
         // Best-effort via PowerShell; failure → null（不挡 CI）。
         let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-Process -Id $PID).WorkingSet64",
-            ])
+            .args(["-NoProfile", "-Command", "(Get-Process -Id $PID).WorkingSet64"])
             .output()
             .ok()?;
         if !out.status.success() {

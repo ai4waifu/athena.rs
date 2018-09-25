@@ -25,10 +25,7 @@ pub fn measure(warmup: usize, samples: usize, mut f: impl FnMut()) -> TimingStat
         times.push(duration_ns(start.elapsed()));
     }
     times.sort_unstable();
-    TimingStats {
-        p50_ns: percentile(&times, 50),
-        p95_ns: percentile(&times, 95),
-    }
+    TimingStats { p50_ns: percentile(&times, 50), p95_ns: percentile(&times, 95) }
 }
 
 fn duration_ns(d: Duration) -> u64 {
@@ -44,7 +41,8 @@ fn percentile(sorted: &[u64], pct: u8) -> u64 {
     let hi = rank.ceil() as usize;
     if lo == hi {
         sorted[lo]
-    } else {
+    }
+    else {
         let w = rank - lo as f64;
         let a = sorted[lo] as f64;
         let b = sorted[hi] as f64;
