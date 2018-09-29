@@ -34,25 +34,28 @@ mod engine;
 pub use athena_numeric as numeric;
 
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
-pub use athena_numeric::{ExactInteger, Integer, ModularValue, Modulus, Number, NumericDomain, NumericValue};
+pub use athena_numeric::{
+    ExactInteger, Integer, ModularValue, Modulus, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
+    NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PureRustBackend, number_from_wire,
+};
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
     ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision, Predicate, Result, RoundingMode,
     SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
+    wire::{ExactNumber, RealNumber, WireNumber},
 };
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution, Divergence,
     Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, RegionOfConvergence, Remainder, Residue, Series, TransformKind,
     TransformResult, VerificationStatus, asymptotic, calculus_result_bridge_term, curl_checked, definite_integrate_checked,
-    differentiate, differentiate_checked, divergence_checked, execute_calculus, fourier_checked, gradient_checked,
-    hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked, laurent, limit_checked, residue_checked,
-    solve_ode_checked, taylor, try_calculus_request, z_checked,
+    differentiate, differentiate as differentiate_term, differentiate_checked, divergence_checked, execute_calculus,
+    fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked,
+    laurent, limit_checked, residue_checked, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::evaluate;
-pub use calculus::differentiate as differentiate_term;
 pub use field::{Field, FieldDomainValue, FieldElement, FieldKind, FieldRequest, FieldResult, execute_field};
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
 pub use galois::{Automorphism, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois};
