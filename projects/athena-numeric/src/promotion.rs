@@ -5,8 +5,8 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use crate::{
     domain::NumericDomain,
     integer::Integer,
-    number::{NumericProvenance, NumericRepr, NumericValue},
-    precision::{PrecisionInfo, PrecisionKind},
+    number::{NumericRepr, NumericValue},
+    precision::PrecisionKind,
     rational::Rational,
     real::Real,
 };
@@ -91,11 +91,14 @@ impl Promotion for DefaultPromotion {
 }
 
 impl DefaultPromotion {
-    /// 同域 Real：Machine ↔ Arbitrary。
+    /// Same-domain Real precision change.
+    ///
+    /// Machine → Arbitrary is **rejected** until a true BigFloat representation exists.
+    /// Promoting a `f64` bit pattern into `PrecisionKind::Arbitrary` would silently lie.
     pub fn promote_real_precision(
         value: NumericValue,
         target_kind: PrecisionKind,
-        policy: &PromotionPolicy,
+        _policy: &PromotionPolicy,
     ) -> Result<NumericValue, Diagnostic> {
         if value.domain() != &NumericDomain::Real {
             return Err(mismatch("promote_real_precision"));
@@ -104,31 +107,11 @@ impl DefaultPromotion {
             return Ok(value);
         }
         match (value.repr(), value.precision().kind, target_kind) {
-            (NumericRepr::Real(Real::Machine(x)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
-                if !x.is_finite() {
-                    return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                        .detail("domain", "numeric")
-                        .detail("operation", "machine_non_finite_to_arbitrary"));
-                }
-                const WORKING_BITS: u32 = 53;
-                NumericValue::try_new(
-                    NumericDomain::Real,
-                    NumericRepr::Real(Real::from_machine_promoted(*x, WORKING_BITS)),
-                    PrecisionInfo::arbitrary(WORKING_BITS),
-                    NumericProvenance::default(),
-                )
+            (NumericRepr::Real(Real::Machine(_)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
+                Err(forbidden("arbitrary_real_unavailable"))
             }
-            (NumericRepr::Real(Real::Arbitrary { ieee754_bits, .. }), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
-                if !policy.allow_arbitrary_to_machine {
-                    return Err(forbidden("arbitrary_to_machine"));
-                }
-                let x = f64::from_bits(*ieee754_bits);
-                if !x.is_finite() {
-                    return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                        .detail("domain", "numeric")
-                        .detail("operation", "arbitrary_non_finite"));
-                }
-                Ok(NumericValue::machine_real(x))
+            (NumericRepr::Real(_), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
+                Err(forbidden("arbitrary_real_unavailable"))
             }
             _ => Err(failed("promote_real_precision")),
         }

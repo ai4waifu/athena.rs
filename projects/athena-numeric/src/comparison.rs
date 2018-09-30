@@ -79,9 +79,6 @@ impl DefaultNumericCompare {
                         let tol = 1e-12 * (1.0 + x.abs() + y.abs());
                         Ok(if (x - y).abs() <= tol { NumericComparison::ApproximateEqual } else { NumericComparison::Unequal })
                     }
-                    (Real::Arbitrary { ieee754_bits: x, .. }, Real::Arbitrary { ieee754_bits: y, .. }) => {
-                        Ok(if x == y { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
-                    }
                     _ => Ok(NumericComparison::Unknown),
                 }
             }

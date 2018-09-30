@@ -50,7 +50,12 @@ pub struct NumericValue {
 pub type Number = NumericValue;
 
 impl NumericValue {
-    fn new_unchecked(domain: NumericDomain, repr: NumericRepr, precision: PrecisionInfo, provenance: NumericProvenance) -> Self {
+    fn new_unchecked(
+        domain: NumericDomain,
+        repr: NumericRepr,
+        precision: PrecisionInfo,
+        provenance: NumericProvenance,
+    ) -> Self {
         Self { domain, repr, precision, provenance }
     }
 
@@ -71,11 +76,10 @@ impl NumericValue {
         let ok = match (&self.domain, &self.repr) {
             (NumericDomain::Integer, NumericRepr::Integer(_)) => true,
             (NumericDomain::Rational, NumericRepr::Rational(_)) => true,
-            (NumericDomain::Real, NumericRepr::Real(Real::Machine(_))) => self.precision.kind == crate::precision::PrecisionKind::Machine,
-            (NumericDomain::Real, NumericRepr::Real(Real::Arbitrary { working_bits, .. })) => {
-                self.precision.kind == crate::precision::PrecisionKind::Arbitrary
-                    && self.precision.bits == Some(*working_bits)
+            (NumericDomain::Real, NumericRepr::Real(Real::Machine(_))) => {
+                self.precision.kind == crate::precision::PrecisionKind::Machine
             }
+            (NumericDomain::Real, NumericRepr::Real(Real::Unsupported)) => false,
             (NumericDomain::Complex, NumericRepr::Complex(_)) => true,
             // 未开放稳定构造的域：禁止经 try_new 进入（骨架类型仍可内部保留）
             _ => false,
@@ -92,12 +96,22 @@ impl NumericValue {
 
     /// 精确整数。
     pub fn integer(n: Integer) -> Self {
-        Self::new_unchecked(NumericDomain::Integer, NumericRepr::Integer(n), PrecisionInfo::exact(), NumericProvenance::default())
+        Self::new_unchecked(
+            NumericDomain::Integer,
+            NumericRepr::Integer(n),
+            PrecisionInfo::exact(),
+            NumericProvenance::default(),
+        )
     }
 
     /// 精确有理（既约；分母为 1 时仍保留 Rational 域，除非调用方用 [`Self::from_rational_normalized`]）。
     pub fn rational(r: Rational) -> Self {
-        Self::new_unchecked(NumericDomain::Rational, NumericRepr::Rational(r), PrecisionInfo::exact(), NumericProvenance::default())
+        Self::new_unchecked(
+            NumericDomain::Rational,
+            NumericRepr::Rational(r),
+            PrecisionInfo::exact(),
+            NumericProvenance::default(),
+        )
     }
 
     /// 有理规范化：分母为 1 时降为 Integer 域。
@@ -123,11 +137,6 @@ impl NumericValue {
     /// 小整数。
     pub fn small_int(n: i64) -> Self {
         Self::integer(Integer::from_i64(n))
-    }
-
-    /// 十进制整数字符串。
-    pub fn from_decimal_str(s: &str) -> Option<Self> {
-        Integer::from_decimal_str(s).ok().map(Self::integer)
     }
 
     /// `i64` 有理。
@@ -230,9 +239,6 @@ impl NumericValue {
                 else {
                     format!("{x}")
                 }
-            }
-            NumericRepr::Real(Real::Arbitrary { ieee754_bits, .. }) => {
-                format!("{}", f64::from_bits(*ieee754_bits))
             }
             _ => format!("{:?}", self.repr),
         }

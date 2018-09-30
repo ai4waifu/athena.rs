@@ -82,19 +82,10 @@ fn promotion_exact_to_machine_requires_policy() {
 }
 
 #[test]
-fn promotion_machine_arbitrary_roundtrip() {
+fn promotion_machine_to_arbitrary_rejected_until_bigfloat() {
     let m = NumericValue::machine_real(1.5);
-    let arb = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).unwrap();
-    assert_eq!(arb.precision().kind, PrecisionKind::Arbitrary);
-
-    let err =
-        DefaultPromotion::promote_real_precision(arb.clone(), PrecisionKind::Machine, &PromotionPolicy::default()).unwrap_err();
+    let err = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
-
-    let policy = PromotionPolicy { allow_exact_to_machine: false, allow_arbitrary_to_machine: true };
-    let back = DefaultPromotion::promote_real_precision(arb, PrecisionKind::Machine, &policy).unwrap();
-    assert_eq!(back.precision().kind, PrecisionKind::Machine);
-    assert_eq!(back.as_machine_f64(), Some(1.5));
 }
 
 #[test]
@@ -107,8 +98,12 @@ fn promotion_domain_mismatch() {
 
 #[test]
 fn pure_rust_backend_is_wasm_safe() {
-    assert!(PureRustBackend.wasm_safe());
-    assert_eq!(PureRustBackend.name(), "pure-rust");
+    use athena_numeric::NumericCapability;
+    let b = PureRustBackend;
+    assert!(b.wasm_safe());
+    assert_eq!(b.name(), "pure-rust");
+    assert!(b.has_capability(NumericCapability::ExactInteger));
+    assert!(b.supports_domain(&NumericDomain::Integer));
 }
 
 #[test]
