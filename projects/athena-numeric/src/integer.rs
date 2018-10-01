@@ -1,6 +1,7 @@
 //! 精确整数包装（纯 Rust 内部表示，不暴露 limb / `num-*`）。
 
 use crate::natural::Natural;
+use std::str::FromStr;
 
 /// 符号（精确）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -14,10 +15,33 @@ pub enum Sign {
 }
 
 /// 精确整数（稳定公共包装；亦称 [`ExactInteger`]）。
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// 排序必须是数学序：负数额值反序、正数额值正序。禁止 derive `Ord`。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Integer {
     sign: Sign,
     mag: Natural,
+}
+
+impl PartialOrd for Integer {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Integer {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (self.sign, other.sign) {
+            (Sign::Negative, Sign::Positive) | (Sign::Negative, Sign::Zero) => Ordering::Less,
+            (Sign::Positive, Sign::Negative) | (Sign::Zero, Sign::Negative) => Ordering::Greater,
+            (Sign::Zero, Sign::Zero) => Ordering::Equal,
+            (Sign::Zero, Sign::Positive) => Ordering::Less,
+            (Sign::Positive, Sign::Zero) => Ordering::Greater,
+            (Sign::Positive, Sign::Positive) => self.mag.cmp(&other.mag),
+            (Sign::Negative, Sign::Negative) => other.mag.cmp(&self.mag),
+        }
+    }
 }
 
 /// Living `16` 稳定别名。
@@ -52,24 +76,6 @@ impl Integer {
     /// 由 `u64` 构造。
     pub fn from_u64(n: u64) -> Self {
         Self::from_mag_sign(Natural::from_u64(n), false)
-    }
-
-    /// 解析十进制字符串（可含前导 `+/-`）。
-    pub fn from_decimal_str(s: &str) -> Result<Self, ()> {
-        let t = s.trim();
-        if t.is_empty() {
-            return Err(());
-        }
-        let (negative, digits) = match t.as_bytes()[0] {
-            b'+' => (false, &t[1..]),
-            b'-' => (true, &t[1..]),
-            _ => (false, t),
-        };
-        if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
-            return Err(());
-        }
-        let mag = Natural::from_decimal_digits(digits)?;
-        Ok(Self::from_mag_sign(mag, negative))
     }
 
     /// 零。
@@ -128,17 +134,13 @@ impl Integer {
 
     /// 非负最大公约数；`gcd(0,0) = 0`。
     pub fn gcd(&self, other: &Self) -> Self {
-        let mut a = self.abs().mag;
-        let mut b = other.abs().mag;
+        let a = self.abs().mag;
+        let b = other.abs().mag;
         if a.is_zero() && b.is_zero() {
             return Self::zero();
         }
-        while !b.is_zero() {
-            let (_, r) = a.div_rem(&b);
-            a = b;
-            b = r;
-        }
-        Self { sign: Sign::Positive, mag: a }
+        let g = Natural::gcd(&a, &b);
+        Self { sign: Sign::Positive, mag: g }
     }
 
     /// 加法。
@@ -213,38 +215,44 @@ impl Integer {
         self.mag.bits()
     }
 
-    /// 可无损落入 `i64` 时返回。
+    /// 可无损落入 `i64` 时返回（含 `i64::MIN` 与零）。
     pub fn to_i64(&self) -> Option<i64> {
-        match self.sign {
-            Sign::Zero => Some(0),
-            Sign::Positive => self.mag.to_u64().and_then(|u| i64::try_from(u).ok()),
+        if self.is_zero() {
+            return Some(0);
+        }
+        let u = self.mag.to_u128()?;
+        let wide = match self.sign {
+            Sign::Zero => 0_i128,
+            Sign::Positive => i128::try_from(u).ok()?,
             Sign::Negative => {
-                let u = self.mag.to_u64()?;
-                if u == i64::MIN.unsigned_abs() {
-                    Some(i64::MIN)
+                if u > 1_u128 << 63 {
+                    return None;
                 }
-                else {
-                    i64::try_from(u).ok().map(|v| -v)
-                }
+                -(u as i128)
             }
-        }
+        };
+        i64::try_from(wide).ok()
     }
 
-    /// 可无损落入 `u64` 时返回。
+    /// 可无损落入 `u64` 时返回（零 → `Some(0)`）。
     pub fn to_u64(&self) -> Option<u64> {
+        if self.is_zero() {
+            return Some(0);
+        }
         match self.sign {
-            Sign::Zero => Some(0),
             Sign::Positive => self.mag.to_u64(),
-            Sign::Negative => None,
+            Sign::Negative | Sign::Zero => None,
         }
     }
 
-    /// 可无损落入 `u128` 时返回。
+    /// 可无损落入 `u128` 时返回（零 → `Some(0)`）。
     pub fn to_u128(&self) -> Option<u128> {
+        if self.is_zero() {
+            return Some(0);
+        }
         match self.sign {
-            Sign::Zero => Some(0),
             Sign::Positive => self.mag.to_u128(),
-            Sign::Negative => None,
+            Sign::Negative | Sign::Zero => None,
         }
     }
 
@@ -420,51 +428,23 @@ impl From<u64> for Integer {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn div_rem_mod_pow_bits() {
-        let a = Integer::from_i64(17);
-        let b = Integer::from_i64(5);
-        assert_eq!(a.div(&b), Integer::from_i64(3));
-        assert_eq!(a.rem(&b), Integer::from_i64(2));
-        assert!(a.is_positive());
-        assert!(Integer::one().is_one());
-        assert_eq!(Integer::from_i64(8).bits(), 4);
-        let m = Integer::from_i64(7);
-        assert_eq!(Integer::from_i64(3).mod_pow(&Integer::from_i64(4), &m), Integer::from_i64(4));
-        assert_eq!(Integer::from_u64(42).to_u64(), Some(42));
-        assert_eq!(Integer::from_i64(-1).to_u64(), None);
-        let big = Integer::from_decimal_str("99999999999999999999").unwrap();
-        assert_eq!(big.to_decimal_string(), "99999999999999999999");
-    }
-
-    #[test]
-    fn pow_no_recursion_and_large_exponent() {
-        let two = Integer::from_i64(2);
-        assert_eq!(two.pow_u32(0).unwrap(), Integer::one());
-        assert_eq!(two.pow_u32(1).unwrap(), two);
-        assert_eq!(two.pow_u32(32).unwrap(), Integer::from_decimal_str("4294967296").unwrap());
-        let exp33 = Integer::from_u64(33);
-        assert_eq!(two.pow(&exp33).unwrap(), Integer::from_decimal_str("8589934592").unwrap());
-        let exp_over = Integer::from_i64(Integer::MAX_POW_EXP + 1);
-        assert!(two.pow(&exp_over).is_err());
-    }
-
-    #[test]
-    fn try_to_f64_exact_respects_2_53() {
-        assert_eq!(Integer::from_i64(1).try_to_f64_exact(), Some(1.0));
-        let ok = Integer::from_i64(9_007_199_254_740_992); // 2^53
-        assert_eq!(ok.try_to_f64_exact(), Some(9_007_199_254_740_992.0));
-        let bad = Integer::from_i64(9_007_199_254_740_993);
-        assert_eq!(bad.try_to_f64_exact(), None);
-        assert!(bad.to_f64_approximate().is_some());
-    }
-
-    #[test]
-    fn gcd_zero_zero() {
-        assert_eq!(Integer::zero().gcd(&Integer::zero()), Integer::zero());
+impl FromStr for Integer {
+    type Err = ();
+    /// Decode canonical decimal digits
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let t = s.trim();
+        if t.is_empty() {
+            return Err(());
+        }
+        let (negative, digits) = match t.as_bytes()[0] {
+            b'+' => (false, &t[1..]),
+            b'-' => (true, &t[1..]),
+            _ => (false, t),
+        };
+        if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+            return Err(());
+        }
+        let mag = Natural::from_str(digits)?;
+        Ok(Self::from_mag_sign(mag, negative))
     }
 }

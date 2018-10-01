@@ -11,6 +11,7 @@ pub mod finite_field;
 pub mod integer;
 pub mod interval;
 pub mod kernel_number;
+mod limbs;
 pub mod modular;
 pub mod natural;
 pub mod number;
@@ -24,7 +25,10 @@ pub mod rounding;
 pub mod serialization;
 
 pub use algebraic::AlgebraicNumber;
-pub use backend::{NumericBackend, PureRustBackend};
+pub use backend::{
+    NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
+    PureRustBackend,
+};
 pub use certificate::{CertificateMethod, NumericCertificate};
 pub use comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, NumericComparison};
 pub use complex::{BranchPolicy, Complex};
