@@ -86,9 +86,9 @@ pub fn pow(base: &NumericValue, exp: &NumericValue) -> Result<NumericValue> {
         return div(NumericValue::small_int(1), base.clone());
     }
     match (lift(base)?, lift(exp)?) {
-        (Lifted::Integer(n), Lifted::Integer(e)) if !e.is_negative() => Ok(unlift_exact_int(
-            n.pow(&e).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?,
-        )),
+        (Lifted::Integer(n), Lifted::Integer(e)) if !e.is_negative() => {
+            Ok(unlift_exact_int(n.pow(&e).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?))
+        }
         (Lifted::Rational(r), Lifted::Integer(e)) if !e.is_negative() => {
             let u = e.to_u64().ok_or_else(|| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
             Ok(unlift_exact_rat(r.pow_u32(u as u32)?))
@@ -187,9 +187,9 @@ pub fn neg(n: NumericValue) -> NumericValue {
 pub fn compare(a: &NumericValue, b: &NumericValue) -> Option<std::cmp::Ordering> {
     match (lift(a).ok()?, lift(b).ok()?) {
         (Lifted::Integer(x), Lifted::Integer(y)) => Some(x.cmp(&y)),
-        (Lifted::Rational(x), Lifted::Rational(y)) => Some(x.cmp(&y)),
-        (Lifted::Integer(x), Lifted::Rational(y)) => Some(Rational::from_integer(x).cmp(&y)),
-        (Lifted::Rational(x), Lifted::Integer(y)) => Some(x.cmp(&Rational::from_integer(y))),
+        (Lifted::Rational(x), Lifted::Rational(y)) => Some(x.cmp_numeric(&y)),
+        (Lifted::Integer(x), Lifted::Rational(y)) => Some(Rational::from_integer(x).cmp_numeric(&y)),
+        (Lifted::Rational(x), Lifted::Integer(y)) => Some(x.cmp_numeric(&Rational::from_integer(y))),
         (Lifted::Real(x), Lifted::Real(y)) => x.partial_cmp(&y),
         (Lifted::Integer(x), Lifted::Real(y)) => x.to_f64_approximate()?.partial_cmp(&y),
         (Lifted::Rational(x), Lifted::Real(y)) => x.to_f64_approximate()?.partial_cmp(&y),
