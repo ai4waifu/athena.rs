@@ -157,16 +157,3 @@ fn miller_rabin_integer(n: &Integer, rounds: u32) -> bool {
     }
     true
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn small_primes() {
-        assert_eq!(primality_test(&2.into(), None), Primality::Prime);
-        assert_eq!(primality_test(&97.into(), None), Primality::Prime);
-        assert_eq!(primality_test(&91.into(), None), Primality::Composite);
-        assert_eq!(primality_test(&1.into(), None), Primality::Composite);
-    }
-}

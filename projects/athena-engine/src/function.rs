@@ -164,15 +164,3 @@ fn deriv_erf(arg: &Term) -> Term {
         ],
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn registry_contains_gate7_names() {
-        for name in ["Exp", "Sin", "Sinh", "ArcTan", "Gamma", "Erf", "Abs", "Sign"] {
-            assert!(lookup_function(name).is_some(), "missing {name}");
-        }
-    }
-}

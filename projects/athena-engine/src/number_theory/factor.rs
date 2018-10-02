@@ -113,27 +113,3 @@ pub fn factor_integer(n: &Integer, limits: &FactorLimits) -> Factorization {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn factor_12() {
-        let f = factor_integer(&12.into(), &FactorLimits::default());
-        assert_eq!(f.completeness, FactorizationCompleteness::Complete);
-        assert_eq!(f.unit, Integer::one());
-        assert_eq!(f.factors.len(), 2);
-        assert_eq!(f.factors[0].base, Integer::from_i64(2));
-        assert_eq!(f.factors[0].exponent, 2);
-        assert_eq!(f.factors[1].base, Integer::from_i64(3));
-        assert_eq!(f.factors[1].exponent, 1);
-    }
-
-    #[test]
-    fn factor_negative() {
-        let f = factor_integer(&(-100).into(), &FactorLimits::default());
-        assert_eq!(f.unit, Integer::from_i64(-1));
-        assert_eq!(f.completeness, FactorizationCompleteness::Complete);
-    }
-}

@@ -53,12 +53,7 @@ pub fn f64_add_down(a: f64, b: f64) -> f64 {
         return z;
     }
     let down = z.next_down();
-    if down + b <= a {
-        down
-    }
-    else {
-        z
-    }
+    if down + b <= a { down } else { z }
 }
 
 /// `a + b` rounded toward +∞.
@@ -68,12 +63,7 @@ pub fn f64_add_up(a: f64, b: f64) -> f64 {
         return z;
     }
     let up = z.next_up();
-    if a <= up - b {
-        up
-    }
-    else {
-        z
-    }
+    if a <= up - b { up } else { z }
 }
 
 /// `a - b` rounded toward −∞.
@@ -93,12 +83,7 @@ pub fn f64_mul_down(a: f64, b: f64) -> f64 {
         return z;
     }
     let down = z.next_down();
-    if down * b <= a * b {
-        down
-    }
-    else {
-        z
-    }
+    if down * b <= a * b { down } else { z }
 }
 
 /// `a * b` rounded toward +∞.
@@ -108,12 +93,7 @@ pub fn f64_mul_up(a: f64, b: f64) -> f64 {
         return z;
     }
     let up = z.next_up();
-    if up * b >= a * b {
-        up
-    }
-    else {
-        z
-    }
+    if up * b >= a * b { up } else { z }
 }
 
 /// `a / b` rounded toward −∞.
@@ -123,12 +103,7 @@ pub fn f64_div_down(a: f64, b: f64) -> f64 {
         return z;
     }
     let down = z.next_down();
-    if down * b <= a {
-        down
-    }
-    else {
-        z
-    }
+    if down * b <= a { down } else { z }
 }
 
 /// `a / b` rounded toward +∞.
@@ -138,33 +113,5 @@ pub fn f64_div_up(a: f64, b: f64) -> f64 {
         return z;
     }
     let up = z.next_up();
-    if a <= up * b {
-        up
-    }
-    else {
-        z
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn add_directed_brackets_true_sum() {
-        let a = 1.0_f64;
-        let b = 1.0_f64.next_up();
-        let sum = a + b;
-        assert!(f64_add_down(a, b) <= sum);
-        assert!(f64_add_up(a, b) >= sum);
-    }
-
-    #[test]
-    fn mul_directed_brackets_product() {
-        let a = 1.1_f64;
-        let b = 1.1_f64;
-        let prod = a * b;
-        assert!(f64_mul_down(a, b) <= prod);
-        assert!(f64_mul_up(a, b) >= prod);
-    }
+    if a <= up * b { up } else { z }
 }

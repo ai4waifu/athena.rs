@@ -19,7 +19,7 @@ pub enum IntervalDecoration {
     Defined,
     /// Trivial.
     #[default]
-    Trv,
+    Trivial,
     /// Ill-conditioned.
     Ill,
 }
@@ -58,7 +58,7 @@ impl Interval {
 
     /// Entire real line.
     pub fn entire() -> Self {
-        Self::Entire { decoration: IntervalDecoration::Trv }
+        Self::Entire { decoration: IntervalDecoration::Trivial }
     }
 
     /// Entire with decoration.
@@ -114,7 +114,7 @@ impl Interval {
     /// Decoration.
     pub fn decoration(&self) -> IntervalDecoration {
         match self {
-            Self::Empty => IntervalDecoration::Trv,
+            Self::Empty => IntervalDecoration::Trivial,
             Self::Entire { decoration } | Self::Bounded { decoration, .. } => *decoration,
         }
     }
@@ -162,9 +162,7 @@ impl Interval {
     pub fn add(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
-            (Self::Entire { decoration }, _) | (_, Self::Entire { decoration }) => {
-                Ok(Self::Entire { decoration: *decoration })
-            }
+            (Self::Entire { decoration }, _) | (_, Self::Entire { decoration }) => Ok(Self::Entire { decoration: *decoration }),
             (
                 Self::Bounded { lower: l1, upper: u1, decoration: d1 },
                 Self::Bounded { lower: l2, upper: u2, decoration: d2 },
@@ -173,10 +171,8 @@ impl Interval {
                     endpoint_f64(l1, "interval_add_lower")?,
                     endpoint_f64(l2, "interval_add_lower")?,
                 ));
-                let hi = Real::machine(f64_add_up(
-                    endpoint_f64(u1, "interval_add_upper")?,
-                    endpoint_f64(u2, "interval_add_upper")?,
-                ));
+                let hi =
+                    Real::machine(f64_add_up(endpoint_f64(u1, "interval_add_upper")?, endpoint_f64(u2, "interval_add_upper")?));
                 Self::try_bounded(lo, hi, merge_decoration(*d1, *d2))
             }
         }
@@ -187,8 +183,8 @@ impl Interval {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
             (Self::Entire { decoration }, Self::Entire { .. }) => Ok(Self::Entire { decoration: *decoration }),
-            (Self::Entire { .. }, Self::Bounded { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trv }),
-            (Self::Bounded { .. }, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trv }),
+            (Self::Entire { .. }, Self::Bounded { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
+            (Self::Bounded { .. }, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
             (
                 Self::Bounded { lower: l1, upper: u1, decoration: d1 },
                 Self::Bounded { lower: l2, upper: u2, decoration: d2 },
@@ -197,10 +193,8 @@ impl Interval {
                     endpoint_f64(l1, "interval_sub_lower")?,
                     endpoint_f64(u2, "interval_sub_lower")?,
                 ));
-                let hi = Real::machine(f64_sub_up(
-                    endpoint_f64(u1, "interval_sub_upper")?,
-                    endpoint_f64(l2, "interval_sub_upper")?,
-                ));
+                let hi =
+                    Real::machine(f64_sub_up(endpoint_f64(u1, "interval_sub_upper")?, endpoint_f64(l2, "interval_sub_upper")?));
                 Self::try_bounded(lo, hi, merge_decoration(*d1, *d2))
             }
         }
@@ -210,9 +204,7 @@ impl Interval {
     pub fn mul(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
-            (Self::Entire { .. }, _) | (_, Self::Entire { .. }) => {
-                Ok(Self::Entire { decoration: IntervalDecoration::Trv })
-            }
+            (Self::Entire { .. }, _) | (_, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
             (
                 Self::Bounded { lower: l1, upper: u1, decoration: d1 },
                 Self::Bounded { lower: l2, upper: u2, decoration: d2 },
@@ -234,12 +226,12 @@ impl Interval {
     pub fn div(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
-            (_, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trv }),
+            (_, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
             (Self::Entire { .. }, Self::Bounded { lower, upper, .. }) => {
                 if contains_zero(lower, upper)? {
                     return Ok(Self::Entire { decoration: IntervalDecoration::Ill });
                 }
-                Ok(Self::Entire { decoration: IntervalDecoration::Trv })
+                Ok(Self::Entire { decoration: IntervalDecoration::Trivial })
             }
             (
                 Self::Bounded { lower: l1, upper: u1, decoration: d1 },
@@ -304,70 +296,4 @@ fn merge_decoration(a: IntervalDecoration, b: IntervalDecoration) -> IntervalDec
 
 fn invalid(operation: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", operation)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejects_inverted_bounds() {
-        let err = Interval::try_bounded(Real::machine(2.0), Real::machine(1.0), IntervalDecoration::Trv).unwrap_err();
-        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
-    }
-
-    #[test]
-    fn rejects_nan_endpoints() {
-        let err =
-            Interval::try_bounded(Real::machine(f64::NAN), Real::machine(1.0), IntervalDecoration::Trv).unwrap_err();
-        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
-    }
-
-    #[test]
-    fn full_unbounded_promotes_to_entire() {
-        let iv = Interval::try_bounded(
-            Real::machine(f64::NEG_INFINITY),
-            Real::machine(f64::INFINITY),
-            IntervalDecoration::Trv,
-        )
-        .unwrap();
-        assert!(iv.is_entire());
-    }
-
-    #[test]
-    fn point_interval() {
-        let iv = Interval::try_point(Real::machine(3.0)).unwrap();
-        assert!(iv.contains_f64(3.0).unwrap());
-        assert!(!iv.contains_f64(4.0).unwrap());
-    }
-
-    #[test]
-    fn add_encloses_true_sum() {
-        let a = Interval::try_bounded(Real::machine(1.0_f64), Real::machine(1.0_f64.next_up()), IntervalDecoration::Trv).unwrap();
-        let b = Interval::try_bounded(Real::machine(2.0_f64), Real::machine(2.0_f64), IntervalDecoration::Trv).unwrap();
-        let sum = a.add(&b).unwrap();
-        let (lo, hi) = sum.as_f64_bounds().unwrap();
-        let target = 3.0_f64.next_up();
-        assert!(lo <= target);
-        assert!(hi >= target);
-    }
-
-    #[test]
-    fn mul_widens_product() {
-        let a = Interval::try_bounded(Real::machine(1.1), Real::machine(1.1), IntervalDecoration::Trv).unwrap();
-        let b = Interval::try_bounded(Real::machine(1.1), Real::machine(1.1), IntervalDecoration::Trv).unwrap();
-        let prod = a.mul(&b).unwrap();
-        let (lo, hi) = prod.as_f64_bounds().unwrap();
-        let exact = 1.1_f64 * 1.1_f64;
-        assert!(lo <= exact);
-        assert!(hi >= exact);
-    }
-
-    #[test]
-    fn div_by_interval_containing_zero_is_error() {
-        let a = Interval::try_bounded(Real::machine(1.0), Real::machine(2.0), IntervalDecoration::Trv).unwrap();
-        let b = Interval::try_bounded(Real::machine(-1.0), Real::machine(1.0), IntervalDecoration::Trv).unwrap();
-        let err = a.div(&b).unwrap_err();
-        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
-    }
 }

@@ -42,24 +42,3 @@ pub fn extended_gcd(a: &Integer, b: &Integer) -> ExtendedGcd {
     }
     ExtendedGcd { g: old_r, s: old_s.mul(&a_sign), t: old_t.mul(&b_sign) }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gcd_basic() {
-        assert_eq!(gcd(&12.into(), &18.into()), Integer::from_i64(6));
-        assert_eq!(gcd(&(-12).into(), &18.into()), Integer::from_i64(6));
-        assert_eq!(gcd(&0.into(), &0.into()), Integer::zero());
-    }
-
-    #[test]
-    fn egcd_bezout() {
-        let a = Integer::from_i64(240);
-        let b = Integer::from_i64(46);
-        let e = extended_gcd(&a, &b);
-        assert_eq!(e.s.mul(&a).add(&e.t.mul(&b)), e.g);
-        assert_eq!(e.g, Integer::from_i64(2));
-    }
-}

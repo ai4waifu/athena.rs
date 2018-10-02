@@ -34,17 +34,3 @@ pub fn mod_pow(base: &Integer, exp: &Integer, modulus: &Modulus) -> Result<Modul
     let r = b.mod_pow(exp, modulus.value());
     Ok(ModularValue::new(r, modulus.clone()))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn inverse_and_pow() {
-        let m = Modulus::new(7).unwrap();
-        let inv = mod_inverse(&3.into(), &m).unwrap();
-        assert_eq!(inv.residue(), &Integer::from_i64(5));
-        let p = mod_pow(&3.into(), &4.into(), &m).unwrap();
-        assert_eq!(p.residue(), &Integer::from_i64(4)); // 81 ≡ 4 (mod 7)
-    }
-}
