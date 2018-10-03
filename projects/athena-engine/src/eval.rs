@@ -3,8 +3,8 @@
 use std::cmp::Ordering;
 
 use athena_numeric::{
-    abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial, mul as num_mul,
-    pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy, Number,
+    Number, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial, mul as num_mul,
+    pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::Result;
 

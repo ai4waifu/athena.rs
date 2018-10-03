@@ -50,14 +50,9 @@ impl Term {
         Self::number(Number::small_int(n))
     }
 
-    /// 精确整数（`i64` 范围；更大请用 [`Self::integer_decimal`]）。
+    /// 精确整数（`i64` 范围；更大整数须由宿主经 wire 解码为 [`Number`]）。
     pub fn integer(n: i64) -> Self {
         Self::int(n)
-    }
-
-    /// 由十进制字符串构造精确整数。
-    pub fn integer_decimal(s: &str) -> Option<Self> {
-        Number::from_decimal_str(s).map(Self::number)
     }
 
     /// 精确有理数（`i64` 分子分母）。
@@ -70,7 +65,7 @@ impl Term {
         Self::number(Number::machine(n))
     }
 
-    /// 由已解码的 [`Number`] 构造统一数字原子。
+    /// 由已解码的 [`Number`] 构造数字原子。
     pub fn number(n: Number) -> Self {
         Self::Atom(Atom::Number(n))
     }
