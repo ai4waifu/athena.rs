@@ -10,10 +10,10 @@
 
 use std::hint::black_box;
 
-use athena_numeric::Integer;
+use athena_numeric::{Integer, number_from_wire};
+use athena_types::wire::WireNumber;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use ibig::IBig;
-use ibig::ops::Abs;
+use ibig::{IBig, ops::Abs};
 use num_bigint::BigInt;
 use num_traits::{Num, Signed, Zero, pow::Pow};
 
@@ -72,12 +72,16 @@ fn gcd_ibig(a: &IBig, b: &IBig) -> IBig {
     x
 }
 
+fn integer_from_wire_decimal(s: &str) -> Integer {
+    number_from_wire(&WireNumber::from_decimal_str(s).unwrap()).unwrap().as_integer().unwrap().clone()
+}
+
 fn bench_add(c: &mut Criterion) {
     let mut group = c.benchmark_group("bigint_add");
     for &bits in BITS {
         let (a_s, b_s) = operands(bits);
-        let a_ath = Integer::from_decimal_str(&a_s).unwrap();
-        let b_ath = Integer::from_decimal_str(&b_s).unwrap();
+        let a_ath = integer_from_wire_decimal(&a_s);
+        let b_ath = integer_from_wire_decimal(&b_s);
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
@@ -100,8 +104,8 @@ fn bench_mul(c: &mut Criterion) {
     let mut group = c.benchmark_group("bigint_mul");
     for &bits in BITS {
         let (a_s, b_s) = operands(bits);
-        let a_ath = Integer::from_decimal_str(&a_s).unwrap();
-        let b_ath = Integer::from_decimal_str(&b_s).unwrap();
+        let a_ath = integer_from_wire_decimal(&a_s);
+        let b_ath = integer_from_wire_decimal(&b_s);
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
@@ -124,8 +128,8 @@ fn bench_div(c: &mut Criterion) {
     let mut group = c.benchmark_group("bigint_div");
     for &bits in BITS {
         let (a_s, b_s) = operands(bits);
-        let a_ath = Integer::from_decimal_str(&a_s).unwrap();
-        let b_ath = Integer::from_decimal_str(&b_s).unwrap();
+        let a_ath = integer_from_wire_decimal(&a_s);
+        let b_ath = integer_from_wire_decimal(&b_s);
         let prod_ath = a_ath.mul(&b_ath);
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
@@ -154,8 +158,8 @@ fn bench_gcd(c: &mut Criterion) {
     let mut group = c.benchmark_group("bigint_gcd");
     for &bits in BITS {
         let (a_s, b_s) = operands(bits);
-        let a_ath = Integer::from_decimal_str(&a_s).unwrap();
-        let b_ath = Integer::from_decimal_str(&b_s).unwrap();
+        let a_ath = integer_from_wire_decimal(&a_s);
+        let b_ath = integer_from_wire_decimal(&b_s);
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
@@ -179,7 +183,7 @@ fn bench_pow(c: &mut Criterion) {
     for &bits in BITS {
         let (a_s, _) = operands(bits);
         let exp = pow_exp(bits);
-        let a_ath = Integer::from_decimal_str(&a_s).unwrap();
+        let a_ath = integer_from_wire_decimal(&a_s);
         let e_ath = Integer::from_u64(u64::from(exp));
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
