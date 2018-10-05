@@ -177,6 +177,8 @@ pub enum DiagnosticCode {
     PolynomialDivisionByZero,
     /// 多项式变量集不匹配。
     PolynomialVariableMismatch,
+    /// 单项式序非法或与变量数不一致。
+    PolynomialOrderInvalid,
     /// 多项式过大（资源）。
     PolynomialTooLarge,
     /// Gröbner 资源上限。
@@ -276,6 +278,7 @@ impl DiagnosticCode {
             Self::PolynomialNonFieldDivision => "ATHENA_POLYNOMIAL_NON_FIELD_DIVISION",
             Self::PolynomialDivisionByZero => "ATHENA_POLYNOMIAL_DIVISION_BY_ZERO",
             Self::PolynomialVariableMismatch => "ATHENA_POLYNOMIAL_VARIABLE_MISMATCH",
+            Self::PolynomialOrderInvalid => "ATHENA_POLYNOMIAL_ORDER_INVALID",
             Self::PolynomialTooLarge => "ATHENA_POLYNOMIAL_TOO_LARGE",
             Self::GroebnerResourceLimit => "ATHENA_GROEBNER_RESOURCE_LIMIT",
             Self::GroupMismatch => "ATHENA_GROUP_MISMATCH",

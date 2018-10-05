@@ -36,6 +36,10 @@ pub struct FieldId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ExtensionId(pub u32);
 
+/// 多项式环 id（系数域 + 变量序列 + 单项式序的稳定身份）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RingId(pub u32);
+
 /// 假设集合 id（Session / 请求附着）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionSetId(pub u32);
