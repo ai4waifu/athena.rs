@@ -8,13 +8,19 @@ mod expr;
 mod factor;
 mod groebner;
 mod operations;
+mod order;
 mod request;
 mod result;
 mod ring;
+mod ring_table;
 mod value;
 
 pub use expr::{MonomialTerm, Polynomial};
+pub use order::MonomialOrder;
 pub use request::PolynomialRequest;
 pub use result::{PolynomialResult, execute_polynomial};
-pub use ring::{CoefficientRing, DivisionPolicy};
+pub use ring::{CoefficientDomain, DivisionPolicy, RingCharacteristic, RingDescriptor};
+pub use ring_table::RingTable;
 pub use value::{PolynomialDomainValue, PolynomialValue};
+
+pub use athena_types::RingId;

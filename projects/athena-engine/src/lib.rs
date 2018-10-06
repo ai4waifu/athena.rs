@@ -73,8 +73,8 @@ pub use number_theory::{
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
-    CoefficientRing, DivisionPolicy, MonomialTerm, Polynomial, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
-    PolynomialValue, execute_polynomial,
+    CoefficientDomain, DivisionPolicy, MonomialOrder, MonomialTerm, Polynomial, PolynomialDomainValue, PolynomialRequest,
+    PolynomialResult, PolynomialValue, RingCharacteristic, RingDescriptor, RingId, RingTable, execute_polynomial,
 };
 pub use session::Session;
 pub use solver::{

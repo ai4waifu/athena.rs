@@ -1,32 +1,29 @@
-//! 稀疏多项式对象（规范化后才可 hash）。
+//! 稀疏多项式对象（F1 前项未强制 canonical；环身份经 [`RingId`]）。
 
 use athena_numeric::Number;
+use athena_types::RingId;
 
-use super::ring::CoefficientRing;
-
-/// 单项式项：系数 × 指数向量（与变量表对齐）。
+/// 单项式项：系数 × 指数向量（与环变量表对齐）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct MonomialTerm {
-    /// 系数（零系数不得保留）。
+    /// 系数（零系数不得保留；公开构造经 F1 Builder）。
     pub coefficient: Number,
-    /// 各变量指数。
+    /// 各变量指数（长度须等于环变量数）。
     pub exponents: Vec<u32>,
 }
 
-/// 多项式 = 环 + 变量 + 稀疏项。
+/// 多项式 = 环 id + 稀疏项。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Polynomial {
-    /// 系数环。
-    pub ring: CoefficientRing,
-    /// 变量名（桥接；后续可换 `SymbolId`）。
-    pub variables: Vec<String>,
-    /// 按 monomial order 排序的非零项。
+    /// 所属环（系数域 + 变量 + 单项式序）。
+    pub ring: RingId,
+    /// 按环单项式序排序的非零项（F1 强制 canonical）。
     pub terms: Vec<MonomialTerm>,
 }
 
 impl Polynomial {
-    /// 空多项式（零）。
-    pub fn zero(ring: CoefficientRing, variables: Vec<String>) -> Self {
-        Self { ring, variables, terms: Vec::new() }
+    /// 零多项式。
+    pub fn zero(ring: RingId) -> Self {
+        Self { ring, terms: Vec::new() }
     }
 }
