@@ -1,14 +1,21 @@
 //! 代数域骨架：polynomial / group / field / galois 经 DomainRequest 可分派。
 
 use athena_engine::{
-    AthenaEngine, CoefficientRing, DiagnosticCode, DomainRequest, DomainResult, FieldRequest, GaloisRequest, GroupRequest,
-    Integer, NumberTheoryRequest, Polynomial, PolynomialRequest, PolynomialResult,
+    AthenaEngine, CoefficientDomain, DiagnosticCode, DomainRequest, DomainResult, FieldRequest, GaloisRequest, GroupRequest,
+    Integer, MonomialOrder, NumberTheoryRequest, Polynomial, PolynomialRequest, PolynomialResult, RingTable, SymbolId,
 };
+
+fn integer_x_ring() -> (RingTable, athena_engine::RingId) {
+    let mut rings = RingTable::new();
+    let id = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    (rings, id)
+}
 
 #[test]
 fn polynomial_scaffold_unevaluated() {
     let engine = AthenaEngine::new();
-    let p = Polynomial::zero(CoefficientRing::Integer, vec!["x".into()]);
+    let (_rings, ring) = integer_x_ring();
+    let p = Polynomial::zero(ring);
     let out = engine.execute_domain(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: p })).expect("ok");
     match out {
         DomainResult::Polynomial(PolynomialResult::Unevaluated { reason }) => {
@@ -30,9 +37,10 @@ fn group_field_galois_scaffolds_unevaluated() {
     let f = engine.execute_domain(DomainRequest::FieldTheory(FieldRequest::Rationals)).expect("ok");
     assert!(matches!(f, DomainResult::FieldTheory(_)));
 
+    let (_rings, ring) = integer_x_ring();
     let gal = engine
         .execute_domain(DomainRequest::GaloisTheory(GaloisRequest::GaloisGroup {
-            polynomial: Polynomial::zero(CoefficientRing::Rational, vec!["x".into()]),
+            polynomial: Polynomial::zero(ring),
             base_field: athena_engine::FieldId(0),
         }))
         .expect("ok");
