@@ -21,8 +21,8 @@ pub use athena_engine::{
     LimitApproach, LimitDirection, MGraphState, ModularValue, Modulus, MonomialOrder, MonomialTerm, NodeId, Number,
     NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, NumericBackend, NumericBackendContract, NumericBackendLimits,
     NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, OperatorId, Permutation, Polynomial,
-    PolynomialBuilder, CanonicalPolynomial, PolynomialDomainValue, PolynomialRequest, PolynomialResult, PolynomialValue,
-    Precision, Predicate, Primality, PrimePower,
+    PolynomialBuilder, CanonicalPolynomial, PolynomialDomainValue, PolynomialRepr, PolynomialReprBody, PolynomialRequest,
+    PolynomialResult, PolynomialValue, Precision, Predicate, Primality, PrimePower,
     PureRustBackend, RealNumber, ReflectionResult, Reflector, RegionOfConvergence, Remainder, Residue, Result, RewriteOptions,
     RewriteResult, RewriteWitness, Rewriter, RingCharacteristic, RingDescriptor, RingId, RingTable, RoundingMode, SampleDomain,
     SamplePoint, SampledCurve, SamplingPolicy, SerializationVersion, Series, Session, Severity, SimplifyOptions,
@@ -34,7 +34,7 @@ pub use athena_engine::{
     execute_number_theory, execute_polynomial, execute_polynomial_with_rings, extended_gcd, factor_integer, fourier_checked, gcd,
     gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked, laurent, lcm,
     limit_checked, lookup_function, mod_inverse, mod_pow, number_from_term, number_from_wire, polynomial_canonical_hash,
-    primality_test, registered_function_names, residue_checked, run_closure_step,
+    primality_test, registered_function_names, ReprTarget, reprs_mathematically_equal, residue_checked, run_closure_step,
     sample_1d, score_candidate, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };
 
