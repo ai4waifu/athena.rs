@@ -4,6 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     canonical::canonicalize_polynomial,
+    operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
     ring_table::RingTable,
     value::{PolynomialDomainValue, PolynomialValue},
@@ -43,6 +44,18 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
         PolynomialRequest::Normalize { polynomial } => match canonicalize_polynomial(polynomial, rings) {
             Ok(normalized) => PolynomialResult::Exact {
                 value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: normalized }),
+            },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
+        PolynomialRequest::Add { lhs, rhs } => match add_polynomial(lhs, rhs, rings) {
+            Ok(sum) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: sum }),
+            },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
+        PolynomialRequest::Mul { lhs, rhs } => match mul_polynomial(lhs, rhs, rings) {
+            Ok(product) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }),
             },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },

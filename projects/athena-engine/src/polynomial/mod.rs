@@ -3,6 +3,7 @@
 //! 重型算法只在本模块；`athena-rewriter` 仅做轻量规范化。
 //! 禁止 `HashMap<String, Number>` 作为长期表示。
 
+mod coeff_kernel;
 mod algorithms;
 mod builder;
 mod canonical;
@@ -24,6 +25,7 @@ pub use canonical::canonicalize_polynomial;
 pub use expr::{MonomialTerm, Polynomial};
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use order::MonomialOrder;
+pub use operations::{add_polynomial, mul_polynomial, sub_polynomial};
 pub use repr::{PolynomialRepr, PolynomialReprBody, ReprTarget, reprs_mathematically_equal};
 pub use request::PolynomialRequest;
 pub use result::{PolynomialResult, execute_polynomial, execute_polynomial_with_rings};

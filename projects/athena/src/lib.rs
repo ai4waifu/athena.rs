@@ -28,13 +28,15 @@ pub use athena_engine::{
     SamplePoint, SampledCurve, SamplingPolicy, SerializationVersion, Series, Session, Severity, SimplifyOptions,
     SolverCandidate, SolverContext, SolverFrontier, SolverId, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,
     SolverRequest, SolverScore, SourceSpan, SymbolId, SymbolTable, Term, TermArena, TermBuilder, TermId, TermKind,
-    TransformKind, TransformResult, VerificationStatus, WireNumber, asymptotic, calculus_result_bridge_term, canonical_hash,
+    TransformKind, TransformResult, VerificationStatus, WireNumber, add_polynomial, asymptotic,
+    calculus_result_bridge_term, canonical_hash,
     canonicalize_polynomial, curl_checked, definite_integrate_checked, differentiate, differentiate_checked, differentiate_term,
     divergence_checked, evaluate, execute_calculus, execute_domain, execute_field, execute_galois, execute_group,
     execute_number_theory, execute_polynomial, execute_polynomial_with_rings, extended_gcd, factor_integer, fourier_checked, gcd,
     gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked, laurent, lcm,
-    limit_checked, lookup_function, mod_inverse, mod_pow, number_from_term, number_from_wire, polynomial_canonical_hash,
-    primality_test, registered_function_names, ReprTarget, reprs_mathematically_equal, residue_checked, run_closure_step,
+    limit_checked, lookup_function, mod_inverse, mod_pow, mul_polynomial, number_from_term, number_from_wire,
+    polynomial_canonical_hash, primality_test, registered_function_names, ReprTarget, reprs_mathematically_equal,
+    residue_checked, run_closure_step, sub_polynomial,
     sample_1d, score_candidate, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };
 

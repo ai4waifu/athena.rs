@@ -75,8 +75,9 @@ pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1
 pub use polynomial::{
     CanonicalPolynomial, CoefficientDomain, DivisionPolicy, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder,
     PolynomialDomainValue, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
-    ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable, canonicalize_polynomial, execute_polynomial,
-    execute_polynomial_with_rings, polynomial_canonical_hash, reprs_mathematically_equal,
+    ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable, add_polynomial, canonicalize_polynomial,
+    execute_polynomial, execute_polynomial_with_rings, mul_polynomial, polynomial_canonical_hash, reprs_mathematically_equal,
+    sub_polynomial,
 };
 pub use session::Session;
 pub use solver::{

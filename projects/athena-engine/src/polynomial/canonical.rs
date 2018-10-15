@@ -6,6 +6,7 @@ use athena_numeric::{Number, add as coeff_add};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
+    coeff_kernel::CoeffRing,
     expr::{MonomialTerm, Polynomial},
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
@@ -19,6 +20,7 @@ pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<Po
 
 pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<MonomialTerm>) -> Result<Polynomial> {
     let n = desc.variable_count();
+    let coeff_ring = CoeffRing::new(&desc.coefficients).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();
 
     for term in raw {
@@ -33,7 +35,7 @@ pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<M
         }
         match acc.get_mut(&term.exponents) {
             Some(existing) => {
-                *existing = coeff_add(existing.clone(), term.coefficient)?;
+                *existing = merge_coefficients(existing.clone(), term.coefficient, coeff_ring.as_ref())?;
             }
             None => {
                 acc.insert(term.exponents, term.coefficient);
@@ -54,6 +56,13 @@ pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<M
     });
 
     Ok(Polynomial { ring, terms })
+}
+
+fn merge_coefficients(a: Number, b: Number, coeff_ring: Option<&CoeffRing<'_>>) -> Result<Number> {
+    match coeff_ring {
+        Some(ring) => ring.add(a, b),
+        None => coeff_add(a, b),
+    }
 }
 
 fn validate_coefficient(coeff: &Number, domain: &CoefficientDomain) -> Result<()> {
