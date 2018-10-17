@@ -67,19 +67,19 @@ fn merge_coefficients(a: Number, b: Number, coeff_ring: Option<&CoeffRing<'_>>) 
 
 fn validate_coefficient(coeff: &Number, domain: &CoefficientDomain) -> Result<()> {
     match domain {
-        CoefficientDomain::Integer => match coeff.repr() {
-            athena_numeric::NumericRepr::Integer(_) => Ok(()),
-            athena_numeric::NumericRepr::Rational(r) if r.is_integer() => Ok(()),
+        CoefficientDomain::Integer => match coeff {
+            Number::Integer(_) => Ok(()),
+            Number::Rational(r) if r.is_integer() => Ok(()),
             _ => Err(coeff_mismatch("integer")),
         },
-        CoefficientDomain::Rational => match coeff.repr() {
-            athena_numeric::NumericRepr::Integer(_) | athena_numeric::NumericRepr::Rational(_) => Ok(()),
+        CoefficientDomain::Rational => match coeff {
+            Number::Integer(_) | Number::Rational(_) => Ok(()),
             _ => Err(coeff_mismatch("rational")),
         },
         CoefficientDomain::PrimeField { .. }
         | CoefficientDomain::ModularInteger { .. }
-        | CoefficientDomain::FiniteField { .. } => match coeff.repr() {
-            athena_numeric::NumericRepr::Integer(_) => Ok(()),
+        | CoefficientDomain::FiniteField { .. } => match coeff {
+            Number::Integer(_) => Ok(()),
             _ => Err(coeff_mismatch("finite_field_skeleton")),
         },
         CoefficientDomain::ApproximateReal => Err(coeff_mismatch("approximate")),

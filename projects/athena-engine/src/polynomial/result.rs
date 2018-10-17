@@ -4,10 +4,11 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     canonical::canonicalize_polynomial,
+    groebner::{compute_elimination_basis, compute_groebner_basis},
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
     ring_table::RingTable,
-    value::{PolynomialDomainValue, PolynomialValue},
+    value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue},
 };
 
 /// 多项式域结果。
@@ -59,6 +60,26 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
+        PolynomialRequest::Groebner { generators, limits } => match compute_groebner_basis(generators, rings, limits) {
+            Ok(gb) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue {
+                    ring: gb.ring,
+                    basis: gb.basis,
+                    certificate: gb.certificate,
+                }),
+            },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
+        PolynomialRequest::Eliminate { generators, limits } => match compute_elimination_basis(generators, rings, limits) {
+            Ok(gb) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue {
+                    ring: gb.ring,
+                    basis: gb.basis,
+                    certificate: gb.certificate,
+                }),
+            },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
         other => execute_polynomial(other),
     }
 }
@@ -72,6 +93,7 @@ fn unsupported_polynomial(request: &PolynomialRequest) -> PolynomialResult {
         PolynomialRequest::Gcd { .. } => "gcd",
         PolynomialRequest::Factor { .. } => "factor",
         PolynomialRequest::Groebner { .. } => "groebner",
+        PolynomialRequest::Eliminate { .. } => "eliminate",
     };
     PolynomialResult::Unevaluated {
         reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", op),

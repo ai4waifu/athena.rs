@@ -73,11 +73,12 @@ pub use number_theory::{
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
-    CanonicalPolynomial, CoefficientDomain, DivisionPolicy, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder,
+    CanonicalPolynomial, CoefficientDomain, DivisionPolicy, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue,
+    GroebnerCertificate, GroebnerLimits, Ideal, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder,
     PolynomialDomainValue, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
     ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable, add_polynomial, canonicalize_polynomial,
-    execute_polynomial, execute_polynomial_with_rings, mul_polynomial, polynomial_canonical_hash, reprs_mathematically_equal,
-    sub_polynomial,
+    compute_elimination_basis, compute_groebner_basis, execute_polynomial, execute_polynomial_with_rings, mul_polynomial,
+    polynomial_canonical_hash, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
 };
 pub use session::Session;
 pub use solver::{
