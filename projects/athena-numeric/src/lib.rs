@@ -2,7 +2,7 @@
 #![deny(missing_docs)]
 
 pub mod algebraic;
-pub mod backend;
+pub mod backends;
 pub mod certificate;
 pub mod comparison;
 pub mod complex;
@@ -11,7 +11,6 @@ pub mod finite_field;
 pub mod integer;
 pub mod interval;
 pub mod kernel_number;
-mod limbs;
 pub mod modular;
 pub mod natural;
 pub mod number;
@@ -25,7 +24,7 @@ pub mod rounding;
 pub mod serialization;
 
 pub use algebraic::AlgebraicNumber;
-pub use backend::{
+pub use backends::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     PureRustBackend,
 };
@@ -38,7 +37,7 @@ pub use integer::{ExactInteger, Integer, Sign};
 pub use interval::{Interval, IntervalDecoration};
 pub use kernel_number::{abs, add, compare, div, factorial, mul, neg, pow, sqrt, to_f64_lossy};
 pub use modular::{ModularValue, Modulus};
-pub use number::{Number, NumericProvenance, NumericRepr, NumericValue};
+pub use number::{Number, NumericProvenance, NumericValue};
 pub use number_wire::{from_wire as number_from_wire, to_wire as number_to_wire};
 pub use p_adic::PAdicValue;
 pub use precision::{PrecisionInfo, PrecisionKind};
