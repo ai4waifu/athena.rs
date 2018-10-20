@@ -51,7 +51,7 @@ impl Fixture for RationalNormalizeFixture {
         let a = NumericValue::integer(Integer::from_i64(5));
         let promoted = DefaultPromotion::promote(a, &NumericDomain::Rational, &PromotionPolicy::default())
             .map_err(|d| d.code.as_str().to_string())?;
-        if promoted.domain() != &NumericDomain::Rational {
+        if promoted.domain() != NumericDomain::Rational {
             return Err("promotion to rational failed".into());
         }
         Ok(ValidationSummary::passed(

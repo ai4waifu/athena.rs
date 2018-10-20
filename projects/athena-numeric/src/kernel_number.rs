@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     integer::Integer,
-    number::{NumericRepr, NumericValue},
+    number::NumericValue,
     rational::Rational,
     real::Real,
 };
@@ -16,10 +16,10 @@ enum Lifted {
 }
 
 fn lift(n: &NumericValue) -> Result<Lifted> {
-    match n.repr() {
-        NumericRepr::Integer(i) => Ok(Lifted::Integer(i.clone())),
-        NumericRepr::Rational(r) => Ok(Lifted::Rational(r.clone())),
-        NumericRepr::Real(Real::Machine(x)) => Ok(Lifted::Real(*x)),
+    match n {
+        NumericValue::Integer(i) => Ok(Lifted::Integer(i.clone())),
+        NumericValue::Rational(r) => Ok(Lifted::Rational(r.clone())),
+        NumericValue::Real(Real::Machine(x)) => Ok(Lifted::Real(*x)),
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "numeric")
             .detail("operation", "kernel_lift")),

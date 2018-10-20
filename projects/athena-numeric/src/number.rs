@@ -1,88 +1,76 @@
-//! 统一数值值（Living `16`：私有字段 + 经验证构造）。
+//! 统一数值值（Living `16`：单一 discriminant，域由 variant 推导）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     algebraic::AlgebraicNumber, complex::Complex, domain::NumericDomain, finite_field::FiniteFieldValue, integer::Integer,
-    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
+    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
+    rational::Rational, real::Real,
 };
 
-/// 数值来源 / 证明引用占位。
+/// 数值来源 / 证明引用占位（#7 将迁至 arena ID；暂不参与 [`NumericValue`] 相等性）。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NumericProvenance {
     /// 标签列表（骨架；后续换 ProofRef）。
     pub tags: Vec<String>,
 }
 
-/// 内部表示（由 [`NumericValue`] 构造器保证与 domain 一致）。
+/// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
 #[derive(Debug, Clone, PartialEq)]
-pub enum NumericRepr {
-    /// 整数。
+pub enum NumericValue {
+    /// 精确整数 ℤ。
     Integer(Integer),
-    /// 有理。
+    /// 精确有理 ℚ。
     Rational(Rational),
-    /// 实。
+    /// 实数 ℝ（当前仅 [`Real::Machine`] 为稳定构造）。
     Real(Real),
-    /// 复。
+    /// 复数 ℂ（骨架）。
     Complex(Complex),
-    /// 区间。
+    /// 区间（骨架）。
     Interval(Interval),
-    /// 代数。
+    /// 代数数（骨架）。
     Algebraic(AlgebraicNumber),
-    /// 模。
+    /// 模整数 ℤ/nℤ（模数在 [`ModularValue`] 内）。
     Modular(ModularValue),
-    /// 有限域。
+    /// 有限域元素（域 id 在 [`FiniteFieldValue`] 内）。
     FiniteField(FiniteFieldValue),
-    /// p-adic。
+    /// p-adic（参数在 [`PAdicValue`] 内）。
     PAdic(PAdicValue),
-}
-
-/// 带域与精度的数值（唯一执行真相源）。
-#[derive(Debug, Clone, PartialEq)]
-pub struct NumericValue {
-    domain: NumericDomain,
-    repr: NumericRepr,
-    precision: PrecisionInfo,
-    provenance: NumericProvenance,
 }
 
 /// Living `16` 过渡别名：公共面统一称 [`NumericValue`]。
 pub type Number = NumericValue;
 
 impl NumericValue {
-    fn new_unchecked(
-        domain: NumericDomain,
-        repr: NumericRepr,
-        precision: PrecisionInfo,
-        provenance: NumericProvenance,
-    ) -> Self {
-        Self { domain, repr, precision, provenance }
-    }
-
-    /// 经验证构造；domain 与 repr 不一致时失败。
+    /// 经验证构造：外部提供的 domain / precision 必须与 variant 一致。
     pub fn try_new(
         domain: NumericDomain,
-        repr: NumericRepr,
+        value: Self,
         precision: PrecisionInfo,
-        provenance: NumericProvenance,
+        _provenance: NumericProvenance,
     ) -> Result<Self> {
-        let v = Self::new_unchecked(domain, repr, precision, provenance);
-        v.validate()?;
-        Ok(v)
+        if value.domain() != domain {
+            return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
+                .detail("domain", "numeric")
+                .detail("operation", "numeric_value_validate"));
+        }
+        if value.precision() != precision {
+            return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
+                .detail("domain", "numeric")
+                .detail("operation", "numeric_value_validate"));
+        }
+        value.validate()?;
+        Ok(value)
     }
 
-    /// 校验 domain / repr / precision 不变量。
+    /// 校验 variant 级不变量（开放构造路径）。
     pub fn validate(&self) -> Result<()> {
-        let ok = match (&self.domain, &self.repr) {
-            (NumericDomain::Integer, NumericRepr::Integer(_)) => true,
-            (NumericDomain::Rational, NumericRepr::Rational(_)) => true,
-            (NumericDomain::Real, NumericRepr::Real(Real::Machine(_))) => {
-                self.precision.kind == crate::precision::PrecisionKind::Machine
-            }
-            (NumericDomain::Real, NumericRepr::Real(Real::Unsupported)) => false,
-            (NumericDomain::Complex, NumericRepr::Complex(_)) => true,
-            // 未开放稳定构造的域：禁止经 try_new 进入（骨架类型仍可内部保留）
-            _ => false,
+        let ok = match self {
+            Self::Integer(_) | Self::Rational(_) => true,
+            Self::Real(Real::Machine(_)) => true,
+            Self::Real(Real::Unsupported) => false,
+            Self::Complex(_) => true,
+            Self::Modular(_) | Self::FiniteField(_) | Self::PAdic(_) | Self::Interval(_) | Self::Algebraic(_) => false,
         };
         if ok {
             Ok(())
@@ -96,22 +84,12 @@ impl NumericValue {
 
     /// 精确整数。
     pub fn integer(n: Integer) -> Self {
-        Self::new_unchecked(
-            NumericDomain::Integer,
-            NumericRepr::Integer(n),
-            PrecisionInfo::exact(),
-            NumericProvenance::default(),
-        )
+        Self::Integer(n)
     }
 
     /// 精确有理（既约；分母为 1 时仍保留 Rational 域，除非调用方用 [`Self::from_rational_normalized`]）。
     pub fn rational(r: Rational) -> Self {
-        Self::new_unchecked(
-            NumericDomain::Rational,
-            NumericRepr::Rational(r),
-            PrecisionInfo::exact(),
-            NumericProvenance::default(),
-        )
+        Self::Rational(r)
     }
 
     /// 有理规范化：分母为 1 时降为 Integer 域。
@@ -121,12 +99,7 @@ impl NumericValue {
 
     /// 机器实数。
     pub fn machine_real(x: f64) -> Self {
-        Self::new_unchecked(
-            NumericDomain::Real,
-            NumericRepr::Real(Real::machine(x)),
-            PrecisionInfo::machine(),
-            NumericProvenance::default(),
-        )
+        Self::Real(Real::machine(x))
     }
 
     /// 同 [`Self::machine_real`]。
@@ -145,71 +118,84 @@ impl NumericValue {
         Ok(Self::from_rational_normalized(r))
     }
 
-    /// 域。
-    pub fn domain(&self) -> &NumericDomain {
-        &self.domain
+    /// 运算域（由 variant 推导，无第二份副本）。
+    pub fn domain(&self) -> NumericDomain {
+        match self {
+            Self::Integer(_) => NumericDomain::Integer,
+            Self::Rational(_) => NumericDomain::Rational,
+            Self::Real(_) => NumericDomain::Real,
+            Self::Complex(_) => NumericDomain::Complex,
+            Self::Interval(_) => NumericDomain::Interval,
+            Self::Algebraic(_) => NumericDomain::Algebraic,
+            Self::Modular(v) => NumericDomain::Modular { modulus: v.modulus().clone() },
+            Self::FiniteField(v) => NumericDomain::FiniteField { field: v.field },
+            Self::PAdic(v) => NumericDomain::PAdic { prime: v.prime.clone(), precision: v.precision },
+        }
     }
 
-    /// 表示。
-    pub fn repr(&self) -> &NumericRepr {
-        &self.repr
+    /// 精度（由 variant 推导）。
+    pub fn precision(&self) -> PrecisionInfo {
+        match self {
+            Self::Integer(_) | Self::Rational(_) | Self::Modular(_) | Self::FiniteField(_) | Self::PAdic(_) => {
+                PrecisionInfo::exact()
+            }
+            Self::Real(Real::Machine(_)) => PrecisionInfo::machine(),
+            Self::Real(Real::Unsupported) => PrecisionInfo::exact(),
+            Self::Complex(_) | Self::Interval(_) | Self::Algebraic(_) => PrecisionInfo::exact(),
+        }
     }
 
-    /// 精度。
-    pub fn precision(&self) -> &PrecisionInfo {
-        &self.precision
-    }
-
-    /// 来源。
-    pub fn provenance(&self) -> &NumericProvenance {
-        &self.provenance
+    /// 来源占位（#7 前恒为 default）。
+    pub fn provenance(&self) -> NumericProvenance {
+        let _ = self;
+        NumericProvenance::default()
     }
 
     /// 是否精确零。
     pub fn is_zero(&self) -> bool {
-        match &self.repr {
-            NumericRepr::Integer(n) => n.is_zero(),
-            NumericRepr::Rational(r) => r.is_zero(),
-            NumericRepr::Real(Real::Machine(x)) => *x == 0.0,
+        match self {
+            Self::Integer(n) => n.is_zero(),
+            Self::Rational(r) => r.is_zero(),
+            Self::Real(Real::Machine(x)) => *x == 0.0,
             _ => false,
         }
     }
 
     /// 是否精确一。
     pub fn is_one(&self) -> bool {
-        match &self.repr {
-            NumericRepr::Integer(n) => n.is_one(),
-            NumericRepr::Rational(r) => r.is_integer() && r.numerator().is_one(),
-            NumericRepr::Real(Real::Machine(x)) => *x == 1.0,
+        match self {
+            Self::Integer(n) => n.is_one(),
+            Self::Rational(r) => r.is_integer() && r.numerator().is_one(),
+            Self::Real(Real::Machine(x)) => *x == 1.0,
             _ => false,
         }
     }
 
     /// 是否精确 `-1`。
     pub fn is_neg_one(&self) -> bool {
-        match &self.repr {
-            NumericRepr::Integer(n) => n.to_i64() == Some(-1),
-            NumericRepr::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
-            NumericRepr::Real(Real::Machine(x)) => *x == -1.0,
+        match self {
+            Self::Integer(n) => n.to_i64() == Some(-1),
+            Self::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
+            Self::Real(Real::Machine(x)) => *x == -1.0,
             _ => false,
         }
     }
 
     /// 逻辑真值（精确非零 → true；NaN → false）。
     pub fn is_truthy(&self) -> bool {
-        match &self.repr {
-            NumericRepr::Integer(n) => !n.is_zero(),
-            NumericRepr::Rational(r) => !r.is_zero(),
-            NumericRepr::Real(Real::Machine(x)) => *x != 0.0 && !x.is_nan(),
+        match self {
+            Self::Integer(n) => !n.is_zero(),
+            Self::Rational(r) => !r.is_zero(),
+            Self::Real(Real::Machine(x)) => *x != 0.0 && !x.is_nan(),
             _ => false,
         }
     }
 
     /// 可落入 `i64` 的整数指数。
     pub fn as_integer_exp(&self) -> Option<i64> {
-        match &self.repr {
-            NumericRepr::Integer(n) => n.to_i64(),
-            NumericRepr::Rational(r) if r.is_integer() => r.numerator().to_i64(),
+        match self {
+            Self::Integer(n) => n.to_i64(),
+            Self::Rational(r) if r.is_integer() => r.numerator().to_i64(),
             _ => None,
         }
     }
@@ -221,18 +207,18 @@ impl NumericValue {
 
     /// 机器 `f64`（仅 Machine Real）。
     pub fn as_machine_f64(&self) -> Option<f64> {
-        match &self.repr {
-            NumericRepr::Real(Real::Machine(x)) => Some(*x),
+        match self {
+            Self::Real(Real::Machine(x)) => Some(*x),
             _ => None,
         }
     }
 
     /// 渲染字符串。
     pub fn to_render_string(&self) -> String {
-        match &self.repr {
-            NumericRepr::Integer(n) => n.to_decimal_string(),
-            NumericRepr::Rational(r) => r.to_wire_string(),
-            NumericRepr::Real(Real::Machine(x)) => {
+        match self {
+            Self::Integer(n) => n.to_decimal_string(),
+            Self::Rational(r) => r.to_wire_string(),
+            Self::Real(Real::Machine(x)) => {
                 if x.fract() == 0.0 && x.abs() < 1e15 {
                     format!("{}", *x as i64)
                 }
@@ -240,30 +226,30 @@ impl NumericValue {
                     format!("{x}")
                 }
             }
-            _ => format!("{:?}", self.repr),
+            other => format!("{other:?}"),
         }
     }
 
     /// 整数视图。
     pub fn as_integer(&self) -> Option<&Integer> {
-        match &self.repr {
-            NumericRepr::Integer(n) => Some(n),
+        match self {
+            Self::Integer(n) => Some(n),
             _ => None,
         }
     }
 
     /// 有理视图。
     pub fn as_rational(&self) -> Option<&Rational> {
-        match &self.repr {
-            NumericRepr::Rational(r) => Some(r),
+        match self {
+            Self::Rational(r) => Some(r),
             _ => None,
         }
     }
 
     /// 实数视图。
     pub fn as_real(&self) -> Option<&Real> {
-        match &self.repr {
-            NumericRepr::Real(r) => Some(r),
+        match self {
+            Self::Real(r) => Some(r),
             _ => None,
         }
     }

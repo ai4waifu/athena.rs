@@ -2,7 +2,7 @@
 
 use athena_numeric::{
     DefaultNumericCompare, DefaultPromotion, Integer, NumericBackend, NumericCompare, NumericComparison, NumericDomain,
-    NumericRepr, NumericValue, NumericValueWire, PrecisionKind, Promotion, PromotionPolicy, PureRustBackend, Rational, Sign,
+    NumericValue, NumericValueWire, PrecisionKind, Promotion, PromotionPolicy, PureRustBackend, Rational, Sign,
 };
 
 #[test]
@@ -36,7 +36,7 @@ fn serialize_integer_rational_roundtrip() {
     let v = NumericValue::integer(Integer::from_i64(99));
     let wire = NumericValueWire::encode(&v).unwrap();
     let back = wire.decode().unwrap();
-    assert!(matches!(back.repr(), NumericRepr::Integer(_)));
+    assert!(matches!(back, NumericValue::Integer(_)));
     assert_eq!(DefaultNumericCompare::compare(&v, &back, &Default::default()).unwrap(), NumericComparison::ExactEqual);
 
     let r = NumericValue::rational(Rational::new(Integer::from_i64(3), Integer::from_i64(6)));
@@ -59,9 +59,9 @@ fn promotion_integer_to_rational() {
     let a = NumericValue::integer(Integer::from_i64(5));
     let domain = NumericDomain::Rational;
     let promoted = DefaultPromotion::promote(a, &domain, &PromotionPolicy::default()).unwrap();
-    assert_eq!(*promoted.domain(), NumericDomain::Rational);
-    match promoted.repr() {
-        NumericRepr::Rational(r) => {
+    assert_eq!(promoted.domain(), NumericDomain::Rational);
+    match promoted {
+        NumericValue::Rational(r) => {
             assert_eq!(r.numerator().to_decimal_string(), "5");
             assert_eq!(r.denominator().to_decimal_string(), "1");
         }
@@ -77,7 +77,7 @@ fn promotion_exact_to_machine_requires_policy() {
 
     let policy = PromotionPolicy { allow_exact_to_machine: true, allow_arbitrary_to_machine: false };
     let m = DefaultPromotion::promote(a, &NumericDomain::Real, &policy).unwrap();
-    assert_eq!(*m.domain(), NumericDomain::Real);
+    assert_eq!(m.domain(), NumericDomain::Real);
     assert_eq!(m.precision().kind, PrecisionKind::Machine);
 }
 
@@ -111,7 +111,7 @@ fn try_new_rejects_domain_repr_mismatch() {
     use athena_numeric::{NumericProvenance, PrecisionInfo};
     let err = NumericValue::try_new(
         NumericDomain::Integer,
-        NumericRepr::Real(athena_numeric::Real::machine(1.0)),
+        NumericValue::machine_real(1.0),
         PrecisionInfo::exact(),
         NumericProvenance::default(),
     )

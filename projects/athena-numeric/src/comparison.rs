@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
-    number::{NumericRepr, NumericValue},
+    number::NumericValue,
     promotion::{DefaultPromotion, Promotion, PromotionPolicy},
 };
 
@@ -65,14 +65,14 @@ impl DefaultNumericCompare {
         rhs: &NumericValue,
         _policy: &ComparisonPolicy,
     ) -> Result<NumericComparison, Diagnostic> {
-        match (lhs.repr(), rhs.repr()) {
-            (NumericRepr::Integer(a), NumericRepr::Integer(b)) => {
+        match (lhs, rhs) {
+            (NumericValue::Integer(a), NumericValue::Integer(b)) => {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
             }
-            (NumericRepr::Rational(a), NumericRepr::Rational(b)) => {
+            (NumericValue::Rational(a), NumericValue::Rational(b)) => {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
             }
-            (NumericRepr::Real(a), NumericRepr::Real(b)) if _policy.allow_approximate => {
+            (NumericValue::Real(a), NumericValue::Real(b)) if _policy.allow_approximate => {
                 use crate::real::Real;
                 match (a, b) {
                     (Real::Machine(x), Real::Machine(y)) if x.is_finite() && y.is_finite() => {
@@ -82,7 +82,7 @@ impl DefaultNumericCompare {
                     _ => Ok(NumericComparison::Unknown),
                 }
             }
-            (NumericRepr::Real(_), NumericRepr::Real(_)) => Ok(NumericComparison::Unknown),
+            (NumericValue::Real(_), NumericValue::Real(_)) => Ok(NumericComparison::Unknown),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "numeric")
                 .detail("operation", "compare")),

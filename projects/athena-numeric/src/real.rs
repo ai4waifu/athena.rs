@@ -1,6 +1,6 @@
 //! Real numbers (machine only until true BigFloat exists).
 //!
-//! Precision and rounding context live only on [`crate::number::NumericValue::precision`].
+//! Precision and rounding context are derived from the [`crate::number::NumericValue`] variant.
 //! There is no public arbitrary-precision real yet: a tagged `f64` bit pattern must not
 //! be advertised as `PrecisionKind::Arbitrary`.
 

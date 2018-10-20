@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use crate::{
     integer::Integer,
-    number::{NumericRepr, NumericValue},
+    number::NumericValue,
     precision::PrecisionInfo,
     rational::Rational,
 };
@@ -33,19 +33,19 @@ impl NumericValueWire {
 
     /// 编码 [`NumericValue`]（N1 覆盖 Integer / Rational）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
-        match value.repr() {
-            NumericRepr::Integer(n) => Ok(Self {
+        match value {
+            NumericValue::Integer(n) => Ok(Self {
                 kind: NumericKind::Integer,
                 domain_payload: Vec::new(),
                 payload: n.to_decimal_string().into_bytes(),
-                precision: value.precision().clone(),
+                precision: value.precision(),
                 version: Self::current_version(),
             }),
-            NumericRepr::Rational(r) => Ok(Self {
+            NumericValue::Rational(r) => Ok(Self {
                 kind: NumericKind::Rational,
                 domain_payload: Vec::new(),
                 payload: r.to_wire_string().into_bytes(),
-                precision: value.precision().clone(),
+                precision: value.precision(),
                 version: Self::current_version(),
             }),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -67,7 +67,7 @@ impl NumericValueWire {
                 .detail("domain", "numeric")
                 .detail("operation", "deserialize_utf8")
         })?;
-        if self.payload.len() as u32 > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+        if self.payload.len() as u32 > crate::backends::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
                 .detail("operation", "wire_payload_limit"));

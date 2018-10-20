@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use crate::{
     domain::NumericDomain,
     integer::Integer,
-    number::{NumericRepr, NumericValue},
+    number::NumericValue,
     precision::PrecisionKind,
     rational::Rational,
     real::Real,
@@ -45,7 +45,7 @@ impl Promotion for DefaultPromotion {
                 (NumericDomain::Real, PrecisionKind::Machine, PrecisionKind::Arbitrary)
                 | (NumericDomain::Real, PrecisionKind::Arbitrary, PrecisionKind::Machine)
                 | (NumericDomain::Real, PrecisionKind::Arbitrary, PrecisionKind::Arbitrary) => NumericDomain::Real,
-                _ => lhs.domain().clone(),
+                _ => lhs.domain(),
             });
         }
         match (lhs.domain(), rhs.domain()) {
@@ -68,21 +68,49 @@ impl Promotion for DefaultPromotion {
     }
 
     fn promote(value: NumericValue, target: &NumericDomain, policy: &PromotionPolicy) -> Result<NumericValue, Diagnostic> {
-        if value.domain() == target {
+        if &value.domain() == target {
             return Ok(value);
         }
 
-        match (value.domain(), target, value.repr()) {
-            (NumericDomain::Integer, NumericDomain::Rational, NumericRepr::Integer(n)) => {
-                Ok(NumericValue::rational(Rational::from_integer(n.clone())))
+        match (value.domain(), target) {
+            (NumericDomain::Integer, NumericDomain::Rational) => {
+                if let NumericValue::Integer(n) = value {
+                    Ok(NumericValue::rational(Rational::from_integer(n)))
+                }
+                else {
+                    Err(failed("promote"))
+                }
             }
-            (NumericDomain::Rational, NumericDomain::Integer, NumericRepr::Rational(r)) if r.is_integer() => {
-                Ok(NumericValue::integer(r.numerator()))
+            (NumericDomain::Rational, NumericDomain::Integer) => {
+                if let NumericValue::Rational(r) = value {
+                    if r.is_integer() {
+                        Ok(NumericValue::integer(r.numerator()))
+                    }
+                    else {
+                        Err(forbidden("rational_to_integer"))
+                    }
+                }
+                else {
+                    Err(failed("promote"))
+                }
             }
-            (NumericDomain::Rational, NumericDomain::Integer, _) => Err(forbidden("rational_to_integer")),
-            (NumericDomain::Integer, NumericDomain::Real, NumericRepr::Integer(n)) => exact_to_machine_int(n, policy),
-            (NumericDomain::Rational, NumericDomain::Real, NumericRepr::Rational(r)) => exact_to_machine_rat(r, policy),
-            (NumericDomain::Real, NumericDomain::Integer, _) | (NumericDomain::Real, NumericDomain::Rational, _) => {
+            (NumericDomain::Integer, NumericDomain::Real) => {
+                if let NumericValue::Integer(n) = value {
+                    exact_to_machine_int(&n, policy)
+                }
+                else {
+                    Err(failed("promote"))
+                }
+            }
+            (NumericDomain::Rational, NumericDomain::Real) => {
+                if let NumericValue::Rational(r) = value {
+                    exact_to_machine_rat(&r, policy)
+                }
+                else {
+                    Err(failed("promote"))
+                }
+            }
+            (NumericDomain::Real, NumericDomain::Integer) | (NumericDomain::Real, NumericDomain::Rational) => {
                 Err(forbidden("real_to_exact"))
             }
             _ => Err(failed("promote")),
@@ -100,17 +128,17 @@ impl DefaultPromotion {
         target_kind: PrecisionKind,
         _policy: &PromotionPolicy,
     ) -> Result<NumericValue, Diagnostic> {
-        if value.domain() != &NumericDomain::Real {
+        if value.domain() != NumericDomain::Real {
             return Err(mismatch("promote_real_precision"));
         }
         if value.precision().kind == target_kind {
             return Ok(value);
         }
-        match (value.repr(), value.precision().kind, target_kind) {
-            (NumericRepr::Real(Real::Machine(_)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
+        match (&value, value.precision().kind, target_kind) {
+            (NumericValue::Real(Real::Machine(_)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
                 Err(forbidden("arbitrary_real_unavailable"))
             }
-            (NumericRepr::Real(_), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
+            (NumericValue::Real(_), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
                 Err(forbidden("arbitrary_real_unavailable"))
             }
             _ => Err(failed("promote_real_precision")),
