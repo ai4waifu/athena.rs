@@ -1,4 +1,4 @@
-//! 统一数值值（Living `16`：单一 discriminant，域由 variant 推导）。
+//! 统一数值值（Living `16`：单一 discriminant，域由 variant 推导；证明元数据见 [`crate::evidence`]）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -7,13 +7,6 @@ use crate::{
     interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
     rational::Rational, real::Real,
 };
-
-/// 数值来源 / 证明引用占位（#7 将迁至 arena ID；暂不参与 [`NumericValue`] 相等性）。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NumericProvenance {
-    /// 标签列表（骨架；后续换 ProofRef）。
-    pub tags: Vec<String>,
-}
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
 #[derive(Debug, Clone, PartialEq)]
@@ -43,12 +36,7 @@ pub type Number = NumericValue;
 
 impl NumericValue {
     /// 经验证构造：外部提供的 domain / precision 必须与 variant 一致。
-    pub fn try_new(
-        domain: NumericDomain,
-        value: Self,
-        precision: PrecisionInfo,
-        _provenance: NumericProvenance,
-    ) -> Result<Self> {
+    pub fn try_new(domain: NumericDomain, value: Self, precision: PrecisionInfo) -> Result<Self> {
         if value.domain() != domain {
             return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
                 .detail("domain", "numeric")
@@ -143,12 +131,6 @@ impl NumericValue {
             Self::Real(Real::Unsupported) => PrecisionInfo::exact(),
             Self::Complex(_) | Self::Interval(_) | Self::Algebraic(_) => PrecisionInfo::exact(),
         }
-    }
-
-    /// 来源占位（#7 前恒为 default）。
-    pub fn provenance(&self) -> NumericProvenance {
-        let _ = self;
-        NumericProvenance::default()
     }
 
     /// 是否精确零。
