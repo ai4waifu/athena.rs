@@ -82,10 +82,12 @@ fn promotion_exact_to_machine_requires_policy() {
 }
 
 #[test]
-fn promotion_machine_to_arbitrary_rejected_until_bigfloat() {
+fn promotion_machine_to_arbitrary_imports_bigfloat() {
     let m = NumericValue::machine_real(1.5);
-    let err = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).unwrap_err();
-    assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
+    let promoted = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default())
+        .expect("promote");
+    assert_eq!(promoted.precision().kind, PrecisionKind::Arbitrary);
+    assert_eq!(promoted.as_real().and_then(|r| r.as_big_float()).unwrap().to_f64_exact(), Some(1.5));
 }
 
 #[test]

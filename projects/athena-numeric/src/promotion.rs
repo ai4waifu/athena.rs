@@ -3,6 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
+    big_float::BigFloat,
     domain::NumericDomain,
     integer::Integer,
     number::NumericValue,
@@ -119,14 +120,11 @@ impl Promotion for DefaultPromotion {
 }
 
 impl DefaultPromotion {
-    /// Same-domain Real precision change.
-    ///
-    /// Machine → Arbitrary is **rejected** until a true BigFloat representation exists.
-    /// Promoting a `f64` bit pattern into `PrecisionKind::Arbitrary` would silently lie.
+    /// Same-domain Real precision change (Machine ↔ Arbitrary via [`BigFloat`]).
     pub fn promote_real_precision(
         value: NumericValue,
         target_kind: PrecisionKind,
-        _policy: &PromotionPolicy,
+        policy: &PromotionPolicy,
     ) -> Result<NumericValue, Diagnostic> {
         if value.domain() != NumericDomain::Real {
             return Err(mismatch("promote_real_precision"));
@@ -135,11 +133,23 @@ impl DefaultPromotion {
             return Ok(value);
         }
         match (&value, value.precision().kind, target_kind) {
-            (NumericValue::Real(Real::Machine(_)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
-                Err(forbidden("arbitrary_real_unavailable"))
+            (NumericValue::Real(Real::Machine(x)), PrecisionKind::Machine, PrecisionKind::Arbitrary) => {
+                if !x.is_finite() {
+                    return Ok(value);
+                }
+                let bf = BigFloat::from_f64(*x).map_err(|_| forbidden("machine_to_arbitrary"))?;
+                Ok(NumericValue::big_float(bf))
             }
-            (NumericValue::Real(_), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
-                Err(forbidden("arbitrary_real_unavailable"))
+            (NumericValue::Real(Real::BigFloat(b)), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
+                if !policy.allow_arbitrary_to_machine {
+                    return Err(forbidden("arbitrary_to_machine"));
+                }
+                let x = b.to_f64_round_nearest_even().ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::NumericPrecisionLoss)
+                        .detail("domain", "numeric")
+                        .detail("operation", "arbitrary_to_machine")
+                })?;
+                Ok(NumericValue::machine_real(x))
             }
             _ => Err(failed("promote_real_precision")),
         }

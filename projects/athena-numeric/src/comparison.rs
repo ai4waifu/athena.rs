@@ -72,17 +72,29 @@ impl DefaultNumericCompare {
             (NumericValue::Rational(a), NumericValue::Rational(b)) => {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
             }
-            (NumericValue::Real(a), NumericValue::Real(b)) if _policy.allow_approximate => {
+            (NumericValue::Real(a), NumericValue::Real(b)) => {
                 use crate::real::Real;
                 match (a, b) {
-                    (Real::Machine(x), Real::Machine(y)) if x.is_finite() && y.is_finite() => {
+                    (Real::Machine(x), Real::Machine(y)) if _policy.allow_approximate && x.is_finite() && y.is_finite() => {
                         let tol = 1e-12 * (1.0 + x.abs() + y.abs());
                         Ok(if (x - y).abs() <= tol { NumericComparison::ApproximateEqual } else { NumericComparison::Unequal })
                     }
-                    _ => Ok(NumericComparison::Unknown),
+                    (Real::Machine(x), Real::Machine(y)) => {
+                        Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
+                    }
+                    (Real::BigFloat(a), Real::BigFloat(b)) => {
+                        Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
+                    }
+                    (Real::Machine(x), Real::BigFloat(b)) | (Real::BigFloat(b), Real::Machine(x)) => {
+                        match b.to_f64_exact() {
+                            Some(y) if x.is_finite() => {
+                                Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
+                            }
+                            _ => Ok(NumericComparison::Unknown),
+                        }
+                    }
                 }
             }
-            (NumericValue::Real(_), NumericValue::Real(_)) => Ok(NumericComparison::Unknown),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "numeric")
                 .detail("operation", "compare")),

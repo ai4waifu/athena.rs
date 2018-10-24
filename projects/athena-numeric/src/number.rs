@@ -3,9 +3,9 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    algebraic::AlgebraicNumber, complex::Complex, domain::NumericDomain, finite_field::FiniteFieldValue, integer::Integer,
-    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
-    rational::Rational, real::Real,
+    algebraic::AlgebraicNumber, big_float::BigFloat, complex::Complex, domain::NumericDomain,
+    finite_field::FiniteFieldValue, integer::Integer, interval::Interval, modular::ModularValue,
+    p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
 };
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
@@ -15,7 +15,7 @@ pub enum NumericValue {
     Integer(Integer),
     /// 精确有理 ℚ。
     Rational(Rational),
-    /// 实数 ℝ（当前仅 [`Real::Machine`] 为稳定构造）。
+    /// 实数 ℝ（[`Real::Machine`] 或 [`Real::BigFloat`]）。
     Real(Real),
     /// 复数 ℂ（骨架）。
     Complex(Complex),
@@ -56,7 +56,7 @@ impl NumericValue {
         let ok = match self {
             Self::Integer(_) | Self::Rational(_) => true,
             Self::Real(Real::Machine(_)) => true,
-            Self::Real(Real::Unsupported) => false,
+            Self::Real(Real::BigFloat(b)) => b.validate().is_ok(),
             Self::Complex(_) => true,
             Self::Modular(_) | Self::FiniteField(_) | Self::PAdic(_) | Self::Interval(_) | Self::Algebraic(_) => false,
         };
@@ -88,6 +88,16 @@ impl NumericValue {
     /// 机器实数。
     pub fn machine_real(x: f64) -> Self {
         Self::Real(Real::machine(x))
+    }
+
+    /// 任意精度有限实数。
+    pub fn big_float(b: BigFloat) -> Self {
+        Self::Real(Real::big_float(b))
+    }
+
+    /// 从有限 IEEE binary64 导入任意精度实数（拒绝 NaN/Inf）。
+    pub fn big_float_from_f64(x: f64) -> Result<Self> {
+        Ok(Self::big_float(BigFloat::from_f64(x)?))
     }
 
     /// 同 [`Self::machine_real`]。
@@ -128,7 +138,7 @@ impl NumericValue {
                 PrecisionInfo::exact()
             }
             Self::Real(Real::Machine(_)) => PrecisionInfo::machine(),
-            Self::Real(Real::Unsupported) => PrecisionInfo::exact(),
+            Self::Real(Real::BigFloat(b)) => PrecisionInfo::arbitrary(b.precision_bits()),
             Self::Complex(_) | Self::Interval(_) | Self::Algebraic(_) => PrecisionInfo::exact(),
         }
     }
@@ -139,6 +149,7 @@ impl NumericValue {
             Self::Integer(n) => n.is_zero(),
             Self::Rational(r) => r.is_zero(),
             Self::Real(Real::Machine(x)) => *x == 0.0,
+            Self::Real(Real::BigFloat(b)) => b.is_zero(),
             _ => false,
         }
     }
@@ -149,6 +160,7 @@ impl NumericValue {
             Self::Integer(n) => n.is_one(),
             Self::Rational(r) => r.is_integer() && r.numerator().is_one(),
             Self::Real(Real::Machine(x)) => *x == 1.0,
+            Self::Real(Real::BigFloat(b)) => b.is_one(),
             _ => false,
         }
     }
@@ -159,6 +171,9 @@ impl NumericValue {
             Self::Integer(n) => n.to_i64() == Some(-1),
             Self::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
             Self::Real(Real::Machine(x)) => *x == -1.0,
+            Self::Real(Real::BigFloat(b)) => {
+                b.sign() == crate::integer::Sign::Negative && b.is_one()
+            }
             _ => false,
         }
     }
@@ -169,6 +184,7 @@ impl NumericValue {
             Self::Integer(n) => !n.is_zero(),
             Self::Rational(r) => !r.is_zero(),
             Self::Real(Real::Machine(x)) => *x != 0.0 && !x.is_nan(),
+            Self::Real(Real::BigFloat(b)) => !b.is_zero(),
             _ => false,
         }
     }
@@ -206,6 +222,19 @@ impl NumericValue {
                 }
                 else {
                     format!("{x}")
+                }
+            }
+            Self::Real(Real::BigFloat(b)) => {
+                if let Some(x) = b.to_f64_exact() {
+                    if x.fract() == 0.0 && x.abs() < 1e15 {
+                        format!("{}", x as i64)
+                    }
+                    else {
+                        format!("{x}")
+                    }
+                }
+                else {
+                    format!("{b:?}")
                 }
             }
             other => format!("{other:?}"),

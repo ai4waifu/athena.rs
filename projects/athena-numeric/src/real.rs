@@ -1,16 +1,14 @@
-//! Real numbers (machine only until true BigFloat exists).
-//!
-//! Precision and rounding context are derived from the [`crate::number::NumericValue`] variant.
-//! There is no public arbitrary-precision real yet: a tagged `f64` bit pattern must not
-//! be advertised as `PrecisionKind::Arbitrary`.
+//! Real numbers: IEEE binary64 or binary [`BigFloat`].
+
+use crate::big_float::BigFloat;
 
 /// Real value representation.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Real {
-    /// IEEE binary64.
+    /// IEEE binary64 (includes non-finite values).
     Machine(f64),
-    /// Capability / future-backend placeholder. Not a numeric execution payload.
-    Unsupported,
+    /// Finite binary float with explicit working precision.
+    BigFloat(BigFloat),
 }
 
 impl Real {
@@ -19,11 +17,16 @@ impl Real {
         Self::Machine(x)
     }
 
-    /// Machine `f64` view.
+    /// Arbitrary-precision finite real.
+    pub fn big_float(b: BigFloat) -> Self {
+        Self::BigFloat(b)
+    }
+
+    /// Machine `f64` view (exact for [`Self::Machine`], exact when [`BigFloat::to_f64_exact`] succeeds).
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Self::Machine(x) => Some(*x),
-            Self::Unsupported => None,
+            Self::BigFloat(b) => b.to_f64_exact(),
         }
     }
 
@@ -31,7 +34,15 @@ impl Real {
     pub fn is_finite(&self) -> bool {
         match self {
             Self::Machine(x) => x.is_finite(),
-            Self::Unsupported => false,
+            Self::BigFloat(_) => true,
+        }
+    }
+
+    /// View as [`BigFloat`] when already arbitrary.
+    pub fn as_big_float(&self) -> Option<&BigFloat> {
+        match self {
+            Self::BigFloat(b) => Some(b),
+            _ => None,
         }
     }
 }

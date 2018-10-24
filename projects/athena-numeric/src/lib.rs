@@ -2,6 +2,7 @@
 #![deny(missing_docs)]
 
 pub mod algebraic;
+pub mod big_float;
 pub mod backends;
 pub mod certificate;
 pub mod comparison;
@@ -27,6 +28,7 @@ pub mod wire_binary;
 pub mod wire_text;
 
 pub use algebraic::AlgebraicNumber;
+pub use big_float::BigFloat;
 pub use backends::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     PureRustBackend,

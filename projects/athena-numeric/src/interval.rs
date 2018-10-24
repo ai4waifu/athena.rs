@@ -71,7 +71,7 @@ impl Interval {
         if !x.is_finite() {
             return Err(invalid("interval_point_non_finite"));
         }
-        Self::try_bounded(x, x, IntervalDecoration::Certain)
+        Self::try_bounded(x.clone(), x, IntervalDecoration::Certain)
     }
 
     /// Bounded interval with validation.
