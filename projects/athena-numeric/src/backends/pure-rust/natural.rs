@@ -204,6 +204,52 @@ impl Natural {
         n
     }
 
+    /// Binary wire magnitude: `u32` little-endian limb count + `u64` little-endian limbs.
+    pub(crate) fn wire_encode_magnitude(&self) -> Vec<u8> {
+        let el = limb_kernel::effective_len(&self.limbs);
+        let mut out = Vec::with_capacity(4 + el * 8);
+        out.extend_from_slice(&(el as u32).to_le_bytes());
+        for &limb in &self.limbs[..el] {
+            out.extend_from_slice(&limb.to_le_bytes());
+        }
+        out
+    }
+
+    /// Decode [`Self::wire_encode_magnitude`] bytes.
+    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self, ()> {
+        if bytes.len() < 4 {
+            return Err(());
+        }
+        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| ())?) as usize;
+        let need = 4usize.checked_add(count.checked_mul(8).ok_or(())?).ok_or(())?;
+        if bytes.len() != need {
+            return Err(());
+        }
+        if count == 0 {
+            return Ok(Self::zero());
+        }
+        let mut limbs = Vec::with_capacity(count);
+        for i in 0..count {
+            let off = 4 + i * 8;
+            limbs.push(u64::from_le_bytes(bytes[off..off + 8].try_into().map_err(|_| ())?));
+        }
+        Ok(Self::from_limbs(limbs))
+    }
+
+    /// Split the first magnitude chunk from a concatenated rational payload.
+    pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> Result<(Self, &[u8]), ()> {
+        if bytes.len() < 4 {
+            return Err(());
+        }
+        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| ())?) as usize;
+        let total = 4usize.checked_add(count.checked_mul(8).ok_or(())?).ok_or(())?;
+        if bytes.len() < total {
+            return Err(());
+        }
+        let mag = Self::wire_decode_magnitude(&bytes[..total])?;
+        Ok((mag, &bytes[total..]))
+    }
+
     #[cfg(debug_assertions)]
     fn debug_assert_invariants(&self) {
         debug_assert!(!self.limbs.is_empty(), "Natural must have at least one limb");

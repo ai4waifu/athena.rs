@@ -387,6 +387,46 @@ impl Integer {
         }
         lo
     }
+
+    /// Binary wire sign code: `0` zero · `1` positive · `2` negative.
+    pub(crate) fn wire_sign_code(&self) -> u8 {
+        match self.sign {
+            Sign::Zero => 0,
+            Sign::Positive => 1,
+            Sign::Negative => 2,
+        }
+    }
+
+    /// Unsigned magnitude bytes for binary wire.
+    pub(crate) fn wire_magnitude_bytes(&self) -> Vec<u8> {
+        self.mag.wire_encode_magnitude()
+    }
+
+    /// Decode binary wire integer from sign code + magnitude bytes.
+    pub(crate) fn from_wire_magnitude(sign: u8, mag_bytes: &[u8]) -> Result<Self, athena_types::Diagnostic> {
+        use athena_types::{Diagnostic, DiagnosticCode};
+        let mag = Natural::wire_decode_magnitude(mag_bytes).map_err(|_| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_decode")
+        })?;
+        Self::from_wire_parts(sign, mag)
+    }
+
+    /// Decode from sign code + already-decoded magnitude.
+    pub(crate) fn from_wire_parts(sign: u8, mag: Natural) -> Result<Self, athena_types::Diagnostic> {
+        use athena_types::{Diagnostic, DiagnosticCode};
+        match sign {
+            0 => Ok(Self::zero()),
+            1 if mag.is_zero() => Ok(Self::zero()),
+            1 => Ok(Self::from_mag_sign(mag, false)),
+            2 if mag.is_zero() => Ok(Self::zero()),
+            2 => Ok(Self::from_mag_sign(mag, true)),
+            _ => Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_sign_decode")),
+        }
+    }
 }
 
 fn f64_represents_integer(f: f64, n: &Integer) -> bool {

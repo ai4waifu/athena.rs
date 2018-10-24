@@ -1,7 +1,7 @@
 //! Exact rational wrapper (pure Rust; numerator / denominator are [`Integer`]).
 
 use athena_types::{Diagnostic, DiagnosticCode};
-use std::{cmp::Ordering, str::FromStr};
+use std::cmp::Ordering;
 
 use crate::integer::{Integer, Sign};
 
@@ -226,38 +226,13 @@ impl Rational {
         self.try_to_f64_exact()
     }
 
-    /// `numer/denom` decimal payload.
+    /// `numer/denom` decimal payload for host text rendering.
     pub fn to_wire_string(&self) -> String {
         if self.denom.is_one() {
             self.numer.to_decimal_string()
         }
         else {
             format!("{}/{}", self.numer.to_decimal_string(), self.denom.to_decimal_string())
-        }
-    }
-
-    /// Decode `numer/denom` or integer decimal wire payload (crate-internal).
-    pub(crate) fn decode_wire_payload(s: &str) -> Result<Self, Diagnostic> {
-        if let Some((n, d)) = s.split_once('/') {
-            let numer = Integer::from_str(n).map_err(|_| {
-                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                    .detail("domain", "numeric")
-                    .detail("operation", "rational_from_wire")
-            })?;
-            let denom = Integer::from_str(d).map_err(|_| {
-                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                    .detail("domain", "numeric")
-                    .detail("operation", "rational_from_wire")
-            })?;
-            Self::try_new(numer, denom)
-        }
-        else {
-            let n = Integer::from_str(s).map_err(|_| {
-                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                    .detail("domain", "numeric")
-                    .detail("operation", "rational_from_wire")
-            })?;
-            Ok(Self::from_integer(n))
         }
     }
 }

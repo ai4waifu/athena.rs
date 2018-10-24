@@ -95,7 +95,7 @@ pub struct NumericBackendLimits {
     pub max_limbs: Option<u32>,
     /// Maximum significand bits for arbitrary reals.
     pub max_significand_bits: Option<u32>,
-    /// Maximum UTF-8 bytes for canonical wire integer/rational payload decode.
+    /// Maximum binary bytes for canonical wire magnitude / domain payload decode.
     pub max_wire_payload_bytes: Option<u32>,
     /// Maximum exponent magnitude for `pow` (None = backend default policy).
     pub max_pow_exp: Option<i64>,
@@ -125,7 +125,7 @@ pub struct NumericBackendContract {
     pub jit_eligible: bool,
     /// Reproducible results under fixed policy.
     pub deterministic: bool,
-    /// Canonical textual wire radix (10 for decimal payloads).
+    /// Canonical binary wire (decimal text is explicit via [`crate::wire_text`] only).
     pub default_radix: u8,
     /// Advertised capabilities.
     pub capabilities: &'static [NumericCapability],

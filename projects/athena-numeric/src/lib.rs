@@ -23,6 +23,8 @@ pub mod rational;
 pub mod real;
 pub mod rounding;
 pub mod serialization;
+pub mod wire_binary;
+pub mod wire_text;
 
 pub use algebraic::AlgebraicNumber;
 pub use backends::{

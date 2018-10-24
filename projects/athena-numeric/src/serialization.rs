@@ -1,24 +1,24 @@
-//! 数值序列化 wire（N1：Integer / Rational）。
+//! 数值序列化 wire（N1：Integer / Rational · 冻结 binary `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
-use std::str::FromStr;
 
 use crate::{
-    integer::Integer,
     number::NumericValue,
     precision::PrecisionInfo,
-    rational::Rational,
+    wire_binary::{decode_blob, decode_integer_payload, decode_rational_payload, encode_blob, encode_integer_payload, encode_rational_payload, WireBlobParts},
 };
 
-/// 跨进程 / arena 稳定数值载荷。
+/// 跨进程 / arena 稳定数值载荷（`payload` 为 binary magnitude bytes，非十进制 UTF-8）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NumericValueWire {
     /// 种类。
     pub kind: NumericKind,
     /// 域描述字节（骨架；当前为空）。
     pub domain_payload: Vec<u8>,
-    /// 值载荷（UTF-8：整数十进制，或 `numer/denom`）。
+    /// 值载荷（binary：`u32` limb count + little-endian `u64` limbs；有理数为 `numer||denom`）。
     pub payload: Vec<u8>,
+    /// 符号（`0` 零 · `1` 正 · `2` 负；有理数指数分子符号）。
+    pub sign: u8,
     /// 精度。
     pub precision: PrecisionInfo,
     /// schema 版本。
@@ -34,20 +34,28 @@ impl NumericValueWire {
     /// 编码 [`NumericValue`]（N1 覆盖 Integer / Rational）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
         match value {
-            NumericValue::Integer(n) => Ok(Self {
-                kind: NumericKind::Integer,
-                domain_payload: Vec::new(),
-                payload: n.to_decimal_string().into_bytes(),
-                precision: value.precision(),
-                version: Self::current_version(),
-            }),
-            NumericValue::Rational(r) => Ok(Self {
-                kind: NumericKind::Rational,
-                domain_payload: Vec::new(),
-                payload: r.to_wire_string().into_bytes(),
-                precision: value.precision(),
-                version: Self::current_version(),
-            }),
+            NumericValue::Integer(n) => {
+                let (sign, payload) = encode_integer_payload(n);
+                Ok(Self {
+                    kind: NumericKind::Integer,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
+            NumericValue::Rational(r) => {
+                let (sign, payload) = encode_rational_payload(r);
+                Ok(Self {
+                    kind: NumericKind::Rational,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "numeric")
                 .detail("operation", "serialize")),
@@ -62,11 +70,6 @@ impl NumericValueWire {
                 .detail("operation", "serialize_version")
                 .arg("version", u64::from(self.version.0)));
         }
-        let text = std::str::from_utf8(&self.payload).map_err(|_| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "deserialize_utf8")
-        })?;
         if self.payload.len() as u32 > crate::backends::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
@@ -74,20 +77,27 @@ impl NumericValueWire {
         }
         match self.kind {
             NumericKind::Integer => {
-                let n = Integer::from_str(text).map_err(|_| {
-                    Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                        .detail("domain", "numeric")
-                        .detail("operation", "deserialize_integer")
-                })?;
+                let n = decode_integer_payload(self.sign, &self.payload)?;
                 Ok(NumericValue::integer(n))
             }
             NumericKind::Rational => {
-                let r = Rational::decode_wire_payload(text)?;
+                let r = decode_rational_payload(self.sign, &self.payload)?;
                 Ok(NumericValue::rational(r))
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "numeric")
                 .detail("operation", "deserialize_kind")),
         }
+    }
+
+    /// Flatten to canonical binary blob (`ANV1` header + domain + payload).
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
+        encode_blob(self.version, self.kind, self.sign, &self.precision, &self.domain_payload, &self.payload)
+    }
+
+    /// Parse canonical binary blob.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Diagnostic> {
+        let WireBlobParts { version, kind, sign, precision, domain_payload, payload } = decode_blob(bytes)?;
+        Ok(Self { kind, domain_payload, payload, sign, precision, version })
     }
 }
