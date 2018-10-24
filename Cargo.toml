@@ -24,6 +24,7 @@ athena-rewriter = { path = "projects/athena-rewriter" }
 athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
 athena-benchmark = { path = "projects/athena-benchmark" }
+athena-jit = { path = "projects/athena-jit" }
 num-bigint = { version = "0.4", default-features = false, features = ["std"] }
 num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
 num-traits = "0.2"

@@ -64,7 +64,8 @@ pub use group::{
 };
 pub use mgraph::{
     ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
-    HyperEdge, MGraphState, RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore, run_closure_step,
+    HyperEdge, MGraphState, PolynomialCacheEntry, PolynomialMGraphStore, PolynomialWitness, POLYNOMIAL_SOLVER_ID,
+    RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore, run_closure_step, witness_from_exact,
 };
 pub use number_theory::{
     ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,
@@ -74,11 +75,13 @@ pub use number_theory::{
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
     CanonicalPolynomial, CoefficientDomain, DivisionPolicy, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue,
-    GroebnerCertificate, GroebnerLimits, Ideal, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder,
-    PolynomialDomainValue, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
-    ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable, add_polynomial, canonicalize_polynomial,
-    compute_elimination_basis, compute_groebner_basis, execute_polynomial, execute_polynomial_with_rings, mul_polynomial,
-    polynomial_canonical_hash, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
+    GroebnerCertificate, GroebnerLimits, Ideal, JitParityOutcome, MonomialOrder, MonomialTerm, Polynomial,
+    PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialRepr, PolynomialReprBody,
+    PolynomialRequest, PolynomialResult, PolynomialValue, ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable,
+    add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
+    execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, mul_polynomial, mul_with_jit_parity,
+    parity_diagnostic, polynomial_canonical_hash, record_polynomial_result, reduce_ideal, reprs_mathematically_equal,
+    sub_polynomial,
 };
 pub use session::Session;
 pub use solver::{

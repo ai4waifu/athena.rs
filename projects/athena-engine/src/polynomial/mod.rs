@@ -4,15 +4,18 @@
 //! 禁止 `HashMap<String, Number>` 作为长期表示。
 
 mod certificate;
-mod coeff_kernel;
+mod cache_key;
 mod algorithms;
 mod builder;
 mod canonical;
+mod coeff_kernel;
 mod expr;
 mod factor;
 mod groebner;
 mod hash;
 mod ideal;
+mod jit_gate;
+mod mgraph;
 mod operations;
 mod order;
 mod repr;
@@ -23,6 +26,9 @@ mod ring_table;
 mod value;
 
 pub use builder::{CanonicalPolynomial, PolynomialBuilder};
+pub use cache_key::{PolynomialCacheKey, PolynomialCacheOp, cache_key_for_request};
+pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};
+pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
 pub use canonical::canonicalize_polynomial;
 pub use certificate::{GroebnerAlgorithm, GroebnerCertificate};
 pub use expr::{MonomialTerm, Polynomial};

@@ -1,28 +1,40 @@
-//! `jit` 分组：无 `athena-jit` 时跳过。
+//! `jit` 分组：parity 门与 `athena-jit` 可用性。
+
+use athena_jit::{JitAvailability, ParityOutcome, availability, polynomial_mul_parity};
 
 use crate::{
     fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
     validate::{DeterminacyKind, ExactnessKind, ValidationSummary},
 };
 
-struct JitPlaceholderFixture;
+struct JitAvailabilityFixture;
 
-impl Fixture for JitPlaceholderFixture {
+impl Fixture for JitAvailabilityFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "jit.placeholder", group: BenchGroup::Jit, scale: "n/a", domain: "jit" }
-    }
-
-    fn skip_reason(&self) -> Option<&'static str> {
-        if cfg!(feature = "jit") { Some("athena-jit not wired yet") } else { Some("jit feature disabled") }
+        FixtureMeta { id: "jit.availability", group: BenchGroup::Jit, scale: "n/a", domain: "jit" }
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
-        Ok(ValidationSummary::passed(ExactnessKind::Unspecified, DeterminacyKind::Unspecified, "jit placeholder"))
+        let avail = availability();
+        if matches!(avail, JitAvailability::Available) {
+            return Err("native kernel not wired yet".into());
+        }
+        let parity = polynomial_mul_parity(|| 6i64, || None::<i64>);
+        if !matches!(parity, ParityOutcome::JitUnavailable) {
+            return Err(format!("expected JitUnavailable, got {parity:?}"));
+        }
+        Ok(ValidationSummary::passed(
+            ExactnessKind::Exact,
+            DeterminacyKind::Deterministic,
+            "athena-jit unavailable stub parity",
+        ))
     }
 
-    fn run_once(&self) {}
+    fn run_once(&self) {
+        let _ = availability();
+    }
 }
 
 pub(super) fn register(suite: &mut Suite) {
-    suite.register(Box::new(JitPlaceholderFixture));
+    suite.register(Box::new(JitAvailabilityFixture));
 }

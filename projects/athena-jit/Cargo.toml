@@ -1,0 +1,15 @@
+[package]
+name = "athena-jit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Optional native JIT acceleration for verified Athena IR — default off, eager parity required"
+publish = false
+
+[features]
+default = []
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"

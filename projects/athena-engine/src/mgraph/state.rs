@@ -1,6 +1,9 @@
 //! M-Graph 状态容器。
 
-use super::types::{DeterminacyState, EquivalenceClasses, HyperEdge, RewriteWitness, SolverFrontier};
+use super::{
+    polynomial::PolynomialMGraphStore,
+    types::{DeterminacyState, EquivalenceClasses, HyperEdge, RewriteWitness, SolverFrontier},
+};
 
 /// M-Graph 状态。
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -15,6 +18,8 @@ pub struct MGraphState {
     pub witnesses: Vec<RewriteWitness>,
     /// solver 前沿。
     pub frontier: SolverFrontier,
+    /// 多项式子图（缓存 + witness）。
+    pub polynomial: PolynomialMGraphStore,
 }
 
 impl MGraphState {
