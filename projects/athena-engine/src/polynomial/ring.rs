@@ -3,6 +3,8 @@
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, FieldId, RingId, SymbolId};
 
+use crate::number_theory::{Primality, primality_test};
+
 use super::order::MonomialOrder;
 
 /// 精确 / 近似系数域（环身份的一部分）。
@@ -12,7 +14,7 @@ pub enum CoefficientDomain {
     Integer,
     /// ℚ（特征 0）。
     Rational,
-    /// 素域 𝔽_p（`p` 须为正；素性证明 F3 前为声明）。
+    /// 素域 𝔽_p（`p` 须为已验证素数）。
     PrimeField {
         /// 特征素数。
         p: Integer,
@@ -26,6 +28,8 @@ pub enum CoefficientDomain {
     FiniteField {
         /// 域句柄。
         field: FieldId,
+        /// 域特征 `p`（`F_{p^k}` 的 `p`；须与域注册一致）。
+        characteristic: Integer,
     },
     /// 机器 / 近似实数 — 不得进入精确多项式环。
     ApproximateReal,
@@ -36,8 +40,8 @@ pub enum CoefficientDomain {
 pub enum RingCharacteristic {
     /// 特征 0（ℤ、ℚ 等）。
     Zero,
-    /// 特征 `p`（素域）。
-    Prime(Integer),
+    /// 特征 `n > 0`（素域、ℤ/nℤ、有限域等）。
+    Positive(Integer),
 }
 
 /// 多项式环完整描述符（`RingId` 的内容）。
@@ -73,6 +77,7 @@ impl RingDescriptor {
                 .detail("operation", "duplicate_variable"));
         }
         order.validate_for_variables(variables.len())?;
+        let coefficients = validate_coefficient_domain(coefficients)?;
         let characteristic = characteristic_of(&coefficients)?;
         Ok((coefficients, variables, order, characteristic))
     }
@@ -114,20 +119,49 @@ fn has_duplicate_symbols(vars: &[SymbolId]) -> bool {
     seen.windows(2).any(|w| w[0] == w[1])
 }
 
-fn characteristic_of(coeff: &CoefficientDomain) -> Result<RingCharacteristic, Diagnostic> {
-    match coeff {
-        CoefficientDomain::Integer | CoefficientDomain::Rational | CoefficientDomain::ModularInteger { .. } => {
-            Ok(RingCharacteristic::Zero)
-        }
+fn validate_coefficient_domain(coefficients: CoefficientDomain) -> Result<CoefficientDomain, Diagnostic> {
+    match coefficients {
         CoefficientDomain::PrimeField { p } => {
-            if p.is_zero() || p.is_negative() {
+            validate_prime_modulus(&p)?;
+            Ok(CoefficientDomain::PrimeField { p })
+        }
+        CoefficientDomain::FiniteField { field, characteristic } => {
+            if characteristic.is_zero() || characteristic.is_negative() {
                 return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
                     .detail("domain", "polynomial")
-                    .detail("operation", "prime_field_characteristic"));
+                    .detail("operation", "finite_field_characteristic"));
             }
-            Ok(RingCharacteristic::Prime(p.clone()))
+            Ok(CoefficientDomain::FiniteField { field, characteristic })
         }
-        CoefficientDomain::FiniteField { .. } => Ok(RingCharacteristic::Zero),
+        other => Ok(other),
+    }
+}
+
+fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
+    if p.is_zero() || p.is_negative() {
+        return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+            .detail("domain", "polynomial")
+            .detail("operation", "prime_field_characteristic"));
+    }
+    match primality_test(p, None) {
+        Primality::Prime => Ok(()),
+        Primality::Composite => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+            .detail("domain", "polynomial")
+            .detail("operation", "prime_field_not_prime")),
+        Primality::ProbablePrime { .. } | Primality::Unknown => {
+            Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
+                .detail("domain", "polynomial")
+                .detail("operation", "prime_field_characteristic"))
+        }
+    }
+}
+
+fn characteristic_of(coeff: &CoefficientDomain) -> Result<RingCharacteristic, Diagnostic> {
+    match coeff {
+        CoefficientDomain::Integer | CoefficientDomain::Rational => Ok(RingCharacteristic::Zero),
+        CoefficientDomain::ModularInteger { modulus } => Ok(RingCharacteristic::Positive(modulus.value().clone())),
+        CoefficientDomain::PrimeField { p } => Ok(RingCharacteristic::Positive(p.clone())),
+        CoefficientDomain::FiniteField { characteristic, .. } => Ok(RingCharacteristic::Positive(characteristic.clone())),
         CoefficientDomain::ApproximateReal => unreachable!("validated earlier"),
     }
 }

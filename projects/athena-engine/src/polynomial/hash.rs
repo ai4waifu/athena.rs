@@ -7,11 +7,7 @@ use std::{
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use super::{
-    expr::Polynomial,
-    ring::CoefficientDomain,
-    ring_table::RingTable,
-};
+use super::{expr::Polynomial, ring::CoefficientDomain, ring_table::RingTable};
 
 /// 对 canonical 多项式求稳定结构 hash（含环 id 与系数域标签）。
 pub fn canonical_hash(poly: &Polynomial, rings: &RingTable) -> Result<u64> {
@@ -47,9 +43,10 @@ fn hash_coefficient_domain(domain: &CoefficientDomain, h: &mut DefaultHasher) {
             "Zn".hash(h);
             modulus.value().to_decimal_string().hash(h);
         }
-        CoefficientDomain::FiniteField { field } => {
+        CoefficientDomain::FiniteField { field, characteristic } => {
             "Fq".hash(h);
             field.0.hash(h);
+            characteristic.to_decimal_string().hash(h);
         }
         CoefficientDomain::ApproximateReal => "R_approx".hash(h),
     }

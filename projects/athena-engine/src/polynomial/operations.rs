@@ -5,6 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{
     canonical::canonicalize_terms,
     coeff_kernel::CoeffRing,
+    exponent::add_exponent_vectors,
     expr::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
@@ -37,10 +38,7 @@ pub fn sub_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     validate_exponent_lengths(&rhs, desc.variable_count())?;
     let mut raw = lhs.terms;
     for term in rhs.terms {
-        raw.push(MonomialTerm {
-            coefficient: coeff.neg(term.coefficient)?,
-            exponents: term.exponents,
-        });
+        raw.push(MonomialTerm { coefficient: coeff.neg(term.coefficient)?, exponents: term.exponents });
     }
     canonicalize_terms(lhs.ring, desc, raw)
 }
@@ -59,16 +57,8 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     let mut raw = Vec::new();
     for lt in &lhs.terms {
         for rt in &rhs.terms {
-            let exponents: Vec<u32> = lt
-                .exponents
-                .iter()
-                .zip(&rt.exponents)
-                .map(|(a, b)| a.saturating_add(*b))
-                .collect();
-            raw.push(MonomialTerm {
-                coefficient: coeff.mul(lt.coefficient.clone(), rt.coefficient.clone())?,
-                exponents,
-            });
+            let exponents = add_exponent_vectors(&lt.exponents, &rt.exponents)?;
+            raw.push(MonomialTerm { coefficient: coeff.mul(lt.coefficient.clone(), rt.coefficient.clone())?, exponents });
         }
     }
     canonicalize_terms(lhs.ring, desc, raw)

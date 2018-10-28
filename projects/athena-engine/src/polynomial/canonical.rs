@@ -49,13 +49,26 @@ pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<M
         .map(|(exponents, coefficient)| MonomialTerm { coefficient, exponents })
         .collect();
 
-    terms.sort_by(|a, b| {
-        desc.order
-            .cmp_exponents(&b.exponents, &a.exponents, n)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    sort_terms_desc(&mut terms, &desc.order, n)?;
 
     Ok(Polynomial { ring, terms })
+}
+
+fn sort_terms_desc(terms: &mut [MonomialTerm], order: &super::order::MonomialOrder, variable_count: usize) -> Result<()> {
+    let mut sort_error = None;
+    terms.sort_by(|a, b| {
+        if sort_error.is_some() {
+            return std::cmp::Ordering::Equal;
+        }
+        match order.cmp_exponents(&b.exponents, &a.exponents, variable_count) {
+            Ok(ord) => ord,
+            Err(d) => {
+                sort_error = Some(d);
+                std::cmp::Ordering::Equal
+            }
+        }
+    });
+    sort_error.map_or(Ok(()), Err)
 }
 
 fn merge_coefficients(a: Number, b: Number, coeff_ring: Option<&CoeffRing<'_>>) -> Result<Number> {

@@ -8,9 +8,10 @@ use super::{
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate},
     coeff_kernel::CoeffRing,
+    exponent::add_exponent_vectors,
     expr::Polynomial,
     ideal::Ideal,
-    operations::{sub_polynomial},
+    operations::sub_polynomial,
     order::MonomialOrder,
     ring::RingDescriptor,
     ring_table::RingTable,
@@ -43,11 +44,7 @@ pub struct GroebnerBasis {
 }
 
 /// 计算 Gröbner 基（Buchberger；系数域须为域）。
-pub fn compute_groebner_basis(
-    generators: Vec<Polynomial>,
-    rings: &RingTable,
-    limits: GroebnerLimits,
-) -> Result<GroebnerBasis> {
+pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerBasis> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
     let coeff = CoeffRing::new(&desc.coefficients)?;
@@ -185,12 +182,7 @@ fn multiply_by_monomial(poly: &Polynomial, scalar: Number, exp_delta: &[u32], ri
     }
     let mut b = PolynomialBuilder::new(poly.ring);
     for term in &poly.terms {
-        let exponents: Vec<u32> = term
-            .exponents
-            .iter()
-            .zip(exp_delta.iter())
-            .map(|(e, d)| e.saturating_add(*d))
-            .collect();
+        let exponents = add_exponent_vectors(&term.exponents, exp_delta)?;
         let c = athena_numeric::mul(scalar.clone(), term.coefficient.clone())?;
         b.push_term(c, exponents)?;
     }
@@ -245,11 +237,7 @@ fn autoreduce_basis(
         if r.terms.is_empty() {
             continue;
         }
-        if out.iter().any(|p| {
-            leading_term(p)
-                .zip(leading_term(&r))
-                .is_some_and(|(a, b)| a.exponents == b.exponents)
-        }) {
+        if out.iter().any(|p| leading_term(p).zip(leading_term(&r)).is_some_and(|(a, b)| a.exponents == b.exponents)) {
             continue;
         }
         out.push(r);
@@ -258,11 +246,7 @@ fn autoreduce_basis(
 }
 
 fn extract_elimination_polys(basis: &[Polynomial], eliminate: usize) -> Vec<Polynomial> {
-    basis
-        .iter()
-        .filter(|p| p.terms.iter().all(|t| t.exponents.iter().take(eliminate).all(|&e| e == 0)))
-        .cloned()
-        .collect()
+    basis.iter().filter(|p| p.terms.iter().all(|t| t.exponents.iter().take(eliminate).all(|&e| e == 0))).cloned().collect()
 }
 
 fn zero_poly_err() -> Diagnostic {

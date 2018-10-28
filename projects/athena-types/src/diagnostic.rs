@@ -181,6 +181,8 @@ pub enum DiagnosticCode {
     PolynomialOrderInvalid,
     /// 多项式过大（资源）。
     PolynomialTooLarge,
+    /// 单项式指数溢出（`u32` checked 失败）。
+    PolynomialDegreeOverflow,
     /// Gröbner 资源上限。
     GroebnerResourceLimit,
     /// 群对象不匹配。
@@ -282,6 +284,7 @@ impl DiagnosticCode {
             Self::PolynomialVariableMismatch => "ATHENA_POLYNOMIAL_VARIABLE_MISMATCH",
             Self::PolynomialOrderInvalid => "ATHENA_POLYNOMIAL_ORDER_INVALID",
             Self::PolynomialTooLarge => "ATHENA_POLYNOMIAL_TOO_LARGE",
+            Self::PolynomialDegreeOverflow => "ATHENA_POLYNOMIAL_DEGREE_OVERFLOW",
             Self::GroebnerResourceLimit => "ATHENA_GROEBNER_RESOURCE_LIMIT",
             Self::GroupMismatch => "ATHENA_GROUP_MISMATCH",
             Self::GroupElementInvalid => "ATHENA_GROUP_ELEMENT_INVALID",
