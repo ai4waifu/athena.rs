@@ -22,9 +22,10 @@ fn pure_rust_supports_integer_exact_add() {
 }
 
 #[test]
-fn pure_rust_supports_interval_enclosure_ops() {
+fn pure_rust_interval_enclosure_not_advertised_yet() {
     let b = PureRustBackend;
-    assert!(b.supports_operation(
+    assert!(!b.has_capability(NumericCapability::DirectedRounding));
+    assert!(!b.supports_operation(
         &NumericDomain::Interval,
         NumericOperation::IntervalAdd,
         NumericResultMode::IntervalEnclosure

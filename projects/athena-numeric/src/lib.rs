@@ -2,13 +2,15 @@
 #![deny(missing_docs)]
 
 pub mod algebraic;
-pub mod big_float;
 pub mod backends;
+pub mod big_float;
 pub mod certificate;
 pub mod comparison;
 pub mod complex;
 pub mod domain;
+pub mod dyadic;
 pub mod evidence;
+pub mod execution_budget;
 pub mod finite_field;
 pub mod integer;
 pub mod interval;
@@ -28,18 +30,20 @@ pub mod wire_binary;
 pub mod wire_text;
 
 pub use algebraic::AlgebraicNumber;
-pub use big_float::BigFloat;
 pub use backends::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     PureRustBackend,
 };
+pub use big_float::BigFloat;
 pub use certificate::{CertificateMethod, NumericCertificate};
 pub use comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, NumericComparison};
 pub use complex::{BranchPolicy, Complex};
 pub use domain::NumericDomain;
-pub use evidence::{NumericBinding, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord};
+pub use dyadic::Dyadic;
 #[allow(deprecated)]
 pub use evidence::NumericProvenance;
+pub use evidence::{NumericBinding, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord};
+pub use execution_budget::{ExecutionBudget, NumericContext};
 pub use finite_field::FiniteFieldValue;
 pub use integer::{ExactInteger, Integer, Sign};
 pub use interval::{Interval, IntervalDecoration};

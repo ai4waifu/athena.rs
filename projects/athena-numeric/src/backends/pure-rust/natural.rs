@@ -196,6 +196,11 @@ impl Natural {
         Self::from_limbs(limb_kernel::binary_gcd(self.limbs.clone(), other.limbs.clone()))
     }
 
+    /// Canonical limb slice (crate-private kernel view).
+    pub(crate) fn as_limbs(&self) -> &[u64] {
+        &self.limbs
+    }
+
     /// Canonical limb buffer (crate-private; for limb kernel tests).
     pub(crate) fn from_limbs(limbs: Vec<u64>) -> Self {
         let limbs = limb_kernel::normalize_trim(limbs);
@@ -215,12 +220,17 @@ impl Natural {
         out
     }
 
-    /// Decode [`Self::wire_encode_magnitude`] bytes.
-    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self, ()> {
+    /// Decode [`Self::wire_encode_magnitude`] bytes under an execution budget.
+    pub(crate) fn wire_decode_magnitude_budgeted(
+        bytes: &[u8],
+        budget: &crate::execution_budget::ExecutionBudget,
+    ) -> Result<Self, ()> {
         if bytes.len() < 4 {
             return Err(());
         }
+        budget.check_wire_bytes(bytes.len()).map_err(|_| ())?;
         let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| ())?) as usize;
+        budget.check_limbs(count).map_err(|_| ())?;
         let need = 4usize.checked_add(count.checked_mul(8).ok_or(())?).ok_or(())?;
         if bytes.len() != need {
             return Err(());
@@ -234,6 +244,11 @@ impl Natural {
             limbs.push(u64::from_le_bytes(bytes[off..off + 8].try_into().map_err(|_| ())?));
         }
         Ok(Self::from_limbs(limbs))
+    }
+
+    /// Decode [`Self::wire_encode_magnitude`] bytes.
+    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self, ()> {
+        Self::wire_decode_magnitude_budgeted(bytes, &crate::execution_budget::ExecutionBudget::unlimited())
     }
 
     /// Split the first magnitude chunk from a concatenated rational payload.
@@ -254,11 +269,7 @@ impl Natural {
     fn debug_assert_invariants(&self) {
         debug_assert!(!self.limbs.is_empty(), "Natural must have at least one limb");
         let el = limb_kernel::effective_len(&self.limbs);
-        debug_assert_eq!(
-            self.limbs.len(),
-            el,
-            "Natural limbs must be trimmed (no trailing zero except [0])"
-        );
+        debug_assert_eq!(self.limbs.len(), el, "Natural limbs must be trimmed (no trailing zero except [0])");
         if self.is_zero() {
             debug_assert_eq!(self.limbs, vec![0]);
         }

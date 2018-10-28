@@ -3,6 +3,12 @@
 //! All multi-precision primitives operate on little-endian canonical limb slices:
 //! no trailing zero limbs except the single `[0]` zero value.
 
+use athena_types::Result;
+
+use crate::execution_budget::ExecutionBudget;
+
+use super::buffer::{LimbBuffer, ScratchWorkspace, kernel_err};
+
 use std::cmp::Ordering;
 
 /// Karatsuba multiplication threshold (limbs per operand).
@@ -77,41 +83,27 @@ pub(crate) fn cmp_slice(a: &[u64], b: &[u64]) -> Ordering {
 }
 
 pub(crate) fn add_n(a: &[u64], b: &[u64]) -> Vec<u64> {
-    let n = a.len().max(b.len());
-    let mut out = Vec::with_capacity(n + 1);
-    let mut carry = 0u64;
-    for i in 0..n {
-        let av = *a.get(i).unwrap_or(&0);
-        let bv = *b.get(i).unwrap_or(&0);
-        let (sum, c) = adc(av, bv, carry);
-        out.push(sum);
-        carry = c;
-    }
-    if carry > 0 {
-        out.push(carry);
-    }
-    normalize_trim(out)
+    let budget = ExecutionBudget::unlimited();
+    let mut out = LimbBuffer::with_capacity(a.len().max(b.len()) + 1, &budget).expect("unlimited");
+    let mut scratch = ScratchWorkspace::default();
+    PureRustLimbKernel::add_into(a, b, &mut out, &mut scratch, &budget).expect("add_into");
+    out.into_canonical_vec()
 }
 
 pub(crate) fn sub_n(a: &[u64], b: &[u64]) -> Vec<u64> {
-    assert!(cmp_slice(a, b) != Ordering::Less);
-    let mut out = a.to_vec();
-    let mut borrow = 0u64;
-    for i in 0..out.len() {
-        let (diff, b_out) = sbb(out[i], *b.get(i).unwrap_or(&0), borrow);
-        out[i] = diff;
-        borrow = b_out;
-    }
-    normalize_trim(out)
+    let budget = ExecutionBudget::unlimited();
+    let mut out = LimbBuffer::with_capacity(a.len(), &budget).expect("unlimited");
+    let mut scratch = ScratchWorkspace::default();
+    PureRustLimbKernel::sub_into(a, b, &mut out, &mut scratch, &budget).expect("sub_into");
+    out.into_canonical_vec()
 }
 
 pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
-    if is_zero(a) || is_zero(b) {
-        return vec![0];
-    }
-    let la = effective_len(a);
-    let lb = effective_len(b);
-    if la.max(lb) >= MUL_KARATSUBA_THRESHOLD { karatsuba_mul(a, b) } else { mul_schoolbook(a, b) }
+    let budget = ExecutionBudget::unlimited();
+    let mut out = LimbBuffer::zero();
+    let mut scratch = ScratchWorkspace::default();
+    PureRustLimbKernel::mul_into(a, b, &mut out, &mut scratch, &budget).expect("mul_into");
+    out.into_canonical_vec()
 }
 
 fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
@@ -185,16 +177,12 @@ fn shift_limbs_left(v: Vec<u64>, limbs: usize) -> Vec<u64> {
 }
 
 pub(crate) fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
-    let u = normalize_trim(u.to_vec());
-    let v = normalize_trim(v.to_vec());
-    assert!(!is_zero(&v));
-    if is_zero(&u) || cmp_slice(&u, &v) == Ordering::Less {
-        return (vec![0], u);
-    }
-    if effective_len(&v) == 1 {
-        return div_rem_1(u, v[0]);
-    }
-    div_rem_knuth(u, &v)
+    let budget = ExecutionBudget::unlimited();
+    let mut q = LimbBuffer::zero();
+    let mut r = LimbBuffer::zero();
+    let mut scratch = ScratchWorkspace::default();
+    PureRustLimbKernel::div_rem_into(u, v, &mut q, &mut r, &mut scratch, &budget).expect("div_rem_into");
+    (q.into_canonical_vec(), r.into_canonical_vec())
 }
 
 fn div_rem_1(u: Vec<u64>, d: u64) -> (Vec<u64>, Vec<u64>) {
@@ -439,6 +427,194 @@ fn shl_assign(v: &mut Vec<u64>, bits: u32) {
     }
 }
 
+/// Right-shift canonical limbs by `bits`, returning quotient limbs and low remainder bits.
+pub(crate) fn shr_natural(v: &[u64], bits: u32) -> (Vec<u64>, u64) {
+    if bits == 0 || is_zero(v) {
+        return (normalize_trim(v.to_vec()), 0);
+    }
+    if bits >= 64 * v.len() as u32 {
+        return (vec![0], 0);
+    }
+    let whole = (bits / 64) as usize;
+    let rem = bits % 64;
+    let el = effective_len(v);
+    let mut out = v[..el].to_vec();
+    if whole > 0 {
+        out.drain(0..whole);
+        if out.is_empty() {
+            out.push(0);
+        }
+    }
+    let mut remainder = 0u64;
+    if rem > 0 {
+        let mut carry = 0u128;
+        for i in (0..out.len()).rev() {
+            let wide = u128::from(out[i]) | (carry << 64);
+            out[i] = (wide >> rem) as u64;
+            carry = wide & ((1u128 << rem) - 1);
+        }
+        remainder = carry as u64;
+    }
+    (normalize_trim(out), remainder)
+}
+
+/// Private limb execution contract (output buffers + scratch + budget).
+pub(crate) trait LimbKernel {
+    fn add_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+
+    fn sub_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+
+    fn mul_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+
+    fn div_rem_into(
+        u: &[u64],
+        v: &[u64],
+        q_out: &mut LimbBuffer,
+        r_out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+}
+
+/// Default pure-Rust limb kernel.
+pub(crate) struct PureRustLimbKernel;
+
+impl LimbKernel for PureRustLimbKernel {
+    fn add_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        budget.check_add(effective_len(a), effective_len(b))?;
+        let n = a.len().max(b.len());
+        let storage = out.storage_mut(n + 1, budget)?;
+        let mut carry = 0u64;
+        for i in 0..n {
+            let av = *a.get(i).unwrap_or(&0);
+            let bv = *b.get(i).unwrap_or(&0);
+            let (sum, c) = adc(av, bv, carry);
+            storage[i] = sum;
+            carry = c;
+        }
+        storage[n] = carry;
+        out.trim_canonical();
+        Ok(())
+    }
+
+    fn sub_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        if cmp_slice(a, b) == Ordering::Less {
+            return Err(kernel_err("sub_underflow"));
+        }
+        budget.check_limbs(effective_len(a))?;
+        let n = a.len();
+        out.set_canonical(a.to_vec(), budget)?;
+        let storage = out.storage_mut(n, budget)?;
+        let mut borrow = 0u64;
+        for i in 0..n {
+            let (diff, b_out) = sbb(storage[i], *b.get(i).unwrap_or(&0), borrow);
+            storage[i] = diff;
+            borrow = b_out;
+        }
+        out.trim_canonical();
+        Ok(())
+    }
+
+    fn mul_into(
+        a: &[u64],
+        b: &[u64],
+        out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        if is_zero(a) || is_zero(b) {
+            out.set_canonical(vec![0], budget)?;
+            return Ok(());
+        }
+        let la = effective_len(a);
+        let lb = effective_len(b);
+        budget.check_mul(la, lb)?;
+        budget.check_mul_scratch(la, lb)?;
+        let product = if la.max(lb) >= MUL_KARATSUBA_THRESHOLD { karatsuba_mul(a, b) } else { mul_schoolbook(a, b) };
+        out.set_canonical(product, budget)?;
+        Ok(())
+    }
+
+    fn div_rem_into(
+        u: &[u64],
+        v: &[u64],
+        q_out: &mut LimbBuffer,
+        r_out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        let u_norm = normalize_trim(u.to_vec());
+        let v_norm = normalize_trim(v.to_vec());
+        if is_zero(&v_norm) {
+            return Err(kernel_err("div_zero"));
+        }
+        budget.check_div(effective_len(&u_norm), effective_len(&v_norm))?;
+        let (q, r) = if is_zero(&u_norm) || cmp_slice(&u_norm, &v_norm) == Ordering::Less {
+            (vec![0], u_norm)
+        }
+        else if effective_len(&v_norm) == 1 {
+            div_rem_1(u_norm, v_norm[0])
+        }
+        else {
+            div_rem_knuth(u_norm, &v_norm)
+        };
+        q_out.set_canonical(q, budget)?;
+        r_out.set_canonical(r, budget)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+
+    #[test]
+    fn limb_kernel_add_into_respects_budget() {
+        let budget = ExecutionBudget::from_limits(&crate::backends::NumericBackendLimits {
+            max_limbs: Some(2),
+            max_significand_bits: None,
+            max_wire_payload_bytes: None,
+            max_pow_exp: None,
+        });
+        let a = vec![1u64, 1u64, 1u64];
+        let b = vec![1u64];
+        let mut out = LimbBuffer::zero();
+        let mut scratch = ScratchWorkspace::default();
+        let err = PureRustLimbKernel::add_into(&a, &b, &mut out, &mut scratch, &budget).unwrap_err();
+        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_RESOURCE_LIMIT");
+    }
+}
+
 #[cfg(test)]
 mod primitive_tests {
     use super::*;
@@ -501,11 +677,8 @@ mod primitive_tests {
                     let (diff, b_out) = sbb(a, b, borrow);
                     let sub = (b as u128) + (borrow as u128);
                     let a128 = a as u128;
-                    let (ref_diff, ref_borrow) = if a128 >= sub {
-                        ((a128 - sub) as u64, 0)
-                    } else {
-                        ((a128 + (1u128 << 64) - sub) as u64, 1)
-                    };
+                    let (ref_diff, ref_borrow) =
+                        if a128 >= sub { ((a128 - sub) as u64, 0) } else { ((a128 + (1u128 << 64) - sub) as u64, 1) };
                     assert_eq!(diff, ref_diff);
                     assert_eq!(b_out, ref_borrow);
                 }
@@ -519,11 +692,8 @@ mod primitive_tests {
             let (diff, b_out) = sbb(a, b, borrow);
             let sub = (b as u128) + (borrow as u128);
             let a128 = a as u128;
-            let (ref_diff, ref_borrow) = if a128 >= sub {
-                ((a128 - sub) as u64, 0)
-            } else {
-                ((a128 + (1u128 << 64) - sub) as u64, 1)
-            };
+            let (ref_diff, ref_borrow) =
+                if a128 >= sub { ((a128 - sub) as u64, 0) } else { ((a128 + (1u128 << 64) - sub) as u64, 1) };
             assert_eq!(diff, ref_diff);
             assert_eq!(b_out, ref_borrow);
         }

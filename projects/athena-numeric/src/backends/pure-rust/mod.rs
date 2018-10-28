@@ -1,6 +1,8 @@
 //! Default pure-Rust numeric backend (WASM-safe, deterministic).
 
-mod limb_kernel;
+mod buffer;
+pub(crate) mod limb_kernel;
+
 pub mod natural;
 
 pub use natural::Natural;
@@ -18,8 +20,6 @@ const PURE_RUST_CAPS: &[NumericCapability] = &[
     NumericCapability::MachineReal,
     NumericCapability::ArbitraryRealSkeleton,
     NumericCapability::ModularInteger,
-    NumericCapability::IntervalEnclosure,
-    NumericCapability::DirectedRounding,
     NumericCapability::ExplicitPromotion,
     NumericCapability::Deterministic,
 ];
@@ -119,10 +119,7 @@ impl NumericBackend for PureRustBackend {
                 NumericDomain::Interval,
                 NumericOperation::IntervalAdd | NumericOperation::IntervalMul,
                 NumericResultMode::IntervalEnclosure,
-            ) => {
-                self.has_capability(NumericCapability::IntervalEnclosure)
-                    && self.has_capability(NumericCapability::DirectedRounding)
-            }
+            ) => false,
             (
                 NumericDomain::Modular { .. },
                 NumericOperation::Add | NumericOperation::Sub | NumericOperation::Mul | NumericOperation::Pow,
