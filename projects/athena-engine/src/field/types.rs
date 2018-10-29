@@ -1,9 +1,9 @@
 //! 域与域元素对象（骨架）。
 
 use athena_numeric::Integer;
-use athena_types::{ExtensionId, FieldId};
+use athena_types::{ExtensionId, FieldId, PresentationId};
 
-/// 域种类。
+/// 域种类（descriptor 级；具体表示见 [`crate::algebra::FieldPresentation`]）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldKind {
     /// 有理数域 ℚ。
@@ -31,13 +31,41 @@ pub struct Field {
     pub id: FieldId,
     /// 种类。
     pub kind: FieldKind,
+    /// 默认 presentation（Phase 0 可选）。
+    pub default_presentation: Option<PresentationId>,
 }
 
-/// 域元素（表示后续接多项式/坐标）。
+/// 域元素私有表示（按 presentation kind 解释）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FieldElementRepr {
+    /// 有理数 canonical 分数（Phase 1 接 `Rational`）。
+    Rational {
+        /// 分子。
+        numerator: Integer,
+        /// 分母（须为正）。
+        denominator: Integer,
+    },
+    /// 素域 𝔽_p 约化 residue。
+    PrimeFieldResidue {
+        /// 约化后的值。
+        value: Integer,
+    },
+    /// 扩张元素系数向量（长度 < degree，相对固定基）。
+    ExtensionCoefficients {
+        /// 基坐标。
+        coefficients: Vec<Integer>,
+    },
+    /// 占位。
+    Placeholder,
+}
+
+/// 域元素。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldElement {
     /// 所属域。
     pub field: FieldId,
-    /// 桥接标签（非正式代数表示）。
-    pub label: String,
+    /// 解释 `repr` 的 presentation。
+    pub presentation: PresentationId,
+    /// 私有表示 payload。
+    pub repr: FieldElementRepr,
 }

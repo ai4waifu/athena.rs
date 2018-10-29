@@ -22,9 +22,13 @@ pub enum GaloisResult {
 /// 执行伽罗瓦请求。
 pub fn execute_galois(request: GaloisRequest) -> GaloisResult {
     let op = match &request {
-        GaloisRequest::IsSeparable { .. } => "is_separable",
-        GaloisRequest::IsNormal { .. } => "is_normal",
-        GaloisRequest::GaloisGroup { .. } => "galois_group",
+        GaloisRequest::IsPolynomialSeparable { .. } => "is_polynomial_separable",
+        GaloisRequest::SplittingField { .. } => "splitting_field",
+        GaloisRequest::IsExtensionNormal { .. } => "is_extension_normal",
+        GaloisRequest::IsExtensionSeparable { .. } => "is_extension_separable",
+        GaloisRequest::IsGalois { .. } => "is_galois",
+        GaloisRequest::GaloisGroupOfExtension { .. } => "galois_group_of_extension",
+        GaloisRequest::GaloisGroupOfPolynomial { .. } => "galois_group_of_polynomial",
         GaloisRequest::FixedField { .. } => "fixed_field",
     };
     GaloisResult::Unevaluated {

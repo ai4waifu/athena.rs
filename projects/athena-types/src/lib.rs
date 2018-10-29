@@ -14,8 +14,8 @@ pub mod wire;
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
-    AssumptionSetId, DomainId, ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, RingId, SerializationVersion,
-    SourceSpan, SymbolId, TermId,
+    AlgebraMapId, AssumptionSetId, AutomorphismId, DomainId, ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId,
+    PresentationId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId,
 };
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};
 pub use wire::{ExactNumber, RealNumber, WireNumber};

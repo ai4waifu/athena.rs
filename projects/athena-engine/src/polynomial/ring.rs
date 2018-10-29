@@ -15,6 +15,9 @@ pub enum CoefficientDomain {
     /// ℚ（特征 0）。
     Rational,
     /// 素域 𝔽_p（`p` 须为已验证素数）。
+    ///
+    /// **Deprecation（Living `18`）**：新代码须先 `FieldTable::prime_field(p)` 取得 `FieldId`，
+    /// 再使用 [`CoefficientDomain::FiniteField`]。Phase 2 将删除本变体。
     PrimeField {
         /// 特征素数。
         p: Integer,

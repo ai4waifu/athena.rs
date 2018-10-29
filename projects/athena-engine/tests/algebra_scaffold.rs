@@ -39,7 +39,7 @@ fn group_field_galois_scaffolds_unevaluated() {
 
     let (_rings, ring) = integer_x_ring();
     let gal = engine
-        .execute_domain(DomainRequest::GaloisTheory(GaloisRequest::GaloisGroup {
+        .execute_domain(DomainRequest::GaloisTheory(GaloisRequest::GaloisGroupOfPolynomial {
             polynomial: Polynomial::zero(ring),
             base_field: athena_engine::FieldId(0),
         }))

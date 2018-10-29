@@ -5,7 +5,7 @@ use athena_numeric::Integer;
 use super::types::{Group, GroupElement};
 
 /// 群论域返回值。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GroupDomainValue {
     /// 群对象。
     Group(Group),

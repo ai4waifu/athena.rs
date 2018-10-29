@@ -40,6 +40,22 @@ pub struct ExtensionId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RingId(pub u32);
 
+/// 域 / 群 presentation 句柄（内容与 presentation 对象一一对应）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PresentationId(pub u32);
+
+/// 代数映射 id（嵌入、同态、商投影等）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AlgebraMapId(pub u32);
+
+/// 域自同构 id。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AutomorphismId(pub u32);
+
+/// 子群 id（含 inclusion 映射引用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SubgroupId(pub u32);
+
 /// 假设集合 id（Session / 请求附着）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionSetId(pub u32);
