@@ -20,6 +20,8 @@ const PURE_RUST_CAPS: &[NumericCapability] = &[
     NumericCapability::MachineReal,
     NumericCapability::ArbitraryRealSkeleton,
     NumericCapability::ModularInteger,
+    NumericCapability::IntervalEnclosure,
+    NumericCapability::DirectedRounding,
     NumericCapability::ExplicitPromotion,
     NumericCapability::Deterministic,
 ];
@@ -119,7 +121,10 @@ impl NumericBackend for PureRustBackend {
                 NumericDomain::Interval,
                 NumericOperation::IntervalAdd | NumericOperation::IntervalMul,
                 NumericResultMode::IntervalEnclosure,
-            ) => false,
+            ) => {
+                self.has_capability(NumericCapability::IntervalEnclosure)
+                    && self.has_capability(NumericCapability::DirectedRounding)
+            }
             (
                 NumericDomain::Modular { .. },
                 NumericOperation::Add | NumericOperation::Sub | NumericOperation::Mul | NumericOperation::Pow,
