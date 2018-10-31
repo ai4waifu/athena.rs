@@ -94,7 +94,7 @@ impl Natural {
         if rhs == 1 {
             return self.clone();
         }
-        Self::from_limbs(limb_kernel::mul(&self.limbs, &[rhs]))
+        Self::from_limbs(limb_kernel::mul_1(&self.limbs, rhs))
     }
 
     /// 加法。
@@ -111,6 +111,11 @@ impl Natural {
     /// 乘法。
     pub fn mul(&self, rhs: &Self) -> Self {
         Self::from_limbs(limb_kernel::mul(&self.limbs, &rhs.limbs))
+    }
+
+    /// 平方。
+    pub fn sqr(&self) -> Self {
+        Self::from_limbs(limb_kernel::sqr(&self.limbs))
     }
 
     /// 除法与余数（`rhs > 0`）。
@@ -133,7 +138,7 @@ impl Natural {
             if e.is_odd() {
                 result = result.mul(&base).div_rem(modulus).1;
             }
-            base = base.mul(&base).div_rem(modulus).1;
+            base = base.sqr().div_rem(modulus).1;
             e.div2();
         }
         result

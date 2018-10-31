@@ -106,6 +106,37 @@ pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     out.into_canonical_vec()
 }
 
+/// Multiply by a single limb (`n > 0`).
+pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
+    assert!(n != 0);
+    if is_zero(a) {
+        return vec![0];
+    }
+    if n == 1 {
+        return normalize_trim(a.to_vec());
+    }
+    let la = effective_len(a);
+    let mut out = vec![0u64; la + 1];
+    let mut carry = 0u128;
+    for (i, &av) in a.iter().take(la).enumerate() {
+        let prod = u128::from(av) * u128::from(n) + carry;
+        out[i] = prod as u64;
+        carry = prod >> 64;
+    }
+    if carry > 0 {
+        out[la] = carry as u64;
+    }
+    else {
+        out.pop();
+    }
+    normalize_trim(out)
+}
+
+/// Square (`a * a`).
+pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
+    mul(a, a)
+}
+
 fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     let lb = effective_len(b);
@@ -738,6 +769,29 @@ mod primitive_tests {
             let school = mul_schoolbook(&a, &b);
             let kara = karatsuba_mul(&a, &b);
             assert_eq!(school, kara, "Karatsuba diverged from schoolbook");
+        }
+    }
+
+    #[test]
+    fn sqr_matches_mul() {
+        let mut seed = 0x5A00_u64;
+        for _ in 0..64 {
+            let la = (lcg_next(&mut seed) as usize % 80) + 1;
+            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
+            let via_mul = mul(&a, &a);
+            let via_sqr = sqr(&a);
+            assert_eq!(via_mul, via_sqr, "sqr diverged from mul");
+        }
+    }
+
+    #[test]
+    fn mul_1_matches_mul_single_limb() {
+        let mut seed = 0xB160_u64;
+        for _ in 0..256 {
+            let la = (lcg_next(&mut seed) as usize % 40) + 1;
+            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
+            let n = lcg_next(&mut seed) | 1;
+            assert_eq!(mul_1(&a, n), mul(&a, &[n]));
         }
     }
 }
