@@ -63,9 +63,11 @@ pub use group::{
     Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation, execute_group,
 };
 pub use mgraph::{
-    ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
-    HyperEdge, MGraphState, PolynomialCacheEntry, PolynomialMGraphStore, PolynomialWitness, POLYNOMIAL_SOLVER_ID,
-    RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore, run_closure_step, witness_from_exact,
+    AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState,
+    EqualityWitness, EquivalenceClasses, Evidence, ExactnessLevel, Guarantee, HyperEdge, MGraphState, PolynomialCacheEntry,
+    PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, Proposition, POLYNOMIAL_SOLVER_ID, RewriteWitness, Scope,
+    SolverCandidate, SolverFrontier, SolverId, SolverScore, VerifiedClaim, admit_polynomial_exact, admit_polynomial_result,
+    is_admitted, proposition_from_cache_key, run_closure_step, witness_from_exact,
 };
 pub use number_theory::{
     ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,

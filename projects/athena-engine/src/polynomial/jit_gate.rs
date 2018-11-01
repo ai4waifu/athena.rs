@@ -30,7 +30,7 @@ pub fn mul_with_jit_parity(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) 
 fn check_mul_parity(eager: &Polynomial, _rings: &RingTable) -> JitParityOutcome {
     #[cfg(feature = "jit")]
     {
-        use athena_jit::{JitAvailability, ParityOutcome, availability, polynomial_mul_parity};
+        use athena_jit::{JitAvailability, availability, polynomial_mul_parity};
         match availability() {
             JitAvailability::Disabled => JitParityOutcome::EagerOnly,
             JitAvailability::UnsupportedTarget => JitParityOutcome::JitUnavailable,

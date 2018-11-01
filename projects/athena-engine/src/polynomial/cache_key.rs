@@ -27,6 +27,19 @@ pub enum PolynomialCacheOp {
     Eliminate,
 }
 
+impl PolynomialCacheOp {
+    /// 操作名（审计 / evidence 摘要）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Normalize => "normalize",
+            Self::Add => "add",
+            Self::Mul => "mul",
+            Self::Groebner => "groebner",
+            Self::Eliminate => "eliminate",
+        }
+    }
+}
+
 /// M-Graph / 重写缓存键（Living `11`）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PolynomialCacheKey {

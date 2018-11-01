@@ -40,9 +40,13 @@ fn solver_registry_lookup() {
 }
 
 #[test]
-fn score_candidate_is_finite() {
-    let score = score_candidate(&SolverCandidate { solver: SolverId(0), roots: vec![TermId(0)] });
-    assert!(score.estimated_benefit.is_finite());
+fn score_candidate_is_stable_integer() {
+    let candidate = SolverCandidate { solver: SolverId(0), roots: vec![TermId(0)] };
+    let a = score_candidate(&candidate);
+    let b = score_candidate(&candidate);
+    assert_eq!(a, b);
+    assert!(a.total >= 0);
+    assert_ne!(a.tie_breaker, 0);
 }
 
 #[test]

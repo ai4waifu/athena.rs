@@ -9,9 +9,11 @@ use super::{
     ring_table::RingTable,
     PolynomialCacheKey,
 };
-use crate::mgraph::{MGraphState, PolynomialCacheEntry, witness_from_exact};
+use crate::mgraph::{
+    AdmissionOutcome, MGraphState, PolynomialCacheEntry, PolynomialCacheTier, admit_polynomial_result, witness_from_exact,
+};
 
-/// 在 M-Graph 上下文中执行多项式请求（缓存 + witness）。
+/// 在 M-Graph 上下文中执行多项式请求（缓存 + admission gate）。
 pub fn execute_polynomial_mgraph(
     request: PolynomialRequest,
     rings: &RingTable,
@@ -25,31 +27,41 @@ pub fn execute_polynomial_mgraph(
         return entry.result.clone();
     }
     let result = execute_polynomial_with_rings(request, rings);
-    if let PolynomialResult::Exact { ref value } = result {
-        let witness = witness_from_exact(&key, value);
-        let witness_edge = state.polynomial.insert(PolynomialCacheEntry {
-            key: key.clone(),
-            result: result.clone(),
-            witness,
-        });
-        state.witnesses.push(witness_edge);
-    }
+    record_polynomial_cache(key, result.clone(), state);
     result
 }
 
-/// 将已有精确结果写入 M-Graph（测试 / 外部 orchestrator）。
+/// 将已有结果写入 M-Graph（测试 / 外部 orchestrator）。
 pub fn record_polynomial_result(
     key: PolynomialCacheKey,
     result: PolynomialResult,
     state: &mut MGraphState,
 ) -> Result<(), Diagnostic> {
     match &result {
-        PolynomialResult::Exact { value } => {
-            let witness = witness_from_exact(&key, value);
-            let edge = state.polynomial.insert(PolynomialCacheEntry { key, result, witness });
-            state.witnesses.push(edge);
+        PolynomialResult::Exact { .. } => {
+            record_polynomial_cache(key, result, state);
             Ok(())
         }
         PolynomialResult::Unevaluated { reason } => Err(reason.clone()),
+    }
+}
+
+fn record_polynomial_cache(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState) {
+    let admission = admit_polynomial_result(&key, &result);
+    let (tier, witness) = match (&admission, &result) {
+        (AdmissionOutcome::Admitted(vc), PolynomialResult::Exact { value }) => {
+            state.verified_claims.push(vc.clone());
+            (
+                PolynomialCacheTier::Verified,
+                Some(witness_from_exact(&key, value)),
+            )
+        }
+        (AdmissionOutcome::Rejected { .. }, PolynomialResult::Exact { .. }) => {
+            (PolynomialCacheTier::Partial, None)
+        }
+        _ => (PolynomialCacheTier::Partial, None),
+    };
+    if let Some(edge) = state.polynomial.insert(PolynomialCacheEntry { key, result, tier, witness }) {
+        state.witnesses.push(edge);
     }
 }

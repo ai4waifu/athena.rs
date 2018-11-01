@@ -87,17 +87,20 @@ pub struct SolverCandidate {
     pub roots: Vec<TermId>,
 }
 
-/// 调度评分。
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// 调度评分（量化整数 + 稳定 tie-breaker；占位策略仍可用浮点估计推导）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SolverScore {
-    /// 预估收益。
-    pub estimated_benefit: f64,
-    /// 预估成本。
-    pub estimated_cost: f64,
-    /// 可信度。
-    pub confidence: f64,
-    /// 解锁数。
-    pub unlocks: usize,
+    /// 量化总分（越大越优先）。
+    pub total: i64,
+    /// 稳定 tie-breaker（solver / roots 指纹；与平台浮点顺序无关）。
+    pub tie_breaker: u64,
+}
+
+impl SolverScore {
+    /// 全序比较键。
+    pub fn ordering_key(self) -> (i64, u64) {
+        (self.total, self.tie_breaker)
+    }
 }
 
 /// 求解前沿。
