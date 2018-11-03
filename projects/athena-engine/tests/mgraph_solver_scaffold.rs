@@ -24,7 +24,7 @@ impl Reflector for StubReflector {
 #[test]
 fn mgraph_state_defaults() {
     let state = MGraphState::new();
-    assert!(state.hyper_edges.is_empty());
+    assert!(state.operational.hyper_edges.is_empty());
     let result = run_closure_step(&state, &ClosureLimits::default());
     assert!(!result.complete);
     assert!(!result.diagnostics.is_empty());

@@ -63,11 +63,13 @@ pub use group::{
     Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation, execute_group,
 };
 pub use mgraph::{
-    AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState,
-    EqualityWitness, EquivalenceClasses, Evidence, ExactnessLevel, Guarantee, HyperEdge, MGraphState, PolynomialCacheEntry,
-    PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, Proposition, POLYNOMIAL_SOLVER_ID, RewriteWitness, Scope,
-    SolverCandidate, SolverFrontier, SolverId, SolverScore, VerifiedClaim, admit_polynomial_exact, admit_polynomial_result,
-    is_admitted, proposition_from_cache_key, run_closure_step, witness_from_exact,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DerivedIndexes,
+    DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, Evidence, EvidenceVerifier, ExactUnionFind,
+    ExactnessLevel, FactId, FactLog, Guarantee, HyperEdge, MGraphState, OperationalState, PolynomialCacheEntry,
+    PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, Proposition, POLYNOMIAL_SOLVER_ID, ResultCache,
+    RewriteWitness, Scope, SemanticCore, SolverCandidate, SolverFrontier, SolverId, SolverScore, VerificationPolicy,
+    VerifiedClaim, admit_polynomial_exact, admit_polynomial_result, is_admitted, proposition_from_cache_key, run_closure_step,
+    witness_from_exact,
 };
 pub use number_theory::{
     ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,

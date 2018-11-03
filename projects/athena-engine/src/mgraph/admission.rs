@@ -1,9 +1,12 @@
 //! Evidence admission gate — 唯一可信接纳边界。
 //!
-//! 外部 solver / 缓存命中均不可直接写入 semantic core；须通过本模块。
+//! `EvidenceVerifier::verify` → [`VerifiedClaim`] → [`SemanticCore::commit`] → [`ExactUnionFind`]。
 
-use super::claim::{Claim, Evidence, Guarantee, Scope, VerifiedClaim, proposition_from_cache_key};
-use super::polynomial::{PolynomialWitness, POLYNOMIAL_SOLVER_ID, witness_from_exact};
+use super::{
+    claim::{Claim, Evidence, Guarantee, Scope, VerifiedClaim, proposition_from_cache_key},
+    polynomial::{PolynomialWitness, POLYNOMIAL_SOLVER_ID, witness_from_exact},
+    state::MGraphState,
+};
 use crate::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult};
 
 /// 拒绝接纳原因。
@@ -13,6 +16,8 @@ pub enum AdmissionRejectReason {
     Placeholder,
     /// Gröbner 在资源限制内未完成。
     GroebnerIncomplete,
+    /// 高概率但未证。
+    ProbableResult,
     /// 结果枚举非 Exact。
     NotExact,
     /// 保证层级不足以进入 exact closure。
@@ -33,37 +38,111 @@ pub enum AdmissionOutcome {
     },
 }
 
-/// 对多项式 Exact 结果执行 admission 检查。
+/// Verifier 策略（semantic core 最低保证）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerificationPolicy {
+    /// 进入 semantic core 所需的最低保证。
+    pub min_guarantee: Guarantee,
+}
+
+impl Default for VerificationPolicy {
+    fn default() -> Self {
+        Self {
+            min_guarantee: Guarantee::ProvenExact,
+        }
+    }
+}
+
+impl VerificationPolicy {
+    /// 是否接受该保证层级进入 semantic core。
+    pub fn accepts(&self, guarantee: Guarantee) -> bool {
+        guarantee_rank(guarantee) >= guarantee_rank(self.min_guarantee)
+    }
+}
+
+/// 可验证证据检查器（trusted kernel 边界）。
+pub struct EvidenceVerifier;
+
+impl EvidenceVerifier {
+    /// 验证候选 claim 是否可接纳为 [`VerifiedClaim`]。
+    pub fn verify(claim: &Claim, policy: &VerificationPolicy) -> AdmissionOutcome {
+        if claim.guarantee == Guarantee::Probable {
+            return AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::ProbableResult,
+                guarantee: claim.guarantee,
+            };
+        }
+        if !policy.accepts(claim.guarantee) {
+            return AdmissionOutcome::Rejected {
+                reason: reject_reason_for_guarantee(claim.guarantee),
+                guarantee: claim.guarantee,
+            };
+        }
+        AdmissionOutcome::Admitted(VerifiedClaim::new(claim.clone()))
+    }
+
+    /// 验证多项式 solver 产出（Claim 合同判据，非 `PolynomialResult::Exact` 名称）。
+    pub fn verify_polynomial(
+        key: &PolynomialCacheKey,
+        result: &PolynomialResult,
+        policy: &VerificationPolicy,
+    ) -> AdmissionOutcome {
+        match result {
+            PolynomialResult::Exact { value } => {
+                let guarantee = classify_polynomial_guarantee(value);
+                let claim = Claim {
+                    proposition: proposition_from_cache_key(key),
+                    scope: Scope::Unconditional,
+                    guarantee,
+                    evidence: build_polynomial_evidence(key, value, guarantee),
+                };
+                Self::verify(&claim, policy)
+            }
+            PolynomialResult::Unevaluated { .. } => AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::NotExact,
+                guarantee: Guarantee::Unknown,
+            },
+        }
+    }
+}
+
+/// Admission 唯一写入入口：`verify` → semantic core + operational cache。
+pub struct AdmissionGate;
+
+impl AdmissionGate {
+    /// 接纳多项式结果：operational cache 始终写入，semantic core 仅 verified claim。
+    pub fn commit_polynomial(
+        state: &mut MGraphState,
+        key: PolynomialCacheKey,
+        result: PolynomialResult,
+        policy: &VerificationPolicy,
+    ) {
+        let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy);
+        state
+            .operational
+            .result_cache
+            .store_polynomial(key, result, &outcome);
+        if let AdmissionOutcome::Admitted(vc) = outcome {
+            state.semantic.commit(vc);
+        }
+    }
+}
+
+/// 对多项式 Exact 值构造 admission 结果（兼容旧 API）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
-    let guarantee = classify_polynomial_guarantee(value);
-    if !guarantee_admits_to_semantic_core(guarantee) {
-        return AdmissionOutcome::Rejected {
-            reason: reject_reason_for_value(value, guarantee),
-            guarantee,
-        };
-    }
-    let witness = witness_from_exact(key, value);
-    let claim = Claim {
-        proposition: proposition_from_cache_key(key),
-        scope: Scope::Unconditional,
-        guarantee,
-        evidence: evidence_from_witness(&witness),
-    };
-    AdmissionOutcome::Admitted(VerifiedClaim::new(claim))
+    EvidenceVerifier::verify_polynomial(
+        key,
+        &PolynomialResult::Exact { value: value.clone() },
+        &VerificationPolicy::default(),
+    )
 }
 
-/// 对 [`PolynomialResult`] 执行 admission（Exact 分支）。
+/// 对 [`PolynomialResult`] 执行 admission（兼容旧 API）。
 pub fn admit_polynomial_result(key: &PolynomialCacheKey, result: &PolynomialResult) -> AdmissionOutcome {
-    match result {
-        PolynomialResult::Exact { value } => admit_polynomial_exact(key, value),
-        PolynomialResult::Unevaluated { .. } => AdmissionOutcome::Rejected {
-            reason: AdmissionRejectReason::NotExact,
-            guarantee: Guarantee::Unknown,
-        },
-    }
+    EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default())
 }
 
-/// 是否应写入 M-Graph verified fact log。
+/// 是否应写入 semantic core。
 pub fn is_admitted(outcome: &AdmissionOutcome) -> bool {
     matches!(outcome, AdmissionOutcome::Admitted(_))
 }
@@ -82,17 +161,40 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
     }
 }
 
-fn guarantee_admits_to_semantic_core(guarantee: Guarantee) -> bool {
-    matches!(guarantee, Guarantee::ProvenExact)
+fn build_polynomial_evidence(
+    key: &PolynomialCacheKey,
+    value: &PolynomialDomainValue,
+    guarantee: Guarantee,
+) -> Evidence {
+    if guarantee != Guarantee::ProvenExact {
+        return Evidence::TrustedKernel {
+            solver: POLYNOMIAL_SOLVER_ID,
+            summary: format!("rejected:{guarantee:?}"),
+        };
+    }
+    let witness = witness_from_exact(key, value);
+    evidence_from_witness(&witness)
 }
 
-fn reject_reason_for_value(value: &PolynomialDomainValue, guarantee: Guarantee) -> AdmissionRejectReason {
-    match value {
-        PolynomialDomainValue::Placeholder => AdmissionRejectReason::Placeholder,
-        PolynomialDomainValue::GroebnerBasis(_) if guarantee == Guarantee::Partial => {
-            AdmissionRejectReason::GroebnerIncomplete
-        }
+fn reject_reason_for_guarantee(guarantee: Guarantee) -> AdmissionRejectReason {
+    match guarantee {
+        Guarantee::Partial => AdmissionRejectReason::GroebnerIncomplete,
+        Guarantee::Unknown => AdmissionRejectReason::Placeholder,
+        Guarantee::Probable => AdmissionRejectReason::ProbableResult,
         _ => AdmissionRejectReason::InsufficientGuarantee,
+    }
+}
+
+fn guarantee_rank(g: Guarantee) -> u8 {
+    match g {
+        Guarantee::Unknown => 0,
+        Guarantee::Candidate => 1,
+        Guarantee::Probable => 2,
+        Guarantee::Partial => 3,
+        Guarantee::LowerBound | Guarantee::UpperBound => 4,
+        Guarantee::CertifiedApproximation => 5,
+        Guarantee::ConditionalExact => 6,
+        Guarantee::ProvenExact => 7,
     }
 }
 

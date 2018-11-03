@@ -9,11 +9,9 @@ use super::{
     ring_table::RingTable,
     PolynomialCacheKey,
 };
-use crate::mgraph::{
-    AdmissionOutcome, MGraphState, PolynomialCacheEntry, PolynomialCacheTier, admit_polynomial_result, witness_from_exact,
-};
+use crate::mgraph::{AdmissionGate, MGraphState, VerificationPolicy};
 
-/// 在 M-Graph 上下文中执行多项式请求（缓存 + admission gate）。
+/// 在 M-Graph 上下文中执行多项式请求（operational cache + admission gate → semantic core）。
 pub fn execute_polynomial_mgraph(
     request: PolynomialRequest,
     rings: &RingTable,
@@ -23,7 +21,7 @@ pub fn execute_polynomial_mgraph(
         Ok(k) => k,
         Err(reason) => return PolynomialResult::Unevaluated { reason },
     };
-    if let Some(entry) = state.polynomial.get(&key) {
+    if let Some(entry) = state.operational.result_cache.polynomial.get(&key) {
         return entry.result.clone();
     }
     let result = execute_polynomial_with_rings(request, rings);
@@ -47,21 +45,5 @@ pub fn record_polynomial_result(
 }
 
 fn record_polynomial_cache(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState) {
-    let admission = admit_polynomial_result(&key, &result);
-    let (tier, witness) = match (&admission, &result) {
-        (AdmissionOutcome::Admitted(vc), PolynomialResult::Exact { value }) => {
-            state.verified_claims.push(vc.clone());
-            (
-                PolynomialCacheTier::Verified,
-                Some(witness_from_exact(&key, value)),
-            )
-        }
-        (AdmissionOutcome::Rejected { .. }, PolynomialResult::Exact { .. }) => {
-            (PolynomialCacheTier::Partial, None)
-        }
-        _ => (PolynomialCacheTier::Partial, None),
-    };
-    if let Some(edge) = state.polynomial.insert(PolynomialCacheEntry { key, result, tier, witness }) {
-        state.witnesses.push(edge);
-    }
+    AdmissionGate::commit_polynomial(state, key, result, &VerificationPolicy::default());
 }
