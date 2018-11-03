@@ -124,11 +124,14 @@ impl Natural {
         (Self::from_limbs(q), Self::from_limbs(r))
     }
 
-    /// 模幂（`modulus > 0`）。
+    /// 模幂（`modulus > 0`）；奇模数且足够宽时走 Montgomery 路径。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Self {
         assert!(!modulus.is_zero());
         if modulus.is_one() {
             return Self::zero();
+        }
+        if limb_kernel::mod_pow_montgomery_eligible(&modulus.limbs) {
+            return Self::from_limbs(limb_kernel::mod_pow_montgomery(&self.limbs, &exp.limbs, &modulus.limbs));
         }
         let mut result = Self::one();
         let mut base = self.clone();
@@ -198,7 +201,7 @@ impl Natural {
         if self.is_zero() && other.is_zero() {
             return Self::zero();
         }
-        Self::from_limbs(limb_kernel::binary_gcd(self.limbs.clone(), other.limbs.clone()))
+        Self::from_limbs(limb_kernel::gcd(self.limbs.clone(), other.limbs.clone()))
     }
 
     /// Canonical limb slice (crate-private kernel view).

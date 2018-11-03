@@ -9,7 +9,28 @@ use crate::execution_budget::ExecutionBudget;
 
 use super::buffer::{LimbBuffer, ScratchWorkspace, kernel_err};
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
+
+thread_local! {
+    static KERNEL_SCRATCH: RefCell<ScratchWorkspace> = RefCell::new(ScratchWorkspace::default());
+}
+
+fn with_kernel_scratch<R>(f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R) -> R {
+    KERNEL_SCRATCH.with(|cell| {
+        if let Ok(mut scratch) = cell.try_borrow_mut() {
+            let budget = ExecutionBudget::unlimited();
+            let result = f(&mut *scratch, &budget);
+            scratch.clear();
+            result
+        }
+        else {
+            let mut scratch = ScratchWorkspace::default();
+            let budget = ExecutionBudget::unlimited();
+            f(&mut scratch, &budget)
+        }
+    })
+}
 
 /// Karatsuba multiplication threshold (limbs per operand).
 pub(crate) const MUL_KARATSUBA_THRESHOLD: usize = 32;
@@ -83,27 +104,27 @@ pub(crate) fn cmp_slice(a: &[u64], b: &[u64]) -> Ordering {
 }
 
 pub(crate) fn add_n(a: &[u64], b: &[u64]) -> Vec<u64> {
-    let budget = ExecutionBudget::unlimited();
-    let mut out = LimbBuffer::with_capacity(a.len().max(b.len()) + 1, &budget).expect("unlimited");
-    let mut scratch = ScratchWorkspace::default();
-    PureRustLimbKernel::add_into(a, b, &mut out, &mut scratch, &budget).expect("add_into");
-    out.into_canonical_vec()
+    with_kernel_scratch(|scratch, budget| {
+        let mut out = LimbBuffer::with_capacity(a.len().max(b.len()) + 1, budget).expect("unlimited");
+        PureRustLimbKernel::add_into(a, b, &mut out, scratch, budget).expect("add_into");
+        out.into_canonical_vec()
+    })
 }
 
 pub(crate) fn sub_n(a: &[u64], b: &[u64]) -> Vec<u64> {
-    let budget = ExecutionBudget::unlimited();
-    let mut out = LimbBuffer::with_capacity(a.len(), &budget).expect("unlimited");
-    let mut scratch = ScratchWorkspace::default();
-    PureRustLimbKernel::sub_into(a, b, &mut out, &mut scratch, &budget).expect("sub_into");
-    out.into_canonical_vec()
+    with_kernel_scratch(|scratch, budget| {
+        let mut out = LimbBuffer::with_capacity(a.len(), budget).expect("unlimited");
+        PureRustLimbKernel::sub_into(a, b, &mut out, scratch, budget).expect("sub_into");
+        out.into_canonical_vec()
+    })
 }
 
 pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
-    let budget = ExecutionBudget::unlimited();
-    let mut out = LimbBuffer::zero();
-    let mut scratch = ScratchWorkspace::default();
-    PureRustLimbKernel::mul_into(a, b, &mut out, &mut scratch, &budget).expect("mul_into");
-    out.into_canonical_vec()
+    with_kernel_scratch(|scratch, budget| {
+        let mut out = LimbBuffer::zero();
+        PureRustLimbKernel::mul_into(a, b, &mut out, scratch, budget).expect("mul_into");
+        out.into_canonical_vec()
+    })
 }
 
 /// Multiply by a single limb (`n > 0`).
@@ -132,18 +153,118 @@ pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
     normalize_trim(out)
 }
 
+/// In-place `r += a * n` for single limb `n > 0`.
+pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
+    if n == 0 || is_zero(a) {
+        return 0;
+    }
+    let la = effective_len(a);
+    let mut carry = 0u128;
+    for i in 0..la {
+        let prod = u128::from(a[i]) * u128::from(n) + u128::from(r.get(i).copied().unwrap_or(0)) + carry;
+        if i < r.len() {
+            r[i] = prod as u64;
+        }
+        carry = prod >> 64;
+    }
+    let mut idx = la;
+    while carry > 0 {
+        if idx >= r.len() {
+            break;
+        }
+        let sum = u128::from(r[idx]) + carry;
+        r[idx] = sum as u64;
+        carry = sum >> 64;
+        idx += 1;
+    }
+    carry as u64
+}
+
+/// Subtract `a * n` from `r`; returns `true` on borrow (underflow).
+pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
+    if n == 0 || is_zero(a) {
+        return false;
+    }
+    let prod = mul_1(a, n);
+    let mut borrow = 0i128;
+    for (i, &pv) in prod.iter().enumerate() {
+        if i >= r.len() {
+            return true;
+        }
+        let ri = r[i] as i128;
+        let sub = pv as i128 + borrow;
+        if ri >= sub {
+            r[i] = (ri - sub) as u64;
+            borrow = 0;
+        }
+        else {
+            r[i] = (ri + (1i128 << 64) - sub) as u64;
+            borrow = 1;
+        }
+    }
+    if borrow == 0 {
+        return false;
+    }
+    let mut idx = prod.len();
+    while borrow != 0 {
+        if idx >= r.len() {
+            return true;
+        }
+        if r[idx] > 0 {
+            r[idx] -= 1;
+            borrow = 0;
+        }
+        else {
+            r[idx] = u64::MAX;
+            idx += 1;
+        }
+    }
+    false
+}
+
 /// Fused add-multiply: `r + a * n` for single limb `n > 0`.
 pub(crate) fn addmul_1(r: &[u64], a: &[u64], n: u64) -> Vec<u64> {
     assert!(n != 0);
     if is_zero(a) {
         return normalize_trim(r.to_vec());
     }
-    add_n(r, &mul_1(a, n))
+    let la = effective_len(a);
+    let lr = effective_len(r);
+    let mut out = r.to_vec();
+    out.resize(lr.max(la) + 1, 0);
+    addmul_1_inplace(&mut out, a, n);
+    normalize_trim(out)
+}
+
+fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
+    mul_schoolbook(a, a)
+}
+
+fn karatsuba_sqr(a: &[u64]) -> Vec<u64> {
+    let la = effective_len(a);
+    let n = la.next_power_of_two().max(MUL_KARATSUBA_THRESHOLD);
+    let ah = split_hi(a, n);
+    let al = split_lo(a, n);
+    let z0 = sqr(&al);
+    let z2 = sqr(&ah);
+    let a_sum = add_n(&al, &ah);
+    let z1 = sub_n(&sub_n(&sqr(&a_sum), &z0), &z2);
+    let m = n / 2;
+    add_n(&add_n(&z0, &shift_limbs_left(z1, m)), &shift_limbs_left(z2, n))
 }
 
 /// Square (`a * a`).
 pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
-    mul(a, a)
+    if is_zero(a) {
+        return vec![0];
+    }
+    let la = effective_len(a);
+    if la >= MUL_KARATSUBA_THRESHOLD {
+        karatsuba_sqr(a)
+    }
+    else {
+        sqr_schoolbook(a)
+    }
 }
 
 fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
@@ -217,12 +338,12 @@ fn shift_limbs_left(v: Vec<u64>, limbs: usize) -> Vec<u64> {
 }
 
 pub(crate) fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
-    let budget = ExecutionBudget::unlimited();
-    let mut q = LimbBuffer::zero();
-    let mut r = LimbBuffer::zero();
-    let mut scratch = ScratchWorkspace::default();
-    PureRustLimbKernel::div_rem_into(u, v, &mut q, &mut r, &mut scratch, &budget).expect("div_rem_into");
-    (q.into_canonical_vec(), r.into_canonical_vec())
+    with_kernel_scratch(|scratch, budget| {
+        let mut q = LimbBuffer::zero();
+        let mut r = LimbBuffer::zero();
+        PureRustLimbKernel::div_rem_into(u, v, &mut q, &mut r, scratch, budget).expect("div_rem_into");
+        (q.into_canonical_vec(), r.into_canonical_vec())
+    })
 }
 
 fn div_rem_1(u: Vec<u64>, d: u64) -> (Vec<u64>, Vec<u64>) {
@@ -285,38 +406,11 @@ fn div_rem_knuth(mut u: Vec<u64>, v: &[u64]) -> (Vec<u64>, Vec<u64>) {
             }
         }
 
-        let mut mul = vec![0u64; n + 1];
-        let mut carry = 0u128;
-        for i in 0..n {
-            let prod = u128::from(qhat) * u128::from(v[i]) + carry;
-            mul[i] = prod as u64;
-            carry = prod >> 64;
-        }
-        mul[n] = carry as u64;
+        let borrow = submul_1_inplace(&mut u[j..j + n + 1], &v, qhat);
 
-        let mut borrow = 0i128;
-        for i in 0..=n {
-            let ui = u[j + i] as i128 - borrow;
-            let mi = mul[i] as i128;
-            if ui >= mi {
-                u[j + i] = (ui - mi) as u64;
-                borrow = 0;
-            }
-            else {
-                u[j + i] = (ui + (1i128 << 64) - mi) as u64;
-                borrow = 1;
-            }
-        }
-
-        if borrow != 0 {
+        if borrow {
             qhat -= 1;
-            let mut carry = 0u128;
-            for i in 0..n {
-                let sum = u128::from(u[j + i]) + u128::from(v[i]) + carry;
-                u[j + i] = sum as u64;
-                carry = sum >> 64;
-            }
-            u[j + n] = u[j + n].wrapping_add(carry as u64);
+            addmul_1_inplace(&mut u[j..j + n + 1], &v, 1);
         }
         q[j] = qhat;
     }
@@ -361,6 +455,243 @@ fn shr_vec(v: &[u64], bits: u32) -> Vec<u64> {
         carry = wide & ((1u128 << bits) - 1);
     }
     normalize_trim(out)
+}
+
+const LEHMER_THRESHOLD: usize = 3;
+
+/// Non-negative GCD (Lehmer for wide operands, binary GCD tail).
+pub(crate) fn gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
+    a = normalize_trim(a);
+    b = normalize_trim(b);
+    if is_zero(&a) {
+        return b;
+    }
+    if is_zero(&b) {
+        return a;
+    }
+    if cmp_slice(&a, &b) == Ordering::Less {
+        std::mem::swap(&mut a, &mut b);
+    }
+
+    while effective_len(&b) >= LEHMER_THRESHOLD && effective_len(&a) >= LEHMER_THRESHOLD {
+        if !lehmer_step(&mut a, &mut b) {
+            break;
+        }
+        a = normalize_trim(a);
+        b = normalize_trim(b);
+        if is_zero(&b) {
+            return a;
+        }
+        if cmp_slice(&a, &b) == Ordering::Less {
+            std::mem::swap(&mut a, &mut b);
+        }
+    }
+    binary_gcd(a, b)
+}
+
+fn lehmer_step(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
+    let na = effective_len(a);
+    let nb = effective_len(b);
+    if nb < 2 || na < nb {
+        return false;
+    }
+    let n = na - nb;
+
+    let u1 = *a.get(nb + n - 1).unwrap_or(&0);
+    let u0 = *a.get(nb + n - 2).unwrap_or(&0);
+    let v1 = b[nb - 1];
+    let v0 = if nb >= 2 { b[nb - 2] } else { 0 };
+    if v1 == 0 {
+        return false;
+    }
+
+    let mut x0: i64 = 1;
+    let mut x1: i64 = 0;
+    let mut y0: i64 = 0;
+    let mut y1: i64 = 1;
+    let mut uh = (u128::from(u1) << 64) | u128::from(u0);
+    let mut vh = (u128::from(v1) << 64) | u128::from(v0);
+
+    while vh >= (1u128 << 63) {
+        let q = uh / vh;
+        let r = uh % vh;
+        if r < (1u128 << 63) {
+            break;
+        }
+        let t = x0 as i128 - (q as i128) * (x1 as i128);
+        if t < i64::MIN as i128 || t > i64::MAX as i128 {
+            break;
+        }
+        x0 = x1;
+        x1 = t as i64;
+        let t = y0 as i128 - (q as i128) * (y1 as i128);
+        if t < i64::MIN as i128 || t > i64::MAX as i128 {
+            break;
+        }
+        y0 = y1;
+        y1 = t as i64;
+        uh = vh;
+        vh = r;
+    }
+
+    if y1 == 0 || y1.unsigned_abs() > u32::MAX as u64 {
+        return false;
+    }
+    if x0 < 0 || x1 < 0 || y0 < 0 || y1 < 0 {
+        return false;
+    }
+
+    let Some(na_new) = lincomb_signed(x0, a, x1, b) else {
+        return false;
+    };
+    let Some(nb_new) = lincomb_signed(y0, a, y1, b) else {
+        return false;
+    };
+    if is_zero(&na_new) || is_zero(&nb_new) || cmp_slice(&na_new, &nb_new) == Ordering::Less {
+        return false;
+    }
+    *a = na_new;
+    *b = nb_new;
+    true
+}
+
+fn lincomb_signed(c0: i64, v0: &[u64], c1: i64, v1: &[u64]) -> Option<Vec<u64>> {
+    let zero = || vec![0u64];
+    let t0 = if c0 == 0 {
+        zero()
+    }
+    else if c0 > 0 {
+        mul_1(v0, c0 as u64)
+    }
+    else {
+        return None;
+    };
+    let t1 = if c1 == 0 {
+        zero()
+    }
+    else if c1 > 0 {
+        mul_1(v1, c1 as u64)
+    }
+    else {
+        return None;
+    };
+    Some(match (c0 >= 0, c1 >= 0) {
+        (true, true) => add_n(&t0, &t1),
+        (true, false) => {
+            if cmp_slice(&t0, &t1) == Ordering::Less {
+                return None;
+            }
+            sub_n(&t0, &t1)
+        }
+        (false, true) => {
+            if cmp_slice(&t1, &t0) == Ordering::Less {
+                return None;
+            }
+            sub_n(&t1, &t0)
+        }
+        (false, false) => add_n(&t0, &t1),
+    })
+}
+
+const MONTGOMERY_THRESHOLD: usize = 2;
+
+/// Odd modulus with at least two limbs → Montgomery mod_pow eligible.
+pub(crate) fn mod_pow_montgomery_eligible(modulus: &[u64]) -> bool {
+    !is_zero(modulus) && (modulus[0] & 1) == 1 && effective_len(modulus) >= MONTGOMERY_THRESHOLD
+}
+
+fn montgomery_nprime(m0: u64) -> u64 {
+    debug_assert!(m0 % 2 == 1);
+    let mut x = 1u64;
+    for _ in 0..6 {
+        x = x.wrapping_mul(2u64.wrapping_sub(m0.wrapping_mul(x)));
+    }
+    x.wrapping_neg()
+}
+
+fn montgomery_redc(t: &mut [u64], m: &[u64], n_prime: u64) -> Vec<u64> {
+    let n = effective_len(m);
+    for i in 0..n {
+        let u = t[i].wrapping_mul(n_prime);
+        addmul_1_inplace(&mut t[i..], m, u);
+    }
+    let mut r = t[n..2 * n].to_vec();
+    if cmp_slice(&r, m) != Ordering::Less {
+        r = sub_n(&r, m);
+    }
+    normalize_trim(r)
+}
+
+fn to_mont(a: &[u64], m: &[u64], r2_mod_m: &[u64]) -> Vec<u64> {
+    mul_mod_mont(a, r2_mod_m, m)
+}
+
+fn from_mont(a: &[u64], m: &[u64]) -> Vec<u64> {
+    let n = effective_len(m);
+    let n_prime = montgomery_nprime(m[0]);
+    let mut t = vec![0u64; 2 * n];
+    let copy = effective_len(a).min(n);
+    t[..copy].copy_from_slice(&a[..copy]);
+    montgomery_redc(&mut t, m, n_prime)
+}
+
+fn mul_mod_mont(a: &[u64], b: &[u64], m: &[u64]) -> Vec<u64> {
+    let n = effective_len(m);
+    let n_prime = montgomery_nprime(m[0]);
+    let prod = mul(a, b);
+    let mut t = vec![0u64; 2 * n];
+    let copy_len = effective_len(&prod).min(2 * n);
+    t[..copy_len].copy_from_slice(&prod[..copy_len]);
+    montgomery_redc(&mut t, m, n_prime)
+}
+
+fn div2_mod(exp: &mut Vec<u64>) {
+    let len = effective_len(exp);
+    if len == 0 {
+        return;
+    }
+    let mut carry = 0u64;
+    for i in (0..len).rev() {
+        let limb = exp[i];
+        let new_carry = limb & 1;
+        exp[i] = (limb >> 1) | (carry << 63);
+        carry = new_carry;
+    }
+    if len > 1 && exp[len - 1] == 0 {
+        exp.pop();
+    }
+}
+
+/// Modular exponentiation via Montgomery reduction (odd `modulus`).
+pub(crate) fn mod_pow_montgomery(base: &[u64], exp: &[u64], modulus: &[u64]) -> Vec<u64> {
+    assert!(!is_zero(modulus));
+    if is_one(modulus) {
+        return vec![0];
+    }
+    if is_zero(exp) {
+        return vec![1];
+    }
+
+    let r2 = {
+        let n = effective_len(modulus);
+        let mut r = vec![0u64; n + 1];
+        r[n] = 1;
+        let r_mod = div_rem(&r, modulus).1;
+        div_rem(&mul(&r_mod, &r_mod), modulus).1
+    };
+    let (_, base_reduced) = div_rem(base, modulus);
+    let mut acc = to_mont(&[1], modulus, &r2);
+    let mut b = to_mont(&base_reduced, modulus, &r2);
+    let mut e = normalize_trim(exp.to_vec());
+
+    while !is_zero(&e) {
+        if (e[0] & 1) == 1 {
+            acc = mul_mod_mont(&acc, &b, modulus);
+        }
+        b = mul_mod_mont(&b, &b, modulus);
+        div2_mod(&mut e);
+    }
+    from_mont(&acc, modulus)
 }
 
 pub(crate) fn binary_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
@@ -815,5 +1146,47 @@ mod primitive_tests {
             let n = lcg_next(&mut seed) | 1;
             assert_eq!(addmul_1(&r, &a, n), add_n(&r, &mul_1(&a, n)));
         }
+    }
+
+    #[test]
+    fn lehmer_gcd_matches_binary_gcd() {
+        let mut seed = 0x6CD2_u64;
+        for _ in 0..64 {
+            let la = (lcg_next(&mut seed) as usize % 48) + 1;
+            let lb = (lcg_next(&mut seed) as usize % 48) + 1;
+            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
+            let b: Vec<u64> = (0..lb).map(|_| lcg_next(&mut seed)).collect();
+            assert_eq!(gcd(a.clone(), b.clone()), binary_gcd(a, b));
+        }
+    }
+
+    #[test]
+    fn montgomery_mod_pow_matches_binary() {
+        let mut seed = 0xF002_u64;
+        for _ in 0..32 {
+            let base: Vec<u64> = (0..4).map(|_| lcg_next(&mut seed)).collect();
+            let mut exp = vec![lcg_next(&mut seed) | 1, lcg_next(&mut seed)];
+            if is_zero(&exp) {
+                exp = vec![1];
+            }
+            let m = vec![0xFFFF_FFFF_FFFF_FFFDu64, 1];
+            let via_mont = mod_pow_montgomery(&base, &exp, &m);
+            let via_bin = std_mod_pow(&base, &exp, &m);
+            assert_eq!(via_mont, via_bin);
+        }
+    }
+
+    fn std_mod_pow(base: &[u64], exp: &[u64], modulus: &[u64]) -> Vec<u64> {
+        let (_, mut base_r) = div_rem(base, modulus);
+        let mut result = vec![1];
+        let mut e = exp.to_vec();
+        while !is_zero(&e) {
+            if (e[0] & 1) == 1 {
+                result = div_rem(&mul(&result, &base_r), modulus).1;
+            }
+            base_r = div_rem(&mul(&base_r, &base_r), modulus).1;
+            div2_mod(&mut e);
+        }
+        normalize_trim(result)
     }
 }
