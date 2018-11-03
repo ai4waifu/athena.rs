@@ -132,6 +132,15 @@ pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
     normalize_trim(out)
 }
 
+/// Fused add-multiply: `r + a * n` for single limb `n > 0`.
+pub(crate) fn addmul_1(r: &[u64], a: &[u64], n: u64) -> Vec<u64> {
+    assert!(n != 0);
+    if is_zero(a) {
+        return normalize_trim(r.to_vec());
+    }
+    add_n(r, &mul_1(a, n))
+}
+
 /// Square (`a * a`).
 pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
     mul(a, a)
@@ -792,6 +801,19 @@ mod primitive_tests {
             let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
             let n = lcg_next(&mut seed) | 1;
             assert_eq!(mul_1(&a, n), mul(&a, &[n]));
+        }
+    }
+
+    #[test]
+    fn addmul_1_matches_add_mul_1() {
+        let mut seed = 0xC170_u64;
+        for _ in 0..256 {
+            let lr = (lcg_next(&mut seed) as usize % 40) + 1;
+            let la = (lcg_next(&mut seed) as usize % 40) + 1;
+            let r: Vec<u64> = (0..lr).map(|_| lcg_next(&mut seed)).collect();
+            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
+            let n = lcg_next(&mut seed) | 1;
+            assert_eq!(addmul_1(&r, &a, n), add_n(&r, &mul_1(&a, n)));
         }
     }
 }

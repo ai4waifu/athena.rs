@@ -153,6 +153,18 @@ fn mod_small_prime_congruence_property() {
 }
 
 #[test]
+fn integer_gcd_matches_num_bigint() {
+    let mut seed = 0x6CD1_u64;
+    for _ in 0..64 {
+        let a = Integer::from_str(&random_signed_decimal(&mut seed, 64)).unwrap();
+        let b = Integer::from_str(&random_signed_decimal(&mut seed, 64)).unwrap();
+        let ref_a = integer_to_bigint(&a);
+        let ref_b = integer_to_bigint(&b);
+        assert_eq!(integer_to_bigint(&a.gcd(&b)), NumInteger::gcd(&ref_a, &ref_b));
+    }
+}
+
+#[test]
 fn sqr_matches_mul_reference() {
     let mut seed = 0x5A00_u64;
     for _ in 0..64 {
