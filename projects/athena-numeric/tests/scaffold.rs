@@ -1,8 +1,8 @@
-//! N0–N2 数值塔验收测试。
+//! N0–N1 数值塔验收测试（backend · ExactInteger/Rational · serialize · compare 宿主）。
 
 use athena_numeric::{
-    DefaultNumericCompare, DefaultPromotion, Integer, NumericBackend, NumericCompare, NumericComparison, NumericDomain,
-    NumericValue, NumericValueWire, PrecisionKind, Promotion, PromotionPolicy, PureRustBackend, Rational, Sign,
+    DefaultNumericCompare, Integer, NumericBackend, NumericCompare, NumericComparison, NumericDomain, NumericValue,
+    NumericValueWire, PureRustBackend, Rational, Sign,
 };
 
 #[test]
@@ -43,59 +43,6 @@ fn serialize_integer_rational_roundtrip() {
     let wire = NumericValueWire::encode(&r).unwrap();
     let back = wire.decode().unwrap();
     assert_eq!(DefaultNumericCompare::compare(&r, &back, &Default::default()).unwrap(), NumericComparison::ExactEqual);
-}
-
-#[test]
-fn compare_integer_and_rational() {
-    let a = NumericValue::integer(Integer::from_i64(1));
-    let b = NumericValue::rational(Rational::new(Integer::from_i64(2), Integer::from_i64(2)));
-    assert_eq!(DefaultNumericCompare::compare(&a, &b, &Default::default()).unwrap(), NumericComparison::ExactEqual);
-    let c = NumericValue::rational(Rational::new(Integer::from_i64(3), Integer::from_i64(2)));
-    assert_eq!(DefaultNumericCompare::compare(&a, &c, &Default::default()).unwrap(), NumericComparison::Unequal);
-}
-
-#[test]
-fn promotion_integer_to_rational() {
-    let a = NumericValue::integer(Integer::from_i64(5));
-    let domain = NumericDomain::Rational;
-    let promoted = DefaultPromotion::promote(a, &domain, &PromotionPolicy::default()).unwrap();
-    assert_eq!(promoted.domain(), NumericDomain::Rational);
-    match promoted {
-        NumericValue::Rational(r) => {
-            assert_eq!(r.numerator().to_decimal_string(), "5");
-            assert_eq!(r.denominator().to_decimal_string(), "1");
-        }
-        _ => panic!("expected rational"),
-    }
-}
-
-#[test]
-fn promotion_exact_to_machine_requires_policy() {
-    let a = NumericValue::integer(Integer::from_i64(7));
-    let err = DefaultPromotion::promote(a.clone(), &NumericDomain::Real, &PromotionPolicy::default()).unwrap_err();
-    assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
-
-    let policy = PromotionPolicy { allow_exact_to_machine: true, allow_arbitrary_to_machine: false };
-    let m = DefaultPromotion::promote(a, &NumericDomain::Real, &policy).unwrap();
-    assert_eq!(m.domain(), NumericDomain::Real);
-    assert_eq!(m.precision().kind, PrecisionKind::Machine);
-}
-
-#[test]
-fn promotion_machine_to_arbitrary_imports_bigfloat() {
-    let m = NumericValue::machine_real(1.5);
-    let promoted = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default())
-        .expect("promote");
-    assert_eq!(promoted.precision().kind, PrecisionKind::Arbitrary);
-    assert_eq!(promoted.as_real().and_then(|r| r.as_big_float()).unwrap().to_f64_exact(), Some(1.5));
-}
-
-#[test]
-fn promotion_domain_mismatch() {
-    let a = NumericValue::integer(Integer::from_i64(1));
-    let b = NumericValue::machine_real(1.0);
-    let err = DefaultPromotion::common_domain(&a, &b, &PromotionPolicy::default()).unwrap_err();
-    assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_DOMAIN_MISMATCH");
 }
 
 #[test]
