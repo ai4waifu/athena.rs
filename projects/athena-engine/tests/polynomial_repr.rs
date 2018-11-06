@@ -1,8 +1,8 @@
 //! 多项式表示族：DenseUnivariate / SparseUnivariate / DistributedSparse 往返与数学相等。
 
 use athena_engine::{
-    CoefficientDomain, MonomialOrder, Number, PolynomialBuilder, PolynomialRepr, PolynomialReprBody, ReprTarget,
-    RingTable, SymbolId, reprs_mathematically_equal,
+    CoefficientDomain, MonomialOrder, Number, PolynomialBuilder, PolynomialRepr, PolynomialReprBody, ReprTarget, RingTable,
+    SymbolId, reprs_mathematically_equal,
 };
 
 fn univariate_x_ring() -> (RingTable, athena_engine::RingId) {
@@ -87,9 +87,7 @@ fn convert_dense_to_sparse_in_ring() {
 #[test]
 fn multivariate_rejects_univariate_dense() {
     let mut rings = RingTable::new();
-    let ring = rings
-        .intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = rings.intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], MonomialOrder::Lex).unwrap();
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(1), vec![1, 1]).unwrap();
     let poly = b.build(&rings).unwrap();

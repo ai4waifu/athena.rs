@@ -21,13 +21,8 @@ fn q_x_ring() -> (RingTable, athena_engine::RingId) {
 
 fn f5_x_ring() -> (RingTable, athena_engine::RingId) {
     let mut rings = RingTable::new();
-    let id = rings
-        .intern(
-            CoefficientDomain::PrimeField { p: Integer::from_i64(5) },
-            vec![SymbolId(0)],
-            MonomialOrder::Lex,
-        )
-        .unwrap();
+    let id =
+        rings.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     (rings, id)
 }
 
@@ -40,10 +35,7 @@ fn build_univariate(rings: &RingTable, ring: athena_engine::RingId, terms: &[(i6
 }
 
 fn coeff_at_degree(poly: &athena_engine::Polynomial, d: u32) -> Option<String> {
-    poly.terms
-        .iter()
-        .find(|t| t.exponents == vec![d])
-        .map(|t| t.coefficient.to_render_string())
+    poly.terms.iter().find(|t| t.exponents == vec![d]).map(|t| t.coefficient.to_render_string())
 }
 
 #[test]
@@ -133,22 +125,15 @@ fn distributive_law_smoke() {
     let b = build_univariate(&rings, ring, &[(1, 1), (1, 0)]);
     let c = build_univariate(&rings, ring, &[(3, 0)]);
     let left = mul_polynomial(a.clone(), add_polynomial(b.clone(), c.clone(), &rings).unwrap(), &rings).unwrap();
-    let right = add_polynomial(
-        mul_polynomial(a.clone(), b, &rings).unwrap(),
-        mul_polynomial(a, c, &rings).unwrap(),
-        &rings,
-    )
-    .unwrap();
+    let right =
+        add_polynomial(mul_polynomial(a.clone(), b, &rings).unwrap(), mul_polynomial(a, c, &rings).unwrap(), &rings).unwrap();
     assert_eq!(left, right);
 }
 
 #[test]
 fn session_mul_via_execute_polynomial() {
     let mut session = Session::default();
-    let ring = session
-        .rings
-        .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let a = build_univariate(&session.rings, ring, &[(1, 1)]);
     let b = build_univariate(&session.rings, ring, &[(1, 1)]);
     let out = session.execute_polynomial(PolynomialRequest::Mul { lhs: a, rhs: b });

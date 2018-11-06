@@ -4,7 +4,6 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     canonical::canonicalize_terms,
-    coeff_kernel::CoeffRing,
     exponent::add_exponent_vectors,
     expr::{MonomialTerm, Polynomial},
     ring_table::RingTable,
@@ -20,10 +19,10 @@ pub fn add_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
         return Ok(lhs);
     }
     let desc = rings.get(lhs.ring).ok_or_else(|| ring_unknown(lhs.ring))?;
-    CoeffRing::new(&desc.coefficients)?;
+    rings.coeff_kernel(lhs.ring)?;
     let mut raw = lhs.terms;
     raw.extend(rhs.terms);
-    canonicalize_terms(lhs.ring, desc, raw)
+    canonicalize_terms(lhs.ring, desc, raw, rings)
 }
 
 /// 同环多项式减法。
@@ -33,14 +32,14 @@ pub fn sub_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
         return Ok(lhs);
     }
     let desc = rings.get(lhs.ring).ok_or_else(|| ring_unknown(lhs.ring))?;
-    let coeff = CoeffRing::new(&desc.coefficients)?;
+    let coeff = rings.coeff_kernel(lhs.ring)?;
     validate_exponent_lengths(&lhs, desc.variable_count())?;
     validate_exponent_lengths(&rhs, desc.variable_count())?;
     let mut raw = lhs.terms;
     for term in rhs.terms {
         raw.push(MonomialTerm { coefficient: coeff.neg(term.coefficient)?, exponents: term.exponents });
     }
-    canonicalize_terms(lhs.ring, desc, raw)
+    canonicalize_terms(lhs.ring, desc, raw, rings)
 }
 
 /// 同环多项式乘法。
@@ -50,7 +49,7 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
         return Ok(Polynomial::zero(lhs.ring));
     }
     let desc = rings.get(lhs.ring).ok_or_else(|| ring_unknown(lhs.ring))?;
-    let coeff = CoeffRing::new(&desc.coefficients)?;
+    let coeff = rings.coeff_kernel(lhs.ring)?;
     let n = desc.variable_count();
     validate_exponent_lengths(&lhs, n)?;
     validate_exponent_lengths(&rhs, n)?;
@@ -61,7 +60,7 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
             raw.push(MonomialTerm { coefficient: coeff.mul(lt.coefficient.clone(), rt.coefficient.clone())?, exponents });
         }
     }
-    canonicalize_terms(lhs.ring, desc, raw)
+    canonicalize_terms(lhs.ring, desc, raw, rings)
 }
 
 fn validate_exponent_lengths(poly: &Polynomial, n: usize) -> Result<()> {

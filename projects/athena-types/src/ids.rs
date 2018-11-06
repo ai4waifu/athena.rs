@@ -36,6 +36,10 @@ pub struct FieldId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ExtensionId(pub u32);
 
+/// 系数环 id（ℤ / ℚ / 𝔽_p / ℤ/nℤ / 有限域等；Session 内 intern 句柄）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CoefficientRingId(pub u32);
+
 /// 多项式环 id（系数域 + 变量序列 + 单项式序的稳定身份）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RingId(pub u32);

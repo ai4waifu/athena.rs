@@ -36,10 +36,7 @@ fn check_mul_parity(eager: &Polynomial, _rings: &RingTable) -> JitParityOutcome 
             JitAvailability::UnsupportedTarget => JitParityOutcome::JitUnavailable,
             JitAvailability::Available => {
                 let summary = eager.terms.len();
-                map_parity(polynomial_mul_parity(
-                    move || summary,
-                    move || None::<usize>,
-                ))
+                map_parity(polynomial_mul_parity(move || summary, move || None::<usize>))
             }
         }
     }

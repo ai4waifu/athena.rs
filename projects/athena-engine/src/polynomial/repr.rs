@@ -74,11 +74,9 @@ impl PolynomialRepr {
                 }
                 assert_univariate_in(&poly.terms, var_index, n)?;
                 if matches!(target, ReprTarget::DenseUnivariate { .. }) {
-                    PolynomialReprBody::DenseUnivariate {
-                        var_index,
-                        coefficients: terms_to_dense(var_index, &poly.terms)?,
-                    }
-                } else {
+                    PolynomialReprBody::DenseUnivariate { var_index, coefficients: terms_to_dense(var_index, &poly.terms)? }
+                }
+                else {
                     PolynomialReprBody::SparseUnivariate { var_index, terms: terms_to_sparse(var_index, &poly.terms)? }
                 }
             }
@@ -109,7 +107,7 @@ impl PolynomialRepr {
                 sparse_to_terms(var_index, n, &terms)?
             }
         };
-        canonicalize_terms(self.ring, desc, raw)
+        canonicalize_terms(self.ring, desc, raw, rings)
     }
 
     /// 在同环内切换表示（经 canonical [`Polynomial`] 往返，保证数学相等）。
@@ -160,10 +158,7 @@ fn terms_to_dense(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<Number
 }
 
 fn terms_to_sparse(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<(u32, Number)>> {
-    let mut out: Vec<(u32, Number)> = terms
-        .iter()
-        .map(|t| (t.exponents[var_index], t.coefficient.clone()))
-        .collect();
+    let mut out: Vec<(u32, Number)> = terms.iter().map(|t| (t.exponents[var_index], t.coefficient.clone())).collect();
     out.sort_by(|a, b| b.0.cmp(&a.0));
     Ok(out)
 }

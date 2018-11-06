@@ -1,9 +1,11 @@
-//! 域注册表：FieldId ↔ FieldPresentation（Phase 0 骨架）。
+//! 域注册表：FieldId 与 FieldPresentation（Phase 0 骨架）。
 
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
 use athena_types::{Diagnostic, DiagnosticCode, FieldId, PresentationId};
+
+use crate::number_theory::{Primality, primality_test};
 
 use super::presentation::{FieldPresentation, FieldPresentationKind};
 
@@ -30,18 +32,14 @@ impl FieldTable {
         Self::default()
     }
 
-    /// 注册 ℚ。
+    /// 注册 Q。
     pub fn rationals(&mut self) -> FieldId {
         self.intern(FieldInternKey::Rationals, FieldPresentationKind::Rationals)
     }
 
-    /// 注册素域 𝔽_p（p 须为正；素性证明后续）。
+    /// 注册素域 F_p（p 须为已验证素数）。
     pub fn prime_field(&mut self, characteristic: Integer) -> Result<FieldId, Diagnostic> {
-        if characteristic.is_zero() || characteristic.is_negative() {
-            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
-                .detail("domain", "field")
-                .detail("operation", "prime_field"));
-        }
+        validate_prime_modulus(&characteristic)?;
         Ok(self.intern(
             FieldInternKey::Prime { characteristic: characteristic.clone() },
             FieldPresentationKind::PrimeField { characteristic },
@@ -51,6 +49,28 @@ impl FieldTable {
     /// 按 FieldId 查 presentation。
     pub fn presentation(&self, field: FieldId) -> Option<&FieldPresentation> {
         self.field_to_presentation.get(&field).and_then(|id| self.presentations.get(id))
+    }
+
+    /// 域特征（素域返回 p；其他表示 Phase 2+ 填充）。
+    pub fn characteristic(&self, field: FieldId) -> Option<Integer> {
+        match self.presentation(field).map(|p| &p.kind) {
+            Some(FieldPresentationKind::PrimeField { characteristic }) => Some(characteristic.clone()),
+            _ => None,
+        }
+    }
+
+    /// 校验 FieldId 已注册且特征与声明一致。
+    pub fn validate_finite_field(&self, field: FieldId, characteristic: &Integer) -> Result<(), Diagnostic> {
+        let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
+        match &pres.kind {
+            FieldPresentationKind::PrimeField { characteristic: p } if p == characteristic => Ok(()),
+            FieldPresentationKind::PrimeField { .. } => Err(Diagnostic::new(DiagnosticCode::FieldMismatch)
+                .detail("domain", "field")
+                .detail("operation", "finite_field_characteristic_mismatch")),
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "field")
+                .detail("operation", "coeff_presentation_unsupported")),
+        }
     }
 
     fn intern(&mut self, key: FieldInternKey, kind: FieldPresentationKind) -> FieldId {
@@ -66,5 +86,50 @@ impl FieldTable {
         self.field_to_presentation.insert(field, presentation_id);
         self.presentations.insert(presentation_id, presentation);
         field
+    }
+}
+
+fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
+    if p.is_zero() || p.is_negative() {
+        return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+            .detail("domain", "field")
+            .detail("operation", "prime_field_characteristic"));
+    }
+    match primality_test(p, None) {
+        Primality::Prime => Ok(()),
+        Primality::Composite => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+            .detail("domain", "field")
+            .detail("operation", "prime_field_not_prime")),
+        Primality::ProbablePrime { .. } | Primality::Unknown => Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
+            .detail("domain", "field")
+            .detail("operation", "prime_field_characteristic")),
+    }
+}
+
+fn unknown_field(field: FieldId) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+        .detail("domain", "field")
+        .detail("operation", "unknown_field")
+        .detail("field_id", field.0.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn composite_prime_field_rejected() {
+        let mut table = FieldTable::new();
+        let err = table.prime_field(Integer::from_i64(6)).unwrap_err();
+        assert_eq!(err.code.as_str(), "ATHENA_MODULUS_INVALID");
+    }
+
+    #[test]
+    fn prime_field_intern_idempotent() {
+        let mut table = FieldTable::new();
+        let a = table.prime_field(Integer::from_i64(5)).unwrap();
+        let b = table.prime_field(Integer::from_i64(5)).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(table.characteristic(a), Some(Integer::from_i64(5)));
     }
 }

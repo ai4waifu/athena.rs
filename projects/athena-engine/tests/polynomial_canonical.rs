@@ -7,9 +7,7 @@ use athena_engine::{
 
 fn xy_integer_ring(order: MonomialOrder) -> (RingTable, athena_engine::RingId) {
     let mut rings = RingTable::new();
-    let id = rings
-        .intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], order)
-        .expect("valid ring");
+    let id = rings.intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], order).expect("valid ring");
     (rings, id)
 }
 
@@ -82,10 +80,7 @@ fn canonical_hash_stable_after_canonicalize() {
 #[test]
 fn session_normalize_via_execute_polynomial() {
     let mut session = Session::default();
-    let ring = session
-        .rings
-        .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(1), vec![1]).unwrap();
     b.push_term(Number::small_int(1), vec![1]).unwrap();

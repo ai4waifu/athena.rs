@@ -1,28 +1,40 @@
 //! SEV-0 数学正确性：环特征 · 素域验证 · 指数溢出 · canonical 排序错误传播。
 
 use athena_engine::{
-    CoefficientDomain, FieldId, Integer, MonomialOrder, Number, PolynomialBuilder, RingCharacteristic, RingTable,
-    SymbolId, add_polynomial, mul_polynomial,
+    CoefficientDomain, Integer, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, SymbolId, add_polynomial,
+    mul_polynomial,
 };
-use athena_numeric::Modulus;
+use athena_numeric::{Modulus, Number};
 
 #[test]
 fn modular_integer_characteristic_is_modulus() {
     let mut table = RingTable::new();
     let modulus = Modulus::new(Integer::from_i64(6)).unwrap();
-    let ring = table
-        .intern(CoefficientDomain::ModularInteger { modulus }, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = table.intern(CoefficientDomain::ModularInteger { modulus }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(6)));
 }
 
 #[test]
+fn prime_field_intern_normalizes_to_finite_field() {
+    let mut table = RingTable::new();
+    let ring =
+        table.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let desc = table.get(ring).unwrap();
+    match &desc.coefficients {
+        CoefficientDomain::FiniteField { field, characteristic } => {
+            assert_eq!(characteristic, &Integer::from_i64(5));
+            assert!(table.field_table().presentation(*field).is_some());
+        }
+        other => panic!("expected FiniteField after normalize, got {other:?}"),
+    }
+    assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(5)));
+}
+
+#[test]
 fn prime_field_characteristic_is_p() {
     let mut table = RingTable::new();
-    let ring = table
-        .intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(5)));
 }
@@ -39,15 +51,21 @@ fn composite_prime_field_rejected() {
 #[test]
 fn finite_field_characteristic_from_descriptor() {
     let mut table = RingTable::new();
+    let field = table.field_table_mut().prime_field(Integer::from_i64(7)).unwrap();
     let ring = table
         .intern(
-            CoefficientDomain::FiniteField { field: FieldId(1), characteristic: Integer::from_i64(7) },
+            CoefficientDomain::FiniteField { field, characteristic: Integer::from_i64(7) },
             vec![SymbolId(0)],
             MonomialOrder::Lex,
         )
         .unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(7)));
+    let coeff_ring = desc.coefficient_ring;
+    assert!(matches!(
+        table.coeff_rings().coefficient_parent(coeff_ring),
+        Some(athena_engine::CoefficientParent::Field(f)) if f == field
+    ));
 }
 
 #[test]

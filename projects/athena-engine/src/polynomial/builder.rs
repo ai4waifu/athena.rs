@@ -36,7 +36,7 @@ impl PolynomialBuilder {
                 .detail("operation", "unknown_ring")
                 .detail("ring_id", self.ring.0.to_string())
         })?;
-        canonicalize_terms(self.ring, desc, self.terms)
+        canonicalize_terms(self.ring, desc, self.terms, rings)
     }
 }
 

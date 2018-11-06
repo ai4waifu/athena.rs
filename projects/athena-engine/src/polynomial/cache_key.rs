@@ -1,4 +1,4 @@
-//! M-Graph 多项式缓存键（operation · canonical input hash · 环身份）。
+//! M-Graph 多项式缓存键（operation · 环指纹 · 输入指纹）。
 
 use std::hash::{Hash, Hasher};
 
@@ -6,6 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     expr::Polynomial,
+    fingerprint::{PolynomialFingerprint, RingFingerprint},
     groebner::GroebnerLimits,
     hash::canonical_hash as polynomial_canonical_hash,
     request::PolynomialRequest,
@@ -28,7 +29,7 @@ pub enum PolynomialCacheOp {
 }
 
 impl PolynomialCacheOp {
-    /// 操作名（审计 / evidence 摘要）。
+    /// 稳定 wire / witness 标签。
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Normalize => "normalize",
@@ -41,16 +42,40 @@ impl PolynomialCacheOp {
 }
 
 /// M-Graph / 重写缓存键（Living `11`）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct PolynomialCacheKey {
     /// 操作。
     pub operation: PolynomialCacheOp,
-    /// 环 id。
+    /// Session 内环句柄（执行路径；不参与跨 Session 相等性）。
     pub ring: RingId,
-    /// 各输入 canonical hash（有序）。
+    /// 稳定环身份。
+    pub ring_fingerprint: RingFingerprint,
+    /// 各输入 stable 指纹（有序）。
+    pub input_fingerprints: Vec<PolynomialFingerprint>,
+    /// canonical hash 载荷（witness 摘要；与 `input_fingerprints` 一致）。
     pub input_hashes: Vec<u64>,
     /// Gröbner / 消元资源指纹（非 Gröbner 操作为 0）。
     pub limits_fingerprint: u64,
+}
+
+impl PartialEq for PolynomialCacheKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.operation == other.operation
+            && self.ring_fingerprint == other.ring_fingerprint
+            && self.input_fingerprints == other.input_fingerprints
+            && self.limits_fingerprint == other.limits_fingerprint
+    }
+}
+
+impl Eq for PolynomialCacheKey {}
+
+impl Hash for PolynomialCacheKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.operation.hash(state);
+        self.ring_fingerprint.hash(state);
+        self.input_fingerprints.hash(state);
+        self.limits_fingerprint.hash(state);
+    }
 }
 
 impl PolynomialCacheKey {
@@ -81,10 +106,25 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable) -> 
     }
 }
 
+fn ring_fingerprint_for(poly: &Polynomial, rings: &RingTable) -> Result<RingFingerprint> {
+    rings.ring_fingerprint(poly.ring).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_unknown_ring")
+    })
+}
+
+fn poly_fingerprint(poly: &Polynomial, rings: &RingTable) -> Result<PolynomialFingerprint> {
+    PolynomialFingerprint::from_polynomial(poly, rings)
+}
+
 fn single_input_key(op: PolynomialCacheOp, poly: &Polynomial, rings: &RingTable, limits_fp: u64) -> Result<PolynomialCacheKey> {
+    let fp = poly_fingerprint(poly, rings)?;
     Ok(PolynomialCacheKey {
         operation: op,
         ring: poly.ring,
+        ring_fingerprint: ring_fingerprint_for(poly, rings)?,
+        input_fingerprints: vec![fp],
         input_hashes: vec![polynomial_canonical_hash(poly, rings)?],
         limits_fingerprint: limits_fp,
     })
@@ -102,9 +142,13 @@ fn two_input_key(
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_ring_mismatch"));
     }
+    let lfp = poly_fingerprint(lhs, rings)?;
+    let rfp = poly_fingerprint(rhs, rings)?;
     Ok(PolynomialCacheKey {
         operation: op,
         ring: lhs.ring,
+        ring_fingerprint: ring_fingerprint_for(lhs, rings)?,
+        input_fingerprints: vec![lfp, rfp],
         input_hashes: vec![polynomial_canonical_hash(lhs, rings)?, polynomial_canonical_hash(rhs, rings)?],
         limits_fingerprint: limits_fp,
     })
@@ -122,6 +166,8 @@ fn many_input_key(
             .detail("operation", "cache_key_empty_generators"));
     }
     let ring = generators[0].ring;
+    let ring_fingerprint = ring_fingerprint_for(&generators[0], rings)?;
+    let mut input_fingerprints = Vec::with_capacity(generators.len());
     let mut input_hashes = Vec::with_capacity(generators.len());
     for g in generators {
         if g.ring != ring {
@@ -129,10 +175,12 @@ fn many_input_key(
                 .detail("domain", "polynomial")
                 .detail("operation", "cache_key_ring_mismatch"));
         }
+        input_fingerprints.push(poly_fingerprint(g, rings)?);
         input_hashes.push(polynomial_canonical_hash(g, rings)?);
     }
+    input_fingerprints.sort_unstable();
     input_hashes.sort_unstable();
-    Ok(PolynomialCacheKey { operation: op, ring, input_hashes, limits_fingerprint: limits_fp })
+    Ok(PolynomialCacheKey { operation: op, ring, ring_fingerprint, input_fingerprints, input_hashes, limits_fingerprint: limits_fp })
 }
 
 fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {

@@ -13,7 +13,5 @@ pub(crate) fn add_exponents(a: u32, b: u32) -> Result<u32> {
 }
 
 fn degree_overflow() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::PolynomialDegreeOverflow)
-        .detail("domain", "polynomial")
-        .detail("operation", "exponent_add")
+    Diagnostic::new(DiagnosticCode::PolynomialDegreeOverflow).detail("domain", "polynomial").detail("operation", "exponent_add")
 }

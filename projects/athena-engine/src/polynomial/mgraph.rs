@@ -3,20 +3,16 @@
 use athena_types::Diagnostic;
 
 use super::{
+    PolynomialCacheKey,
     cache_key::cache_key_for_request,
     request::PolynomialRequest,
     result::{PolynomialResult, execute_polynomial_with_rings},
     ring_table::RingTable,
-    PolynomialCacheKey,
 };
 use crate::mgraph::{AdmissionGate, MGraphState, VerificationPolicy};
 
 /// 在 M-Graph 上下文中执行多项式请求（operational cache + admission gate → semantic core）。
-pub fn execute_polynomial_mgraph(
-    request: PolynomialRequest,
-    rings: &RingTable,
-    state: &mut MGraphState,
-) -> PolynomialResult {
+pub fn execute_polynomial_mgraph(request: PolynomialRequest, rings: &RingTable, state: &mut MGraphState) -> PolynomialResult {
     let key = match cache_key_for_request(&request, rings) {
         Ok(k) => k,
         Err(reason) => return PolynomialResult::Unevaluated { reason },

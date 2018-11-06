@@ -9,6 +9,7 @@
 
 #![deny(missing_docs)]
 
+pub mod algebra;
 pub mod calculus;
 pub mod domain;
 pub mod eval;
@@ -33,6 +34,12 @@ mod engine;
 /// 数值塔（Living `16`：[`NumericValue`] 为唯一执行真相源）。
 pub use athena_numeric as numeric;
 
+pub use algebra::{
+    AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, CoefficientParent, ElementProvenance, FieldEmbedding,
+    FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, GroupHomomorphism, GroupPresentation,
+    GroupPresentationId, GroupPresentationKind, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
+    PropertyWitness,
+};
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
     ExactInteger, Integer, ModularValue, Modulus, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
@@ -40,7 +47,7 @@ pub use athena_numeric::{
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
-    AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
+    AssumptionSet, AssumptionSetId, CoefficientRingId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
     ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision, Predicate, Result, RoundingMode,
     SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
     wire::{ExactNumber, RealNumber, WireNumber},
@@ -78,14 +85,15 @@ pub use number_theory::{
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
-    CanonicalPolynomial, CoefficientDomain, DivisionPolicy, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue,
-    GroebnerCertificate, GroebnerLimits, Ideal, JitParityOutcome, MonomialOrder, MonomialTerm, Polynomial,
-    PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialRepr, PolynomialReprBody,
-    PolynomialRequest, PolynomialResult, PolynomialValue, ReprTarget, RingCharacteristic, RingDescriptor, RingId, RingTable,
+    CanonicalPolynomial, CoeffRing, CoeffRingTable, CoefficientDomain, CoefficientRingDescriptor, DivisionPolicy,
+    FINGERPRINT_ALGORITHM, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerLimits, Ideal,
+    JitParityOutcome, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp,
+    PolynomialDomainValue, PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult,
+    PolynomialValue, ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable,
     add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
     execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, mul_polynomial, mul_with_jit_parity,
-    parity_diagnostic, polynomial_canonical_hash, record_polynomial_result, reduce_ideal, reprs_mathematically_equal,
-    sub_polynomial,
+    parity_diagnostic, polynomial_canonical_hash, polynomial_fingerprint, polynomial_fingerprint_u64,
+    record_polynomial_result, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
 };
 pub use session::Session;
 pub use solver::{

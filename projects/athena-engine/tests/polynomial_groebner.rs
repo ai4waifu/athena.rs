@@ -7,9 +7,7 @@ use athena_engine::{
 
 fn q_xy_lex() -> (RingTable, athena_engine::RingId) {
     let mut rings = RingTable::new();
-    let id = rings
-        .intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex)
-        .unwrap();
+    let id = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
     (rings, id)
 }
 
@@ -19,10 +17,7 @@ fn q_xy_elim_x() -> (RingTable, athena_engine::RingId) {
         .intern(
             CoefficientDomain::Rational,
             vec![SymbolId(0), SymbolId(1)],
-            MonomialOrder::Elimination {
-                eliminate: 1,
-                rest: Box::new(MonomialOrder::Lex),
-            },
+            MonomialOrder::Elimination { eliminate: 1, rest: Box::new(MonomialOrder::Lex) },
         )
         .unwrap();
     (rings, id)
@@ -31,11 +26,7 @@ fn q_xy_elim_x() -> (RingTable, athena_engine::RingId) {
 fn build(rings: &RingTable, ring: athena_engine::RingId, terms: &[(i64, i64, Vec<u32>)]) -> athena_engine::Polynomial {
     let mut b = PolynomialBuilder::new(ring);
     for &(num, den, ref exp) in terms {
-        let c = if den == 1 {
-            Number::small_int(num)
-        } else {
-            Number::rational_i64(num, den).unwrap()
-        };
+        let c = if den == 1 { Number::small_int(num) } else { Number::rational_i64(num, den).unwrap() };
         b.push_term(c, exp.clone()).unwrap();
     }
     b.build(rings).unwrap()
@@ -90,15 +81,10 @@ fn integer_ring_groebner_rejected() {
 #[test]
 fn session_groebner_via_execute_polynomial() {
     let mut session = Session::default();
-    let ring = session
-        .rings
-        .intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let g = build(&session.rings, ring, &[(1, 1, vec![1]), (-1, 1, vec![0])]);
-    let out = session.execute_polynomial(PolynomialRequest::Groebner {
-        generators: vec![g],
-        limits: GroebnerLimits::default(),
-    });
+    let out =
+        session.execute_polynomial(PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() });
     match out {
         PolynomialResult::Exact { value } => match value {
             athena_engine::PolynomialDomainValue::GroebnerBasis(v) => {

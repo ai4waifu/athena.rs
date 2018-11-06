@@ -15,12 +15,17 @@ use super::{
 /// 将任意项列表规范化为 [`Polynomial`]（须已注册 [`RingId`]）。
 pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<Polynomial> {
     let desc = rings.get(poly.ring).ok_or_else(|| ring_unknown(poly.ring))?;
-    canonicalize_terms(poly.ring, desc, poly.terms)
+    canonicalize_terms(poly.ring, desc, poly.terms, rings)
 }
 
-pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<MonomialTerm>) -> Result<Polynomial> {
+pub(crate) fn canonicalize_terms(
+    ring: RingId,
+    desc: &RingDescriptor,
+    raw: Vec<MonomialTerm>,
+    rings: &RingTable,
+) -> Result<Polynomial> {
     let n = desc.variable_count();
-    let coeff_ring = CoeffRing::new(&desc.coefficients).ok();
+    let coeff_ring = rings.coeff_kernel(ring).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();
 
     for term in raw {

@@ -1,36 +1,41 @@
-//! 系数域精确算术（ℤ · ℚ · 𝔽_p）。
+//! 系数域精确算术（ℤ · ℚ · 𝔽_p / 经 FieldId 注册的素域）。
 
 use athena_numeric::{Integer, Modulus, Number, NumericValue, add as num_add, mul as num_mul, neg as num_neg};
-use athena_types::{Diagnostic, DiagnosticCode, Result};
+use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, Result};
 
-use super::ring::CoefficientDomain;
+use super::{coeff_ring_table::CoeffRingTable, ring::CoefficientDomain};
 
 /// 绑定多项式系数域的系数环运算。
 pub struct CoeffRing<'a> {
     domain: &'a CoefficientDomain,
-    prime_modulus: Option<Modulus>,
+    prime_modulus: Option<&'a Modulus>,
 }
 
 impl<'a> CoeffRing<'a> {
-    /// 构造系数环（𝔽_p 预建 [`Modulus`]）。
+    /// 由 [`CoefficientRingId`] 解析（算法入口选一次）。
+    pub fn for_descriptor(coefficient_ring: CoefficientRingId, table: &'a CoeffRingTable) -> Result<Self> {
+        let entry = table.entry(coefficient_ring)?;
+        let domain = entry.domain();
+        if !domain.is_f3_supported() {
+            return Err(unsupported_domain());
+        }
+        Ok(Self { domain, prime_modulus: entry.prime_modulus() })
+    }
+
+    /// 构造系数环（legacy；优先 [`Self::for_descriptor`]）。
     pub fn new(domain: &'a CoefficientDomain) -> Result<Self> {
         if !domain.is_f3_supported() {
             return Err(unsupported_domain());
         }
-        let prime_modulus = match domain {
-            CoefficientDomain::PrimeField { p } => Some(Modulus::new(p.clone())?),
-            _ => None,
-        };
-        Ok(Self { domain, prime_modulus })
+        Ok(Self { domain, prime_modulus: None })
     }
 
-    /// 系数加法（合并同类项与 [`super::canonical`] 共用）。
+    /// 系数加法。
     pub fn add(&self, a: Number, b: Number) -> Result<Number> {
         self.reduce(num_add(a, b)?)
     }
 
     /// 系数减法。
-    #[allow(dead_code)]
     pub fn sub(&self, a: Number, b: Number) -> Result<Number> {
         self.add(a, num_neg(b))
     }
@@ -45,25 +50,25 @@ impl<'a> CoeffRing<'a> {
         self.reduce(num_neg(a))
     }
 
-    /// 系数域是否为域（Gröbner / 域除所需）。
+    /// 系数域是否为域。
     pub fn is_field(&self) -> bool {
         matches!(
             self.domain,
-            CoefficientDomain::Rational | CoefficientDomain::PrimeField { .. }
+            CoefficientDomain::Rational | CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. }
         )
     }
 
-    /// 域除法 `a / b`（`b` 须可逆）。
+    /// 域除法 `a / b`。
     pub fn div(&self, a: Number, b: Number) -> Result<Number> {
         if b.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "polynomial"));
         }
         match self.domain {
             CoefficientDomain::Rational => athena_numeric::div(a, b),
-            CoefficientDomain::PrimeField { .. } => {
-                let modulus = self.prime_modulus.as_ref().expect("prime modulus");
+            CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. } => {
+                let modulus = self.modulus()?;
                 let bi = extract_integer(&b)?;
-                let inv = crate::number_theory::mod_inverse(&bi, modulus)?;
+                let inv = crate::number_theory::mod_inverse(&bi, &modulus)?;
                 self.mul(a, Number::integer(inv.residue().clone()))
             }
             CoefficientDomain::Integer => Err(field_required()),
@@ -71,15 +76,26 @@ impl<'a> CoeffRing<'a> {
         }
     }
 
-    /// 乘法逆元（域上）。
+    /// 乘法逆元。
     pub fn inv(&self, a: Number) -> Result<Number> {
         self.div(Number::small_int(1), a)
     }
 
+    fn modulus(&self) -> Result<Modulus> {
+        if let Some(m) = self.prime_modulus {
+            return Ok(m.clone());
+        }
+        match self.domain {
+            CoefficientDomain::PrimeField { p } => Modulus::new(p.clone()),
+            CoefficientDomain::FiniteField { characteristic, .. } => Modulus::new(characteristic.clone()),
+            _ => Err(unsupported_domain()),
+        }
+    }
+
     fn reduce(&self, coeff: Number) -> Result<Number> {
         match self.domain {
-            CoefficientDomain::PrimeField { .. } => {
-                let modulus = self.prime_modulus.as_ref().expect("prime modulus");
+            CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. } => {
+                let modulus = self.modulus()?;
                 let integer = extract_integer(&coeff)?;
                 Ok(Number::integer(modulus.reduce(&integer)))
             }
@@ -94,7 +110,10 @@ impl CoefficientDomain {
     pub fn is_f3_supported(&self) -> bool {
         matches!(
             self,
-            CoefficientDomain::Integer | CoefficientDomain::Rational | CoefficientDomain::PrimeField { .. }
+            CoefficientDomain::Integer
+                | CoefficientDomain::Rational
+                | CoefficientDomain::PrimeField { .. }
+                | CoefficientDomain::FiniteField { .. }
         )
     }
 }

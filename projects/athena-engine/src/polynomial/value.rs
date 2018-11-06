@@ -1,9 +1,6 @@
 //! 多项式域对外值句柄。
 
-use super::{
-    certificate::GroebnerCertificate,
-    expr::Polynomial,
-};
+use super::{certificate::GroebnerCertificate, expr::Polynomial};
 use athena_types::RingId;
 
 /// 擦除后的多项式句柄（不暴露泛型多项式）。

@@ -1,17 +1,14 @@
 //! M-Graph 多项式缓存、admission gate 与 JIT parity 矩阵。
 
 use athena_engine::{
-    AdmissionOutcome, AdmissionRejectReason, Claim, CoefficientDomain, Evidence, EvidenceVerifier, GroebnerLimits,
-    Guarantee, MonomialOrder, Number, PolynomialBuilder, PolynomialCacheOp, PolynomialCacheTier, PolynomialDomainValue,
-    PolynomialRequest, PolynomialResult, Scope, Session, SymbolId, VerificationPolicy, admit_polynomial_result,
-    cache_key_for_request, proposition_from_cache_key, record_polynomial_result,
+    AdmissionOutcome, AdmissionRejectReason, Claim, CoefficientDomain, Evidence, EvidenceVerifier, GroebnerLimits, Guarantee,
+    MonomialOrder, Number, PolynomialBuilder, PolynomialCacheOp, PolynomialCacheTier, PolynomialDomainValue, PolynomialRequest,
+    PolynomialResult, Scope, Session, SymbolId, VerificationPolicy, admit_polynomial_result, cache_key_for_request,
+    proposition_from_cache_key, record_polynomial_result,
 };
 
 fn z_x_ring(session: &mut Session) -> athena_engine::RingId {
-    session
-        .rings
-        .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap()
+    session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap()
 }
 
 #[test]
@@ -37,18 +34,12 @@ fn mgraph_polynomial_cache_hit() {
 #[test]
 fn groebner_complete_admitted_to_claims() {
     let mut session = Session::default();
-    let ring = session
-        .rings
-        .intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(1), vec![1]).unwrap();
     b.push_term(Number::small_int(-1), vec![0]).unwrap();
     let g = b.build(&session.rings).unwrap();
-    let req = PolynomialRequest::Groebner {
-        generators: vec![g],
-        limits: GroebnerLimits::default(),
-    };
+    let req = PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() };
     session.execute_polynomial_mgraph(req.clone());
     assert_eq!(session.mgraph.semantic.fact_log.len(), 1);
     let key = cache_key_for_request(&req, &session.rings).unwrap();
@@ -60,10 +51,7 @@ fn groebner_complete_admitted_to_claims() {
 #[test]
 fn groebner_partial_cached_but_not_admitted() {
     let mut session = Session::default();
-    let ring = session
-        .rings
-        .intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
     let mut b1 = PolynomialBuilder::new(ring);
     b1.push_term(Number::small_int(1), vec![1, 0]).unwrap();
     b1.push_term(Number::small_int(-1), vec![0, 1]).unwrap();
@@ -74,21 +62,14 @@ fn groebner_partial_cached_but_not_admitted() {
     let g2 = b2.build(&session.rings).unwrap();
     let req = PolynomialRequest::Groebner {
         generators: vec![g1, g2],
-        limits: GroebnerLimits {
-            max_s_pairs: 0,
-            max_basis_size: 128,
-        },
+        limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
     };
     session.execute_polynomial_mgraph(req.clone());
     assert_eq!(session.mgraph.semantic.fact_log.len(), 0);
     assert_eq!(session.mgraph.operational.result_cache.polynomial.partial_len(), 1);
     let key = cache_key_for_request(&req, &session.rings).unwrap();
-    match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result)
-    {
-        AdmissionOutcome::Rejected {
-            reason: AdmissionRejectReason::GroebnerIncomplete,
-            guarantee: Guarantee::Partial,
-        } => {}
+    match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::GroebnerIncomplete, guarantee: Guarantee::Partial } => {}
         other => panic!("expected GroebnerIncomplete, got {other:?}"),
     }
 }
@@ -98,27 +79,19 @@ fn placeholder_exact_result_not_admitted() {
     let mut session = Session::default();
     let ring = z_x_ring(&mut session);
     let key = cache_key_for_request(
-        &PolynomialRequest::Normalize {
-            polynomial: PolynomialBuilder::new(ring).build(&session.rings).unwrap(),
-        },
+        &PolynomialRequest::Normalize { polynomial: PolynomialBuilder::new(ring).build(&session.rings).unwrap() },
         &session.rings,
     )
     .unwrap();
     record_polynomial_result(
         key.clone(),
-        PolynomialResult::Exact {
-            value: PolynomialDomainValue::Placeholder,
-        },
+        PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder },
         &mut session.mgraph,
     )
     .unwrap();
     assert_eq!(session.mgraph.semantic.fact_log.len(), 0);
-    match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result)
-    {
-        AdmissionOutcome::Rejected {
-            reason: AdmissionRejectReason::Placeholder,
-            ..
-        } => {}
+    match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::Placeholder, .. } => {}
         other => panic!("expected Placeholder, got {other:?}"),
     }
 }
@@ -139,16 +112,10 @@ fn probable_claim_blocked_by_verifier() {
         proposition: proposition_from_cache_key(&key),
         scope: Scope::Unconditional,
         guarantee: Guarantee::Probable,
-        evidence: Evidence::TrustedKernel {
-            solver: athena_engine::POLYNOMIAL_SOLVER_ID,
-            summary: "probable".into(),
-        },
+        evidence: Evidence::TrustedKernel { solver: athena_engine::POLYNOMIAL_SOLVER_ID, summary: "probable".into() },
     };
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
-        AdmissionOutcome::Rejected {
-            reason: AdmissionRejectReason::ProbableResult,
-            guarantee: Guarantee::Probable,
-        } => {}
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: Guarantee::Probable } => {}
         other => panic!("expected ProbableResult, got {other:?}"),
     }
 }

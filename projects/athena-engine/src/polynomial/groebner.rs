@@ -47,7 +47,7 @@ pub struct GroebnerBasis {
 pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerBasis> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
-    let coeff = CoeffRing::new(&desc.coefficients)?;
+    let coeff = rings.coeff_kernel(ideal.ring)?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -124,7 +124,7 @@ pub fn compute_elimination_basis(
 /// 对理想成员做 Gröbner 约化（余式）。
 pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTable) -> Result<Polynomial> {
     let desc = rings.get(polynomial.ring).ok_or_else(|| ring_unknown(polynomial.ring))?;
-    let coeff = CoeffRing::new(&desc.coefficients)?;
+    let coeff = rings.coeff_kernel(polynomial.ring)?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -171,19 +171,25 @@ fn s_polynomial(f: &Polynomial, g: &Polynomial, rings: &RingTable, coeff: &Coeff
     let lcm = lcm_exponents(&lf.exponents, &lg.exponents);
     let mult_f_exp = exponents_delta(&lcm, &lf.exponents);
     let mult_g_exp = exponents_delta(&lcm, &lg.exponents);
-    let mf = multiply_by_monomial(f, coeff.inv(lf.coefficient.clone())?, &mult_f_exp, rings)?;
-    let mg = multiply_by_monomial(g, coeff.inv(lg.coefficient.clone())?, &mult_g_exp, rings)?;
+    let mf = multiply_by_monomial(f, coeff.inv(lf.coefficient.clone())?, &mult_f_exp, rings, coeff)?;
+    let mg = multiply_by_monomial(g, coeff.inv(lg.coefficient.clone())?, &mult_g_exp, rings, coeff)?;
     sub_polynomial(mf, mg, rings)
 }
 
-fn multiply_by_monomial(poly: &Polynomial, scalar: Number, exp_delta: &[u32], rings: &RingTable) -> Result<Polynomial> {
+fn multiply_by_monomial(
+    poly: &Polynomial,
+    scalar: Number,
+    exp_delta: &[u32],
+    rings: &RingTable,
+    coeff: &CoeffRing<'_>,
+) -> Result<Polynomial> {
     if poly.terms.is_empty() || scalar.is_zero() {
         return Ok(Polynomial::zero(poly.ring));
     }
     let mut b = PolynomialBuilder::new(poly.ring);
     for term in &poly.terms {
         let exponents = add_exponent_vectors(&term.exponents, exp_delta)?;
-        let c = athena_numeric::mul(scalar.clone(), term.coefficient.clone())?;
+        let c = coeff.mul(scalar.clone(), term.coefficient.clone())?;
         b.push_term(c, exponents)?;
     }
     b.build(rings)
@@ -213,7 +219,7 @@ fn reduce_polynomial(
             }
             let delta = exponents_delta(&lr.exponents, &lg.exponents);
             let factor = coeff.div(lr.coefficient.clone(), lg.coefficient.clone())?;
-            let term = multiply_by_monomial(g, factor, &delta, rings)?;
+            let term = multiply_by_monomial(g, factor, &delta, rings, coeff)?;
             remainder = sub_polynomial(remainder, term, rings)?;
             reduced = true;
             break;

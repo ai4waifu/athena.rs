@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, FieldId, RingId, SymbolId};
 
 use crate::number_theory::{Primality, primality_test};
 
-use super::order::MonomialOrder;
+use super::{fingerprint::RingFingerprint, order::MonomialOrder};
 
 /// 精确 / 近似系数域（环身份的一部分）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -16,8 +16,7 @@ pub enum CoefficientDomain {
     Rational,
     /// 素域 𝔽_p（`p` 须为已验证素数）。
     ///
-    /// **Deprecation（Living `18`）**：新代码须先 `FieldTable::prime_field(p)` 取得 `FieldId`，
-    /// 再使用 [`CoefficientDomain::FiniteField`]。Phase 2 将删除本变体。
+    /// **Deprecation（Living `18`）**：intern 时规范化为 [`CoefficientDomain::FiniteField`]。
     PrimeField {
         /// 特征素数。
         p: Integer,
@@ -31,7 +30,7 @@ pub enum CoefficientDomain {
     FiniteField {
         /// 域句柄。
         field: FieldId,
-        /// 域特征 `p`（`F_{p^k}` 的 `p`；须与域注册一致）。
+        /// 域特征 `p`（须与 [`FieldTable`] presentation 一致）。
         characteristic: Integer,
     },
     /// 机器 / 近似实数 — 不得进入精确多项式环。
@@ -52,6 +51,8 @@ pub enum RingCharacteristic {
 pub struct RingDescriptor {
     /// 稳定环 id。
     pub id: RingId,
+    /// 系数环 intern 句柄。
+    pub coefficient_ring: athena_types::CoefficientRingId,
     /// 系数域。
     pub coefficients: CoefficientDomain,
     /// 有序、无重复的变量身份。
@@ -60,6 +61,8 @@ pub struct RingDescriptor {
     pub order: MonomialOrder,
     /// 环特征（由系数域推导）。
     pub characteristic: RingCharacteristic,
+    /// 稳定数学身份摘要（不含 Session 句柄）。
+    pub ring_fingerprint: RingFingerprint,
 }
 
 impl RingDescriptor {
@@ -88,12 +91,14 @@ impl RingDescriptor {
     /// 构造带 id 的描述符（intern 后使用）。
     pub(crate) fn with_id(
         id: RingId,
+        coefficient_ring: athena_types::CoefficientRingId,
         coefficients: CoefficientDomain,
         variables: Vec<SymbolId>,
         order: MonomialOrder,
         characteristic: RingCharacteristic,
+        ring_fingerprint: RingFingerprint,
     ) -> Self {
-        Self { id, coefficients, variables, order, characteristic }
+        Self { id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint }
     }
 
     /// 变量数。
@@ -123,6 +128,11 @@ fn has_duplicate_symbols(vars: &[SymbolId]) -> bool {
 }
 
 fn validate_coefficient_domain(coefficients: CoefficientDomain) -> Result<CoefficientDomain, Diagnostic> {
+    validate_coefficient_domain_public(coefficients)
+}
+
+/// 校验并规范化系数域（系数环 intern 与多项式环构造共用）。
+pub(crate) fn validate_coefficient_domain_public(coefficients: CoefficientDomain) -> Result<CoefficientDomain, Diagnostic> {
     match coefficients {
         CoefficientDomain::PrimeField { p } => {
             validate_prime_modulus(&p)?;
@@ -134,13 +144,15 @@ fn validate_coefficient_domain(coefficients: CoefficientDomain) -> Result<Coeffi
                     .detail("domain", "polynomial")
                     .detail("operation", "finite_field_characteristic"));
             }
+            let _ = field;
             Ok(CoefficientDomain::FiniteField { field, characteristic })
         }
         other => Ok(other),
     }
 }
 
-fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
+/// 校验素数模（多项式环构造共用）。
+pub(crate) fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
     if p.is_zero() || p.is_negative() {
         return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
             .detail("domain", "polynomial")
@@ -151,15 +163,13 @@ fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
         Primality::Composite => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
             .detail("domain", "polynomial")
             .detail("operation", "prime_field_not_prime")),
-        Primality::ProbablePrime { .. } | Primality::Unknown => {
-            Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
-                .detail("domain", "polynomial")
-                .detail("operation", "prime_field_characteristic"))
-        }
+        Primality::ProbablePrime { .. } | Primality::Unknown => Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
+            .detail("domain", "polynomial")
+            .detail("operation", "prime_field_characteristic")),
     }
 }
 
-fn characteristic_of(coeff: &CoefficientDomain) -> Result<RingCharacteristic, Diagnostic> {
+pub(crate) fn characteristic_of(coeff: &CoefficientDomain) -> Result<RingCharacteristic, Diagnostic> {
     match coeff {
         CoefficientDomain::Integer | CoefficientDomain::Rational => Ok(RingCharacteristic::Zero),
         CoefficientDomain::ModularInteger { modulus } => Ok(RingCharacteristic::Positive(modulus.value().clone())),
