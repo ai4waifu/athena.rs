@@ -129,26 +129,30 @@ pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
 
 /// Multiply by a single limb (`n > 0`).
 pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
-    assert!(n != 0);
-    if is_zero(a) {
+    with_kernel_scratch(|scratch, budget| {
+        let mut out = LimbBuffer::zero();
+        PureRustLimbKernel::mul_1_into(a, n, &mut out, scratch, budget).expect("mul_1_into");
+        out.into_canonical_vec()
+    })
+}
+
+fn mul_1_limbs(a: &[u64], limb: u64) -> Vec<u64> {
+    if limb == 0 || is_zero(a) {
         return vec![0];
     }
-    if n == 1 {
+    if limb == 1 {
         return normalize_trim(a.to_vec());
     }
     let la = effective_len(a);
     let mut out = vec![0u64; la + 1];
     let mut carry = 0u128;
-    for (i, &av) in a.iter().take(la).enumerate() {
-        let prod = u128::from(av) * u128::from(n) + carry;
+    for i in 0..la {
+        let prod = u128::from(a[i]) * u128::from(limb) + carry;
         out[i] = prod as u64;
         carry = prod >> 64;
     }
     if carry > 0 {
         out[la] = carry as u64;
-    }
-    else {
-        out.pop();
     }
     normalize_trim(out)
 }
@@ -185,7 +189,7 @@ pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
     if n == 0 || is_zero(a) {
         return false;
     }
-    let prod = mul_1(a, n);
+    let prod = mul_1_limbs(a, n);
     let mut borrow = 0i128;
     for (i, &pv) in prod.iter().enumerate() {
         if i >= r.len() {
@@ -236,35 +240,54 @@ pub(crate) fn addmul_1(r: &[u64], a: &[u64], n: u64) -> Vec<u64> {
     normalize_trim(out)
 }
 
-fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
-    mul_schoolbook(a, a)
+fn add_wide_to_out(out: &mut Vec<u64>, idx: usize, wide: u128) {
+    let mut carry = wide;
+    let mut k = idx;
+    while carry > 0 {
+        if k >= out.len() {
+            out.push(0);
+        }
+        let sum = u128::from(out[k]) + carry;
+        out[k] = sum as u64;
+        carry = sum >> 64;
+        k += 1;
+    }
 }
 
-fn karatsuba_sqr(a: &[u64]) -> Vec<u64> {
+/// Symmetric schoolbook squaring: diagonal once, off-diagonal doubled (`j > i` only).
+fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
-    let n = la.next_power_of_two().max(MUL_KARATSUBA_THRESHOLD);
-    let ah = split_hi(a, n);
-    let al = split_lo(a, n);
-    let z0 = sqr(&al);
-    let z2 = sqr(&ah);
-    let a_sum = add_n(&al, &ah);
-    let z1 = sub_n(&sub_n(&sqr(&a_sum), &z0), &z2);
-    let m = n / 2;
-    add_n(&add_n(&z0, &shift_limbs_left(z1, m)), &shift_limbs_left(z2, n))
+    if la == 0 || is_zero(a) {
+        return vec![0];
+    }
+    if la == 1 {
+        return mul_1_limbs(a, a[0]);
+    }
+    let mut out = vec![0u64; 2 * la];
+    for i in 0..la {
+        for j in i..la {
+            let (hi, lo) = mul_wide(a[i], a[j]);
+            let prod = (u128::from(hi) << 64) | u128::from(lo);
+            let idx = i + j;
+            if i == j {
+                add_wide_to_out(&mut out, idx, prod);
+            }
+            else {
+                add_wide_to_out(&mut out, idx, prod);
+                add_wide_to_out(&mut out, idx, prod);
+            }
+        }
+    }
+    normalize_trim(out)
 }
 
 /// Square (`a * a`).
 pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
-    if is_zero(a) {
-        return vec![0];
-    }
-    let la = effective_len(a);
-    if la >= MUL_KARATSUBA_THRESHOLD {
-        karatsuba_sqr(a)
-    }
-    else {
-        sqr_schoolbook(a)
-    }
+    with_kernel_scratch(|scratch, budget| {
+        let mut out = LimbBuffer::zero();
+        PureRustLimbKernel::sqr_into(a, &mut out, scratch, budget).expect("sqr_into");
+        out.into_canonical_vec()
+    })
 }
 
 fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
@@ -855,6 +878,21 @@ pub(crate) trait LimbKernel {
         budget: &ExecutionBudget,
     ) -> Result<()>;
 
+    fn mul_1_into(
+        a: &[u64],
+        limb: u64,
+        out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+
+    fn sqr_into(
+        a: &[u64],
+        out: &mut LimbBuffer,
+        scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()>;
+
     fn div_rem_into(
         u: &[u64],
         v: &[u64],
@@ -932,6 +970,39 @@ impl LimbKernel for PureRustLimbKernel {
         budget.check_mul(la, lb)?;
         budget.check_mul_scratch(la, lb)?;
         let product = if la.max(lb) >= MUL_KARATSUBA_THRESHOLD { karatsuba_mul(a, b) } else { mul_schoolbook(a, b) };
+        out.set_canonical(product, budget)?;
+        Ok(())
+    }
+
+    fn mul_1_into(
+        a: &[u64],
+        limb: u64,
+        out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        if limb == 0 || is_zero(a) {
+            out.set_canonical(vec![0], budget)?;
+            return Ok(());
+        }
+        budget.check_mul(effective_len(a), 1)?;
+        out.set_canonical(mul_1_limbs(a, limb), budget)?;
+        Ok(())
+    }
+
+    fn sqr_into(
+        a: &[u64],
+        out: &mut LimbBuffer,
+        _scratch: &mut ScratchWorkspace,
+        budget: &ExecutionBudget,
+    ) -> Result<()> {
+        if is_zero(a) {
+            out.set_canonical(vec![0], budget)?;
+            return Ok(());
+        }
+        let la = effective_len(a);
+        budget.check_mul(la, la)?;
+        let product = if la >= MUL_KARATSUBA_THRESHOLD { karatsuba_mul(a, a) } else { sqr_schoolbook(a) };
         out.set_canonical(product, budget)?;
         Ok(())
     }
