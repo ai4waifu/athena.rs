@@ -1,18 +1,18 @@
-//! 群与元素对象合同（骨架）。
+//! 群与元素对象合同（Living `18` Phase 0）。
 
 use athena_numeric::Integer;
 use athena_types::{GroupElementId, GroupId, PresentationId};
 
 use crate::algebra::{GroupPropertyFacts, PropertyState};
 
-/// 群数学描述（抽象性质；**不可**仅凭阶运算）。
+/// 群数学描述（抽象性质；可运算性取决于 presentation）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupDescriptor {
-    /// 仅已知部分性质，尚无可运算 presentation。
+    /// 仅已知部分性质，尚无具体 presentation 时不可构造元素。
     Abstract {
         /// 阶（若已知）。
         order: PropertyState<Integer>,
-        /// 其他性质。
+        /// 其他性质摘要。
         properties: GroupPropertyFacts,
     },
 }
@@ -24,23 +24,25 @@ pub struct Group {
     pub id: GroupId,
     /// 数学描述。
     pub descriptor: GroupDescriptor,
-    /// 默认可运算 presentation（若有）。
-    pub default_presentation: Option<PresentationId>,
+    /// 当前可运算 presentation。
+    pub presentation: PresentationId,
+    /// 阶（冗余缓存；以 properties 为准）。
+    pub order: Option<Integer>,
 }
 
-/// 置换：像列表 `π(i) = images[i]`（0-based）；度数由 presentation 持有。
+/// 置换：像列表 `π(i) = images[i]`（0-based；度数由 presentation 解释）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Permutation {
     /// 像（长度须等于 presentation 的 degree）。
     pub images: Vec<u32>,
 }
 
-/// 群元素表示（须在明确 presentation 下解释）。
+/// 群元素表示。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupElementRepr {
-    /// 显式乘法表 index — **仅** `ExplicitTable` presentation 合法。
+    /// 仅 [`GroupPresentationKind::ExplicitTable`] 下合法。
     TableIndex(u64),
-    /// 置换。
+    /// 置换像。
     Permutation(Permutation),
 }
 
@@ -51,8 +53,11 @@ pub struct GroupElement {
     pub id: GroupElementId,
     /// 所属群。
     pub group: GroupId,
-    /// 解释 `repr` 的 presentation。
+    /// repr 所属的 presentation。
     pub presentation: PresentationId,
-    /// 表示 payload。
+    /// 表示。
     pub repr: GroupElementRepr,
 }
+
+/// 向后兼容别名（迁移期；新代码用 [`GroupDescriptor`]）。
+pub type GroupKind = GroupDescriptor;

@@ -9,5 +9,5 @@ mod value;
 
 pub use request::FieldRequest;
 pub use result::{FieldResult, execute_field};
-pub use types::{Field, FieldElement, FieldElementRepr, FieldKind};
+pub use types::{Field, FieldDescriptor, FieldElement, FieldElementRepr, FieldKind};
 pub use value::FieldDomainValue;

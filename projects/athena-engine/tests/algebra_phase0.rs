@@ -1,8 +1,8 @@
 //! 代数父对象 Phase 0 合同测试。
 
 use athena_engine::{
-    AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr,
-    FieldId, FieldTable, GaloisRequest, GroupDescriptor, GroupElementRepr, PresentationId, PropertyState, PropertyWitness,
+    AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr, FieldId, FieldTable,
+    GaloisRequest, GroupDescriptor, GroupElementRepr, PresentationId, PropertyState, PropertyWitness,
 };
 use athena_numeric::{FiniteFieldValue, Integer};
 

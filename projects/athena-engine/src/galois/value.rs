@@ -1,60 +1,64 @@
-//! 伽罗瓦域值对象。
+//! 伽罗瓦域值对象（Living `18` Phase 0）。
 
 use athena_types::{AlgebraMapId, AutomorphismId, ExtensionId, FieldId, GroupId, SubgroupId};
 
 use crate::algebra::PropertyState;
 
-/// 域自同构（L → L 的特殊 field embedding）。
+/// 域自同构：L → L 的特殊嵌入，固定基域。
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldAutomorphism {
+    /// 稳定 id。
+    pub id: AutomorphismId,
     /// 作用的扩张。
     pub extension: ExtensionId,
-    /// 底层嵌入映射。
+    /// 底层 field embedding（L → L）。
     pub embedding: AlgebraMapId,
-    /// 是否固定基域（须带 witness）。
+    /// 是否固定基域（须已证明）。
     pub fixes_base: PropertyState<bool>,
     /// 逆自同构（若已知）。
     pub inverse: Option<AutomorphismId>,
 }
 
-/// 向后兼容别名。
-pub type Automorphism = FieldAutomorphism;
-
-/// 伽罗瓦群计算状态（禁止单一 `complete: bool` 冒充完整结果）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 伽罗瓦群计算结果完整性。
+#[derive(Debug, Clone, PartialEq)]
 pub enum GaloisComputation {
-    /// 完整且已验证的伽罗瓦群。
+    /// 完整算出并验证。
     Complete {
-        /// 群 id。
+        /// 伽罗瓦群 id。
         group: GroupId,
     },
-    /// 候选子群（上下界收紧中）。
+    /// 候选子群（尚未证明等于伽罗瓦群）。
     CandidateSubgroup {
-        /// 当前候选。
-        candidate: GroupId,
+        /// 候选群 id。
+        group: GroupId,
     },
-    /// 认证包含关系：lower ≤ Gal ≤ upper。
+    ///  certified 上下界。
     CertifiedContainment {
-        /// 下界子群。
+        /// 下界（已知包含）。
         lower: GroupId,
-        /// 上界子群。
+        /// 上界（已知包含于）。
         upper: GroupId,
     },
-    /// 已找到部分自同构。
+    /// 部分自同构已找到。
     Partial {
-        /// 已找到自同构数量。
-        automorphisms_found: u32,
+        /// 已找到的自同构 id。
+        automorphisms: Vec<AutomorphismId>,
     },
     /// 资源截断。
-    ResourceLimited,
+    ResourceLimited {
+        /// 已处理边界描述。
+        frontier: String,
+    },
 }
 
-/// 伽罗瓦群结果。
+/// 伽罗瓦群（相对基域与扩张）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct GaloisGroup {
     /// 基域。
     pub base_field: FieldId,
-    /// 计算状态。
+    /// 扩张 id（多项式入口时后续填充）。
+    pub extension: Option<ExtensionId>,
+    /// 计算状态（禁止单一 complete bool）。
     pub computation: GaloisComputation,
 }
 
@@ -67,8 +71,17 @@ pub enum GaloisDomainValue {
     Automorphism(FieldAutomorphism),
     /// 伽罗瓦群。
     GaloisGroup(GaloisGroup),
-    /// 固定域子群 id（占位；完整 fixed field 后续接 FieldId）。
-    FixedFieldSubgroup(SubgroupId),
+    /// 固定域（子群 → 中间域，Phase 1 接 FieldId）。
+    FixedField {
+        /// 扩张。
+        extension: ExtensionId,
+        /// 自同构子群。
+        subgroup: SubgroupId,
+    },
     /// 占位。
     Placeholder,
 }
+
+/// 向后兼容别名（迁移期）。
+#[allow(dead_code)]
+pub type Automorphism = FieldAutomorphism;

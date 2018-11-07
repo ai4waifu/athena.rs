@@ -3,7 +3,7 @@
 use super::types::{Field, FieldElement};
 
 /// 域论返回值。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FieldDomainValue {
     /// 域。
     Field(Field),

@@ -9,5 +9,5 @@ mod value;
 
 pub use request::GroupRequest;
 pub use result::{GroupResult, execute_group};
-pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, Permutation};
+pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, GroupKind, Permutation};
 pub use value::GroupDomainValue;

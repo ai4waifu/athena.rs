@@ -1,59 +1,35 @@
-//! 域与域元素对象（骨架）。
+//! 域与域元素对象（Living `18` Phase 0）。
 
 use athena_numeric::Integer;
 use athena_types::{ExtensionId, FieldId, PresentationId};
 
-/// 域种类（descriptor 级；具体表示见 [`crate::algebra::FieldPresentation`]）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FieldKind {
-    /// 有理数域 ℚ。
-    Rationals,
-    /// 素域 𝔽_p。
-    Prime {
-        /// 素数特征。
-        characteristic: Integer,
-    },
-    /// 有限扩张（模不可约多项式等，细节后续）。
-    FiniteExtension {
-        /// 基域。
-        base: FieldId,
-        /// 扩张 id。
-        extension: ExtensionId,
-        /// 次数（若已知）。
-        degree: Option<u32>,
-    },
-}
+use crate::algebra::PropertyState;
 
 /// 域对象。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Field {
     /// 稳定 id。
     pub id: FieldId,
-    /// 种类。
-    pub kind: FieldKind,
-    /// 默认 presentation（Phase 0 可选）。
-    pub default_presentation: Option<PresentationId>,
+    /// 数学描述（与 presentation 分离）。
+    pub descriptor: FieldDescriptor,
+    /// 默认 presentation。
+    pub presentation: PresentationId,
 }
 
-/// 域元素私有表示（按 presentation kind 解释）。
+/// 域元素表示（按 presentation kind 解释）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldElementRepr {
-    /// 有理数 canonical 分数（Phase 1 接 `Rational`）。
-    Rational {
-        /// 分子。
-        numerator: Integer,
-        /// 分母（须为正）。
-        denominator: Integer,
-    },
-    /// 素域 𝔽_p 约化 residue。
+    /// ℚ：canonical rational payload（Phase 1 接 Number）。
+    RationalPlaceholder,
+    /// 𝔽_p：约化后的 residue。
     PrimeFieldResidue {
-        /// 约化后的值。
+        /// 值 ∈ [0, p)。
         value: Integer,
     },
-    /// 扩张元素系数向量（长度 < degree，相对固定基）。
-    ExtensionCoefficients {
+    /// 扩张：次数小于 defining polynomial 的系数向量。
+    ExtensionCoords {
         /// 基坐标。
-        coefficients: Vec<Integer>,
+        coords: Vec<Integer>,
     },
     /// 占位。
     Placeholder,
@@ -64,8 +40,32 @@ pub enum FieldElementRepr {
 pub struct FieldElement {
     /// 所属域。
     pub field: FieldId,
-    /// 解释 `repr` 的 presentation。
+    /// 解释 repr 的 presentation。
     pub presentation: PresentationId,
-    /// 私有表示 payload。
+    /// 私有表示。
     pub repr: FieldElementRepr,
 }
+
+/// 域数学描述（种类与表示分离，见 Living `18`）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum FieldDescriptor {
+    /// 有理数域 ℚ。
+    Rationals,
+    /// 素域 𝔽_p。
+    Prime {
+        /// 素数特征。
+        characteristic: Integer,
+    },
+    /// 有限扩张 K ↪ L。
+    Extension {
+        /// 基域。
+        base: FieldId,
+        /// 扩张 id。
+        extension: ExtensionId,
+        /// 次数（若已知）。
+        degree: PropertyState<u32>,
+    },
+}
+
+/// 向后兼容别名（迁移期；新代码用 [`FieldDescriptor`]）。
+pub type FieldKind = FieldDescriptor;

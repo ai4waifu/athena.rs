@@ -47,9 +47,9 @@ pub use athena_numeric::{
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
-    AssumptionSet, AssumptionSetId, CoefficientRingId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
-    ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision, Predicate, Result, RoundingMode,
-    SerializationVersion, Severity, SourceSpan, SymbolId, TermId,
+    AlgebraMapId, AssumptionSet, AssumptionSetId, AutomorphismId, CoefficientRingId, Condition, Diagnostic, DiagnosticCode,
+    DiagnosticPath, DiagnosticValue, DomainId, ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision,
+    Predicate, PresentationId, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SubgroupId, SymbolId, TermId,
     wire::{ExactNumber, RealNumber, WireNumber},
 };
 pub use calculus::{
@@ -63,11 +63,16 @@ pub use calculus::{
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::evaluate;
-pub use field::{Field, FieldDomainValue, FieldElement, FieldKind, FieldRequest, FieldResult, execute_field};
+pub use field::{
+    Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult, execute_field,
+};
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
-pub use galois::{Automorphism, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois};
+pub use galois::{
+    Automorphism, FieldAutomorphism, GaloisComputation, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois,
+};
 pub use group::{
-    Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation, execute_group,
+    Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation,
+    execute_group,
 };
 pub use mgraph::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DerivedIndexes,
@@ -79,9 +84,9 @@ pub use mgraph::{
     witness_from_exact,
 };
 pub use number_theory::{
-    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,
-    NumberTheoryValue, Primality, PrimePower, execute_number_theory, extended_gcd, factor_integer, gcd, lcm, mod_inverse,
-    mod_pow, primality_test,
+    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, MillerRabinBaseSelection, NumberTheoryRequest,
+    NumberTheoryResult, NumberTheoryValue, Primality, PrimePower, ProbablePrimeEvidence, execute_number_theory, extended_gcd,
+    factor_integer, gcd, lcm, mod_inverse, mod_pow, primality_test,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{

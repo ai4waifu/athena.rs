@@ -8,4 +8,4 @@ mod value;
 
 pub use request::GaloisRequest;
 pub use result::{GaloisResult, execute_galois};
-pub use value::{Automorphism, FieldAutomorphism, GaloisComputation, GaloisDomainValue, GaloisGroup};
+pub use value::{FieldAutomorphism, FieldAutomorphism as Automorphism, GaloisComputation, GaloisDomainValue, GaloisGroup};
