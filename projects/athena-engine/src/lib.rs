@@ -84,8 +84,8 @@ pub use mgraph::{
     witness_from_exact,
 };
 pub use number_theory::{
-    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, MillerRabinBaseSelection, NumberTheoryRequest,
-    NumberTheoryResult, NumberTheoryValue, Primality, PrimePower, ProbablePrimeEvidence, execute_number_theory, extended_gcd,
+    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest,
+    NumberTheoryResult, NumberTheoryValue, Primality, PrimePower, execute_number_theory, extended_gcd,
     factor_integer, gcd, lcm, mod_inverse, mod_pow, primality_test,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};

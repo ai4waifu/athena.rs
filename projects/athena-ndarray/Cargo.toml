@@ -1,0 +1,12 @@
+[package]
+name = "athena-ndarray"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "CAS arrays and out-of-core storage for Athena"
+publish = false
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
