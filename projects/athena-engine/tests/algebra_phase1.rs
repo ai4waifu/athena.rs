@@ -1,27 +1,31 @@
 //! 代数父对象 Phase 1：`RingTable` ↔ `FieldTable` 系数域统一。
 
 use athena_engine::{
-    AlgebraParentId, CoefficientDomain, CoefficientParent, Integer, MonomialOrder, RingTable, SymbolId, add_polynomial,
+    AlgebraParentId, CoefficientDomain, CoefficientParent, FieldId, Integer, MonomialOrder, RingTable, SymbolId, add_polynomial,
     mul_polynomial,
 };
 use athena_numeric::Number;
 
 #[test]
-fn prime_field_and_finite_field_share_field_id() {
+fn intern_over_prime_field_paths_share_field_id() {
     let mut rings = RingTable::new();
-    let via_legacy =
-        rings.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let via_recommended = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    assert_eq!(via_legacy, via_recommended);
+    let field = rings.field_table_mut().prime_field(Integer::from_i64(5)).unwrap();
+    let via_finite = rings
+        .intern(
+            CoefficientDomain::FiniteField { field, characteristic: Integer::from_i64(5) },
+            vec![SymbolId(0)],
+            MonomialOrder::Lex,
+        )
+        .unwrap();
+    assert_eq!(via_recommended, via_finite);
 
-    let desc = rings.get(via_legacy).unwrap();
-    let CoefficientDomain::FiniteField { field, .. } = desc.coefficients
-    else {
-        panic!("expected normalized FiniteField");
+    let desc = rings.get(via_recommended).unwrap();
+    let CoefficientParent::Field(field) = desc.coefficients else {
+        panic!("expected Field parent");
     };
-    let parent = rings.coefficient_parent(via_legacy).unwrap();
-    assert_eq!(parent, CoefficientParent::Field(field));
-    assert!(matches!(parent.as_algebra_parent(), AlgebraParentId::Field(f) if f == field));
+    assert_eq!(rings.coefficient_parent(via_recommended), Some(CoefficientParent::Field(field)));
+    assert_eq!(rings.coefficient_parent(via_recommended).and_then(|p| p.as_algebra_parent()), Some(AlgebraParentId::Field(field)));
 }
 
 #[test]
@@ -29,7 +33,7 @@ fn unregistered_finite_field_rejected() {
     let mut rings = RingTable::new();
     let err = rings
         .intern(
-            CoefficientDomain::FiniteField { field: athena_engine::FieldId(99), characteristic: Integer::from_i64(7) },
+            CoefficientDomain::FiniteField { field: FieldId(99), characteristic: Integer::from_i64(7) },
             vec![SymbolId(0)],
             MonomialOrder::Lex,
         )
@@ -38,7 +42,7 @@ fn unregistered_finite_field_rejected() {
 }
 
 #[test]
-fn normalized_prime_field_mul_still_works() {
+fn normalized_finite_field_mul_still_works() {
     let mut rings = RingTable::new();
     let ring = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b1 = athena_engine::PolynomialBuilder::new(ring);

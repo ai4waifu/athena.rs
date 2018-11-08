@@ -1,8 +1,8 @@
 //! SEV-0 数学正确性：环特征 · 素域验证 · 指数溢出 · canonical 排序错误传播。
 
 use athena_engine::{
-    CoefficientDomain, Integer, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, SymbolId, add_polynomial,
-    mul_polynomial,
+    CoefficientDomain, CoefficientParent, Integer, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, SymbolId,
+    add_polynomial, mul_polynomial,
 };
 use athena_numeric::{Modulus, Number};
 
@@ -16,19 +16,15 @@ fn modular_integer_characteristic_is_modulus() {
 }
 
 #[test]
-fn prime_field_intern_normalizes_to_finite_field() {
+fn intern_over_prime_field_uses_field_parent() {
     let mut table = RingTable::new();
-    let ring =
-        table.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let ring = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
-    match &desc.coefficients {
-        CoefficientDomain::FiniteField { field, characteristic } => {
-            assert_eq!(characteristic, &Integer::from_i64(5));
-            assert!(table.field_table().presentation(*field).is_some());
-        }
-        other => panic!("expected FiniteField after normalize, got {other:?}"),
-    }
+    let CoefficientParent::Field(field) = desc.coefficients else {
+        panic!("expected Field parent");
+    };
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(5)));
+    assert!(table.field_table().presentation(field).is_some());
 }
 
 #[test]
@@ -42,9 +38,7 @@ fn prime_field_characteristic_is_p() {
 #[test]
 fn composite_prime_field_rejected() {
     let mut table = RingTable::new();
-    let err = table
-        .intern(CoefficientDomain::PrimeField { p: Integer::from_i64(6) }, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap_err();
+    let err = table.intern_over_prime_field(Integer::from_i64(6), vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_MODULUS_INVALID");
 }
 
@@ -64,7 +58,7 @@ fn finite_field_characteristic_from_descriptor() {
     let coeff_ring = desc.coefficient_ring;
     assert!(matches!(
         table.coeff_rings().coefficient_parent(coeff_ring),
-        Some(athena_engine::CoefficientParent::Field(f)) if f == field
+        CoefficientParent::Field(f) if f == field
     ));
 }
 

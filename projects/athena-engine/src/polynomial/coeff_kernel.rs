@@ -52,10 +52,7 @@ impl<'a> CoeffRing<'a> {
 
     /// 系数域是否为域。
     pub fn is_field(&self) -> bool {
-        matches!(
-            self.domain,
-            CoefficientDomain::Rational | CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. }
-        )
+        matches!(self.domain, CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. })
     }
 
     /// 域除法 `a / b`。
@@ -65,7 +62,7 @@ impl<'a> CoeffRing<'a> {
         }
         match self.domain {
             CoefficientDomain::Rational => athena_numeric::div(a, b),
-            CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. } => {
+            CoefficientDomain::FiniteField { .. } => {
                 let modulus = self.modulus()?;
                 let bi = extract_integer(&b)?;
                 let inv = crate::number_theory::mod_inverse(&bi, &modulus)?;
@@ -86,7 +83,6 @@ impl<'a> CoeffRing<'a> {
             return Ok(m.clone());
         }
         match self.domain {
-            CoefficientDomain::PrimeField { p } => Modulus::new(p.clone()),
             CoefficientDomain::FiniteField { characteristic, .. } => Modulus::new(characteristic.clone()),
             _ => Err(unsupported_domain()),
         }
@@ -94,7 +90,7 @@ impl<'a> CoeffRing<'a> {
 
     fn reduce(&self, coeff: Number) -> Result<Number> {
         match self.domain {
-            CoefficientDomain::PrimeField { .. } | CoefficientDomain::FiniteField { .. } => {
+            CoefficientDomain::FiniteField { .. } => {
                 let modulus = self.modulus()?;
                 let integer = extract_integer(&coeff)?;
                 Ok(Number::integer(modulus.reduce(&integer)))
@@ -112,7 +108,6 @@ impl CoefficientDomain {
             self,
             CoefficientDomain::Integer
                 | CoefficientDomain::Rational
-                | CoefficientDomain::PrimeField { .. }
                 | CoefficientDomain::FiniteField { .. }
         )
     }

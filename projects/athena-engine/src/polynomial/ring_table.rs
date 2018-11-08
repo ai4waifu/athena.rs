@@ -12,7 +12,7 @@ use super::{
     coeff_ring_table::CoeffRingTable,
     fingerprint::{RingFingerprint, RingHandle},
     order::MonomialOrder,
-    ring::{CoefficientDomain, RingDescriptor, validate_coefficient_domain_public, validate_prime_modulus},
+    ring::{CoefficientDomain, RingDescriptor, validate_coefficient_domain_public},
 };
 
 /// 环 intern 键（系数环 id + 变量 + 序）。
@@ -54,16 +54,25 @@ impl RingTable {
         &self.coeff_rings
     }
 
+    /// 系数域标签（经 [`RingDescriptor::coefficient_ring`] 解析）。
+    pub fn coefficient_domain(&self, ring: RingHandle) -> Option<&CoefficientDomain> {
+        let desc = self.get(ring)?;
+        self.coefficient_domain_for_descriptor(desc)
+    }
+
+    pub(crate) fn coefficient_domain_for_descriptor(&self, desc: &RingDescriptor) -> Option<&CoefficientDomain> {
+        self.coeff_rings.get(desc.coefficient_ring).map(|d| &d.domain)
+    }
+
     /// 解析环上的专用系数内核。
     pub fn coeff_kernel(&self, ring: RingHandle) -> Result<CoeffRing<'_>, Diagnostic> {
         let desc = self.get(ring).ok_or_else(|| ring_unknown(ring))?;
         CoeffRing::for_descriptor(desc.coefficient_ring, &self.coeff_rings)
     }
 
-    /// 系数父对象（Living `18` Phase 1）。
+    /// 系数父对象（Living `18` Phase 2：`RingDescriptor.coefficients`）。
     pub fn coefficient_parent(&self, ring: RingHandle) -> Option<CoefficientParent> {
-        let desc = self.get(ring)?;
-        self.coeff_rings.coefficient_parent(desc.coefficient_ring)
+        self.get(ring).map(|d| d.coefficients)
     }
 
     /// 查环的稳定数学指纹。
@@ -71,7 +80,7 @@ impl RingTable {
         self.get(ring).map(|d| d.ring_fingerprint)
     }
 
-    /// 经 [`FieldTable::prime_field`] 注册 𝔽_p 后构造多项式环（推荐路径）。
+    /// 经 [`FieldTable::prime_field`] 注册 𝔽_p 后构造多项式环（素域推荐路径）。
     pub fn intern_over_prime_field(
         &mut self,
         p: Integer,
@@ -82,7 +91,7 @@ impl RingTable {
         self.intern(CoefficientDomain::FiniteField { field, characteristic: p }, variables, order)
     }
 
-    /// 内容寻址 intern；`PrimeField { p }` 规范化为 `FiniteField { field, characteristic: p }`。
+    /// 内容寻址 intern。
     pub fn intern(
         &mut self,
         coefficients: CoefficientDomain,
@@ -90,14 +99,15 @@ impl RingTable {
         order: MonomialOrder,
     ) -> Result<RingHandle, Diagnostic> {
         let coefficients = normalize_coefficient_domain(coefficients, &mut self.fields)?;
-        let (coefficients, variables, order, characteristic) =
+        let (domain, variables, order, characteristic) =
             RingDescriptor::validate_content(coefficients, variables, order)?;
-        let coefficient_ring = self.coeff_rings.intern(coefficients.clone(), &self.fields)?;
+        let coefficient_ring = self.coeff_rings.intern(domain.clone(), &self.fields)?;
+        let coefficients = self.coeff_rings.coefficient_parent(coefficient_ring);
         let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
-        let ring_fingerprint = RingFingerprint::from_parts(&coefficients, &variables, &order);
+        let ring_fingerprint = RingFingerprint::from_parts(&domain, &variables, &order);
         let id = RingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         let desc = RingDescriptor::with_id(
@@ -135,11 +145,6 @@ fn normalize_coefficient_domain(
     fields: &mut FieldTable,
 ) -> Result<CoefficientDomain, Diagnostic> {
     match coefficients {
-        CoefficientDomain::PrimeField { p } => {
-            validate_prime_modulus(&p)?;
-            let field = fields.prime_field(p.clone())?;
-            Ok(CoefficientDomain::FiniteField { field, characteristic: p })
-        }
         CoefficientDomain::FiniteField { field, characteristic } => {
             fields.validate_finite_field(field, &characteristic)?;
             Ok(CoefficientDomain::FiniteField { field, characteristic })

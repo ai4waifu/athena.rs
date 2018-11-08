@@ -21,8 +21,7 @@ fn q_x_ring() -> (RingTable, athena_engine::RingId) {
 
 fn f5_x_ring() -> (RingTable, athena_engine::RingId) {
     let mut rings = RingTable::new();
-    let id =
-        rings.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let id = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     (rings, id)
 }
 

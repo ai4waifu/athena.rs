@@ -44,7 +44,7 @@ fn field_table_prime_field_interns() {
 #[test]
 fn coefficient_parent_roundtrip() {
     let parent = CoefficientParent::Field(FieldId(2));
-    assert!(matches!(parent.as_algebra_parent(), AlgebraParentId::Field(FieldId(2))));
+    assert_eq!(parent.as_algebra_parent(), Some(AlgebraParentId::Field(FieldId(2))));
 }
 
 #[test]

@@ -34,7 +34,7 @@ pub(crate) fn canonicalize_terms(
                 .detail("domain", "polynomial")
                 .detail("operation", "canonicalize_exponent_length"));
         }
-        validate_coefficient(&term.coefficient, &desc.coefficients)?;
+        validate_coefficient(&term.coefficient, rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?)?;
         if term.coefficient.is_zero() {
             continue;
         }
@@ -94,9 +94,7 @@ fn validate_coefficient(coeff: &Number, domain: &CoefficientDomain) -> Result<()
             Number::Integer(_) | Number::Rational(_) => Ok(()),
             _ => Err(coeff_mismatch("rational")),
         },
-        CoefficientDomain::PrimeField { .. }
-        | CoefficientDomain::ModularInteger { .. }
-        | CoefficientDomain::FiniteField { .. } => match coeff {
+        CoefficientDomain::ModularInteger { .. } | CoefficientDomain::FiniteField { .. } => match coeff {
             Number::Integer(_) => Ok(()),
             _ => Err(coeff_mismatch("finite_field_skeleton")),
         },

@@ -1,26 +1,19 @@
 //! 多项式环描述符与系数域合同。
 
 use athena_numeric::{Integer, Modulus};
-use athena_types::{Diagnostic, DiagnosticCode, FieldId, RingId, SymbolId};
+use athena_types::{Diagnostic, DiagnosticCode, FieldId, SymbolId};
 
-use crate::number_theory::{Primality, primality_test};
+use crate::algebra::CoefficientParent;
 
 use super::{fingerprint::RingFingerprint, order::MonomialOrder};
 
-/// 精确 / 近似系数域（环身份的一部分）。
+/// 精确 / 近似系数域（系数环 intern 键；多项式环身份见 [`CoefficientParent`]）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CoefficientDomain {
     /// ℤ（特征 0）。
     Integer,
     /// ℚ（特征 0）。
     Rational,
-    /// 素域 𝔽_p（`p` 须为已验证素数）。
-    ///
-    /// **Deprecation（Living `18`）**：intern 时规范化为 [`CoefficientDomain::FiniteField`]。
-    PrimeField {
-        /// 特征素数。
-        p: Integer,
-    },
     /// ℤ/nℤ（精确但一般非域）。
     ModularInteger {
         /// 模数 `n > 1`。
@@ -50,11 +43,11 @@ pub enum RingCharacteristic {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RingDescriptor {
     /// 稳定环 id。
-    pub id: RingId,
+    pub id: athena_types::RingId,
     /// 系数环 intern 句柄。
     pub coefficient_ring: athena_types::CoefficientRingId,
-    /// 系数域。
-    pub coefficients: CoefficientDomain,
+    /// 系数父对象（Living `18` Phase 2 真相源）。
+    pub coefficients: CoefficientParent,
     /// 有序、无重复的变量身份。
     pub variables: Vec<SymbolId>,
     /// 单项式序（环身份，非算法选项）。
@@ -90,9 +83,9 @@ impl RingDescriptor {
 
     /// 构造带 id 的描述符（intern 后使用）。
     pub(crate) fn with_id(
-        id: RingId,
+        id: athena_types::RingId,
         coefficient_ring: athena_types::CoefficientRingId,
-        coefficients: CoefficientDomain,
+        coefficients: CoefficientParent,
         variables: Vec<SymbolId>,
         order: MonomialOrder,
         characteristic: RingCharacteristic,
@@ -134,10 +127,6 @@ fn validate_coefficient_domain(coefficients: CoefficientDomain) -> Result<Coeffi
 /// 校验并规范化系数域（系数环 intern 与多项式环构造共用）。
 pub(crate) fn validate_coefficient_domain_public(coefficients: CoefficientDomain) -> Result<CoefficientDomain, Diagnostic> {
     match coefficients {
-        CoefficientDomain::PrimeField { p } => {
-            validate_prime_modulus(&p)?;
-            Ok(CoefficientDomain::PrimeField { p })
-        }
         CoefficientDomain::FiniteField { field, characteristic } => {
             if characteristic.is_zero() || characteristic.is_negative() {
                 return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
@@ -151,29 +140,10 @@ pub(crate) fn validate_coefficient_domain_public(coefficients: CoefficientDomain
     }
 }
 
-/// 校验素数模（多项式环构造共用）。
-pub(crate) fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
-    if p.is_zero() || p.is_negative() {
-        return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
-            .detail("domain", "polynomial")
-            .detail("operation", "prime_field_characteristic"));
-    }
-    match primality_test(p, None) {
-        Primality::Prime => Ok(()),
-        Primality::Composite => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
-            .detail("domain", "polynomial")
-            .detail("operation", "prime_field_not_prime")),
-        Primality::ProbablePrime { .. } | Primality::Unknown => Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
-            .detail("domain", "polynomial")
-            .detail("operation", "prime_field_characteristic")),
-    }
-}
-
 pub(crate) fn characteristic_of(coeff: &CoefficientDomain) -> Result<RingCharacteristic, Diagnostic> {
     match coeff {
         CoefficientDomain::Integer | CoefficientDomain::Rational => Ok(RingCharacteristic::Zero),
         CoefficientDomain::ModularInteger { modulus } => Ok(RingCharacteristic::Positive(modulus.value().clone())),
-        CoefficientDomain::PrimeField { p } => Ok(RingCharacteristic::Positive(p.clone())),
         CoefficientDomain::FiniteField { characteristic, .. } => Ok(RingCharacteristic::Positive(characteristic.clone())),
         CoefficientDomain::ApproximateReal => unreachable!("validated earlier"),
     }

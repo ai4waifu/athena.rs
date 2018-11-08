@@ -1,6 +1,6 @@
 //! F0 多项式环身份：RingId · RingDescriptor · MonomialOrder。
 
-use athena_engine::{CoefficientDomain, MonomialOrder, RingTable, SymbolId};
+use athena_engine::{CoefficientDomain, CoefficientParent, MonomialOrder, RingTable, SymbolId};
 
 fn sample_ring(table: &mut RingTable, order: MonomialOrder) -> athena_engine::RingId {
     table.intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], order).expect("valid ring")
@@ -65,5 +65,9 @@ fn ring_table_intern_idempotent() {
     assert_eq!(table.len(), 1);
     let desc = table.get(r1).expect("descriptor");
     assert_eq!(desc.variables.len(), 2);
-    assert!(matches!(desc.coefficients, CoefficientDomain::Integer));
+    let CoefficientParent::Ring(coeff_ring) = desc.coefficients else {
+        panic!("expected coefficient ring parent");
+    };
+    assert_eq!(coeff_ring, desc.coefficient_ring);
+    assert!(matches!(table.coeff_rings().get(coeff_ring).unwrap().domain, CoefficientDomain::Integer));
 }

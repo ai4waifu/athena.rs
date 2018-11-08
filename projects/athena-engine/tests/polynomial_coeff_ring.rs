@@ -21,8 +21,7 @@ fn distinct_coefficient_domains_get_distinct_ids() {
     let mut table = RingTable::new();
     let z = table.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let q = table.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    let fp =
-        table.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(7) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let fp = table.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let z_id = table.get(z).unwrap().coefficient_ring;
     let q_id = table.get(q).unwrap().coefficient_ring;
     let fp_id = table.get(fp).unwrap().coefficient_ring;
@@ -35,9 +34,7 @@ fn distinct_coefficient_domains_get_distinct_ids() {
 #[test]
 fn coeff_ring_descriptor_matches_domain() {
     let mut table = RingTable::new();
-    let ring = table
-        .intern(CoefficientDomain::PrimeField { p: Integer::from_i64(11) }, vec![SymbolId(0)], MonomialOrder::Lex)
-        .unwrap();
+    let ring = table.intern_over_prime_field(Integer::from_i64(11), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let coeff_id = table.get(ring).unwrap().coefficient_ring;
     let desc = table.coeff_rings().get(coeff_id).unwrap();
     assert!(matches!(desc.domain, CoefficientDomain::FiniteField { .. }));
@@ -46,8 +43,7 @@ fn coeff_ring_descriptor_matches_domain() {
 #[test]
 fn specialized_fp_kernel_mul_via_ring_table() {
     let mut rings = RingTable::new();
-    let ring =
-        rings.intern(CoefficientDomain::PrimeField { p: Integer::from_i64(5) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let ring = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b1 = PolynomialBuilder::new(ring);
     b1.push_term(Number::small_int(3), vec![0]).unwrap();
     let p1 = b1.build(&rings).unwrap();

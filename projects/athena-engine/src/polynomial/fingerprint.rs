@@ -35,8 +35,8 @@ pub struct PolynomialFingerprint(pub u64);
 
 impl RingFingerprint {
     /// 由环描述符计算（intern 时调用一次）。
-    pub fn from_descriptor(desc: &RingDescriptor) -> Self {
-        Self::from_parts(&desc.coefficients, &desc.variables, &desc.order)
+    pub fn from_descriptor(desc: &RingDescriptor, domain: &CoefficientDomain) -> Self {
+        Self::from_parts(domain, &desc.variables, &desc.order)
     }
 
     /// 由环内容分量计算（intern 前无 [`RingHandle`] 时使用）。
@@ -115,14 +115,8 @@ fn encode_coefficient_domain(domain: &CoefficientDomain, out: &mut Vec<u8>) {
             out.push(2);
             append_integer_wire_infallible(out, modulus.value());
         }
-        CoefficientDomain::PrimeField { p } => {
-            out.push(3);
-            out.push(0);
-            append_integer_wire_infallible(out, p);
-        }
         CoefficientDomain::FiniteField { field, characteristic } => {
             out.push(3);
-            out.push(1);
             append_integer_wire_infallible(out, characteristic);
             out.extend_from_slice(&field.0.to_le_bytes());
         }
@@ -215,7 +209,6 @@ mod tests {
         let mut b = RingTable::new();
         let ring_a = a.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
         let ring_b = b.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
-        assert_ne!(ring_a, ring_b);
         assert_eq!(a.get(ring_a).unwrap().ring_fingerprint, b.get(ring_b).unwrap().ring_fingerprint);
     }
 

@@ -18,8 +18,8 @@ pub struct CoefficientRingDescriptor {
     pub domain: CoefficientDomain,
     /// 环特征。
     pub characteristic: RingCharacteristic,
-    /// 系数父对象（Phase 1：有限域经 `FieldId`）。
-    pub parent: Option<CoefficientParent>,
+    /// 系数父对象。
+    pub parent: CoefficientParent,
 }
 
 #[derive(Debug)]
@@ -67,9 +67,9 @@ impl CoeffRingTable {
         }
         let characteristic = characteristic_of(&domain)?;
         let prime_modulus = prime_modulus_for(&domain, fields)?;
-        let parent = coefficient_parent_of(&domain);
         let id = CoefficientRingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
+        let parent = coefficient_parent_for(id, &domain);
         let descriptor = CoefficientRingDescriptor { id, domain: domain.clone(), characteristic, parent };
         self.by_key.insert(domain, id);
         self.by_id.insert(id, CoeffRingEntry { descriptor, prime_modulus });
@@ -87,8 +87,8 @@ impl CoeffRingTable {
     }
 
     /// 系数父对象视图。
-    pub fn coefficient_parent(&self, id: CoefficientRingId) -> Option<CoefficientParent> {
-        self.get(id)?.parent
+    pub fn coefficient_parent(&self, id: CoefficientRingId) -> CoefficientParent {
+        self.get(id).expect("valid coefficient ring").parent
     }
 
     /// 已注册系数环数量。
@@ -102,16 +102,15 @@ impl CoeffRingTable {
     }
 }
 
-fn coefficient_parent_of(domain: &CoefficientDomain) -> Option<CoefficientParent> {
+fn coefficient_parent_for(id: CoefficientRingId, domain: &CoefficientDomain) -> CoefficientParent {
     match domain {
-        CoefficientDomain::FiniteField { field, .. } => Some(CoefficientParent::Field(*field)),
-        _ => None,
+        CoefficientDomain::FiniteField { field, .. } => CoefficientParent::Field(*field),
+        _ => CoefficientParent::Ring(id),
     }
 }
 
 fn prime_modulus_for(domain: &CoefficientDomain, fields: &FieldTable) -> Result<Option<Modulus>, Diagnostic> {
     match domain {
-        CoefficientDomain::PrimeField { p } => Ok(Some(Modulus::new(p.clone())?)),
         CoefficientDomain::FiniteField { field, .. } => {
             let p = fields.characteristic(*field).ok_or_else(|| {
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
