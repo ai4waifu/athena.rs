@@ -46,13 +46,7 @@ fn composite_prime_field_rejected() {
 fn finite_field_characteristic_from_descriptor() {
     let mut table = RingTable::new();
     let field = table.field_table_mut().prime_field(Integer::from_i64(7)).unwrap();
-    let ring = table
-        .intern(
-            CoefficientDomain::FiniteField { field, characteristic: Integer::from_i64(7) },
-            vec![SymbolId(0)],
-            MonomialOrder::Lex,
-        )
-        .unwrap();
+    let ring = table.intern_over_field(field, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(7)));
     let coeff_ring = desc.coefficient_ring;

@@ -59,18 +59,25 @@ impl FieldTable {
         }
     }
 
-    /// 校验 FieldId 已注册且特征与声明一致。
-    pub fn validate_finite_field(&self, field: FieldId, characteristic: &Integer) -> Result<(), Diagnostic> {
+    /// 校验 FieldId 已注册且 presentation 支持系数约化。
+    pub fn validate_finite_field(&self, field: FieldId) -> Result<(), Diagnostic> {
         let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
         match &pres.kind {
-            FieldPresentationKind::PrimeField { characteristic: p } if p == characteristic => Ok(()),
-            FieldPresentationKind::PrimeField { .. } => Err(Diagnostic::new(DiagnosticCode::FieldMismatch)
-                .detail("domain", "field")
-                .detail("operation", "finite_field_characteristic_mismatch")),
+            FieldPresentationKind::PrimeField { .. } => Ok(()),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "field")
                 .detail("operation", "coeff_presentation_unsupported")),
         }
+    }
+
+    /// 素域 𝔽_p 的约化模数（经 presentation 查找，Phase 3 系数内核真相源）。
+    pub fn prime_modulus(&self, field: FieldId) -> Result<athena_numeric::Modulus, Diagnostic> {
+        let p = self.characteristic(field).ok_or_else(|| unknown_field(field))?;
+        athena_numeric::Modulus::new(p).map_err(|_| {
+            Diagnostic::new(DiagnosticCode::ModulusInvalid)
+                .detail("domain", "field")
+                .detail("operation", "prime_modulus_from_presentation")
+        })
     }
 
     fn intern(&mut self, key: FieldInternKey, kind: FieldPresentationKind) -> FieldId {

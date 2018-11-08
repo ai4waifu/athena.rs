@@ -3,6 +3,8 @@
 use athena_numeric::{Integer, Number, serialization::NumericValueWire};
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, Result, SymbolId};
 
+use crate::algebra::FieldTable;
+
 use super::{
     expr::Polynomial,
     order::MonomialOrder,
@@ -35,15 +37,20 @@ pub struct PolynomialFingerprint(pub u64);
 
 impl RingFingerprint {
     /// 由环描述符计算（intern 时调用一次）。
-    pub fn from_descriptor(desc: &RingDescriptor, domain: &CoefficientDomain) -> Self {
-        Self::from_parts(domain, &desc.variables, &desc.order)
+    pub fn from_descriptor(desc: &RingDescriptor, domain: &CoefficientDomain, fields: &FieldTable) -> Self {
+        Self::from_parts(domain, &desc.variables, &desc.order, fields)
     }
 
     /// 由环内容分量计算（intern 前无 [`RingHandle`] 时使用）。
-    pub fn from_parts(coefficients: &CoefficientDomain, variables: &[SymbolId], order: &MonomialOrder) -> Self {
+    pub fn from_parts(
+        coefficients: &CoefficientDomain,
+        variables: &[SymbolId],
+        order: &MonomialOrder,
+        fields: &FieldTable,
+    ) -> Self {
         let mut out = Vec::new();
         out.extend_from_slice(RING_WIRE_MAGIC);
-        encode_coefficient_domain(coefficients, &mut out);
+        encode_coefficient_domain(coefficients, fields, &mut out);
         out.extend_from_slice(&(variables.len() as u32).to_le_bytes());
         for v in variables {
             out.extend_from_slice(&v.0.to_le_bytes());
@@ -103,7 +110,7 @@ fn encode_polynomial_body(poly: &Polynomial, variable_count: usize, out: &mut Ve
     Ok(())
 }
 
-fn encode_coefficient_domain(domain: &CoefficientDomain, out: &mut Vec<u8>) {
+fn encode_coefficient_domain(domain: &CoefficientDomain, fields: &FieldTable, out: &mut Vec<u8>) {
     match domain {
         CoefficientDomain::Integer => {
             out.push(0);
@@ -115,9 +122,10 @@ fn encode_coefficient_domain(domain: &CoefficientDomain, out: &mut Vec<u8>) {
             out.push(2);
             append_integer_wire_infallible(out, modulus.value());
         }
-        CoefficientDomain::FiniteField { field, characteristic } => {
+        CoefficientDomain::FiniteField { field } => {
             out.push(3);
-            append_integer_wire_infallible(out, characteristic);
+            let characteristic = fields.characteristic(*field).expect("validated field");
+            append_integer_wire_infallible(out, &characteristic);
             out.extend_from_slice(&field.0.to_le_bytes());
         }
         CoefficientDomain::ApproximateReal => {

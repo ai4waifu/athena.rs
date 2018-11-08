@@ -11,13 +11,7 @@ fn intern_over_prime_field_paths_share_field_id() {
     let mut rings = RingTable::new();
     let via_recommended = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let field = rings.field_table_mut().prime_field(Integer::from_i64(5)).unwrap();
-    let via_finite = rings
-        .intern(
-            CoefficientDomain::FiniteField { field, characteristic: Integer::from_i64(5) },
-            vec![SymbolId(0)],
-            MonomialOrder::Lex,
-        )
-        .unwrap();
+    let via_finite = rings.intern_over_field(field, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     assert_eq!(via_recommended, via_finite);
 
     let desc = rings.get(via_recommended).unwrap();
@@ -33,7 +27,7 @@ fn unregistered_finite_field_rejected() {
     let mut rings = RingTable::new();
     let err = rings
         .intern(
-            CoefficientDomain::FiniteField { field: FieldId(99), characteristic: Integer::from_i64(7) },
+            CoefficientDomain::FiniteField { field: FieldId(99) },
             vec![SymbolId(0)],
             MonomialOrder::Lex,
         )

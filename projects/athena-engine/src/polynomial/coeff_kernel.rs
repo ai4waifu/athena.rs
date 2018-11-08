@@ -79,13 +79,7 @@ impl<'a> CoeffRing<'a> {
     }
 
     fn modulus(&self) -> Result<Modulus> {
-        if let Some(m) = self.prime_modulus {
-            return Ok(m.clone());
-        }
-        match self.domain {
-            CoefficientDomain::FiniteField { characteristic, .. } => Modulus::new(characteristic.clone()),
-            _ => Err(unsupported_domain()),
-        }
+        self.prime_modulus.cloned().ok_or_else(unsupported_domain)
     }
 
     fn reduce(&self, coeff: Number) -> Result<Number> {

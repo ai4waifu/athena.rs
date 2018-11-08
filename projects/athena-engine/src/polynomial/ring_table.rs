@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{CoefficientRingId, Diagnostic, RingId, SymbolId};
+use athena_types::{CoefficientRingId, Diagnostic, FieldId, RingId, SymbolId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
@@ -80,6 +80,16 @@ impl RingTable {
         self.get(ring).map(|d| d.ring_fingerprint)
     }
 
+    /// 经已注册 [`FieldId`] 构造多项式环（特征与模数由 presentation 提供）。
+    pub fn intern_over_field(
+        &mut self,
+        field: FieldId,
+        variables: Vec<SymbolId>,
+        order: MonomialOrder,
+    ) -> Result<RingHandle, Diagnostic> {
+        self.intern(CoefficientDomain::FiniteField { field }, variables, order)
+    }
+
     /// 经 [`FieldTable::prime_field`] 注册 𝔽_p 后构造多项式环（素域推荐路径）。
     pub fn intern_over_prime_field(
         &mut self,
@@ -87,8 +97,8 @@ impl RingTable {
         variables: Vec<SymbolId>,
         order: MonomialOrder,
     ) -> Result<RingHandle, Diagnostic> {
-        let field = self.fields.prime_field(p.clone())?;
-        self.intern(CoefficientDomain::FiniteField { field, characteristic: p }, variables, order)
+        let field = self.fields.prime_field(p)?;
+        self.intern_over_field(field, variables, order)
     }
 
     /// 内容寻址 intern。
@@ -100,14 +110,14 @@ impl RingTable {
     ) -> Result<RingHandle, Diagnostic> {
         let coefficients = normalize_coefficient_domain(coefficients, &mut self.fields)?;
         let (domain, variables, order, characteristic) =
-            RingDescriptor::validate_content(coefficients, variables, order)?;
+            RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
         let coefficient_ring = self.coeff_rings.intern(domain.clone(), &self.fields)?;
         let coefficients = self.coeff_rings.coefficient_parent(coefficient_ring);
         let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
-        let ring_fingerprint = RingFingerprint::from_parts(&domain, &variables, &order);
+        let ring_fingerprint = RingFingerprint::from_parts(&domain, &variables, &order, &self.fields);
         let id = RingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         let desc = RingDescriptor::with_id(
@@ -145,11 +155,11 @@ fn normalize_coefficient_domain(
     fields: &mut FieldTable,
 ) -> Result<CoefficientDomain, Diagnostic> {
     match coefficients {
-        CoefficientDomain::FiniteField { field, characteristic } => {
-            fields.validate_finite_field(field, &characteristic)?;
-            Ok(CoefficientDomain::FiniteField { field, characteristic })
+        CoefficientDomain::FiniteField { field } => {
+            fields.validate_finite_field(field)?;
+            Ok(CoefficientDomain::FiniteField { field })
         }
-        other => validate_coefficient_domain_public(other),
+        other => validate_coefficient_domain_public(other, fields),
     }
 }
 

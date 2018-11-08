@@ -3,18 +3,25 @@
 use std::collections::HashMap;
 
 use athena_numeric::Modulus;
-use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode};
+use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, FieldId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
 use super::ring::{CoefficientDomain, RingCharacteristic, characteristic_of, validate_coefficient_domain_public};
+
+/// 系数环 intern 键（Phase 3：有限域仅 `FieldId`）。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum CoeffRingInternKey {
+    Domain(CoefficientDomain),
+    Field(FieldId),
+}
 
 /// 系数环完整描述符（`CoefficientRingId` 的内容）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoefficientRingDescriptor {
     /// Session 内句柄。
     pub id: CoefficientRingId,
-    /// 系数域标签。
+    /// 系数域标签（ℤ/ℚ/ℤ/nℤ；有限域仅 `FieldId`）。
     pub domain: CoefficientDomain,
     /// 环特征。
     pub characteristic: RingCharacteristic,
@@ -43,7 +50,7 @@ impl CoeffRingEntry {
 pub struct CoeffRingTable {
     next_id: u32,
     by_id: HashMap<CoefficientRingId, CoeffRingEntry>,
-    by_key: HashMap<CoefficientDomain, CoefficientRingId>,
+    by_key: HashMap<CoeffRingInternKey, CoefficientRingId>,
 }
 
 impl CoeffRingTable {
@@ -54,24 +61,18 @@ impl CoeffRingTable {
 
     /// 内容寻址 intern。
     pub fn intern(&mut self, domain: CoefficientDomain, fields: &FieldTable) -> Result<CoefficientRingId, Diagnostic> {
-        if let Some(&id) = self.by_key.get(&domain) {
+        let key = intern_key(&domain);
+        if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
-        let domain = validate_coefficient_domain_public(domain)?;
-        if matches!(domain, CoefficientDomain::FiniteField { .. }) {
-            let CoefficientDomain::FiniteField { field, characteristic } = &domain
-            else {
-                unreachable!()
-            };
-            fields.validate_finite_field(*field, characteristic)?;
-        }
-        let characteristic = characteristic_of(&domain)?;
+        let domain = validate_coefficient_domain_public(domain, fields)?;
+        let characteristic = characteristic_of(&domain, fields)?;
         let prime_modulus = prime_modulus_for(&domain, fields)?;
         let id = CoefficientRingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         let parent = coefficient_parent_for(id, &domain);
         let descriptor = CoefficientRingDescriptor { id, domain: domain.clone(), characteristic, parent };
-        self.by_key.insert(domain, id);
+        self.by_key.insert(intern_key(&domain), id);
         self.by_id.insert(id, CoeffRingEntry { descriptor, prime_modulus });
         Ok(id)
     }
@@ -102,23 +103,23 @@ impl CoeffRingTable {
     }
 }
 
+fn intern_key(domain: &CoefficientDomain) -> CoeffRingInternKey {
+    match domain {
+        CoefficientDomain::FiniteField { field } => CoeffRingInternKey::Field(*field),
+        other => CoeffRingInternKey::Domain(other.clone()),
+    }
+}
+
 fn coefficient_parent_for(id: CoefficientRingId, domain: &CoefficientDomain) -> CoefficientParent {
     match domain {
-        CoefficientDomain::FiniteField { field, .. } => CoefficientParent::Field(*field),
+        CoefficientDomain::FiniteField { field } => CoefficientParent::Field(*field),
         _ => CoefficientParent::Ring(id),
     }
 }
 
 fn prime_modulus_for(domain: &CoefficientDomain, fields: &FieldTable) -> Result<Option<Modulus>, Diagnostic> {
     match domain {
-        CoefficientDomain::FiniteField { field, .. } => {
-            let p = fields.characteristic(*field).ok_or_else(|| {
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("domain", "polynomial")
-                    .detail("operation", "coeff_field_characteristic")
-            })?;
-            Ok(Some(Modulus::new(p)?))
-        }
+        CoefficientDomain::FiniteField { field } => Ok(Some(fields.prime_modulus(*field)?)),
         _ => Ok(None),
     }
 }
