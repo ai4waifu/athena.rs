@@ -6,6 +6,7 @@
 mod element;
 mod group_facts;
 mod map;
+mod map_table;
 mod parent;
 mod presentation;
 mod property;
@@ -14,6 +15,7 @@ mod table;
 pub use element::{AlgebraElement, ElementProvenance};
 pub use group_facts::GroupPropertyFacts;
 pub use map::{AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind};
+pub use map_table::MapTable;
 pub use parent::{AlgebraParentId, CoefficientParent};
 pub use presentation::{
     FieldPresentation, FieldPresentationId, FieldPresentationKind, GroupPresentation, GroupPresentationId,

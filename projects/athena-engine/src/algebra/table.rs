@@ -3,10 +3,12 @@
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{Diagnostic, DiagnosticCode, FieldId, PresentationId};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldId, PresentationId, Result};
 
+use crate::field::{Field, FieldDescriptor};
 use crate::number_theory::{Primality, primality_test};
 
+use super::map_table::MapTable;
 use super::presentation::{FieldPresentation, FieldPresentationKind};
 
 /// 域 intern 键（descriptor 级，不含可变算法状态）。
@@ -24,6 +26,7 @@ pub struct FieldTable {
     presentations: HashMap<PresentationId, FieldPresentation>,
     field_to_presentation: HashMap<FieldId, PresentationId>,
     by_key: HashMap<FieldInternKey, FieldId>,
+    map_table: MapTable,
 }
 
 impl FieldTable {
@@ -38,7 +41,7 @@ impl FieldTable {
     }
 
     /// 注册素域 F_p（p 须为已验证素数）。
-    pub fn prime_field(&mut self, characteristic: Integer) -> Result<FieldId, Diagnostic> {
+    pub fn prime_field(&mut self, characteristic: Integer) -> Result<FieldId> {
         validate_prime_modulus(&characteristic)?;
         Ok(self.intern(
             FieldInternKey::Prime { characteristic: characteristic.clone() },
@@ -60,7 +63,7 @@ impl FieldTable {
     }
 
     /// 校验 FieldId 已注册且 presentation 支持系数约化。
-    pub fn validate_finite_field(&self, field: FieldId) -> Result<(), Diagnostic> {
+    pub fn validate_finite_field(&self, field: FieldId) -> Result<()> {
         let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
         match &pres.kind {
             FieldPresentationKind::PrimeField { .. } => Ok(()),
@@ -71,13 +74,65 @@ impl FieldTable {
     }
 
     /// 素域 𝔽_p 的约化模数（经 presentation 查找，Phase 3 系数内核真相源）。
-    pub fn prime_modulus(&self, field: FieldId) -> Result<athena_numeric::Modulus, Diagnostic> {
+    pub fn prime_modulus(&self, field: FieldId) -> Result<athena_numeric::Modulus> {
         let p = self.characteristic(field).ok_or_else(|| unknown_field(field))?;
         athena_numeric::Modulus::new(p).map_err(|_| {
             Diagnostic::new(DiagnosticCode::ModulusInvalid)
                 .detail("domain", "field")
                 .detail("operation", "prime_modulus_from_presentation")
         })
+    }
+
+    /// 已注册 ℚ 的 [`FieldId`]（若尚未 intern 则 `None`）。
+    pub fn rationals_field(&self) -> Option<FieldId> {
+        self.by_key.get(&FieldInternKey::Rationals).copied()
+    }
+
+    /// 域的默认 presentation id。
+    pub fn presentation_id(&self, field: FieldId) -> Result<PresentationId> {
+        self.field_to_presentation.get(&field).copied().ok_or_else(|| unknown_field(field))
+    }
+
+    /// 域数学描述（不含可变算法状态）。
+    pub fn descriptor(&self, field: FieldId) -> Result<FieldDescriptor> {
+        let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
+        match &pres.kind {
+            FieldPresentationKind::Rationals => Ok(FieldDescriptor::Rationals),
+            FieldPresentationKind::PrimeField { characteristic } => {
+                Ok(FieldDescriptor::Prime { characteristic: characteristic.clone() })
+            }
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "field")
+                .detail("operation", "field_descriptor_unsupported")),
+        }
+    }
+
+    /// 组装域对象（id + descriptor + presentation）。
+    pub fn field_record(&self, field: FieldId) -> Result<Field> {
+        Ok(Field {
+            id: field,
+            descriptor: self.descriptor(field)?,
+            presentation: self.presentation_id(field)?,
+        })
+    }
+
+    /// 映射表（只读）。
+    pub fn map_table(&self) -> &MapTable {
+        &self.map_table
+    }
+
+    /// 映射表（可变）。
+    pub fn map_table_mut(&mut self) -> &mut MapTable {
+        &mut self.map_table
+    }
+
+    /// 注册 ℚ → 𝔽_p canonical embedding（显式、幂等）。
+    pub fn canonical_embedding_rationals_to_prime(&mut self, target: FieldId) -> Result<AlgebraMapId> {
+        self.validate_finite_field(target)?;
+        let source = self.rationals_field().unwrap_or_else(|| self.rationals());
+        let source_pres = self.presentation_id(source)?;
+        let target_pres = self.presentation_id(target)?;
+        Ok(self.map_table.register_canonical_q_to_fp(source, target, source_pres, target_pres))
     }
 
     fn intern(&mut self, key: FieldInternKey, kind: FieldPresentationKind) -> FieldId {
@@ -96,7 +151,7 @@ impl FieldTable {
     }
 }
 
-fn validate_prime_modulus(p: &Integer) -> Result<(), Diagnostic> {
+fn validate_prime_modulus(p: &Integer) -> Result<()> {
     if p.is_zero() || p.is_negative() {
         return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
             .detail("domain", "field")

@@ -2,18 +2,18 @@
 
 use athena_engine::{
     AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr, FieldId, FieldTable,
-    GaloisRequest, GroupDescriptor, GroupElementRepr, PresentationId, PropertyState, PropertyWitness,
+    GaloisRequest, GroupDescriptor, GroupElementRepr, Integer, PresentationId, PropertyState, PropertyWitness,
 };
-use athena_numeric::{FiniteFieldValue, Integer};
+use athena_numeric::{ExactRational, FiniteFieldValue};
 
 #[test]
 fn field_element_has_repr_not_label() {
     let e = FieldElement {
         field: FieldId(1),
         presentation: PresentationId(0),
-        repr: FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(3) },
+        repr: FieldElementRepr::Rational { value: ExactRational::new(Integer::from_i64(3), Integer::one()) },
     };
-    assert_eq!(e.repr, FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(3) });
+    assert!(matches!(e.repr, FieldElementRepr::Rational { .. }));
 }
 
 #[test]

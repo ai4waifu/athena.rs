@@ -1,6 +1,6 @@
 //! 域与域元素对象（Living `18` Phase 0）。
 
-use athena_numeric::Integer;
+use athena_numeric::{Integer, Rational};
 use athena_types::{ExtensionId, FieldId, PresentationId};
 
 use crate::algebra::PropertyState;
@@ -19,8 +19,11 @@ pub struct Field {
 /// 域元素表示（按 presentation kind 解释）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldElementRepr {
-    /// ℚ：canonical rational payload（Phase 1 接 Number）。
-    RationalPlaceholder,
+    /// ℚ：约分后、分母为正的有理数 payload。
+    Rational {
+        /// canonical [`Rational`]。
+        value: Rational,
+    },
     /// 𝔽_p：约化后的 residue。
     PrimeFieldResidue {
         /// 值 ∈ [0, p)。

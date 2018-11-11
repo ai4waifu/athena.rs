@@ -37,12 +37,12 @@ pub use athena_numeric as numeric;
 pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, CoefficientParent, ElementProvenance, FieldEmbedding,
     FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, GroupHomomorphism, GroupPresentation,
-    GroupPresentationId, GroupPresentationKind, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
+    GroupPresentationId, GroupPresentationKind, MapTable, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
     PropertyWitness,
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
-    ExactInteger, Integer, ModularValue, Modulus, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
+    ExactInteger, ExactRational, Integer, ModularValue, Modulus, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
     NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PureRustBackend, number_from_wire,
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
@@ -64,7 +64,9 @@ pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::evaluate;
 pub use field::{
-    Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult, execute_field,
+    Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
+    add_field_elements, apply_field_embedding, canonical_prime_residue, canonical_rational, execute_field,
+    execute_field_with_table, execute_field_with_table_mut, inv_field_element, mul_field_elements,
 };
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
 pub use galois::{
