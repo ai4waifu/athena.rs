@@ -1,4 +1,4 @@
-//! Gröbner / 消元计算证书（可验证 metadata）。
+//! Gröbner / 消元计算证书与验证状态。
 
 use athena_types::RingId;
 
@@ -9,7 +9,18 @@ pub enum GroebnerAlgorithm {
     Buchberger,
 }
 
-/// Gröbner / 消元结果证书。
+/// 计算终态（与 [`super::groebner::GroebnerComputation`] 对齐）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GroebnerStatus {
+    /// 资源内完成且通过独立 verifier。
+    Verified,
+    /// S-pair 预算耗尽；候选不可作数学证书。
+    Partial,
+    /// 基大小等硬资源上限；候选不可作数学证书。
+    ResourceLimited,
+}
+
+/// Gröbner / 消元结果证书（运行统计 + 验证标记）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroebnerCertificate {
     /// 算法。
@@ -18,12 +29,21 @@ pub struct GroebnerCertificate {
     pub ring: RingId,
     /// 输入生成元数量。
     pub input_generators: usize,
-    /// 输出基元素数量。
+    /// 输出基 / 候选元素数量。
     pub basis_elements: usize,
     /// 执行的 S-pair 约化步数。
     pub s_pair_steps: u32,
-    /// 是否在资源限制内完成（未截断）。
+    /// 是否在 S-pair 资源限制内跑完 Buchberger 主循环。
     pub complete: bool,
+    /// 是否通过独立 [`super::groebner::verify_groebner_basis`]。
+    pub verified: bool,
     /// 消元理想提取时保留的生成元数量（`None` = 非消元请求）。
     pub elimination_elements: Option<usize>,
+}
+
+impl GroebnerCertificate {
+    /// 是否可作为 M-Graph exact witness。
+    pub fn is_exact_witness(&self) -> bool {
+        self.complete && self.verified
+    }
 }

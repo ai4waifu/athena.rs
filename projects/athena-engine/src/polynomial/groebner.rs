@@ -1,4 +1,4 @@
-//! Gröbner 基（Buchberger）· 理想约化 · 消元提取。
+//! Gröbner 基（Buchberger）· 独立验证 · 类型分型结果 · 理想约化 · 消元。
 
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
@@ -6,7 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{
     builder::PolynomialBuilder,
     canonical::canonicalize_polynomial,
-    certificate::{GroebnerAlgorithm, GroebnerCertificate},
+    certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus},
     coeff_kernel::CoeffRing,
     exponent::add_exponent_vectors,
     expr::Polynomial,
@@ -32,19 +32,125 @@ impl Default for GroebnerLimits {
     }
 }
 
-/// Gröbner 基结果。
-#[derive(Debug, Clone, PartialEq)]
-pub struct GroebnerBasis {
+/// 独立验证报告。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroebnerVerificationReport {
     /// 所属环。
     pub ring: RingId,
-    /// 约化 Gröbner 基（同环 canonical）。
+    /// 检查的 critical pair 数。
+    pub pairs_checked: u32,
+    /// 是否全部 S-pair 约化为零。
+    pub all_s_pairs_reduce_to_zero: bool,
+}
+
+/// 已验证的完整 Gröbner 基（唯一允许 membership / 规范余式 / 消元定理的证书对象）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct VerifiedGroebnerBasis {
+    /// 所属环。
+    pub ring: RingId,
+    /// 基元素（canonical）。
     pub basis: Vec<Polynomial>,
-    /// 计算证书。
+    /// 证书（`complete && verified`）。
+    pub certificate: GroebnerCertificate,
+    /// 验证报告。
+    pub verification: GroebnerVerificationReport,
+}
+
+impl VerifiedGroebnerBasis {
+    /// 基切片。
+    pub fn basis(&self) -> &[Polynomial] {
+        &self.basis
+    }
+}
+
+/// 未完成计算的候选前沿（不可作数学证书）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroebnerFrontier {
+    /// 所属环。
+    pub ring: RingId,
+    /// 候选多项式。
+    pub candidates: Vec<Polynomial>,
+    /// 证书（`verified = false`）。
     pub certificate: GroebnerCertificate,
 }
 
+impl GroebnerFrontier {
+    /// 候选切片。
+    pub fn candidates(&self) -> &[Polynomial] {
+        &self.candidates
+    }
+}
+
+/// Gröbner 计算结果的显式状态分型。
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroebnerComputation {
+    /// 完成且独立验证通过。
+    Complete(VerifiedGroebnerBasis),
+    /// S-pair 预算耗尽。
+    Partial(GroebnerFrontier),
+    /// 基大小等资源硬上限。
+    ResourceLimited(GroebnerFrontier),
+}
+
+impl GroebnerComputation {
+    /// 稳定状态标签。
+    pub fn status(&self) -> GroebnerStatus {
+        match self {
+            Self::Complete(_) => GroebnerStatus::Verified,
+            Self::Partial(_) => GroebnerStatus::Partial,
+            Self::ResourceLimited(_) => GroebnerStatus::ResourceLimited,
+        }
+    }
+
+    /// 是否为已验证完整基。
+    pub fn is_verified(&self) -> bool {
+        matches!(self, Self::Complete(_))
+    }
+
+    /// 已验证基（若有）。
+    pub fn as_verified(&self) -> Option<&VerifiedGroebnerBasis> {
+        match self {
+            Self::Complete(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// 环 id。
+    pub fn ring(&self) -> RingId {
+        match self {
+            Self::Complete(v) => v.ring,
+            Self::Partial(f) | Self::ResourceLimited(f) => f.ring,
+        }
+    }
+
+    /// 基或候选多项式。
+    pub fn polynomials(&self) -> &[Polynomial] {
+        match self {
+            Self::Complete(v) => v.basis(),
+            Self::Partial(f) | Self::ResourceLimited(f) => f.candidates(),
+        }
+    }
+
+    /// 证书。
+    pub fn certificate(&self) -> &GroebnerCertificate {
+        match self {
+            Self::Complete(v) => &v.certificate,
+            Self::Partial(f) | Self::ResourceLimited(f) => &f.certificate,
+        }
+    }
+}
+
+/// 兼容旧名称：完整计算的已验证基。
+pub type GroebnerBasis = VerifiedGroebnerBasis;
+
 /// 计算 Gröbner 基（Buchberger；系数域须为域）。
-pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerBasis> {
+///
+/// 仅 [`GroebnerComputation::Complete`] 可作 exact membership / 消元定理 / M-Graph exact witness。
+pub fn compute_groebner_basis(
+    generators: Vec<Polynomial>,
+    rings: &RingTable,
+    limits: GroebnerLimits,
+) -> Result<GroebnerComputation> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
     let coeff = rings.coeff_kernel(ideal.ring)?;
@@ -62,10 +168,11 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
         }
     }
     let mut steps = 0u32;
-    let mut complete = true;
+    let mut truncated_pairs = false;
+    let mut resource_limited = false;
     while let Some((i, j)) = pairs.pop() {
         if steps >= limits.max_s_pairs {
-            complete = false;
+            truncated_pairs = true;
             break;
         }
         steps += 1;
@@ -75,9 +182,8 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
             continue;
         }
         if basis.len() as u32 >= limits.max_basis_size {
-            return Err(Diagnostic::new(DiagnosticCode::GroebnerResourceLimit)
-                .detail("domain", "polynomial")
-                .detail("operation", "basis_size"));
+            resource_limited = true;
+            break;
         }
         let idx = basis.len();
         basis.push(remainder);
@@ -86,24 +192,56 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
         }
     }
     basis = autoreduce_basis(basis, rings, desc, &coeff)?;
+    if resource_limited {
+        return Ok(GroebnerComputation::ResourceLimited(frontier(
+            ideal.ring,
+            basis,
+            input_count,
+            steps,
+            false,
+            None,
+        )));
+    }
+    if truncated_pairs {
+        return Ok(GroebnerComputation::Partial(frontier(
+            ideal.ring,
+            basis,
+            input_count,
+            steps,
+            false,
+            None,
+        )));
+    }
+    let verification = verify_groebner_basis(&basis, rings)?;
+    if !verification.all_s_pairs_reduce_to_zero {
+        return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
+            .detail("domain", "polynomial")
+            .detail("operation", "buchberger_post_verify"));
+    }
     let certificate = GroebnerCertificate {
         algorithm: GroebnerAlgorithm::Buchberger,
         ring: ideal.ring,
         input_generators: input_count,
         basis_elements: basis.len(),
         s_pair_steps: steps,
-        complete,
+        complete: true,
+        verified: true,
         elimination_elements: None,
     };
-    Ok(GroebnerBasis { ring: ideal.ring, basis, certificate })
+    Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis {
+        ring: ideal.ring,
+        basis,
+        certificate,
+        verification,
+    }))
 }
 
-/// 消元理想：环须为 [`MonomialOrder::Elimination`]，返回消元块生成元。
+/// 消元理想：须为完整已验证 Gröbner 基；环须为 [`MonomialOrder::Elimination`]。
 pub fn compute_elimination_basis(
     generators: Vec<Polynomial>,
     rings: &RingTable,
     limits: GroebnerLimits,
-) -> Result<GroebnerBasis> {
+) -> Result<GroebnerComputation> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
     let eliminate = match &desc.order {
@@ -114,14 +252,84 @@ pub fn compute_elimination_basis(
                 .detail("operation", "elimination_order_required"));
         }
     };
-    let mut gb = compute_groebner_basis(ideal.generators, rings, limits)?;
-    let elim = extract_elimination_polys(&gb.basis, eliminate);
-    gb.certificate.elimination_elements = Some(elim.len());
-    gb.basis = elim;
-    Ok(gb)
+    let computation = compute_groebner_basis(ideal.generators, rings, limits)?;
+    match computation {
+        GroebnerComputation::Complete(verified) => {
+            let elim = extract_elimination_polys(&verified.basis, eliminate);
+            let verification = verify_groebner_basis(&elim, rings)?;
+            if !verification.all_s_pairs_reduce_to_zero {
+                return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
+                    .detail("domain", "polynomial")
+                    .detail("operation", "elimination_post_verify"));
+            }
+            let mut certificate = verified.certificate;
+            certificate.basis_elements = elim.len();
+            certificate.elimination_elements = Some(elim.len());
+            certificate.verified = true;
+            certificate.complete = true;
+            Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis {
+                ring: verified.ring,
+                basis: elim,
+                certificate,
+                verification,
+            }))
+        }
+        GroebnerComputation::Partial(mut frontier) => {
+            frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
+            frontier.certificate.basis_elements = frontier.candidates.len();
+            frontier.certificate.elimination_elements = Some(frontier.candidates.len());
+            frontier.certificate.verified = false;
+            Ok(GroebnerComputation::Partial(frontier))
+        }
+        GroebnerComputation::ResourceLimited(mut frontier) => {
+            frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
+            frontier.certificate.basis_elements = frontier.candidates.len();
+            frontier.certificate.elimination_elements = Some(frontier.candidates.len());
+            frontier.certificate.verified = false;
+            Ok(GroebnerComputation::ResourceLimited(frontier))
+        }
+    }
 }
 
-/// 对理想成员做 Gröbner 约化（余式）。
+/// 对已验证 Gröbner 基做规范余式（strict API）。
+pub fn reduce_by_verified(
+    polynomial: Polynomial,
+    basis: &VerifiedGroebnerBasis,
+    rings: &RingTable,
+) -> Result<Polynomial> {
+    if polynomial.ring != basis.ring {
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+            .detail("domain", "polynomial")
+            .detail("operation", "reduce_ring_mismatch"));
+    }
+    if !basis.certificate.is_exact_witness() {
+        return Err(Diagnostic::new(DiagnosticCode::GroebnerIncomplete)
+            .detail("domain", "polynomial")
+            .detail("operation", "reduce_requires_verified"));
+    }
+    let desc = rings.get(polynomial.ring).ok_or_else(|| ring_unknown(polynomial.ring))?;
+    let coeff = rings.coeff_kernel(polynomial.ring)?;
+    if !coeff.is_field() {
+        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
+            .detail("domain", "polynomial")
+            .detail("operation", "reduce_requires_field"));
+    }
+    reduce_polynomial(&polynomial, &basis.basis, rings, desc, &coeff)
+}
+
+/// 理想成员判定：余式为零当且仅当（在已验证基下）属于理想。
+pub fn ideal_membership(
+    polynomial: Polynomial,
+    basis: &VerifiedGroebnerBasis,
+    rings: &RingTable,
+) -> Result<bool> {
+    let rem = reduce_by_verified(polynomial, basis, rings)?;
+    Ok(rem.terms.is_empty())
+}
+
+/// 启发式约化（接受任意生成元列表；**不可**作规范余式 / membership 证书）。
+///
+/// 严格路径请用 [`reduce_by_verified`]。
 pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTable) -> Result<Polynomial> {
     let desc = rings.get(polynomial.ring).ok_or_else(|| ring_unknown(polynomial.ring))?;
     let coeff = rings.coeff_kernel(polynomial.ring)?;
@@ -131,6 +339,67 @@ pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTa
             .detail("operation", "reduce_requires_field"));
     }
     reduce_polynomial(&polynomial, basis, rings, desc, &coeff)
+}
+
+/// 独立验证：所有 critical S-pair 约化为零。
+pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<GroebnerVerificationReport> {
+    if basis.is_empty() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "verify_empty_basis"));
+    }
+    let ring = basis[0].ring;
+    for p in basis {
+        if p.ring != ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "verify_ring_mismatch"));
+        }
+    }
+    let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+    let coeff = rings.coeff_kernel(ring)?;
+    if !coeff.is_field() {
+        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
+            .detail("domain", "polynomial")
+            .detail("operation", "verify_requires_field"));
+    }
+    let mut pairs_checked = 0u32;
+    for i in 0..basis.len() {
+        for j in (i + 1)..basis.len() {
+            pairs_checked = pairs_checked.saturating_add(1);
+            let s = s_polynomial(&basis[i], &basis[j], rings, &coeff)?;
+            let rem = reduce_polynomial(&s, basis, rings, desc, &coeff)?;
+            if !rem.terms.is_empty() {
+                return Ok(GroebnerVerificationReport {
+                    ring,
+                    pairs_checked,
+                    all_s_pairs_reduce_to_zero: false,
+                });
+            }
+        }
+    }
+    Ok(GroebnerVerificationReport { ring, pairs_checked, all_s_pairs_reduce_to_zero: true })
+}
+
+fn frontier(
+    ring: RingId,
+    candidates: Vec<Polynomial>,
+    input_generators: usize,
+    steps: u32,
+    complete: bool,
+    elimination_elements: Option<usize>,
+) -> GroebnerFrontier {
+    let certificate = GroebnerCertificate {
+        algorithm: GroebnerAlgorithm::Buchberger,
+        ring,
+        input_generators,
+        basis_elements: candidates.len(),
+        s_pair_steps: steps,
+        complete,
+        verified: false,
+        elimination_elements,
+    };
+    GroebnerFrontier { ring, candidates, certificate }
 }
 
 fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<Polynomial>> {

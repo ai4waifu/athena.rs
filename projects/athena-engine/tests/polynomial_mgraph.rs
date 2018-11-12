@@ -2,7 +2,7 @@
 
 use athena_engine::{
     AdmissionOutcome, AdmissionRejectReason, Claim, CoefficientDomain, Evidence, EvidenceVerifier, GroebnerLimits, Guarantee,
-    MonomialOrder, Number, PolynomialBuilder, PolynomialCacheOp, PolynomialCacheTier, PolynomialDomainValue, PolynomialRequest,
+    MonomialOrder, Number, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest,
     PolynomialResult, Scope, Session, SymbolId, VerificationPolicy, admit_polynomial_result, cache_key_for_request,
     proposition_from_cache_key, record_polynomial_result,
 };

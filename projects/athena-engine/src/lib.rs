@@ -93,14 +93,16 @@ pub use number_theory::{
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
     CanonicalPolynomial, CoeffRing, CoeffRingTable, CoefficientDomain, CoefficientRingDescriptor, DivisionPolicy,
-    FINGERPRINT_ALGORITHM, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerLimits, Ideal,
-    JitParityOutcome, MonomialOrder, MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp,
-    PolynomialDomainValue, PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult,
-    PolynomialValue, ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable,
+    FINGERPRINT_ALGORITHM, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation,
+    GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Ideal, JitParityOutcome, MonomialOrder,
+    MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue,
+    PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
+    ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, VerifiedGroebnerBasis,
     add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
-    execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, mul_polynomial, mul_with_jit_parity,
-    parity_diagnostic, polynomial_canonical_hash, polynomial_fingerprint, polynomial_fingerprint_u64,
-    record_polynomial_result, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
+    execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, ideal_membership, mul_polynomial,
+    mul_with_jit_parity, parity_diagnostic, polynomial_canonical_hash, polynomial_fingerprint, polynomial_fingerprint_u64,
+    record_polynomial_result, reduce_by_verified, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
+    verify_groebner_basis,
 };
 pub use session::Session;
 pub use solver::{

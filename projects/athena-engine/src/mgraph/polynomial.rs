@@ -4,9 +4,7 @@ use std::collections::HashMap;
 
 use super::types::{RewriteWitness, SolverId};
 
-use crate::polynomial::{
-    PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialResult,
-};
+use crate::polynomial::{PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialResult};
 
 /// 多项式域 solver id（M-Graph / solver 共享）。
 pub const POLYNOMIAL_SOLVER_ID: SolverId = SolverId(10);
@@ -79,7 +77,8 @@ impl PolynomialMGraphStore {
                 inputs: Vec::new(),
                 outputs: Vec::new(),
             })
-        } else {
+        }
+        else {
             debug_assert!(entry.witness.is_none());
             None
         };
@@ -118,31 +117,19 @@ impl PolynomialMGraphStore {
     }
 }
 
-/// 从已接纳的 exact 值构造 witness 摘要（调用方须保证非 Placeholder 且 Gröbner complete）。
+/// 从已接纳的 exact 值构造 witness 摘要（调用方须保证非 Placeholder 且 Gröbner verified）。
 pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> PolynomialWitness {
+    debug_assert!(!matches!(value, PolynomialDomainValue::Placeholder), "placeholder must not produce exact witness");
     debug_assert!(
-        !matches!(value, PolynomialDomainValue::Placeholder),
-        "placeholder must not produce exact witness"
-    );
-    debug_assert!(
-        !matches!(
-            value,
-            PolynomialDomainValue::GroebnerBasis(v) if !v.certificate.complete
-        ),
-        "incomplete Gröbner must not produce exact witness"
+        !matches!(value, PolynomialDomainValue::GroebnerBasis(v) if !v.is_exact_witness()),
+        "unverified / incomplete Gröbner must not produce exact witness"
     );
     let (output_summary, groebner_steps) = match value {
         PolynomialDomainValue::Polynomial(v) => (format!("poly:{}", v.inner.terms.len()), None),
-        PolynomialDomainValue::GroebnerBasis(v) => (
-            format!("gb:{}:{}", v.basis.len(), v.certificate.s_pair_steps),
-            Some(v.certificate.s_pair_steps),
-        ),
+        PolynomialDomainValue::GroebnerBasis(v) => {
+            (format!("gb:{}:{}", v.basis.len(), v.certificate.s_pair_steps), Some(v.certificate.s_pair_steps))
+        }
         PolynomialDomainValue::Placeholder => ("placeholder".into(), None),
     };
-    PolynomialWitness {
-        operation: key.operation,
-        input_hashes: key.input_hashes.clone(),
-        output_summary,
-        groebner_steps,
-    }
+    PolynomialWitness { operation: key.operation, input_hashes: key.input_hashes.clone(), output_summary, groebner_steps }
 }

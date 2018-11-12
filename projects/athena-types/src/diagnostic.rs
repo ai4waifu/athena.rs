@@ -185,6 +185,10 @@ pub enum DiagnosticCode {
     PolynomialDegreeOverflow,
     /// Gröbner 资源上限。
     GroebnerResourceLimit,
+    /// Gröbner 基未在资源限制内完成（不可作 exact witness）。
+    GroebnerIncomplete,
+    /// Gröbner 独立验证失败（S-pair 未约化为零等）。
+    GroebnerVerificationFailed,
     /// 群对象不匹配。
     GroupMismatch,
     /// 群元素非法。
@@ -286,6 +290,8 @@ impl DiagnosticCode {
             Self::PolynomialTooLarge => "ATHENA_POLYNOMIAL_TOO_LARGE",
             Self::PolynomialDegreeOverflow => "ATHENA_POLYNOMIAL_DEGREE_OVERFLOW",
             Self::GroebnerResourceLimit => "ATHENA_GROEBNER_RESOURCE_LIMIT",
+            Self::GroebnerIncomplete => "ATHENA_GROEBNER_INCOMPLETE",
+            Self::GroebnerVerificationFailed => "ATHENA_GROEBNER_VERIFICATION_FAILED",
             Self::GroupMismatch => "ATHENA_GROUP_MISMATCH",
             Self::GroupElementInvalid => "ATHENA_GROUP_ELEMENT_INVALID",
             Self::GroupNotFinite => "ATHENA_GROUP_NOT_FINITE",

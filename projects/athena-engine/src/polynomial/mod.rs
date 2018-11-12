@@ -32,7 +32,7 @@ pub use athena_types::CoefficientRingId;
 pub use builder::{CanonicalPolynomial, PolynomialBuilder};
 pub use cache_key::{PolynomialCacheKey, PolynomialCacheOp, cache_key_for_request};
 pub use canonical::canonicalize_polynomial;
-pub use certificate::{GroebnerAlgorithm, GroebnerCertificate};
+pub use certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus};
 pub use coeff_kernel::CoeffRing;
 pub use coeff_ring_table::{CoeffRingTable, CoefficientRingDescriptor};
 pub use expr::{MonomialTerm, Polynomial};
@@ -40,7 +40,11 @@ pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, polynomial_fingerprint,
     polynomial_fingerprint_u64,
 };
-pub use groebner::{GroebnerBasis, GroebnerLimits, compute_elimination_basis, compute_groebner_basis, reduce_ideal};
+pub use groebner::{
+    GroebnerBasis, GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis,
+    compute_elimination_basis, compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal,
+    verify_groebner_basis,
+};
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;
 pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};

@@ -59,22 +59,14 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Groebner { generators, limits } => match compute_groebner_basis(generators, rings, limits) {
-            Ok(gb) => PolynomialResult::Exact {
-                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue {
-                    ring: gb.ring,
-                    basis: gb.basis,
-                    certificate: gb.certificate,
-                }),
+            Ok(computation) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)),
             },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Eliminate { generators, limits } => match compute_elimination_basis(generators, rings, limits) {
-            Ok(gb) => PolynomialResult::Exact {
-                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue {
-                    ring: gb.ring,
-                    basis: gb.basis,
-                    certificate: gb.certificate,
-                }),
+            Ok(computation) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)),
             },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },

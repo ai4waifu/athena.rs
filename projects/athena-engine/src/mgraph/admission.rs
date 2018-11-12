@@ -4,7 +4,7 @@
 
 use super::{
     claim::{Claim, Evidence, Guarantee, Scope, VerifiedClaim, proposition_from_cache_key},
-    polynomial::{PolynomialWitness, POLYNOMIAL_SOLVER_ID, witness_from_exact},
+    polynomial::{POLYNOMIAL_SOLVER_ID, PolynomialWitness, witness_from_exact},
     state::MGraphState,
 };
 use crate::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult};
@@ -47,9 +47,7 @@ pub struct VerificationPolicy {
 
 impl Default for VerificationPolicy {
     fn default() -> Self {
-        Self {
-            min_guarantee: Guarantee::ProvenExact,
-        }
+        Self { min_guarantee: Guarantee::ProvenExact }
     }
 }
 
@@ -67,10 +65,7 @@ impl EvidenceVerifier {
     /// 验证候选 claim 是否可接纳为 [`VerifiedClaim`]。
     pub fn verify(claim: &Claim, policy: &VerificationPolicy) -> AdmissionOutcome {
         if claim.guarantee == Guarantee::Probable {
-            return AdmissionOutcome::Rejected {
-                reason: AdmissionRejectReason::ProbableResult,
-                guarantee: claim.guarantee,
-            };
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: claim.guarantee };
         }
         if !policy.accepts(claim.guarantee) {
             return AdmissionOutcome::Rejected {
@@ -98,10 +93,9 @@ impl EvidenceVerifier {
                 };
                 Self::verify(&claim, policy)
             }
-            PolynomialResult::Unevaluated { .. } => AdmissionOutcome::Rejected {
-                reason: AdmissionRejectReason::NotExact,
-                guarantee: Guarantee::Unknown,
-            },
+            PolynomialResult::Unevaluated { .. } => {
+                AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown }
+            }
         }
     }
 }
@@ -118,10 +112,7 @@ impl AdmissionGate {
         policy: &VerificationPolicy,
     ) {
         let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy);
-        state
-            .operational
-            .result_cache
-            .store_polynomial(key, result, &outcome);
+        state.operational.result_cache.store_polynomial(key, result, &outcome);
         if let AdmissionOutcome::Admitted(vc) = outcome {
             state.semantic.commit(vc);
         }
@@ -130,11 +121,7 @@ impl AdmissionGate {
 
 /// 对多项式 Exact 值构造 admission 结果（兼容旧 API）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
-    EvidenceVerifier::verify_polynomial(
-        key,
-        &PolynomialResult::Exact { value: value.clone() },
-        &VerificationPolicy::default(),
-    )
+    EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.clone() }, &VerificationPolicy::default())
 }
 
 /// 对 [`PolynomialResult`] 执行 admission（兼容旧 API）。
@@ -151,9 +138,10 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
     match value {
         PolynomialDomainValue::Polynomial(_) => Guarantee::ProvenExact,
         PolynomialDomainValue::GroebnerBasis(v) => {
-            if v.certificate.complete {
+            if v.is_exact_witness() {
                 Guarantee::ProvenExact
-            } else {
+            }
+            else {
                 Guarantee::Partial
             }
         }
@@ -161,16 +149,9 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
     }
 }
 
-fn build_polynomial_evidence(
-    key: &PolynomialCacheKey,
-    value: &PolynomialDomainValue,
-    guarantee: Guarantee,
-) -> Evidence {
+fn build_polynomial_evidence(key: &PolynomialCacheKey, value: &PolynomialDomainValue, guarantee: Guarantee) -> Evidence {
     if guarantee != Guarantee::ProvenExact {
-        return Evidence::TrustedKernel {
-            solver: POLYNOMIAL_SOLVER_ID,
-            summary: format!("rejected:{guarantee:?}"),
-        };
+        return Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: format!("rejected:{guarantee:?}") };
     }
     let witness = witness_from_exact(key, value);
     evidence_from_witness(&witness)
