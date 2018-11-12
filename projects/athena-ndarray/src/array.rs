@@ -1,0 +1,148 @@
+//! 逻辑数组与有界分块访问。
+
+use crate::{ArrayError, ArrayStorage, ChunkPlan, InMemoryStorage, LogicalShape, MemoryBudget};
+
+/// 由分块存储承载的逻辑数组（不要求整表驻留 RAM）。
+#[derive(Debug)]
+pub struct ChunkedArray<T, S> {
+    shape: LogicalShape,
+    store: S,
+    budget: MemoryBudget,
+    marker: std::marker::PhantomData<T>,
+}
+
+/// 首轮 `Array` 合同别名：storage-backed 逻辑数组。
+pub type Array<T, S> = ChunkedArray<T, S>;
+
+/// 内存驻留的只读连续视图（小数组便利路径，不是规模上限）。
+#[derive(Debug, Clone, Copy)]
+pub struct ArrayView<'a, T> {
+    shape: &'a LogicalShape,
+    data: &'a [T],
+}
+
+impl<'a, T> ArrayView<'a, T> {
+    /// 创建视图；长度必须匹配 shape。
+    pub fn new(shape: &'a LogicalShape, data: &'a [T]) -> Result<Self, ArrayError> {
+        if data.len() as u64 != shape.element_count() {
+            return Err(ArrayError::LengthMismatch {
+                expected: shape.element_count(),
+                actual: data.len() as u64,
+            });
+        }
+        Ok(Self { shape, data })
+    }
+
+    /// Shape。
+    pub const fn shape(&self) -> &LogicalShape {
+        self.shape
+    }
+
+    /// 连续元素切片。
+    pub const fn as_slice(&self) -> &[T] {
+        self.data
+    }
+}
+
+impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
+    /// 绑定 shape 与 storage，不物化全量数据。
+    pub fn new(shape: LogicalShape, store: S, budget: MemoryBudget) -> Result<Self, ArrayError> {
+        if shape.element_count() != store.len() {
+            return Err(ArrayError::LengthMismatch {
+                expected: shape.element_count(),
+                actual: store.len(),
+            });
+        }
+        Ok(Self {
+            shape,
+            store,
+            budget,
+            marker: std::marker::PhantomData,
+        })
+    }
+
+    /// Shape。
+    pub const fn shape(&self) -> &LogicalShape {
+        &self.shape
+    }
+
+    /// Memory budget。
+    pub const fn memory_budget(&self) -> MemoryBudget {
+        self.budget
+    }
+
+    /// 针对全数组生成分块计划。
+    pub fn chunk_plan(&self) -> Result<ChunkPlan, ArrayError> {
+        let max = self.max_elements()?;
+        ChunkPlan::new(0, self.shape.element_count(), max)
+    }
+
+    /// 在预算内读取区间。
+    pub fn read_range(&self, offset: u64, len: usize) -> Result<Vec<T>, ArrayError> {
+        self.check(offset, len)?;
+        self.store
+            .read_range(offset, len)
+            .map_err(|_| ArrayError::Store)
+    }
+
+    /// 按有界 chunk 顺序访问全部元素。
+    pub fn for_each_chunk(&self, mut visit: impl FnMut(u64, &[T])) -> Result<(), ArrayError> {
+        let plan = self.chunk_plan()?;
+        let mut offset = plan.start;
+        while offset < plan.end {
+            let remaining = plan.end - offset;
+            let len = usize::try_from(remaining.min(plan.max_elements as u64))
+                .unwrap_or(plan.max_elements);
+            let chunk = self
+                .store
+                .read_range(offset, len)
+                .map_err(|_| ArrayError::Store)?;
+            visit(offset, &chunk);
+            offset = offset
+                .checked_add(len as u64)
+                .ok_or(ArrayError::RangeOverflow)?;
+        }
+        Ok(())
+    }
+
+    fn max_elements(&self) -> Result<usize, ArrayError> {
+        let size = std::mem::size_of::<T>();
+        if size == 0 {
+            return Ok(usize::MAX);
+        }
+        let max = self.budget.bytes() / size;
+        if max == 0 {
+            Err(ArrayError::BudgetTooSmall { element_size: size })
+        } else {
+            Ok(max)
+        }
+    }
+
+    fn check(&self, offset: u64, len: usize) -> Result<(), ArrayError> {
+        let max = self.max_elements()?;
+        if len > max {
+            return Err(ArrayError::BudgetExceeded {
+                requested: len,
+                max,
+            });
+        }
+        let len64 = u64::try_from(len).map_err(|_| ArrayError::RangeOverflow)?;
+        let end = offset.checked_add(len64).ok_or(ArrayError::RangeOverflow)?;
+        if end > self.shape.element_count() {
+            Err(ArrayError::OutOfBounds)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// 从内存向量创建一维逻辑数组。
+pub fn array1d<T: Clone>(
+    data: Vec<T>,
+    budget: MemoryBudget,
+) -> Result<ChunkedArray<T, InMemoryStorage<T>>, ArrayError> {
+    let len = data.len() as u64;
+    let shape = LogicalShape::new([len])?;
+    let store = InMemoryStorage::from_vec(data);
+    ChunkedArray::new(shape, store, budget)
+}
