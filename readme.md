@@ -44,6 +44,9 @@ facade 中复制另一套求值或会话语义。
 | [`athena-rewriter`](projects/athena-rewriter/readme.md)   | 规范化、规则匹配、重写结果和重写诊断                   |
 | [`athena-engine`](projects/athena-engine/readme.md)       | 唯一执行引擎，包含 Session、M-Graph、solver 和领域编排 |
 | [`athena`](projects/athena/readme.md)                     | 薄公共门面和稳定 re-export                             |
+| [`athena-ndarray`](projects/athena-ndarray/readme.md)     | CAS N 维数组与 out-of-core storage                     |
+| [`athena-graph`](projects/athena-graph/readme.md)         | 普通离散图与大图算法基座（非 M-Graph）                 |
+| [`athena-table`](projects/athena-table/readme.md)         | 列式表、schema 与惰性查询合同（非 ML）                 |
 | [`athena-benchmark`](projects/athena-benchmark/readme.md) | 固定输入集上的性能和资源基准                           |
 
 数学主题应作为已有 crate 中职责清晰的模块演进。除非依赖关系、版本生命周期和测试边界确实独立，否则不要新增微型 crate。M-Graph

@@ -1,0 +1,15 @@
+[package]
+name = "athena-table"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Typed columnar tables and lazy query contracts for Athena"
+publish = false
+
+[dependencies]
+athena-ndarray = { workspace = true }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"

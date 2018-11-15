@@ -27,6 +27,7 @@ athena-benchmark = { path = "projects/athena-benchmark" }
 athena-jit = { path = "projects/athena-jit" }
 athena-ndarray = { path = "projects/athena-ndarray" }
 athena-graph = { path = "projects/athena-graph" }
+athena-table = { path = "projects/athena-table" }
 num-bigint = { version = "0.4", default-features = false, features = ["std"] }
 num-rational = { version = "0.4", default-features = false, features = ["std", "num-bigint"] }
 num-traits = "0.2"
