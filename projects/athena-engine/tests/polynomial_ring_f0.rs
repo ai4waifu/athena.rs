@@ -65,7 +65,8 @@ fn ring_table_intern_idempotent() {
     assert_eq!(table.len(), 1);
     let desc = table.get(r1).expect("descriptor");
     assert_eq!(desc.variables.len(), 2);
-    let CoefficientParent::Ring(coeff_ring) = desc.coefficients else {
+    let CoefficientParent::Ring(coeff_ring) = desc.coefficients
+    else {
         panic!("expected coefficient ring parent");
     };
     assert_eq!(coeff_ring, desc.coefficient_ring);

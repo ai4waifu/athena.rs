@@ -2,9 +2,7 @@
 
 use crate::{
     mgraph::MGraphState,
-    polynomial::{
-        PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
-    },
+    polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
 };
 
 /// Mutable evaluation session (bindings, options, ring registry, M-Graph).

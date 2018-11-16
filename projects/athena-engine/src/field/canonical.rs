@@ -8,12 +8,7 @@ use crate::algebra::{AlgebraParentId, FieldTable, MapTable};
 use super::types::{FieldElement, FieldElementRepr};
 
 /// 在 ℚ 中构造 canonical 元素（约分、正分母）。
-pub fn canonical_rational(
-    table: &FieldTable,
-    field: FieldId,
-    numer: Integer,
-    denom: Integer,
-) -> Result<FieldElement> {
+pub fn canonical_rational(table: &FieldTable, field: FieldId, numer: Integer, denom: Integer) -> Result<FieldElement> {
     table.descriptor(field)?;
     let value = Rational::try_new(numer, denom).map_err(|_| field_element_invalid("rational_new"))?;
     let presentation = table.presentation_id(field)?;

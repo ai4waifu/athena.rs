@@ -1,8 +1,8 @@
 //! 代数父对象 Phase 4：ℚ / 𝔽_p 元素 canonical 化与显式 embedding。
 
 use athena_engine::{
-    FieldElementRepr, FieldRequest, FieldTable, Integer, add_field_elements, apply_field_embedding,
-    canonical_prime_residue, canonical_rational, execute_field_with_table_mut, mul_field_elements,
+    FieldElementRepr, FieldRequest, FieldTable, Integer, add_field_elements, apply_field_embedding, canonical_prime_residue,
+    canonical_rational, execute_field_with_table_mut, mul_field_elements,
 };
 use athena_types::DiagnosticCode;
 
@@ -25,10 +25,7 @@ fn prime_residue_canonical_in_range() {
     let mut table = FieldTable::new();
     let f7 = table.prime_field(Integer::from_i64(7)).unwrap();
     let e = canonical_prime_residue(&table, f7, Integer::from_i64(-1)).unwrap();
-    assert_eq!(
-        e.repr,
-        FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(6) }
-    );
+    assert_eq!(e.repr, FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(6) });
 }
 
 #[test]
@@ -51,10 +48,7 @@ fn embed_rational_via_explicit_map() {
     let half = canonical_rational(&table, q, Integer::from_i64(1), Integer::from_i64(2)).unwrap();
     let embedded = apply_field_embedding(&table, table.map_table(), map, &half).unwrap();
     // 1/2 mod 5 = 1 * 2^{-1} = 1 * 3 = 3
-    assert_eq!(
-        embedded.repr,
-        FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(3) }
-    );
+    assert_eq!(embedded.repr, FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(3) });
 }
 
 #[test]
@@ -96,10 +90,7 @@ fn execute_field_with_table_mut_registers_fields() {
     let mut table = FieldTable::new();
     let r = execute_field_with_table_mut(FieldRequest::Rationals, &mut table);
     assert!(matches!(r, athena_engine::FieldResult::Exact { .. }));
-    let r = execute_field_with_table_mut(
-        FieldRequest::PrimeField { characteristic: Integer::from_i64(11) },
-        &mut table,
-    );
+    let r = execute_field_with_table_mut(FieldRequest::PrimeField { characteristic: Integer::from_i64(11) }, &mut table);
     assert!(matches!(r, athena_engine::FieldResult::Exact { .. }));
 }
 

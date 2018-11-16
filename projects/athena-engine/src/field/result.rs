@@ -42,7 +42,8 @@ pub fn execute_field_with_table(request: FieldRequest, table: &FieldTable) -> Fi
                     Ok(f) => FieldResult::Exact { value: FieldDomainValue::Field(f) },
                     Err(reason) => FieldResult::Unevaluated { reason },
                 }
-            } else {
+            }
+            else {
                 FieldResult::Unevaluated {
                     reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                         .detail("domain", "field")
@@ -85,7 +86,11 @@ pub fn execute_field_with_table_mut(request: FieldRequest, table: &mut FieldTabl
 
 fn run_binary<F>(table: &FieldTable, op: F, lhs: super::types::FieldElement, rhs: super::types::FieldElement) -> FieldResult
 where
-    F: FnOnce(&FieldTable, &super::types::FieldElement, &super::types::FieldElement) -> athena_types::Result<super::types::FieldElement>,
+    F: FnOnce(
+        &FieldTable,
+        &super::types::FieldElement,
+        &super::types::FieldElement,
+    ) -> athena_types::Result<super::types::FieldElement>,
 {
     match op(table, &lhs, &rhs) {
         Ok(value) => FieldResult::Exact { value: FieldDomainValue::Element(value) },

@@ -4,8 +4,10 @@ use std::collections::HashMap;
 
 use athena_types::{AlgebraMapId, FieldId, PresentationId};
 
-use super::map::{AlgebraMap, AlgebraMapKind, FieldEmbedding, MapVerification, MapVerificationKind};
-use super::parent::AlgebraParentId;
+use super::{
+    map::{AlgebraMap, AlgebraMapKind, FieldEmbedding, MapVerification, MapVerificationKind},
+    parent::AlgebraParentId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FieldEmbeddingRecord {
@@ -60,16 +62,9 @@ impl MapTable {
             source: AlgebraParentId::Field(source),
             target: AlgebraParentId::Field(target),
             kind: AlgebraMapKind::FieldEmbedding,
-            verification: MapVerification {
-                kind: MapVerificationKind::DegreeCheck,
-                verified: true,
-            },
+            verification: MapVerification { kind: MapVerificationKind::DegreeCheck, verified: true },
         };
-        let embedding = FieldEmbedding {
-            map: id,
-            source_presentation,
-            target_presentation,
-        };
+        let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
         self.embeddings.insert((source, target), FieldEmbeddingRecord { map, embedding });
         id

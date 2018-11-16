@@ -34,7 +34,10 @@ pub(crate) fn canonicalize_terms(
                 .detail("domain", "polynomial")
                 .detail("operation", "canonicalize_exponent_length"));
         }
-        validate_coefficient(&term.coefficient, rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?)?;
+        validate_coefficient(
+            &term.coefficient,
+            rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?,
+        )?;
         if term.coefficient.is_zero() {
             continue;
         }

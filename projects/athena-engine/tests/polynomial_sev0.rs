@@ -20,7 +20,8 @@ fn intern_over_prime_field_uses_field_parent() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
-    let CoefficientParent::Field(field) = desc.coefficients else {
+    let CoefficientParent::Field(field) = desc.coefficients
+    else {
         panic!("expected Field parent");
     };
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(5)));

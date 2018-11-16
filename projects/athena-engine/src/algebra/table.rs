@@ -5,11 +5,15 @@ use std::collections::HashMap;
 use athena_numeric::Integer;
 use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldId, PresentationId, Result};
 
-use crate::field::{Field, FieldDescriptor};
-use crate::number_theory::{Primality, primality_test};
+use crate::{
+    field::{Field, FieldDescriptor},
+    number_theory::{Primality, primality_test},
+};
 
-use super::map_table::MapTable;
-use super::presentation::{FieldPresentation, FieldPresentationKind};
+use super::{
+    map_table::MapTable,
+    presentation::{FieldPresentation, FieldPresentationKind},
+};
 
 /// 域 intern 键（descriptor 级，不含可变算法状态）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -109,11 +113,7 @@ impl FieldTable {
 
     /// 组装域对象（id + descriptor + presentation）。
     pub fn field_record(&self, field: FieldId) -> Result<Field> {
-        Ok(Field {
-            id: field,
-            descriptor: self.descriptor(field)?,
-            presentation: self.presentation_id(field)?,
-        })
+        Ok(Field { id: field, descriptor: self.descriptor(field)?, presentation: self.presentation_id(field)? })
     }
 
     /// 映射表（只读）。

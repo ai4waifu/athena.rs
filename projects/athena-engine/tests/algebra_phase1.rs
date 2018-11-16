@@ -1,8 +1,8 @@
 //! 代数父对象 Phase 1：`RingTable` ↔ `FieldTable` 系数域统一。
 
 use athena_engine::{
-    AlgebraParentId, CoefficientDomain, CoefficientParent, FieldId, Integer, MonomialOrder, RingTable, SymbolId, add_polynomial,
-    mul_polynomial,
+    AlgebraParentId, CoefficientDomain, CoefficientParent, FieldId, Integer, MonomialOrder, RingTable, SymbolId,
+    add_polynomial, mul_polynomial,
 };
 use athena_numeric::Number;
 
@@ -15,23 +15,22 @@ fn intern_over_prime_field_paths_share_field_id() {
     assert_eq!(via_recommended, via_finite);
 
     let desc = rings.get(via_recommended).unwrap();
-    let CoefficientParent::Field(field) = desc.coefficients else {
+    let CoefficientParent::Field(field) = desc.coefficients
+    else {
         panic!("expected Field parent");
     };
     assert_eq!(rings.coefficient_parent(via_recommended), Some(CoefficientParent::Field(field)));
-    assert_eq!(rings.coefficient_parent(via_recommended).and_then(|p| p.as_algebra_parent()), Some(AlgebraParentId::Field(field)));
+    assert_eq!(
+        rings.coefficient_parent(via_recommended).and_then(|p| p.as_algebra_parent()),
+        Some(AlgebraParentId::Field(field))
+    );
 }
 
 #[test]
 fn unregistered_finite_field_rejected() {
     let mut rings = RingTable::new();
-    let err = rings
-        .intern(
-            CoefficientDomain::FiniteField { field: FieldId(99) },
-            vec![SymbolId(0)],
-            MonomialOrder::Lex,
-        )
-        .unwrap_err();
+    let err =
+        rings.intern(CoefficientDomain::FiniteField { field: FieldId(99) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_UNSUPPORTED_OPERATION");
 }
 

@@ -180,7 +180,14 @@ fn many_input_key(
     }
     input_fingerprints.sort_unstable();
     input_hashes.sort_unstable();
-    Ok(PolynomialCacheKey { operation: op, ring, ring_fingerprint, input_fingerprints, input_hashes, limits_fingerprint: limits_fp })
+    Ok(PolynomialCacheKey {
+        operation: op,
+        ring,
+        ring_fingerprint,
+        input_fingerprints,
+        input_hashes,
+        limits_fingerprint: limits_fp,
+    })
 }
 
 fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {

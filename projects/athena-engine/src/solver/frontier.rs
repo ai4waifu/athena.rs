@@ -1,7 +1,9 @@
 //! Frontier 评分（骨架）。
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 use crate::mgraph::{SolverCandidate, SolverScore};
 
@@ -12,20 +14,13 @@ pub fn score_candidate(candidate: &SolverCandidate) -> SolverScore {
     let confidence = 0.5_f64;
     let unlocks = 0_usize;
     let total = quantize_score(estimated_benefit, estimated_cost, confidence, unlocks);
-    SolverScore {
-        total,
-        tie_breaker: stable_tie_breaker(candidate),
-    }
+    SolverScore { total, tie_breaker: stable_tie_breaker(candidate) }
 }
 
 fn quantize_score(benefit: f64, cost: f64, confidence: f64, unlocks: usize) -> i64 {
     let benefit = if benefit.is_finite() && benefit >= 0.0 { benefit } else { 0.0 };
     let cost = if cost.is_finite() && cost > 0.0 { cost } else { 1.0 };
-    let confidence = if confidence.is_finite() {
-        confidence.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
+    let confidence = if confidence.is_finite() { confidence.clamp(0.0, 1.0) } else { 0.0 };
     let ratio = (benefit / cost) * (1.0 + confidence);
     let unlock_bonus = (unlocks as f64).min(1_000.0);
     ((ratio + unlock_bonus) * 1_000.0).round() as i64
