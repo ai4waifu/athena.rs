@@ -120,15 +120,8 @@ impl RingTable {
         let ring_fingerprint = RingFingerprint::from_parts(&domain, &variables, &order, &self.fields);
         let id = RingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        let desc = RingDescriptor::with_id(
-            id,
-            coefficient_ring,
-            coefficients,
-            variables,
-            order,
-            characteristic,
-            ring_fingerprint,
-        );
+        let desc =
+            RingDescriptor::with_id(id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint);
         self.by_key.insert(key, id);
         self.by_id.insert(id, desc);
         Ok(id)

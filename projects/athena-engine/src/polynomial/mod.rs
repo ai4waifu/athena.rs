@@ -33,7 +33,7 @@ pub use builder::{CanonicalPolynomial, PolynomialBuilder};
 pub use cache_key::{PolynomialCacheKey, PolynomialCacheOp, cache_key_for_request};
 pub use canonical::canonicalize_polynomial;
 pub use certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus};
-pub use coeff_kernel::CoeffRing;
+pub use coeff_kernel::{CoeffRing, FpBigKernel, FpWordKernel, QCoeffKernel, SpecializedCoeffKernel, ZCoeffKernel};
 pub use coeff_ring_table::{CoeffRingTable, CoefficientRingDescriptor};
 pub use expr::{MonomialTerm, Polynomial};
 pub use fingerprint::{

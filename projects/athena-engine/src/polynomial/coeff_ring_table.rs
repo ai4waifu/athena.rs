@@ -7,7 +7,10 @@ use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, FieldId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
-use super::ring::{CoefficientDomain, RingCharacteristic, characteristic_of, validate_coefficient_domain_public};
+use super::{
+    coeff_kernel::SpecializedCoeffKernel,
+    ring::{CoefficientDomain, RingCharacteristic, characteristic_of, validate_coefficient_domain_public},
+};
 
 /// 系数环 intern 键（Phase 3：有限域仅 `FieldId`）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -32,16 +35,16 @@ pub struct CoefficientRingDescriptor {
 #[derive(Debug)]
 pub(crate) struct CoeffRingEntry {
     descriptor: CoefficientRingDescriptor,
+    /// 预计算模数（𝔽_p）；供未来 ℤ/nℤ kernel 复用。
+    #[allow(dead_code)]
     prime_modulus: Option<Modulus>,
+    /// F3 专用内核；ℤ/nℤ 等精确但非 F3 域为 `None`。
+    kernel: Option<SpecializedCoeffKernel>,
 }
 
 impl CoeffRingEntry {
-    pub(crate) fn domain(&self) -> &CoefficientDomain {
-        &self.descriptor.domain
-    }
-
-    pub(crate) fn prime_modulus(&self) -> Option<&Modulus> {
-        self.prime_modulus.as_ref()
+    pub(crate) fn kernel(&self) -> Option<&SpecializedCoeffKernel> {
+        self.kernel.as_ref()
     }
 }
 
@@ -68,18 +71,34 @@ impl CoeffRingTable {
         let domain = validate_coefficient_domain_public(domain, fields)?;
         let characteristic = characteristic_of(&domain, fields)?;
         let prime_modulus = prime_modulus_for(&domain, fields)?;
+        let kernel = if SpecializedCoeffKernel::supports(&domain) {
+            Some(SpecializedCoeffKernel::build(&domain, prime_modulus.as_ref())?)
+        }
+        else {
+            None
+        };
         let id = CoefficientRingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         let parent = coefficient_parent_for(id, &domain);
         let descriptor = CoefficientRingDescriptor { id, domain: domain.clone(), characteristic, parent };
         self.by_key.insert(intern_key(&domain), id);
-        self.by_id.insert(id, CoeffRingEntry { descriptor, prime_modulus });
+        self.by_id.insert(id, CoeffRingEntry { descriptor, prime_modulus, kernel });
         Ok(id)
     }
 
     /// 按 id 查描述符。
     pub fn get(&self, id: CoefficientRingId) -> Option<&CoefficientRingDescriptor> {
         self.by_id.get(&id).map(|e| &e.descriptor)
+    }
+
+    /// 按 id 查专用内核（算法热路径；非 F3 域报错）。
+    pub(crate) fn kernel(&self, id: CoefficientRingId) -> Result<&SpecializedCoeffKernel, Diagnostic> {
+        self.entry(id)?.kernel().ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "polynomial")
+                .detail("operation", "coeff_domain_unsupported")
+                .detail("coefficient_ring_id", id.0.to_string())
+        })
     }
 
     /// 按 id 查 intern 条目（系数内核热路径）。
