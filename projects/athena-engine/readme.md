@@ -33,6 +33,20 @@ Athena 只接受 **已经构造**的 `Number` / IR / runtime `Term`；不得从�
 
 默认 feature 为纯 Rust（含 `wasm32`）。不得在 default feature 中链接 MKL/BLAS。
 
+## M-Graph 与 Galois connection
+
+M-Graph 是建立在 AthenaIR（理论别称 MSM）之上的 typed mathematical fact graph。它把表达式、代数对象和域之间的关系记录为带作用域、保证级别、证据和依赖的 claims。只有经过 verifier 接受的无条件精确事实，才能进入等价闭包并驱动重写。概率、近似、假设依赖和资源截断结果不会被伪装成 exact。
+
+其抽象解释基础是具体语义域 `C` 与抽象事实域 `A` 之间的 Galois connection：
+
+```text
+α(c) ⊑ a  当且仅当  c ⊑ γ(a)
+```
+
+抽象映射 `α` 提取可传播的 facts，具体化映射 `γ` 描述 facts 允许的具体状态。这个关系约束 transfer 和 verifier 的 soundness，但不替代证书检查。
+
+M-Graph 的 verified 子图可以提取为 KernelIR 执行计划，再经过 guard 进入 JIT。JIT 不可用或 guard 失败时回退 eager 执行，并保持数学语义不变。
+
 ```sh
 cargo test -p athena-engine
 cargo doc -p athena-engine --no-deps

@@ -91,17 +91,11 @@ impl VerifiedClaim {
 
     /// 是否可进入无条件 exact union-find（当前仅 `Unconditional + ProvenExact`）。
     pub fn admissible_for_exact_union(&self) -> bool {
-        matches!(
-            (&self.claim.scope, &self.claim.guarantee),
-            (Scope::Unconditional, Guarantee::ProvenExact)
-        )
+        matches!((&self.claim.scope, &self.claim.guarantee), (Scope::Unconditional, Guarantee::ProvenExact))
     }
 }
 
 /// 从缓存键构造命题。
 pub fn proposition_from_cache_key(key: &PolynomialCacheKey) -> Proposition {
-    Proposition::PolynomialResult {
-        operation: key.operation,
-        request_fingerprint: key.fingerprint(),
-    }
+    Proposition::PolynomialResult { operation: key.operation, request_fingerprint: key.fingerprint() }
 }

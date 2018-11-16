@@ -22,13 +22,10 @@ impl ResultCache {
         outcome: &AdmissionOutcome,
     ) -> Option<crate::mgraph::RewriteWitness> {
         let (tier, witness) = match (outcome, &result) {
-            (AdmissionOutcome::Admitted(_), PolynomialResult::Exact { value }) => (
-                PolynomialCacheTier::Verified,
-                Some(witness_from_exact(&key, value)),
-            ),
-            (AdmissionOutcome::Rejected { .. }, PolynomialResult::Exact { .. }) => {
-                (PolynomialCacheTier::Partial, None)
+            (AdmissionOutcome::Admitted(_), PolynomialResult::Exact { value }) => {
+                (PolynomialCacheTier::Verified, Some(witness_from_exact(&key, value)))
             }
+            (AdmissionOutcome::Rejected { .. }, PolynomialResult::Exact { .. }) => (PolynomialCacheTier::Partial, None),
             _ => (PolynomialCacheTier::Partial, None),
         };
         self.polynomial.insert(PolynomialCacheEntry { key, result, tier, witness })

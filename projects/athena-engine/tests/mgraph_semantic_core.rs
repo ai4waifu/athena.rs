@@ -42,9 +42,6 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> VerifiedClaim {
         },
         scope: Scope::Unconditional,
         guarantee,
-        evidence: Evidence::TrustedKernel {
-            solver: POLYNOMIAL_SOLVER_ID,
-            summary: "test".into(),
-        },
+        evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "test".into() },
     })
 }
