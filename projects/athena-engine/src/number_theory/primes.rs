@@ -1,14 +1,21 @@
-//! 素性测试 — 小整数确定；大整数 Miller-Rabin → `ProbablePrime`。
+//! 素性测试 — `u64` 确定性 Miller–Rabin；更大整数固定基 → `ProbablePrime`。
 
 use athena_numeric::Integer;
 
-use super::value::Primality;
+use super::value::{MillerRabinBaseSelection, Primality};
 
-/// 默认 Miller-Rabin 轮数（大整数）。
+/// 默认 Miller–Rabin 固定基数量上限（大整数路径）。
 pub const DEFAULT_MR_ROUNDS: u32 = 16;
 
 /// 试除确定性上限（含）：在此以内用试除给出 `Prime`/`Composite`。
 const DETERMINISTIC_TRIAL_BOUND: u64 = 1_000_000;
+
+/// 覆盖全部 `u64` 的确定性强伪素数见证集（OEIS A014233 / Feitsma–Galway）。
+/// 仅在 `n < 2^64` 内可把通过者标为确定 `Prime`；不得截断该集合仍声称全 `u64` 覆盖。
+const U64_DETERMINISTIC_WITNESSES: &[u64] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+
+/// 大整数路径的固定小素数基（可复现，**不是**独立随机样本）。
+const FIXED_MR_BASES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
 
 /// 素性测试。
 pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primality {
@@ -24,17 +31,44 @@ pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primalit
 
     if let Some(small) = n.to_u64() {
         if small <= DETERMINISTIC_TRIAL_BOUND {
-            return if is_prime_u64_trial(small) { Primality::Prime } else { Primality::Composite };
+            return if is_prime_u64_trial(small) {
+                Primality::Prime
+            } else {
+                Primality::Composite
+            };
         }
-        return if miller_rabin_u64_deterministic(small) { Primality::Prime } else { Primality::Composite };
+        return if miller_rabin_u64_deterministic(small) {
+            Primality::Prime
+        } else {
+            Primality::Composite
+        };
     }
 
     if has_small_factor(n) {
         return Primality::Composite;
     }
 
-    let rounds = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
-    if miller_rabin_integer(n, rounds) { Primality::ProbablePrime { rounds } } else { Primality::Composite }
+    let requested = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
+    if requested == 0 {
+        return Primality::Unknown;
+    }
+
+    match miller_rabin_integer_fixed(n, requested) {
+        MrFixedOutcome::Composite => Primality::Composite,
+        MrFixedOutcome::Probable { bases } => {
+            let rounds_executed = bases.len() as u32;
+            Primality::ProbablePrime {
+                bases,
+                base_selection: MillerRabinBaseSelection::Fixed,
+                rounds_executed,
+            }
+        }
+    }
+}
+
+enum MrFixedOutcome {
+    Composite,
+    Probable { bases: Vec<u32> },
 }
 
 fn is_prime_u64_trial(n: u64) -> bool {
@@ -58,8 +92,7 @@ fn is_prime_u64_trial(n: u64) -> bool {
 }
 
 fn miller_rabin_u64_deterministic(n: u64) -> bool {
-    const WITNESSES: &[u64] = &[2, 3, 5, 7, 11, 13, 23];
-    miller_rabin_u64(n, WITNESSES)
+    miller_rabin_u64(n, U64_DETERMINISTIC_WITNESSES)
 }
 
 fn miller_rabin_u64(n: u64, witnesses: &[u64]) -> bool {
@@ -109,7 +142,9 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64 {
 }
 
 fn has_small_factor(n: &Integer) -> bool {
-    const SMALL: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
+    const SMALL: &[u32] = &[
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+    ];
     for &p in SMALL {
         let pb = Integer::from(p);
         if n == &pb {
@@ -122,7 +157,9 @@ fn has_small_factor(n: &Integer) -> bool {
     false
 }
 
-fn miller_rabin_integer(n: &Integer, rounds: u32) -> bool {
+/// 固定基强 Miller–Rabin。`requested_rounds` 只截断可用固定基数量；
+/// 返回值只含**实际执行**的基，不得把未执行的请求轮数写入证据。
+fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutcome {
     let one = Integer::one();
     let two = Integer::from_i64(2);
     let n_minus_one = n.sub(&one);
@@ -132,13 +169,20 @@ fn miller_rabin_integer(n: &Integer, rounds: u32) -> bool {
         d = d.div(&two);
         s += 1;
     }
-    const BASES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
-    let use_rounds = (rounds as usize).min(BASES.len()).max(1);
-    for &a in &BASES[..use_rounds] {
+
+    let use_rounds = (requested_rounds as usize).min(FIXED_MR_BASES.len()).max(1);
+    let mut bases_used = Vec::with_capacity(use_rounds);
+
+    for &a in &FIXED_MR_BASES[..use_rounds] {
         let base = Integer::from(a);
         if base.rem(n).is_zero() {
+            // 固定小素数基：rem==0 且基 ≠ n  ⇒ 基整除 n ⇒ 合数。
+            if &base != n {
+                return MrFixedOutcome::Composite;
+            }
             continue;
         }
+        bases_used.push(a);
         let mut x = base.mod_pow(&d, n);
         if x == one || x == n_minus_one {
             continue;
@@ -152,8 +196,9 @@ fn miller_rabin_integer(n: &Integer, rounds: u32) -> bool {
             }
         }
         if composite {
-            return false;
+            return MrFixedOutcome::Composite;
         }
     }
-    true
+
+    MrFixedOutcome::Probable { bases: bases_used }
 }
