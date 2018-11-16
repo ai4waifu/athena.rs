@@ -86,18 +86,19 @@ pub use mgraph::{
     witness_from_exact,
 };
 pub use number_theory::{
-    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest,
+    ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, MillerRabinBaseSelection,
+    NumberTheoryRequest,
     NumberTheoryResult, NumberTheoryValue, Primality, PrimePower, execute_number_theory, extended_gcd,
     factor_integer, gcd, lcm, mod_inverse, mod_pow, primality_test,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
-    CanonicalPolynomial, CoeffRing, CoeffRingTable, CoefficientDomain, CoefficientRingDescriptor, DivisionPolicy,
-    FINGERPRINT_ALGORITHM, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation,
+    CanonicalPolynomial, CoeffRing, CoeffRingTable, CoefficientDomain, CoefficientRingDescriptor, DivisionPolicy, FpBigKernel,
+    FINGERPRINT_ALGORITHM, FpWordKernel, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation,
     GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Ideal, JitParityOutcome, MonomialOrder,
     MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue,
-    PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
-    ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, VerifiedGroebnerBasis,
+    PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue, QCoeffKernel,
+    ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, SpecializedCoeffKernel, VerifiedGroebnerBasis, ZCoeffKernel,
     add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
     execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, ideal_membership, mul_polynomial,
     mul_with_jit_parity, parity_diagnostic, polynomial_canonical_hash, polynomial_fingerprint, polynomial_fingerprint_u64,

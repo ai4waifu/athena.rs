@@ -126,6 +126,21 @@ fn modular_inverse_missing() {
 }
 
 #[test]
+fn factor_zero_invalid_input() {
+    let engine = AthenaEngine::new();
+    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::FactorInteger {
+        n: Integer::zero(),
+        limits: FactorLimits::default(),
+    })));
+    match out {
+        NumberTheoryResult::InvalidInput { reason } => {
+            assert_eq!(reason.code, DiagnosticCode::DomainError);
+        }
+        other => panic!("expected InvalidInput for zero, got {other:?}"),
+    }
+}
+
+#[test]
 fn modulus_invalid() {
     let err = Modulus::new(1).unwrap_err();
     assert_eq!(err.code, DiagnosticCode::ModulusInvalid);

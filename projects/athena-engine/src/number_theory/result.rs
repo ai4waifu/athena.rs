@@ -1,6 +1,6 @@
 //! 数论请求分派。
 
-use athena_types::Diagnostic;
+use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     algebraic::algebraic_scaffold,
@@ -44,7 +44,7 @@ pub enum NumberTheoryResult {
         /// 结果值（若有结构化占位）。
         value: NumberTheoryValue,
     },
-    /// 域上不适用的输入。
+    /// 域上不适用的输入（例如 `FactorInteger(0)`）。
     InvalidInput {
         /// 失败原因。
         reason: Diagnostic,
@@ -71,9 +71,10 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
         NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => {
             wrap_primality(primality_test(&n, miller_rabin_rounds))
         }
-        NumberTheoryRequest::FactorInteger { n, limits } => {
-            wrap_factorization(factor_integer(&n, &limits))
-        }
+        NumberTheoryRequest::FactorInteger { n, limits } => match factor_integer(&n, &limits) {
+            Ok(f) => wrap_factorization(f),
+            Err(reason) => NumberTheoryResult::InvalidInput { reason },
+        },
         NumberTheoryRequest::ModInverse { a, modulus } => match mod_inverse(&a, &modulus) {
             Ok(v) => NumberTheoryResult::Exact {
                 value: NumberTheoryValue::Modular(v),
@@ -111,4 +112,12 @@ fn wrap_factorization(f: super::value::Factorization) -> NumberTheoryResult {
         FactorizationCompleteness::Partial => NumberTheoryResult::Partial { value },
         FactorizationCompleteness::ResourceLimited => NumberTheoryResult::ResourceLimited { value },
     }
+}
+
+/// `FactorInteger(0)` 等域错误构造。
+pub(crate) fn factor_zero_invalid() -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::DomainError)
+        .detail("domain", "number_theory")
+        .detail("operation", "factor_integer")
+        .detail("reason", "zero_has_no_finite_prime_factorization")
 }
