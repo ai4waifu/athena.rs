@@ -19,6 +19,8 @@ pub enum BenchGroup {
     Domains,
     /// JIT（feature 门控）。
     Jit,
+    /// ndarray / graph / table 基础设施合同。
+    Infra,
 }
 
 impl BenchGroup {
@@ -31,6 +33,7 @@ impl BenchGroup {
             Self::Engine => "engine",
             Self::Domains => "domains",
             Self::Jit => "jit",
+            Self::Infra => "infra",
         }
     }
 
@@ -43,6 +46,7 @@ impl BenchGroup {
             "engine" => Some(Self::Engine),
             "domains" => Some(Self::Domains),
             "jit" => Some(Self::Jit),
+            "infra" => Some(Self::Infra),
             _ => None,
         }
     }

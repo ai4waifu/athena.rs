@@ -2,6 +2,7 @@
 
 mod domains;
 mod engine;
+mod infra;
 mod ir;
 mod jit;
 mod numeric;
@@ -18,5 +19,6 @@ pub fn default_suite() -> Suite {
     engine::register(&mut suite);
     domains::register(&mut suite);
     jit::register(&mut suite);
+    infra::register(&mut suite);
     suite
 }

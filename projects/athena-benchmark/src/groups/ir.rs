@@ -1,7 +1,8 @@
 //! `ir` 分组种子 fixture。
 
 use athena_ir::{TermArena, TermBuilder, canonical_hash};
-use athena_types::{Number, SourceSpan};
+use athena_numeric::Number;
+use athena_types::SourceSpan;
 
 use crate::{
     fixture::{BenchGroup, Fixture, FixtureMeta, Suite},

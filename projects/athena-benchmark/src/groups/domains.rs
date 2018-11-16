@@ -50,7 +50,9 @@ impl Fixture for PolynomialMulParityFixture {
 
     fn validate(&self) -> Result<ValidationSummary, String> {
         let mut rings = RingTable::new();
-        let ring = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).map_err(|d| d.code.as_str().to_string())?;
+        let ring = rings
+            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
+            .map_err(|d| d.code.as_str().to_string())?;
         let mut b1 = PolynomialBuilder::new(ring);
         b1.push_term(Number::small_int(3), vec![1]).map_err(|d| d.code.as_str().to_string())?;
         let lhs = b1.build(&rings).map_err(|d| d.code.as_str().to_string())?;
@@ -64,11 +66,7 @@ impl Fixture for PolynomialMulParityFixture {
         if !matches!(parity, JitParityOutcome::EagerOnly | JitParityOutcome::JitUnavailable) {
             return Err(format!("unexpected parity outcome: {parity:?}"));
         }
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "polynomial mul eager parity gate",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "polynomial mul eager parity gate"))
     }
 
     fn run_once(&self) {
