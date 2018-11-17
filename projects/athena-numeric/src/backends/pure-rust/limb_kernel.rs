@@ -9,8 +9,7 @@ use crate::execution_budget::ExecutionBudget;
 
 use super::buffer::{LimbBuffer, ScratchWorkspace, kernel_err};
 
-use std::cell::RefCell;
-use std::cmp::Ordering;
+use std::{cell::RefCell, cmp::Ordering};
 
 thread_local! {
     static KERNEL_SCRATCH: RefCell<ScratchWorkspace> = RefCell::new(ScratchWorkspace::default());
@@ -564,10 +563,12 @@ fn lehmer_step(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
         return false;
     }
 
-    let Some(na_new) = lincomb_signed(x0, a, x1, b) else {
+    let Some(na_new) = lincomb_signed(x0, a, x1, b)
+    else {
         return false;
     };
-    let Some(nb_new) = lincomb_signed(y0, a, y1, b) else {
+    let Some(nb_new) = lincomb_signed(y0, a, y1, b)
+    else {
         return false;
     };
     if is_zero(&na_new) || is_zero(&nb_new) || cmp_slice(&na_new, &nb_new) == Ordering::Less {
@@ -886,12 +887,7 @@ pub(crate) trait LimbKernel {
         budget: &ExecutionBudget,
     ) -> Result<()>;
 
-    fn sqr_into(
-        a: &[u64],
-        out: &mut LimbBuffer,
-        scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()>;
+    fn sqr_into(a: &[u64], out: &mut LimbBuffer, scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()>;
 
     fn div_rem_into(
         u: &[u64],
@@ -990,12 +986,7 @@ impl LimbKernel for PureRustLimbKernel {
         Ok(())
     }
 
-    fn sqr_into(
-        a: &[u64],
-        out: &mut LimbBuffer,
-        _scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()> {
+    fn sqr_into(a: &[u64], out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
         if is_zero(a) {
             out.set_canonical(vec![0], budget)?;
             return Ok(());

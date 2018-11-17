@@ -27,7 +27,7 @@ pub use athena_engine::{
     PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialFingerprint,
     PolynomialMGraphStore, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
     PolynomialWitness, Precision, Predicate, PresentationId, Primality, PrimePower, PropertyState, PureRustBackend, RealNumber,
-    ReflectionResult, Reflector, RegionOfConvergence, Remainder, ReprTarget, Residue, Result, RewriteOptions, RewriteResult,
+    MillerRabinBaseSelection, ReflectionResult, Reflector, RegionOfConvergence, Remainder, ReprTarget, Residue, Result, RewriteOptions, RewriteResult,
     RewriteWitness, Rewriter, RingCharacteristic, RingDescriptor, RingId, RingTable, RoundingMode, SampleDomain, SamplePoint,
     SampledCurve, SamplingPolicy, SerializationVersion, Series, Session, Severity, SimplifyOptions, SolverCandidate,
     SolverContext, SolverFrontier, SolverId, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry, SolverRequest,

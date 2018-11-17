@@ -72,12 +72,7 @@ pub(crate) fn encode_precision(p: &PrecisionInfo) -> (u8, u8, u32, u32) {
     if p.guaranteed {
         flags |= FLAG_PRECISION_GUARANTEED;
     }
-    (
-        precision_kind_to_tag(p.kind),
-        flags,
-        p.bits.unwrap_or(0),
-        p.decimal_digits.unwrap_or(0),
-    )
+    (precision_kind_to_tag(p.kind), flags, p.bits.unwrap_or(0), p.decimal_digits.unwrap_or(0))
 }
 
 pub(crate) fn decode_precision(kind_tag: u8, flags: u8, bits: u32, decimal: u32) -> Result<PrecisionInfo, Diagnostic> {
@@ -178,7 +173,12 @@ pub fn decode_blob(bytes: &[u8]) -> Result<WireBlobParts, Diagnostic> {
     }
     let kind = kind_from_tag(bytes[6]).ok_or_else(|| wire_err("kind"))?;
     let sign = bytes[7];
-    let precision = decode_precision(bytes[8], bytes[9], u32::from_le_bytes(bytes[12..16].try_into().unwrap()), u32::from_le_bytes(bytes[16..20].try_into().unwrap()))?;
+    let precision = decode_precision(
+        bytes[8],
+        bytes[9],
+        u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+    )?;
     let domain_len = u32::from_le_bytes(bytes[20..24].try_into().unwrap()) as usize;
     let payload_len = u32::from_le_bytes(bytes[24..28].try_into().unwrap()) as usize;
     check_payload_limit(domain_len, "domain")?;

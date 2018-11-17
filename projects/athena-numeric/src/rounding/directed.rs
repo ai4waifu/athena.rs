@@ -104,9 +104,11 @@ pub fn f64_div_up(a: f64, b: f64) -> f64 {
 fn sign_class(x: f64) -> Ordering {
     if x.is_nan() || x == 0.0 {
         Ordering::Equal
-    } else if x.is_sign_positive() {
+    }
+    else if x.is_sign_positive() {
         Ordering::Greater
-    } else {
+    }
+    else {
         Ordering::Less
     }
 }

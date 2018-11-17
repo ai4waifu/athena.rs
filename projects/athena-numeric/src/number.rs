@@ -3,9 +3,9 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    algebraic::AlgebraicNumber, big_float::BigFloat, complex::Complex, domain::NumericDomain,
-    finite_field::FiniteFieldValue, integer::Integer, interval::Interval, modular::ModularValue,
-    p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
+    algebraic::AlgebraicNumber, big_float::BigFloat, complex::Complex, domain::NumericDomain, finite_field::FiniteFieldValue,
+    integer::Integer, interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
+    rational::Rational, real::Real,
 };
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
@@ -171,9 +171,7 @@ impl NumericValue {
             Self::Integer(n) => n.to_i64() == Some(-1),
             Self::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
             Self::Real(Real::Machine(x)) => *x == -1.0,
-            Self::Real(Real::BigFloat(b)) => {
-                b.sign() == crate::integer::Sign::Negative && b.is_one()
-            }
+            Self::Real(Real::BigFloat(b)) => b.sign() == crate::integer::Sign::Negative && b.is_one(),
             _ => false,
         }
     }
@@ -226,12 +224,7 @@ impl NumericValue {
             }
             Self::Real(Real::BigFloat(b)) => {
                 if let Some(x) = b.to_f64_exact() {
-                    if x.fract() == 0.0 && x.abs() < 1e15 {
-                        format!("{}", x as i64)
-                    }
-                    else {
-                        format!("{x}")
-                    }
+                    if x.fract() == 0.0 && x.abs() < 1e15 { format!("{}", x as i64) } else { format!("{x}") }
                 }
                 else {
                     format!("{b:?}")

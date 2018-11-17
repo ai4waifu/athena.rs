@@ -22,11 +22,7 @@ fn random_decimal_digits(state: &mut u64, max_digits: usize) -> String {
     let len = (lcg_next(state) as usize % max_digits) + 1;
     let mut s = String::with_capacity(len);
     for i in 0..len {
-        let d = if i == 0 {
-            (lcg_next(state) % 9 + 1) as u8
-        } else {
-            (lcg_next(state) % 10) as u8
-        };
+        let d = if i == 0 { (lcg_next(state) % 9 + 1) as u8 } else { (lcg_next(state) % 10) as u8 };
         s.push(char::from(b'0' + d));
     }
     s

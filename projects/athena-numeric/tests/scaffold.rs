@@ -58,11 +58,7 @@ fn pure_rust_backend_is_wasm_safe() {
 #[test]
 fn try_new_rejects_domain_repr_mismatch() {
     use athena_numeric::PrecisionInfo;
-    let err = NumericValue::try_new(
-        NumericDomain::Integer,
-        NumericValue::machine_real(1.0),
-        PrecisionInfo::exact(),
-    )
-    .unwrap_err();
+    let err =
+        NumericValue::try_new(NumericDomain::Integer, NumericValue::machine_real(1.0), PrecisionInfo::exact()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_DOMAIN_MISMATCH");
 }

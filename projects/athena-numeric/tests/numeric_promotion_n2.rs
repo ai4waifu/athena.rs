@@ -4,8 +4,8 @@
 //! CI 显式运行：`cargo test -p athena-numeric --test numeric_promotion_n2`
 
 use athena_numeric::{
-    BigFloat, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain,
-    NumericValue, PrecisionKind, Promotion, PromotionPolicy, Rational, Real,
+    BigFloat, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,
+    PrecisionKind, Promotion, PromotionPolicy, Rational, Real,
 };
 
 #[test]
@@ -107,8 +107,8 @@ fn promotion_real_to_exact_forbidden() {
 #[test]
 fn promotion_machine_to_arbitrary_imports_bigfloat() {
     let m = NumericValue::machine_real(1.5);
-    let promoted = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default())
-        .expect("promote");
+    let promoted =
+        DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).expect("promote");
     assert_eq!(promoted.precision().kind, PrecisionKind::Arbitrary);
     assert_eq!(promoted.as_real().and_then(|r| r.as_big_float()).unwrap().to_f64_exact(), Some(1.5));
 }
@@ -116,8 +116,8 @@ fn promotion_machine_to_arbitrary_imports_bigfloat() {
 #[test]
 fn machine_to_arbitrary_is_honest_53_bit_import() {
     let m = NumericValue::machine_real(1.5);
-    let promoted = DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default())
-        .expect("promote");
+    let promoted =
+        DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).expect("promote");
     match promoted.as_real() {
         Some(Real::BigFloat(b)) => {
             assert_eq!(b.precision_bits(), 53);

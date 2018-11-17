@@ -3,13 +3,8 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
-    big_float::BigFloat,
-    domain::NumericDomain,
-    integer::Integer,
-    number::NumericValue,
-    precision::PrecisionKind,
-    rational::Rational,
-    real::Real,
+    big_float::BigFloat, domain::NumericDomain, integer::Integer, number::NumericValue, precision::PrecisionKind,
+    rational::Rational, real::Real,
 };
 
 /// Promotion 策略。

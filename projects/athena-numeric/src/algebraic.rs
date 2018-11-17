@@ -1,7 +1,6 @@
 //! 代数数骨架。
 
-use crate::interval::Interval;
-use crate::polynomial_fingerprint::PolynomialFingerprint;
+use crate::{interval::Interval, polynomial_fingerprint::PolynomialFingerprint};
 
 /// 代数数表示策略。
 #[derive(Debug, Clone, PartialEq, Eq)]

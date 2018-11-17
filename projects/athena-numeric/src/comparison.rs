@@ -85,14 +85,15 @@ impl DefaultNumericCompare {
                     (Real::BigFloat(a), Real::BigFloat(b)) => {
                         Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                     }
-                    (Real::Machine(x), Real::BigFloat(b)) | (Real::BigFloat(b), Real::Machine(x)) => {
-                        match b.to_f64_exact() {
-                            Some(y) if x.is_finite() => {
-                                Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
-                            }
-                            _ => Ok(NumericComparison::Unknown),
+                    (Real::Machine(x), Real::BigFloat(b)) | (Real::BigFloat(b), Real::Machine(x)) => match b.to_f64_exact() {
+                        Some(y) if x.is_finite() => Ok(if x.to_bits() == y.to_bits() {
+                            NumericComparison::ExactEqual
                         }
-                    }
+                        else {
+                            NumericComparison::Unequal
+                        }),
+                        _ => Ok(NumericComparison::Unknown),
+                    },
                 }
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

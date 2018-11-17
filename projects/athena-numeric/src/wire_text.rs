@@ -2,12 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind};
 
-use crate::{
-    integer::Integer,
-    number::NumericValue,
-    rational::Rational,
-    serialization::NumericValueWire,
-};
+use crate::{integer::Integer, number::NumericValue, rational::Rational, serialization::NumericValueWire};
 
 impl NumericValueWire {
     /// Encode to human-readable decimal text (explicit text format, not canonical wire).

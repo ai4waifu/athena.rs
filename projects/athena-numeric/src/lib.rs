@@ -52,8 +52,8 @@ pub use kernel_number::{abs, add, compare, div, factorial, mul, neg, pow, sqrt, 
 pub use modular::{ModularValue, Modulus};
 pub use number::{Number, NumericValue};
 pub use number_wire::{from_wire as number_from_wire, to_wire as number_to_wire};
-pub use polynomial_fingerprint::PolynomialFingerprint;
 pub use p_adic::PAdicValue;
+pub use polynomial_fingerprint::PolynomialFingerprint;
 pub use precision::{PrecisionInfo, PrecisionKind};
 pub use promotion::{DefaultPromotion, Promotion, PromotionPolicy};
 pub use rational::{ExactRational, Rational};

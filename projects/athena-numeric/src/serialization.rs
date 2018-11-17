@@ -5,7 +5,10 @@ use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion
 use crate::{
     number::NumericValue,
     precision::PrecisionInfo,
-    wire_binary::{decode_blob, decode_integer_payload, decode_rational_payload, encode_blob, encode_integer_payload, encode_rational_payload, WireBlobParts},
+    wire_binary::{
+        WireBlobParts, decode_blob, decode_integer_payload, decode_rational_payload, encode_blob, encode_integer_payload,
+        encode_rational_payload,
+    },
 };
 
 /// 跨进程 / arena 稳定数值载荷（`payload` 为 binary magnitude bytes，非十进制 UTF-8）。

@@ -1,6 +1,6 @@
 //! Wire number parse and normalization tests.
 
-use athena_types::wire::{ExactNumber, Number};
+use athena_types::wire::{ExactNumber, WireNumber};
 
 #[test]
 fn rational_i64_normalizes() {
@@ -10,12 +10,12 @@ fn rational_i64_normalizes() {
 
 #[test]
 fn from_exact_literal_rational() {
-    let n = Number::from_exact_literal("3/4").unwrap();
+    let n = WireNumber::from_exact_literal("3/4").unwrap();
     assert_eq!(n.to_render_string(), "3/4");
 }
 
 #[test]
 fn from_decimal_str_big() {
-    let n = Number::from_decimal_str("99999999999999999999").unwrap();
+    let n = WireNumber::from_decimal_str("99999999999999999999").unwrap();
     assert_eq!(n.to_render_string(), "99999999999999999999");
 }
