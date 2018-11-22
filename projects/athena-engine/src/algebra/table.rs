@@ -158,8 +158,8 @@ fn validate_prime_modulus(p: &Integer) -> Result<()> {
             .detail("operation", "prime_field_characteristic"));
     }
     match primality_test(p, None) {
-        Primality::Prime => Ok(()),
-        Primality::Composite => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+        Primality::Prime { .. } => Ok(()),
+        Primality::Composite { .. } => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
             .detail("domain", "field")
             .detail("operation", "prime_field_not_prime")),
         Primality::ProbablePrime { .. } | Primality::Unknown => Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)

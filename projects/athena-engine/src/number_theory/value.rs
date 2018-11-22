@@ -2,6 +2,8 @@
 
 use athena_numeric::{Integer, ModularValue};
 
+use super::certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
+
 /// Miller–Rabin 基选择策略。固定基可复现，但**不是**独立随机样本，
 /// 不得按通常随机见证假设计算误判概率上界。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,59 +15,121 @@ pub enum MillerRabinBaseSelection {
 /// 素性判定结果 — 禁止把 Miller-Rabin probable 写成确定 `true`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Primality {
-    /// 确定素数（试除，或已证明覆盖输入上界的确定性见证集）。
-    Prime,
+    /// 确定素数。
+    Prime {
+        /// 可独立核对的证书（bootstrap 阶段为确定性测试路径描述）。
+        certificate: PrimeCertificate,
+    },
     /// 确定合数。
-    Composite,
-    /// 概率素数；证据只记录**实际执行**的基与选择策略。
+    Composite {
+        /// 可验证见证。
+        witness: CompositeWitness,
+    },
+    /// 概率素数。
     ProbablePrime {
-        /// 实际测试的基（按执行顺序）。
-        bases: Vec<u32>,
-        /// 基如何选取。
-        base_selection: MillerRabinBaseSelection,
-        /// 实际执行的基数量（等于 `bases.len()`）。
-        rounds_executed: u32,
+        /// 实际执行证据。
+        evidence: ProbablePrimeEvidence,
     },
     /// 未判定（例如请求 0 轮且无确定性路径）。
     Unknown,
 }
 
-/// 素幂因子。
+/// 单个分解因子（底 × 指数）及其素性状态。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrimePower {
-    /// 底数（素数或未证素数基；完整性见外层 `FactorizationCompleteness`）。
+pub struct FactorComponent {
+    /// 底数（`> 1`）。
     pub base: Integer,
-    /// 指数。
+    /// 指数（`> 0`）。
     pub exponent: u32,
+    /// 该底的素性状态。
+    pub status: FactorBaseStatus,
 }
 
-/// 整数分解完整性。
+/// 因子底的素性状态。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FactorBaseStatus {
+    /// 确定素数底。
+    ProvenPrime {
+        /// 证书。
+        certificate: PrimeCertificate,
+    },
+    /// 概率素数底。
+    ProbablePrime {
+        /// 证据。
+        evidence: ProbablePrimeEvidence,
+    },
+}
+
+/// 余因子（cofactor）状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CofactorStatus {
+    /// 完全分解，余因子为 1。
+    One,
+    /// 余因子为未继续分解的合数。
+    CompositeUnsplit,
+    /// 素性未决。
+    Unknown,
+}
+
+/// 整数分解完整性（由 [`Factorization::completeness`] 从组件推导）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FactorizationCompleteness {
-    /// 完全分解为确定素因子。
+    /// 完全分解为确定素因子，余因子为 1。
     Complete,
-    /// 因子仅为概率素数（余因子为 1）。
+    /// 余因子为 1，但存在概率素因子。
     Probable,
     /// 仍有合数余因子。
     Partial,
-    /// 触及试除 / 比特资源上限。
+    /// 触及资源 / 输入拒绝上限。
     ResourceLimited,
 }
 
-/// 带完整性的整数分解对象。
+/// 带逐因子证据的整数分解。
 ///
-/// 不变量（非零输入）：`input = unit * Π base_i^e_i * remainder`，`unit ∈ {-1,1}`，
-/// `base_i > 1`，`e_i > 0`。`0` 不进入本结构（见 `factor_integer` 域错误）。
+/// 不变量（非零输入）：`input = unit * Π base^e * cofactor`，`unit ∈ {-1,1}`，
+/// `base > 1`，`e > 0`。`0` 不进入本结构。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Factorization {
     /// 单位（符号：`±1`）。
     pub unit: Integer,
-    /// 素幂因子（升序底）。
-    pub factors: Vec<PrimePower>,
-    /// 未分解余因子（`Partial` / `ResourceLimited` 时可能非 1）。
-    pub remainder: Integer,
-    /// 完整性。
-    pub completeness: FactorizationCompleteness,
+    /// 因子（底升序）。
+    pub factors: Vec<FactorComponent>,
+    /// 未完全分解的余因子（完全分解时为 1）。
+    pub cofactor: Integer,
+    /// 余因子状态。
+    pub cofactor_status: CofactorStatus,
+    /// 是否因输入比特上限被拒绝（非已消耗预算）。
+    pub input_rejected: bool,
+}
+
+impl Factorization {
+    /// 由组件与余因子状态推导整体完整性（不单独存储可能矛盾的 enum）。
+    pub fn completeness(&self) -> FactorizationCompleteness {
+        if self.input_rejected {
+            return FactorizationCompleteness::ResourceLimited;
+        }
+        let has_probable = self
+            .factors
+            .iter()
+            .any(|c| matches!(c.status, FactorBaseStatus::ProbablePrime { .. }));
+        let all_proven = self
+            .factors
+            .iter()
+            .all(|c| matches!(c.status, FactorBaseStatus::ProvenPrime { .. }));
+        match self.cofactor_status {
+            CofactorStatus::One if all_proven && !has_probable => FactorizationCompleteness::Complete,
+            CofactorStatus::One if has_probable => FactorizationCompleteness::Probable,
+            CofactorStatus::CompositeUnsplit | CofactorStatus::Unknown => {
+                FactorizationCompleteness::Partial
+            }
+            CofactorStatus::One => FactorizationCompleteness::Partial,
+        }
+    }
+
+    /// 兼容旧字段名：未分解余因子。
+    pub fn remainder(&self) -> &Integer {
+        &self.cofactor
+    }
 }
 
 /// 扩展欧几里得：`s·a + t·b = g`。
@@ -92,4 +156,17 @@ pub enum NumberTheoryValue {
     Factorization(Factorization),
     /// 模运算结果。
     Modular(ModularValue),
+}
+
+/// 由素性结果构造因子底状态。
+pub(crate) fn factor_status_from_primality(p: &Primality) -> Option<FactorBaseStatus> {
+    match p {
+        Primality::Prime { certificate } => Some(FactorBaseStatus::ProvenPrime {
+            certificate: certificate.clone(),
+        }),
+        Primality::ProbablePrime { evidence } => Some(FactorBaseStatus::ProbablePrime {
+            evidence: evidence.clone(),
+        }),
+        Primality::Composite { .. } | Primality::Unknown => None,
+    }
 }

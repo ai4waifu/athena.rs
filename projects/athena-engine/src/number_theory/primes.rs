@@ -2,16 +2,16 @@
 
 use athena_numeric::Integer;
 
-use super::value::{MillerRabinBaseSelection, Primality};
+use super::certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
+use super::value::Primality;
 
 /// 默认 Miller–Rabin 固定基数量上限（大整数路径）。
 pub const DEFAULT_MR_ROUNDS: u32 = 16;
 
-/// 试除确定性上限（含）：在此以内用试除给出 `Prime`/`Composite`。
+/// 试除确定性上限（含）。
 const DETERMINISTIC_TRIAL_BOUND: u64 = 1_000_000;
 
 /// 覆盖全部 `u64` 的确定性强伪素数见证集（OEIS A014233 / Feitsma–Galway）。
-/// 仅在 `n < 2^64` 内可把通过者标为确定 `Prime`；不得截断该集合仍声称全 `u64` 覆盖。
 const U64_DETERMINISTIC_WITNESSES: &[u64] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
 
 /// 大整数路径的固定小素数基（可复现，**不是**独立随机样本）。
@@ -20,32 +20,55 @@ const FIXED_MR_BASES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
 /// 素性测试。
 pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primality {
     if !n.is_positive() || n.is_one() {
-        return Primality::Composite;
+        return Primality::Composite {
+            witness: CompositeWitness::NonPositiveOrOne,
+        };
     }
     if n == &Integer::from_i64(2) || n == &Integer::from_i64(3) {
-        return Primality::Prime;
+        return Primality::Prime {
+            certificate: PrimeCertificate::SmallPrime,
+        };
     }
     if n.rem(&Integer::from_i64(2)).is_zero() {
-        return Primality::Composite;
+        return Primality::Composite {
+            witness: CompositeWitness::Even,
+        };
     }
 
     if let Some(small) = n.to_u64() {
         if small <= DETERMINISTIC_TRIAL_BOUND {
             return if is_prime_u64_trial(small) {
-                Primality::Prime
+                Primality::Prime {
+                    certificate: PrimeCertificate::TrialDivision {
+                        bound: DETERMINISTIC_TRIAL_BOUND,
+                    },
+                }
             } else {
-                Primality::Composite
+                Primality::Composite {
+                    witness: trial_divisor_witness_u64(small)
+                        .unwrap_or(CompositeWitness::Even),
+                }
             };
         }
         return if miller_rabin_u64_deterministic(small) {
-            Primality::Prime
+            Primality::Prime {
+                certificate: PrimeCertificate::DeterministicMillerRabin {
+                    max_value_bits: 64,
+                    witnesses: U64_DETERMINISTIC_WITNESSES.iter().map(|&w| w as u32).collect(),
+                },
+            }
         } else {
-            Primality::Composite
+            Primality::Composite {
+                witness: miller_rabin_composite_witness_u64(small)
+                    .unwrap_or(CompositeWitness::Even),
+            }
         };
     }
 
-    if has_small_factor(n) {
-        return Primality::Composite;
+    if let Some(d) = smallest_factor(n) {
+        return Primality::Composite {
+            witness: CompositeWitness::SmallFactor { divisor: d },
+        };
     }
 
     let requested = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
@@ -54,20 +77,17 @@ pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primalit
     }
 
     match miller_rabin_integer_fixed(n, requested) {
-        MrFixedOutcome::Composite => Primality::Composite,
-        MrFixedOutcome::Probable { bases } => {
-            let rounds_executed = bases.len() as u32;
-            Primality::ProbablePrime {
-                bases,
-                base_selection: MillerRabinBaseSelection::Fixed,
-                rounds_executed,
-            }
-        }
+        MrFixedOutcome::Composite { base } => Primality::Composite {
+            witness: CompositeWitness::MillerRabin { base },
+        },
+        MrFixedOutcome::Probable { bases } => Primality::ProbablePrime {
+            evidence: ProbablePrimeEvidence::fixed(bases),
+        },
     }
 }
 
 enum MrFixedOutcome {
-    Composite,
+    Composite { base: u32 },
     Probable { bases: Vec<u32> },
 }
 
@@ -91,13 +111,36 @@ fn is_prime_u64_trial(n: u64) -> bool {
     true
 }
 
-fn miller_rabin_u64_deterministic(n: u64) -> bool {
-    miller_rabin_u64(n, U64_DETERMINISTIC_WITNESSES)
+fn trial_divisor_witness_u64(n: u64) -> Option<CompositeWitness> {
+    if n.is_multiple_of(2) {
+        return Some(CompositeWitness::Even);
+    }
+    let mut i = 3u64;
+    while i.saturating_mul(i) <= n {
+        if n.is_multiple_of(i) {
+            return Some(CompositeWitness::SmallFactor {
+                divisor: Integer::from_u64(i),
+            });
+        }
+        i += 2;
+    }
+    None
 }
 
-fn miller_rabin_u64(n: u64, witnesses: &[u64]) -> bool {
+fn miller_rabin_u64_deterministic(n: u64) -> bool {
+    miller_rabin_u64(n, U64_DETERMINISTIC_WITNESSES).is_ok()
+}
+
+fn miller_rabin_composite_witness_u64(n: u64) -> Option<CompositeWitness> {
+    match miller_rabin_u64(n, U64_DETERMINISTIC_WITNESSES) {
+        Ok(()) => None,
+        Err(base) => Some(CompositeWitness::MillerRabin { base: base as u32 }),
+    }
+}
+
+fn miller_rabin_u64(n: u64, witnesses: &[u64]) -> Result<(), u64> {
     if n < 2 {
-        return false;
+        return Err(2);
     }
     let mut d = n - 1;
     let mut s = 0u32;
@@ -105,7 +148,7 @@ fn miller_rabin_u64(n: u64, witnesses: &[u64]) -> bool {
         d /= 2;
         s += 1;
     }
-    'next_witness: for &a in witnesses {
+    for &a in witnesses {
         if a % n == 0 {
             continue;
         }
@@ -113,15 +156,19 @@ fn miller_rabin_u64(n: u64, witnesses: &[u64]) -> bool {
         if x == 1 || x == n - 1 {
             continue;
         }
+        let mut is_witness = true;
         for _ in 1..s {
             x = mul_mod_u64(x, x, n);
             if x == n - 1 {
-                continue 'next_witness;
+                is_witness = false;
+                break;
             }
         }
-        return false;
+        if is_witness {
+            return Err(a);
+        }
     }
-    true
+    Ok(())
 }
 
 fn mod_pow_u64(mut base: u64, mut exp: u64, m: u64) -> u64 {
@@ -141,24 +188,23 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64 {
     ((a as u128 * b as u128) % m as u128) as u64
 }
 
-fn has_small_factor(n: &Integer) -> bool {
+fn smallest_factor(n: &Integer) -> Option<Integer> {
     const SMALL: &[u32] = &[
-        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
+        97,
     ];
     for &p in SMALL {
         let pb = Integer::from(p);
         if n == &pb {
-            return false;
+            return None;
         }
         if n.rem(&pb).is_zero() {
-            return true;
+            return Some(pb);
         }
     }
-    false
+    None
 }
 
-/// 固定基强 Miller–Rabin。`requested_rounds` 只截断可用固定基数量；
-/// 返回值只含**实际执行**的基，不得把未执行的请求轮数写入证据。
 fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutcome {
     let one = Integer::one();
     let two = Integer::from_i64(2);
@@ -176,9 +222,8 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
     for &a in &FIXED_MR_BASES[..use_rounds] {
         let base = Integer::from(a);
         if base.rem(n).is_zero() {
-            // 固定小素数基：rem==0 且基 ≠ n  ⇒ 基整除 n ⇒ 合数。
             if &base != n {
-                return MrFixedOutcome::Composite;
+                return MrFixedOutcome::Composite { base: a };
             }
             continue;
         }
@@ -196,7 +241,7 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
             }
         }
         if composite {
-            return MrFixedOutcome::Composite;
+            return MrFixedOutcome::Composite { base: a };
         }
     }
 
