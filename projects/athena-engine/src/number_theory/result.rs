@@ -97,14 +97,14 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
 fn wrap_primality(p: Primality) -> NumberTheoryResult {
     let value = NumberTheoryValue::Primality(p.clone());
     match p {
-        Primality::Prime | Primality::Composite => NumberTheoryResult::Exact { value },
+        Primality::Prime { .. } | Primality::Composite { .. } => NumberTheoryResult::Exact { value },
         Primality::ProbablePrime { .. } => NumberTheoryResult::Probable { value },
         Primality::Unknown => NumberTheoryResult::Inconclusive { value },
     }
 }
 
 fn wrap_factorization(f: super::value::Factorization) -> NumberTheoryResult {
-    let completeness = f.completeness;
+    let completeness = f.completeness();
     let value = NumberTheoryValue::Factorization(f);
     match completeness {
         FactorizationCompleteness::Complete => NumberTheoryResult::Exact { value },
