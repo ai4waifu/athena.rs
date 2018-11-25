@@ -49,7 +49,7 @@ pub use finite_field::FiniteFieldValue;
 pub use integer::{ExactInteger, Integer, Sign};
 pub use interval::{Interval, IntervalDecoration};
 pub use kernel_number::{abs, add, compare, div, factorial, mul, neg, pow, sqrt, to_f64_lossy};
-pub use modular::{ModularValue, Modulus};
+pub use modular::{ModularValue, Modulus, PrimeModulus, ProbablePrimeModulus};
 pub use number::{Number, NumericValue};
 pub use number_wire::{from_wire as number_from_wire, to_wire as number_to_wire};
 pub use p_adic::PAdicValue;

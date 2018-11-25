@@ -74,3 +74,55 @@ impl ModularValue {
         }
     }
 }
+
+/// 已证明为素数的模数（构造前须由 engine 完成确定性素性判定）。
+///
+/// 仅 [`PrimeModulus`] 可构造 exact `F_p`。numeric 层不自证素性。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PrimeModulus {
+    inner: Modulus,
+}
+
+impl PrimeModulus {
+    /// 在 caller 已确立 **确定素数** 后构造（engine 层负责校验）。
+    pub fn assuming_proven(value: impl Into<Integer>) -> Result<Self> {
+        Ok(Self {
+            inner: Modulus::new(value)?,
+        })
+    }
+
+    /// 底层 [`Modulus`]。
+    pub fn modulus(&self) -> &Modulus {
+        &self.inner
+    }
+
+    /// 素数 `p`。
+    pub fn value(&self) -> &Integer {
+        self.inner.value()
+    }
+}
+
+/// 概率素数模数（仅允许概率语义路径，不得构造 exact `F_p`）。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProbablePrimeModulus {
+    inner: Modulus,
+}
+
+impl ProbablePrimeModulus {
+    /// 在 caller 已记录概率素性证据后构造。
+    pub fn assuming_probable(value: impl Into<Integer>) -> Result<Self> {
+        Ok(Self {
+            inner: Modulus::new(value)?,
+        })
+    }
+
+    /// 底层 [`Modulus`]。
+    pub fn modulus(&self) -> &Modulus {
+        &self.inner
+    }
+
+    /// 模数值。
+    pub fn value(&self) -> &Integer {
+        self.inner.value()
+    }
+}
