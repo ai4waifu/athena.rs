@@ -49,7 +49,7 @@ fn primality_distinguishes_probable() {
         miller_rabin_rounds: None,
     })));
     match out {
-        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Prime) } => {}
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Prime { .. }) } => {}
         other => panic!("97 should be Prime: {other:?}"),
     }
 
@@ -58,7 +58,7 @@ fn primality_distinguishes_probable() {
         miller_rabin_rounds: None,
     })));
     match out {
-        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Composite) } => {}
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Primality(Primality::Composite { .. }) } => {}
         other => panic!("91 composite: {other:?}"),
     }
 }
@@ -73,9 +73,8 @@ fn factor_integer_complete_small() {
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Factorization(f) } => {
             assert_eq!(f.unit, Integer::from_i64(-1));
-            assert_eq!(f.completeness, FactorizationCompleteness::Complete);
-            assert_eq!(f.remainder, Integer::from_i64(1));
-            // 360 = 2^3 * 3^2 * 5
+            assert_eq!(f.completeness(), FactorizationCompleteness::Complete);
+            assert_eq!(f.remainder(), &Integer::from_i64(1));
             assert_eq!(f.factors.len(), 3);
             assert_eq!(f.factors[0].base, Integer::from_i64(2));
             assert_eq!(f.factors[0].exponent, 3);
@@ -105,7 +104,7 @@ fn modular_inverse_and_pow() {
         modulus: m,
     })));
     match out {
-        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), &Integer::from_i64(5)), /* 243 ≡ 5 (mod 17) */
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), &Integer::from_i64(5)),
         other => panic!("pow: {other:?}"),
     }
 }

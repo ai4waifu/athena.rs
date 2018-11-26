@@ -3,8 +3,8 @@
 use std::str::FromStr;
 
 use athena_engine::{
-    FactorLimits, FactorizationCompleteness, Integer, MillerRabinBaseSelection, Modulus, Primality, extended_gcd,
-    factor_integer, gcd, mod_inverse, mod_pow, primality_test,
+    CompositeWitness, FactorBaseStatus, FactorLimits, FactorizationCompleteness, Integer, MillerRabinBaseSelection, Modulus,
+    Primality, PrimeModulus, extended_gcd, factor_integer, gcd, mod_inverse, mod_pow, primality_test, verify_factorization,
 };
 use athena_types::DiagnosticCode;
 
@@ -27,20 +27,23 @@ fn egcd_bezout() {
 #[test]
 fn factor_12() {
     let f = factor_integer(&12.into(), &FactorLimits::default()).expect("factor 12");
-    assert_eq!(f.completeness, FactorizationCompleteness::Complete);
+    assert_eq!(f.completeness(), FactorizationCompleteness::Complete);
     assert_eq!(f.unit, Integer::one());
     assert_eq!(f.factors.len(), 2);
     assert_eq!(f.factors[0].base, Integer::from_i64(2));
     assert_eq!(f.factors[0].exponent, 2);
+    assert!(matches!(f.factors[0].status, FactorBaseStatus::ProvenPrime { .. }));
     assert_eq!(f.factors[1].base, Integer::from_i64(3));
     assert_eq!(f.factors[1].exponent, 1);
+    verify_factorization(&12.into(), &f).expect("verify 12");
 }
 
 #[test]
 fn factor_negative() {
     let f = factor_integer(&(-100).into(), &FactorLimits::default()).expect("factor -100");
     assert_eq!(f.unit, Integer::from_i64(-1));
-    assert_eq!(f.completeness, FactorizationCompleteness::Complete);
+    assert_eq!(f.completeness(), FactorizationCompleteness::Complete);
+    verify_factorization(&(-100).into(), &f).expect("verify -100");
 }
 
 #[test]
@@ -59,42 +62,55 @@ fn inverse_and_pow() {
 }
 
 #[test]
-fn small_primes() {
-    assert_eq!(primality_test(&2.into(), None), Primality::Prime);
-    assert_eq!(primality_test(&97.into(), None), Primality::Prime);
-    assert_eq!(primality_test(&91.into(), None), Primality::Composite);
-    assert_eq!(primality_test(&1.into(), None), Primality::Composite);
+fn prime_modulus_from_proven() {
+    let p = primality_test(&97.into(), None);
+    assert!(matches!(p, Primality::Prime { .. }));
+    let pm = PrimeModulus::assuming_proven(97).expect("prime modulus");
+    assert_eq!(pm.value(), &Integer::from_i64(97));
 }
 
-/// Old witness set `{2,3,5,7,11,13,23}` is not valid for all `u64`. Full-range set includes up to 37.
+#[test]
+fn small_primes_and_composite_witnesses() {
+    assert!(matches!(primality_test(&2.into(), None), Primality::Prime { .. }));
+    assert!(matches!(primality_test(&97.into(), None), Primality::Prime { .. }));
+    match primality_test(&91.into(), None) {
+        Primality::Composite {
+            witness: CompositeWitness::SmallFactor { divisor },
+        } => assert_eq!(divisor, Integer::from_i64(7)),
+        other => panic!("91 should be composite with small factor: {other:?}"),
+    }
+    assert!(matches!(
+        primality_test(&1.into(), None),
+        Primality::Composite {
+            witness: CompositeWitness::NonPositiveOrOne
+        }
+    ));
+}
+
 #[test]
 fn u64_deterministic_covers_large_prime() {
     let n = Integer::from_u64(u64::MAX - 58);
-    assert_eq!(primality_test(&n, None), Primality::Prime);
+    assert!(matches!(primality_test(&n, None), Primality::Prime { .. }));
 }
 
 #[test]
 fn u64_deterministic_rejects_composite() {
     let n = Integer::from_u64(1_000_003u64 * 1_000_003u64);
-    assert_eq!(primality_test(&n, None), Primality::Composite);
+    assert!(matches!(primality_test(&n, None), Primality::Composite { .. }));
 }
 
 #[test]
 fn probable_prime_metadata_matches_executed_bases() {
     let n = Integer::from_str("1050134283599687836074166315548193334825931101974830645589").expect("parse");
     match primality_test(&n, Some(1000)) {
-        Primality::ProbablePrime {
-            bases,
-            base_selection,
-            rounds_executed,
-        } => {
-            assert_eq!(base_selection, MillerRabinBaseSelection::Fixed);
-            assert_eq!(rounds_executed, bases.len() as u32);
-            assert!(rounds_executed <= 12);
-            assert_ne!(rounds_executed, 1000, "must not report requested rounds as executed");
+        Primality::ProbablePrime { evidence } => {
+            assert_eq!(evidence.base_selection, MillerRabinBaseSelection::Fixed);
+            assert_eq!(evidence.rounds_executed, evidence.bases.len() as u32);
+            assert!(evidence.rounds_executed <= 12);
+            assert_ne!(evidence.rounds_executed, 1000);
             assert_eq!(primality_test(&n, Some(0)), Primality::Unknown);
         }
-        Primality::Composite => {}
+        Primality::Composite { .. } => {}
         other => panic!("expected ProbablePrime or Composite, got {other:?}"),
     }
 }
@@ -102,13 +118,15 @@ fn probable_prime_metadata_matches_executed_bases() {
 #[test]
 fn probable_rounds_capped_to_actual() {
     let n = Integer::from_str("1050134283599687836074166315548193334825931101974830645589").expect("parse");
-    if let Primality::ProbablePrime {
-        rounds_executed,
-        bases,
-        ..
-    } = primality_test(&n, Some(3))
-    {
-        assert_eq!(rounds_executed, 3);
-        assert_eq!(bases, vec![2, 3, 5]);
+    if let Primality::ProbablePrime { evidence } = primality_test(&n, Some(3)) {
+        assert_eq!(evidence.rounds_executed, 3);
+        assert_eq!(evidence.bases, vec![2, 3, 5]);
     }
+}
+
+#[test]
+fn factor_limits_policy_budget() {
+    let limits = FactorLimits::default();
+    assert_eq!(limits.max_trial(), 1_000_000);
+    assert_eq!(limits.max_bits(), 256);
 }
