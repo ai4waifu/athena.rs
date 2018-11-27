@@ -1,6 +1,6 @@
 //! 数论结果对象（非裸整数列表）。
 
-use athena_numeric::{Integer, ModularValue};
+use athena_numeric::{Integer, ModularValue, Modulus, Rational};
 
 use super::certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
 
@@ -156,6 +156,87 @@ pub enum NumberTheoryValue {
     Factorization(Factorization),
     /// 模运算结果。
     Modular(ModularValue),
+    /// 线性同余解集。
+    Congruence(CongruenceSolution),
+    /// 中国剩余定理结果。
+    Crt(CrtResult),
+    /// 有理重构。
+    RationalReconstruction(RationalReconstruction),
+}
+
+/// 线性同余 `a x ≡ b (mod m)` 的解结构。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CongruenceSolution {
+    /// `g ∤ b`：无解。
+    NoSolution {
+        /// `gcd(a, m)`。
+        gcd: Integer,
+        /// 不一致见证：`b mod g ≠ 0`。
+        residue_mod_gcd: Integer,
+    },
+    /// `g = 1`：模 `m` 下唯一剩余类。
+    UniqueClass {
+        /// 解 `x₀ (mod m)`。
+        residue: ModularValue,
+    },
+    /// `g > 1` 且 `g | b`：模 `m` 下有 `g` 个解，压缩为模 `m/g` 的一个基本类。
+    MultipleClasses {
+        /// 基本解 `0 ≤ x₀ < m/g`。
+        base_residue: Integer,
+        /// `m/g`。
+        reduced_modulus: Modulus,
+        /// 原模 `m`。
+        ambient_modulus: Modulus,
+        /// 解的个数 `g`。
+        multiplicity: Integer,
+    },
+}
+
+/// 广义 CRT 结果（允许非互素模数）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CrtResult {
+    /// 相容：解模 `lcm(m_i)`。
+    Consistent {
+        /// 解剩余类。
+        solution: ModularValue,
+        /// 最终模数（lcm）。
+        modulus_lcm: Modulus,
+    },
+    /// 不相容。
+    Inconsistent {
+        /// 冲突左侧方程下标。
+        left_index: usize,
+        /// 冲突右侧方程下标。
+        right_index: usize,
+        /// `gcd(m_left, m_right)`。
+        gcd: Integer,
+        /// `a_left − a_right`（未约化）。
+        residue_difference: Integer,
+    },
+}
+
+/// 有理数重构结果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RationalReconstruction {
+    /// 找到满足界条件的既约分数。
+    Found {
+        /// 重构分数。
+        value: Rational,
+    },
+    /// 在给定界下无唯一（或无）解。
+    NotFound {
+        /// 原因标签。
+        reason: RationalReconstructionFailure,
+    },
+}
+
+/// 有理重构失败原因。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RationalReconstructionFailure {
+    /// 模数过小或界非法。
+    InvalidBounds,
+    /// 扩展欧几里得路径未产生满足 `|n|≤N`、`|d|≤D` 的解。
+    NoCandidate,
 }
 
 /// 由素性结果构造因子底状态。

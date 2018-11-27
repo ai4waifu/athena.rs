@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     algebraic::algebraic_scaffold,
-    congruence::solve_linear_congruence,
+    congruence::{chinese_remainder, rational_reconstruction, solve_linear_congruence},
     factor::factor_integer,
     gcd::{extended_gcd, gcd, lcm},
     modular::{mod_inverse, mod_pow},
@@ -90,6 +90,22 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
         NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => {
             solve_linear_congruence(&a, &b, &modulus)
         }
+        NumberTheoryRequest::ChineseRemainder { residues, moduli } => {
+            chinese_remainder(&residues, &moduli)
+        }
+        NumberTheoryRequest::RationalReconstruction {
+            residue,
+            modulus,
+            max_numerator,
+            max_denominator,
+        } => NumberTheoryResult::Exact {
+            value: NumberTheoryValue::RationalReconstruction(rational_reconstruction(
+                &residue,
+                &modulus,
+                max_numerator.as_ref(),
+                max_denominator.as_ref(),
+            )),
+        },
         NumberTheoryRequest::AlgebraicScaffold => algebraic_scaffold(),
     }
 }

@@ -1,4 +1,4 @@
-//! 数论领域 — gcd / 素性 / 分解 / 模运算（Gate 1 bootstrap + P1 结果模型）。
+//! 数论领域 — gcd / 素性 / 分解 / 模运算 / 同余（Gate 1 + P1/P2）。
 //!
 //! 结果带完整性与确定性元数据；禁止把 probable 素性当成确定 `Prime`，
 //! 禁止裸 `Vec` 让宿主猜测分解是否完整。
@@ -15,6 +15,7 @@ mod result;
 mod value;
 
 pub use certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
+pub use congruence::{chinese_remainder, chinese_remainder_pair, rational_reconstruction, solve_linear_congruence};
 pub use factor::{
     FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy,
     FactorizationVerifyError, ProofRequirement, factor_component_from_primality, factor_integer,
@@ -26,6 +27,7 @@ pub use primes::primality_test;
 pub use request::NumberTheoryRequest;
 pub use result::{NumberTheoryResult, execute_number_theory};
 pub use value::{
-    CofactorStatus, ExtendedGcd, FactorBaseStatus, FactorComponent, Factorization,
-    FactorizationCompleteness, MillerRabinBaseSelection, NumberTheoryValue, Primality,
+    CofactorStatus, CongruenceSolution, CrtResult, ExtendedGcd, FactorBaseStatus, FactorComponent,
+    Factorization, FactorizationCompleteness, MillerRabinBaseSelection, NumberTheoryValue, Primality,
+    RationalReconstruction, RationalReconstructionFailure,
 };

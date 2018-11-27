@@ -1,4 +1,4 @@
-//! 数论域请求。
+//! 数论域请求 — 宿主传入已解码整数 / 模数。
 
 use athena_numeric::{Integer, Modulus};
 
@@ -58,14 +58,32 @@ pub enum NumberTheoryRequest {
         /// 模数。
         modulus: Modulus,
     },
-    /// 线性同余 `a x ≡ b (mod m)`（骨架）。
+    /// 线性同余 `a x ≡ b (mod m)`。
     SolveLinearCongruence {
         /// `a`。
         a: Integer,
         /// `b`。
         b: Integer,
-        /// 模 `m`。
-        modulus: Integer,
+        /// 模 `m`（已验证）。
+        modulus: Modulus,
+    },
+    /// 广义中国剩余定理：`x ≡ residues[i] (mod moduli[i])`。
+    ChineseRemainder {
+        /// 剩余。
+        residues: Vec<Integer>,
+        /// 模数（与 `residues` 等长）。
+        moduli: Vec<Modulus>,
+    },
+    /// 有理重构：从 `residue (mod modulus)` 恢复 `n/d`。
+    RationalReconstruction {
+        /// 剩余。
+        residue: Integer,
+        /// 模数。
+        modulus: Modulus,
+        /// 分子绝对值上界；`None` → `⌊√(m/2)⌋`。
+        max_numerator: Option<Integer>,
+        /// 分母绝对值上界；`None` → `⌊√(m/2)⌋`。
+        max_denominator: Option<Integer>,
     },
     /// 代数整数相关（骨架占位）。
     AlgebraicScaffold,

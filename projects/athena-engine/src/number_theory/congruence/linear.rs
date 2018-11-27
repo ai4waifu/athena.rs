@@ -1,0 +1,83 @@
+//! 线性同余 `a x ≡ b (mod m)`。
+
+use athena_numeric::{Integer, ModularValue, Modulus};
+use athena_types::{Diagnostic, DiagnosticCode};
+
+use super::super::{
+    gcd::extended_gcd,
+    result::NumberTheoryResult,
+    value::{CongruenceSolution, NumberTheoryValue},
+};
+
+/// 求解 `a x ≡ b (mod m)`。`m` 须为已验证 [`Modulus`]。
+pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> NumberTheoryResult {
+    let m = modulus.value();
+    let eg = extended_gcd(a, m);
+    let g = eg.g;
+    let b_mod_g = {
+        let mut r = b.rem(&g);
+        if r.is_negative() {
+            r = r.add(&g);
+        }
+        r
+    };
+    if !b_mod_g.is_zero() {
+        return NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Congruence(CongruenceSolution::NoSolution {
+                gcd: g,
+                residue_mod_gcd: b_mod_g,
+            }),
+        };
+    }
+
+    // 解 a' x ≡ b' (mod m')，其中 a'=a/g, b'=b/g, m'=m/g。
+    let a_red = a.div(&g);
+    let b_red = b.div(&g);
+    let m_red = m.div(&g);
+    let eg2 = extended_gcd(&a_red, &m_red);
+    // eg2.s * a_red ≡ 1 (mod m_red) 当 gcd=1。
+    if !eg2.g.is_one() {
+        return NumberTheoryResult::Unevaluated {
+            reason: Diagnostic::new(DiagnosticCode::CongruenceInconsistent)
+                .detail("domain", "number_theory")
+                .detail("operation", "solve_linear_congruence")
+                .detail("reason", "reduced_system_not_coprime"),
+        };
+    }
+    let mut x0 = eg2.s.mul(&b_red).rem(&m_red);
+    if x0.is_negative() {
+        x0 = x0.add(&m_red);
+    }
+
+    if g.is_one() {
+        return NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass {
+                residue: ModularValue::new(x0, modulus.clone()),
+            }),
+        };
+    }
+
+    let reduced = match Modulus::new(m_red.clone()) {
+        Ok(m) => m,
+        Err(reason) => {
+            // m/g = 1 时：唯一解模 1 无意义，但数学上所有整数同余；用 UniqueClass 于原模。
+            if m_red.is_one() {
+                return NumberTheoryResult::Exact {
+                    value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass {
+                        residue: ModularValue::new(x0, modulus.clone()),
+                    }),
+                };
+            }
+            return NumberTheoryResult::InvalidInput { reason };
+        }
+    };
+
+    NumberTheoryResult::Exact {
+        value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses {
+            base_residue: x0,
+            reduced_modulus: reduced,
+            ambient_modulus: modulus.clone(),
+            multiplicity: g,
+        }),
+    }
+}
