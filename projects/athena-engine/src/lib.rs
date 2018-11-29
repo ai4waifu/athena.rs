@@ -42,9 +42,9 @@ pub use algebra::{
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
-    ExactInteger, ExactRational, Integer, ModularValue, Modulus, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
-    NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus,
-    PureRustBackend, number_from_wire,
+    ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusContext, ModulusTable, Number,
+    NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericDomain, NumericOperation,
+    NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus, PureRustBackend, number_from_wire,
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
@@ -87,11 +87,13 @@ pub use mgraph::{
     witness_from_exact,
 };
 pub use number_theory::{
-    CofactorStatus, CompositeWitness, ExtendedGcd, FactorAlgorithms, FactorBaseStatus, FactorComponent, FactorExecutionBudget,
-    FactorFrontier, FactorLimits, FactorPolicy, Factorization, FactorizationCompleteness, FactorizationVerifyError,
-    MillerRabinBaseSelection, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality, PrimeCertificate,
-    ProbablePrimeEvidence, ProofRequirement, execute_number_theory, extended_gcd, factor_component_from_primality, factor_integer,
-    gcd, lcm, mod_inverse, mod_pow, primality_test, verify_factorization,
+    CofactorStatus, CompositeWitness, CongruenceSolution, CrtResult, ExtendedGcd, FactorAlgorithms, FactorBaseStatus,
+    FactorComponent, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, Factorization,
+    FactorizationCompleteness, FactorizationVerifyError, MillerRabinBaseSelection, NumberTheoryRequest, NumberTheoryResult,
+    NumberTheoryValue, Primality, PrimeCertificate, ProbablePrimeEvidence, ProofRequirement, RationalReconstruction,
+    RationalReconstructionFailure, chinese_remainder, chinese_remainder_pair, execute_number_theory, extended_gcd,
+    factor_component_from_primality, factor_integer, gcd, lcm, mod_inverse, mod_pow, primality_test, rational_reconstruction,
+    solve_linear_congruence, verify_factorization,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{

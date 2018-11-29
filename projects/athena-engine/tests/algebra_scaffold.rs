@@ -48,20 +48,24 @@ fn group_field_galois_scaffolds_unevaluated() {
 }
 
 #[test]
-fn number_theory_congruence_scaffold() {
+fn number_theory_congruence_solves_multiple() {
     let engine = AthenaEngine::new();
     let out = engine
         .execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::SolveLinearCongruence {
             a: 2.into(),
             b: 4.into(),
-            modulus: 6.into(),
+            modulus: athena_engine::Modulus::new(6).unwrap(),
         }))
         .expect("ok");
     match out {
-        DomainResult::NumberTheory(athena_engine::NumberTheoryResult::Unevaluated { reason }) => {
-            assert_eq!(reason.code, DiagnosticCode::UnsupportedOperation);
-            assert_eq!(reason.details.get("operation").map(|v| v.to_string()).as_deref(), Some("solve_linear_congruence"));
+        DomainResult::NumberTheory(athena_engine::NumberTheoryResult::Exact {
+            value: athena_engine::NumberTheoryValue::Congruence(athena_engine::CongruenceSolution::MultipleClasses {
+                multiplicity,
+                ..
+            }),
+        }) => {
+            assert_eq!(multiplicity, Integer::from_i64(2));
         }
-        other => panic!("expected congruence scaffold, got {other:?}"),
+        other => panic!("expected MultipleClasses, got {other:?}"),
     }
 }
