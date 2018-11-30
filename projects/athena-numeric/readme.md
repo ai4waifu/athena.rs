@@ -6,4 +6,4 @@ Athena 数值塔：表示、精度、promotion、比较、证书与序列化（L
 - N1：`ExactInteger` / `ExactRational` · normalize · gcd · sign · compare · serialize
 - N2：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch 诊断（migration gate：`tests/numeric_promotion_n2.rs`）
 
-`num-*` 仅作内部存储，不作为公共语义。依赖：`athena-types`。
+`num-*` 不出现在 workspace 根依赖；核心 crate 零 `num-*`。可选外部对照仅见 `athena-benchmark`（`bigint-compare` feature）。依赖：`athena-types`。

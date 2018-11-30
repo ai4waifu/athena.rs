@@ -1,17 +1,7 @@
-//! Differential and property tests against `num-bigint` (test-only reference, not public API).
+//! Randomized differential tests using in-crate reference algorithms (no `num-*` oracle).
 
 use athena_numeric::{Integer, natural::Natural};
-use num_bigint::{BigInt, BigUint};
-use num_integer::Integer as NumInteger;
 use std::str::FromStr;
-
-fn natural_to_biguint(n: &Natural) -> BigUint {
-    BigUint::from_str(&n.to_decimal_string()).unwrap()
-}
-
-fn integer_to_bigint(n: &Integer) -> BigInt {
-    BigInt::from_str(&n.to_decimal_string()).unwrap()
-}
 
 fn lcg_next(state: &mut u64) -> u64 {
     *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
@@ -37,22 +27,48 @@ fn random_signed_decimal(state: &mut u64, max_digits: usize) -> String {
     s
 }
 
+fn reference_gcd(mut x: Natural, mut y: Natural) -> Natural {
+    while !y.is_zero() {
+        let (_, r) = x.div_rem(&y);
+        x = y;
+        y = r;
+    }
+    x
+}
+
+fn reference_mod_pow(base: Natural, exp: Natural, modulus: &Natural) -> Natural {
+    if modulus.is_one() {
+        return Natural::zero();
+    }
+    let mut result = Natural::one();
+    let mut b = base.div_rem(modulus).1;
+    let mut e = exp;
+    while !e.is_zero() {
+        let (e_half, r) = e.div_rem(&Natural::from_u64(2));
+        if !r.is_zero() {
+            result = result.mul(&b).div_rem(modulus).1;
+        }
+        b = b.mul(&b).div_rem(modulus).1;
+        e = e_half;
+    }
+    result
+}
+
 #[test]
-fn natural_add_sub_mul_match_num_bigint() {
+fn natural_add_sub_mul_algebraic_identities() {
     let mut seed = 0xD1FF_u64;
     for _ in 0..128 {
-        let sa = random_decimal_digits(&mut seed, 80);
-        let sb = random_decimal_digits(&mut seed, 80);
-        let a = Natural::from_str(&sa).unwrap();
-        let b = Natural::from_str(&sb).unwrap();
-        let ref_a = natural_to_biguint(&a);
-        let ref_b = natural_to_biguint(&b);
-
-        assert_eq!(natural_to_biguint(&a.add(&b)), &ref_a + &ref_b);
+        let a = Natural::from_str(&random_decimal_digits(&mut seed, 80)).unwrap();
+        let b = Natural::from_str(&random_decimal_digits(&mut seed, 80)).unwrap();
+        assert_eq!(a.add(&b), b.add(&a));
+        assert_eq!(a.mul(&b), b.mul(&a));
+        let sum = a.add(&b);
+        assert_eq!(sum.sub(&b), a);
         if a >= b {
-            assert_eq!(natural_to_biguint(&a.sub(&b)), &ref_a - &ref_b);
+            assert_eq!(a.sub(&b).add(&b), a);
         }
-        assert_eq!(natural_to_biguint(&a.mul(&b)), &ref_a * &ref_b);
+        assert_eq!(a.mul(&Natural::one()), a);
+        assert_eq!(a.mul(&Natural::zero()), Natural::zero());
     }
 }
 
@@ -67,33 +83,25 @@ fn natural_div_rem_identity_and_reference() {
             b = Natural::one();
         }
         let a = Natural::from_str(&sa).unwrap();
-        let ref_a = natural_to_biguint(&a);
-        let ref_b = natural_to_biguint(&b);
 
         let (q, r) = a.div_rem(&b);
-        let ref_q = &ref_a / &ref_b;
-        let ref_r = &ref_a % &ref_b;
-        assert_eq!(natural_to_biguint(&q), ref_q);
-        assert_eq!(natural_to_biguint(&r), ref_r);
         assert!(r < b);
         assert_eq!(q.mul(&b).add(&r), a);
     }
 }
 
 #[test]
-fn natural_gcd_matches_num_bigint() {
+fn natural_gcd_matches_euclidean_reference() {
     let mut seed = 0x6CD0_u64;
     for _ in 0..64 {
         let a = Natural::from_str(&random_decimal_digits(&mut seed, 64)).unwrap();
         let b = Natural::from_str(&random_decimal_digits(&mut seed, 64)).unwrap();
-        let ref_a = natural_to_biguint(&a);
-        let ref_b = natural_to_biguint(&b);
-        assert_eq!(natural_to_biguint(&a.gcd(&b)), NumInteger::gcd(&ref_a, &ref_b));
+        assert_eq!(a.gcd(&b), reference_gcd(a.clone(), b.clone()));
     }
 }
 
 #[test]
-fn natural_mod_pow_matches_num_bigint() {
+fn natural_mod_pow_matches_reference() {
     let primes = ["7", "97", "1009", "65537"];
     let mut seed = 0xF000_u64;
     for _ in 0..48 {
@@ -101,31 +109,21 @@ fn natural_mod_pow_matches_num_bigint() {
         let exp = Natural::from_str(&random_decimal_digits(&mut seed, 12)).unwrap();
         let p_str = primes[(lcg_next(&mut seed) as usize) % primes.len()];
         let modulus = Natural::from_str(p_str).unwrap();
-        let ref_base = natural_to_biguint(&base);
-        let ref_exp = natural_to_biguint(&exp);
-        let ref_mod = natural_to_biguint(&modulus);
-        let ref_out = ref_base.modpow(&ref_exp, &ref_mod);
-        assert_eq!(natural_to_biguint(&base.mod_pow(&exp, &modulus)), ref_out);
+        assert_eq!(base.mod_pow(&exp, &modulus), reference_mod_pow(base, exp, &modulus));
     }
 }
 
 #[test]
-fn integer_signed_ops_match_num_bigint() {
+fn integer_signed_ops_algebraic_identities() {
     let mut seed = 0x1A00_u64;
     for _ in 0..96 {
-        let sa = random_signed_decimal(&mut seed, 48);
-        let sb = random_signed_decimal(&mut seed, 48);
-        let a = Integer::from_str(&sa).unwrap();
-        let b = Integer::from_str(&sb).unwrap();
-        let ref_a = integer_to_bigint(&a);
-        let ref_b = integer_to_bigint(&b);
-
-        assert_eq!(integer_to_bigint(&a.add(&b)), &ref_a + &ref_b);
-        assert_eq!(integer_to_bigint(&a.sub(&b)), &ref_a - &ref_b);
-        assert_eq!(integer_to_bigint(&a.mul(&b)), &ref_a * &ref_b);
+        let a = Integer::from_str(&random_signed_decimal(&mut seed, 48)).unwrap();
+        let b = Integer::from_str(&random_signed_decimal(&mut seed, 48)).unwrap();
+        assert_eq!(a.add(&b), b.add(&a));
+        assert_eq!(a.mul(&b), b.mul(&a));
+        assert_eq!(a.add(&b).sub(&b), a);
         if !b.is_zero() {
-            assert_eq!(integer_to_bigint(&a.div(&b)), &ref_a / &ref_b);
-            assert_eq!(integer_to_bigint(&a.rem(&b)), &ref_a % &ref_b);
+            assert_eq!(a.div(&b).mul(&b).add(&a.rem(&b)), a);
         }
     }
 }
@@ -149,14 +147,15 @@ fn mod_small_prime_congruence_property() {
 }
 
 #[test]
-fn integer_gcd_matches_num_bigint() {
+fn integer_gcd_matches_euclidean_reference() {
     let mut seed = 0x6CD1_u64;
     for _ in 0..64 {
         let a = Integer::from_str(&random_signed_decimal(&mut seed, 64)).unwrap();
         let b = Integer::from_str(&random_signed_decimal(&mut seed, 64)).unwrap();
-        let ref_a = integer_to_bigint(&a);
-        let ref_b = integer_to_bigint(&b);
-        assert_eq!(integer_to_bigint(&a.gcd(&b)), NumInteger::gcd(&ref_a, &ref_b));
+        let am = Natural::from_str(&a.abs().to_decimal_string()).unwrap();
+        let bm = Natural::from_str(&b.abs().to_decimal_string()).unwrap();
+        let g = reference_gcd(am, bm);
+        assert_eq!(a.gcd(&b).abs().to_decimal_string(), g.to_decimal_string());
     }
 }
 
@@ -164,8 +163,7 @@ fn integer_gcd_matches_num_bigint() {
 fn sqr_matches_mul_reference() {
     let mut seed = 0x5A00_u64;
     for _ in 0..64 {
-        let s = random_decimal_digits(&mut seed, 56);
-        let a = Natural::from_str(&s).unwrap();
-        assert_eq!(natural_to_biguint(&a.sqr()), natural_to_biguint(&a.mul(&a)));
+        let a = Natural::from_str(&random_decimal_digits(&mut seed, 56)).unwrap();
+        assert_eq!(a.sqr(), a.mul(&a));
     }
 }
