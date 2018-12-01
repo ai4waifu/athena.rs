@@ -247,3 +247,70 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
 
     MrFixedOutcome::Probable { bases: bases_used }
 }
+
+/// 自 `start` 起递增枚举素数。
+#[derive(Debug, Clone)]
+pub struct PrimeIterator {
+    current: Integer,
+}
+
+impl PrimeIterator {
+    /// 从 `start`（含）起找下一个素数。
+    pub fn from_start(start: impl Into<Integer>) -> Self {
+        Self {
+            current: start.into(),
+        }
+    }
+}
+
+impl Iterator for PrimeIterator {
+    type Item = Integer;
+
+    fn next(&mut self) -> Option<Integer> {
+        if self.current <= Integer::from_i64(2) {
+            self.current = Integer::from_i64(3);
+            return Some(Integer::from_i64(2));
+        }
+        if self.current.rem(&Integer::from_i64(2)).is_zero() {
+            self.current = self.current.add(&Integer::one());
+        }
+        loop {
+            if matches!(primality_test(&self.current, None), Primality::Prime { .. }) {
+                let p = self.current.clone();
+                self.current = self.current.add(&Integer::from_i64(2));
+                return Some(p);
+            }
+            self.current = self.current.add(&Integer::from_i64(2));
+        }
+    }
+}
+
+/// Eratosthenes 筛：返回 `≤ limit` 的全部素数。
+pub fn primes_up_to(limit: u64) -> Vec<Integer> {
+    if limit < 2 {
+        return Vec::new();
+    }
+    let n = limit as usize;
+    let mut sieve = vec![true; n + 1];
+    sieve[0] = false;
+    sieve[1] = false;
+    let root = (n as f64).sqrt() as usize;
+    for p in 2..=root {
+        if sieve[p] {
+            let mut m = p * p;
+            while m <= n {
+                sieve[m] = false;
+                m += p;
+            }
+        }
+    }
+    (2..=limit)
+        .filter(|&p| sieve[p as usize])
+        .map(Integer::from_u64)
+        .collect()
+}
+
+/// 严格大于 `n` 的最小素数。
+pub fn next_prime_after(n: &Integer) -> Integer {
+    PrimeIterator::from_start(n.add(&Integer::one())).next().expect("infinite primes")
+}

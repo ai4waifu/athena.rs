@@ -93,7 +93,8 @@ fn modular_inverse_and_pow() {
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => {
             assert_eq!(v.residue(), &Integer::from_i64(6)); // 3*6=18≡1
-            assert_eq!(v.modulus(), &m);
+            assert!(v.modulus_id().is_some());
+            assert!(v.modulus().is_none());
         }
         other => panic!("inv: {other:?}"),
     }

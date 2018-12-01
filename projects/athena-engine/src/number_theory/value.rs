@@ -156,12 +156,23 @@ pub enum NumberTheoryValue {
     Factorization(Factorization),
     /// 模运算结果。
     Modular(ModularValue),
+    /// 批量模逆结果（同一 [`ModulusId`]）。
+    ModularList(Vec<ModularValue>),
     /// 线性同余解集。
     Congruence(CongruenceSolution),
     /// 中国剩余定理结果。
     Crt(CrtResult),
     /// 有理重构。
     RationalReconstruction(RationalReconstruction),
+    /// 完全幂 `base^exponent`（`exponent > 1`）。
+    PerfectPower {
+        /// 底。
+        base: Integer,
+        /// 指数。
+        exponent: u32,
+    },
+    /// 整数列表（如筛法素数表）。
+    IntegerList(Vec<Integer>),
 }
 
 /// 线性同余 `a x ≡ b (mod m)` 的解结构。

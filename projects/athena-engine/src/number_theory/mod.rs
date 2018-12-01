@@ -4,6 +4,7 @@
 //! 禁止裸 `Vec` 让宿主猜测分解是否完整。
 
 mod algebraic;
+mod arithmetic;
 mod certificates;
 mod congruence;
 mod factor;
@@ -14,6 +15,9 @@ mod request;
 mod result;
 mod value;
 
+pub use arithmetic::{
+    is_perfect_power, isqrt, isqrt_if_exact, jacobi_symbol, kronecker_symbol, perfect_power_decomposition,
+};
 pub use certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
 pub use congruence::{chinese_remainder, chinese_remainder_pair, rational_reconstruction, solve_linear_congruence};
 pub use factor::{
@@ -22,8 +26,8 @@ pub use factor::{
     verify_factorization,
 };
 pub use gcd::{extended_gcd, gcd, lcm};
-pub use modular::{mod_inverse, mod_pow};
-pub use primes::primality_test;
+pub use modular::{batch_mod_inverse, mod_inverse, mod_inverse_with_table, mod_pow, mod_pow_with_table};
+pub use primes::{next_prime_after, primality_test, primes_up_to, PrimeIterator};
 pub use request::NumberTheoryRequest;
 pub use result::{NumberTheoryResult, execute_number_theory};
 pub use value::{

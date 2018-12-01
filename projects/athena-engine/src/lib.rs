@@ -42,7 +42,8 @@ pub use algebra::{
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
-    ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusContext, ModulusTable, Number,
+    ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusBinding, ModulusContext,
+    ModulusTable, MontgomeryParams, BarrettParams, Number,
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericDomain, NumericOperation,
     NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus, PureRustBackend, number_from_wire,
 };
@@ -90,9 +91,11 @@ pub use number_theory::{
     CofactorStatus, CompositeWitness, CongruenceSolution, CrtResult, ExtendedGcd, FactorAlgorithms, FactorBaseStatus,
     FactorComponent, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, Factorization,
     FactorizationCompleteness, FactorizationVerifyError, MillerRabinBaseSelection, NumberTheoryRequest, NumberTheoryResult,
-    NumberTheoryValue, Primality, PrimeCertificate, ProbablePrimeEvidence, ProofRequirement, RationalReconstruction,
-    RationalReconstructionFailure, chinese_remainder, chinese_remainder_pair, execute_number_theory, extended_gcd,
-    factor_component_from_primality, factor_integer, gcd, lcm, mod_inverse, mod_pow, primality_test, rational_reconstruction,
+    NumberTheoryValue, Primality, PrimeCertificate, PrimeIterator, ProbablePrimeEvidence, ProofRequirement,
+    RationalReconstruction, RationalReconstructionFailure, chinese_remainder, chinese_remainder_pair, execute_number_theory,
+    extended_gcd, factor_component_from_primality, factor_integer, gcd, is_perfect_power, isqrt, isqrt_if_exact,
+    jacobi_symbol, kronecker_symbol, lcm, mod_inverse, mod_inverse_with_table, mod_pow, mod_pow_with_table,
+    batch_mod_inverse, next_prime_after, perfect_power_decomposition, primality_test, primes_up_to, rational_reconstruction,
     solve_linear_congruence, verify_factorization,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};

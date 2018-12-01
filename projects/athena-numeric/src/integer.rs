@@ -88,6 +88,16 @@ impl Integer {
         Self { sign: Sign::Positive, mag: Natural::one() }
     }
 
+    /// 非负幅度（crate 内部；模内核用）。
+    pub(crate) fn magnitude(&self) -> &Natural {
+        &self.mag
+    }
+
+    /// 由非负 [`Natural`] 构造（crate 内部）。
+    pub(crate) fn from_positive_natural(mag: Natural) -> Self {
+        Self::from_mag_sign(mag, false)
+    }
+
     /// 是否为零。
     pub fn is_zero(&self) -> bool {
         self.sign == Sign::Zero

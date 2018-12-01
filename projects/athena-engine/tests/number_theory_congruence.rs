@@ -16,7 +16,7 @@ fn linear_unique_class() {
             value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass { residue }),
         } => {
             assert_eq!(residue.residue(), &Integer::from_i64(3));
-            assert_eq!(residue.modulus(), &m);
+            assert_eq!(residue.modulus(), Some(&m));
         }
         other => panic!("unique: {other:?}"),
     }

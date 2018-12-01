@@ -688,6 +688,29 @@ fn div2_mod(exp: &mut Vec<u64>) {
 
 /// Modular exponentiation via Montgomery reduction (odd `modulus`).
 pub(crate) fn mod_pow_montgomery(base: &[u64], exp: &[u64], modulus: &[u64]) -> Vec<u64> {
+    let (n_prime, r2) = montgomery_precompute(modulus);
+    mod_pow_montgomery_precomputed(base, exp, modulus, n_prime, &r2)
+}
+
+/// Precompute `-m⁻¹ mod 2^64` and `R² mod m` for odd `modulus`.
+pub(crate) fn montgomery_precompute(modulus: &[u64]) -> (u64, Vec<u64>) {
+    let n_prime = montgomery_nprime(modulus[0]);
+    let n = effective_len(modulus);
+    let mut r = vec![0u64; n + 1];
+    r[n] = 1;
+    let r_mod = div_rem(&r, modulus).1;
+    let r2 = div_rem(&mul(&r_mod, &r_mod), modulus).1;
+    (n_prime, r2)
+}
+
+/// Montgomery mod_pow with cached `(n_prime, r² mod m)`.
+pub(crate) fn mod_pow_montgomery_precomputed(
+    base: &[u64],
+    exp: &[u64],
+    modulus: &[u64],
+    n_prime: u64,
+    r2_mod_m: &[u64],
+) -> Vec<u64> {
     assert!(!is_zero(modulus));
     if is_one(modulus) {
         return vec![0];
@@ -696,26 +719,45 @@ pub(crate) fn mod_pow_montgomery(base: &[u64], exp: &[u64], modulus: &[u64]) -> 
         return vec![1];
     }
 
-    let r2 = {
-        let n = effective_len(modulus);
-        let mut r = vec![0u64; n + 1];
-        r[n] = 1;
-        let r_mod = div_rem(&r, modulus).1;
-        div_rem(&mul(&r_mod, &r_mod), modulus).1
-    };
     let (_, base_reduced) = div_rem(base, modulus);
-    let mut acc = to_mont(&[1], modulus, &r2);
-    let mut b = to_mont(&base_reduced, modulus, &r2);
+    let mut acc = to_mont_with(&[1], modulus, r2_mod_m, n_prime);
+    let mut b = to_mont_with(&base_reduced, modulus, r2_mod_m, n_prime);
     let mut e = normalize_trim(exp.to_vec());
 
     while !is_zero(&e) {
         if (e[0] & 1) == 1 {
-            acc = mul_mod_mont(&acc, &b, modulus);
+            acc = mul_mod_mont_with(&acc, &b, modulus, n_prime);
         }
-        b = mul_mod_mont(&b, &b, modulus);
+        b = mul_mod_mont_with(&b, &b, modulus, n_prime);
         div2_mod(&mut e);
     }
-    from_mont(&acc, modulus)
+    from_mont_with(&acc, modulus, n_prime)
+}
+
+fn to_mont_with(a: &[u64], m: &[u64], r2_mod_m: &[u64], n_prime: u64) -> Vec<u64> {
+    mul_mod_mont_with(a, r2_mod_m, m, n_prime)
+}
+
+fn from_mont_with(a: &[u64], m: &[u64], n_prime: u64) -> Vec<u64> {
+    let n = effective_len(m);
+    let mut t = vec![0u64; 2 * n];
+    let copy = effective_len(a).min(n);
+    t[..copy].copy_from_slice(&a[..copy]);
+    montgomery_redc(&mut t, m, n_prime)
+}
+
+fn mul_mod_mont_with(a: &[u64], b: &[u64], m: &[u64], n_prime: u64) -> Vec<u64> {
+    let n = effective_len(m);
+    let prod = mul(a, b);
+    let mut t = vec![0u64; 2 * n];
+    let copy_len = effective_len(&prod).min(2 * n);
+    t[..copy_len].copy_from_slice(&prod[..copy_len]);
+    montgomery_redc(&mut t, m, n_prime)
+}
+
+/// Montgomery modular multiply `a·b mod m` (odd `modulus`, cached `n_prime`).
+pub(crate) fn mul_mod_montgomery_precomputed(a: &[u64], b: &[u64], modulus: &[u64], n_prime: u64) -> Vec<u64> {
+    mul_mod_mont_with(a, b, modulus, n_prime)
 }
 
 pub(crate) fn binary_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {

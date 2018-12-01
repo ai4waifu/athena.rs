@@ -125,7 +125,10 @@ impl NumericValue {
             Self::Complex(_) => NumericDomain::Complex,
             Self::Interval(_) => NumericDomain::Interval,
             Self::Algebraic(_) => NumericDomain::Algebraic,
-            Self::Modular(v) => NumericDomain::Modular { modulus: v.modulus().clone() },
+            Self::Modular(v) => match v.modulus() {
+                Some(m) => NumericDomain::Modular { modulus: m.clone() },
+                None => NumericDomain::Integer,
+            },
             Self::FiniteField(v) => NumericDomain::FiniteField { field: v.field },
             Self::PAdic(v) => NumericDomain::PAdic { prime: v.prime.clone(), precision: v.precision },
         }

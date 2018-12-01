@@ -77,29 +77,4 @@ pub fn rational_reconstruction(
     }
 }
 
-fn isqrt(n: &Integer) -> Integer {
-    if n.is_zero() || n.is_one() {
-        return n.clone();
-    }
-    if n.is_negative() {
-        return Integer::zero();
-    }
-    let bits = n.bits();
-    let mut x = Integer::one();
-    for _ in 0..((bits + 1) / 2) {
-        x = x.mul(&Integer::from_i64(2));
-    }
-    if x.is_zero() {
-        x = Integer::one();
-    }
-    loop {
-        let y = x.add(&n.div(&x)).div(&Integer::from_i64(2));
-        if y >= x {
-            while x.mul(&x) > *n {
-                x = x.sub(&Integer::one());
-            }
-            return x;
-        }
-        x = y;
-    }
-}
+use super::super::arithmetic::isqrt;

@@ -58,6 +58,13 @@ pub enum NumberTheoryRequest {
         /// 模数。
         modulus: Modulus,
     },
+    /// 批量模逆（同一素模 / 互素剩余）。
+    BatchModInverse {
+        /// 剩余列表。
+        residues: Vec<Integer>,
+        /// 模数。
+        modulus: Modulus,
+    },
     /// 线性同余 `a x ≡ b (mod m)`。
     SolveLinearCongruence {
         /// `a`。
@@ -84,6 +91,35 @@ pub enum NumberTheoryRequest {
         max_numerator: Option<Integer>,
         /// 分母绝对值上界；`None` → `⌊√(m/2)⌋`。
         max_denominator: Option<Integer>,
+    },
+    /// 整数平方根 `⌊√n⌋`。
+    Isqrt {
+        /// 被开方数。
+        n: Integer,
+    },
+    /// 完全幂分解。
+    PerfectPower {
+        /// 待检测整数。
+        n: Integer,
+    },
+    /// Jacobi 符号 `(a/n)`。
+    JacobiSymbol {
+        /// 分子。
+        a: Integer,
+        /// 分母（正奇数）。
+        n: Integer,
+    },
+    /// Kronecker 符号 `(a/n)`。
+    KroneckerSymbol {
+        /// 分子。
+        a: Integer,
+        /// 分母。
+        n: Integer,
+    },
+    /// 筛法：不超过 `limit` 的全部素数。
+    PrimesUpTo {
+        /// 上界（含）。
+        limit: u64,
     },
     /// 代数整数相关（骨架占位）。
     AlgebraicScaffold,

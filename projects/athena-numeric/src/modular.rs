@@ -1,8 +1,8 @@
 //! 模数与模整数（numeric 层；公共面为 [`Integer`]，不暴露 `num_bigint`）。
 
-use athena_types::{Diagnostic, DiagnosticCode, Result};
+use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
-use crate::integer::Integer;
+use crate::{integer::Integer, modulus_context::ModulusTable};
 
 /// 正整数模数（`m > 1`）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,20 +35,40 @@ impl Modulus {
     }
 }
 
+/// 模数绑定：嵌入完整 [`Modulus`] 或 session 内 [`ModulusId`]。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ModulusBinding {
+    /// 自包含模数（无 intern 表时）。
+    Embedded(Modulus),
+    /// Session intern 句柄（经 [`ModulusTable`] 解析）。
+    Interned(ModulusId),
+}
+
 /// 绑定模数的剩余类代表。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModularValue {
     /// 规范剩余 `[0, modulus)`。
     residue: Integer,
-    /// 绑定模数。
-    modulus: Modulus,
+    /// 模数绑定。
+    binding: ModulusBinding,
 }
 
 impl ModularValue {
-    /// 在给定模数下构造（自动化约）。
+    /// 在给定模数下构造（自动化约，嵌入模数）。
     pub fn new(residue: impl Into<Integer>, modulus: Modulus) -> Self {
         let residue = modulus.reduce(&residue.into());
-        Self { residue, modulus }
+        Self {
+            residue,
+            binding: ModulusBinding::Embedded(modulus),
+        }
+    }
+
+    /// 用已 intern 的 [`ModulusId`] 构造（剩余须已约化或由 caller 保证）。
+    pub fn new_interned(residue: Integer, modulus_id: ModulusId) -> Self {
+        Self {
+            residue,
+            binding: ModulusBinding::Interned(modulus_id),
+        }
     }
 
     /// 剩余。
@@ -56,21 +76,51 @@ impl ModularValue {
         &self.residue
     }
 
-    /// 模数。
-    pub fn modulus(&self) -> &Modulus {
-        &self.modulus
+    /// 嵌入模数（仅 `Embedded` 绑定）。
+    pub fn modulus(&self) -> Option<&Modulus> {
+        match &self.binding {
+            ModulusBinding::Embedded(m) => Some(m),
+            ModulusBinding::Interned(_) => None,
+        }
     }
 
-    /// 同模运算前置检查。
-    pub fn same_modulus(&self, other: &Self) -> Result<()> {
-        if self.modulus == other.modulus {
-            Ok(())
+    /// Session 模数句柄（仅 `Interned` 绑定）。
+    pub fn modulus_id(&self) -> Option<ModulusId> {
+        match &self.binding {
+            ModulusBinding::Interned(id) => Some(*id),
+            ModulusBinding::Embedded(_) => None,
         }
-        else {
-            Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
-                .arg("left_modulus", self.modulus.value().to_decimal_string())
-                .arg("right_modulus", other.modulus.value().to_decimal_string())
-                .detail("operation", "modular_binop"))
+    }
+
+    /// 经 intern 表解析模数（嵌入绑定则克隆）。
+    pub fn resolve_modulus(&self, table: &ModulusTable) -> Result<Modulus> {
+        match &self.binding {
+            ModulusBinding::Embedded(m) => Ok(m.clone()),
+            ModulusBinding::Interned(id) => table
+                .get(*id)
+                .map(|ctx| ctx.modulus.clone())
+                .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId")),
+        }
+    }
+
+    /// 同模运算前置检查（嵌入模数直接比；intern 需相同 id）。
+    pub fn same_modulus(&self, other: &Self) -> Result<()> {
+        match (&self.binding, &other.binding) {
+            (ModulusBinding::Embedded(l), ModulusBinding::Embedded(r)) if l == r => Ok(()),
+            (ModulusBinding::Interned(l), ModulusBinding::Interned(r)) if l == r => Ok(()),
+            _ => Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("operation", "modular_binop")),
+        }
+    }
+
+    /// 同模检查（可解析 intern 绑定）。
+    pub fn same_modulus_with_table(&self, other: &Self, table: &ModulusTable) -> Result<()> {
+        let l = self.resolve_modulus(table)?;
+        let r = other.resolve_modulus(table)?;
+        if l == r {
+            Ok(())
+        } else {
+            Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop"))
         }
     }
 }

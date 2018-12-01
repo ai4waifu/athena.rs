@@ -21,8 +21,10 @@ pub struct FactorAlgorithms {
     pub pollard_rho: bool,
     /// Pollard p-1（未实现）。
     pub pollard_p1: bool,
-    /// ECM（未实现）。
+    /// ECM（stage 1 bootstrap）。
     pub ecm: bool,
+    /// QS bootstrap（Fermat 近距分解）。
+    pub quadratic_sieve: bool,
 }
 
 impl FactorAlgorithms {
@@ -33,6 +35,18 @@ impl FactorAlgorithms {
             pollard_rho: false,
             pollard_p1: false,
             ecm: false,
+            quadratic_sieve: false,
+        }
+    }
+
+    /// 试除 + rho → ECM → QS pipeline。
+    pub fn with_pipeline() -> Self {
+        Self {
+            trial: true,
+            pollard_rho: true,
+            pollard_p1: false,
+            ecm: true,
+            quadratic_sieve: true,
         }
     }
 }

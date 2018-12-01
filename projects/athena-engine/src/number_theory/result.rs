@@ -4,14 +4,16 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     algebraic::algebraic_scaffold,
+    arithmetic::{isqrt, jacobi_symbol, kronecker_symbol, perfect_power_decomposition},
     congruence::{chinese_remainder, rational_reconstruction, solve_linear_congruence},
     factor::factor_integer,
     gcd::{extended_gcd, gcd, lcm},
-    modular::{mod_inverse, mod_pow},
-    primes::primality_test,
+    modular::{batch_mod_inverse, mod_inverse_with_table, mod_pow_with_table},
+    primes::{primality_test, primes_up_to},
     request::NumberTheoryRequest,
     value::{FactorizationCompleteness, NumberTheoryValue, Primality},
 };
+use athena_numeric::{Integer, ModulusTable};
 
 /// 数论域结果信封。
 ///
@@ -75,18 +77,33 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
             Ok(f) => wrap_factorization(f),
             Err(reason) => NumberTheoryResult::InvalidInput { reason },
         },
-        NumberTheoryRequest::ModInverse { a, modulus } => match mod_inverse(&a, &modulus) {
-            Ok(v) => NumberTheoryResult::Exact {
-                value: NumberTheoryValue::Modular(v),
-            },
-            Err(reason) => NumberTheoryResult::Unevaluated { reason },
-        },
-        NumberTheoryRequest::ModPow { base, exp, modulus } => match mod_pow(&base, &exp, &modulus) {
-            Ok(v) => NumberTheoryResult::Exact {
-                value: NumberTheoryValue::Modular(v),
-            },
-            Err(reason) => NumberTheoryResult::Unevaluated { reason },
-        },
+        NumberTheoryRequest::ModInverse { a, modulus } => {
+            let mut table = ModulusTable::new();
+            match mod_inverse_with_table(&a, &modulus, &mut table) {
+                Ok(v) => NumberTheoryResult::Exact {
+                    value: NumberTheoryValue::Modular(v),
+                },
+                Err(reason) => NumberTheoryResult::Unevaluated { reason },
+            }
+        }
+        NumberTheoryRequest::ModPow { base, exp, modulus } => {
+            let mut table = ModulusTable::new();
+            match mod_pow_with_table(&base, &exp, &modulus, &mut table) {
+                Ok(v) => NumberTheoryResult::Exact {
+                    value: NumberTheoryValue::Modular(v),
+                },
+                Err(reason) => NumberTheoryResult::Unevaluated { reason },
+            }
+        }
+        NumberTheoryRequest::BatchModInverse { residues, modulus } => {
+            let mut table = ModulusTable::new();
+            match batch_mod_inverse(&residues, &modulus, &mut table) {
+                Ok(v) => NumberTheoryResult::Exact {
+                    value: NumberTheoryValue::ModularList(v),
+                },
+                Err(reason) => NumberTheoryResult::Unevaluated { reason },
+            }
+        }
         NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => {
             solve_linear_congruence(&a, &b, &modulus)
         }
@@ -105,6 +122,36 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
                 max_numerator.as_ref(),
                 max_denominator.as_ref(),
             )),
+        },
+        NumberTheoryRequest::Isqrt { n } => NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Integer(isqrt(&n)),
+        },
+        NumberTheoryRequest::PerfectPower { n } => {
+            if let Some((base, exponent)) = perfect_power_decomposition(&n) {
+                NumberTheoryResult::Exact {
+                    value: NumberTheoryValue::PerfectPower { base, exponent },
+                }
+            } else {
+                NumberTheoryResult::Inconclusive {
+                    value: NumberTheoryValue::Integer(n),
+                }
+            }
+        }
+        NumberTheoryRequest::JacobiSymbol { a, n } => match jacobi_symbol(&a, &n) {
+            Some(sym) => NumberTheoryResult::Exact {
+                value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(sym))),
+            },
+            None => NumberTheoryResult::InvalidInput {
+                reason: Diagnostic::new(DiagnosticCode::DomainError)
+                    .detail("operation", "jacobi_symbol")
+                    .detail("reason", "n_must_be_positive_odd"),
+            },
+        },
+        NumberTheoryRequest::KroneckerSymbol { a, n } => NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(kronecker_symbol(&a, &n)))),
+        },
+        NumberTheoryRequest::PrimesUpTo { limit } => NumberTheoryResult::Exact {
+            value: NumberTheoryValue::IntegerList(primes_up_to(limit)),
         },
         NumberTheoryRequest::AlgebraicScaffold => algebraic_scaffold(),
     }
