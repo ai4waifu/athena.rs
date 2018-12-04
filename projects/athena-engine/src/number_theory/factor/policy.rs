@@ -1,6 +1,7 @@
 //! 分解策略与执行预算。
 
 use crate::number_theory::value::FactorComponent;
+use athena_numeric::Integer;
 
 /// 素性 / 证明要求。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -12,16 +13,16 @@ pub enum ProofRequirement {
     Probable,
 }
 
-/// 允许的分解算法阶段（bootstrap 仅 trial）。
+/// 允许的分解算法阶段。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FactorAlgorithms {
     /// 试除。
     pub trial: bool,
-    /// Pollard rho（未实现）。
+    /// Pollard rho。
     pub pollard_rho: bool,
-    /// Pollard p-1（未实现）。
+    /// Pollard p−1。
     pub pollard_p1: bool,
-    /// ECM（stage 1 bootstrap）。
+    /// ECM（Montgomery stage 1）。
     pub ecm: bool,
     /// QS bootstrap（Fermat 近距分解）。
     pub quadratic_sieve: bool,
@@ -39,12 +40,12 @@ impl FactorAlgorithms {
         }
     }
 
-    /// 试除 + rho → ECM → QS pipeline。
+    /// 试除 → rho → p−1 → ECM → QS。
     pub fn with_pipeline() -> Self {
         Self {
             trial: true,
             pollard_rho: true,
-            pollard_p1: false,
+            pollard_p1: true,
             ecm: true,
             quadratic_sieve: true,
         }
@@ -64,10 +65,14 @@ pub struct FactorPolicy {
     pub proof_requirement: ProofRequirement,
     /// 允许的阶段。
     pub algorithms: FactorAlgorithms,
-    /// 确定性随机种子（后续 rho/ECM）。
+    /// 确定性随机种子（rho / p−1 / ECM）。
     pub deterministic_seed: Option<u64>,
     /// 并行度占位（0 = 默认）。
     pub parallelism: u32,
+    /// Pollard p−1 / ECM stage-1 的 `B1` 上界。
+    pub stage1_b1: u32,
+    /// ECM 尝试曲线数。
+    pub ecm_curves: u32,
 }
 
 impl Default for FactorPolicy {
@@ -77,6 +82,8 @@ impl Default for FactorPolicy {
             algorithms: FactorAlgorithms::bootstrap(),
             deterministic_seed: None,
             parallelism: 0,
+            stage1_b1: 200,
+            ecm_curves: 8,
         }
     }
 }
@@ -90,7 +97,7 @@ pub struct FactorExecutionBudget {
     pub max_trial: u64,
     /// 输入绝对值比特上限；超出 → 拒绝执行（`input_rejected`）。
     pub max_input_bits: u32,
-    /// 算法步数上限（未实现续算时可为 `None`）。
+    /// 算法步数上限（触及后标记 `resource_exhausted`）。
     pub max_steps: Option<u64>,
     /// wall 时间上限毫秒（未接线）。
     pub max_time_ms: Option<u64>,
@@ -137,11 +144,36 @@ impl Default for FactorLimits {
     }
 }
 
-/// 可续算分解前沿（后续 ECM/QS 接入）。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// 可续算分解前沿。
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FactorFrontier {
+    /// 单位（`±1`）。
+    pub unit: Integer,
     /// 已找到的因子。
     pub factors_found: Vec<FactorComponent>,
     /// 尚未分解的余因子。
-    pub unresolved_cofactors: Vec<athena_numeric::Integer>,
+    pub unresolved_cofactors: Vec<Integer>,
+    /// 已消耗算法步数。
+    pub steps_used: u64,
+    /// 是否因预算耗尽而暂停。
+    pub resource_exhausted: bool,
+}
+
+impl Default for FactorFrontier {
+    fn default() -> Self {
+        Self {
+            unit: Integer::one(),
+            factors_found: Vec::new(),
+            unresolved_cofactors: Vec::new(),
+            steps_used: 0,
+            resource_exhausted: false,
+        }
+    }
+}
+
+impl FactorFrontier {
+    /// 是否仍有未解决余因子。
+    pub fn is_pending(&self) -> bool {
+        self.unresolved_cofactors.iter().any(|c| *c > Integer::one())
+    }
 }

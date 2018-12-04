@@ -100,12 +100,14 @@ pub struct Factorization {
     pub cofactor_status: CofactorStatus,
     /// 是否因输入比特上限被拒绝（非已消耗预算）。
     pub input_rejected: bool,
+    /// 是否因算法步数 / 预算耗尽而停止（可续算）。
+    pub resource_exhausted: bool,
 }
 
 impl Factorization {
     /// 由组件与余因子状态推导整体完整性（不单独存储可能矛盾的 enum）。
     pub fn completeness(&self) -> FactorizationCompleteness {
-        if self.input_rejected {
+        if self.input_rejected || self.resource_exhausted {
             return FactorizationCompleteness::ResourceLimited;
         }
         let has_probable = self

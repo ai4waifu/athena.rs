@@ -1,21 +1,170 @@
-//! ECM stage 1 bootstrap（`a^k−1` 型 smooth 阶探测，与 Pollard p-1 同族）。
+//! ECM stage 1（Montgomery 曲线，纯 Rust bootstrap）。
 
 use athena_numeric::Integer;
 
-/// Stage 1：对随机底 `a` 计算 `a^k−1` 与 `n` 的 gcd，`k` 为 `B1`-smooth 积。
+/// Stage 1：在若干条 Montgomery 曲线上计算 `[k]P`，用 `gcd(Z, n)` 探测因子。
 pub fn ecm_stage_one(n: &Integer, seed: u64, b1: u32, max_curves: u32) -> Option<Integer> {
-    if n.is_one() || n.rem(&Integer::from_i64(2)).is_zero() {
+    if n.is_one() || !n.is_odd() {
         return None;
     }
     let k = smooth_exponent(b1);
     for i in 0..max_curves {
-        let a = Integer::from_u64(2 + (seed.wrapping_add(i as u64 * 0x517C_C1B7) % 10_000));
-        let g = a.mod_pow(&k, n).sub(&Integer::one()).gcd(n);
-        if !g.is_one() && g != *n {
-            return Some(g);
+        let sigma = Integer::from_u64(6 + seed.wrapping_add(u64::from(i)).wrapping_mul(0x9E37_79B9) % 50_000);
+        if let Some(d) = try_curve(n, &sigma, &k) {
+            return Some(d);
         }
     }
     None
+}
+
+fn try_curve(n: &Integer, sigma: &Integer, k: &Integer) -> Option<Integer> {
+    // Suyama：u = σ²−5, v = 4σ；a24 = (A+2)/4 = (v−u)³(3u+v)/(16u³v)
+    let five = Integer::from_i64(5);
+    let four = Integer::from_i64(4);
+    let three = Integer::from_i64(3);
+    let sixteen = Integer::from_i64(16);
+
+    let u = sigma.mul(sigma).sub(&five).rem(n);
+    let v = four.mul(sigma).rem(n);
+    if u.is_zero() || v.is_zero() {
+        return None;
+    }
+
+    let u3 = u.mul(&u).mul(&u).rem(n);
+    let v_minus_u = v.sub(&u).rem(n);
+    let three_u_plus_v = three.mul(&u).add(&v).rem(n);
+    let num = v_minus_u
+        .mul(&v_minus_u)
+        .mul(&v_minus_u)
+        .mul(&three_u_plus_v)
+        .rem(n);
+    let den = sixteen.mul(&u3).mul(&v).rem(n);
+    if let Some(d) = nontrivial_gcd(&den, n) {
+        return Some(d);
+    }
+    let inv_den = mod_inv(&den, n)?;
+    let a24 = num.mul(&inv_den).rem(n);
+
+    let v3 = v.mul(&v).mul(&v).rem(n);
+    if let Some(d) = nontrivial_gcd(&v3, n) {
+        return Some(d);
+    }
+    let inv_v3 = mod_inv(&v3, n)?;
+    let x0 = u3.mul(&inv_v3).rem(n);
+    let z0 = Integer::one();
+
+    let (_xk, zk) = scalar_mul_montgomery(n, &a24, &x0, &z0, k);
+    nontrivial_gcd(&zk, n)
+}
+
+fn nontrivial_gcd(a: &Integer, n: &Integer) -> Option<Integer> {
+    let g = a.gcd(n);
+    if !g.is_one() && g != *n {
+        Some(g)
+    } else {
+        None
+    }
+}
+
+fn scalar_mul_montgomery(
+    n: &Integer,
+    a24: &Integer,
+    x: &Integer,
+    z: &Integer,
+    k: &Integer,
+) -> (Integer, Integer) {
+    let mut r0x = Integer::one();
+    let mut r0z = Integer::zero();
+    let mut r1x = x.clone();
+    let mut r1z = z.clone();
+
+    let bits = k.bits();
+    if bits == 0 {
+        return (r0x, r0z);
+    }
+    for i in (0..bits).rev() {
+        if bit_at(k, i) {
+            let (sx, sz) = mont_add(n, &r0x, &r0z, &r1x, &r1z, x, z);
+            let (dx, dz) = mont_dbl(n, a24, &r1x, &r1z);
+            r0x = sx;
+            r0z = sz;
+            r1x = dx;
+            r1z = dz;
+        } else {
+            let (sx, sz) = mont_add(n, &r0x, &r0z, &r1x, &r1z, x, z);
+            let (dx, dz) = mont_dbl(n, a24, &r0x, &r0z);
+            r1x = sx;
+            r1z = sz;
+            r0x = dx;
+            r0z = dz;
+        }
+    }
+    (r0x, r0z)
+}
+
+fn bit_at(k: &Integer, i: u64) -> bool {
+    let two = Integer::from_i64(2);
+    let mut t = k.clone();
+    for _ in 0..i {
+        t = t.div(&two);
+    }
+    !t.rem(&two).is_zero()
+}
+
+fn mont_dbl(n: &Integer, a24: &Integer, x: &Integer, z: &Integer) -> (Integer, Integer) {
+    let xpz = x.add(z).rem(n);
+    let xmz = x.sub(z).rem(n);
+    let xpz2 = xpz.mul(&xpz).rem(n);
+    let xmz2 = xmz.mul(&xmz).rem(n);
+    let t = xpz2.sub(&xmz2).rem(n);
+    let x2 = xpz2.mul(&xmz2).rem(n);
+    let z2 = t.mul(&xmz2.add(&a24.mul(&t).rem(n)).rem(n)).rem(n);
+    (x2, z2)
+}
+
+fn mont_add(
+    n: &Integer,
+    x2: &Integer,
+    z2: &Integer,
+    x3: &Integer,
+    z3: &Integer,
+    x1: &Integer,
+    z1: &Integer,
+) -> (Integer, Integer) {
+    let a = x2.sub(z2).rem(n);
+    let b = x2.add(z2).rem(n);
+    let c = x3.sub(z3).rem(n);
+    let d = x3.add(z3).rem(n);
+    let da = d.mul(&a).rem(n);
+    let cb = c.mul(&b).rem(n);
+    let sum = da.add(&cb).rem(n);
+    let diff = da.sub(&cb).rem(n);
+    let x5 = z1.mul(&sum.mul(&sum).rem(n)).rem(n);
+    let z5 = x1.mul(&diff.mul(&diff).rem(n)).rem(n);
+    (x5, z5)
+}
+
+fn mod_inv(a: &Integer, n: &Integer) -> Option<Integer> {
+    if !a.gcd(n).is_one() {
+        return None;
+    }
+    let mut t = Integer::zero();
+    let mut newt = Integer::one();
+    let mut r = n.clone();
+    let mut newr = a.rem(n);
+    while !newr.is_zero() {
+        let q = r.div(&newr);
+        let tmp_t = t.sub(&q.mul(&newt));
+        t = newt;
+        newt = tmp_t;
+        let tmp_r = r.sub(&q.mul(&newr));
+        r = newr;
+        newr = tmp_r;
+    }
+    if t.is_negative() {
+        t = t.add(n);
+    }
+    Some(t.rem(n))
 }
 
 fn smooth_exponent(b1: u32) -> Integer {
@@ -23,8 +172,12 @@ fn smooth_exponent(b1: u32) -> Integer {
     for p in primes_up_to(b1) {
         let mut pp = p;
         while pp <= b1 {
-            k = k.mul(&Integer::from_u64(p as u64));
-            pp *= p;
+            k = k.mul(&Integer::from_u64(u64::from(p)));
+            let next = pp.saturating_mul(p);
+            if next <= pp {
+                break;
+            }
+            pp = next;
         }
     }
     k
@@ -37,11 +190,12 @@ fn primes_up_to(b1: u32) -> Vec<u32> {
     let mut sieve = vec![true; (b1 as usize) + 1];
     sieve[0] = false;
     sieve[1] = false;
-    for p in 2..=b1 {
-        if sieve[p as usize] {
+    let limit = b1 as usize;
+    for p in 2..=limit {
+        if sieve[p] {
             let mut m = p.saturating_mul(p);
-            while m <= b1 {
-                sieve[m as usize] = false;
+            while m <= limit {
+                sieve[m] = false;
                 m += p;
             }
         }

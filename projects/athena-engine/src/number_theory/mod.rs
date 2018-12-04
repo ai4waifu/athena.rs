@@ -21,9 +21,10 @@ pub use arithmetic::{
 pub use certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
 pub use congruence::{chinese_remainder, chinese_remainder_pair, rational_reconstruction, solve_linear_congruence};
 pub use factor::{
-    FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy,
-    FactorizationVerifyError, ProofRequirement, factor_component_from_primality, factor_integer,
-    verify_factorization,
+    FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, FactorProducer,
+    FactorizationVerifyError, ProofRequirement, PureRustFactorProducer, factor_component_from_primality,
+    factor_continue, factor_continue_with_producer, factor_integer, factor_integer_with_producer,
+    factorization_to_frontier, verify_factorization,
 };
 pub use gcd::{extended_gcd, gcd, lcm};
 pub use modular::{batch_mod_inverse, mod_inverse, mod_inverse_with_table, mod_pow, mod_pow_with_table};

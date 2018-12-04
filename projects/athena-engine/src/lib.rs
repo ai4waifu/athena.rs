@@ -89,14 +89,15 @@ pub use mgraph::{
 };
 pub use number_theory::{
     CofactorStatus, CompositeWitness, CongruenceSolution, CrtResult, ExtendedGcd, FactorAlgorithms, FactorBaseStatus,
-    FactorComponent, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, Factorization,
+    FactorComponent, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, FactorProducer, Factorization,
     FactorizationCompleteness, FactorizationVerifyError, MillerRabinBaseSelection, NumberTheoryRequest, NumberTheoryResult,
     NumberTheoryValue, Primality, PrimeCertificate, PrimeIterator, ProbablePrimeEvidence, ProofRequirement,
-    RationalReconstruction, RationalReconstructionFailure, chinese_remainder, chinese_remainder_pair, execute_number_theory,
-    extended_gcd, factor_component_from_primality, factor_integer, gcd, is_perfect_power, isqrt, isqrt_if_exact,
-    jacobi_symbol, kronecker_symbol, lcm, mod_inverse, mod_inverse_with_table, mod_pow, mod_pow_with_table,
-    batch_mod_inverse, next_prime_after, perfect_power_decomposition, primality_test, primes_up_to, rational_reconstruction,
-    solve_linear_congruence, verify_factorization,
+    PureRustFactorProducer, RationalReconstruction, RationalReconstructionFailure, chinese_remainder,
+    chinese_remainder_pair, execute_number_theory, extended_gcd, factor_component_from_primality, factor_continue,
+    factor_continue_with_producer, factor_integer, factor_integer_with_producer, factorization_to_frontier, gcd,
+    is_perfect_power, isqrt, isqrt_if_exact, jacobi_symbol, kronecker_symbol, lcm, mod_inverse, mod_inverse_with_table,
+    mod_pow, mod_pow_with_table, batch_mod_inverse, next_prime_after, perfect_power_decomposition, primality_test,
+    primes_up_to, rational_reconstruction, solve_linear_congruence, verify_factorization,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
