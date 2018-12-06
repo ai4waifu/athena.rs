@@ -145,6 +145,14 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
                 Guarantee::Partial
             }
         }
+        PolynomialDomainValue::UnivariateDivision(v) => {
+            if v.remainder.inner.terms.is_empty() {
+                Guarantee::ProvenExact
+            }
+            else {
+                Guarantee::Partial
+            }
+        }
         PolynomialDomainValue::Placeholder => Guarantee::Unknown,
     }
 }

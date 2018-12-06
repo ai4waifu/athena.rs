@@ -11,6 +11,7 @@ use super::{
     coeff_kernel::CoeffRing,
     coeff_ring_table::CoeffRingTable,
     fingerprint::{RingFingerprint, RingHandle},
+    monomial_layout::MonomialLayout,
     order::MonomialOrder,
     ring::{CoefficientDomain, RingDescriptor, validate_coefficient_domain_public},
 };
@@ -118,10 +119,19 @@ impl RingTable {
             return Ok(id);
         }
         let ring_fingerprint = RingFingerprint::from_parts(&domain, &variables, &order, &self.fields);
+        let monomial_layout = MonomialLayout::compile(&order, variables.len())?;
         let id = RingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        let desc =
-            RingDescriptor::with_id(id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint);
+        let desc = RingDescriptor::with_id(
+            id,
+            coefficient_ring,
+            coefficients,
+            variables,
+            order,
+            characteristic,
+            ring_fingerprint,
+            monomial_layout,
+        );
         self.by_key.insert(key, id);
         self.by_id.insert(id, desc);
         Ok(id)

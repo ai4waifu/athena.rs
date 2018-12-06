@@ -5,10 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     builder::PolynomialBuilder,
-    canonical::canonicalize_polynomial,
     coeff_kernel::CoeffRing,
     expr::Polynomial,
-    ring::{CoefficientDomain, DivisionPolicy, RingDescriptor},
+    ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
 };
 
@@ -75,7 +74,7 @@ pub fn resultant_univariate(lhs: Polynomial, rhs: Polynomial, rings: &RingTable)
     let a = to_dense(&lhs, var, desc.variable_count())?;
     let b = to_dense(&rhs, var, desc.variable_count())?;
     let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring))?;
-    resultant_dense(&a, &b, domain)
+    resultant_dense(&a, &b, domain, lhs.ring, rings)
 }
 
 fn div_dense_field(
@@ -96,7 +95,7 @@ fn div_dense_field(
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
         let q_coeff = coeff.div(lc(&rem)?, lc(&b)?)?;
-        quot[d] = num_add(quot[d].clone(), q_coeff.clone())?;
+        quot[d] = coeff.add(quot[d].clone(), q_coeff.clone())?;
         rem = sub_scaled_monomial(&rem, &b, q_coeff, d, coeff)?;
     }
     if policy == DivisionPolicy::ExactOnly && !is_zero_dense(&rem) {
@@ -165,7 +164,7 @@ fn pseudo_divide(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Number>
         return Ok((Vec::new(), rem));
     }
     let delta = degree(&rem) - degree(&b) + 1;
-    let scale = lc(&b)?.pow_u32(delta as u32).map_err(|_| exponent_error())?;
+    let scale = num_pow(lc(&b)?, delta)?;
     let mut quot = vec![Number::small_int(0); delta];
     let mut rem = scale_dense(&rem, scale.clone())?;
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
@@ -215,7 +214,13 @@ fn gcd_dense_rational(mut a: Vec<Number>, mut b: Vec<Number>) -> Result<Vec<Numb
     monic_dense_rational(&a)
 }
 
-fn resultant_dense(a: &[Number], b: &[Number], domain: &CoefficientDomain) -> Result<Number> {
+fn resultant_dense(
+    a: &[Number],
+    b: &[Number],
+    domain: &CoefficientDomain,
+    ring: RingId,
+    rings: &RingTable,
+) -> Result<Number> {
     let a = trim_dense(a);
     let b = trim_dense(b);
     if is_zero_dense(&a) || is_zero_dense(&b) {
@@ -245,19 +250,19 @@ fn resultant_dense(a: &[Number], b: &[Number], domain: &CoefficientDomain) -> Re
             }
         }
     }
-    det_matrix(&mat, domain)
+    det_matrix(&mat, domain, ring, rings)
 }
 
-fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain) -> Result<Number> {
+fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain, ring: RingId, rings: &RingTable) -> Result<Number> {
     let n = mat.len();
     if n == 0 {
         return Ok(Number::small_int(1));
     }
     match domain {
-        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat),
+        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat.to_vec()),
         CoefficientDomain::FiniteField { .. } => {
-            let coeff = CoeffRing::new(domain)?;
-            det_field(mat, &coeff)
+            let coeff = rings.coeff_kernel(ring)?;
+            det_field(mat.to_vec(), &coeff)
         }
         _ => Err(unsupported_domain()),
     }
@@ -332,6 +337,9 @@ fn detect_univariate_var(poly: &Polynomial, n: usize) -> Result<usize> {
             .detail("operation", "univariate_no_variables"));
     }
     if n == 1 {
+        return Ok(0);
+    }
+    if poly.terms.is_empty() {
         return Ok(0);
     }
     let mut active = None;
@@ -502,7 +510,7 @@ fn monic_dense(v: &[Number], coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
         return Ok(v.to_vec());
     }
     let lc_inv = coeff.inv(lc(v)?)?;
-    scale_dense(v, lc_inv)
+    v.iter().map(|c| coeff.mul(c.clone(), lc_inv.clone())).collect()
 }
 
 fn monic_dense_rational(v: &[Number]) -> Result<Vec<Number>> {
@@ -549,10 +557,6 @@ fn division_by_zero() -> Diagnostic {
     Diagnostic::new(DiagnosticCode::PolynomialDivisionByZero).detail("domain", "polynomial")
 }
 
-fn exponent_error() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::ExponentOutOfRange).detail("domain", "polynomial")
-}
-
 fn exponent_mismatch() -> Diagnostic {
     Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
         .detail("domain", "polynomial")
@@ -572,6 +576,47 @@ fn ring_unknown(ring: RingId) -> Diagnostic {
         .detail("ring_id", ring.0.to_string())
 }
 
-use athena_numeric::NumericValue as Number;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::polynomial::{MonomialOrder, PolynomialBuilder};
+    use athena_types::SymbolId;
 
-// Re-import Number alias fix - we used Number above but imported wrong at end
+    fn z_poly(terms: &[(i64, u32)]) -> (RingTable, RingId, Polynomial) {
+        let mut rings = RingTable::new();
+        let ring = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+        let mut b = PolynomialBuilder::new(ring);
+        for &(c, d) in terms {
+            b.push_term(Number::small_int(c), vec![d]).unwrap();
+        }
+        let p = b.build(&rings).unwrap();
+        (rings, ring, p)
+    }
+
+    #[test]
+    fn gcd_x2_minus_1_and_x_minus_1() {
+        let (rings, _, a) = z_poly(&[(1, 2), (-1, 0)]);
+        let (_, _, b) = z_poly(&[(1, 1), (-1, 0)]);
+        let g = gcd_univariate(a, b, &rings).unwrap();
+        assert_eq!(g.terms.len(), 2);
+        assert!(g.terms.iter().any(|t| t.exponents == vec![1] && t.coefficient.to_render_string() == "1"));
+    }
+
+    #[test]
+    fn fp7_gcd_linear_pair() {
+        let mut rings = RingTable::new();
+        let ring = rings.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+        let mut ba = PolynomialBuilder::new(ring);
+        ba.push_term(Number::small_int(3), vec![1]).unwrap();
+        ba.push_term(Number::small_int(1), vec![0]).unwrap();
+        let a = ba.build(&rings).unwrap();
+        let mut bb = PolynomialBuilder::new(ring);
+        bb.push_term(Number::small_int(2), vec![1]).unwrap();
+        bb.push_term(Number::small_int(1), vec![0]).unwrap();
+        let b = bb.build(&rings).unwrap();
+        let g = gcd_univariate(a, b, &rings).unwrap();
+        assert_eq!(g.terms.len(), 1);
+        assert_eq!(g.terms[0].exponents, vec![0]);
+        assert_eq!(g.terms[0].coefficient.to_render_string(), "1");
+    }
+}

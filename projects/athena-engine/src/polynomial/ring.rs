@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, FieldId, SymbolId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
-use super::{fingerprint::RingFingerprint, order::MonomialOrder};
+use super::{fingerprint::RingFingerprint, monomial_layout::MonomialLayout, order::MonomialOrder};
 
 /// 精确 / 近似系数域（系数环 intern 键；多项式环身份见 [`CoefficientParent`]）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -54,6 +54,8 @@ pub struct RingDescriptor {
     pub characteristic: RingCharacteristic,
     /// 稳定数学身份摘要（不含 Session 句柄）。
     pub ring_fingerprint: RingFingerprint,
+    /// intern 时编译的单项式布局（序比较热路径）。
+    pub monomial_layout: MonomialLayout,
 }
 
 impl RingDescriptor {
@@ -89,8 +91,9 @@ impl RingDescriptor {
         order: MonomialOrder,
         characteristic: RingCharacteristic,
         ring_fingerprint: RingFingerprint,
+        monomial_layout: MonomialLayout,
     ) -> Self {
-        Self { id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint }
+        Self { id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint, monomial_layout }
     }
 
     /// 变量数。

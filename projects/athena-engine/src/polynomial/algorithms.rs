@@ -1,5 +1,1 @@
-//! 多项式算法入口：resultant / gcd 等（骨架）。
-
-/// 算法尚未实现。
-#[allow(dead_code)]
-pub fn algorithms_scaffold_marker() {}
+//! 多项式算法入口（单变量 div / gcd / resultant 见 [`super::univariate`]）。

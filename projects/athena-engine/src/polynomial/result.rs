@@ -8,7 +8,8 @@ use super::{
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
     ring_table::RingTable,
-    value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue},
+    univariate::{div_univariate, gcd_univariate},
+    value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue, UnivariateDivisionValue},
 };
 
 /// 多项式域结果。
@@ -56,6 +57,19 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             Ok(product) => {
                 PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }) }
             }
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
+        PolynomialRequest::Div { dividend, divisor, policy } => match div_univariate(dividend, divisor, policy, rings) {
+            Ok(division) => PolynomialResult::Exact {
+                value: PolynomialDomainValue::UnivariateDivision(UnivariateDivisionValue {
+                    quotient: PolynomialValue { inner: division.quotient },
+                    remainder: PolynomialValue { inner: division.remainder },
+                }),
+            },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
+        PolynomialRequest::Gcd { lhs, rhs } => match gcd_univariate(lhs, rhs, rings) {
+            Ok(g) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: g }) },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Groebner { generators, limits } => match compute_groebner_basis(generators, rings, limits) {

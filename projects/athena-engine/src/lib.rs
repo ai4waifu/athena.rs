@@ -103,14 +103,17 @@ pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1
 pub use polynomial::{
     CanonicalPolynomial, CoeffRing, CoeffRingTable, CoefficientDomain, CoefficientRingDescriptor, DivisionPolicy, FpBigKernel,
     FINGERPRINT_ALGORITHM, FpWordKernel, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation,
-    GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Ideal, JitParityOutcome, MonomialOrder,
+    GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Ideal, JitParityOutcome, MonomialLayout,
+    MonomialOrder,
     MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue,
     PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue, QCoeffKernel,
-    ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, SpecializedCoeffKernel, VerifiedGroebnerBasis, ZCoeffKernel,
+    ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, SpecializedCoeffKernel,
+    UnivariateDivision, UnivariateDivisionValue, VerifiedGroebnerBasis, ZCoeffKernel,
     add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
     execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, ideal_membership, mul_polynomial,
     mul_with_jit_parity, parity_diagnostic, polynomial_canonical_hash, polynomial_fingerprint, polynomial_fingerprint_u64,
-    record_polynomial_result, reduce_by_verified, reduce_ideal, reprs_mathematically_equal, sub_polynomial,
+    record_polynomial_result, reduce_by_verified, reduce_ideal, reprs_mathematically_equal, resultant_univariate,
+    sub_polynomial, div_univariate, gcd_univariate,
     verify_groebner_basis,
 };
 pub use session::Session;

@@ -4,6 +4,8 @@ use std::cmp::Ordering;
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
+use super::monomial_layout::CompiledMonomialOrder;
+
 /// 单项式比较序（环身份的一部分）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MonomialOrder {
@@ -69,6 +71,11 @@ impl MonomialOrder {
         }
     }
 
+    /// 编译为 infallible 比较器（环 intern 时调用；测试与遗留 API 亦可用）。
+    pub fn compile(&self, variable_count: usize) -> Result<CompiledMonomialOrder, Diagnostic> {
+        CompiledMonomialOrder::compile(self, variable_count)
+    }
+
     /// 比较两个指数向量（长度须等于 `variable_count`）。
     pub fn cmp_exponents(&self, a: &[u32], b: &[u32], variable_count: usize) -> Result<Ordering, Diagnostic> {
         if a.len() != variable_count || b.len() != variable_count {
@@ -76,88 +83,9 @@ impl MonomialOrder {
                 .detail("domain", "polynomial")
                 .detail("operation", "cmp_exponents"));
         }
-        self.validate_for_variables(variable_count)?;
-        cmp_exponents_inner(a, b, self)
+        let compiled = self.compile(variable_count)?;
+        Ok(compiled.cmp_exponents(a, b))
     }
-}
-
-fn cmp_exponents_inner(a: &[u32], b: &[u32], order: &MonomialOrder) -> Result<Ordering, Diagnostic> {
-    match order {
-        MonomialOrder::Lex => Ok(cmp_lex(a, b)),
-        MonomialOrder::GrLex => {
-            let da = total_degree(a);
-            let db = total_degree(b);
-            match da.cmp(&db) {
-                Ordering::Equal => Ok(cmp_lex(a, b)),
-                other => Ok(other),
-            }
-        }
-        MonomialOrder::GrevLex => {
-            let da = total_degree(a);
-            let db = total_degree(b);
-            match da.cmp(&db) {
-                Ordering::Equal => Ok(cmp_grevlex(a, b)),
-                other => Ok(other),
-            }
-        }
-        MonomialOrder::Weighted { weights } => {
-            let wa = weighted_degree(a, weights);
-            let wb = weighted_degree(b, weights);
-            match wa.cmp(&wb) {
-                Ordering::Equal => Ok(cmp_lex(a, b)),
-                other => Ok(other),
-            }
-        }
-        MonomialOrder::Block { blocks } => {
-            let n = a.len();
-            let w = n / blocks.len();
-            for (i, block_order) in blocks.iter().enumerate() {
-                let start = i * w;
-                let end = start + w;
-                let ord = cmp_exponents_inner(&a[start..end], &b[start..end], block_order)?;
-                if ord != Ordering::Equal {
-                    return Ok(ord);
-                }
-            }
-            Ok(Ordering::Equal)
-        }
-        MonomialOrder::Elimination { eliminate, rest } => {
-            let e = *eliminate as usize;
-            let ord_front = cmp_lex(&a[..e], &b[..e]);
-            if ord_front != Ordering::Equal {
-                return Ok(ord_front);
-            }
-            cmp_exponents_inner(&a[e..], &b[e..], rest)
-        }
-    }
-}
-
-fn total_degree(v: &[u32]) -> u64 {
-    v.iter().map(|&e| u64::from(e)).sum()
-}
-
-fn weighted_degree(v: &[u32], weights: &[u32]) -> u64 {
-    v.iter().zip(weights.iter()).map(|(&e, &w)| u64::from(e) * u64::from(w)).sum()
-}
-
-fn cmp_lex(a: &[u32], b: &[u32]) -> Ordering {
-    for (&av, &bv) in a.iter().zip(b.iter()) {
-        match av.cmp(&bv) {
-            Ordering::Equal => {}
-            other => return other,
-        }
-    }
-    Ordering::Equal
-}
-
-fn cmp_grevlex(a: &[u32], b: &[u32]) -> Ordering {
-    for (&av, &bv) in a.iter().zip(b.iter()).rev() {
-        match av.cmp(&bv) {
-            Ordering::Equal => {}
-            other => return other.reverse(),
-        }
-    }
-    Ordering::Equal
 }
 
 fn order_invalid(reason: &str) -> Diagnostic {

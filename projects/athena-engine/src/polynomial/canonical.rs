@@ -57,24 +57,26 @@ pub(crate) fn canonicalize_terms(
         .map(|(exponents, coefficient)| MonomialTerm { coefficient, exponents })
         .collect();
 
-    sort_terms_desc(&mut terms, &desc.order, n)?;
+    sort_terms_desc(&mut terms, &desc.monomial_layout)?;
 
     Ok(Polynomial { ring, terms })
 }
 
-fn sort_terms_desc(terms: &mut [MonomialTerm], order: &super::order::MonomialOrder, variable_count: usize) -> Result<()> {
+fn sort_terms_desc(terms: &mut [MonomialTerm], layout: &super::monomial_layout::MonomialLayout) -> Result<()> {
     let mut sort_error = None;
     terms.sort_by(|a, b| {
         if sort_error.is_some() {
             return std::cmp::Ordering::Equal;
         }
-        match order.cmp_exponents(&b.exponents, &a.exponents, variable_count) {
-            Ok(ord) => ord,
-            Err(d) => {
-                sort_error = Some(d);
-                std::cmp::Ordering::Equal
-            }
+        if let Err(d) = layout.validate_exponents(&a.exponents) {
+            sort_error = Some(d);
+            return std::cmp::Ordering::Equal;
         }
+        if let Err(d) = layout.validate_exponents(&b.exponents) {
+            sort_error = Some(d);
+            return std::cmp::Ordering::Equal;
+        }
+        layout.cmp_exponents_desc(&a.exponents, &b.exponents)
     });
     sort_error.map_or(Ok(()), Err)
 }

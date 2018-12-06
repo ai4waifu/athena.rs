@@ -43,13 +43,24 @@ impl GroebnerBasisValue {
     }
 }
 
+/// 单变量除法结果值。
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnivariateDivisionValue {
+    /// 商。
+    pub quotient: PolynomialValue,
+    /// 余式。
+    pub remainder: PolynomialValue,
+}
+
 /// 多项式域返回值。
 #[derive(Debug, Clone, PartialEq)]
 pub enum PolynomialDomainValue {
     /// 单个多项式。
     Polynomial(PolynomialValue),
+    /// 单变量除法（商 + 余式）。
+    UnivariateDivision(UnivariateDivisionValue),
     /// Gröbner / 消元基。
     GroebnerBasis(GroebnerBasisValue),
-    /// 占位：后续 GCD / 因式列表等。
+    /// 占位：后续因式列表等。
     Placeholder,
 }

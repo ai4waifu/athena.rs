@@ -19,6 +19,7 @@ mod hash;
 mod ideal;
 mod jit_gate;
 mod mgraph;
+mod monomial_layout;
 mod operations;
 mod order;
 mod repr;
@@ -26,6 +27,7 @@ mod request;
 mod result;
 mod ring;
 mod ring_table;
+mod univariate;
 mod value;
 
 pub use athena_types::CoefficientRingId;
@@ -47,6 +49,7 @@ pub use groebner::{
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;
+pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout};
 pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};
 pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
 pub use operations::{add_polynomial, mul_polynomial, sub_polynomial};
@@ -56,6 +59,7 @@ pub use request::PolynomialRequest;
 pub use result::{PolynomialResult, execute_polynomial, execute_polynomial_with_rings};
 pub use ring::{CoefficientDomain, DivisionPolicy, RingCharacteristic, RingDescriptor};
 pub use ring_table::RingTable;
-pub use value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue};
+pub use univariate::{UnivariateDivision, div_univariate, gcd_univariate, resultant_univariate};
+pub use value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue, UnivariateDivisionValue};
 
 pub use athena_types::RingId;

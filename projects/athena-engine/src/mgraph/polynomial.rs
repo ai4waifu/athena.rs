@@ -129,6 +129,10 @@ pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValu
         PolynomialDomainValue::GroebnerBasis(v) => {
             (format!("gb:{}:{}", v.basis.len(), v.certificate.s_pair_steps), Some(v.certificate.s_pair_steps))
         }
+        PolynomialDomainValue::UnivariateDivision(v) => (
+            format!("div:q{}:r{}", v.quotient.inner.terms.len(), v.remainder.inner.terms.len()),
+            None,
+        ),
         PolynomialDomainValue::Placeholder => ("placeholder".into(), None),
     };
     PolynomialWitness { operation: key.operation, input_hashes: key.input_hashes.clone(), output_summary, groebner_steps }
