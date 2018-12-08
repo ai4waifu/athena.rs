@@ -1,9 +1,9 @@
-//! ℚ / 𝔽_p 元素 canonical 化与显式 embedding（Living `18` Phase 4）。
+//! ℚ / 𝔽_p / 𝔽_{p^n} 元素 canonical 化与显式 embedding（Living `18` Phase 4–5）。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldId, Result};
 
-use crate::algebra::{AlgebraParentId, FieldTable, MapTable};
+use crate::algebra::{add_coords, canonical_coords, inv_coords, mul_coords, AlgebraParentId, FieldTable, MapTable};
 
 use super::types::{FieldElement, FieldElementRepr};
 
@@ -18,8 +18,20 @@ pub fn canonical_rational(table: &FieldTable, field: FieldId, numer: Integer, de
     Ok(FieldElement { field, presentation, repr: FieldElementRepr::Rational { value } })
 }
 
+/// 在 𝔽_{p^n} 多项式基中构造 canonical 元素。
+pub fn canonical_extension_element(table: &FieldTable, field: FieldId, coords: Vec<Integer>) -> Result<FieldElement> {
+    let spec = table.finite_field_poly_spec(field).ok_or_else(|| field_element_invalid("expected_polynomial_basis"))?;
+    let p = table.prime_modulus(field)?;
+    let coords = canonical_coords(coords, spec.degree, &p)?;
+    let presentation = table.presentation_id(field)?;
+    Ok(FieldElement { field, presentation, repr: FieldElementRepr::ExtensionCoords { coords } })
+}
+
 /// 在 𝔽_p 中构造 canonical 剩余类（∈ [0, p)）。
 pub fn canonical_prime_residue(table: &FieldTable, field: FieldId, value: Integer) -> Result<FieldElement> {
+    if table.finite_field_poly_spec(field).is_some() {
+        return canonical_extension_element(table, field, vec![value]);
+    }
     table.validate_finite_field(field)?;
     let modulus = table.prime_modulus(field)?;
     let residue = modulus.reduce(&value);
@@ -66,6 +78,11 @@ pub fn add_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
         (FieldElementRepr::PrimeFieldResidue { value: a }, FieldElementRepr::PrimeFieldResidue { value: b }) => {
             canonical_prime_residue(table, lhs.field, a.add(b))
         }
+        (FieldElementRepr::ExtensionCoords { coords: a }, FieldElementRepr::ExtensionCoords { coords: b }) => {
+            let p = table.prime_modulus(lhs.field)?;
+            let sum = add_coords(a, b, &p);
+            canonical_extension_element(table, lhs.field, sum)
+        }
         _ => Err(field_element_invalid("add_repr_mismatch")),
     }
 }
@@ -80,6 +97,12 @@ pub fn mul_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
         }
         (FieldElementRepr::PrimeFieldResidue { value: a }, FieldElementRepr::PrimeFieldResidue { value: b }) => {
             canonical_prime_residue(table, lhs.field, a.mul(b))
+        }
+        (FieldElementRepr::ExtensionCoords { coords: a }, FieldElementRepr::ExtensionCoords { coords: b }) => {
+            let spec = table.finite_field_poly_spec(lhs.field).ok_or_else(|| field_element_invalid("extension_mul"))?;
+            let p = table.prime_modulus(lhs.field)?;
+            let prod = mul_coords(a, b, spec, &p);
+            canonical_extension_element(table, lhs.field, prod)
         }
         _ => Err(field_element_invalid("mul_repr_mismatch")),
     }
@@ -99,6 +122,12 @@ pub fn inv_field_element(table: &FieldTable, element: &FieldElement) -> Result<F
             let modulus = table.prime_modulus(element.field)?;
             let inv = crate::number_theory::mod_inverse(value, &modulus)?;
             canonical_prime_residue(table, element.field, inv.residue().clone())
+        }
+        FieldElementRepr::ExtensionCoords { coords } => {
+            let spec = table.finite_field_poly_spec(element.field).ok_or_else(|| field_element_invalid("extension_inv"))?;
+            let p = table.prime_modulus(element.field)?;
+            let inv = inv_coords(coords, spec, &p)?;
+            canonical_extension_element(table, element.field, inv)
         }
         _ => Err(field_element_invalid("inv_unsupported_repr")),
     }

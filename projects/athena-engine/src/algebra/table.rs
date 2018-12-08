@@ -3,9 +3,15 @@
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldId, PresentationId, Result};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, PresentationId, Result};
 
 use crate::{
+    algebra::{
+        finite_field_poly::{
+            FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape,
+        },
+        property::{PropertyState, PropertyWitness},
+    },
     field::{Field, FieldDescriptor},
     number_theory::{Primality, primality_test},
 };
@@ -20,6 +26,10 @@ use super::{
 enum FieldInternKey {
     Rationals,
     Prime { characteristic: Integer },
+    PolynomialBasis {
+        characteristic: Integer,
+        modulus: Vec<Integer>,
+    },
 }
 
 /// Session 级域与 presentation 注册表。
@@ -31,6 +41,8 @@ pub struct FieldTable {
     field_to_presentation: HashMap<FieldId, PresentationId>,
     by_key: HashMap<FieldInternKey, FieldId>,
     map_table: MapTable,
+    poly_extensions: HashMap<FieldId, FiniteFieldPolySpec>,
+    next_extension_id: u32,
 }
 
 impl FieldTable {
@@ -58,19 +70,61 @@ impl FieldTable {
         self.field_to_presentation.get(&field).and_then(|id| self.presentations.get(id))
     }
 
-    /// 域特征（素域返回 p；其他表示 Phase 2+ 填充）。
+    /// 域特征（素域与 𝔽_{p^n} 均返回 p）。
     pub fn characteristic(&self, field: FieldId) -> Option<Integer> {
         match self.presentation(field).map(|p| &p.kind) {
             Some(FieldPresentationKind::PrimeField { characteristic }) => Some(characteristic.clone()),
+            Some(FieldPresentationKind::FiniteFieldPolynomialBasis { .. }) => {
+                self.poly_extensions.get(&field).map(|s| s.characteristic.clone())
+            }
             _ => None,
         }
+    }
+
+    /// 𝔽_{p^n} 多项式基规格（若已注册）。
+    pub fn finite_field_poly_spec(&self, field: FieldId) -> Option<&FiniteFieldPolySpec> {
+        self.poly_extensions.get(&field)
+    }
+
+    /// 注册 𝔽_{p^n}（首一不可约模多项式 + 多项式基 presentation）。
+    pub fn polynomial_basis_field(&mut self, characteristic: Integer, modulus: Vec<Integer>) -> Result<FieldId> {
+        validate_prime_modulus(&characteristic)?;
+        let p = athena_numeric::Modulus::new(characteristic.clone())?;
+        let modulus = canonicalize_modulus(modulus, &p)?;
+        let degree = validate_modulus_shape(&modulus, &p)?;
+        if !is_irreducible_monic(&modulus, &p)? {
+            return Err(Diagnostic::new(DiagnosticCode::FieldModulusReducible)
+                .detail("domain", "field")
+                .detail("operation", "polynomial_basis_modulus"));
+        }
+        let key = FieldInternKey::PolynomialBasis { characteristic: characteristic.clone(), modulus: modulus.clone() };
+        if let Some(&id) = self.by_key.get(&key) {
+            return Ok(id);
+        }
+        let base = self.prime_field(characteristic.clone())?;
+        let extension = ExtensionId(self.next_extension_id);
+        self.next_extension_id = self.next_extension_id.wrapping_add(1);
+        let field = FieldId(self.next_field_id);
+        self.next_field_id = self.next_field_id.wrapping_add(1);
+        let presentation_id = PresentationId(self.next_presentation_id);
+        self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
+        let kind = FieldPresentationKind::FiniteFieldPolynomialBasis { field, degree };
+        let presentation = FieldPresentation { id: presentation_id, field, kind };
+        self.by_key.insert(key, field);
+        self.field_to_presentation.insert(field, presentation_id);
+        self.presentations.insert(presentation_id, presentation);
+        self.poly_extensions.insert(
+            field,
+            FiniteFieldPolySpec { extension, base, characteristic, degree, modulus },
+        );
+        Ok(field)
     }
 
     /// 校验 FieldId 已注册且 presentation 支持系数约化。
     pub fn validate_finite_field(&self, field: FieldId) -> Result<()> {
         let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
         match &pres.kind {
-            FieldPresentationKind::PrimeField { .. } => Ok(()),
+            FieldPresentationKind::PrimeField { .. } | FieldPresentationKind::FiniteFieldPolynomialBasis { .. } => Ok(()),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "field")
                 .detail("operation", "coeff_presentation_unsupported")),
@@ -104,6 +158,17 @@ impl FieldTable {
             FieldPresentationKind::Rationals => Ok(FieldDescriptor::Rationals),
             FieldPresentationKind::PrimeField { characteristic } => {
                 Ok(FieldDescriptor::Prime { characteristic: characteristic.clone() })
+            }
+            FieldPresentationKind::FiniteFieldPolynomialBasis { degree, .. } => {
+                let spec = self.poly_extensions.get(&field).ok_or_else(|| unknown_field(field))?;
+                Ok(FieldDescriptor::Extension {
+                    base: spec.base,
+                    extension: spec.extension,
+                    degree: PropertyState::Proven {
+                        value: *degree,
+                        witness: PropertyWitness::placeholder("polynomial_basis"),
+                    },
+                })
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "field")

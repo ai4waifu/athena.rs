@@ -9,8 +9,8 @@ mod types;
 mod value;
 
 pub use canonical::{
-    add_field_elements, apply_field_embedding, canonical_prime_residue, canonical_rational, inv_field_element,
-    mul_field_elements,
+    add_field_elements, apply_field_embedding, canonical_extension_element, canonical_prime_residue, canonical_rational,
+    inv_field_element, mul_field_elements,
 };
 pub use request::FieldRequest;
 pub use result::{FieldResult, execute_field, execute_field_with_table, execute_field_with_table_mut};

@@ -4,6 +4,7 @@
 //! 不得平行维护 parent / map / property 语义。
 
 mod element;
+mod finite_field_poly;
 mod group_facts;
 mod map;
 mod map_table;
@@ -13,6 +14,7 @@ mod property;
 mod table;
 
 pub use element::{AlgebraElement, ElementProvenance};
+pub use finite_field_poly::{FiniteFieldPolySpec, add_coords, canonical_coords, inv_coords, mul_coords};
 pub use group_facts::GroupPropertyFacts;
 pub use map::{AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind};
 pub use map_table::MapTable;
