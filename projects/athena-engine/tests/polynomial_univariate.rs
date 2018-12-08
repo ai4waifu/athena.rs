@@ -94,8 +94,18 @@ fn resultant_linear_pair() {
     let a = uni(&rings, ring, &[(1, 1), (2, 0)]);
     let b = uni(&rings, ring, &[(1, 1), (3, 0)]);
     let res = resultant_univariate(a, b, &rings).unwrap();
-    let s = res.to_render_string();
-    assert!(s == "1" || s == "-1");
+    assert_eq!(res.to_render_string(), "1");
+}
+
+#[test]
+fn resultant_symmetry_under_swap() {
+    let (rings, ring) = q_x();
+    let a = uni(&rings, ring, &[(1, 1), (2, 0)]);
+    let b = uni(&rings, ring, &[(1, 1), (3, 0)]);
+    let rab = resultant_univariate(a.clone(), b.clone(), &rings).unwrap();
+    let rba = resultant_univariate(b, a, &rings).unwrap();
+    assert_eq!(rab.to_render_string(), "1");
+    assert_eq!(rba.to_render_string(), "-1");
 }
 
 #[test]

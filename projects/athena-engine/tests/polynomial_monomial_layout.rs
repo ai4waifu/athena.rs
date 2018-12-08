@@ -8,7 +8,8 @@ fn ring_descriptor_carries_compiled_layout() {
     let ring = table.intern(CoefficientDomain::Integer, vec![SymbolId(0), SymbolId(1)], MonomialOrder::GrLex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.monomial_layout.variable_count(), 2);
-    assert_eq!(desc.monomial_layout.bits_per_exponent(), 32);
+    assert_eq!(desc.monomial_layout.bits_per_exponent(), 16);
+    assert_eq!(desc.monomial_layout.packed_words_per_monomial(), 1);
 }
 
 #[test]
@@ -42,6 +43,16 @@ fn canonical_sort_uses_layout_not_runtime_enum() {
     assert_eq!(poly.terms[0].exponents, vec![2, 0]);
     assert_eq!(poly.terms[1].exponents, vec![1, 0]);
     assert_eq!(poly.terms[2].exponents, vec![0, 1]);
+}
+
+#[test]
+fn packed_roundtrip_and_divides() {
+    let layout = MonomialLayout::compile(&MonomialOrder::Lex, 2).unwrap();
+    let d = layout.pack(&[1, 0]).unwrap();
+    let t = layout.pack(&[2, 1]).unwrap();
+    assert!(layout.packed_divides(&d, &t).unwrap());
+    assert!(!layout.packed_divides(&t, &d).unwrap());
+    assert_eq!(layout.unpack(&layout.lcm_packed(&d, &t).unwrap()).unwrap(), vec![2, 1]);
 }
 
 #[test]

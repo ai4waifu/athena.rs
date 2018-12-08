@@ -250,7 +250,30 @@ fn resultant_dense(
             }
         }
     }
-    det_matrix(&mat, domain, ring, rings)
+    let det = det_matrix(&mat, domain, ring, rings)?;
+    normalize_resultant_sign(m, n, det, domain, ring, rings)
+}
+
+/// Sylvester 行列式符号规范化：约定 `Res(f,g) = (-1)^(deg f · deg g) · det(S)`。
+fn normalize_resultant_sign(
+    deg_a: usize,
+    deg_b: usize,
+    det: Number,
+    domain: &CoefficientDomain,
+    ring: RingId,
+    rings: &RingTable,
+) -> Result<Number> {
+    if (deg_a * deg_b) % 2 == 0 {
+        return Ok(det);
+    }
+    match domain {
+        CoefficientDomain::Rational | CoefficientDomain::Integer => Ok(num_neg(det)),
+        CoefficientDomain::FiniteField { .. } => {
+            let coeff = rings.coeff_kernel(ring)?;
+            coeff.neg(det)
+        }
+        _ => Err(unsupported_domain()),
+    }
 }
 
 fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain, ring: RingId, rings: &RingTable) -> Result<Number> {

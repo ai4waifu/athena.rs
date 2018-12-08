@@ -1,6 +1,5 @@
 //! Gröbner 基（Buchberger）· 独立验证 · 类型分型结果 · 理想约化 · 消元。
 
-use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
@@ -8,12 +7,11 @@ use super::{
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus},
     coeff_kernel::CoeffRing,
-    exponent::add_exponent_vectors,
     expr::Polynomial,
     ideal::Ideal,
+    monomial_layout::MonomialLayout,
     operations::sub_polynomial,
     order::MonomialOrder,
-    ring::RingDescriptor,
     ring_table::RingTable,
 };
 
@@ -159,6 +157,7 @@ pub fn compute_groebner_basis(
             .detail("domain", "polynomial")
             .detail("operation", "groebner_requires_field"));
     }
+    let layout = &desc.monomial_layout;
     let mut basis = normalize_generators(ideal.generators, rings)?;
     let input_count = basis.len();
     let mut pairs: Vec<(usize, usize)> = Vec::new();
@@ -176,8 +175,8 @@ pub fn compute_groebner_basis(
             break;
         }
         steps += 1;
-        let s = s_polynomial(&basis[i], &basis[j], rings, &coeff)?;
-        let remainder = reduce_polynomial(&s, &basis, rings, desc, &coeff)?;
+        let s = s_polynomial(&basis[i], &basis[j], rings, layout, &coeff)?;
+        let remainder = reduce_polynomial(&s, &basis, rings, layout, &coeff)?;
         if remainder.terms.is_empty() {
             continue;
         }
@@ -191,7 +190,7 @@ pub fn compute_groebner_basis(
             pairs.push((k, idx));
         }
     }
-    basis = autoreduce_basis(basis, rings, desc, &coeff)?;
+    basis = autoreduce_basis(basis, rings, layout, &coeff)?;
     if resource_limited {
         return Ok(GroebnerComputation::ResourceLimited(frontier(
             ideal.ring,
@@ -314,7 +313,8 @@ pub fn reduce_by_verified(
             .detail("domain", "polynomial")
             .detail("operation", "reduce_requires_field"));
     }
-    reduce_polynomial(&polynomial, &basis.basis, rings, desc, &coeff)
+    let layout = &desc.monomial_layout;
+    reduce_polynomial(&polynomial, &basis.basis, rings, layout, &coeff)
 }
 
 /// 理想成员判定：余式为零当且仅当（在已验证基下）属于理想。
@@ -338,7 +338,8 @@ pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTa
             .detail("domain", "polynomial")
             .detail("operation", "reduce_requires_field"));
     }
-    reduce_polynomial(&polynomial, basis, rings, desc, &coeff)
+    let layout = &desc.monomial_layout;
+    reduce_polynomial(&polynomial, basis, rings, layout, &coeff)
 }
 
 /// 独立验证：所有 critical S-pair 约化为零。
@@ -363,12 +364,13 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
             .detail("domain", "polynomial")
             .detail("operation", "verify_requires_field"));
     }
+    let layout = &desc.monomial_layout;
     let mut pairs_checked = 0u32;
     for i in 0..basis.len() {
         for j in (i + 1)..basis.len() {
             pairs_checked = pairs_checked.saturating_add(1);
-            let s = s_polynomial(&basis[i], &basis[j], rings, &coeff)?;
-            let rem = reduce_polynomial(&s, basis, rings, desc, &coeff)?;
+            let s = s_polynomial(&basis[i], &basis[j], rings, layout, &coeff)?;
+            let rem = reduce_polynomial(&s, basis, rings, layout, &coeff)?;
             if !rem.terms.is_empty() {
                 return Ok(GroebnerVerificationReport {
                     ring,
@@ -422,33 +424,28 @@ fn leading_term(poly: &Polynomial) -> Option<super::expr::MonomialTerm> {
     poly.terms.first().cloned()
 }
 
-fn monomial_divides(divisor: &[u32], target: &[u32]) -> bool {
-    divisor.iter().zip(target.iter()).all(|(&d, &t)| d <= t)
-}
-
-fn lcm_exponents(a: &[u32], b: &[u32]) -> Vec<u32> {
-    a.iter().zip(b.iter()).map(|(&x, &y)| x.max(y)).collect()
-}
-
-fn exponents_delta(num: &[u32], den: &[u32]) -> Vec<u32> {
-    num.iter().zip(den.iter()).map(|(&n, &d)| n - d).collect()
-}
-
-fn s_polynomial(f: &Polynomial, g: &Polynomial, rings: &RingTable, coeff: &CoeffRing<'_>) -> Result<Polynomial> {
+fn s_polynomial(
+    f: &Polynomial,
+    g: &Polynomial,
+    rings: &RingTable,
+    layout: &MonomialLayout,
+    coeff: &CoeffRing<'_>,
+) -> Result<Polynomial> {
     let lf = leading_term(f).ok_or_else(zero_poly_err)?;
     let lg = leading_term(g).ok_or_else(zero_poly_err)?;
-    let lcm = lcm_exponents(&lf.exponents, &lg.exponents);
-    let mult_f_exp = exponents_delta(&lcm, &lf.exponents);
-    let mult_g_exp = exponents_delta(&lcm, &lg.exponents);
-    let mf = multiply_by_monomial(f, coeff.inv(lf.coefficient.clone())?, &mult_f_exp, rings, coeff)?;
-    let mg = multiply_by_monomial(g, coeff.inv(lg.coefficient.clone())?, &mult_g_exp, rings, coeff)?;
+    let lcm = layout.lcm_exponents(&lf.exponents, &lg.exponents)?;
+    let mult_f_exp = layout.exponents_delta(&lcm, &lf.exponents)?;
+    let mult_g_exp = layout.exponents_delta(&lcm, &lg.exponents)?;
+    let mf = multiply_by_monomial(f, coeff.inv(lf.coefficient.clone())?, &mult_f_exp, layout, rings, coeff)?;
+    let mg = multiply_by_monomial(g, coeff.inv(lg.coefficient.clone())?, &mult_g_exp, layout, rings, coeff)?;
     sub_polynomial(mf, mg, rings)
 }
 
 fn multiply_by_monomial(
     poly: &Polynomial,
-    scalar: Number,
+    scalar: athena_numeric::Number,
     exp_delta: &[u32],
+    layout: &MonomialLayout,
     rings: &RingTable,
     coeff: &CoeffRing<'_>,
 ) -> Result<Polynomial> {
@@ -457,7 +454,7 @@ fn multiply_by_monomial(
     }
     let mut b = PolynomialBuilder::new(poly.ring);
     for term in &poly.terms {
-        let exponents = add_exponent_vectors(&term.exponents, exp_delta)?;
+        let exponents = layout.add_exponents(&term.exponents, exp_delta)?;
         let c = coeff.mul(scalar.clone(), term.coefficient.clone())?;
         b.push_term(c, exponents)?;
     }
@@ -468,7 +465,7 @@ fn reduce_polynomial(
     poly: &Polynomial,
     basis: &[Polynomial],
     rings: &RingTable,
-    _desc: &RingDescriptor,
+    layout: &MonomialLayout,
     coeff: &CoeffRing<'_>,
 ) -> Result<Polynomial> {
     let mut remainder = poly.clone();
@@ -477,18 +474,20 @@ fn reduce_polynomial(
             Some(t) => t,
             None => return Ok(remainder),
         };
+        let lr_packed = layout.pack(&lr.exponents)?;
         let mut reduced = false;
         for g in basis {
             let lg = match leading_term(g) {
                 Some(t) => t,
                 None => continue,
             };
-            if !monomial_divides(&lg.exponents, &lr.exponents) {
+            let lg_packed = layout.pack(&lg.exponents)?;
+            if !layout.packed_divides(&lg_packed, &lr_packed)? {
                 continue;
             }
-            let delta = exponents_delta(&lr.exponents, &lg.exponents);
+            let delta = layout.exponents_delta(&lr.exponents, &lg.exponents)?;
             let factor = coeff.div(lr.coefficient.clone(), lg.coefficient.clone())?;
-            let term = multiply_by_monomial(g, factor, &delta, rings, coeff)?;
+            let term = multiply_by_monomial(g, factor, &delta, layout, rings, coeff)?;
             remainder = sub_polynomial(remainder, term, rings)?;
             reduced = true;
             break;
@@ -502,17 +501,22 @@ fn reduce_polynomial(
 fn autoreduce_basis(
     basis: Vec<Polynomial>,
     rings: &RingTable,
-    desc: &RingDescriptor,
+    layout: &MonomialLayout,
     coeff: &CoeffRing<'_>,
 ) -> Result<Vec<Polynomial>> {
     let mut out = Vec::new();
     for (i, g) in basis.iter().enumerate() {
         let others: Vec<Polynomial> = basis.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, p)| p.clone()).collect();
-        let r = reduce_polynomial(g, &others, rings, desc, coeff)?;
+        let r = reduce_polynomial(g, &others, rings, layout, coeff)?;
         if r.terms.is_empty() {
             continue;
         }
-        if out.iter().any(|p| leading_term(p).zip(leading_term(&r)).is_some_and(|(a, b)| a.exponents == b.exponents)) {
+        let r_leading = layout.pack(&r.terms[0].exponents)?;
+        if out.iter().any(|p| {
+            leading_term(p)
+                .and_then(|lt| layout.pack(&lt.exponents).ok())
+                .is_some_and(|lt_packed| layout.packed_equal(&lt_packed, &r_leading))
+        }) {
             continue;
         }
         out.push(r);

@@ -1,12 +1,13 @@
 //! 单项式布局与环 intern 时编译的单项式序比较器。
 //!
-//! 算法热路径使用 [`MonomialLayout::cmp_exponents_desc`]，不再递归解释 [`super::order::MonomialOrder`]。
+//! 算法热路径使用 [`MonomialLayout::cmp_exponents_desc`] 与 [`PackedMonomial`]，
+//! 不再递归解释 [`super::order::MonomialOrder`]。
 
 use std::cmp::Ordering;
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use super::order::MonomialOrder;
+use super::{exponent::add_exponent_vectors, order::MonomialOrder};
 
 /// 环 intern 时编译的单项式序（内循环 infallible 比较）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,21 +57,46 @@ pub struct CompiledBlockSegment {
     pub order: CompiledMonomialOrder,
 }
 
-/// 环上的单项式布局（intern 时固定；后续可扩展 packed word 存储）。
+/// packed word 单项式指数（arena 友好；比较经 layout 解码）。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PackedMonomial {
+    words: Vec<u64>,
+}
+
+impl PackedMonomial {
+    /// 空 packed 单项式（全零指数）。
+    pub fn zero(words: usize) -> Self {
+        Self { words: vec![0u64; words] }
+    }
+
+    /// packed limb 切片（只读）。
+    pub fn words(&self) -> &[u64] {
+        &self.words
+    }
+}
+
+/// 环上的单项式布局（intern 时固定）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonomialLayout {
     variable_count: usize,
     bits_per_exponent: u8,
+    packed_words_per_monomial: usize,
+    max_exponent: u32,
     compiled_order: CompiledMonomialOrder,
 }
 
 impl MonomialLayout {
     /// 由声明式序与变量数编译布局（环构造时调用一次）。
-    pub fn compile(order: &MonomialOrder, variable_count: usize) -> Result<Self, Diagnostic> {
+    pub fn compile(order: &MonomialOrder, variable_count: usize) -> Result<Self> {
         order.validate_for_variables(variable_count)?;
+        let bits_per_exponent = select_bits_per_exponent(variable_count);
+        let max_exponent = max_exponent_for_bits(bits_per_exponent);
+        let packed_words_per_monomial = packed_word_count(variable_count, bits_per_exponent);
         Ok(Self {
             variable_count,
-            bits_per_exponent: 32,
+            bits_per_exponent,
+            packed_words_per_monomial,
+            max_exponent,
             compiled_order: CompiledMonomialOrder::compile(order, variable_count)?,
         })
     }
@@ -80,14 +106,49 @@ impl MonomialLayout {
         self.variable_count
     }
 
-    /// 每指数占用位数（当前固定 32；packed path 预留）。
+    /// 每指数占用位数。
     pub fn bits_per_exponent(&self) -> u8 {
         self.bits_per_exponent
+    }
+
+    /// 每个 packed 单项式占用的 `u64` word 数。
+    pub fn packed_words_per_monomial(&self) -> usize {
+        self.packed_words_per_monomial
+    }
+
+    /// 可编码的最大指数（含）。
+    pub fn max_exponent(&self) -> u32 {
+        self.max_exponent
     }
 
     /// 已编译序（只读）。
     pub fn compiled_order(&self) -> &CompiledMonomialOrder {
         &self.compiled_order
+    }
+
+    /// 将指数向量编码为 packed word（溢出返回 [`DiagnosticCode::PolynomialDegreeOverflow`]）。
+    pub fn pack(&self, exponents: &[u32]) -> Result<PackedMonomial> {
+        self.validate_exponents(exponents)?;
+        for &e in exponents {
+            if e > self.max_exponent {
+                return Err(degree_overflow());
+            }
+        }
+        Ok(PackedMonomial { words: pack_words(exponents, self.bits_per_exponent, self.packed_words_per_monomial) })
+    }
+
+    /// 解码 packed 单项式为指数向量。
+    pub fn unpack<'a>(&self, packed: &'a PackedMonomial) -> Result<Vec<u32>> {
+        if packed.words.len() != self.packed_words_per_monomial {
+            return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "packed_monomial_word_length"));
+        }
+        Ok(unpack_words(
+            &packed.words,
+            self.variable_count,
+            self.bits_per_exponent,
+        ))
     }
 
     /// 比较两个指数向量（升序语义：`a > b` 当 `a` 在单项式序中更大）。
@@ -97,13 +158,79 @@ impl MonomialLayout {
         self.compiled_order.cmp_exponents(a, b)
     }
 
+    /// 比较两个 packed 单项式（与 [`Self::cmp_exponents`] 一致）。
+    pub fn cmp_packed(&self, a: &PackedMonomial, b: &PackedMonomial) -> Result<Ordering> {
+        let ae = self.unpack(a)?;
+        let be = self.unpack(b)?;
+        Ok(self.cmp_exponents(&ae, &be))
+    }
+
     /// 降序比较（leading term 在前；canonical 排序用）。
     pub fn cmp_exponents_desc(&self, a: &[u32], b: &[u32]) -> Ordering {
         self.cmp_exponents(b, a)
     }
 
+    /// packed 降序比较。
+    pub fn cmp_packed_desc(&self, a: &PackedMonomial, b: &PackedMonomial) -> Result<Ordering> {
+        Ok(self.cmp_packed(a, b)?.reverse())
+    }
+
+    /// 指数向量是否相等。
+    pub fn exponents_equal(&self, a: &[u32], b: &[u32]) -> bool {
+        a.len() == self.variable_count && b.len() == self.variable_count && a == b
+    }
+
+    /// packed 单项式是否相等。
+    pub fn packed_equal(&self, a: &PackedMonomial, b: &PackedMonomial) -> bool {
+        a.words == b.words
+    }
+
+    /// 单项式整除：`divisor | target`。
+    pub fn monomial_divides(&self, divisor: &[u32], target: &[u32]) -> bool {
+        debug_assert_eq!(divisor.len(), self.variable_count);
+        debug_assert_eq!(target.len(), self.variable_count);
+        divisor.iter().zip(target.iter()).all(|(&d, &t)| d <= t)
+    }
+
+    /// packed 整除判定。
+    pub fn packed_divides(&self, divisor: &PackedMonomial, target: &PackedMonomial) -> Result<bool> {
+        let d = self.unpack(divisor)?;
+        let t = self.unpack(target)?;
+        Ok(self.monomial_divides(&d, &t))
+    }
+
+    /// 最小公倍单项式指数。
+    pub fn lcm_exponents(&self, a: &[u32], b: &[u32]) -> Result<Vec<u32>> {
+        self.validate_exponents(a)?;
+        self.validate_exponents(b)?;
+        Ok(a.iter().zip(b.iter()).map(|(&x, &y)| x.max(y)).collect())
+    }
+
+    /// lcm 并返回 packed 形式。
+    pub fn lcm_packed(&self, a: &PackedMonomial, b: &PackedMonomial) -> Result<PackedMonomial> {
+        let lcm = self.lcm_exponents(&self.unpack(a)?, &self.unpack(b)?)?;
+        self.pack(&lcm)
+    }
+
+    /// `num - den`（逐分量；Gröbner S-pair 用）。
+    pub fn exponents_delta(&self, num: &[u32], den: &[u32]) -> Result<Vec<u32>> {
+        self.validate_exponents(num)?;
+        self.validate_exponents(den)?;
+        num.iter()
+            .zip(den.iter())
+            .map(|(&n, &d)| n.checked_sub(d).ok_or_else(degree_overflow))
+            .collect()
+    }
+
+    /// 与 [`super::exponent::add_exponent_vectors`] 相同语义，经 layout 校验长度。
+    pub fn add_exponents(&self, a: &[u32], b: &[u32]) -> Result<Vec<u32>> {
+        self.validate_exponents(a)?;
+        self.validate_exponents(b)?;
+        add_exponent_vectors(a, b)
+    }
+
     /// 校验指数向量长度与布局一致。
-    pub fn validate_exponents(&self, exponents: &[u32]) -> Result<(), Diagnostic> {
+    pub fn validate_exponents(&self, exponents: &[u32]) -> Result<()> {
         if exponents.len() != self.variable_count {
             return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                 .detail("domain", "polynomial")
@@ -115,7 +242,7 @@ impl MonomialLayout {
 
 impl CompiledMonomialOrder {
     /// 由声明式序编译（递归展开 Block / Elimination）。
-    pub fn compile(order: &MonomialOrder, variable_count: usize) -> Result<Self, Diagnostic> {
+    pub fn compile(order: &MonomialOrder, variable_count: usize) -> Result<Self> {
         match order {
             MonomialOrder::Lex => Ok(Self::Lex { variables: variable_count }),
             MonomialOrder::GrLex => Ok(Self::GrLex { variables: variable_count }),
@@ -191,6 +318,74 @@ impl CompiledMonomialOrder {
     }
 }
 
+fn select_bits_per_exponent(variable_count: usize) -> u8 {
+    if variable_count <= 8 {
+        16
+    }
+    else {
+        32
+    }
+}
+
+fn max_exponent_for_bits(bits: u8) -> u32 {
+    match bits {
+        16 => u16::MAX as u32,
+        _ => u32::MAX,
+    }
+}
+
+fn packed_word_count(variable_count: usize, bits_per_exponent: u8) -> usize {
+    let total_bits = variable_count * bits_per_exponent as usize;
+    total_bits.div_ceil(64)
+}
+
+fn pack_words(exponents: &[u32], bits: u8, word_count: usize) -> Vec<u64> {
+    let mut out = vec![0u64; word_count];
+    let mask = if bits == 16 { 0xffffu64 } else { 0xffff_ffffu64 };
+    for (i, &e) in exponents.iter().enumerate() {
+        let bit_offset = i * bits as usize;
+        let word_idx = bit_offset / 64;
+        let shift = bit_offset % 64;
+        let v = u64::from(e) & mask;
+        if shift + bits as usize <= 64 {
+            out[word_idx] |= v << shift;
+        }
+        else {
+            let low_bits = 64 - shift;
+            out[word_idx] |= v << shift;
+            out[word_idx + 1] |= v >> low_bits;
+        }
+    }
+    out
+}
+
+fn unpack_words(words: &[u64], variable_count: usize, bits: u8) -> Vec<u32> {
+    let mask = if bits == 16 { 0xffffu64 } else { 0xffff_ffffu64 };
+    let mut out = Vec::with_capacity(variable_count);
+    for i in 0..variable_count {
+        let bit_offset = i * bits as usize;
+        let word_idx = bit_offset / 64;
+        let shift = bit_offset % 64;
+        let v = if shift + bits as usize <= 64 {
+            (words[word_idx] >> shift) & mask
+        }
+        else {
+            let low_bits = 64 - shift;
+            let lo = words[word_idx] >> shift;
+            let hi = words.get(word_idx + 1).copied().unwrap_or(0) << low_bits;
+            (lo | hi) & mask
+        };
+        out.push(v as u32);
+    }
+    out
+}
+
+fn degree_overflow() -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::PolynomialDegreeOverflow)
+        .detail("domain", "polynomial")
+        .detail("operation", "packed_exponent_overflow")
+}
+
 fn total_degree(v: &[u32]) -> u64 {
     v.iter().map(|&e| u64::from(e)).sum()
 }
@@ -217,4 +412,27 @@ fn cmp_grevlex(a: &[u32], b: &[u32]) -> Ordering {
         }
     }
     Ordering::Equal
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pack_unpack_roundtrip_16bit() {
+        let layout = MonomialLayout::compile(&MonomialOrder::Lex, 3).unwrap();
+        assert_eq!(layout.bits_per_exponent(), 16);
+        assert_eq!(layout.packed_words_per_monomial(), 1);
+        let exp = vec![1u32, 65535, 0];
+        let packed = layout.pack(&exp).unwrap();
+        assert_eq!(layout.unpack(&packed).unwrap(), exp);
+    }
+
+    #[test]
+    fn cmp_packed_matches_unpacked() {
+        let layout = MonomialLayout::compile(&MonomialOrder::GrLex, 2).unwrap();
+        let a = layout.pack(&[2, 0]).unwrap();
+        let b = layout.pack(&[1, 1]).unwrap();
+        assert_eq!(layout.cmp_packed(&a, &b).unwrap(), layout.cmp_exponents(&[2, 0], &[1, 1]));
+    }
 }

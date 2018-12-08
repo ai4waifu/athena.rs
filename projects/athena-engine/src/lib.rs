@@ -36,7 +36,7 @@ pub use athena_numeric as numeric;
 
 pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, CoefficientParent, ElementProvenance, FieldEmbedding,
-    FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, GroupHomomorphism, GroupPresentation,
+    FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, FiniteFieldPolySpec, GroupHomomorphism, GroupPresentation,
     GroupPresentationId, GroupPresentationKind, MapTable, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
     PropertyWitness,
 };
@@ -67,7 +67,7 @@ pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::evaluate;
 pub use field::{
     Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
-    add_field_elements, apply_field_embedding, canonical_prime_residue, canonical_rational, execute_field,
+    add_field_elements, apply_field_embedding, canonical_extension_element, canonical_prime_residue, canonical_rational, execute_field,
     execute_field_with_table, execute_field_with_table_mut, inv_field_element, mul_field_elements,
 };
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
@@ -105,7 +105,7 @@ pub use polynomial::{
     FINGERPRINT_ALGORITHM, FpWordKernel, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation,
     GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Ideal, JitParityOutcome, MonomialLayout,
     MonomialOrder,
-    MonomialTerm, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue,
+    MonomialTerm, PackedMonomial, Polynomial, PolynomialBuilder, PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue,
     PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue, QCoeffKernel,
     ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable, SpecializedCoeffKernel,
     UnivariateDivision, UnivariateDivisionValue, VerifiedGroebnerBasis, ZCoeffKernel,
