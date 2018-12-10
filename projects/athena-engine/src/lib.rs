@@ -36,7 +36,7 @@ pub use athena_numeric as numeric;
 
 pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, CoefficientParent, ElementProvenance, FieldEmbedding,
-    FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, FiniteFieldPolySpec, GroupHomomorphism, GroupPresentation,
+    FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, FiniteFieldPolySpec, BsgsChain, GroupHomomorphism, GroupTable, PermutationGroupSpec, GroupPresentation,
     GroupPresentationId, GroupPresentationKind, MapTable, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
     PropertyWitness,
 };
@@ -76,7 +76,7 @@ pub use galois::{
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation,
-    execute_group,
+    canonical_permutation, execute_group, execute_group_with_table, execute_group_with_table_mut, group_membership, inverse_group_element, multiply_group_elements,
 };
 pub use mgraph::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DerivedIndexes,
