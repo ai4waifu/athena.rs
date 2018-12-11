@@ -8,8 +8,11 @@ mod result;
 mod types;
 mod value;
 
-pub use canonical::{canonical_permutation, group_membership, inverse_group_element, multiply_group_elements};
+pub use canonical::{
+    apply_group_homomorphism, canonical_permutation, group_membership, inverse_group_element, multiply_group_elements,
+    project_quotient_element,
+};
 pub use request::GroupRequest;
 pub use result::{GroupResult, execute_group, execute_group_with_table, execute_group_with_table_mut};
-pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, GroupKind, Permutation};
+pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, GroupKind, Permutation, Subgroup};
 pub use value::GroupDomainValue;

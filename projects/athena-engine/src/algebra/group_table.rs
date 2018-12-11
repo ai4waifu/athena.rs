@@ -1,17 +1,19 @@
-//! 置换群注册表与 BSGS 缓存（Living `18` Phase 6）。
+//! 置换群注册表与 BSGS 缓存（Living `18` Phase 6–7）。
 
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{Diagnostic, DiagnosticCode, GroupId, PresentationId, Result};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupId, PresentationId, Result, SubgroupId};
 
-use crate::group::{Group, GroupDescriptor, Permutation};
+use crate::group::{Group, GroupDescriptor, Permutation, Subgroup};
 
 use super::{
     bsgs::BsgsChain,
+    map_table::MapTable,
     permutation::{RawPerm, validate_images},
     presentation::{GroupPresentation, GroupPresentationKind},
     property::{PropertyState, PropertyWitness},
+    subgroup::{coset_index, is_normal, quotient_generators, verify_homomorphism_and_cache},
 };
 
 /// 置换群 intern 规格。
@@ -31,21 +33,37 @@ struct GroupInternKey {
     generators: Vec<Vec<u32>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SubgroupRecord {
+    id: SubgroupId,
+    parent: GroupId,
+    subgroup: GroupId,
+    inclusion: AlgebraMapId,
+}
+
 /// Session 级群与 presentation 注册表。
 #[derive(Debug, Default)]
 pub struct GroupTable {
     next_group_id: u32,
     next_presentation_id: u32,
+    next_subgroup_id: u32,
     presentations: HashMap<PresentationId, GroupPresentation>,
     group_to_presentation: HashMap<GroupId, PresentationId>,
     by_key: HashMap<GroupInternKey, GroupId>,
     permutation_groups: HashMap<GroupId, PermutationGroupSpec>,
+    map_table: MapTable,
+    subgroups: HashMap<SubgroupId, SubgroupRecord>,
 }
 
 impl GroupTable {
     /// 空表。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 映射表（子群包含、同态、商投影）。
+    pub fn map_table(&self) -> &MapTable {
+        &self.map_table
     }
 
     /// 注册置换群（生成元 + `Permutation` presentation + BSGS 链）。
@@ -74,6 +92,145 @@ impl GroupTable {
         self.presentations.insert(presentation_id, presentation);
         self.permutation_groups.insert(group, PermutationGroupSpec { degree, generators: raw, bsgs });
         Ok(group)
+    }
+
+    /// 由父群生成元构造子群 H ≤ G。
+    pub fn subgroup_from_generators(
+        &mut self,
+        parent: GroupId,
+        generators: &[Permutation],
+    ) -> Result<SubgroupId> {
+        let parent_spec = self.permutation_spec(parent).ok_or_else(|| unknown_group(parent))?;
+        let raw: Result<Vec<RawPerm>> = generators
+            .iter()
+            .map(|g| RawPerm::new(g.images.clone(), parent_spec.degree))
+            .collect();
+        let raw = raw?;
+        for g in &raw {
+            if !parent_spec.bsgs.contains(g) {
+                return Err(subgroup_invalid("generator_not_in_parent"));
+            }
+        }
+        let subgroup_group = self.permutation_group(parent_spec.degree, generators)?;
+        let subgroup_id = SubgroupId(self.next_subgroup_id);
+        self.next_subgroup_id = self.next_subgroup_id.wrapping_add(1);
+        let sub_presentation = self.presentation_id(subgroup_group)?;
+        let parent_presentation = self.presentation_id(parent)?;
+        let inclusion = self.map_table.register_subgroup_inclusion(
+            subgroup_id,
+            subgroup_group,
+            parent,
+            sub_presentation,
+            parent_presentation,
+        );
+        self.subgroups.insert(
+            subgroup_id,
+            SubgroupRecord { id: subgroup_id, parent, subgroup: subgroup_group, inclusion },
+        );
+        Ok(subgroup_id)
+    }
+
+    /// 子群记录。
+    pub fn subgroup_record(&self, subgroup: SubgroupId) -> Result<Subgroup> {
+        let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
+        Ok(Subgroup {
+            id: r.id,
+            parent: r.parent,
+            group: r.subgroup,
+            inclusion: r.inclusion,
+        })
+    }
+
+    /// 子群是否正规于父群。
+    pub fn is_normal_subgroup(&self, subgroup: SubgroupId) -> Result<bool> {
+        let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
+        let parent_spec = self.permutation_spec(r.parent).ok_or_else(|| unknown_group(r.parent))?;
+        let sub_spec = self.permutation_spec(r.subgroup).ok_or_else(|| unknown_group(r.subgroup))?;
+        Ok(is_normal(&parent_spec.bsgs, &parent_spec.generators, &sub_spec.bsgs))
+    }
+
+    /// 构造商群 G/N（N 须正规）。
+    pub fn quotient_group(&mut self, subgroup: SubgroupId) -> Result<GroupId> {
+        if let Some(q) = self.map_table.quotient_group(subgroup) {
+            return Ok(q);
+        }
+        if !self.is_normal_subgroup(subgroup)? {
+            return Err(Diagnostic::new(DiagnosticCode::GroupNotNormal).detail("domain", "group").detail("operation", "quotient"));
+        }
+        let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?.clone();
+        let parent_spec = self.permutation_spec(r.parent).ok_or_else(|| unknown_group(r.parent))?;
+        let sub_spec = self.permutation_spec(r.subgroup).ok_or_else(|| unknown_group(r.subgroup))?;
+        let (gens, degree) = quotient_generators(&parent_spec.bsgs, &parent_spec.generators, &sub_spec.bsgs)?;
+        let perm_gens: Vec<Permutation> = gens.iter().map(|g| Permutation { images: g.images().to_vec() }).collect();
+        let quotient = self.permutation_group(degree, &perm_gens)?;
+        let parent_presentation = self.presentation_id(r.parent)?;
+        let quotient_presentation = self.presentation_id(quotient)?;
+        self.map_table.register_quotient_projection(
+            subgroup,
+            r.parent,
+            quotient,
+            parent_presentation,
+            quotient_presentation,
+        );
+        Ok(quotient)
+    }
+
+    /// 由源群生成元像注册同态（`GeneratorRelations` 验证）。
+    pub fn homomorphism_from_generator_images(
+        &mut self,
+        source: GroupId,
+        target: GroupId,
+        generator_images: &[Permutation],
+    ) -> Result<AlgebraMapId> {
+        let source_spec = self.permutation_spec(source).ok_or_else(|| unknown_group(source))?;
+        let target_spec = self.permutation_spec(target).ok_or_else(|| unknown_group(target))?;
+        let images: Result<Vec<RawPerm>> = generator_images
+            .iter()
+            .map(|p| RawPerm::new(p.images.clone(), target_spec.degree))
+            .collect();
+        let images = images?;
+        let cache = verify_homomorphism_and_cache(
+            &source_spec.bsgs,
+            &source_spec.generators,
+            &target_spec.bsgs,
+            &images,
+        )?;
+        let source_presentation = self.presentation_id(source)?;
+        let target_presentation = self.presentation_id(target)?;
+        Ok(self.map_table.register_group_homomorphism(
+            source,
+            target,
+            source_presentation,
+            target_presentation,
+            cache,
+        ))
+    }
+
+    /// 经已验证同态映射元素像。
+    pub fn apply_homomorphism(&self, map: AlgebraMapId, element_images: &[u32]) -> Result<RawPerm> {
+        self.map_table
+            .homomorphism_image(map, element_images)
+            .cloned()
+            .ok_or_else(|| hom_invalid("unknown_preimage"))
+    }
+
+    /// 经商投影将父群元素映到商群置换元素。
+    pub fn project_quotient(&self, subgroup: SubgroupId, parent_element: &RawPerm) -> Result<RawPerm> {
+        let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
+        let parent_spec = self.permutation_spec(r.parent).ok_or_else(|| unknown_group(r.parent))?;
+        let sub_spec = self.permutation_spec(r.subgroup).ok_or_else(|| unknown_group(r.subgroup))?;
+        if !parent_spec.bsgs.contains(parent_element) {
+            return Err(subgroup_invalid("element_not_in_parent"));
+        }
+        let reps = super::subgroup::coset_representatives(&parent_spec.bsgs, &sub_spec.bsgs);
+        let index = reps.len() as u32;
+        let mut images = vec![0u32; index as usize];
+        for (i, rep) in reps.iter().enumerate() {
+            let product = rep.compose(parent_element)?;
+            let j = coset_index(&reps, &sub_spec.bsgs, &product).ok_or_else(|| hom_invalid("coset_not_found"))?;
+            images[i] = j as u32;
+        }
+        RawPerm::new(images, index)
     }
 
     /// 置换群规格（若已注册）。
@@ -127,4 +284,19 @@ fn unknown_group(group: GroupId) -> Diagnostic {
         .detail("domain", "group")
         .detail("operation", "unknown_group")
         .detail("group_id", group.0.to_string())
+}
+
+fn unknown_subgroup(subgroup: SubgroupId) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+        .detail("domain", "group")
+        .detail("operation", "unknown_subgroup")
+        .detail("subgroup_id", subgroup.0.to_string())
+}
+
+fn subgroup_invalid(operation: &'static str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::GroupElementInvalid).detail("domain", "group").detail("operation", operation)
+}
+
+fn hom_invalid(operation: &'static str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::GroupElementInvalid).detail("domain", "group").detail("operation", operation)
 }

@@ -50,6 +50,21 @@ impl BsgsChain {
         Self { degree, base, transversals, strong_generators, order }
     }
 
+    /// 枚举群元素（Schreier 余陪集代表乘积；小群用）。
+    pub fn all_elements(&self) -> Vec<RawPerm> {
+        let mut elems = vec![RawPerm::identity(self.degree)];
+        for trans in &self.transversals {
+            let mut next = Vec::new();
+            for e in &elems {
+                for (_, t) in trans {
+                    next.push(e.compose(t).expect("same degree"));
+                }
+            }
+            elems = next;
+        }
+        elems
+    }
+
     /// 成员判定（sift）。
     pub fn contains(&self, element: &RawPerm) -> bool {
         if element.degree() != self.degree {

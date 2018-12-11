@@ -14,6 +14,7 @@ mod parent;
 mod permutation;
 mod presentation;
 mod property;
+mod subgroup;
 mod table;
 
 pub use bsgs::BsgsChain;
@@ -21,7 +22,10 @@ pub use element::{AlgebraElement, ElementProvenance};
 pub use finite_field_poly::{FiniteFieldPolySpec, add_coords, canonical_coords, inv_coords, mul_coords};
 pub use group_facts::GroupPropertyFacts;
 pub use group_table::{GroupTable, PermutationGroupSpec};
-pub use map::{AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind};
+pub use map::{
+    AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind,
+    QuotientProjection, SubgroupInclusion,
+};
 pub use map_table::MapTable;
 pub use parent::{AlgebraParentId, CoefficientParent};
 pub use permutation::RawPerm;
@@ -30,4 +34,5 @@ pub use presentation::{
     GroupPresentationKind,
 };
 pub use property::{PropertyState, PropertyWitness};
+pub use subgroup::{coset_representatives, is_normal, quotient_generators};
 pub use table::FieldTable;

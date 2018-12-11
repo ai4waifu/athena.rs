@@ -1,6 +1,6 @@
-//! 置换群元素 canonical 化与运算（Living `18` Phase 6）。
+//! 置换群元素 canonical 化与运算（Living `18` Phase 6–7）。
 
-use athena_types::{Diagnostic, DiagnosticCode, GroupElementId, GroupId, Result};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupElementId, GroupId, Result, SubgroupId};
 
 use crate::algebra::{GroupTable, RawPerm};
 
@@ -57,6 +57,53 @@ pub fn group_membership(table: &GroupTable, group: GroupId, element: &GroupEleme
         _ => return Err(group_element_invalid("membership_not_permutation")),
     };
     Ok(spec.bsgs.contains(&raw))
+}
+
+/// 经已验证同态映射元素。
+pub fn apply_group_homomorphism(
+    table: &GroupTable,
+    map: AlgebraMapId,
+    element: &GroupElement,
+) -> Result<GroupElement> {
+    let source = table
+        .map_table()
+        .homomorphism_source(map)
+        .ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
+    if element.group != source {
+        return Err(group_mismatch());
+    }
+    let raw = match &element.repr {
+        GroupElementRepr::Permutation(p) => raw_perm(p, table, source)?,
+        _ => return Err(group_element_invalid("homomorphism_not_permutation")),
+    };
+    let image = table.apply_homomorphism(map, raw.images())?;
+    let target = table
+        .map_table()
+        .homomorphism_target(map)
+        .ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
+    canonical_permutation(table, target, image.images().to_vec(), GroupElementId(0))
+}
+
+/// 经商投影映射父群元素到商群。
+pub fn project_quotient_element(
+    table: &GroupTable,
+    subgroup: SubgroupId,
+    element: &GroupElement,
+) -> Result<GroupElement> {
+    let record = table.subgroup_record(subgroup)?;
+    if element.group != record.parent {
+        return Err(group_mismatch());
+    }
+    let raw = match &element.repr {
+        GroupElementRepr::Permutation(p) => raw_perm(p, table, record.parent)?,
+        _ => return Err(group_element_invalid("quotient_not_permutation")),
+    };
+    let image = table.project_quotient(subgroup, &raw)?;
+    let quotient = table
+        .map_table()
+        .quotient_group(subgroup)
+        .ok_or_else(|| group_element_invalid("quotient_not_registered"))?;
+    canonical_permutation(table, quotient, image.images().to_vec(), GroupElementId(0))
 }
 
 fn raw_perm(p: &Permutation, table: &GroupTable, group: GroupId) -> Result<RawPerm> {

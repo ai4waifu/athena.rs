@@ -1,7 +1,7 @@
 //! 群与元素对象合同（Living `18` Phase 0）。
 
 use athena_numeric::Integer;
-use athena_types::{GroupElementId, GroupId, PresentationId};
+use athena_types::{GroupElementId, GroupId, PresentationId, SubgroupId};
 
 use crate::algebra::{GroupPropertyFacts, PropertyState};
 
@@ -28,6 +28,19 @@ pub struct Group {
     pub presentation: PresentationId,
     /// 阶（冗余缓存；以 properties 为准）。
     pub order: Option<Integer>,
+}
+
+/// 子群 H ≤ G（含包含映射 id）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Subgroup {
+    /// 稳定 id。
+    pub id: SubgroupId,
+    /// 父群 G。
+    pub parent: GroupId,
+    /// 子群作为独立群对象 H。
+    pub group: GroupId,
+    /// 包含映射 H ↪ G。
+    pub inclusion: athena_types::AlgebraMapId,
 }
 
 /// 置换：像列表 `π(i) = images[i]`（0-based；度数由 presentation 解释）。

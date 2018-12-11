@@ -38,7 +38,7 @@ pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, CoefficientParent, ElementProvenance, FieldEmbedding,
     FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable, FiniteFieldPolySpec, BsgsChain, GroupHomomorphism, GroupTable, PermutationGroupSpec, GroupPresentation,
     GroupPresentationId, GroupPresentationKind, MapTable, GroupPropertyFacts, MapVerification, MapVerificationKind, PropertyState,
-    PropertyWitness,
+    PropertyWitness, QuotientProjection, SubgroupInclusion,
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
@@ -76,7 +76,8 @@ pub use galois::{
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation,
-    canonical_permutation, execute_group, execute_group_with_table, execute_group_with_table_mut, group_membership, inverse_group_element, multiply_group_elements,
+    Subgroup, apply_group_homomorphism, canonical_permutation, execute_group, execute_group_with_table,
+    execute_group_with_table_mut, group_membership, inverse_group_element, multiply_group_elements, project_quotient_element,
 };
 pub use mgraph::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, DerivedIndexes,

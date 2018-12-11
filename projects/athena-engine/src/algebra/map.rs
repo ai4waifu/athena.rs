@@ -1,6 +1,6 @@
 //! 代数映射与验证合同。
 
-use athena_types::{AlgebraMapId, PresentationId};
+use athena_types::{AlgebraMapId, PresentationId, SubgroupId};
 
 use super::parent::AlgebraParentId;
 
@@ -73,5 +73,31 @@ pub struct GroupHomomorphism {
     /// 源 presentation。
     pub source_presentation: PresentationId,
     /// 靶 presentation。
+    pub target_presentation: PresentationId,
+}
+
+/// 子群包含 H ↪ G。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubgroupInclusion {
+    /// 底层映射 id。
+    pub map: AlgebraMapId,
+    /// 子群 id。
+    pub subgroup: SubgroupId,
+    /// 子群 presentation。
+    pub source_presentation: PresentationId,
+    /// 父群 presentation。
+    pub target_presentation: PresentationId,
+}
+
+/// 商投影 G → G/N。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientProjection {
+    /// 底层映射 id。
+    pub map: AlgebraMapId,
+    /// 正规子群 id。
+    pub subgroup: SubgroupId,
+    /// 源 presentation。
+    pub source_presentation: PresentationId,
+    /// 商群 presentation。
     pub target_presentation: PresentationId,
 }
