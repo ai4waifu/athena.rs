@@ -2,6 +2,8 @@
 
 use athena_ndarray::ArrayError;
 
+use crate::capability::GraphAlgorithmRequirements;
+
 /// 图错误。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GraphError {
@@ -9,12 +11,21 @@ pub enum GraphError {
     NodeOverflow,
     /// offsets 长度不匹配。
     OffsetLength,
-    /// CSR 边界非法。
+    /// CSR/CSC 边界非法。
     Boundary,
     /// 非法节点。
     InvalidNode,
     /// 非法邻接目标。
     InvalidTarget,
+    /// 边列表与节点数不一致。
+    InvalidEdgeList,
+    /// 无向图不能导出 CSR。
+    UndirectedCsr,
+    /// 算法 capability 不满足。
+    CapabilityMismatch {
+        /// 未满足的需求。
+        requirement: GraphAlgorithmRequirements,
+    },
     /// 下层 ndarray 错误。
     Array(ArrayError),
     /// 图含环，无法拓扑排序。

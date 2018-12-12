@@ -1,6 +1,7 @@
 //! 内存邻接图与 capability。
 
-use crate::{EdgeId, NodeId};
+use crate::capability::{GraphAlgorithmRequirements, GraphCapabilities};
+use crate::{EdgeId, GraphRevision, NodeId};
 
 /// 图方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,9 +16,11 @@ pub enum GraphDirection {
 #[derive(Debug, Clone)]
 pub struct Graph<N, E> {
     direction: GraphDirection,
+    revision: GraphRevision,
     nodes: Vec<N>,
     edges: Vec<(NodeId, NodeId, E)>,
     outgoing: Vec<Vec<EdgeId>>,
+    incoming: Vec<Vec<EdgeId>>,
 }
 
 impl<N, E> Default for Graph<N, E> {
@@ -28,12 +31,14 @@ impl<N, E> Default for Graph<N, E> {
 
 impl<N, E> Graph<N, E> {
     /// 创建空图。
-    pub const fn new(direction: GraphDirection) -> Self {
+    pub fn new(direction: GraphDirection) -> Self {
         Self {
             direction,
+            revision: GraphRevision(0),
             nodes: Vec::new(),
             edges: Vec::new(),
             outgoing: Vec::new(),
+            incoming: Vec::new(),
         }
     }
 
@@ -42,11 +47,18 @@ impl<N, E> Graph<N, E> {
         self.direction
     }
 
+    /// 结构修订号。
+    pub const fn revision(&self) -> GraphRevision {
+        self.revision
+    }
+
     /// 添加节点。
     pub fn add_node(&mut self, value: N) -> NodeId {
         let id = NodeId(self.nodes.len() as u64);
         self.nodes.push(value);
         self.outgoing.push(Vec::new());
+        self.incoming.push(Vec::new());
+        self.revision.0 += 1;
         id
     }
 
@@ -59,28 +71,57 @@ impl<N, E> Graph<N, E> {
         let id = EdgeId(self.edges.len() as u64);
         self.edges.push((source, target, value));
         self.outgoing[source.0 as usize].push(id);
-        if self.direction == GraphDirection::Undirected && source != target {
+        if self.direction == GraphDirection::Directed {
+            self.incoming[target.0 as usize].push(id);
+        } else if source != target {
             self.outgoing[target.0 as usize].push(id);
         }
+        self.revision.0 += 1;
         Some(id)
     }
 
-    /// 出邻接目标。
-    pub fn neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+    /// 出邻接目标（有向=出边；无向=邻接）。
+    pub fn out_neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         self.outgoing
             .get(node.0 as usize)
             .into_iter()
             .flatten()
-            .map(move |edge| {
+            .map(move |edge| self.target_of_edge(*edge, node))
+    }
+
+    /// 入邻接列表（有向=入边源；无向=邻接）。
+    pub fn in_neighbors(&self, node: NodeId) -> Vec<NodeId> {
+        if self.direction == GraphDirection::Undirected {
+            self.out_neighbors(node).collect()
+        } else {
+            self.incoming
+                .get(node.0 as usize)
+                .map(|list| list.iter().map(|edge| self.source_of_edge(*edge)).collect())
+                .unwrap_or_default()
+        }
+    }
+
+    /// 邻接（兼容旧 API：有向=出边；无向=无向邻接）。
+    pub fn neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.out_neighbors(node)
+    }
+
+    /// 查找 `source → target` 的第一条边。
+    pub fn find_edge(&self, source: NodeId, target: NodeId) -> Option<EdgeId> {
+        self.outgoing.get(source.0 as usize).and_then(|list| {
+            list.iter().copied().find(|&edge| {
                 let (s, t, _) = &self.edges[edge.0 as usize];
-                if self.direction == GraphDirection::Undirected && *s == node {
-                    *t
-                } else if self.direction == GraphDirection::Undirected {
-                    *s
-                } else {
-                    *t
-                }
+                *s == source && *t == target
             })
+        })
+    }
+
+    /// 所有边 `(source, target, edge_id)`。
+    pub fn edges(&self) -> impl Iterator<Item = (NodeId, NodeId, EdgeId)> + '_ {
+        self.edges
+            .iter()
+            .enumerate()
+            .map(|(i, (s, t, _))| (*s, *t, EdgeId(i as u64)))
     }
 
     /// 节点数。
@@ -97,6 +138,42 @@ impl<N, E> Graph<N, E> {
     pub fn view(&self) -> GraphView<'_, N, E> {
         GraphView { graph: self }
     }
+
+    /// 本表示的 capability 报告。
+    pub fn capabilities(&self) -> GraphCapabilities {
+        GraphCapabilities {
+            in_memory: true,
+            sorted_adjacency: false,
+            reverse_adjacency: self.direction == GraphDirection::Directed,
+            random_access: true,
+            chunked_sequential: false,
+            external_workspace: false,
+        }
+    }
+
+    /// 校验是否满足算法需求。
+    pub fn ensure_capabilities(&self, req: GraphAlgorithmRequirements) -> Result<(), crate::GraphError> {
+        if self.capabilities().satisfies(req) {
+            Ok(())
+        } else {
+            Err(crate::GraphError::CapabilityMismatch { requirement: req })
+        }
+    }
+
+    fn target_of_edge(&self, edge: EdgeId, from: NodeId) -> NodeId {
+        let (s, t, _) = &self.edges[edge.0 as usize];
+        if self.direction == GraphDirection::Undirected && *s == from {
+            *t
+        } else if self.direction == GraphDirection::Undirected {
+            *s
+        } else {
+            *t
+        }
+    }
+
+    fn source_of_edge(&self, edge: EdgeId) -> NodeId {
+        self.edges[edge.0 as usize].0
+    }
 }
 
 /// 只读图视图（不拥有存储）。
@@ -106,7 +183,12 @@ pub struct GraphView<'a, N, E> {
 }
 
 impl<'a, N, E> GraphView<'a, N, E> {
-    /// 底层图。
+    /// 底层图引用（不消费视图）。
+    pub const fn graph_ref(&self) -> &'a Graph<N, E> {
+        self.graph
+    }
+
+    /// 底层图（消费视图）。
     pub const fn graph(self) -> &'a Graph<N, E> {
         self.graph
     }
@@ -114,6 +196,11 @@ impl<'a, N, E> GraphView<'a, N, E> {
     /// 方向。
     pub const fn direction(self) -> GraphDirection {
         self.graph.direction()
+    }
+
+    /// 修订号。
+    pub const fn revision(self) -> GraphRevision {
+        self.graph.revision()
     }
 
     /// 节点数。
@@ -125,15 +212,14 @@ impl<'a, N, E> GraphView<'a, N, E> {
     pub fn edge_count(self) -> u64 {
         self.graph.edge_count()
     }
-}
 
-/// 图算法对工作集与 storage 的要求（首轮 capability 合同）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GraphAlgorithmRequirements {
-    /// 必须完整图驻留内存。
-    InMemoryOnly,
-    /// 支持顺序扫描边/邻接。
-    ChunkedSequential,
-    /// frontier / visited 可落外存。
-    ExternalWorkspace,
+    /// 出邻接。
+    pub fn out_neighbors(self, node: NodeId) -> impl Iterator<Item = NodeId> + 'a {
+        self.graph.out_neighbors(node)
+    }
+
+    /// capability 报告。
+    pub fn capabilities(self) -> GraphCapabilities {
+        self.graph.capabilities()
+    }
 }
