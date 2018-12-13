@@ -214,13 +214,7 @@ fn gcd_dense_rational(mut a: Vec<Number>, mut b: Vec<Number>) -> Result<Vec<Numb
     monic_dense_rational(&a)
 }
 
-fn resultant_dense(
-    a: &[Number],
-    b: &[Number],
-    domain: &CoefficientDomain,
-    ring: RingId,
-    rings: &RingTable,
-) -> Result<Number> {
+fn resultant_dense(a: &[Number], b: &[Number], domain: &CoefficientDomain, ring: RingId, rings: &RingTable) -> Result<Number> {
     let a = trim_dense(a);
     let b = trim_dense(b);
     if is_zero_dense(&a) || is_zero_dense(&b) {
@@ -433,12 +427,7 @@ fn trim_dense(v: &[Number]) -> Vec<Number> {
     if out.len() == 1 && out[0].is_zero() {
         return vec![Number::small_int(0)];
     }
-    if out.is_empty() {
-        vec![Number::small_int(0)]
-    }
-    else {
-        out
-    }
+    if out.is_empty() { vec![Number::small_int(0)] } else { out }
 }
 
 fn is_zero_dense(v: &[Number]) -> bool {
@@ -458,13 +447,7 @@ fn lc(v: &[Number]) -> Result<Number> {
     })
 }
 
-fn sub_scaled_monomial(
-    a: &[Number],
-    b: &[Number],
-    scale: Number,
-    shift: usize,
-    coeff: &CoeffRing<'_>,
-) -> Result<Vec<Number>> {
+fn sub_scaled_monomial(a: &[Number], b: &[Number], scale: Number, shift: usize, coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
     let mut out = a.to_vec();
     for (i, bc) in b.iter().enumerate() {
         let idx = i + shift;

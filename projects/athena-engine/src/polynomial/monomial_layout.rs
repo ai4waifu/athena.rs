@@ -144,11 +144,7 @@ impl MonomialLayout {
                 .detail("domain", "polynomial")
                 .detail("operation", "packed_monomial_word_length"));
         }
-        Ok(unpack_words(
-            &packed.words,
-            self.variable_count,
-            self.bits_per_exponent,
-        ))
+        Ok(unpack_words(&packed.words, self.variable_count, self.bits_per_exponent))
     }
 
     /// 比较两个指数向量（升序语义：`a > b` 当 `a` 在单项式序中更大）。
@@ -216,10 +212,7 @@ impl MonomialLayout {
     pub fn exponents_delta(&self, num: &[u32], den: &[u32]) -> Result<Vec<u32>> {
         self.validate_exponents(num)?;
         self.validate_exponents(den)?;
-        num.iter()
-            .zip(den.iter())
-            .map(|(&n, &d)| n.checked_sub(d).ok_or_else(degree_overflow))
-            .collect()
+        num.iter().zip(den.iter()).map(|(&n, &d)| n.checked_sub(d).ok_or_else(degree_overflow)).collect()
     }
 
     /// 与 [`super::exponent::add_exponent_vectors`] 相同语义，经 layout 校验长度。
@@ -254,11 +247,7 @@ impl CompiledMonomialOrder {
                 for (i, block_order) in blocks.iter().enumerate() {
                     let start = i * width;
                     let end = start + width;
-                    segments.push(CompiledBlockSegment {
-                        start,
-                        end,
-                        order: Self::compile(block_order, width)?,
-                    });
+                    segments.push(CompiledBlockSegment { start, end, order: Self::compile(block_order, width)? });
                 }
                 Ok(Self::Block { segments })
             }
@@ -319,12 +308,7 @@ impl CompiledMonomialOrder {
 }
 
 fn select_bits_per_exponent(variable_count: usize) -> u8 {
-    if variable_count <= 8 {
-        16
-    }
-    else {
-        32
-    }
+    if variable_count <= 8 { 16 } else { 32 }
 }
 
 fn max_exponent_for_bits(bits: u8) -> u32 {

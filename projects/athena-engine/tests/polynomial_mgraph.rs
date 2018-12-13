@@ -2,9 +2,9 @@
 
 use athena_engine::{
     AdmissionOutcome, AdmissionRejectReason, Claim, CoefficientDomain, Evidence, EvidenceVerifier, GroebnerLimits, Guarantee,
-    MonomialOrder, Number, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest,
-    PolynomialResult, Scope, Session, SymbolId, VerificationPolicy, admit_polynomial_result, cache_key_for_request,
-    proposition_from_cache_key, record_polynomial_result,
+    MonomialOrder, Number, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest, PolynomialResult, Scope, Session,
+    SymbolId, VerificationPolicy, admit_polynomial_result, cache_key_for_request, proposition_from_cache_key,
+    record_polynomial_result,
 };
 
 fn z_x_ring(session: &mut Session) -> athena_engine::RingId {

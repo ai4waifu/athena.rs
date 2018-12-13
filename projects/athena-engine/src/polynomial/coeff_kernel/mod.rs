@@ -46,10 +46,7 @@ impl SpecializedCoeffKernel {
 
     /// F3 精确内核支持的系数域。
     pub fn supports(domain: &CoefficientDomain) -> bool {
-        matches!(
-            domain,
-            CoefficientDomain::Integer | CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. }
-        )
+        matches!(domain, CoefficientDomain::Integer | CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. })
     }
 
     /// 内核标签（测试 / 诊断）。

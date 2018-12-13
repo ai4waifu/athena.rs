@@ -49,9 +49,9 @@ pub use groebner::{
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;
-pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout, PackedMonomial};
 pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};
 pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
+pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout, PackedMonomial};
 pub use operations::{add_polynomial, mul_polynomial, sub_polynomial};
 pub use order::MonomialOrder;
 pub use repr::{PolynomialRepr, PolynomialReprBody, ReprTarget, reprs_mathematically_equal};

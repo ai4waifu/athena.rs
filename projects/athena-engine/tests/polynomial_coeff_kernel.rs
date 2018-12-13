@@ -1,8 +1,7 @@
 //! Phase：专用系数内核 Z / Q / FpWord / FpBig。
 
 use athena_engine::{
-    CoefficientDomain, Integer, MonomialOrder, Number, PolynomialBuilder, RingTable, SymbolId, add_polynomial,
-    mul_polynomial,
+    CoefficientDomain, Integer, MonomialOrder, Number, PolynomialBuilder, RingTable, SymbolId, add_polynomial, mul_polynomial,
 };
 
 #[test]

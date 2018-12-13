@@ -131,12 +131,8 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
-    let computation = compute_groebner_basis(
-        vec![g1, g2],
-        &rings,
-        GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
-    )
-    .unwrap();
+    let computation =
+        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     assert_eq!(computation.status(), GroebnerStatus::Partial);
     assert!(!computation.certificate().verified);
@@ -149,12 +145,8 @@ fn basis_size_limit_yields_resource_limited() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
-    let computation = compute_groebner_basis(
-        vec![g1, g2],
-        &rings,
-        GroebnerLimits { max_s_pairs: 10_000, max_basis_size: 2 },
-    )
-    .unwrap();
+    let computation =
+        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 10_000, max_basis_size: 2 }).unwrap();
     // May be Partial or ResourceLimited depending on when size trips; both are unverified.
     assert!(!computation.is_verified());
     assert!(matches!(
@@ -190,12 +182,8 @@ fn reduce_by_verified_rejects_unverified_certificate() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
-    let computation = compute_groebner_basis(
-        vec![g1, g2],
-        &rings,
-        GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
-    )
-    .unwrap();
+    let computation =
+        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     // Construct a fake VerifiedGroebnerBasis with incomplete certificate must not be possible via API;
     // membership / reduce_by_verified only accept VerifiedGroebnerBasis from Complete.

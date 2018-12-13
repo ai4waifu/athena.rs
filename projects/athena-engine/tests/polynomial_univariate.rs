@@ -1,8 +1,8 @@
 //! 单变量除法 · GCD · Resultant（ℤ / ℚ / 𝔽_p）。
 
 use athena_engine::{
-    CoefficientDomain, DivisionPolicy, Integer, MonomialOrder, Number, PolynomialBuilder, PolynomialRequest,
-    PolynomialResult, RingTable, SymbolId, execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
+    CoefficientDomain, DivisionPolicy, Integer, MonomialOrder, Number, PolynomialBuilder, PolynomialRequest, PolynomialResult,
+    RingTable, SymbolId, execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
 };
 
 fn z_x() -> (RingTable, athena_engine::RingId) {
@@ -60,10 +60,8 @@ fn integer_exact_division_rejects_nonzero_remainder() {
     let (rings, ring) = z_x();
     let dividend = uni(&rings, ring, &[(1, 1), (1, 0)]);
     let divisor = uni(&rings, ring, &[(2, 1), (1, 0)]);
-    let err = execute_polynomial_with_rings(
-        PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly },
-        &rings,
-    );
+    let err =
+        execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly }, &rings);
     assert!(matches!(err, PolynomialResult::Unevaluated { .. }));
 }
 

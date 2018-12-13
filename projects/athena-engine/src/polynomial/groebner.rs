@@ -192,24 +192,10 @@ pub fn compute_groebner_basis(
     }
     basis = autoreduce_basis(basis, rings, layout, &coeff)?;
     if resource_limited {
-        return Ok(GroebnerComputation::ResourceLimited(frontier(
-            ideal.ring,
-            basis,
-            input_count,
-            steps,
-            false,
-            None,
-        )));
+        return Ok(GroebnerComputation::ResourceLimited(frontier(ideal.ring, basis, input_count, steps, false, None)));
     }
     if truncated_pairs {
-        return Ok(GroebnerComputation::Partial(frontier(
-            ideal.ring,
-            basis,
-            input_count,
-            steps,
-            false,
-            None,
-        )));
+        return Ok(GroebnerComputation::Partial(frontier(ideal.ring, basis, input_count, steps, false, None)));
     }
     let verification = verify_groebner_basis(&basis, rings)?;
     if !verification.all_s_pairs_reduce_to_zero {
@@ -227,12 +213,7 @@ pub fn compute_groebner_basis(
         verified: true,
         elimination_elements: None,
     };
-    Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis {
-        ring: ideal.ring,
-        basis,
-        certificate,
-        verification,
-    }))
+    Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: ideal.ring, basis, certificate, verification }))
 }
 
 /// 消元理想：须为完整已验证 Gröbner 基；环须为 [`MonomialOrder::Elimination`]。
@@ -291,11 +272,7 @@ pub fn compute_elimination_basis(
 }
 
 /// 对已验证 Gröbner 基做规范余式（strict API）。
-pub fn reduce_by_verified(
-    polynomial: Polynomial,
-    basis: &VerifiedGroebnerBasis,
-    rings: &RingTable,
-) -> Result<Polynomial> {
+pub fn reduce_by_verified(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, rings: &RingTable) -> Result<Polynomial> {
     if polynomial.ring != basis.ring {
         return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
             .detail("domain", "polynomial")
@@ -318,11 +295,7 @@ pub fn reduce_by_verified(
 }
 
 /// 理想成员判定：余式为零当且仅当（在已验证基下）属于理想。
-pub fn ideal_membership(
-    polynomial: Polynomial,
-    basis: &VerifiedGroebnerBasis,
-    rings: &RingTable,
-) -> Result<bool> {
+pub fn ideal_membership(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, rings: &RingTable) -> Result<bool> {
     let rem = reduce_by_verified(polynomial, basis, rings)?;
     Ok(rem.terms.is_empty())
 }
@@ -372,11 +345,7 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
             let s = s_polynomial(&basis[i], &basis[j], rings, layout, &coeff)?;
             let rem = reduce_polynomial(&s, basis, rings, layout, &coeff)?;
             if !rem.terms.is_empty() {
-                return Ok(GroebnerVerificationReport {
-                    ring,
-                    pairs_checked,
-                    all_s_pairs_reduce_to_zero: false,
-                });
+                return Ok(GroebnerVerificationReport { ring, pairs_checked, all_s_pairs_reduce_to_zero: false });
             }
         }
     }
