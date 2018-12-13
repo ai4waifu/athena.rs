@@ -18,10 +18,7 @@ fn cycle_012() -> Permutation {
 }
 
 fn klein_four_gens() -> [Permutation; 2] {
-    [
-        Permutation { images: vec![1, 0, 3, 2] },
-        Permutation { images: vec![2, 3, 0, 1] },
-    ]
+    [Permutation { images: vec![1, 0, 3, 2] }, Permutation { images: vec![2, 3, 0, 1] }]
 }
 
 #[test]
@@ -71,13 +68,8 @@ fn sign_homomorphism_s3_to_z2() {
     let mut table = GroupTable::new();
     let s3 = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
     let z2 = table.permutation_group(2, &[transposition_01(2)]).unwrap();
-    let map = table
-        .homomorphism_from_generator_images(
-            s3,
-            z2,
-            &[transposition_01(2), Permutation { images: vec![0, 1] }],
-        )
-        .unwrap();
+    let map =
+        table.homomorphism_from_generator_images(s3, z2, &[transposition_01(2), Permutation { images: vec![0, 1] }]).unwrap();
     let s = canonical_permutation(&table, s3, transposition_01(3).images, GroupElementId(1)).unwrap();
     let c = canonical_permutation(&table, s3, cycle_012().images, GroupElementId(2)).unwrap();
     let fs = apply_group_homomorphism(&table, map, &s).unwrap();
@@ -92,11 +84,7 @@ fn invalid_homomorphism_rejected() {
     let s3 = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
     let z2 = table.permutation_group(2, &[transposition_01(2)]).unwrap();
     let err = table
-        .homomorphism_from_generator_images(
-            s3,
-            z2,
-            &[Permutation { images: vec![0, 1] }, transposition_01(2)],
-        )
+        .homomorphism_from_generator_images(s3, z2, &[Permutation { images: vec![0, 1] }, transposition_01(2)])
         .unwrap_err();
     assert_eq!(err.code.as_str(), DiagnosticCode::GroupElementInvalid.as_str());
 }
@@ -105,10 +93,7 @@ fn invalid_homomorphism_rejected() {
 fn quotient_projection_via_request() {
     let mut table = GroupTable::new();
     let s3 = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
-    let req = GroupRequest::SubgroupFromGenerators {
-        parent: s3,
-        generators: vec![cycle_012()],
-    };
+    let req = GroupRequest::SubgroupFromGenerators { parent: s3, generators: vec![cycle_012()] };
     let sub = match execute_group_with_table_mut(req, &mut table) {
         GroupResult::Exact { value: GroupDomainValue::Subgroup(s) } => s,
         other => panic!("unexpected {other:?}"),

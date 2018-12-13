@@ -70,10 +70,7 @@ impl GroupTable {
     pub fn permutation_group(&mut self, degree: u32, generators: &[Permutation]) -> Result<GroupId> {
         let raw: Result<Vec<RawPerm>> = generators.iter().map(|g| RawPerm::new(g.images.clone(), degree)).collect();
         let raw = raw?;
-        let key = GroupInternKey {
-            degree,
-            generators: raw.iter().map(|p| p.images().to_vec()).collect(),
-        };
+        let key = GroupInternKey { degree, generators: raw.iter().map(|p| p.images().to_vec()).collect() };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
@@ -82,11 +79,8 @@ impl GroupTable {
         self.next_group_id = self.next_group_id.wrapping_add(1);
         let presentation_id = PresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
-        let presentation = GroupPresentation {
-            id: presentation_id,
-            group,
-            kind: GroupPresentationKind::Permutation { degree },
-        };
+        let presentation =
+            GroupPresentation { id: presentation_id, group, kind: GroupPresentationKind::Permutation { degree } };
         self.by_key.insert(key, group);
         self.group_to_presentation.insert(group, presentation_id);
         self.presentations.insert(presentation_id, presentation);
@@ -95,16 +89,9 @@ impl GroupTable {
     }
 
     /// 由父群生成元构造子群 H ≤ G。
-    pub fn subgroup_from_generators(
-        &mut self,
-        parent: GroupId,
-        generators: &[Permutation],
-    ) -> Result<SubgroupId> {
+    pub fn subgroup_from_generators(&mut self, parent: GroupId, generators: &[Permutation]) -> Result<SubgroupId> {
         let parent_spec = self.permutation_spec(parent).ok_or_else(|| unknown_group(parent))?;
-        let raw: Result<Vec<RawPerm>> = generators
-            .iter()
-            .map(|g| RawPerm::new(g.images.clone(), parent_spec.degree))
-            .collect();
+        let raw: Result<Vec<RawPerm>> = generators.iter().map(|g| RawPerm::new(g.images.clone(), parent_spec.degree)).collect();
         let raw = raw?;
         for g in &raw {
             if !parent_spec.bsgs.contains(g) {
@@ -123,22 +110,14 @@ impl GroupTable {
             sub_presentation,
             parent_presentation,
         );
-        self.subgroups.insert(
-            subgroup_id,
-            SubgroupRecord { id: subgroup_id, parent, subgroup: subgroup_group, inclusion },
-        );
+        self.subgroups.insert(subgroup_id, SubgroupRecord { id: subgroup_id, parent, subgroup: subgroup_group, inclusion });
         Ok(subgroup_id)
     }
 
     /// 子群记录。
     pub fn subgroup_record(&self, subgroup: SubgroupId) -> Result<Subgroup> {
         let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
-        Ok(Subgroup {
-            id: r.id,
-            parent: r.parent,
-            group: r.subgroup,
-            inclusion: r.inclusion,
-        })
+        Ok(Subgroup { id: r.id, parent: r.parent, group: r.subgroup, inclusion: r.inclusion })
     }
 
     /// 子群是否正规于父群。
@@ -155,7 +134,9 @@ impl GroupTable {
             return Ok(q);
         }
         if !self.is_normal_subgroup(subgroup)? {
-            return Err(Diagnostic::new(DiagnosticCode::GroupNotNormal).detail("domain", "group").detail("operation", "quotient"));
+            return Err(Diagnostic::new(DiagnosticCode::GroupNotNormal)
+                .detail("domain", "group")
+                .detail("operation", "quotient"));
         }
         let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?.clone();
         let parent_spec = self.permutation_spec(r.parent).ok_or_else(|| unknown_group(r.parent))?;
@@ -165,13 +146,7 @@ impl GroupTable {
         let quotient = self.permutation_group(degree, &perm_gens)?;
         let parent_presentation = self.presentation_id(r.parent)?;
         let quotient_presentation = self.presentation_id(quotient)?;
-        self.map_table.register_quotient_projection(
-            subgroup,
-            r.parent,
-            quotient,
-            parent_presentation,
-            quotient_presentation,
-        );
+        self.map_table.register_quotient_projection(subgroup, r.parent, quotient, parent_presentation, quotient_presentation);
         Ok(quotient)
     }
 
@@ -184,34 +159,18 @@ impl GroupTable {
     ) -> Result<AlgebraMapId> {
         let source_spec = self.permutation_spec(source).ok_or_else(|| unknown_group(source))?;
         let target_spec = self.permutation_spec(target).ok_or_else(|| unknown_group(target))?;
-        let images: Result<Vec<RawPerm>> = generator_images
-            .iter()
-            .map(|p| RawPerm::new(p.images.clone(), target_spec.degree))
-            .collect();
+        let images: Result<Vec<RawPerm>> =
+            generator_images.iter().map(|p| RawPerm::new(p.images.clone(), target_spec.degree)).collect();
         let images = images?;
-        let cache = verify_homomorphism_and_cache(
-            &source_spec.bsgs,
-            &source_spec.generators,
-            &target_spec.bsgs,
-            &images,
-        )?;
+        let cache = verify_homomorphism_and_cache(&source_spec.bsgs, &source_spec.generators, &target_spec.bsgs, &images)?;
         let source_presentation = self.presentation_id(source)?;
         let target_presentation = self.presentation_id(target)?;
-        Ok(self.map_table.register_group_homomorphism(
-            source,
-            target,
-            source_presentation,
-            target_presentation,
-            cache,
-        ))
+        Ok(self.map_table.register_group_homomorphism(source, target, source_presentation, target_presentation, cache))
     }
 
     /// 经已验证同态映射元素像。
     pub fn apply_homomorphism(&self, map: AlgebraMapId, element_images: &[u32]) -> Result<RawPerm> {
-        self.map_table
-            .homomorphism_image(map, element_images)
-            .cloned()
-            .ok_or_else(|| hom_invalid("unknown_preimage"))
+        self.map_table.homomorphism_image(map, element_images).cloned().ok_or_else(|| hom_invalid("unknown_preimage"))
     }
 
     /// 经商投影将父群元素映到商群置换元素。

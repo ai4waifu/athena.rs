@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use athena_types::{AlgebraMapId, FieldId, GroupId, PresentationId, SubgroupId};
+use athena_types::{AlgebraMapId, AutomorphismId, ExtensionId, FieldId, GroupId, PresentationId, SubgroupId};
 
 use super::{
     map::{
@@ -44,12 +44,32 @@ struct QuotientProjectionRecord {
     quotient: GroupId,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PrimeSubfieldEmbeddingRecord {
+    map: AlgebraMap,
+    embedding: FieldEmbedding,
+    prime_field: FieldId,
+    extension: FieldId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FieldAutomorphismRecord {
+    map: AlgebraMap,
+    extension: ExtensionId,
+    field: FieldId,
+    frobenius_power: u32,
+}
+
 /// Session 级映射表。
 #[derive(Debug, Default)]
 pub struct MapTable {
     next_id: u32,
+    next_automorphism_id: u32,
     maps: HashMap<AlgebraMapId, AlgebraMap>,
     embeddings: HashMap<(FieldId, FieldId), FieldEmbeddingRecord>,
+    prime_subfield_embeddings: HashMap<(FieldId, FieldId), PrimeSubfieldEmbeddingRecord>,
+    automorphisms: HashMap<AutomorphismId, FieldAutomorphismRecord>,
+    extension_automorphisms: HashMap<ExtensionId, Vec<AutomorphismId>>,
     homomorphisms: HashMap<AlgebraMapId, GroupHomomorphismRecord>,
     subgroup_inclusions: HashMap<SubgroupId, SubgroupInclusionRecord>,
     quotient_projections: HashMap<SubgroupId, QuotientProjectionRecord>,
@@ -73,7 +93,31 @@ impl MapTable {
 
     /// 查域嵌入记录。
     pub fn field_embedding(&self, id: AlgebraMapId) -> Option<&FieldEmbedding> {
-        self.embeddings.values().find(|r| r.map.id == id).map(|r| &r.embedding)
+        self.embeddings
+            .values()
+            .find(|r| r.map.id == id)
+            .map(|r| &r.embedding)
+            .or_else(|| self.prime_subfield_embeddings.values().find(|r| r.map.id == id).map(|r| &r.embedding))
+    }
+
+    /// Frobenius 幂次（域自同构）。
+    pub fn automorphism_frobenius_power(&self, id: AutomorphismId) -> Option<u32> {
+        self.automorphisms.get(&id).map(|r| r.frobenius_power)
+    }
+
+    /// 自同构底层 [`AlgebraMapId`]。
+    pub fn automorphism_map(&self, id: AutomorphismId) -> Option<AlgebraMapId> {
+        self.automorphisms.get(&id).map(|r| r.map.id)
+    }
+
+    /// 扩张上已注册自同构 id。
+    pub fn extension_automorphisms(&self, extension: ExtensionId) -> &[AutomorphismId] {
+        self.extension_automorphisms.get(&extension).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    /// 素子域嵌入是否为已注册 map。
+    pub fn is_prime_subfield_embedding(&self, id: AlgebraMapId) -> bool {
+        self.prime_subfield_embeddings.values().any(|r| r.map.id == id)
     }
 
     /// 群同态记录。
@@ -142,6 +186,68 @@ impl MapTable {
         id
     }
 
+    /// 注册 𝔽_p ↪ 𝔽_{p^n} 素子域包含（幂等）。
+    pub fn register_prime_subfield_embedding(
+        &mut self,
+        prime_field: FieldId,
+        extension: FieldId,
+        source_presentation: PresentationId,
+        target_presentation: PresentationId,
+    ) -> AlgebraMapId {
+        if let Some(r) = self.prime_subfield_embeddings.get(&(prime_field, extension)) {
+            return r.map.id;
+        }
+        let id = AlgebraMapId(self.next_id);
+        self.next_id = self.next_id.wrapping_add(1);
+        let map = AlgebraMap {
+            id,
+            source: AlgebraParentId::Field(prime_field),
+            target: AlgebraParentId::Field(extension),
+            kind: AlgebraMapKind::FieldEmbedding,
+            verification: MapVerification { kind: MapVerificationKind::DegreeCheck, verified: true },
+        };
+        let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
+        self.maps.insert(id, map.clone());
+        self.prime_subfield_embeddings
+            .insert((prime_field, extension), PrimeSubfieldEmbeddingRecord { map, embedding, prime_field, extension });
+        id
+    }
+
+    /// 注册 Frobenius 自同构 σ^k（L → L，固定基域）。
+    pub fn register_frobenius_automorphism(
+        &mut self,
+        extension: ExtensionId,
+        field: FieldId,
+        presentation: PresentationId,
+        frobenius_power: u32,
+    ) -> AutomorphismId {
+        if let Some(existing) = self.extension_automorphisms.get(&extension).and_then(|ids| {
+            ids.iter().find_map(|id| {
+                let rec = self.automorphisms.get(id)?;
+                (rec.frobenius_power == frobenius_power).then_some(*id)
+            })
+        }) {
+            return existing;
+        }
+        let id = AutomorphismId(self.next_automorphism_id);
+        self.next_automorphism_id = self.next_automorphism_id.wrapping_add(1);
+        let map_id = AlgebraMapId(self.next_id);
+        self.next_id = self.next_id.wrapping_add(1);
+        let map = AlgebraMap {
+            id: map_id,
+            source: AlgebraParentId::Field(field),
+            target: AlgebraParentId::Field(field),
+            kind: AlgebraMapKind::FieldEmbedding,
+            verification: MapVerification { kind: MapVerificationKind::GeneratorRelations, verified: true },
+        };
+        let embedding = FieldEmbedding { map: map_id, source_presentation: presentation, target_presentation: presentation };
+        self.maps.insert(map_id, map.clone());
+        self.embeddings.insert((field, field), FieldEmbeddingRecord { map: map.clone(), embedding });
+        self.automorphisms.insert(id, FieldAutomorphismRecord { map, extension, field, frobenius_power });
+        self.extension_automorphisms.entry(extension).or_default().push(id);
+        id
+    }
+
     /// 注册子群包含 H ↪ G。
     pub fn register_subgroup_inclusion(
         &mut self,
@@ -163,17 +269,9 @@ impl MapTable {
             kind: AlgebraMapKind::SubgroupInclusion,
             verification: MapVerification { kind: MapVerificationKind::DegreeCheck, verified: true },
         };
-        let inclusion = SubgroupInclusion {
-            map: id,
-            subgroup,
-            source_presentation,
-            target_presentation,
-        };
+        let inclusion = SubgroupInclusion { map: id, subgroup, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
-        self.subgroup_inclusions.insert(
-            subgroup,
-            SubgroupInclusionRecord { map, inclusion, parent, subgroup_group },
-        );
+        self.subgroup_inclusions.insert(subgroup, SubgroupInclusionRecord { map, inclusion, parent, subgroup_group });
         id
     }
 
@@ -197,10 +295,7 @@ impl MapTable {
         };
         let homomorphism = GroupHomomorphism { map: id, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
-        self.homomorphisms.insert(
-            id,
-            GroupHomomorphismRecord { map, homomorphism, source, target, element_images },
-        );
+        self.homomorphisms.insert(id, GroupHomomorphismRecord { map, homomorphism, source, target, element_images });
         id
     }
 
@@ -225,17 +320,9 @@ impl MapTable {
             kind: AlgebraMapKind::QuotientProjection,
             verification: MapVerification { kind: MapVerificationKind::GeneratorRelations, verified: true },
         };
-        let projection = QuotientProjection {
-            map: id,
-            subgroup,
-            source_presentation,
-            target_presentation,
-        };
+        let projection = QuotientProjection { map: id, subgroup, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
-        self.quotient_projections.insert(
-            subgroup,
-            QuotientProjectionRecord { map, projection, parent, quotient },
-        );
+        self.quotient_projections.insert(subgroup, QuotientProjectionRecord { map, projection, parent, quotient });
         id
     }
 }

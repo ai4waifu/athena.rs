@@ -4,10 +4,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use super::{
-    bsgs::BsgsChain,
-    permutation::RawPerm,
-};
+use super::{bsgs::BsgsChain, permutation::RawPerm};
 
 /// 右陪集代表 `{Hg : g ∈ G}`，每陪集取一个代表元。
 pub fn coset_representatives(parent: &BsgsChain, subgroup: &BsgsChain) -> Vec<RawPerm> {
@@ -33,11 +30,7 @@ pub fn coset_index(reps: &[RawPerm], subgroup: &BsgsChain, element: &RawPerm) ->
 }
 
 /// 正规子群判定：对父群生成元 `g` 与子群生成元 `h` 检验 `g h g⁻¹ ∈ H`。
-pub fn is_normal(
-    _parent: &BsgsChain,
-    parent_generators: &[RawPerm],
-    subgroup: &BsgsChain,
-) -> bool {
+pub fn is_normal(_parent: &BsgsChain, parent_generators: &[RawPerm], subgroup: &BsgsChain) -> bool {
     for g in parent_generators {
         for h in subgroup.all_elements() {
             let conj = g.compose(&h).expect("same degree").compose(&g.inverse()).expect("same degree");

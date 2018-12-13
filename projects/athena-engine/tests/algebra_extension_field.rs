@@ -26,9 +26,8 @@ fn polynomial_basis_field_interns_idempotently() {
 #[test]
 fn reducible_modulus_rejected() {
     let mut table = FieldTable::new();
-    let err = table
-        .polynomial_basis_field(Integer::from_i64(2), vec![Integer::zero(), Integer::zero(), Integer::one()])
-        .unwrap_err();
+    let err =
+        table.polynomial_basis_field(Integer::from_i64(2), vec![Integer::zero(), Integer::zero(), Integer::one()]).unwrap_err();
     assert_eq!(err.code.as_str(), DiagnosticCode::FieldModulusReducible.as_str());
 }
 

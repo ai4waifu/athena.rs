@@ -15,12 +15,7 @@ pub fn canonical_permutation(
 ) -> Result<GroupElement> {
     table.validate_permutation(group, &images)?;
     let presentation = table.presentation_id(group)?;
-    Ok(GroupElement {
-        id: element_id,
-        group,
-        presentation,
-        repr: GroupElementRepr::Permutation(Permutation { images }),
-    })
+    Ok(GroupElement { id: element_id, group, presentation, repr: GroupElementRepr::Permutation(Permutation { images }) })
 }
 
 /// 置换群元素乘法（合成 `p(q(i))`）。
@@ -60,15 +55,8 @@ pub fn group_membership(table: &GroupTable, group: GroupId, element: &GroupEleme
 }
 
 /// 经已验证同态映射元素。
-pub fn apply_group_homomorphism(
-    table: &GroupTable,
-    map: AlgebraMapId,
-    element: &GroupElement,
-) -> Result<GroupElement> {
-    let source = table
-        .map_table()
-        .homomorphism_source(map)
-        .ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
+pub fn apply_group_homomorphism(table: &GroupTable, map: AlgebraMapId, element: &GroupElement) -> Result<GroupElement> {
+    let source = table.map_table().homomorphism_source(map).ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
     if element.group != source {
         return Err(group_mismatch());
     }
@@ -77,19 +65,12 @@ pub fn apply_group_homomorphism(
         _ => return Err(group_element_invalid("homomorphism_not_permutation")),
     };
     let image = table.apply_homomorphism(map, raw.images())?;
-    let target = table
-        .map_table()
-        .homomorphism_target(map)
-        .ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
+    let target = table.map_table().homomorphism_target(map).ok_or_else(|| group_element_invalid("unknown_homomorphism"))?;
     canonical_permutation(table, target, image.images().to_vec(), GroupElementId(0))
 }
 
 /// 经商投影映射父群元素到商群。
-pub fn project_quotient_element(
-    table: &GroupTable,
-    subgroup: SubgroupId,
-    element: &GroupElement,
-) -> Result<GroupElement> {
+pub fn project_quotient_element(table: &GroupTable, subgroup: SubgroupId, element: &GroupElement) -> Result<GroupElement> {
     let record = table.subgroup_record(subgroup)?;
     if element.group != record.parent {
         return Err(group_mismatch());
@@ -99,10 +80,8 @@ pub fn project_quotient_element(
         _ => return Err(group_element_invalid("quotient_not_permutation")),
     };
     let image = table.project_quotient(subgroup, &raw)?;
-    let quotient = table
-        .map_table()
-        .quotient_group(subgroup)
-        .ok_or_else(|| group_element_invalid("quotient_not_registered"))?;
+    let quotient =
+        table.map_table().quotient_group(subgroup).ok_or_else(|| group_element_invalid("quotient_not_registered"))?;
     canonical_permutation(table, quotient, image.images().to_vec(), GroupElementId(0))
 }
 

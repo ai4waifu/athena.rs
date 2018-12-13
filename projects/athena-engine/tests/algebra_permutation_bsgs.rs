@@ -40,10 +40,12 @@ fn compose_follows_p_q_i_convention() {
     let pq = multiply_group_elements(&table, &p, &q).unwrap();
     let raw_p = transposition_01(3);
     let raw_q = cycle_012();
-    let expected: Vec<u32> = (0..3).map(|i| {
-        let qi = raw_q.images[i as usize];
-        raw_p.images[qi as usize]
-    }).collect();
+    let expected: Vec<u32> = (0..3)
+        .map(|i| {
+            let qi = raw_q.images[i as usize];
+            raw_p.images[qi as usize]
+        })
+        .collect();
     match pq.repr {
         GroupElementRepr::Permutation(perm) => assert_eq!(perm.images, expected),
         _ => panic!("expected permutation repr"),
@@ -51,10 +53,7 @@ fn compose_follows_p_q_i_convention() {
 }
 
 fn klein_generators() -> (Permutation, Permutation) {
-    (
-        Permutation { images: vec![1, 0, 3, 2] },
-        Permutation { images: vec![2, 3, 0, 1] },
-    )
+    (Permutation { images: vec![1, 0, 3, 2] }, Permutation { images: vec![2, 3, 0, 1] })
 }
 
 #[test]
@@ -88,10 +87,7 @@ fn klein_four_is_abelian() {
     let mut table = GroupTable::new();
     let (a, b) = klein_generators();
     let g = table.permutation_group(4, &[a, b]).unwrap();
-    let r = athena_engine::execute_group_with_table(
-        GroupRequest::IsAbelian { group: g },
-        &table,
-    );
+    let r = athena_engine::execute_group_with_table(GroupRequest::IsAbelian { group: g }, &table);
     match r {
         athena_engine::GroupResult::Exact { value } => {
             assert!(matches!(value, athena_engine::GroupDomainValue::Boolean(true)));
@@ -104,10 +100,7 @@ fn klein_four_is_abelian() {
 fn symmetric_three_not_abelian() {
     let mut table = GroupTable::new();
     let g = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
-    let r = athena_engine::execute_group_with_table(
-        GroupRequest::IsAbelian { group: g },
-        &table,
-    );
+    let r = athena_engine::execute_group_with_table(GroupRequest::IsAbelian { group: g }, &table);
     match r {
         athena_engine::GroupResult::Exact { value } => {
             assert!(matches!(value, athena_engine::GroupDomainValue::Boolean(false)));

@@ -73,7 +73,8 @@ impl BsgsChain {
         let mut h = element.clone();
         for (k, beta) in self.base.iter().enumerate() {
             let img = h.apply(*beta);
-            let Some(rep) = self.transversals[k].get(&img) else {
+            let Some(rep) = self.transversals[k].get(&img)
+            else {
                 return false;
             };
             h = rep.inverse().compose(&h).unwrap_or_else(|_| RawPerm::identity(self.degree));
@@ -136,11 +137,7 @@ fn orbit(point: u32, gens: &[RawPerm], _degree: u32) -> HashSet<u32> {
 }
 
 fn filter_stabilizer(gens: &[RawPerm], base: &[u32], _degree: u32) -> Vec<RawPerm> {
-    let filtered: Vec<RawPerm> = gens
-        .iter()
-        .filter(|g| base.iter().all(|&b| g.apply(b) == b))
-        .cloned()
-        .collect();
+    let filtered: Vec<RawPerm> = gens.iter().filter(|g| base.iter().all(|&b| g.apply(b) == b)).cloned().collect();
     dedupe_perms(filtered)
 }
 

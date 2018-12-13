@@ -1,9 +1,9 @@
-//! ℚ / 𝔽_p / 𝔽_{p^n} 元素 canonical 化与显式 embedding（Living `18` Phase 4–5）。
+//! ℚ / 𝔽_p / 𝔽_{p^n} 元素 canonical 化与显式 embedding。
 
 use athena_numeric::{Integer, Rational};
-use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldId, Result};
+use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, FieldId, Result};
 
-use crate::algebra::{add_coords, canonical_coords, inv_coords, mul_coords, AlgebraParentId, FieldTable, MapTable};
+use crate::algebra::{AlgebraParentId, FieldTable, MapTable, add_coords, canonical_coords, inv_coords, mul_coords};
 
 use super::types::{FieldElement, FieldElementRepr};
 
@@ -37,6 +37,52 @@ pub fn canonical_prime_residue(table: &FieldTable, field: FieldId, value: Intege
     let residue = modulus.reduce(&value);
     let presentation = table.presentation_id(field)?;
     Ok(FieldElement { field, presentation, repr: FieldElementRepr::PrimeFieldResidue { value: residue } })
+}
+
+/// 经已注册素子域嵌入将 𝔽_p 元素映到 𝔽_{p^n}。
+pub fn apply_prime_subfield_embedding(
+    table: &FieldTable,
+    maps: &MapTable,
+    map_id: AlgebraMapId,
+    element: &FieldElement,
+) -> Result<FieldElement> {
+    if !maps.is_prime_subfield_embedding(map_id) {
+        return Err(field_element_invalid("not_prime_subfield_embedding"));
+    }
+    let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
+    let (source, target) = field_endpoints(map)?;
+    if element.field != source {
+        return Err(field_mismatch());
+    }
+    match &element.repr {
+        FieldElementRepr::PrimeFieldResidue { value } => {
+            let spec = table.finite_field_poly_spec(target).ok_or_else(|| field_element_invalid("expected_extension"))?;
+            let mut coords = vec![Integer::zero(); spec.degree as usize];
+            coords[0] = value.clone();
+            canonical_extension_element(table, target, coords)
+        }
+        _ => Err(field_element_invalid("embedding_source_not_prime_residue")),
+    }
+}
+
+/// 对 𝔽_{p^n} 元素应用已注册 Frobenius 自同构。
+pub fn apply_field_automorphism(
+    table: &FieldTable,
+    maps: &MapTable,
+    aut: AutomorphismId,
+    element: &FieldElement,
+) -> Result<FieldElement> {
+    let power = maps
+        .automorphism_frobenius_power(aut)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::AutomorphismInvalid).detail("domain", "field"))?;
+    let extension = table.extension_by_field(element.field).ok_or_else(|| field_element_invalid("not_extension_field"))?;
+    match &element.repr {
+        FieldElementRepr::ExtensionCoords { coords } => {
+            let next = crate::algebra::apply_frobenius_coords(table, extension.id, coords, power)?;
+            canonical_extension_element(table, element.field, next)
+        }
+        _ => Err(field_element_invalid("automorphism_unsupported_repr")),
+    }
 }
 
 /// 经已注册 canonical embedding 将 ℚ 元素映到 𝔽_p。

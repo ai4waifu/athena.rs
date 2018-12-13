@@ -1,4 +1,4 @@
-//! 𝔽_{p^n} 多项式基 presentation 数据与算术（Living `18` Phase 5）。
+//! 𝔽_{p^n} 多项式基 presentation 数据与坐标算术。
 
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
@@ -92,10 +92,7 @@ pub fn canonical_coords(mut coords: Vec<Integer>, degree: u32, p: &Modulus) -> R
 
 /// 多项式基坐标加法。
 pub fn add_coords(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
-    a.iter()
-        .zip(b.iter())
-        .map(|(x, y)| p.reduce(&x.add(y)))
-        .collect()
+    a.iter().zip(b.iter()).map(|(x, y)| p.reduce(&x.add(y))).collect()
 }
 
 /// 多项式基坐标乘法（mod 不可约多项式）。
@@ -319,6 +316,30 @@ fn normalize_monic(v: &mut Vec<Integer>, p: &Modulus) {
             *c = p.reduce(&c.mul(&inv));
         }
     }
+}
+
+/// Frobenius σ：x ↦ x^p 在 𝔽_{p^n} 多项式基上的坐标作用。
+pub fn frobenius_coords(coords: &[Integer], spec: &FiniteFieldPolySpec, p: &Modulus) -> Vec<Integer> {
+    let n = spec.degree as usize;
+    let prime = p.value().to_u64().and_then(|v| usize::try_from(v).ok()).unwrap_or(1).max(1);
+    let max_deg = (n - 1).saturating_mul(prime) + 1;
+    let mut raised = vec![Integer::zero(); max_deg];
+    for (i, c) in coords.iter().enumerate() {
+        let idx = i.saturating_mul(prime);
+        if idx < raised.len() {
+            raised[idx] = p.reduce(c);
+        }
+    }
+    poly_mod(&raised, &spec.modulus, p)
+}
+
+/// 迭代 Frobenius σ^k。
+pub fn frobenius_power_coords(coords: &[Integer], power: u32, spec: &FiniteFieldPolySpec, p: &Modulus) -> Vec<Integer> {
+    let mut out = coords.to_vec();
+    for _ in 0..power {
+        out = frobenius_coords(&out, spec, p);
+    }
+    out
 }
 
 #[cfg(test)]

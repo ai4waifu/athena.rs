@@ -59,10 +59,11 @@ fn number_theory_congruence_solves_multiple() {
         .expect("ok");
     match out {
         DomainResult::NumberTheory(athena_engine::NumberTheoryResult::Exact {
-            value: athena_engine::NumberTheoryValue::Congruence(athena_engine::CongruenceSolution::MultipleClasses {
-                multiplicity,
-                ..
-            }),
+            value:
+                athena_engine::NumberTheoryValue::Congruence(athena_engine::CongruenceSolution::MultipleClasses {
+                    multiplicity,
+                    ..
+                }),
         }) => {
             assert_eq!(multiplicity, Integer::from_i64(2));
         }

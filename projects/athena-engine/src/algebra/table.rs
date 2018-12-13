@@ -1,15 +1,13 @@
-//! 域注册表：FieldId 与 FieldPresentation（Phase 0 骨架）。
+//! 域注册表：`FieldId` 与 `FieldPresentation` 的 intern 与查找。
 
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, PresentationId, Result};
+use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, PresentationId, Result};
 
 use crate::{
     algebra::{
-        finite_field_poly::{
-            FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape,
-        },
+        finite_field_poly::{FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape},
         property::{PropertyState, PropertyWitness},
     },
     field::{Field, FieldDescriptor},
@@ -17,6 +15,7 @@ use crate::{
 };
 
 use super::{
+    extension::{FieldExtension, extension_tower_fields},
     map_table::MapTable,
     presentation::{FieldPresentation, FieldPresentationKind},
 };
@@ -26,10 +25,7 @@ use super::{
 enum FieldInternKey {
     Rationals,
     Prime { characteristic: Integer },
-    PolynomialBasis {
-        characteristic: Integer,
-        modulus: Vec<Integer>,
-    },
+    PolynomialBasis { characteristic: Integer, modulus: Vec<Integer> },
 }
 
 /// Session 级域与 presentation 注册表。
@@ -42,6 +38,8 @@ pub struct FieldTable {
     by_key: HashMap<FieldInternKey, FieldId>,
     map_table: MapTable,
     poly_extensions: HashMap<FieldId, FiniteFieldPolySpec>,
+    extensions: HashMap<ExtensionId, FieldExtension>,
+    field_to_extension: HashMap<FieldId, ExtensionId>,
     next_extension_id: u32,
 }
 
@@ -86,6 +84,29 @@ impl FieldTable {
         self.poly_extensions.get(&field)
     }
 
+    /// 按扩张 id 查 [`FieldExtension`]。
+    pub fn extension_record(&self, extension: ExtensionId) -> Option<&FieldExtension> {
+        self.extensions.get(&extension)
+    }
+
+    /// 扩张域 L 的 [`FieldExtension`]（若 L 为 registered 扩张）。
+    pub fn extension_by_field(&self, field: FieldId) -> Option<&FieldExtension> {
+        self.field_to_extension.get(&field).and_then(|id| self.extensions.get(id))
+    }
+
+    /// 自基域到 L 的域塔（升序，如 `[𝔽_p, …, L]`）。
+    pub fn extension_tower(&self, extension: ExtensionId) -> Option<Vec<FieldId>> {
+        let record = self.extensions.get(&extension)?.clone();
+        Some(extension_tower_fields(&record, |field| self.extension_by_field(field).cloned()))
+    }
+
+    /// 注册扩张 Frobenius 自同构 σ^k（幂等）。
+    pub fn register_frobenius_automorphism(&mut self, extension: ExtensionId, frobenius_power: u32) -> Result<AutomorphismId> {
+        let field = self.extensions.get(&extension).ok_or_else(|| unknown_extension(extension))?.field;
+        let presentation = self.presentation_id(field)?;
+        Ok(self.map_table.register_frobenius_automorphism(extension, field, presentation, frobenius_power))
+    }
+
     /// 注册 𝔽_{p^n}（首一不可约模多项式 + 多项式基 presentation）。
     pub fn polynomial_basis_field(&mut self, characteristic: Integer, modulus: Vec<Integer>) -> Result<FieldId> {
         validate_prime_modulus(&characteristic)?;
@@ -102,7 +123,7 @@ impl FieldTable {
             return Ok(id);
         }
         let base = self.prime_field(characteristic.clone())?;
-        let extension = ExtensionId(self.next_extension_id);
+        let extension_id = ExtensionId(self.next_extension_id);
         self.next_extension_id = self.next_extension_id.wrapping_add(1);
         let field = FieldId(self.next_field_id);
         self.next_field_id = self.next_field_id.wrapping_add(1);
@@ -113,10 +134,13 @@ impl FieldTable {
         self.by_key.insert(key, field);
         self.field_to_presentation.insert(field, presentation_id);
         self.presentations.insert(presentation_id, presentation);
-        self.poly_extensions.insert(
-            field,
-            FiniteFieldPolySpec { extension, base, characteristic, degree, modulus },
-        );
+        self.poly_extensions
+            .insert(field, FiniteFieldPolySpec { extension: extension_id, base, characteristic, degree, modulus });
+        let base_pres = self.presentation_id(base)?;
+        let embedding = self.map_table.register_prime_subfield_embedding(base, field, base_pres, presentation_id);
+        let ext = FieldExtension::finite_field_polynomial(extension_id, base, field, degree, embedding);
+        self.extensions.insert(extension_id, ext);
+        self.field_to_extension.insert(field, extension_id);
         Ok(field)
     }
 
@@ -131,7 +155,7 @@ impl FieldTable {
         }
     }
 
-    /// 素域 𝔽_p 的约化模数（经 presentation 查找，Phase 3 系数内核真相源）。
+    /// 素域 𝔽_p 的约化模数（经 `FieldPresentation` 查找，系数内核真相源）。
     pub fn prime_modulus(&self, field: FieldId) -> Result<athena_numeric::Modulus> {
         let p = self.characteristic(field).ok_or_else(|| unknown_field(field))?;
         athena_numeric::Modulus::new(p).map_err(|_| {
@@ -164,10 +188,7 @@ impl FieldTable {
                 Ok(FieldDescriptor::Extension {
                     base: spec.base,
                     extension: spec.extension,
-                    degree: PropertyState::Proven {
-                        value: *degree,
-                        witness: PropertyWitness::placeholder("polynomial_basis"),
-                    },
+                    degree: PropertyState::Proven { value: *degree, witness: PropertyWitness::placeholder("polynomial_basis") },
                 })
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -238,6 +259,13 @@ fn unknown_field(field: FieldId) -> Diagnostic {
         .detail("domain", "field")
         .detail("operation", "unknown_field")
         .detail("field_id", field.0.to_string())
+}
+
+fn unknown_extension(extension: ExtensionId) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
+        .detail("domain", "field")
+        .detail("operation", "unknown_extension")
+        .detail("extension_id", extension.0.to_string())
 }
 
 #[cfg(test)]
