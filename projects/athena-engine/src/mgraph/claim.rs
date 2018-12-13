@@ -61,6 +61,15 @@ pub enum Proposition {
         /// 请求 canonical 指纹（输入侧）。
         request_fingerprint: u64,
     },
+    /// 模同余关系（stable 指纹对 + 模数指纹）。
+    Congruence {
+        /// 模数 canonical 指纹。
+        modulus_fingerprint: u64,
+        /// 左操作数 stable 指纹。
+        left: u64,
+        /// 右操作数 stable 指纹。
+        right: u64,
+    },
 }
 
 /// 未验证候选事实（solver 产出；不得直接进入 exact closure）。

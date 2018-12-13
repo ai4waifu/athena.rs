@@ -40,6 +40,7 @@ impl DerivedIndexes {
                     outputs: Vec::new(),
                 });
             }
+            Proposition::Congruence { .. } => {}
         }
     }
 }

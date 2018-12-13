@@ -38,24 +38,34 @@
 //! 到 eager 路径而不改变 exact、promotion、rounding 或诊断语义。
 
 mod admission;
+mod candidate;
 mod claim;
 mod closure;
+mod congruence;
+mod core;
 mod derived;
 mod exact_uf;
 mod fact_log;
+mod kernel_ir;
 mod operational;
 mod polynomial;
+mod refs;
+mod relation_index;
 mod result_cache;
+mod scope_index;
 mod semantic;
 mod state;
+mod theory;
 mod types;
 
 pub use admission::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, EvidenceVerifier, VerificationPolicy, admit_polynomial_exact,
     admit_polynomial_result, is_admitted,
 };
+pub use candidate::OuterCandidate;
 pub use claim::{Claim, Evidence, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};
 pub use closure::{ClosureLimits, ClosureResult, run_closure_step};
+pub use core::{ClosureSeeds, MGraphCore, MGraphView};
 pub use derived::DerivedIndexes;
 pub use exact_uf::ExactUnionFind;
 pub use fact_log::{FactId, FactLog};
@@ -64,7 +74,13 @@ pub use polynomial::{
     POLYNOMIAL_SOLVER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness,
     witness_from_exact,
 };
+pub use refs::{
+    RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, WitnessRef, scope_from_ref, scope_ref_from_assumption_set,
+    scope_to_ref,
+};
+pub use relation_index::{RelationIndex, RelationRecord};
 pub use result_cache::ResultCache;
+pub use scope_index::{ScopeEdge, ScopeIndex};
 pub use semantic::SemanticCore;
 pub use state::MGraphState;
 pub use types::{
