@@ -13,11 +13,7 @@ pub struct ReversedGraphView<'a, N, E> {
 impl<'a, N, E> ReversedGraphView<'a, N, E> {
     /// 包装有向图。
     pub fn new(graph: &'a Graph<N, E>) -> Option<Self> {
-        if graph.direction() == GraphDirection::Directed {
-            Some(Self { graph })
-        } else {
-            None
-        }
+        if graph.direction() == GraphDirection::Directed { Some(Self { graph }) } else { None }
     }
 
     /// 方向（恒为有向）。
@@ -46,10 +42,7 @@ pub struct InducedSubgraphView<'a, N, E> {
 impl<'a, N, E> InducedSubgraphView<'a, N, E> {
     /// 构造诱导子图；空集表示空图投影。
     pub fn new(graph: &'a Graph<N, E>, keep: impl IntoIterator<Item = NodeId>) -> Self {
-        Self {
-            graph,
-            nodes: keep.into_iter().map(|n| n.0).collect(),
-        }
+        Self { graph, nodes: keep.into_iter().map(|n| n.0).collect() }
     }
 
     /// 节点是否保留。
@@ -70,9 +63,7 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
     /// 诱导子图上的邻接（两端均在保留集内）。
     pub fn neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         let keep = &self.nodes;
-        self.graph
-            .out_neighbors(node)
-            .filter(move |target| keep.contains(&node.0) && keep.contains(&target.0))
+        self.graph.out_neighbors(node).filter(move |target| keep.contains(&node.0) && keep.contains(&target.0))
     }
 }
 
@@ -99,11 +90,9 @@ where
 
     /// 过滤后的邻接（沿保留边前进）。
     pub fn neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.graph.out_neighbors(node).filter(move |&target| {
-            self.graph
-                .find_edge(node, target)
-                .is_some_and(|edge| (self.predicate)(node, target, edge))
-        })
+        self.graph
+            .out_neighbors(node)
+            .filter(move |&target| self.graph.find_edge(node, target).is_some_and(|edge| (self.predicate)(node, target, edge)))
     }
 
     /// 节点数（与底图相同）。

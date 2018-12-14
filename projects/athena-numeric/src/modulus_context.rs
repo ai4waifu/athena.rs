@@ -4,11 +4,7 @@ use std::collections::HashMap;
 
 use athena_types::ModulusId;
 
-use crate::{
-    backends::pure_rust::limb_kernel,
-    modular::Modulus,
-    natural::Natural,
-};
+use crate::{backends::pure_rust::limb_kernel, modular::Modulus, natural::Natural};
 
 /// Montgomery 约化常量（奇模数）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,10 +44,7 @@ pub(crate) fn montgomery_for_modulus(modulus: &Modulus) -> Option<MontgomeryPara
         return None;
     }
     let (n_prime, r2_limbs) = limb_kernel::montgomery_precompute(mag.as_limbs());
-    Some(MontgomeryParams {
-        n_prime,
-        r2: Natural::from_limbs(r2_limbs),
-    })
+    Some(MontgomeryParams { n_prime, r2: Natural::from_limbs(r2_limbs) })
 }
 
 pub(crate) fn barrett_for_modulus(modulus: &Modulus) -> BarrettParams {
@@ -96,21 +89,9 @@ impl ModulusContext {
     pub fn from_modulus(modulus: Modulus) -> Self {
         let bit_length = modulus.value().bits();
         let is_odd = !modulus.value().rem(&crate::integer::Integer::from_i64(2)).is_zero();
-        let montgomery = if is_odd {
-            montgomery_for_modulus(&modulus)
-        } else {
-            None
-        };
+        let montgomery = if is_odd { montgomery_for_modulus(&modulus) } else { None };
         let barrett = Some(barrett_for_modulus(&modulus));
-        Self {
-            id: ModulusId(0),
-            modulus,
-            bit_length,
-            is_odd,
-            montgomery,
-            barrett,
-            timing: ModularTimingPolicy::VariableTime,
-        }
+        Self { id: ModulusId(0), modulus, bit_length, is_odd, montgomery, barrett, timing: ModularTimingPolicy::VariableTime }
     }
 }
 /// Session 级模数 intern 表（内容寻址）。

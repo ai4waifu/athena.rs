@@ -14,12 +14,7 @@ impl ArrayStorage<u64> for Store {
     }
 
     fn capabilities(&self) -> StorageCapabilities {
-        StorageCapabilities {
-            writable: false,
-            random_read: true,
-            sequential_read: true,
-            persistent: false,
-        }
+        StorageCapabilities { writable: false, random_read: true, sequential_read: true, persistent: false }
     }
 
     fn read_range(&self, offset: u64, len: usize) -> Result<Vec<u64>, ()> {

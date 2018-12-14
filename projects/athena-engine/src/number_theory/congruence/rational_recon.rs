@@ -15,24 +15,16 @@ pub fn rational_reconstruction(
 ) -> RationalReconstruction {
     let m = modulus.value();
     if !(m > &Integer::one()) {
-        return RationalReconstruction::NotFound {
-            reason: RationalReconstructionFailure::InvalidBounds,
-        };
+        return RationalReconstruction::NotFound { reason: RationalReconstructionFailure::InvalidBounds };
     }
 
     let half = m.div(&Integer::from_i64(2));
-    let default_bound = if half.is_zero() {
-        isqrt(&Integer::one())
-    } else {
-        isqrt(&half)
-    };
+    let default_bound = if half.is_zero() { isqrt(&Integer::one()) } else { isqrt(&half) };
     let n_bound = max_numerator.cloned().unwrap_or_else(|| default_bound.clone());
     let d_bound = max_denominator.cloned().unwrap_or(default_bound);
 
     if n_bound.is_negative() || d_bound.is_negative() || d_bound.is_zero() {
-        return RationalReconstruction::NotFound {
-            reason: RationalReconstructionFailure::InvalidBounds,
-        };
+        return RationalReconstruction::NotFound { reason: RationalReconstructionFailure::InvalidBounds };
     }
 
     let r = modulus.reduce(residue);
@@ -43,17 +35,11 @@ pub fn rational_reconstruction(
 
     while !rem.is_zero() {
         if rem.abs() <= n_bound && t.abs() <= d_bound && !t.is_zero() {
-            let (numer, denom) = if t.is_negative() {
-                (rem.neg(), t.neg())
-            } else {
-                (rem.clone(), t.clone())
-            };
+            let (numer, denom) = if t.is_negative() { (rem.neg(), t.neg()) } else { (rem.clone(), t.clone()) };
             match Rational::try_new(numer, denom) {
                 Ok(value) => return RationalReconstruction::Found { value },
                 Err(_) => {
-                    return RationalReconstruction::NotFound {
-                        reason: RationalReconstructionFailure::NoCandidate,
-                    };
+                    return RationalReconstruction::NotFound { reason: RationalReconstructionFailure::NoCandidate };
                 }
             }
         }
@@ -72,9 +58,7 @@ pub fn rational_reconstruction(
         }
     }
 
-    RationalReconstruction::NotFound {
-        reason: RationalReconstructionFailure::NoCandidate,
-    }
+    RationalReconstruction::NotFound { reason: RationalReconstructionFailure::NoCandidate }
 }
 
 use super::super::arithmetic::isqrt;

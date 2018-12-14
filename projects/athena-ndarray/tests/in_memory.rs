@@ -1,6 +1,6 @@
 //! In-memory storage helper tests.
 
-use athena_ndarray::{array1d, MemoryBudget};
+use athena_ndarray::{MemoryBudget, array1d};
 
 #[test]
 fn array1d_respects_budget() {

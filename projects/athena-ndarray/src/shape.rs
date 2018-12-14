@@ -17,13 +17,8 @@ impl LogicalShape {
     /// 创建 shape；元素个数溢出时失败。
     pub fn new(dimensions: impl Into<Vec<u64>>) -> Result<Self, ArrayError> {
         let dimensions = dimensions.into();
-        let elements = dimensions
-            .iter()
-            .try_fold(1u64, |n, &d| n.checked_mul(d).ok_or(ArrayError::ShapeOverflow))?;
-        Ok(Self {
-            dimensions,
-            elements,
-        })
+        let elements = dimensions.iter().try_fold(1u64, |n, &d| n.checked_mul(d).ok_or(ArrayError::ShapeOverflow))?;
+        Ok(Self { dimensions, elements })
     }
 
     /// 各维长度。
@@ -67,12 +62,7 @@ impl MemoryBudget {
         if max_resident_bytes == 0 || max_open_chunks == 0 {
             return Err(ArrayError::ZeroBudget);
         }
-        Ok(Self {
-            max_resident_bytes,
-            max_scratch_bytes,
-            max_spill_bytes,
-            max_open_chunks,
-        })
+        Ok(Self { max_resident_bytes, max_scratch_bytes, max_spill_bytes, max_open_chunks })
     }
 
     /// 驻留预算字节数。
@@ -116,18 +106,12 @@ impl ChunkPlan {
         if start > end {
             return Err(ArrayError::OutOfBounds);
         }
-        Ok(Self {
-            max_elements,
-            start,
-            end,
-        })
+        Ok(Self { max_elements, start, end })
     }
 
     /// 逻辑区间长度。
     pub fn span(self) -> Result<u64, ArrayError> {
-        self.end
-            .checked_sub(self.start)
-            .ok_or(ArrayError::RangeOverflow)
+        self.end.checked_sub(self.start).ok_or(ArrayError::RangeOverflow)
     }
 
     /// 需要的 chunk 个数。

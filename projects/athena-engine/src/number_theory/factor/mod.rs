@@ -15,15 +15,10 @@ use super::{
     certificates::PrimeCertificate,
     primes::primality_test,
     result::factor_zero_invalid,
-    value::{
-        CofactorStatus, FactorBaseStatus, FactorComponent, Factorization, Primality,
-        factor_status_from_primality,
-    },
+    value::{CofactorStatus, FactorBaseStatus, FactorComponent, Factorization, Primality, factor_status_from_primality},
 };
 
-pub use policy::{
-    FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, ProofRequirement,
-};
+pub use policy::{FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, ProofRequirement};
 pub use producer::{FactorProducer, PureRustFactorProducer};
 pub use verifier::{FactorizationVerifyError, verify_factorization};
 
@@ -49,11 +44,7 @@ pub fn factor_integer_with_producer<P: FactorProducer>(
         return Err(factor_zero_invalid());
     }
 
-    let unit = if n.is_negative() {
-        Integer::from_i64(-1)
-    } else {
-        Integer::one()
-    };
+    let unit = if n.is_negative() { Integer::from_i64(-1) } else { Integer::one() };
     let m = n.abs();
 
     if m.is_one() {
@@ -80,7 +71,8 @@ pub fn factor_integer_with_producer<P: FactorProducer>(
     };
 
     if limits.policy.algorithms.trial {
-        let Some(remaining) = frontier.unresolved_cofactors.pop() else {
+        let Some(remaining) = frontier.unresolved_cofactors.pop()
+        else {
             return Ok(finalize_frontier(frontier));
         };
         let mut work = remaining;
@@ -95,10 +87,7 @@ pub fn factor_integer_with_producer<P: FactorProducer>(
 }
 
 /// 从已有 [`FactorFrontier`] 续算。
-pub fn factor_continue(
-    frontier: FactorFrontier,
-    limits: &FactorLimits,
-) -> Result<Factorization, Diagnostic> {
+pub fn factor_continue(frontier: FactorFrontier, limits: &FactorLimits) -> Result<Factorization, Diagnostic> {
     factor_continue_with_producer(frontier, limits, &PureRustFactorProducer)
 }
 
@@ -114,13 +103,7 @@ pub fn factor_continue_with_producer<P: FactorProducer>(
 }
 
 fn finalize_frontier(frontier: FactorFrontier) -> Factorization {
-    let FactorFrontier {
-        unit,
-        mut factors_found,
-        unresolved_cofactors,
-        resource_exhausted,
-        ..
-    } = frontier;
+    let FactorFrontier { unit, mut factors_found, unresolved_cofactors, resource_exhausted, .. } = frontier;
 
     let mut cofactor = Integer::one();
     let mut unknown = false;
@@ -149,22 +132,18 @@ fn finalize_frontier(frontier: FactorFrontier) -> Factorization {
     sort_factors(&mut factors_found);
     let cofactor_status = if cofactor.is_one() {
         CofactorStatus::One
-    } else if unknown {
+    }
+    else if unknown {
         CofactorStatus::Unknown
-    } else if composite {
+    }
+    else if composite {
         CofactorStatus::CompositeUnsplit
-    } else {
+    }
+    else {
         CofactorStatus::Unknown
     };
 
-    Factorization {
-        unit,
-        factors: factors_found,
-        cofactor,
-        cofactor_status,
-        input_rejected: false,
-        resource_exhausted,
-    }
+    Factorization { unit, factors: factors_found, cofactor, cofactor_status, input_rejected: false, resource_exhausted }
 }
 
 fn complete_factorization(unit: Integer, mut factors: Vec<FactorComponent>, resource_exhausted: bool) -> Factorization {
@@ -184,9 +163,7 @@ fn sort_factors(factors: &mut Vec<FactorComponent>) {
 }
 
 fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<FactorComponent>) {
-    let trial_cert = PrimeCertificate::TrialDivision {
-        bound: limits.max_trial(),
-    };
+    let trial_cert = PrimeCertificate::TrialDivision { bound: limits.max_trial() };
     let two = Integer::from_i64(2);
     let mut exp2 = 0u32;
     while m.rem(&two).is_zero() {
@@ -197,9 +174,7 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
         factors.push(FactorComponent {
             base: two,
             exponent: exp2,
-            status: FactorBaseStatus::ProvenPrime {
-                certificate: PrimeCertificate::SmallPrime,
-            },
+            status: FactorBaseStatus::ProvenPrime { certificate: PrimeCertificate::SmallPrime },
         });
     }
 
@@ -211,7 +186,8 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
             if ps.saturating_mul(ps) > ms && *m > Integer::one() {
                 break;
             }
-        } else if pb.mul(&pb) > *m && *m > Integer::one() {
+        }
+        else if pb.mul(&pb) > *m && *m > Integer::one() {
             break;
         }
 
@@ -224,9 +200,7 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
             factors.push(FactorComponent {
                 base: pb,
                 exponent: e,
-                status: FactorBaseStatus::ProvenPrime {
-                    certificate: trial_cert.clone(),
-                },
+                status: FactorBaseStatus::ProvenPrime { certificate: trial_cert.clone() },
             });
         }
         p = p.saturating_add(2);
@@ -321,26 +295,15 @@ fn try_split<P: FactorProducer>(
 fn push_or_merge(factors: &mut Vec<FactorComponent>, base: Integer, status: FactorBaseStatus) {
     if let Some(slot) = factors.iter_mut().find(|c| c.base == base) {
         slot.exponent += 1;
-    } else {
-        factors.push(FactorComponent {
-            base,
-            exponent: 1,
-            status,
-        });
+    }
+    else {
+        factors.push(FactorComponent { base, exponent: 1, status });
     }
 }
 
 /// 由素性构造 [`FactorComponent`]（供测试 / 外部 producer）。
-pub fn factor_component_from_primality(
-    base: Integer,
-    exponent: u32,
-    primality: Primality,
-) -> Option<FactorComponent> {
-    factor_status_from_primality(&primality).map(|status| FactorComponent {
-        base,
-        exponent,
-        status,
-    })
+pub fn factor_component_from_primality(base: Integer, exponent: u32, primality: Primality) -> Option<FactorComponent> {
+    factor_status_from_primality(&primality).map(|status| FactorComponent { base, exponent, status })
 }
 
 /// 将部分分解结果转为可续算前沿。

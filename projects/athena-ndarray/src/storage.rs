@@ -71,12 +71,7 @@ impl<T: Clone> ArrayStorage<T> for InMemoryStorage<T> {
     }
 
     fn capabilities(&self) -> StorageCapabilities {
-        StorageCapabilities {
-            writable: true,
-            random_read: true,
-            sequential_read: true,
-            persistent: false,
-        }
+        StorageCapabilities { writable: true, random_read: true, sequential_read: true, persistent: false }
     }
 
     fn read_range(&self, offset: u64, len: usize) -> Result<Vec<T>, Self::Error> {
@@ -90,9 +85,7 @@ impl<T: Clone> ArrayStorage<T> for InMemoryStorage<T> {
 
     fn write_range(&mut self, offset: u64, values: &[T]) -> Result<(), Self::Error> {
         let start = usize::try_from(offset).map_err(|_| ArrayError::RangeOverflow)?;
-        let end = start
-            .checked_add(values.len())
-            .ok_or(ArrayError::RangeOverflow)?;
+        let end = start.checked_add(values.len()).ok_or(ArrayError::RangeOverflow)?;
         if end > self.data.len() {
             return Err(ArrayError::OutOfBounds);
         }

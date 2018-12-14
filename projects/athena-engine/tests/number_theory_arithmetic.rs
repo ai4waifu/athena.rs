@@ -37,19 +37,14 @@ fn prime_iterator_and_sieve() {
     let ps: Vec<_> = PrimeIterator::from_start(10).take(3).collect();
     assert_eq!(ps, vec![11.into(), 13.into(), 17.into()]);
     assert_eq!(next_prime_after(&10.into()), Integer::from_i64(11));
-    assert_eq!(
-        primes_up_to(10),
-        vec![2, 3, 5, 7].into_iter().map(Integer::from_i64).collect::<Vec<_>>()
-    );
+    assert_eq!(primes_up_to(10), vec![2, 3, 5, 7].into_iter().map(Integer::from_i64).collect::<Vec<_>>());
 }
 
 #[test]
 fn domain_isqrt_request() {
     let out = execute_number_theory(NumberTheoryRequest::Isqrt { n: 24.into() });
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(v),
-        } => assert_eq!(v, Integer::from_i64(4)),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(v) } => assert_eq!(v, Integer::from_i64(4)),
         other => panic!("{other:?}"),
     }
 }
@@ -58,9 +53,7 @@ fn domain_isqrt_request() {
 fn domain_primes_up_to() {
     let out = execute_number_theory(NumberTheoryRequest::PrimesUpTo { limit: 7 });
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::IntegerList(v),
-        } => assert_eq!(v.len(), 4),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::IntegerList(v) } => assert_eq!(v.len(), 4),
         other => panic!("{other:?}"),
     }
 }

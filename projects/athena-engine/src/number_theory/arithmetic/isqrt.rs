@@ -30,9 +30,5 @@ pub fn isqrt_if_exact(n: &Integer) -> Option<Integer> {
         return None;
     }
     let r = isqrt(n);
-    if r.mul(&r) == *n {
-        Some(r)
-    } else {
-        None
-    }
+    if r.mul(&r) == *n { Some(r) } else { None }
 }

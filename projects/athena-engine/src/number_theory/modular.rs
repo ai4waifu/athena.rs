@@ -1,8 +1,6 @@
 //! 模逆、模幂与 batch 逆元（[`ModulusTable`] + [`ModulusId`] 执行路径）。
 
-use athena_numeric::{
-    Integer, ModularValue, Modulus, ModulusTable, batch_mod_inverse as numeric_batch_inverse,
-};
+use athena_numeric::{Integer, ModularValue, Modulus, ModulusTable, batch_mod_inverse as numeric_batch_inverse};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use super::gcd::extended_gcd;
@@ -25,11 +23,7 @@ pub fn mod_inverse(a: &Integer, modulus: &Modulus) -> Result<ModularValue> {
 }
 
 /// 经 [`ModulusTable`] intern 后返回 [`ModulusId`] 绑定的 [`ModularValue`]。
-pub fn mod_inverse_with_table(
-    a: &Integer,
-    modulus: &Modulus,
-    table: &mut ModulusTable,
-) -> Result<ModularValue> {
+pub fn mod_inverse_with_table(a: &Integer, modulus: &Modulus, table: &mut ModulusTable) -> Result<ModularValue> {
     let id = table.intern(modulus.clone());
     let aa = modulus.reduce(a);
     if aa.is_zero() {
@@ -56,12 +50,7 @@ pub fn mod_pow(base: &Integer, exp: &Integer, modulus: &Modulus) -> Result<Modul
 }
 
 /// 经 [`ModulusContext`] 内核（Montgomery/Barrett）计算模幂。
-pub fn mod_pow_with_table(
-    base: &Integer,
-    exp: &Integer,
-    modulus: &Modulus,
-    table: &mut ModulusTable,
-) -> Result<ModularValue> {
+pub fn mod_pow_with_table(base: &Integer, exp: &Integer, modulus: &Modulus, table: &mut ModulusTable) -> Result<ModularValue> {
     let id = table.intern(modulus.clone());
     if exp.is_negative() {
         let inv = mod_inverse_with_table(base, modulus, table)?;
@@ -74,11 +63,7 @@ pub fn mod_pow_with_table(
 }
 
 /// 批量模逆（乘积树；prime / 互素剩余）。
-pub fn batch_mod_inverse(
-    residues: &[Integer],
-    modulus: &Modulus,
-    table: &mut ModulusTable,
-) -> Result<Vec<ModularValue>> {
+pub fn batch_mod_inverse(residues: &[Integer], modulus: &Modulus, table: &mut ModulusTable) -> Result<Vec<ModularValue>> {
     let id = table.intern(modulus.clone());
     numeric_batch_inverse(table, id, residues)
 }

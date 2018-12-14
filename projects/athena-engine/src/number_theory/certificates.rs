@@ -38,11 +38,7 @@ impl ProbablePrimeEvidence {
     /// 由固定基 MR 路径构造。
     pub fn fixed(bases: Vec<u32>) -> Self {
         let rounds_executed = bases.len() as u32;
-        Self {
-            bases,
-            base_selection: MillerRabinBaseSelection::Fixed,
-            rounds_executed,
-        }
+        Self { bases, base_selection: MillerRabinBaseSelection::Fixed, rounds_executed }
     }
 }
 

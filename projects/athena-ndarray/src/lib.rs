@@ -11,7 +11,7 @@ mod error;
 mod shape;
 mod storage;
 
-pub use array::{array1d, Array, ArrayView, ChunkedArray};
+pub use array::{Array, ArrayView, ChunkedArray, array1d};
 pub use error::ArrayError;
 pub use shape::{Axis, ChunkPlan, LogicalShape, MemoryBudget};
 pub use storage::{ArrayStorage, ChunkStore, InMemoryStorage, StorageCapabilities, StoreCapabilities};

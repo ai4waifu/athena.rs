@@ -1,9 +1,9 @@
 //! Montgomery/Barrett kernel, ModulusId path, batch inverse, factor pipeline.
 
 use athena_engine::{
-    FactorAlgorithms, FactorLimits, FactorizationCompleteness, Integer, Modulus, ModulusTable,
-    NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, batch_mod_inverse, execute_number_theory,
-    factor_integer, mod_inverse_with_table, mod_pow_with_table, verify_factorization,
+    FactorAlgorithms, FactorLimits, FactorizationCompleteness, Integer, Modulus, ModulusTable, NumberTheoryRequest,
+    NumberTheoryResult, NumberTheoryValue, batch_mod_inverse, execute_number_theory, factor_integer, mod_inverse_with_table,
+    mod_pow_with_table, verify_factorization,
 };
 
 #[test]
@@ -49,9 +49,7 @@ fn batch_mod_inverse_via_request() {
         modulus: Modulus::new(11).unwrap(),
     });
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::ModularList(v),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::ModularList(v) } => {
             assert_eq!(v.len(), 2);
             assert_eq!(v[0].residue().mul(&2.into()).rem(&Integer::from_i64(11)), Integer::one());
             assert_eq!(v[1].residue().mul(&3.into()).rem(&Integer::from_i64(11)), Integer::one());
@@ -77,13 +75,8 @@ fn pollard_rho_splits_semiprime() {
 fn fermat_splits_close_semiprime() {
     let n = Integer::from_i64(1_000_003).mul(&Integer::from_i64(1_000_033));
     let mut limits = FactorLimits::default();
-    limits.policy.algorithms = FactorAlgorithms {
-        trial: false,
-        pollard_rho: false,
-        pollard_p1: false,
-        ecm: false,
-        quadratic_sieve: true,
-    };
+    limits.policy.algorithms =
+        FactorAlgorithms { trial: false, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: true };
     limits.budget.max_steps = Some(100_000);
     let f = factor_integer(&n, &limits).expect("factor");
     assert_eq!(f.completeness(), FactorizationCompleteness::Complete);

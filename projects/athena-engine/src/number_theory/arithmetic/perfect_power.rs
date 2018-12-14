@@ -20,9 +20,11 @@ pub fn perfect_power_decomposition(n: &Integer) -> Option<(Integer, u32)> {
             if base.pow_u32(exp).ok().as_ref() == Some(&abs) {
                 let signed = if n.is_negative() && exp % 2 == 1 {
                     base.neg()
-                } else if n.is_negative() {
+                }
+                else if n.is_negative() {
                     continue;
-                } else {
+                }
+                else {
                     base
                 };
                 return Some((signed, exp));
@@ -57,9 +59,5 @@ fn integer_root(n: &Integer, exp: u32) -> Option<Integer> {
             Err(_) => hi = mid,
         }
     }
-    if lo.pow_u32(exp).ok().as_ref() == Some(n) {
-        Some(lo)
-    } else {
-        None
-    }
+    if lo.pow_u32(exp).ok().as_ref() == Some(n) { Some(lo) } else { None }
 }

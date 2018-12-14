@@ -1,9 +1,8 @@
 //! 图存储转换、CSC、SCC、视图与 capability 合同测试。
 
 use athena_graph::{
-    connected_components, csr_to_csc, edge_list_to_csr, graph_to_csr, strongly_connected_components,
-    EdgeFilteredView, Graph, GraphAlgorithmRequirements, GraphDirection, GraphRevision,
-    InducedSubgraphView, ReversedGraphView, UnionFind,
+    EdgeFilteredView, Graph, GraphAlgorithmRequirements, GraphDirection, GraphRevision, InducedSubgraphView, ReversedGraphView,
+    UnionFind, connected_components, csr_to_csc, edge_list_to_csr, graph_to_csr, strongly_connected_components,
 };
 use athena_ndarray::MemoryBudget;
 
@@ -54,13 +53,11 @@ fn graph_to_csr_and_csc_roundtrip_neighbors() {
     assert_eq!(csr.node_count(), 3);
     assert_eq!(csr.edge_count(), 3);
     let mut out_b = Vec::new();
-    csr.for_each_neighbor_chunk(a.0, |chunk| out_b.extend_from_slice(chunk))
-        .unwrap();
+    csr.for_each_neighbor_chunk(a.0, |chunk| out_b.extend_from_slice(chunk)).unwrap();
     assert_eq!(out_b, vec![b.0, c.0]);
     let csc = csr_to_csc(&csr, budget).unwrap();
     let mut in_b = Vec::new();
-    csc.for_each_in_neighbor_chunk(b.0, |chunk| in_b.extend_from_slice(chunk))
-        .unwrap();
+    csc.for_each_in_neighbor_chunk(b.0, |chunk| in_b.extend_from_slice(chunk)).unwrap();
     in_b.sort_unstable();
     assert_eq!(in_b, vec![a.0, c.0]);
 }
@@ -123,10 +120,7 @@ fn capabilities_match_requirements() {
     let csr_caps = csr.capabilities();
     assert!(csr_caps.satisfies(GraphAlgorithmRequirements::chunked_csr_scan()));
     let csc = csr_to_csc(&csr, budget).unwrap();
-    let req = GraphAlgorithmRequirements {
-        reverse_adjacency: true,
-        ..GraphAlgorithmRequirements::chunked_csr_scan()
-    };
+    let req = GraphAlgorithmRequirements { reverse_adjacency: true, ..GraphAlgorithmRequirements::chunked_csr_scan() };
     assert!(csc.capabilities().satisfies(req));
 }
 

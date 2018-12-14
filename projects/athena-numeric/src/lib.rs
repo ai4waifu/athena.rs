@@ -1,4 +1,4 @@
-//! Athena 数值塔 — 表示、运算、精度、promotion、证书（Living `16` N0–N2）。
+//! Athena 数值塔 — 表示、运算、精度、promotion、证书。
 #![deny(missing_docs)]
 
 pub mod algebraic;

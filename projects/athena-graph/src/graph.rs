@@ -1,7 +1,9 @@
 //! 内存邻接图与 capability。
 
-use crate::capability::{GraphAlgorithmRequirements, GraphCapabilities};
-use crate::{EdgeId, GraphRevision, NodeId};
+use crate::{
+    EdgeId, GraphRevision, NodeId,
+    capability::{GraphAlgorithmRequirements, GraphCapabilities},
+};
 
 /// 图方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +75,8 @@ impl<N, E> Graph<N, E> {
         self.outgoing[source.0 as usize].push(id);
         if self.direction == GraphDirection::Directed {
             self.incoming[target.0 as usize].push(id);
-        } else if source != target {
+        }
+        else if source != target {
             self.outgoing[target.0 as usize].push(id);
         }
         self.revision.0 += 1;
@@ -82,18 +85,15 @@ impl<N, E> Graph<N, E> {
 
     /// 出邻接目标（有向=出边；无向=邻接）。
     pub fn out_neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.outgoing
-            .get(node.0 as usize)
-            .into_iter()
-            .flatten()
-            .map(move |edge| self.target_of_edge(*edge, node))
+        self.outgoing.get(node.0 as usize).into_iter().flatten().map(move |edge| self.target_of_edge(*edge, node))
     }
 
     /// 入邻接列表（有向=入边源；无向=邻接）。
     pub fn in_neighbors(&self, node: NodeId) -> Vec<NodeId> {
         if self.direction == GraphDirection::Undirected {
             self.out_neighbors(node).collect()
-        } else {
+        }
+        else {
             self.incoming
                 .get(node.0 as usize)
                 .map(|list| list.iter().map(|edge| self.source_of_edge(*edge)).collect())
@@ -118,10 +118,7 @@ impl<N, E> Graph<N, E> {
 
     /// 所有边 `(source, target, edge_id)`。
     pub fn edges(&self) -> impl Iterator<Item = (NodeId, NodeId, EdgeId)> + '_ {
-        self.edges
-            .iter()
-            .enumerate()
-            .map(|(i, (s, t, _))| (*s, *t, EdgeId(i as u64)))
+        self.edges.iter().enumerate().map(|(i, (s, t, _))| (*s, *t, EdgeId(i as u64)))
     }
 
     /// 节点数。
@@ -155,7 +152,8 @@ impl<N, E> Graph<N, E> {
     pub fn ensure_capabilities(&self, req: GraphAlgorithmRequirements) -> Result<(), crate::GraphError> {
         if self.capabilities().satisfies(req) {
             Ok(())
-        } else {
+        }
+        else {
             Err(crate::GraphError::CapabilityMismatch { requirement: req })
         }
     }
@@ -164,9 +162,11 @@ impl<N, E> Graph<N, E> {
         let (s, t, _) = &self.edges[edge.0 as usize];
         if self.direction == GraphDirection::Undirected && *s == from {
             *t
-        } else if self.direction == GraphDirection::Undirected {
+        }
+        else if self.direction == GraphDirection::Undirected {
             *s
-        } else {
+        }
+        else {
             *t
         }
     }

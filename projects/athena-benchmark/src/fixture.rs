@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::{env::BenchEnv, report::FixtureReport, timing::measure, validate::ValidationSummary};
 
-/// Living `17` 基准分组。
+/// 基准分组标签。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BenchGroup {
     /// ExactInteger / ExactRational / promotion / 机器实数等。

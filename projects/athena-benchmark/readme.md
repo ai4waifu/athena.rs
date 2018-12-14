@@ -9,7 +9,7 @@
 
 | 入口 | 工具 | 用途 |
 |------|------|------|
-| `athena-bench` | 自有 fixture + JSON 报告 | 带结果 / diagnostic / exactness 校验的内核合同基准（Living `17`） |
+| `athena-bench` | 自有 fixture + JSON 报告 | 带结果 / diagnostic / exactness 校验的内核合同基准 |
 | `cargo bench` | **Criterion** | 微基准与外部库 PK（吞吐、相对比、HTML 报告） |
 
 合同校验不能用纯 Criterion 替代：CAS 基准必须先验证正确性再计时。外部 bigint 对照则应使用生态标准工具，而不是再造一套计时框架。

@@ -1,9 +1,9 @@
 //! Congruence, CRT and rational reconstruction tests.
 
 use athena_engine::{
-    CongruenceSolution, CrtResult, Integer, Modulus, ModulusTable, NumberTheoryRequest, NumberTheoryResult,
-    NumberTheoryValue, RationalReconstruction, chinese_remainder, chinese_remainder_pair, execute_number_theory,
-    rational_reconstruction, solve_linear_congruence,
+    CongruenceSolution, CrtResult, Integer, Modulus, ModulusTable, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue,
+    RationalReconstruction, chinese_remainder, chinese_remainder_pair, execute_number_theory, rational_reconstruction,
+    solve_linear_congruence,
 };
 
 #[test]
@@ -12,9 +12,7 @@ fn linear_unique_class() {
     let m = Modulus::new(5).unwrap();
     let out = solve_linear_congruence(&3.into(), &4.into(), &m);
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass { residue }),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass { residue }) } => {
             assert_eq!(residue.residue(), &Integer::from_i64(3));
             assert_eq!(residue.modulus(), Some(&m));
         }
@@ -29,12 +27,13 @@ fn linear_multiple_classes() {
     let out = solve_linear_congruence(&2.into(), &4.into(), &m);
     match out {
         NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses {
-                base_residue,
-                reduced_modulus,
-                ambient_modulus,
-                multiplicity,
-            }),
+            value:
+                NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses {
+                    base_residue,
+                    reduced_modulus,
+                    ambient_modulus,
+                    multiplicity,
+                }),
         } => {
             assert_eq!(base_residue, Integer::from_i64(2));
             assert_eq!(reduced_modulus.value(), &Integer::from_i64(3));
@@ -51,9 +50,9 @@ fn linear_no_solution() {
     let m = Modulus::new(6).unwrap();
     let out = solve_linear_congruence(&2.into(), &3.into(), &m);
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::NoSolution { gcd, .. }),
-        } => assert_eq!(gcd, Integer::from_i64(2)),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::NoSolution { gcd, .. }) } => {
+            assert_eq!(gcd, Integer::from_i64(2))
+        }
         other => panic!("no solution: {other:?}"),
     }
 }
@@ -105,9 +104,7 @@ fn crt_multi_via_request() {
         &[Modulus::new(3).unwrap(), Modulus::new(5).unwrap(), Modulus::new(7).unwrap()],
     );
     match out {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }),
-        } => {
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }) } => {
             assert_eq!(modulus_lcm.value(), &Integer::from_i64(105));
             assert_eq!(solution.residue(), &Integer::from_i64(23)); // classic
         }
@@ -143,15 +140,9 @@ fn modulus_table_intern_idempotent() {
 #[test]
 fn domain_linear_congruence() {
     let m = Modulus::new(6).unwrap();
-    let out = execute_number_theory(NumberTheoryRequest::SolveLinearCongruence {
-        a: 2.into(),
-        b: 4.into(),
-        modulus: m,
-    });
+    let out = execute_number_theory(NumberTheoryRequest::SolveLinearCongruence { a: 2.into(), b: 4.into(), modulus: m });
     assert!(matches!(
         out,
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses { .. })
-        }
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses { .. }) }
     ));
 }

@@ -1,7 +1,5 @@
-//! N2 promotion migration gate（Living `16`）。
-//!
-//! 覆盖：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch 诊断。
-//! CI 显式运行：`cargo test -p athena-numeric --test numeric_promotion_n2`
+//! promotion 合同：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch 诊断。
+//! CI 显式运行：`cargo test -p athena-numeric --test numeric_promotion`
 
 use athena_numeric::{
     BigFloat, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,

@@ -44,7 +44,7 @@ impl Ord for Integer {
     }
 }
 
-/// Living `16` 稳定别名。
+/// 稳定别名（与 [`NumericValue`] 同义迁移期命名）。
 pub type ExactInteger = Integer;
 
 impl Integer {

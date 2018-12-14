@@ -15,7 +15,7 @@ pub struct Rational {
     denom: Integer,
 }
 
-/// Living `16` stable alias.
+/// 稳定别名（与 [`NumericValue`] 同义迁移期命名）。
 pub type ExactRational = Rational;
 
 impl Rational {

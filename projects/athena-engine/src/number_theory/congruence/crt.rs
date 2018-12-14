@@ -10,12 +10,7 @@ use super::super::{
 };
 
 /// 两两广义 CRT：`x ≡ a (mod m)` 与 `x ≡ b (mod n)`。
-pub fn chinese_remainder_pair(
-    a: &Integer,
-    m: &Modulus,
-    b: &Integer,
-    n: &Modulus,
-) -> Result<CrtResult, Diagnostic> {
+pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus) -> Result<CrtResult, Diagnostic> {
     let mv = m.value();
     let nv = n.value();
     let a_red = m.reduce(a);
@@ -28,12 +23,7 @@ pub fn chinese_remainder_pair(
         diff_mod_g = diff_mod_g.add(&g);
     }
     if !diff_mod_g.is_zero() {
-        return Ok(CrtResult::Inconsistent {
-            left_index: 0,
-            right_index: 1,
-            gcd: g,
-            residue_difference: diff,
-        });
+        return Ok(CrtResult::Inconsistent { left_index: 0, right_index: 1, gcd: g, residue_difference: diff });
     }
 
     // x = a + m * t，其中 t ≡ (b-a)/g * (m/g)^{-1} (mod n/g)
@@ -54,10 +44,7 @@ pub fn chinese_remainder_pair(
     let x = a_red.add(&mv.mul(&t));
     let l = lcm(mv, nv);
     let modulus_lcm = Modulus::new(l)?;
-    Ok(CrtResult::Consistent {
-        solution: ModularValue::new(x, modulus_lcm.clone()),
-        modulus_lcm,
-    })
+    Ok(CrtResult::Consistent { solution: ModularValue::new(x, modulus_lcm.clone()), modulus_lcm })
 }
 
 /// 多方程广义 CRT：`residues[i] (mod moduli[i])`。长度须一致且 ≥ 1。
@@ -96,11 +83,7 @@ pub fn chinese_remainder(residues: &[Integer], moduli: &[Modulus]) -> NumberTheo
                 cur_res = solution.residue().clone();
                 cur_mod = modulus_lcm;
             }
-            Ok(CrtResult::Inconsistent {
-                gcd,
-                residue_difference,
-                ..
-            }) => {
+            Ok(CrtResult::Inconsistent { gcd, residue_difference, .. }) => {
                 return NumberTheoryResult::Exact {
                     value: NumberTheoryValue::Crt(CrtResult::Inconsistent {
                         left_index: 0,

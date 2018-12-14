@@ -57,18 +57,12 @@ impl ModularValue {
     /// 在给定模数下构造（自动化约，嵌入模数）。
     pub fn new(residue: impl Into<Integer>, modulus: Modulus) -> Self {
         let residue = modulus.reduce(&residue.into());
-        Self {
-            residue,
-            binding: ModulusBinding::Embedded(modulus),
-        }
+        Self { residue, binding: ModulusBinding::Embedded(modulus) }
     }
 
     /// 用已 intern 的 [`ModulusId`] 构造（剩余须已约化或由 caller 保证）。
     pub fn new_interned(residue: Integer, modulus_id: ModulusId) -> Self {
-        Self {
-            residue,
-            binding: ModulusBinding::Interned(modulus_id),
-        }
+        Self { residue, binding: ModulusBinding::Interned(modulus_id) }
     }
 
     /// 剩余。
@@ -108,8 +102,7 @@ impl ModularValue {
         match (&self.binding, &other.binding) {
             (ModulusBinding::Embedded(l), ModulusBinding::Embedded(r)) if l == r => Ok(()),
             (ModulusBinding::Interned(l), ModulusBinding::Interned(r)) if l == r => Ok(()),
-            _ => Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
-                .detail("operation", "modular_binop")),
+            _ => Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop")),
         }
     }
 
@@ -117,11 +110,7 @@ impl ModularValue {
     pub fn same_modulus_with_table(&self, other: &Self, table: &ModulusTable) -> Result<()> {
         let l = self.resolve_modulus(table)?;
         let r = other.resolve_modulus(table)?;
-        if l == r {
-            Ok(())
-        } else {
-            Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop"))
-        }
+        if l == r { Ok(()) } else { Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop")) }
     }
 }
 
@@ -136,9 +125,7 @@ pub struct PrimeModulus {
 impl PrimeModulus {
     /// 在 caller 已确立 **确定素数** 后构造（engine 层负责校验）。
     pub fn assuming_proven(value: impl Into<Integer>) -> Result<Self> {
-        Ok(Self {
-            inner: Modulus::new(value)?,
-        })
+        Ok(Self { inner: Modulus::new(value)? })
     }
 
     /// 底层 [`Modulus`]。
@@ -161,9 +148,7 @@ pub struct ProbablePrimeModulus {
 impl ProbablePrimeModulus {
     /// 在 caller 已记录概率素性证据后构造。
     pub fn assuming_probable(value: impl Into<Integer>) -> Result<Self> {
-        Ok(Self {
-            inner: Modulus::new(value)?,
-        })
+        Ok(Self { inner: Modulus::new(value)? })
     }
 
     /// 底层 [`Modulus`]。

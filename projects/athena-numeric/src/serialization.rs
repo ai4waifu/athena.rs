@@ -1,4 +1,4 @@
-//! 数值序列化 wire（N1：Integer / Rational · 冻结 binary `ANV1`）。
+//! 数值序列化 wire（Integer / Rational · 冻结 binary `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
@@ -34,7 +34,7 @@ impl NumericValueWire {
         SerializationVersion::CURRENT
     }
 
-    /// 编码 [`NumericValue`]（N1 覆盖 Integer / Rational）。
+    /// 编码 [`NumericValue`]（当前覆盖 Integer / Rational）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
         match value {
             NumericValue::Integer(n) => {

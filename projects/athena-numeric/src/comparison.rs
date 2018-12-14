@@ -1,4 +1,4 @@
-//! 比较语义（N1：Integer / Rational；跨域先 promotion）。
+//! 比较语义（Integer / Rational；跨域先 promotion）。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 

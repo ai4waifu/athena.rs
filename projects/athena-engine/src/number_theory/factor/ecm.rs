@@ -33,11 +33,7 @@ fn try_curve(n: &Integer, sigma: &Integer, k: &Integer) -> Option<Integer> {
     let u3 = u.mul(&u).mul(&u).rem(n);
     let v_minus_u = v.sub(&u).rem(n);
     let three_u_plus_v = three.mul(&u).add(&v).rem(n);
-    let num = v_minus_u
-        .mul(&v_minus_u)
-        .mul(&v_minus_u)
-        .mul(&three_u_plus_v)
-        .rem(n);
+    let num = v_minus_u.mul(&v_minus_u).mul(&v_minus_u).mul(&three_u_plus_v).rem(n);
     let den = sixteen.mul(&u3).mul(&v).rem(n);
     if let Some(d) = nontrivial_gcd(&den, n) {
         return Some(d);
@@ -59,20 +55,10 @@ fn try_curve(n: &Integer, sigma: &Integer, k: &Integer) -> Option<Integer> {
 
 fn nontrivial_gcd(a: &Integer, n: &Integer) -> Option<Integer> {
     let g = a.gcd(n);
-    if !g.is_one() && g != *n {
-        Some(g)
-    } else {
-        None
-    }
+    if !g.is_one() && g != *n { Some(g) } else { None }
 }
 
-fn scalar_mul_montgomery(
-    n: &Integer,
-    a24: &Integer,
-    x: &Integer,
-    z: &Integer,
-    k: &Integer,
-) -> (Integer, Integer) {
+fn scalar_mul_montgomery(n: &Integer, a24: &Integer, x: &Integer, z: &Integer, k: &Integer) -> (Integer, Integer) {
     let mut r0x = Integer::one();
     let mut r0z = Integer::zero();
     let mut r1x = x.clone();
@@ -90,7 +76,8 @@ fn scalar_mul_montgomery(
             r0z = sz;
             r1x = dx;
             r1z = dz;
-        } else {
+        }
+        else {
             let (sx, sz) = mont_add(n, &r0x, &r0z, &r1x, &r1z, x, z);
             let (dx, dz) = mont_dbl(n, a24, &r0x, &r0z);
             r1x = sx;

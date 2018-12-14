@@ -1,4 +1,4 @@
-//! Promotion 合同（N2：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch）。
+//! Promotion 合同：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 

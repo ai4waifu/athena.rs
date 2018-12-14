@@ -23,10 +23,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
     };
     if !b_mod_g.is_zero() {
         return NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::NoSolution {
-                gcd: g,
-                residue_mod_gcd: b_mod_g,
-            }),
+            value: NumberTheoryValue::Congruence(CongruenceSolution::NoSolution { gcd: g, residue_mod_gcd: b_mod_g }),
         };
     }
 

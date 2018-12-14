@@ -1,4 +1,4 @@
-//! 统一数值值（Living `16`：单一 discriminant，域由 variant 推导；证明元数据见 [`crate::evidence`]）。
+//! 统一数值值：单一 discriminant，域由 variant 推导；证明元数据见 [`crate::evidence`]。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -31,7 +31,7 @@ pub enum NumericValue {
     PAdic(PAdicValue),
 }
 
-/// Living `16` 过渡别名：公共面统一称 [`NumericValue`]。
+/// 过渡别名：公共面统一称 [`NumericValue`]。
 pub type Number = NumericValue;
 
 impl NumericValue {

@@ -7,4 +7,4 @@ Athena 的类型化结构数据、列式存储与惰性关系查询基础库。
 - **不包含**机器学习 estimator；有状态 ML 归 DXO/Titan。
 - 固定宽度列与分块 I/O 复用 `athena-ndarray` 的 storage / memory budget。
 
-当前阶段：schema · column · LazyTable · LogicalPlan 合同骨架。
+已实现：`schema` · `column` · `LazyTable` · `LogicalPlan` 合同骨架。

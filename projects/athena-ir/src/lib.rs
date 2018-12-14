@@ -1,6 +1,6 @@
 //! athena Core CAS IR — term arena、节点、builder、验证。
 //!
-//! 数字原子持有 [`athena_numeric::NumericValue`]（Living `16`）。
+//! 数字原子持有 [`athena_numeric::NumericValue`]。
 
 #![deny(missing_docs)]
 

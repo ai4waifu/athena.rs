@@ -31,24 +31,12 @@ pub struct FactorAlgorithms {
 impl FactorAlgorithms {
     /// Gate 1 默认：仅试除。
     pub fn bootstrap() -> Self {
-        Self {
-            trial: true,
-            pollard_rho: false,
-            pollard_p1: false,
-            ecm: false,
-            quadratic_sieve: false,
-        }
+        Self { trial: true, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: false }
     }
 
     /// 试除 → rho → p−1 → ECM → QS。
     pub fn with_pipeline() -> Self {
-        Self {
-            trial: true,
-            pollard_rho: true,
-            pollard_p1: true,
-            ecm: true,
-            quadratic_sieve: true,
-        }
+        Self { trial: true, pollard_rho: true, pollard_p1: true, ecm: true, quadratic_sieve: true }
     }
 }
 
@@ -105,12 +93,7 @@ pub struct FactorExecutionBudget {
 
 impl Default for FactorExecutionBudget {
     fn default() -> Self {
-        Self {
-            max_trial: 1_000_000,
-            max_input_bits: 256,
-            max_steps: None,
-            max_time_ms: None,
-        }
+        Self { max_trial: 1_000_000, max_input_bits: 256, max_steps: None, max_time_ms: None }
     }
 }
 
@@ -137,10 +120,7 @@ impl FactorLimits {
 
 impl Default for FactorLimits {
     fn default() -> Self {
-        Self {
-            policy: FactorPolicy::default(),
-            budget: FactorExecutionBudget::default(),
-        }
+        Self { policy: FactorPolicy::default(), budget: FactorExecutionBudget::default() }
     }
 }
 

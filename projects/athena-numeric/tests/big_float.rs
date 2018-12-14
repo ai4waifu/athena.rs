@@ -1,4 +1,4 @@
-//! BigFloat 表示不变量（N3 骨架；promotion 见 `numeric_promotion_n2`）。
+//! `BigFloat` 表示不变量（promotion 见 `numeric_promotion`）。
 
 use athena_numeric::{BigFloat, integer::Sign, natural::Natural};
 

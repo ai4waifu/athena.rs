@@ -1,4 +1,4 @@
-//! N0–N1 数值塔验收测试（backend · ExactInteger/Rational · serialize · compare 宿主）。
+//! 数值塔验收测试（backend · ExactInteger/Rational · serialize · compare 宿主）。
 
 use athena_numeric::{
     DefaultNumericCompare, Integer, NumericBackend, NumericCompare, NumericComparison, NumericDomain, NumericValue,

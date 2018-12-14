@@ -40,11 +40,7 @@ pub struct Field {
 impl Field {
     /// 创建字段。
     pub fn new(name: impl Into<String>, data_type: LogicalType, nullable: bool) -> Self {
-        Self {
-            name: name.into(),
-            data_type,
-            nullable,
-        }
+        Self { name: name.into(), data_type, nullable }
     }
 
     /// 列名。

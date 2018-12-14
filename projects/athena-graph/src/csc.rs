@@ -2,8 +2,7 @@
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
-use crate::capability::GraphCapabilities;
-use crate::GraphError;
+use crate::{GraphError, capability::GraphCapabilities};
 
 /// Storage-backed 有向 CSC 图（列指针 + 行索引）。
 #[derive(Debug)]
@@ -31,12 +30,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
         if first != 0 || last != edges {
             return Err(GraphError::Boundary);
         }
-        Ok(Self {
-            nodes,
-            edges,
-            column_offsets,
-            row_indices,
-        })
+        Ok(Self { nodes, edges, column_offsets, row_indices })
     }
 
     /// 节点数。
@@ -50,11 +44,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
     }
 
     /// 按 row_indices memory budget 分块访问入邻接。
-    pub fn for_each_in_neighbor_chunk(
-        &self,
-        column: u64,
-        mut visit: impl FnMut(&[u64]),
-    ) -> Result<(), GraphError> {
+    pub fn for_each_in_neighbor_chunk(&self, column: u64, mut visit: impl FnMut(&[u64])) -> Result<(), GraphError> {
         if column >= self.nodes {
             return Err(GraphError::InvalidNode);
         }
@@ -64,9 +54,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
         }
         let max = self.row_indices.memory_budget().bytes() / std::mem::size_of::<u64>();
         if max == 0 {
-            return Err(GraphError::Array(ArrayError::BudgetTooSmall {
-                element_size: std::mem::size_of::<u64>(),
-            }));
+            return Err(GraphError::Array(ArrayError::BudgetTooSmall { element_size: std::mem::size_of::<u64>() }));
         }
         let mut offset = bounds[0];
         while offset < bounds[1] {
@@ -77,9 +65,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
                 return Err(GraphError::InvalidTarget);
             }
             visit(&chunk);
-            offset = offset
-                .checked_add(len as u64)
-                .ok_or(GraphError::Array(ArrayError::RangeOverflow))?;
+            offset = offset.checked_add(len as u64).ok_or(GraphError::Array(ArrayError::RangeOverflow))?;
         }
         Ok(())
     }

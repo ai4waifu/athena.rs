@@ -1,8 +1,6 @@
 //! In-memory graph algorithm contract tests.
 
-use athena_graph::{
-    bfs_order, connected_components, topological_sort, Graph, GraphDirection, NodeId,
-};
+use athena_graph::{Graph, GraphDirection, NodeId, bfs_order, connected_components, topological_sort};
 
 #[test]
 fn bfs_visits_reachable_nodes() {
@@ -43,10 +41,7 @@ fn topo_sort_orders_dag() {
 #[test]
 fn undirected_topo_rejected() {
     let g = Graph::<(), ()>::new(GraphDirection::Undirected);
-    assert!(matches!(
-        topological_sort(&g),
-        Err(athena_graph::GraphError::UndirectedTopo)
-    ));
+    assert!(matches!(topological_sort(&g), Err(athena_graph::GraphError::UndirectedTopo)));
 }
 
 #[test]

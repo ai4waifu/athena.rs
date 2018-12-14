@@ -38,10 +38,7 @@ pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphE
             indegree[target.0 as usize] += 1;
         }
     }
-    let mut ready: VecDeque<NodeId> = (0..n)
-        .filter(|&i| indegree[i] == 0)
-        .map(|i| NodeId(i as u64))
-        .collect();
+    let mut ready: VecDeque<NodeId> = (0..n).filter(|&i| indegree[i] == 0).map(|i| NodeId(i as u64)).collect();
     let mut order = Vec::with_capacity(n);
     while let Some(node) = ready.pop_front() {
         order.push(node);
@@ -53,11 +50,7 @@ pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphE
             }
         }
     }
-    if order.len() != n {
-        Err(GraphError::CycleDetected)
-    } else {
-        Ok(order)
-    }
+    if order.len() != n { Err(GraphError::CycleDetected) } else { Ok(order) }
 }
 
 /// 弱连通分量（有向图按底层无向邻接解释；无向图按邻接）。
@@ -128,7 +121,8 @@ pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<No
                     seen[i] = true;
                     stack.push((next, 0));
                 }
-            } else {
+            }
+            else {
                 order.push(node);
             }
         }
@@ -167,10 +161,7 @@ pub struct UnionFind {
 impl UnionFind {
     /// 创建 `size` 个独立集合 `{0..size}`。
     pub fn new(size: usize) -> Self {
-        Self {
-            parent: (0..size).collect(),
-            rank: vec![0; size],
-        }
+        Self { parent: (0..size).collect(), rank: vec![0; size] }
     }
 
     /// 查找代表元（路径压缩）。

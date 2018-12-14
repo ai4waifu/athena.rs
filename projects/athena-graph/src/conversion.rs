@@ -31,16 +31,8 @@ pub fn graph_to_csr<N, E>(
     }
     let offset_shape = LogicalShape::new([offsets.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
     let index_shape = LogicalShape::new([indices.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
-    let offsets_arr = ChunkedArray::new(
-        offset_shape,
-        InMemoryStorage::from_vec(offsets),
-        budget,
-    )?;
-    let indices_arr = ChunkedArray::new(
-        index_shape,
-        InMemoryStorage::from_vec(indices),
-        budget,
-    )?;
+    let offsets_arr = ChunkedArray::new(offset_shape, InMemoryStorage::from_vec(offsets), budget)?;
+    let indices_arr = ChunkedArray::new(index_shape, InMemoryStorage::from_vec(indices), budget)?;
     CsrGraph::new(nodes, offsets_arr, indices_arr)
 }
 
@@ -70,16 +62,8 @@ pub fn edge_list_to_csr(
     }
     let offset_shape = LogicalShape::new([offsets.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
     let index_shape = LogicalShape::new([indices.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
-    let offsets_arr = ChunkedArray::new(
-        offset_shape,
-        InMemoryStorage::from_vec(offsets),
-        budget,
-    )?;
-    let indices_arr = ChunkedArray::new(
-        index_shape,
-        InMemoryStorage::from_vec(indices),
-        budget,
-    )?;
+    let offsets_arr = ChunkedArray::new(offset_shape, InMemoryStorage::from_vec(offsets), budget)?;
+    let indices_arr = ChunkedArray::new(index_shape, InMemoryStorage::from_vec(indices), budget)?;
     CsrGraph::new(nodes, offsets_arr, indices_arr)
 }
 
@@ -108,16 +92,8 @@ pub fn csr_to_csc<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
     }
     let offset_shape = LogicalShape::new([column_offsets.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
     let index_shape = LogicalShape::new([row_indices.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
-    let column_offsets_arr = ChunkedArray::new(
-        offset_shape,
-        InMemoryStorage::from_vec(column_offsets),
-        budget,
-    )?;
-    let row_indices_arr = ChunkedArray::new(
-        index_shape,
-        InMemoryStorage::from_vec(row_indices),
-        budget,
-    )?;
+    let column_offsets_arr = ChunkedArray::new(offset_shape, InMemoryStorage::from_vec(column_offsets), budget)?;
+    let row_indices_arr = ChunkedArray::new(index_shape, InMemoryStorage::from_vec(row_indices), budget)?;
     CscGraph::new(nodes, column_offsets_arr, row_indices_arr)
 }
 

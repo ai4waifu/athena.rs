@@ -1,8 +1,8 @@
 //! `rewriter` 分组种子 fixture。
 
 use athena_ir::{TermArena, TermBuilder};
-use athena_rewriter::{RewriteOptions, Rewriter};
 use athena_numeric::Number;
+use athena_rewriter::{RewriteOptions, Rewriter};
 use athena_types::SourceSpan;
 
 use crate::{

@@ -2,8 +2,7 @@
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
-use crate::capability::GraphCapabilities;
-use crate::GraphError;
+use crate::{GraphError, capability::GraphCapabilities};
 
 /// Storage-backed 有向 CSR 图。
 #[derive(Debug)]
@@ -16,11 +15,7 @@ pub struct CsrGraph<O, I> {
 
 impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
     /// 创建并校验 CSR 外边界。
-    pub fn new(
-        nodes: u64,
-        offsets: ChunkedArray<u64, O>,
-        indices: ChunkedArray<u64, I>,
-    ) -> Result<Self, GraphError> {
+    pub fn new(nodes: u64, offsets: ChunkedArray<u64, O>, indices: ChunkedArray<u64, I>) -> Result<Self, GraphError> {
         let required = nodes.checked_add(1).ok_or(GraphError::NodeOverflow)?;
         if offsets.shape().element_count() != required {
             return Err(GraphError::OffsetLength);
@@ -31,12 +26,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
         if first != 0 || last != edges {
             return Err(GraphError::Boundary);
         }
-        Ok(Self {
-            nodes,
-            edges,
-            offsets,
-            indices,
-        })
+        Ok(Self { nodes, edges, offsets, indices })
     }
 
     /// 节点数。
@@ -50,11 +40,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
     }
 
     /// 按 indices memory budget 分块访问出邻接。
-    pub fn for_each_neighbor_chunk(
-        &self,
-        node: u64,
-        mut visit: impl FnMut(&[u64]),
-    ) -> Result<(), GraphError> {
+    pub fn for_each_neighbor_chunk(&self, node: u64, mut visit: impl FnMut(&[u64])) -> Result<(), GraphError> {
         if node >= self.nodes {
             return Err(GraphError::InvalidNode);
         }
@@ -64,9 +50,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
         }
         let max = self.indices.memory_budget().bytes() / std::mem::size_of::<u64>();
         if max == 0 {
-            return Err(GraphError::Array(ArrayError::BudgetTooSmall {
-                element_size: std::mem::size_of::<u64>(),
-            }));
+            return Err(GraphError::Array(ArrayError::BudgetTooSmall { element_size: std::mem::size_of::<u64>() }));
         }
         let mut offset = bounds[0];
         while offset < bounds[1] {
@@ -77,9 +61,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
                 return Err(GraphError::InvalidTarget);
             }
             visit(&chunk);
-            offset = offset
-                .checked_add(len as u64)
-                .ok_or(GraphError::Array(ArrayError::RangeOverflow))?;
+            offset = offset.checked_add(len as u64).ok_or(GraphError::Array(ArrayError::RangeOverflow))?;
         }
         Ok(())
     }

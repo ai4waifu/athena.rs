@@ -61,15 +61,11 @@ pub enum NumberTheoryResult {
 /// 执行数论域请求。
 pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult {
     match request {
-        NumberTheoryRequest::Gcd { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(gcd(&a, &b)),
-        },
-        NumberTheoryRequest::Lcm { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(lcm(&a, &b)),
-        },
-        NumberTheoryRequest::ExtendedGcd { a, b } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)),
-        },
+        NumberTheoryRequest::Gcd { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(gcd(&a, &b)) },
+        NumberTheoryRequest::Lcm { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(lcm(&a, &b)) },
+        NumberTheoryRequest::ExtendedGcd { a, b } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)) }
+        }
         NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => {
             wrap_primality(primality_test(&n, miller_rabin_rounds))
         }
@@ -80,67 +76,47 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
         NumberTheoryRequest::ModInverse { a, modulus } => {
             let mut table = ModulusTable::new();
             match mod_inverse_with_table(&a, &modulus, &mut table) {
-                Ok(v) => NumberTheoryResult::Exact {
-                    value: NumberTheoryValue::Modular(v),
-                },
+                Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) },
                 Err(reason) => NumberTheoryResult::Unevaluated { reason },
             }
         }
         NumberTheoryRequest::ModPow { base, exp, modulus } => {
             let mut table = ModulusTable::new();
             match mod_pow_with_table(&base, &exp, &modulus, &mut table) {
-                Ok(v) => NumberTheoryResult::Exact {
-                    value: NumberTheoryValue::Modular(v),
-                },
+                Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) },
                 Err(reason) => NumberTheoryResult::Unevaluated { reason },
             }
         }
         NumberTheoryRequest::BatchModInverse { residues, modulus } => {
             let mut table = ModulusTable::new();
             match batch_mod_inverse(&residues, &modulus, &mut table) {
-                Ok(v) => NumberTheoryResult::Exact {
-                    value: NumberTheoryValue::ModularList(v),
-                },
+                Ok(v) => NumberTheoryResult::Exact { value: NumberTheoryValue::ModularList(v) },
                 Err(reason) => NumberTheoryResult::Unevaluated { reason },
             }
         }
-        NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => {
-            solve_linear_congruence(&a, &b, &modulus)
+        NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => solve_linear_congruence(&a, &b, &modulus),
+        NumberTheoryRequest::ChineseRemainder { residues, moduli } => chinese_remainder(&residues, &moduli),
+        NumberTheoryRequest::RationalReconstruction { residue, modulus, max_numerator, max_denominator } => {
+            NumberTheoryResult::Exact {
+                value: NumberTheoryValue::RationalReconstruction(rational_reconstruction(
+                    &residue,
+                    &modulus,
+                    max_numerator.as_ref(),
+                    max_denominator.as_ref(),
+                )),
+            }
         }
-        NumberTheoryRequest::ChineseRemainder { residues, moduli } => {
-            chinese_remainder(&residues, &moduli)
-        }
-        NumberTheoryRequest::RationalReconstruction {
-            residue,
-            modulus,
-            max_numerator,
-            max_denominator,
-        } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::RationalReconstruction(rational_reconstruction(
-                &residue,
-                &modulus,
-                max_numerator.as_ref(),
-                max_denominator.as_ref(),
-            )),
-        },
-        NumberTheoryRequest::Isqrt { n } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(isqrt(&n)),
-        },
+        NumberTheoryRequest::Isqrt { n } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(isqrt(&n)) },
         NumberTheoryRequest::PerfectPower { n } => {
             if let Some((base, exponent)) = perfect_power_decomposition(&n) {
-                NumberTheoryResult::Exact {
-                    value: NumberTheoryValue::PerfectPower { base, exponent },
-                }
-            } else {
-                NumberTheoryResult::Inconclusive {
-                    value: NumberTheoryValue::Integer(n),
-                }
+                NumberTheoryResult::Exact { value: NumberTheoryValue::PerfectPower { base, exponent } }
+            }
+            else {
+                NumberTheoryResult::Inconclusive { value: NumberTheoryValue::Integer(n) }
             }
         }
         NumberTheoryRequest::JacobiSymbol { a, n } => match jacobi_symbol(&a, &n) {
-            Some(sym) => NumberTheoryResult::Exact {
-                value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(sym))),
-            },
+            Some(sym) => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(sym))) },
             None => NumberTheoryResult::InvalidInput {
                 reason: Diagnostic::new(DiagnosticCode::DomainError)
                     .detail("operation", "jacobi_symbol")
@@ -150,9 +126,9 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
         NumberTheoryRequest::KroneckerSymbol { a, n } => NumberTheoryResult::Exact {
             value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(kronecker_symbol(&a, &n)))),
         },
-        NumberTheoryRequest::PrimesUpTo { limit } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::IntegerList(primes_up_to(limit)),
-        },
+        NumberTheoryRequest::PrimesUpTo { limit } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::IntegerList(primes_up_to(limit)) }
+        }
         NumberTheoryRequest::AlgebraicScaffold => algebraic_scaffold(),
     }
 }

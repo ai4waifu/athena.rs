@@ -34,10 +34,7 @@ pub enum FactorizationVerifyError {
 /// 验证 `|input| = |unit| * Π base^e * cofactor` 及基本规范形。
 pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), FactorizationVerifyError> {
     if input.is_zero() {
-        return Err(FactorizationVerifyError::ProductMismatch {
-            expected: Integer::zero(),
-            reconstructed: Integer::zero(),
-        });
+        return Err(FactorizationVerifyError::ProductMismatch { expected: Integer::zero(), reconstructed: Integer::zero() });
     }
 
     let unit_abs_one = f.unit.is_one() || f.unit == Integer::from_i64(-1);
@@ -50,9 +47,7 @@ pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), Fa
     let mut prev: Option<&Integer> = None;
     for comp in &f.factors {
         if !(comp.base > Integer::one()) {
-            return Err(FactorizationVerifyError::BaseTooSmall {
-                base: comp.base.clone(),
-            });
+            return Err(FactorizationVerifyError::BaseTooSmall { base: comp.base.clone() });
         }
         if comp.exponent == 0 {
             return Err(FactorizationVerifyError::ExponentZero);
@@ -71,17 +66,12 @@ pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), Fa
     }
 
     if !(f.cofactor >= Integer::one()) {
-        return Err(FactorizationVerifyError::BaseTooSmall {
-            base: f.cofactor.clone(),
-        });
+        return Err(FactorizationVerifyError::BaseTooSmall { base: f.cofactor.clone() });
     }
 
     let reconstructed = product.mul(&f.cofactor);
     if reconstructed != expected {
-        return Err(FactorizationVerifyError::ProductMismatch {
-            expected,
-            reconstructed,
-        });
+        return Err(FactorizationVerifyError::ProductMismatch { expected, reconstructed });
     }
 
     let completeness = f.completeness();
@@ -95,10 +85,7 @@ pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), Fa
     }
 
     if completeness == FactorizationCompleteness::Complete {
-        let has_probable = f
-            .factors
-            .iter()
-            .any(|c| matches!(c.status, FactorBaseStatus::ProbablePrime { .. }))
+        let has_probable = f.factors.iter().any(|c| matches!(c.status, FactorBaseStatus::ProbablePrime { .. }))
             || matches!(f.cofactor_status, CofactorStatus::Unknown);
         if has_probable {
             return Err(FactorizationVerifyError::ProbableFactorInComplete);

@@ -2,8 +2,10 @@
 
 use athena_numeric::Integer;
 
-use super::certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence};
-use super::value::Primality;
+use super::{
+    certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence},
+    value::Primality,
+};
 
 /// 默认 Miller–Rabin 固定基数量上限（大整数路径）。
 pub const DEFAULT_MR_ROUNDS: u32 = 16;
@@ -20,34 +22,22 @@ const FIXED_MR_BASES: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
 /// 素性测试。
 pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primality {
     if !n.is_positive() || n.is_one() {
-        return Primality::Composite {
-            witness: CompositeWitness::NonPositiveOrOne,
-        };
+        return Primality::Composite { witness: CompositeWitness::NonPositiveOrOne };
     }
     if n == &Integer::from_i64(2) || n == &Integer::from_i64(3) {
-        return Primality::Prime {
-            certificate: PrimeCertificate::SmallPrime,
-        };
+        return Primality::Prime { certificate: PrimeCertificate::SmallPrime };
     }
     if n.rem(&Integer::from_i64(2)).is_zero() {
-        return Primality::Composite {
-            witness: CompositeWitness::Even,
-        };
+        return Primality::Composite { witness: CompositeWitness::Even };
     }
 
     if let Some(small) = n.to_u64() {
         if small <= DETERMINISTIC_TRIAL_BOUND {
             return if is_prime_u64_trial(small) {
-                Primality::Prime {
-                    certificate: PrimeCertificate::TrialDivision {
-                        bound: DETERMINISTIC_TRIAL_BOUND,
-                    },
-                }
-            } else {
-                Primality::Composite {
-                    witness: trial_divisor_witness_u64(small)
-                        .unwrap_or(CompositeWitness::Even),
-                }
+                Primality::Prime { certificate: PrimeCertificate::TrialDivision { bound: DETERMINISTIC_TRIAL_BOUND } }
+            }
+            else {
+                Primality::Composite { witness: trial_divisor_witness_u64(small).unwrap_or(CompositeWitness::Even) }
             };
         }
         return if miller_rabin_u64_deterministic(small) {
@@ -57,18 +47,14 @@ pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primalit
                     witnesses: U64_DETERMINISTIC_WITNESSES.iter().map(|&w| w as u32).collect(),
                 },
             }
-        } else {
-            Primality::Composite {
-                witness: miller_rabin_composite_witness_u64(small)
-                    .unwrap_or(CompositeWitness::Even),
-            }
+        }
+        else {
+            Primality::Composite { witness: miller_rabin_composite_witness_u64(small).unwrap_or(CompositeWitness::Even) }
         };
     }
 
     if let Some(d) = smallest_factor(n) {
-        return Primality::Composite {
-            witness: CompositeWitness::SmallFactor { divisor: d },
-        };
+        return Primality::Composite { witness: CompositeWitness::SmallFactor { divisor: d } };
     }
 
     let requested = miller_rabin_rounds.unwrap_or(DEFAULT_MR_ROUNDS);
@@ -77,12 +63,8 @@ pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primalit
     }
 
     match miller_rabin_integer_fixed(n, requested) {
-        MrFixedOutcome::Composite { base } => Primality::Composite {
-            witness: CompositeWitness::MillerRabin { base },
-        },
-        MrFixedOutcome::Probable { bases } => Primality::ProbablePrime {
-            evidence: ProbablePrimeEvidence::fixed(bases),
-        },
+        MrFixedOutcome::Composite { base } => Primality::Composite { witness: CompositeWitness::MillerRabin { base } },
+        MrFixedOutcome::Probable { bases } => Primality::ProbablePrime { evidence: ProbablePrimeEvidence::fixed(bases) },
     }
 }
 
@@ -118,9 +100,7 @@ fn trial_divisor_witness_u64(n: u64) -> Option<CompositeWitness> {
     let mut i = 3u64;
     while i.saturating_mul(i) <= n {
         if n.is_multiple_of(i) {
-            return Some(CompositeWitness::SmallFactor {
-                divisor: Integer::from_u64(i),
-            });
+            return Some(CompositeWitness::SmallFactor { divisor: Integer::from_u64(i) });
         }
         i += 2;
     }
@@ -189,10 +169,7 @@ fn mul_mod_u64(a: u64, b: u64, m: u64) -> u64 {
 }
 
 fn smallest_factor(n: &Integer) -> Option<Integer> {
-    const SMALL: &[u32] = &[
-        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
-        97,
-    ];
+    const SMALL: &[u32] = &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
     for &p in SMALL {
         let pb = Integer::from(p);
         if n == &pb {
@@ -257,9 +234,7 @@ pub struct PrimeIterator {
 impl PrimeIterator {
     /// 从 `start`（含）起找下一个素数。
     pub fn from_start(start: impl Into<Integer>) -> Self {
-        Self {
-            current: start.into(),
-        }
+        Self { current: start.into() }
     }
 }
 
@@ -304,10 +279,7 @@ pub fn primes_up_to(limit: u64) -> Vec<Integer> {
             }
         }
     }
-    (2..=limit)
-        .filter(|&p| sieve[p as usize])
-        .map(Integer::from_u64)
-        .collect()
+    (2..=limit).filter(|&p| sieve[p as usize]).map(Integer::from_u64).collect()
 }
 
 /// 严格大于 `n` 的最小素数。

@@ -110,20 +110,12 @@ impl Factorization {
         if self.input_rejected || self.resource_exhausted {
             return FactorizationCompleteness::ResourceLimited;
         }
-        let has_probable = self
-            .factors
-            .iter()
-            .any(|c| matches!(c.status, FactorBaseStatus::ProbablePrime { .. }));
-        let all_proven = self
-            .factors
-            .iter()
-            .all(|c| matches!(c.status, FactorBaseStatus::ProvenPrime { .. }));
+        let has_probable = self.factors.iter().any(|c| matches!(c.status, FactorBaseStatus::ProbablePrime { .. }));
+        let all_proven = self.factors.iter().all(|c| matches!(c.status, FactorBaseStatus::ProvenPrime { .. }));
         match self.cofactor_status {
             CofactorStatus::One if all_proven && !has_probable => FactorizationCompleteness::Complete,
             CofactorStatus::One if has_probable => FactorizationCompleteness::Probable,
-            CofactorStatus::CompositeUnsplit | CofactorStatus::Unknown => {
-                FactorizationCompleteness::Partial
-            }
+            CofactorStatus::CompositeUnsplit | CofactorStatus::Unknown => FactorizationCompleteness::Partial,
             CofactorStatus::One => FactorizationCompleteness::Partial,
         }
     }
@@ -255,12 +247,8 @@ pub enum RationalReconstructionFailure {
 /// 由素性结果构造因子底状态。
 pub(crate) fn factor_status_from_primality(p: &Primality) -> Option<FactorBaseStatus> {
     match p {
-        Primality::Prime { certificate } => Some(FactorBaseStatus::ProvenPrime {
-            certificate: certificate.clone(),
-        }),
-        Primality::ProbablePrime { evidence } => Some(FactorBaseStatus::ProbablePrime {
-            evidence: evidence.clone(),
-        }),
+        Primality::Prime { certificate } => Some(FactorBaseStatus::ProvenPrime { certificate: certificate.clone() }),
+        Primality::ProbablePrime { evidence } => Some(FactorBaseStatus::ProbablePrime { evidence: evidence.clone() }),
         Primality::Composite { .. } | Primality::Unknown => None,
     }
 }

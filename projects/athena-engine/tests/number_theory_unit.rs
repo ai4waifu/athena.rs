@@ -74,17 +74,12 @@ fn small_primes_and_composite_witnesses() {
     assert!(matches!(primality_test(&2.into(), None), Primality::Prime { .. }));
     assert!(matches!(primality_test(&97.into(), None), Primality::Prime { .. }));
     match primality_test(&91.into(), None) {
-        Primality::Composite {
-            witness: CompositeWitness::SmallFactor { divisor },
-        } => assert_eq!(divisor, Integer::from_i64(7)),
+        Primality::Composite { witness: CompositeWitness::SmallFactor { divisor } } => {
+            assert_eq!(divisor, Integer::from_i64(7))
+        }
         other => panic!("91 should be composite with small factor: {other:?}"),
     }
-    assert!(matches!(
-        primality_test(&1.into(), None),
-        Primality::Composite {
-            witness: CompositeWitness::NonPositiveOrOne
-        }
-    ));
+    assert!(matches!(primality_test(&1.into(), None), Primality::Composite { witness: CompositeWitness::NonPositiveOrOne }));
 }
 
 #[test]

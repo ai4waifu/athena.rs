@@ -1,4 +1,4 @@
-//! [`NumericValue`] 内核算术（Living `16`；唯一数值真相源）。
+//! [`NumericValue`] 内核算术（唯一数值真相源）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 

@@ -1,4 +1,4 @@
-//! Montgomery / Barrett 模运算内核与 batch 逆元（Living `02`）。
+//! Montgomery / Barrett 模运算内核与 batch 逆元。
 
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
@@ -76,14 +76,10 @@ impl ModulusContext {
 }
 
 /// 批量模逆（乘积树；要求各剩余在模 `m` 下可逆）。
-pub fn batch_mod_inverse(
-    table: &ModulusTable,
-    modulus_id: ModulusId,
-    residues: &[Integer],
-) -> Result<Vec<ModularValue>> {
-    let ctx = table.get(modulus_id).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId")
-    })?;
+pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: &[Integer]) -> Result<Vec<ModularValue>> {
+    let ctx = table
+        .get(modulus_id)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId"))?;
     let m = ctx.modulus.value();
     if residues.is_empty() {
         return Ok(Vec::new());
@@ -107,11 +103,7 @@ pub fn batch_mod_inverse(
     let mut out: Vec<ModularValue> = Vec::with_capacity(residues.len());
     for i in (0..residues.len()).rev() {
         let ri = ctx.modulus.reduce(&residues[i]);
-        let inv_i = if i == 0 {
-            inv_acc.clone()
-        } else {
-            ctx.mod_mul(&inv_acc, &prefix[i - 1])
-        };
+        let inv_i = if i == 0 { inv_acc.clone() } else { ctx.mod_mul(&inv_acc, &prefix[i - 1]) };
         out.push(ModularValue::new_interned(inv_i, modulus_id));
         if i > 0 {
             inv_acc = ctx.mod_mul(&inv_acc, &ri);

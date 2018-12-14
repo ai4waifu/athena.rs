@@ -16,7 +16,7 @@ mod graph;
 mod id;
 mod view;
 
-pub use algo::{bfs_order, connected_components, strongly_connected_components, topological_sort, UnionFind};
+pub use algo::{UnionFind, bfs_order, connected_components, strongly_connected_components, topological_sort};
 pub use capability::{GraphAlgorithmRequirements, GraphCapabilities};
 pub use conversion::{csr_to_csc, edge_list_to_csr, graph_edge_list, graph_to_csr};
 pub use csc::CscGraph;

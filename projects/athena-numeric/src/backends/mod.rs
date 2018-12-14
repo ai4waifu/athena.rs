@@ -1,4 +1,4 @@
-//! Numeric backend contract and dispatch (Living `13` / `16`).
+//! 数值 backend 合同与分派。
 //!
 //! Layout:
 //! ```text

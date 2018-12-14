@@ -19,11 +19,7 @@ pub fn pollard_p1(n: &Integer, seed: u64, b1: u32) -> Option<Integer> {
     let m = smooth_exponent(b1);
     let am = a.mod_pow(&m, n);
     let g = am.sub(&Integer::one()).gcd(n);
-    if !g.is_one() && g != *n {
-        Some(g)
-    } else {
-        None
-    }
+    if !g.is_one() && g != *n { Some(g) } else { None }
 }
 
 fn smooth_exponent(b1: u32) -> Integer {

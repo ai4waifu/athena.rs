@@ -1,4 +1,4 @@
-//! Rational 精确 `f64` 转换合同（N1；promotion 见 `numeric_promotion_n2`）。
+//! Rational 精确 `f64` 转换合同（promotion 见 `numeric_promotion`）。
 
 use athena_numeric::{Integer, Rational};
 

@@ -33,9 +33,5 @@ pub fn pollard_rho(n: &Integer, seed: u64, c: i64, max_iters: u64) -> Option<Int
         iters += 1;
     }
 
-    if d.is_one() || d == *n {
-        None
-    } else {
-        Some(d)
-    }
+    if d.is_one() || d == *n { None } else { Some(d) }
 }
