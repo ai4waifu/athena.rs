@@ -1,4 +1,4 @@
-//! 域论域分派（Phase 4：ℚ / 𝔽_p canonical 运算）。
+//! 域论域分派：ℚ / 𝔽_p / 𝔽_{p^n} canonical 运算。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -33,7 +33,7 @@ pub fn execute_field(request: FieldRequest) -> FieldResult {
     }
 }
 
-/// 经 [`FieldTable`] 执行域论请求（ℚ / 𝔽_p Phase 4）。
+/// 经 [`FieldTable`] 执行域论请求（ℚ / 𝔽_p / 𝔽_{p^n}）。
 pub fn execute_field_with_table(request: FieldRequest, table: &FieldTable) -> FieldResult {
     match request {
         FieldRequest::Rationals => {

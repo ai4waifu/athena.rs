@@ -4,7 +4,7 @@ use athena_types::PresentationId;
 
 use super::parent::AlgebraParentId;
 
-/// 元素构造来源（Phase 0 骨架）。
+/// 元素构造来源（provenance 追踪）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ElementProvenance {
     /// 经 canonical 化入口构造。

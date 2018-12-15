@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 0 合同测试。
+//! 代数父对象核心合同测试。
 
 use athena_engine::{
     AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr, FieldId, FieldTable,

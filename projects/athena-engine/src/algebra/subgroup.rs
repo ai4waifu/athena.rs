@@ -1,4 +1,4 @@
-//! 子群、同态与商群（Living `18` Phase 7）。
+//! 子群判定、同态与商群生成元。
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

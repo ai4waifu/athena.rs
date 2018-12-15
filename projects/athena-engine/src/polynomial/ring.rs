@@ -44,7 +44,7 @@ pub struct RingDescriptor {
     pub id: athena_types::RingId,
     /// 系数环 intern 句柄。
     pub coefficient_ring: athena_types::CoefficientRingId,
-    /// 系数父对象（Living `18` Phase 2 真相源）。
+    /// 系数父对象（`RingDescriptor.coefficients` 真相源）。
     pub coefficients: CoefficientParent,
     /// 有序、无重复的变量身份。
     pub variables: Vec<SymbolId>,

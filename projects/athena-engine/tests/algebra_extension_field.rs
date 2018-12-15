@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 5：𝔽_{p^n} 多项式基 presentation 与元素运算。
+//! 𝔽_{p^n} 多项式基 presentation 与元素运算。
 
 use athena_engine::{
     FieldDescriptor, FieldElementRepr, FieldTable, Integer, PropertyState, add_field_elements, canonical_extension_element,

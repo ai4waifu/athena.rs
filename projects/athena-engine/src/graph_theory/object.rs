@@ -1,4 +1,4 @@
-//! 图论对象模型（Living `12` 骨架）。
+//! 图论对象模型。
 
 use athena_graph::GraphDirection;
 
@@ -36,11 +36,7 @@ pub struct GraphSemantics {
 
 impl Default for GraphSemantics {
     fn default() -> Self {
-        Self {
-            direction: GraphDirection::Directed,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        }
+        Self { direction: GraphDirection::Directed, allows_self_loops: false, weight_domain: WeightDomain::Unweighted }
     }
 }
 
@@ -81,17 +77,12 @@ pub struct MemoryGraph {
 impl MemoryGraph {
     /// 节点数（由边推断的最小上界 + 1，或显式给定）。
     pub fn node_count(&self) -> u64 {
-        self.edges
-            .iter()
-            .flat_map(|(s, t, _)| [s.0, t.0])
-            .max()
-            .map(|m| m + 1)
-            .unwrap_or(0)
+        self.edges.iter().flat_map(|(s, t, _)| [s.0, t.0]).max().map(|m| m + 1).unwrap_or(0)
     }
 
-    /// 物化为 [`athena_graph::Graph`]（边权存于节点 payload 占位，遍历用 semantics）。
-    pub fn to_athena_graph(&self) -> athena_graph::Graph<(), u64> {
-        let n = self.node_count();
+    /// 物化为 [`athena_graph::Graph`]。
+    pub fn to_athena_graph(&self, node_count: u64) -> athena_graph::Graph<(), u64> {
+        let n = node_count.max(self.node_count());
         let mut g = athena_graph::Graph::new(self.semantics.direction);
         for _ in 0..n {
             g.add_node(());
@@ -123,12 +114,18 @@ pub struct GraphObject {
 }
 
 impl GraphObject {
+    /// 逻辑节点数。
+    pub fn node_count(&self) -> u64 {
+        self.handle.node_count.max(self.memory.node_count())
+    }
+
+    /// 物化为 [`athena_graph::Graph`]。
+    pub fn to_athena_graph(&self) -> athena_graph::Graph<(), u64> {
+        self.memory.to_athena_graph(self.handle.node_count)
+    }
+
     /// 从边列表构造（节点 id 须从 0 连续或稀疏，由 `node_count` 指定上界）。
-    pub fn from_edges(
-        handle: GraphHandle,
-        semantics: GraphSemantics,
-        edges: Vec<(GraphNodeId, GraphNodeId, u64)>,
-    ) -> Self {
+    pub fn from_edges(handle: GraphHandle, semantics: GraphSemantics, edges: Vec<(GraphNodeId, GraphNodeId, u64)>) -> Self {
         Self {
             handle,
             semantics,

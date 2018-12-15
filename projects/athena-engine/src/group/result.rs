@@ -1,4 +1,4 @@
-//! 群论域分派（Phase 6–7：置换 presentation + BSGS + 子群/同态/商）。
+//! 群论域分派：置换 presentation、BSGS、子群/同态/商。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 

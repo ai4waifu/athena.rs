@@ -36,8 +36,12 @@ fn relation_status_from_guarantee(g: super::claim::Guarantee) -> RelationStatus 
     match g {
         Guarantee::ProvenExact => RelationStatus::Accepted,
         Guarantee::ConditionalExact | Guarantee::CertifiedApproximation => RelationStatus::Conditional,
-        Guarantee::Probable | Guarantee::Partial | Guarantee::LowerBound | Guarantee::UpperBound
-        | Guarantee::Candidate | Guarantee::Unknown => RelationStatus::Conditional,
+        Guarantee::Probable
+        | Guarantee::Partial
+        | Guarantee::LowerBound
+        | Guarantee::UpperBound
+        | Guarantee::Candidate
+        | Guarantee::Unknown => RelationStatus::Conditional,
     }
 }
 

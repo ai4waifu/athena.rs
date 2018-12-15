@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 2：`RingDescriptor.coefficients` 为 `CoefficientParent`，无 `PrimeField`。
+//! `RingDescriptor.coefficients` 为 `CoefficientParent`，无 `PrimeField`。
 
 use athena_engine::{CoefficientDomain, CoefficientParent, Integer, MonomialOrder, RingTable, SymbolId};
 use athena_numeric::Modulus;

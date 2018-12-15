@@ -26,7 +26,7 @@ pub enum MapVerificationKind {
     ExternalCertificate,
 }
 
-/// 映射种类（Phase 0：不含元素 payload，由领域模块填充 images）。
+/// 映射种类（不含元素 payload，images 由领域模块填充）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlgebraMapKind {
     /// 域嵌入 K → L。

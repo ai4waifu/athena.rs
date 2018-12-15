@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 3：系数模数经 FieldPresentation 查找，FiniteField 无重复 characteristic。
+//! 系数模数经 `FieldPresentation` 查找，有限域无重复 characteristic。
 
 use athena_engine::{CoefficientDomain, FieldId, Integer, MonomialOrder, RingTable, SymbolId};
 use athena_numeric::Number;

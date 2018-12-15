@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 4：ℚ / 𝔽_p 元素 canonical 化与显式 embedding。
+//! ℚ / 𝔽_p 元素 canonical 化与显式 embedding。
 
 use athena_engine::{
     FieldElementRepr, FieldRequest, FieldTable, Integer, add_field_elements, apply_field_embedding, canonical_prime_residue,

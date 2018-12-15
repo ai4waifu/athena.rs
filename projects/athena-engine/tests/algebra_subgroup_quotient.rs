@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 7：子群、同态与商群。
+//! 子群、同态与商群。
 
 use athena_engine::{
     AlgebraMapKind, GroupDomainValue, GroupElementId, GroupElementRepr, GroupRequest, GroupResult, GroupTable, Integer,

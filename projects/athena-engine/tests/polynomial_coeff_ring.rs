@@ -1,4 +1,4 @@
-//! Phase 2：CoefficientRingId intern 与专用系数内核。
+//! `CoefficientRingId` intern 与专用系数内核。
 
 use athena_engine::{
     CoefficientDomain, CoefficientRingId, Integer, MonomialOrder, Number, PolynomialBuilder, RingTable, SymbolId,

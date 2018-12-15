@@ -1,4 +1,4 @@
-//! 置换运算（合成约定 `compose(p, q)(i) = p(q(i))`，Living `09`）。
+//! 置换运算（合成约定 `compose(p, q)(i) = p(q(i))`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 

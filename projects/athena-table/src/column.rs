@@ -83,10 +83,7 @@ pub struct Table {
 impl Table {
     /// 创建空表。
     pub fn empty(schema: Schema) -> Self {
-        Self {
-            schema,
-            row_count: 0,
-        }
+        Self { schema, row_count: 0 }
     }
 
     /// 声明行数的表骨架（物理列后续挂载）。
@@ -106,12 +103,7 @@ impl Table {
 
     /// 转为惰性扫描入口。
     pub fn lazy(self) -> LazyTable {
-        LazyTable {
-            plan: LogicalPlan::Scan {
-                schema: self.schema,
-                estimated_rows: self.row_count,
-            },
-        }
+        LazyTable { plan: LogicalPlan::Scan { schema: self.schema, estimated_rows: self.row_count } }
     }
 }
 

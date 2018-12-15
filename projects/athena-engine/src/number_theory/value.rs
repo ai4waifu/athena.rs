@@ -17,7 +17,7 @@ pub enum MillerRabinBaseSelection {
 pub enum Primality {
     /// 确定素数。
     Prime {
-        /// 可独立核对的证书（bootstrap 阶段为确定性测试路径描述）。
+        /// 可独立核对的证书（当前为确定性测试路径描述）。
         certificate: PrimeCertificate,
     },
     /// 确定合数。

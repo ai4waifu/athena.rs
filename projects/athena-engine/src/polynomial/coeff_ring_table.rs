@@ -12,7 +12,7 @@ use super::{
     ring::{CoefficientDomain, RingCharacteristic, characteristic_of, validate_coefficient_domain_public},
 };
 
-/// 系数环 intern 键（Phase 3：有限域仅 `FieldId`）。
+/// 系数环 intern 键（有限域仅 `FieldId`）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum CoeffRingInternKey {
     Domain(CoefficientDomain),

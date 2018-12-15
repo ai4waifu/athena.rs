@@ -89,14 +89,14 @@ pub use group::{
     execute_group_with_table_mut, group_membership, inverse_group_element, multiply_group_elements, project_quotient_element,
 };
 pub use mgraph::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, ClosureSeeds,
-    DerivedIndexes, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, Evidence,
-    EvidenceVerifier, ExactUnionFind, ExactnessLevel, FactId, FactLog, Guarantee, HyperEdge, MGraphCore, MGraphState,
-    MGraphView, OperationalState, OuterCandidate, POLYNOMIAL_SOLVER_ID, PolynomialCacheEntry, PolynomialCacheTier,
-    PolynomialMGraphStore, PolynomialWitness, Proposition, RelationRef, RelationRecord, RelationStatus, ResultCache,
-    RewriteWitness, Scope, ScopeEdge, ScopeRef, ScopeRelationKind, SemanticCore, SolverCandidate, SolverFrontier,
-    SolverId, SolverScore, VerificationPolicy, VerifiedClaim, admit_polynomial_exact, admit_polynomial_result,
-    is_admitted, proposition_from_cache_key, run_closure_step, scope_from_ref, scope_to_ref, witness_from_exact,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, ClosureSeeds, DerivedIndexes,
+    DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, Evidence, EvidenceVerifier, ExactUnionFind,
+    ExactnessLevel, FactId, FactLog, Guarantee, HyperEdge, MGraphCore, MGraphState, MGraphView, OperationalState,
+    OuterCandidate, POLYNOMIAL_SOLVER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness,
+    Proposition, RelationRecord, RelationRef, RelationStatus, ResultCache, RewriteWitness, Scope, ScopeEdge, ScopeRef,
+    ScopeRelationKind, SemanticCore, SolverCandidate, SolverFrontier, SolverId, SolverScore, VerificationPolicy, VerifiedClaim,
+    admit_polynomial_exact, admit_polynomial_result, is_admitted, proposition_from_cache_key, run_closure_step, scope_from_ref,
+    scope_to_ref, witness_from_exact,
 };
 pub use number_theory::{
     CofactorStatus, CompositeWitness, CongruenceSolution, CrtResult, ExtendedGcd, FactorAlgorithms, FactorBaseStatus,

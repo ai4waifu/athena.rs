@@ -1,4 +1,4 @@
-//! 置换群元素 canonical 化与运算（Living `18` Phase 6–7）。
+//! 置换群元素 canonical 化与运算。
 
 use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupElementId, GroupId, Result, SubgroupId};
 

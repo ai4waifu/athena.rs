@@ -1,4 +1,4 @@
-//! BSGS 链（base + Schreier 余陪集代表 + 强生成集缓存，Living `18` Phase 6）。
+//! BSGS 链：base、Schreier 余陪集代表与强生成集缓存。
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

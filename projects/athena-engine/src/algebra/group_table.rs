@@ -1,4 +1,4 @@
-//! 置换群注册表与 BSGS 缓存（Living `18` Phase 6–7）。
+//! 置换群注册表与 BSGS 缓存。
 
 use std::collections::HashMap;
 

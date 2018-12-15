@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 1：`RingTable` ↔ `FieldTable` 系数域统一。
+//! `RingTable` ↔ `FieldTable` 系数域统一。
 
 use athena_engine::{
     AlgebraParentId, CoefficientDomain, CoefficientParent, FieldId, Integer, MonomialOrder, RingTable, SymbolId,

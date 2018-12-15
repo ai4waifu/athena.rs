@@ -19,7 +19,7 @@ pub enum FieldPresentationKind {
         /// 特征素数 p。
         characteristic: Integer,
     },
-    /// F_{p^n} 多项式基（不可约模多项式由 table 持有，Phase 1 填充）。
+    /// F_{p^n} 多项式基（不可约模多项式由 `FieldTable` 持有）。
     FiniteFieldPolynomialBasis {
         /// 所属 FieldId。
         field: FieldId,
@@ -47,7 +47,7 @@ pub enum FieldPresentationKind {
     },
     /// 环的分式域。
     QuotientField {
-        /// 源环（多项式环等，Phase 1 接 RingId）。
+        /// 源环（多项式环等，`RingId` 句柄）。
         ring: athena_types::RingId,
     },
 }

@@ -1,4 +1,4 @@
-//! Phase 3：`RingHandle` vs `RingFingerprint` 与 M-Graph witness 合同。
+//! `RingHandle` vs `RingFingerprint` 与 M-Graph witness 合同。
 
 use athena_engine::{
     CoefficientDomain, MonomialOrder, Number, PolynomialBuilder, PolynomialCacheOp, PolynomialRequest, RingTable, Session,

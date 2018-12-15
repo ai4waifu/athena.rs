@@ -1,4 +1,4 @@
-//! 群与元素对象合同（Living `18` Phase 0）。
+//! 群与元素对象合同。
 
 use athena_numeric::Integer;
 use athena_types::{GroupElementId, GroupId, PresentationId, SubgroupId};

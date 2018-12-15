@@ -41,7 +41,7 @@ impl PolynomialCacheOp {
     }
 }
 
-/// M-Graph / 重写缓存键（Living `11`）。
+/// M-Graph / 重写缓存键。
 #[derive(Debug, Clone)]
 pub struct PolynomialCacheKey {
     /// 操作。

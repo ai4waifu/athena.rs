@@ -1,4 +1,4 @@
-//! 伽罗瓦域值对象（Living `18` Phase 0）。
+//! 伽罗瓦域值对象。
 
 use athena_types::{AlgebraMapId, AutomorphismId, ExtensionId, FieldId, GroupId, SubgroupId};
 
@@ -71,7 +71,7 @@ pub enum GaloisDomainValue {
     Automorphism(FieldAutomorphism),
     /// 伽罗瓦群。
     GaloisGroup(GaloisGroup),
-    /// 固定域（子群 → 中间域，Phase 1 接 FieldId）。
+    /// 固定域（子群 → 中间域；`FieldId` 由 Galois 分派填充）。
     FixedField {
         /// 扩张。
         extension: ExtensionId,

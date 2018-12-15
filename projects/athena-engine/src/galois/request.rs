@@ -1,4 +1,4 @@
-//! 伽罗瓦域请求（Living `18` Phase 0）。
+//! 伽罗瓦域请求变体。
 
 use athena_types::{ExtensionId, FieldId, SubgroupId};
 

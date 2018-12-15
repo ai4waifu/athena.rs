@@ -1,7 +1,9 @@
 //! KernelIR 合同：已验证子图 → 执行计划摘要（非第二套数学 IR）。
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 use super::{claim::Proposition, fact_log::FactLog, polynomial::POLYNOMIAL_SOLVER_ID};
 use crate::polynomial::PolynomialCacheOp;
@@ -40,7 +42,8 @@ impl KernelIR {
         let mut operations = Vec::new();
         for claim in fact_log.claims() {
             if let Proposition::PolynomialResult { operation, request_fingerprint } = &claim.claim.proposition {
-                operations.push(KernelOperation::Polynomial { operation: *operation, request_fingerprint: *request_fingerprint });
+                operations
+                    .push(KernelOperation::Polynomial { operation: *operation, request_fingerprint: *request_fingerprint });
             }
         }
         let fingerprint = hash_operations(&operations);

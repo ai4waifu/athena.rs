@@ -13,7 +13,7 @@ pub enum AlgebraParentId {
     Group(GroupId),
 }
 
-/// 多项式系数父对象（Living `18` Phase 2：`RingDescriptor.coefficients` 真相源）。
+/// 多项式系数父对象（`RingDescriptor.coefficients` 真相源）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CoefficientParent {
     /// 系数环（ℤ、ℚ、ℤ/nℤ …；经 [`CoefficientRingId`] intern）。

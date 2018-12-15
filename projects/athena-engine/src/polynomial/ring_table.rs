@@ -71,7 +71,7 @@ impl RingTable {
         CoeffRing::for_descriptor(desc.coefficient_ring, &self.coeff_rings)
     }
 
-    /// 系数父对象（Living `18` Phase 2：`RingDescriptor.coefficients`）。
+    /// 系数父对象（`RingDescriptor.coefficients`）。
     pub fn coefficient_parent(&self, ring: RingHandle) -> Option<CoefficientParent> {
         self.get(ring).map(|d| d.coefficients)
     }

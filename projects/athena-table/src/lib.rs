@@ -11,7 +11,7 @@ mod error;
 mod plan;
 mod schema;
 
-pub use column::{column_from_store, ChunkedColumn, Column, RecordBatch, Table};
+pub use column::{ChunkedColumn, Column, RecordBatch, Table, column_from_store};
 pub use error::TableError;
 pub use plan::{LazyTable, LogicalPlan, TableExpr};
 pub use schema::{Absence, Field, LogicalType, Schema};

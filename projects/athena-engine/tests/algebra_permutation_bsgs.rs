@@ -1,4 +1,4 @@
-//! 代数父对象 Phase 6：置换 presentation + BSGS（Schreier–Sims）。
+//! 置换 presentation 与 BSGS（Schreier–Sims）。
 
 use athena_engine::{
     GroupElementId, GroupElementRepr, GroupRequest, GroupTable, Integer, Permutation, canonical_permutation,

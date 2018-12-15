@@ -1,4 +1,4 @@
-//! 域与域元素对象（Living `18` Phase 0）。
+//! 域与域元素对象合同。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{ExtensionId, FieldId, PresentationId};
@@ -49,7 +49,7 @@ pub struct FieldElement {
     pub repr: FieldElementRepr,
 }
 
-/// 域数学描述（种类与表示分离，见 Living `18`）。
+/// 域数学描述（种类与表示分离）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldDescriptor {
     /// 有理数域 ℚ。

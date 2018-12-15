@@ -63,9 +63,7 @@ impl LogicalPlan {
     pub fn schema(&self) -> &Schema {
         match self {
             Self::Scan { schema, .. } => schema,
-            Self::Project { input, .. } | Self::Filter { input, .. } | Self::Limit { input, .. } => {
-                input.schema()
-            }
+            Self::Project { input, .. } | Self::Filter { input, .. } | Self::Limit { input, .. } => input.schema(),
         }
     }
 }
@@ -84,32 +82,17 @@ impl LazyTable {
 
     /// 投影。
     pub fn select(self, exprs: impl Into<Vec<TableExpr>>) -> Self {
-        Self {
-            plan: LogicalPlan::Project {
-                input: Box::new(self.plan),
-                exprs: exprs.into(),
-            },
-        }
+        Self { plan: LogicalPlan::Project { input: Box::new(self.plan), exprs: exprs.into() } }
     }
 
     /// 过滤。
     pub fn filter(self, predicate: TableExpr) -> Self {
-        Self {
-            plan: LogicalPlan::Filter {
-                input: Box::new(self.plan),
-                predicate,
-            },
-        }
+        Self { plan: LogicalPlan::Filter { input: Box::new(self.plan), predicate } }
     }
 
     /// 限制行数。
     pub fn limit(self, n: u64) -> Self {
-        Self {
-            plan: LogicalPlan::Limit {
-                input: Box::new(self.plan),
-                n,
-            },
-        }
+        Self { plan: LogicalPlan::Limit { input: Box::new(self.plan), n } }
     }
 
     /// 物化为 eager 表元数据（首轮不执行物理算子）。

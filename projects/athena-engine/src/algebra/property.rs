@@ -1,6 +1,6 @@
 //! 可证明性质状态（对齐 M-Graph determinacy）。
 
-/// 性质见证（Phase 0 占位；后续接 witness id / 证书）。
+/// 性质见证（witness id / 证书载荷待扩展）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropertyWitness {
     /// 见证描述（算法名或 witness 句柄字符串；非数学对象身份）。
