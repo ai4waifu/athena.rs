@@ -81,7 +81,7 @@ pub use galois::{
 pub use graph_theory::{
     ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphNodeId, GraphObject, GraphPresentation,
     GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance, GraphSemantics, GraphTheoryRequest,
-    GraphTheoryResult, GraphTheoryValue, MemoryGraph, ShortestPathResult, WeightDomain, execute_graph_theory,
+    GraphTheoryResult, GraphTheoryValue, MemoryGraph, ShortestPathResult, WeightDomain, execute_graph_theory, operation_name,
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult,

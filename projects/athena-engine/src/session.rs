@@ -1,6 +1,7 @@
 //! Session and environment.
 
 use crate::{
+    graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
 };
@@ -23,5 +24,10 @@ impl Session {
     /// 经 M-Graph 缓存与 witness 记录执行多项式请求。
     pub fn execute_polynomial_mgraph(&mut self, request: PolynomialRequest) -> PolynomialResult {
         execute_polynomial_mgraph(request, &self.rings, &mut self.mgraph)
+    }
+
+    /// 执行图论域请求（E0：与 [`crate::execute_domain`] 的 `GraphTheory` 分支等价）。
+    pub fn execute_graph_theory(&self, request: GraphTheoryRequest) -> GraphTheoryResult {
+        execute_graph_theory(request)
     }
 }

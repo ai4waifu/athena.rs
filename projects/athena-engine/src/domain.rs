@@ -1,6 +1,6 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
-//! 微积分、数论、多项式、群、域、伽罗瓦经此入口进入 `athena-engine`。
+//! 微积分、数论、多项式、群、域、伽罗瓦、图论经此入口进入 `athena-engine`。
 
 use athena_types::Diagnostic;
 

@@ -15,4 +15,6 @@ pub use object::{
 };
 pub use property::{GraphCertificate, GraphPropertyKind, GraphPropertyResult, GraphPropertyState};
 pub use request::GraphTheoryRequest;
-pub use result::{ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, ShortestPathResult, execute_graph_theory};
+pub use result::{
+    ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, ShortestPathResult, execute_graph_theory, operation_name,
+};

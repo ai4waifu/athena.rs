@@ -85,6 +85,14 @@ fn shortest_path_weighted() {
 }
 
 #[test]
+fn session_execute_graph_theory() {
+    use athena_engine::Session;
+    let session = Session::default();
+    let result = session.execute_graph_theory(GraphTheoryRequest::ConnectedComponents { graph: sample_graph() });
+    assert!(matches!(result, GraphTheoryResult::Exact { .. }));
+}
+
+#[test]
 fn shortest_path_unreachable() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 4, node_count: 2 },
