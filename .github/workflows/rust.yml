@@ -20,5 +20,5 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Tests
         run: cargo test --workspace
-      - name: Numeric N2 promotion gate
-        run: cargo test -p athena-numeric --test numeric_promotion_n2
+      - name: Numeric promotion gate
+        run: cargo test -p athena-numeric --test numeric_promotion
