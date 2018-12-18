@@ -104,10 +104,10 @@ pub use number_theory::{
     FactorizationCompleteness, FactorizationVerifyError, MillerRabinBaseSelection, NumberTheoryRequest, NumberTheoryResult,
     NumberTheoryValue, Primality, PrimeCertificate, PrimeIterator, ProbablePrimeEvidence, ProofRequirement,
     PureRustFactorProducer, RationalReconstruction, RationalReconstructionFailure, batch_mod_inverse, chinese_remainder,
-    chinese_remainder_pair, execute_number_theory, extended_gcd, factor_component_from_primality, factor_continue,
-    factor_continue_with_producer, factor_integer, factor_integer_with_producer, factorization_to_frontier, gcd,
+    chinese_remainder_pair, dixon_split, execute_number_theory, extended_gcd, factor_component_from_primality, factor_continue,
+    factor_continue_with_producer, factor_integer, factor_integer_with_producer, factorization_to_frontier, fermat_split, gcd,
     is_perfect_power, isqrt, isqrt_if_exact, jacobi_symbol, kronecker_symbol, lcm, mod_inverse, mod_inverse_with_table,
-    mod_pow, mod_pow_with_table, next_prime_after, perfect_power_decomposition, primality_test, primes_up_to,
+    mod_pow, mod_pow_with_table, next_prime_after, perfect_power_decomposition, primality_test, primes_up_to, qs_split,
     rational_reconstruction, solve_linear_congruence, verify_factorization,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};

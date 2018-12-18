@@ -20,11 +20,11 @@ use super::{
 
 pub use policy::{FactorAlgorithms, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, ProofRequirement};
 pub use producer::{FactorProducer, PureRustFactorProducer};
+pub use qs::{dixon_split, fermat_split, qs_split};
 pub use verifier::{FactorizationVerifyError, verify_factorization};
 
 use ecm::ecm_stage_one;
 use p1::pollard_p1;
-use qs::fermat_split;
 use rho::pollard_rho;
 
 /// 整数因式分解（试除 + rho → p−1 → ECM → QS）。
@@ -285,7 +285,7 @@ fn try_split<P: FactorProducer>(
     }
     if alg.quadratic_sieve {
         *steps += 1;
-        if let Some(d) = fermat_split(n, remain) {
+        if let Some(d) = qs_split(n, seed.wrapping_add(17), remain) {
             return Some(d);
         }
     }
