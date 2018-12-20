@@ -1,6 +1,6 @@
 //! 多项式域请求。
 
-use super::{expr::Polynomial, groebner::GroebnerLimits, ring::DivisionPolicy};
+use super::{expr::Polynomial, factor::PolynomialFactorLimits, groebner::GroebnerLimits, ring::DivisionPolicy};
 
 /// 多项式域请求 — 骨架变体，算法逐步填充。
 #[derive(Debug, Clone, PartialEq)]
@@ -40,10 +40,12 @@ pub enum PolynomialRequest {
         /// 右。
         rhs: Polynomial,
     },
-    /// 因式分解（骨架）。
+    /// 单变量因式分解（完备性合同；[`PolynomialFactorLimits`] 资源上限）。
     Factor {
         /// 待分解多项式。
         polynomial: Polynomial,
+        /// 资源限制。
+        limits: PolynomialFactorLimits,
     },
     /// Gröbner 基（域系数；[`GroebnerLimits`] 资源合同）。
     Groebner {

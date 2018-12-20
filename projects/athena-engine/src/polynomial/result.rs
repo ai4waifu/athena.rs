@@ -4,6 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     canonical::canonicalize_polynomial,
+    factor::factor_univariate,
     groebner::{compute_elimination_basis, compute_groebner_basis},
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
@@ -72,6 +73,10 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             Ok(g) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: g }) },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
+        PolynomialRequest::Factor { polynomial, limits } => match factor_univariate(polynomial, rings, limits) {
+            Ok(f) => PolynomialResult::Exact { value: PolynomialDomainValue::Factorization(f) },
+            Err(reason) => PolynomialResult::Unevaluated { reason },
+        },
         PolynomialRequest::Groebner { generators, limits } => match compute_groebner_basis(generators, rings, limits) {
             Ok(computation) => PolynomialResult::Exact {
                 value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)),
@@ -84,7 +89,6 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
-        other => execute_polynomial(other),
     }
 }
 

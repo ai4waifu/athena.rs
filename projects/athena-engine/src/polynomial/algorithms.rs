@@ -1,1 +1,1 @@
-//! 多项式算法入口（单变量 div / gcd / resultant 见 [`super::univariate`]）。
+//! 多项式算法入口（单变量 div / gcd / resultant / factor 见对应子模块）。

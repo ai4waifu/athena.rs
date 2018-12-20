@@ -38,6 +38,10 @@ pub use certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus};
 pub use coeff_kernel::{CoeffRing, FpBigKernel, FpWordKernel, QCoeffKernel, SpecializedCoeffKernel, ZCoeffKernel};
 pub use coeff_ring_table::{CoeffRingTable, CoefficientRingDescriptor};
 pub use expr::{MonomialTerm, Polynomial};
+pub use factor::{
+    PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus,
+    PolynomialFactorization, PolynomialFactorizationCompleteness, factor_univariate,
+};
 pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, polynomial_fingerprint,
     polynomial_fingerprint_u64,

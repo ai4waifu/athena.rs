@@ -153,6 +153,17 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
                 Guarantee::Partial
             }
         }
+        PolynomialDomainValue::Factorization(v) => {
+            if v.is_exact_witness() {
+                Guarantee::ProvenExact
+            }
+            else if v.completeness() == crate::polynomial::PolynomialFactorizationCompleteness::Probable {
+                Guarantee::Probable
+            }
+            else {
+                Guarantee::Partial
+            }
+        }
         PolynomialDomainValue::Placeholder => Guarantee::Unknown,
     }
 }

@@ -3,6 +3,7 @@
 use super::{
     certificate::{GroebnerCertificate, GroebnerStatus},
     expr::Polynomial,
+    factor::PolynomialFactorization,
     groebner::GroebnerComputation,
 };
 use athena_types::RingId;
@@ -59,8 +60,10 @@ pub enum PolynomialDomainValue {
     Polynomial(PolynomialValue),
     /// 单变量除法（商 + 余式）。
     UnivariateDivision(UnivariateDivisionValue),
+    /// 因式分解（带完备性分型）。
+    Factorization(PolynomialFactorization),
     /// Gröbner / 消元基。
     GroebnerBasis(GroebnerBasisValue),
-    /// 占位：后续因式列表等。
+    /// 占位。
     Placeholder,
 }

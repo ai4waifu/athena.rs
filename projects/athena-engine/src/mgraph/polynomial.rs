@@ -124,6 +124,10 @@ pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValu
         !matches!(value, PolynomialDomainValue::GroebnerBasis(v) if !v.is_exact_witness()),
         "unverified / incomplete Gröbner must not produce exact witness"
     );
+    debug_assert!(
+        !matches!(value, PolynomialDomainValue::Factorization(v) if !v.is_exact_witness()),
+        "incomplete polynomial factorization must not produce exact witness"
+    );
     let (output_summary, groebner_steps) = match value {
         PolynomialDomainValue::Polynomial(v) => (format!("poly:{}", v.inner.terms.len()), None),
         PolynomialDomainValue::GroebnerBasis(v) => {
@@ -132,6 +136,7 @@ pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValu
         PolynomialDomainValue::UnivariateDivision(v) => {
             (format!("div:q{}:r{}", v.quotient.inner.terms.len(), v.remainder.inner.terms.len()), None)
         }
+        PolynomialDomainValue::Factorization(v) => (format!("factor:{}:{:?}", v.factors.len(), v.completeness()), None),
         PolynomialDomainValue::Placeholder => ("placeholder".into(), None),
     };
     PolynomialWitness { operation: key.operation, input_hashes: key.input_hashes.clone(), output_summary, groebner_steps }
