@@ -2,7 +2,9 @@
 //!
 //! 图论算法调用 [`athena_graph`] 结构原语。数学结论与证书合同在本模块。
 
+mod bipartite;
 mod connectivity;
+mod mst;
 mod object;
 mod path;
 mod property;
@@ -16,5 +18,6 @@ pub use object::{
 pub use property::{GraphCertificate, GraphPropertyKind, GraphPropertyResult, GraphPropertyState};
 pub use request::GraphTheoryRequest;
 pub use result::{
-    ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, ShortestPathResult, execute_graph_theory, operation_name,
+    BipartiteResult, ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
+    ShortestPathResult, SpanningEdge, StronglyConnectedComponentsResult, execute_graph_theory, operation_name,
 };

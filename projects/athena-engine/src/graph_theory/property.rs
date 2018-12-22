@@ -1,5 +1,7 @@
 //! 图性质状态与结果（禁止裸 `bool`）。
 
+use super::object::GraphNodeId;
+
 /// 图性质判定状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GraphPropertyState {
@@ -17,16 +19,22 @@ pub enum GraphPropertyState {
     Incomplete,
 }
 
-/// 性质种类（后续扩展平面性 / 二部性等）。
+/// 性质种类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GraphPropertyKind {
     /// 弱连通 / 连通分量。
     ConnectedComponents,
+    /// 强连通分量。
+    StrongConnectivity,
+    /// 二部性。
+    Bipartiteness,
+    /// 最小生成森林。
+    SpanningForest,
     /// 两点间最短路存在性。
     Reachability,
 }
 
-/// 轻量证书占位（完整 verifier 后续扩展）。
+/// 轻量证书（完整 verifier 后续扩展）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GraphCertificate {
     /// 遍历见证（BFS/DFS 顺序摘要）。
@@ -42,6 +50,31 @@ pub enum GraphCertificate {
         algorithm: &'static str,
         /// 松弛步数。
         relaxations: u64,
+    },
+    /// 二染色见证。
+    BipartiteColoring {
+        /// 算法名。
+        algorithm: &'static str,
+        /// 一侧节点。
+        left: Vec<GraphNodeId>,
+        /// 另一侧节点。
+        right: Vec<GraphNodeId>,
+    },
+    /// 奇环反例（非二部）。
+    OddCycle {
+        /// 算法名。
+        algorithm: &'static str,
+        /// 奇环节点序列（首尾闭合）。
+        cycle: Vec<GraphNodeId>,
+    },
+    /// Kruskal 森林见证。
+    KruskalForest {
+        /// 算法名。
+        algorithm: &'static str,
+        /// 选中边数。
+        edge_count: u64,
+        /// 森林中树/分量数。
+        tree_count: u64,
     },
 }
 
@@ -64,5 +97,10 @@ impl<T> GraphPropertyResult<T> {
     /// 已证精确结果。
     pub fn proven(kind: GraphPropertyKind, value: T, algorithm: &'static str, certificate: GraphCertificate) -> Self {
         Self { kind, state: GraphPropertyState::ProvenTrue, value, certificate: Some(certificate), algorithm }
+    }
+
+    /// 已证不成立。
+    pub fn disproven(kind: GraphPropertyKind, value: T, algorithm: &'static str, certificate: GraphCertificate) -> Self {
+        Self { kind, state: GraphPropertyState::ProvenFalse, value, certificate: Some(certificate), algorithm }
     }
 }

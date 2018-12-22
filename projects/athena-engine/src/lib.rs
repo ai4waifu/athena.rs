@@ -79,9 +79,10 @@ pub use galois::{
     execute_galois, execute_galois_with_tables,
 };
 pub use graph_theory::{
-    ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphNodeId, GraphObject, GraphPresentation,
-    GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance, GraphSemantics, GraphTheoryRequest,
-    GraphTheoryResult, GraphTheoryValue, MemoryGraph, ShortestPathResult, WeightDomain, execute_graph_theory, operation_name,
+    BipartiteResult, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphNodeId, GraphObject,
+    GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance, GraphSemantics,
+    GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MemoryGraph, MinimumSpanningForestResult, ShortestPathResult,
+    SpanningEdge, StronglyConnectedComponentsResult, WeightDomain, execute_graph_theory, operation_name,
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult,

@@ -3,8 +3,13 @@
 use athena_types::Diagnostic;
 
 use super::{
-    connectivity::connected_components_l1, object::GraphNodeId, path::shortest_path_non_negative,
-    property::GraphPropertyResult, request::GraphTheoryRequest,
+    bipartite::bipartite_l1,
+    connectivity::{connected_components_l1, strongly_connected_components_l1},
+    mst::minimum_spanning_forest_l1,
+    object::GraphNodeId,
+    path::shortest_path_non_negative,
+    property::GraphPropertyResult,
+    request::GraphTheoryRequest,
 };
 
 /// 连通分量结果。
@@ -14,6 +19,60 @@ pub struct ConnectedComponentsResult {
     pub labels: Vec<GraphNodeId>,
     /// 分量个数。
     pub component_count: u64,
+    /// 性质合同。
+    pub property: GraphPropertyResult<u64>,
+}
+
+/// 强连通分量结果。
+#[derive(Debug, Clone, PartialEq)]
+pub struct StronglyConnectedComponentsResult {
+    /// 每节点 SCC 代表（最小 `GraphNodeId`）。
+    pub labels: Vec<GraphNodeId>,
+    /// SCC 个数。
+    pub component_count: u64,
+    /// 性质合同。
+    pub property: GraphPropertyResult<u64>,
+}
+
+/// 二部性结果。
+#[derive(Debug, Clone, PartialEq)]
+pub enum BipartiteResult {
+    /// 已证二部。
+    Bipartite {
+        /// 一侧。
+        left: Vec<GraphNodeId>,
+        /// 另一侧。
+        right: Vec<GraphNodeId>,
+        /// 性质合同。
+        property: GraphPropertyResult<bool>,
+    },
+    /// 已证非二部（含奇环）。
+    NotBipartite {
+        /// 性质合同。
+        property: GraphPropertyResult<()>,
+    },
+}
+
+/// 生成树边。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpanningEdge {
+    /// 端点（规范化 `source ≤ target`）。
+    pub source: GraphNodeId,
+    /// 端点。
+    pub target: GraphNodeId,
+    /// 边权。
+    pub weight: u64,
+}
+
+/// 最小生成森林结果。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MinimumSpanningForestResult {
+    /// 选中边。
+    pub edges: Vec<SpanningEdge>,
+    /// 总权。
+    pub total_weight: u64,
+    /// 森林中树（连通分量）个数。
+    pub tree_count: u64,
     /// 性质合同。
     pub property: GraphPropertyResult<u64>,
 }
@@ -53,6 +112,12 @@ pub enum ShortestPathResult {
 pub enum GraphTheoryValue {
     /// 连通分量。
     ConnectedComponents(ConnectedComponentsResult),
+    /// 强连通分量。
+    StronglyConnectedComponents(StronglyConnectedComponentsResult),
+    /// 二部性。
+    Bipartite(BipartiteResult),
+    /// 最小生成森林。
+    MinimumSpanningForest(MinimumSpanningForestResult),
     /// 最短路。
     ShortestPath(ShortestPathResult),
 }
@@ -78,6 +143,17 @@ pub fn execute_graph_theory(request: GraphTheoryRequest) -> GraphTheoryResult {
         GraphTheoryRequest::ConnectedComponents { graph } => {
             GraphTheoryResult::Exact { value: GraphTheoryValue::ConnectedComponents(connected_components_l1(&graph)) }
         }
+        GraphTheoryRequest::StronglyConnectedComponents { graph } => match strongly_connected_components_l1(&graph) {
+            Ok(v) => GraphTheoryResult::Exact { value: GraphTheoryValue::StronglyConnectedComponents(v) },
+            Err(reason) => GraphTheoryResult::Unevaluated { reason },
+        },
+        GraphTheoryRequest::Bipartite { graph } => {
+            GraphTheoryResult::Exact { value: GraphTheoryValue::Bipartite(bipartite_l1(&graph)) }
+        }
+        GraphTheoryRequest::MinimumSpanningForest { graph } => match minimum_spanning_forest_l1(&graph) {
+            Ok(v) => GraphTheoryResult::Exact { value: GraphTheoryValue::MinimumSpanningForest(v) },
+            Err(reason) => GraphTheoryResult::Unevaluated { reason },
+        },
         GraphTheoryRequest::ShortestPath { graph, source, target } => {
             match shortest_path_non_negative(&graph, source, target) {
                 Ok(sp) => GraphTheoryResult::Exact { value: GraphTheoryValue::ShortestPath(sp) },
@@ -91,6 +167,9 @@ pub fn execute_graph_theory(request: GraphTheoryRequest) -> GraphTheoryResult {
 pub fn operation_name(request: &GraphTheoryRequest) -> &'static str {
     match request {
         GraphTheoryRequest::ConnectedComponents { .. } => "ConnectedComponents",
+        GraphTheoryRequest::StronglyConnectedComponents { .. } => "StronglyConnectedComponents",
+        GraphTheoryRequest::Bipartite { .. } => "Bipartite",
+        GraphTheoryRequest::MinimumSpanningForest { .. } => "MinimumSpanningForest",
         GraphTheoryRequest::ShortestPath { .. } => "ShortestPath",
     }
 }
