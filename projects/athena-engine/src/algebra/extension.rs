@@ -44,6 +44,32 @@ impl FieldExtension {
         }
     }
 
+    /// 构造数域幂基 / 相对塔扩张记录。
+    pub fn number_field(
+        id: ExtensionId,
+        base: FieldId,
+        field: FieldId,
+        degree: u32,
+        embedding: AlgebraMapId,
+        separable: bool,
+    ) -> Self {
+        Self {
+            id,
+            base,
+            field,
+            degree: PropertyState::Proven {
+                value: degree,
+                witness: PropertyWitness::placeholder("number_field_defining_polynomial"),
+            },
+            separable: PropertyState::Proven {
+                value: separable,
+                witness: PropertyWitness::placeholder("char0_separable_irreducible"),
+            },
+            normal: PropertyState::Unknown,
+            embedding,
+        }
+    }
+
     /// 已证明次数（若可用）。
     pub fn proven_degree(&self) -> Option<u32> {
         match &self.degree {

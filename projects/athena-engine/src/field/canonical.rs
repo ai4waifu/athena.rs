@@ -3,7 +3,10 @@
 use athena_numeric::{Integer, Rational};
 use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, FieldId, Result};
 
-use crate::algebra::{AlgebraParentId, FieldTable, MapTable, add_coords, canonical_coords, inv_coords, mul_coords};
+use crate::algebra::{
+    AlgebraParentId, FieldTable, MapTable, add_coords, add_nf_coords, canonical_coords, canonical_nf_coords, embed_base_coords,
+    inv_coords, inv_nf_coords, inv_relative_nf_coords, mul_coords, mul_nf_coords, mul_relative_nf_coords,
+};
 
 use super::types::{FieldElement, FieldElementRepr};
 
@@ -16,6 +19,24 @@ pub fn canonical_rational(table: &FieldTable, field: FieldId, numer: Integer, de
         return Err(field_element_invalid("expected_rationals_field"));
     }
     Ok(FieldElement { field, presentation, repr: FieldElementRepr::Rational { value } })
+}
+
+/// 在数域幂基中构造 canonical 元素。
+pub fn canonical_number_field_element(
+    table: &FieldTable,
+    field: FieldId,
+    coords: Vec<Rational>,
+) -> Result<FieldElement> {
+    let spec = table
+        .number_field_spec(field)
+        .ok_or_else(|| field_element_invalid("expected_number_field"))?;
+    let coords = canonical_nf_coords(coords, spec.absolute_degree)?;
+    let presentation = table.presentation_id(field)?;
+    Ok(FieldElement {
+        field,
+        presentation,
+        repr: FieldElementRepr::NumberFieldCoords { coords },
+    })
 }
 
 /// 在 𝔽_{p^n} 多项式基中构造 canonical 元素。
@@ -65,6 +86,37 @@ pub fn apply_prime_subfield_embedding(
     }
 }
 
+/// 经已注册基域嵌入将 K 元素映到 L（数域塔）。
+pub fn apply_base_field_embedding(
+    table: &FieldTable,
+    maps: &MapTable,
+    map_id: AlgebraMapId,
+    element: &FieldElement,
+) -> Result<FieldElement> {
+    let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
+    let (source, target) = field_endpoints(map)?;
+    if element.field != source {
+        return Err(field_mismatch());
+    }
+    let target_spec = table.number_field_spec(target).ok_or_else(|| field_element_invalid("expected_number_field_target"))?;
+    if target_spec.base != source {
+        return Err(field_element_invalid("embedding_not_base_of_target"));
+    }
+    match &element.repr {
+        FieldElementRepr::Rational { value } => {
+            let mut coords = vec![Rational::zero(); target_spec.absolute_degree as usize];
+            coords[0] = value.clone();
+            canonical_number_field_element(table, target, coords)
+        }
+        FieldElementRepr::NumberFieldCoords { coords } => {
+            let base_deg = table.number_field_spec(source).map(|s| s.absolute_degree).unwrap_or(1);
+            let embedded = embed_base_coords(coords, target_spec.absolute_degree, base_deg)?;
+            canonical_number_field_element(table, target, embedded)
+        }
+        _ => Err(field_element_invalid("embedding_source_unsupported")),
+    }
+}
+
 /// 对 𝔽_{p^n} 元素应用已注册 Frobenius 自同构。
 pub fn apply_field_automorphism(
     table: &FieldTable,
@@ -100,6 +152,9 @@ pub fn apply_field_embedding(
     if !matches!(map.kind, crate::algebra::AlgebraMapKind::FieldEmbedding) {
         return Err(field_element_invalid("not_field_embedding"));
     }
+    if table.number_field_spec(target).is_some() {
+        return apply_base_field_embedding(table, maps, map_id, element);
+    }
     match &element.repr {
         FieldElementRepr::Rational { value } => {
             let modulus = table.prime_modulus(target)?;
@@ -129,6 +184,9 @@ pub fn add_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
             let sum = add_coords(a, b, &p);
             canonical_extension_element(table, lhs.field, sum)
         }
+        (FieldElementRepr::NumberFieldCoords { coords: a }, FieldElementRepr::NumberFieldCoords { coords: b }) => {
+            canonical_number_field_element(table, lhs.field, add_nf_coords(a, b))
+        }
         _ => Err(field_element_invalid("add_repr_mismatch")),
     }
 }
@@ -149,6 +207,25 @@ pub fn mul_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
             let p = table.prime_modulus(lhs.field)?;
             let prod = mul_coords(a, b, spec, &p);
             canonical_extension_element(table, lhs.field, prod)
+        }
+        (FieldElementRepr::NumberFieldCoords { coords: a }, FieldElementRepr::NumberFieldCoords { coords: b }) => {
+            let spec = table.number_field_spec(lhs.field).ok_or_else(|| field_element_invalid("number_field_mul"))?;
+            let prod = if spec.relative_degree == spec.absolute_degree {
+                mul_nf_coords(a, b, &spec.absolute_modulus)
+            } else {
+                let base_spec = table
+                    .number_field_spec(spec.base)
+                    .ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+                mul_relative_nf_coords(
+                    a,
+                    b,
+                    &base_spec.absolute_modulus,
+                    &spec.relative_modulus,
+                    base_spec.absolute_degree,
+                    spec.relative_degree,
+                )?
+            };
+            canonical_number_field_element(table, lhs.field, prod)
         }
         _ => Err(field_element_invalid("mul_repr_mismatch")),
     }
@@ -174,6 +251,24 @@ pub fn inv_field_element(table: &FieldTable, element: &FieldElement) -> Result<F
             let p = table.prime_modulus(element.field)?;
             let inv = inv_coords(coords, spec, &p)?;
             canonical_extension_element(table, element.field, inv)
+        }
+        FieldElementRepr::NumberFieldCoords { coords } => {
+            let spec = table.number_field_spec(element.field).ok_or_else(|| field_element_invalid("number_field_inv"))?;
+            let inv = if spec.relative_degree == spec.absolute_degree {
+                inv_nf_coords(coords, &spec.absolute_modulus)?
+            } else {
+                let base_spec = table
+                    .number_field_spec(spec.base)
+                    .ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+                inv_relative_nf_coords(
+                    coords,
+                    &base_spec.absolute_modulus,
+                    &spec.relative_modulus,
+                    base_spec.absolute_degree,
+                    spec.relative_degree,
+                )?
+            };
+            canonical_number_field_element(table, element.field, inv)
         }
         _ => Err(field_element_invalid("inv_unsupported_repr")),
     }

@@ -160,6 +160,17 @@ impl MapTable {
         self.quotient_projections.get(&subgroup).map(|r| r.parent)
     }
 
+    /// 注册已验证域嵌入 K → L（幂等；含数域基域包含）。
+    pub fn register_field_embedding(
+        &mut self,
+        source: FieldId,
+        target: FieldId,
+        source_presentation: PresentationId,
+        target_presentation: PresentationId,
+    ) -> AlgebraMapId {
+        self.register_canonical_q_to_fp(source, target, source_presentation, target_presentation)
+    }
+
     /// 注册 ℚ → 𝔽_p canonical embedding（幂等）。
     pub fn register_canonical_q_to_fp(
         &mut self,

@@ -29,10 +29,15 @@ pub enum FieldElementRepr {
         /// 值 ∈ [0, p)。
         value: Integer,
     },
-    /// 扩张：次数小于 defining polynomial 的系数向量。
+    /// 扩张：有限域多项式基坐标（系数 ∈ 𝔽_p）。
     ExtensionCoords {
         /// 基坐标。
         coords: Vec<Integer>,
+    },
+    /// 数域幂基坐标（系数 ∈ ℚ）。
+    NumberFieldCoords {
+        /// 绝对幂基坐标。
+        coords: Vec<Rational>,
     },
     /// 占位。
     Placeholder,

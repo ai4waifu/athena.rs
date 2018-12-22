@@ -12,6 +12,7 @@ mod group_facts;
 mod group_table;
 mod map;
 mod map_table;
+mod number_field;
 mod parent;
 mod permutation;
 mod presentation;
@@ -36,6 +37,12 @@ pub use map::{
     SubgroupInclusion,
 };
 pub use map_table::MapTable;
+pub use number_field::{
+    NumberFieldSpec, absolute_degree_product, add_nf_coords, canonical_nf_coords, embed_base_coords, inv_nf_coords,
+    inv_relative_nf_coords, is_irreducible_over_rationals, make_monic, minimal_polynomial_from_powers,
+    minimal_polynomial_over_q, mul_nf_coords, mul_relative_nf_coords, relative_modulus_from_rational,
+    validate_rational_modulus,
+};
 pub use parent::{AlgebraParentId, CoefficientParent};
 pub use permutation::RawPerm;
 pub use presentation::{

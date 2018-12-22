@@ -2,12 +2,16 @@
 
 use std::collections::HashMap;
 
-use athena_numeric::Integer;
+use athena_numeric::{Integer, Rational};
 use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, PresentationId, Result};
 
 use crate::{
     algebra::{
         finite_field_poly::{FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape},
+        number_field::{
+            NumberFieldSpec, absolute_degree_product, is_irreducible_over_rationals, make_monic, relative_modulus_from_rational,
+            validate_rational_modulus,
+        },
         property::{PropertyState, PropertyWitness},
     },
     field::{Field, FieldDescriptor},
@@ -26,6 +30,7 @@ enum FieldInternKey {
     Rationals,
     Prime { characteristic: Integer },
     PolynomialBasis { characteristic: Integer, modulus: Vec<Integer> },
+    NumberField { absolute_modulus: Vec<(Integer, Integer)> },
 }
 
 /// Session 级域与 presentation 注册表。
@@ -38,6 +43,7 @@ pub struct FieldTable {
     by_key: HashMap<FieldInternKey, FieldId>,
     map_table: MapTable,
     poly_extensions: HashMap<FieldId, FiniteFieldPolySpec>,
+    number_fields: HashMap<FieldId, NumberFieldSpec>,
     extensions: HashMap<ExtensionId, FieldExtension>,
     field_to_extension: HashMap<FieldId, ExtensionId>,
     next_extension_id: u32,
@@ -144,6 +150,193 @@ impl FieldTable {
         Ok(field)
     }
 
+    /// 数域规格（若已注册）。
+    pub fn number_field_spec(&self, field: FieldId) -> Option<&NumberFieldSpec> {
+        self.number_fields.get(&field)
+    }
+
+    /// 注册绝对数域 `$\mathbb{Q}(\alpha)=\mathbb{Q}[x]/(m)$`。
+    pub fn number_field_from_minimal_polynomial(&mut self, minimal_polynomial: Vec<Rational>) -> Result<FieldId> {
+        let monic = make_monic(minimal_polynomial)?;
+        let degree = validate_rational_modulus(&monic)?;
+        if !is_irreducible_over_rationals(&monic)? {
+            return Err(Diagnostic::new(DiagnosticCode::FieldModulusReducible)
+                .detail("domain", "field")
+                .detail("operation", "number_field_modulus"));
+        }
+        let key = FieldInternKey::NumberField {
+            absolute_modulus: rational_key(&monic),
+        };
+        if let Some(&id) = self.by_key.get(&key) {
+            return Ok(id);
+        }
+        let base = self.rationals();
+        self.alloc_number_field(
+            base,
+            base,
+            degree,
+            degree,
+            relative_modulus_from_rational(&monic, 1)?,
+            monic,
+            key,
+        )
+    }
+
+    /// 相对扩张：在数域（或 `$\mathbb{Q}$`）上邻接有理系数首一不可约多项式的根。
+    pub fn relative_number_field(&mut self, base: FieldId, relative_polynomial: Vec<Rational>) -> Result<FieldId> {
+        let monic = make_monic(relative_polynomial)?;
+        let relative_degree = validate_rational_modulus(&monic)?;
+        if !is_irreducible_over_rationals(&monic)? {
+            return Err(Diagnostic::new(DiagnosticCode::FieldModulusReducible)
+                .detail("domain", "field")
+                .detail("operation", "relative_number_field_modulus"));
+        }
+        let (absolute_base, base_degree, base_abs_mod) = match self.presentation(base).map(|p| &p.kind) {
+            Some(FieldPresentationKind::Rationals) => {
+                return self.number_field_from_minimal_polynomial(monic);
+            }
+            Some(FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. }) => {
+                let spec = self.number_fields.get(&base).ok_or_else(|| unknown_field(base))?;
+                (spec.absolute_base, spec.absolute_degree, spec.absolute_modulus.clone())
+            }
+            _ => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("domain", "field")
+                    .detail("operation", "relative_base_not_number_field"));
+            }
+        };
+        if relative_degree == 2 && base_degree == 2 && monic.len() == 3 && monic[1].is_zero() {
+            if rational_is_square_in_quadratic(&monic[0].neg(), &base_abs_mod)? {
+                return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
+                    .detail("domain", "field")
+                    .detail("operation", "relative_already_split"));
+            }
+        }
+        let absolute_degree = absolute_degree_product(base_degree, relative_degree)?;
+        let absolute_modulus = if base_degree == 1 {
+            monic.clone()
+        } else if base_degree == 2 && relative_degree == 2 && monic[1].is_zero() {
+            biquadratic_absolute_modulus(&base_abs_mod, &monic[0].neg())?
+        } else {
+            let mut placeholder = vec![Rational::zero(); absolute_degree as usize + 1];
+            placeholder[absolute_degree as usize] = Rational::one();
+            placeholder
+        };
+        let key = FieldInternKey::NumberField {
+            absolute_modulus: rational_key(&absolute_modulus),
+        };
+        if let Some(&id) = self.by_key.get(&key) {
+            return Ok(id);
+        }
+        let relative_modulus = relative_modulus_from_rational(&monic, base_degree)?;
+        self.alloc_number_field(
+            base,
+            absolute_base,
+            relative_degree,
+            absolute_degree,
+            relative_modulus,
+            absolute_modulus,
+            key,
+        )
+    }
+
+    /// 元素在 `$\mathbb{Q}$` 上的首一极小多项式。
+    pub fn minimal_polynomial_over_rationals(&self, field: FieldId, coords: &[Rational]) -> Result<Vec<Rational>> {
+        let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
+        let n = spec.absolute_degree as usize;
+        if coords.len() != n {
+            return Err(Diagnostic::new(DiagnosticCode::FieldElementInvalid)
+                .detail("domain", "field")
+                .detail("operation", "minpoly_coord_length"));
+        }
+        if coords.iter().all(|c| c.is_zero()) {
+            return Ok(vec![Rational::zero(), Rational::one()]);
+        }
+        let mut powers = Vec::with_capacity(n + 1);
+        let mut cur = {
+            let mut one = vec![Rational::zero(); n];
+            one[0] = Rational::one();
+            one
+        };
+        for _ in 0..=n {
+            powers.push(cur.clone());
+            cur = self.mul_number_field_coords(field, &cur, coords)?;
+        }
+        crate::algebra::number_field::minimal_polynomial_from_powers(&powers)
+    }
+
+    fn mul_number_field_coords(&self, field: FieldId, a: &[Rational], b: &[Rational]) -> Result<Vec<Rational>> {
+        let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
+        if spec.relative_degree == spec.absolute_degree {
+            Ok(crate::algebra::number_field::mul_nf_coords(a, b, &spec.absolute_modulus))
+        } else {
+            let base_spec = self.number_fields.get(&spec.base).ok_or_else(|| unknown_field(spec.base))?;
+            crate::algebra::number_field::mul_relative_nf_coords(
+                a,
+                b,
+                &base_spec.absolute_modulus,
+                &spec.relative_modulus,
+                base_spec.absolute_degree,
+                spec.relative_degree,
+            )
+        }
+    }
+
+    fn alloc_number_field(
+        &mut self,
+        base: FieldId,
+        absolute_base: FieldId,
+        relative_degree: u32,
+        absolute_degree: u32,
+        relative_modulus: Vec<Vec<Rational>>,
+        absolute_modulus: Vec<Rational>,
+        key: FieldInternKey,
+    ) -> Result<FieldId> {
+        let extension_id = ExtensionId(self.next_extension_id);
+        self.next_extension_id = self.next_extension_id.wrapping_add(1);
+        let field = FieldId(self.next_field_id);
+        self.next_field_id = self.next_field_id.wrapping_add(1);
+        let presentation_id = PresentationId(self.next_presentation_id);
+        self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
+        let kind = if matches!(self.presentation(base).map(|p| &p.kind), Some(FieldPresentationKind::Rationals)) {
+            FieldPresentationKind::NumberFieldPowerBasis {
+                extension: extension_id,
+                degree: absolute_degree,
+            }
+        } else {
+            FieldPresentationKind::NumberFieldTower {
+                base: self.presentation_id(base)?,
+                extension: extension_id,
+            }
+        };
+        let presentation = FieldPresentation {
+            id: presentation_id,
+            field,
+            kind,
+        };
+        self.by_key.insert(key, field);
+        self.field_to_presentation.insert(field, presentation_id);
+        self.presentations.insert(presentation_id, presentation);
+        self.number_fields.insert(
+            field,
+            NumberFieldSpec {
+                extension: extension_id,
+                base,
+                absolute_base,
+                relative_degree,
+                absolute_degree,
+                relative_modulus,
+                absolute_modulus,
+            },
+        );
+        let base_pres = self.presentation_id(base)?;
+        let embedding = self.map_table.register_field_embedding(base, field, base_pres, presentation_id);
+        let ext = FieldExtension::number_field(extension_id, base, field, relative_degree, embedding, true);
+        self.extensions.insert(extension_id, ext);
+        self.field_to_extension.insert(field, extension_id);
+        Ok(field)
+    }
+
     /// 校验 FieldId 已注册且 presentation 支持系数约化。
     pub fn validate_finite_field(&self, field: FieldId) -> Result<()> {
         let pres = self.presentation(field).ok_or_else(|| unknown_field(field))?;
@@ -189,6 +382,28 @@ impl FieldTable {
                     base: spec.base,
                     extension: spec.extension,
                     degree: PropertyState::Proven { value: *degree, witness: PropertyWitness::placeholder("polynomial_basis") },
+                })
+            }
+            FieldPresentationKind::NumberFieldPowerBasis { degree, extension } => {
+                let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
+                Ok(FieldDescriptor::Extension {
+                    base: spec.base,
+                    extension: *extension,
+                    degree: PropertyState::Proven {
+                        value: *degree,
+                        witness: PropertyWitness::placeholder("number_field"),
+                    },
+                })
+            }
+            FieldPresentationKind::NumberFieldTower { extension, .. } => {
+                let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
+                Ok(FieldDescriptor::Extension {
+                    base: spec.base,
+                    extension: *extension,
+                    degree: PropertyState::Proven {
+                        value: spec.relative_degree,
+                        witness: PropertyWitness::placeholder("number_field_tower"),
+                    },
                 })
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -267,6 +482,55 @@ fn unknown_extension(extension: ExtensionId) -> Diagnostic {
         .detail("operation", "unknown_extension")
         .detail("extension_id", extension.0.to_string())
 }
+
+fn rational_key(coeffs: &[Rational]) -> Vec<(Integer, Integer)> {
+    coeffs.iter().map(|c| (c.numerator(), c.denominator())).collect()
+}
+
+fn is_square_rational(r: &Rational) -> bool {
+    if r.is_negative() {
+        return false;
+    }
+    let n = r.numerator().abs();
+    let d = r.denominator();
+    let sn = n.int_sqrt();
+    let sd = d.int_sqrt();
+    sn.mul(&sn) == n && sd.mul(&sd) == d
+}
+
+fn rational_is_square_in_quadratic(e: &Rational, base_abs_mod: &[Rational]) -> Result<bool> {
+    if base_abs_mod.len() != 3 || base_abs_mod[2] != Rational::one() || !base_abs_mod[1].is_zero() {
+        return Ok(false);
+    }
+    let d = base_abs_mod[0].neg();
+    if is_square_rational(e) {
+        return Ok(true);
+    }
+    if d.is_zero() {
+        return Ok(false);
+    }
+    let ratio = e.try_div(&d).map_err(|_| {
+        Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
+            .detail("domain", "field")
+            .detail("operation", "quadratic_square_test")
+    })?;
+    Ok(is_square_rational(&ratio))
+}
+
+fn biquadratic_absolute_modulus(base_abs_mod: &[Rational], d2: &Rational) -> Result<Vec<Rational>> {
+    if base_abs_mod.len() != 3 {
+        return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
+            .detail("domain", "field")
+            .detail("operation", "biquadratic_base"));
+    }
+    let d1 = base_abs_mod[0].neg();
+    let two = Rational::from_integer(Integer::from_i64(2));
+    let c2 = two.mul(&d1.add(d2)).neg();
+    let diff = d1.sub(d2);
+    let c0 = diff.mul(&diff);
+    Ok(vec![c0, Rational::zero(), c2, Rational::zero(), Rational::one()])
+}
+
 
 #[cfg(test)]
 mod tests {

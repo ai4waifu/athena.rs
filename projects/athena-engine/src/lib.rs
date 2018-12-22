@@ -39,15 +39,15 @@ pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, BsgsChain, CoefficientParent, ElementProvenance,
     FieldEmbedding, FieldExtension, FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable,
     FiniteFieldPolySpec, GroupHomomorphism, GroupPresentation, GroupPresentationId, GroupPresentationKind, GroupPropertyFacts,
-    GroupTable, MapTable, MapVerification, MapVerificationKind, PermutationGroupSpec, PropertyState, PropertyWitness,
-    QuotientProjection, SubgroupInclusion, field_automorphism, frobenius_coords, is_galois_extension,
+    GroupTable, MapTable, MapVerification, MapVerificationKind, NumberFieldSpec, PermutationGroupSpec, PropertyState,
+    PropertyWitness, QuotientProjection, SubgroupInclusion, field_automorphism, frobenius_coords, is_galois_extension,
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
     BarrettParams, ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusBinding,
     ModulusContext, ModulusTable, MontgomeryParams, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
     NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus,
-    PureRustBackend, number_from_wire,
+    PureRustBackend, Rational, number_from_wire,
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
@@ -69,9 +69,10 @@ pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::evaluate;
 pub use field::{
     Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
-    add_field_elements, apply_field_automorphism, apply_field_embedding, apply_prime_subfield_embedding,
-    canonical_extension_element, canonical_prime_residue, canonical_rational, execute_field, execute_field_with_table,
-    execute_field_with_table_mut, inv_field_element, mul_field_elements,
+    add_field_elements, apply_base_field_embedding, apply_field_automorphism, apply_field_embedding,
+    apply_prime_subfield_embedding, canonical_extension_element, canonical_number_field_element, canonical_prime_residue,
+    canonical_rational, execute_field, execute_field_with_table, execute_field_with_table_mut, inv_field_element,
+    mul_field_elements,
 };
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
 pub use galois::{
