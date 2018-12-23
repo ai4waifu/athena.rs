@@ -2,6 +2,7 @@
 
 use crate::{
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
+    linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
 };
@@ -29,5 +30,10 @@ impl Session {
     /// 执行图论域请求（E0：与 [`crate::execute_domain`] 的 `GraphTheory` 分支等价）。
     pub fn execute_graph_theory(&self, request: GraphTheoryRequest) -> GraphTheoryResult {
         execute_graph_theory(request)
+    }
+
+    /// 执行线性代数域请求（与 [`crate::execute_domain`] 的 `LinearAlgebra` 分支等价）。
+    pub fn execute_linear_algebra(&self, request: LinearAlgebraRequest) -> LinearAlgebraResult {
+        execute_linear_algebra(request)
     }
 }

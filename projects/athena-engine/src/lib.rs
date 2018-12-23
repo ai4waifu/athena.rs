@@ -19,6 +19,7 @@ pub mod galois;
 pub mod graph_theory;
 pub mod group;
 pub mod ir;
+pub mod linear_algebra;
 pub mod mgraph;
 pub mod number_theory;
 pub mod object;
@@ -90,6 +91,16 @@ pub use group::{
     Permutation, Subgroup, apply_group_homomorphism, canonical_permutation, execute_group, execute_group_with_table,
     execute_group_with_table_mut, group_membership, inverse_group_element, multiply_group_elements, project_quotient_element,
 };
+pub use linear_algebra::{
+    AlgorithmGuarantee, AxisRange, DEFAULT_PIVOT_THRESHOLD, DialectArgs, DialectMatrixOp, DialectOrigin, ElementParentKind,
+    ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, IndexSpec, Layout, LinearAlgebraRequest,
+    LinearAlgebraResult, LinearAlgebraValue, MachineLuFactorization, MachineSolveResult, MachineSolveWitness, MatrixBuffer,
+    MatrixEntry, MatrixEqualityKind, MatrixParent, MatrixShape, MatrixValue, RoundingPolicy, ShapePolicy, SolveDisposition,
+    SparseStrategy, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, index_scalar, lower_1based_inclusive_slice,
+    lower_1based_scalar, lower_dialect_op, lu_partial_pivot, matlab_star_kind, matmul, matrices_equal,
+    operation_name as linear_algebra_operation_name, rank_exact, rank_machine, rref_rational, slice_matrix, solve_exact,
+    solve_lu, solve_machine, transpose,
+};
 pub use mgraph::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, Claim, ClosureLimits, ClosureResult, ClosureSeeds, DerivedIndexes,
     DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, Evidence, EvidenceVerifier, ExactUnionFind,
@@ -122,10 +133,10 @@ pub use polynomial::{
     PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization, PolynomialFactorizationCompleteness,
     PolynomialFingerprint, PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue,
     QCoeffKernel, ReprTarget, RingCharacteristic, RingDescriptor, RingFingerprint, RingHandle, RingId, RingTable,
-    SpecializedCoeffKernel, UnivariateDivision, UnivariateDivisionValue, VerifiedGroebnerBasis, ZCoeffKernel,
-    add_polynomial, cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis,
-    div_univariate, execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, factor_univariate,
-    gcd_univariate, ideal_membership, mul_polynomial, mul_with_jit_parity, parity_diagnostic, polynomial_canonical_hash,
+    SpecializedCoeffKernel, UnivariateDivision, UnivariateDivisionValue, VerifiedGroebnerBasis, ZCoeffKernel, add_polynomial,
+    cache_key_for_request, canonicalize_polynomial, compute_elimination_basis, compute_groebner_basis, div_univariate,
+    execute_polynomial, execute_polynomial_mgraph, execute_polynomial_with_rings, factor_univariate, gcd_univariate,
+    ideal_membership, mul_polynomial, mul_with_jit_parity, parity_diagnostic, polynomial_canonical_hash,
     polynomial_fingerprint, polynomial_fingerprint_u64, record_polynomial_result, reduce_by_verified, reduce_ideal,
     reprs_mathematically_equal, resultant_univariate, sub_polynomial, verify_groebner_basis,
 };

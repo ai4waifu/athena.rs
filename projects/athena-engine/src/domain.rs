@@ -10,6 +10,7 @@ use crate::{
     galois::{GaloisRequest, GaloisResult, execute_galois},
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
     group::{GroupRequest, GroupResult, execute_group},
+    linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
     polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial},
 };
@@ -31,6 +32,8 @@ pub enum DomainRequest {
     GaloisTheory(GaloisRequest),
     /// 图论。
     GraphTheory(GraphTheoryRequest),
+    /// 线性代数。
+    LinearAlgebra(LinearAlgebraRequest),
 }
 
 /// 顶层域结果 — 按域区分，禁止压成无类型 map。
@@ -50,6 +53,8 @@ pub enum DomainResult {
     GaloisTheory(GaloisResult),
     /// 图论结果。
     GraphTheory(GraphTheoryResult),
+    /// 线性代数结果。
+    LinearAlgebra(LinearAlgebraResult),
 }
 
 /// 分派顶层 [`DomainRequest`]。
@@ -62,5 +67,6 @@ pub fn execute_domain(request: DomainRequest) -> Result<DomainResult, Diagnostic
         DomainRequest::FieldTheory(req) => Ok(DomainResult::FieldTheory(execute_field(req))),
         DomainRequest::GaloisTheory(req) => Ok(DomainResult::GaloisTheory(execute_galois(req))),
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
+        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req))),
     }
 }
