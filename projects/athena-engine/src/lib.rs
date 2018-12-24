@@ -27,6 +27,7 @@ pub mod plot;
 pub mod polynomial;
 pub mod rewriter;
 pub mod session;
+pub mod solve;
 pub mod solver;
 pub mod symbol;
 pub mod term;
@@ -141,6 +142,12 @@ pub use polynomial::{
     reprs_mathematically_equal, resultant_univariate, sub_polynomial, verify_groebner_basis,
 };
 pub use session::Session;
+pub use solve::{
+    BindingId, BindingMap, BoundSymbol, BranchStatus, Constraint, ConstraintConnective, ConstraintSet, CoverageStatus,
+    Equation, ExecutionLimits, Inequality, InequalityOp, MultiplicityInfo, ProofRef, QuantifiedConstraint, Quantifier,
+    ResidualCertificate, ResumeToken, SolutionBranch, SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate,
+    SolveProblem, SolveRelationKind,
+};
 pub use solver::{
     DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,
     SolverRequest, score_candidate,

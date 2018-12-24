@@ -1,4 +1,11 @@
-//! 求解器执行协议（骨架）— 属 `athena-engine` 内部，禁止 `athena-solver` crate。
+//! 求解器执行协议（调度骨架）。
+//!
+//! 本模块是 planner → provider 的执行请求协议（Reflector / Registry / Frontier /
+//! [`SolverRequest`]），**不是** Solve 数学对象层。
+//!
+//! 跨域约束、goal、解集与覆盖语义见 [`crate::solve`]。
+//! 禁止把 [`SolverRequest`] 扩展成 [`crate::solve::SolveProblem`]，也禁止新增
+//! `athena-solver` crate。
 
 mod frontier;
 mod reflector;
