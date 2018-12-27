@@ -1,11 +1,11 @@
-//! 可变多项式构造器 — 唯一公开入口，产出 canonical [`Polynomial`]。
+//! 可变多项式构造器 — 唯一公开入口，产出 [`CanonicalPolynomial`]。
 
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     canonical::canonicalize_terms,
-    expr::{MonomialTerm, Polynomial},
+    expr::{CanonicalPolynomial, MonomialTerm},
     ring_table::RingTable,
 };
 
@@ -24,12 +24,12 @@ impl PolynomialBuilder {
 
     /// 追加一项（允许重复单项式与零系数；[`Self::build`] 时合并/剔除）。
     pub fn push_term(&mut self, coefficient: Number, exponents: Vec<u32>) -> Result<()> {
-        self.terms.push(MonomialTerm { coefficient, exponents });
+        self.terms.push(MonomialTerm::from_parts(coefficient, exponents));
         Ok(())
     }
 
-    /// 校验、合并同类项、按环单项式序排序，产出 canonical [`Polynomial`]。
-    pub fn build(self, rings: &RingTable) -> Result<Polynomial> {
+    /// 校验、合并同类项、按环单项式序排序，产出 [`CanonicalPolynomial`]。
+    pub fn build(self, rings: &RingTable) -> Result<CanonicalPolynomial> {
         let desc = rings.get(self.ring).ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "polynomial")
@@ -39,6 +39,3 @@ impl PolynomialBuilder {
         canonicalize_terms(self.ring, desc, self.terms, rings)
     }
 }
-
-/// 规范多项式别名（与 [`Polynomial`] 相同；仅经 [`PolynomialBuilder`] 或 [`super::canonicalize_polynomial`] 构造）。
-pub type CanonicalPolynomial = Polynomial;

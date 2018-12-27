@@ -21,9 +21,9 @@ impl Ideal {
                 .detail("domain", "polynomial")
                 .detail("operation", "ideal_empty_generators"));
         }
-        let ring = generators[0].ring;
+        let ring = generators[0].ring();
         for g in &generators[1..] {
-            if g.ring != ring {
+            if g.ring() != ring {
                 return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
                     .detail("domain", "polynomial")
                     .detail("operation", "ideal_ring_mismatch"));

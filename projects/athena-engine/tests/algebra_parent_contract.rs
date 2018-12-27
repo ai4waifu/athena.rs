@@ -1,8 +1,8 @@
 //! 代数父对象核心合同测试。
 
 use athena_engine::{
-    AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr, FieldId, FieldTable,
-    GaloisRequest, GroupDescriptor, GroupElementRepr, Integer, PresentationId, PropertyState, PropertyWitness,
+    AlgebraParentId, CoefficientParent, DomainRequest, ExtensionId, FieldElement, FieldElementRepr, FieldId,
+    FieldPresentationId, FieldTable, GaloisRequest, GroupDescriptor, GroupElementRepr, Integer, PropertyState, PropertyWitness,
 };
 use athena_numeric::{ExactRational, FiniteFieldValue};
 
@@ -10,7 +10,7 @@ use athena_numeric::{ExactRational, FiniteFieldValue};
 fn field_element_has_repr_not_label() {
     let e = FieldElement {
         field: FieldId(1),
-        presentation: PresentationId(0),
+        presentation: FieldPresentationId(0),
         repr: FieldElementRepr::Rational { value: ExactRational::new(Integer::from_i64(3), Integer::one()) },
     };
     assert!(matches!(e.repr, FieldElementRepr::Rational { .. }));

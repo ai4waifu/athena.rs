@@ -177,7 +177,7 @@ pub fn compute_groebner_basis(
         steps += 1;
         let s = s_polynomial(&basis[i], &basis[j], rings, layout, &coeff)?;
         let remainder = reduce_polynomial(&s, &basis, rings, layout, &coeff)?;
-        if remainder.terms.is_empty() {
+        if remainder.terms().is_empty() {
             continue;
         }
         if basis.len() as u32 >= limits.max_basis_size {
@@ -273,7 +273,7 @@ pub fn compute_elimination_basis(
 
 /// 对已验证 Gröbner 基做规范余式（strict API）。
 pub fn reduce_by_verified(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, rings: &RingTable) -> Result<Polynomial> {
-    if polynomial.ring != basis.ring {
+    if polynomial.ring() != basis.ring {
         return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
             .detail("domain", "polynomial")
             .detail("operation", "reduce_ring_mismatch"));
@@ -283,8 +283,8 @@ pub fn reduce_by_verified(polynomial: Polynomial, basis: &VerifiedGroebnerBasis,
             .detail("domain", "polynomial")
             .detail("operation", "reduce_requires_verified"));
     }
-    let desc = rings.get(polynomial.ring).ok_or_else(|| ring_unknown(polynomial.ring))?;
-    let coeff = rings.coeff_kernel(polynomial.ring)?;
+    let desc = rings.get(polynomial.ring()).ok_or_else(|| ring_unknown(polynomial.ring()))?;
+    let coeff = rings.coeff_kernel(polynomial.ring())?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -304,8 +304,8 @@ pub fn ideal_membership(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, r
 ///
 /// 严格路径请用 [`reduce_by_verified`]。
 pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTable) -> Result<Polynomial> {
-    let desc = rings.get(polynomial.ring).ok_or_else(|| ring_unknown(polynomial.ring))?;
-    let coeff = rings.coeff_kernel(polynomial.ring)?;
+    let desc = rings.get(polynomial.ring()).ok_or_else(|| ring_unknown(polynomial.ring()))?;
+    let coeff = rings.coeff_kernel(polynomial.ring())?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -322,9 +322,9 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
             .detail("domain", "polynomial")
             .detail("operation", "verify_empty_basis"));
     }
-    let ring = basis[0].ring;
+    let ring = basis[0].ring();
     for p in basis {
-        if p.ring != ring {
+        if p.ring() != ring {
             return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "verify_ring_mismatch"));
@@ -377,7 +377,7 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
     let mut out = Vec::new();
     for g in gens {
         let c = canonicalize_polynomial(g, rings)?;
-        if !c.terms.is_empty() {
+        if !c.terms().is_empty() {
             out.push(c);
         }
     }
@@ -390,7 +390,7 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
 }
 
 fn leading_term(poly: &Polynomial) -> Option<super::expr::MonomialTerm> {
-    poly.terms.first().cloned()
+    poly.terms().first().cloned()
 }
 
 fn s_polynomial(
@@ -418,13 +418,13 @@ fn multiply_by_monomial(
     rings: &RingTable,
     coeff: &CoeffRing<'_>,
 ) -> Result<Polynomial> {
-    if poly.terms.is_empty() || scalar.is_zero() {
-        return Ok(Polynomial::zero(poly.ring));
+    if poly.terms().is_empty() || scalar.is_zero() {
+        return Ok(Polynomial::zero(poly.ring()));
     }
-    let mut b = PolynomialBuilder::new(poly.ring);
-    for term in &poly.terms {
-        let exponents = layout.add_exponents(&term.exponents, exp_delta)?;
-        let c = coeff.mul(scalar.clone(), term.coefficient.clone())?;
+    let mut b = PolynomialBuilder::new(poly.ring());
+    for term in poly.terms() {
+        let exponents = layout.add_exponents(term.exponents(), exp_delta)?;
+        let c = coeff.mul(scalar.clone(), term.coefficient().clone())?;
         b.push_term(c, exponents)?;
     }
     b.build(rings)
@@ -483,7 +483,7 @@ fn autoreduce_basis(
         let r_leading = layout.pack(&r.terms[0].exponents)?;
         if out.iter().any(|p| {
             leading_term(p)
-                .and_then(|lt| layout.pack(&lt.exponents).ok())
+                .and_then(|lt| layout.pack(lt.exponents()).ok())
                 .is_some_and(|lt_packed| layout.packed_equal(&lt_packed, &r_leading))
         }) {
             continue;
@@ -494,7 +494,7 @@ fn autoreduce_basis(
 }
 
 fn extract_elimination_polys(basis: &[Polynomial], eliminate: usize) -> Vec<Polynomial> {
-    basis.iter().filter(|p| p.terms.iter().all(|t| t.exponents.iter().take(eliminate).all(|&e| e == 0))).cloned().collect()
+    basis.iter().filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0))).cloned().collect()
 }
 
 fn zero_poly_err() -> Diagnostic {

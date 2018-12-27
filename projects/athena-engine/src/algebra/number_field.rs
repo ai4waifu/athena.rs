@@ -563,7 +563,8 @@ fn shortest_relation(powers: &[Vec<Rational>]) -> Result<Option<Vec<Rational>>> 
                     break;
                 }
             }
-            let Some(pr) = pivot else {
+            let Some(pr) = pivot
+            else {
                 col += 1;
                 continue;
             };
@@ -605,7 +606,8 @@ fn shortest_relation(powers: &[Vec<Rational>]) -> Result<Option<Vec<Rational>>> 
     rel[f] = Rational::one();
     for row in 0..rows {
         let piv = (0..cols).find(|&c| !mat[row][c].is_zero());
-        let Some(p) = piv else {
+        let Some(p) = piv
+        else {
             continue;
         };
         let mut val = Rational::zero();
@@ -650,7 +652,8 @@ fn solve_linear_q(columns: &[Vec<Rational>], target: &[Rational]) -> Result<Vec<
                 break;
             }
         }
-        let Some(pr) = pivot else {
+        let Some(pr) = pivot
+        else {
             return Err(elem_err("nf_singular"));
         };
         if pr != col {

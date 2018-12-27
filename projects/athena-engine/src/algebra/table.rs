@@ -3,14 +3,16 @@
 use std::collections::HashMap;
 
 use athena_numeric::{Integer, Rational};
-use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, PresentationId, Result};
+use athena_types::{
+    AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result,
+};
 
 use crate::{
     algebra::{
         finite_field_poly::{FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape},
         number_field::{
-            NumberFieldSpec, absolute_degree_product, is_irreducible_over_rationals, make_monic, relative_modulus_from_rational,
-            validate_rational_modulus,
+            NumberFieldSpec, absolute_degree_product, is_irreducible_over_rationals, make_monic,
+            relative_modulus_from_rational, validate_rational_modulus,
         },
         property::{PropertyState, PropertyWitness},
     },
@@ -38,8 +40,8 @@ enum FieldInternKey {
 pub struct FieldTable {
     next_field_id: u32,
     next_presentation_id: u32,
-    presentations: HashMap<PresentationId, FieldPresentation>,
-    field_to_presentation: HashMap<FieldId, PresentationId>,
+    presentations: HashMap<FieldPresentationId, FieldPresentation>,
+    field_to_presentation: HashMap<FieldId, FieldPresentationId>,
     by_key: HashMap<FieldInternKey, FieldId>,
     map_table: MapTable,
     poly_extensions: HashMap<FieldId, FiniteFieldPolySpec>,
@@ -133,7 +135,7 @@ impl FieldTable {
         self.next_extension_id = self.next_extension_id.wrapping_add(1);
         let field = FieldId(self.next_field_id);
         self.next_field_id = self.next_field_id.wrapping_add(1);
-        let presentation_id = PresentationId(self.next_presentation_id);
+        let presentation_id = FieldPresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
         let kind = FieldPresentationKind::FiniteFieldPolynomialBasis { field, degree };
         let presentation = FieldPresentation { id: presentation_id, field, kind };
@@ -164,22 +166,12 @@ impl FieldTable {
                 .detail("domain", "field")
                 .detail("operation", "number_field_modulus"));
         }
-        let key = FieldInternKey::NumberField {
-            absolute_modulus: rational_key(&monic),
-        };
+        let key = FieldInternKey::NumberField { absolute_modulus: rational_key(&monic) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
         let base = self.rationals();
-        self.alloc_number_field(
-            base,
-            base,
-            degree,
-            degree,
-            relative_modulus_from_rational(&monic, 1)?,
-            monic,
-            key,
-        )
+        self.alloc_number_field(base, base, degree, degree, relative_modulus_from_rational(&monic, 1)?, monic, key)
     }
 
     /// 相对扩张：在数域（或 `$\mathbb{Q}$`）上邻接有理系数首一不可约多项式的根。
@@ -215,29 +207,21 @@ impl FieldTable {
         let absolute_degree = absolute_degree_product(base_degree, relative_degree)?;
         let absolute_modulus = if base_degree == 1 {
             monic.clone()
-        } else if base_degree == 2 && relative_degree == 2 && monic[1].is_zero() {
+        }
+        else if base_degree == 2 && relative_degree == 2 && monic[1].is_zero() {
             biquadratic_absolute_modulus(&base_abs_mod, &monic[0].neg())?
-        } else {
+        }
+        else {
             let mut placeholder = vec![Rational::zero(); absolute_degree as usize + 1];
             placeholder[absolute_degree as usize] = Rational::one();
             placeholder
         };
-        let key = FieldInternKey::NumberField {
-            absolute_modulus: rational_key(&absolute_modulus),
-        };
+        let key = FieldInternKey::NumberField { absolute_modulus: rational_key(&absolute_modulus) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
         let relative_modulus = relative_modulus_from_rational(&monic, base_degree)?;
-        self.alloc_number_field(
-            base,
-            absolute_base,
-            relative_degree,
-            absolute_degree,
-            relative_modulus,
-            absolute_modulus,
-            key,
-        )
+        self.alloc_number_field(base, absolute_base, relative_degree, absolute_degree, relative_modulus, absolute_modulus, key)
     }
 
     /// 元素在 `$\mathbb{Q}$` 上的首一极小多项式。
@@ -269,7 +253,8 @@ impl FieldTable {
         let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
         if spec.relative_degree == spec.absolute_degree {
             Ok(crate::algebra::number_field::mul_nf_coords(a, b, &spec.absolute_modulus))
-        } else {
+        }
+        else {
             let base_spec = self.number_fields.get(&spec.base).ok_or_else(|| unknown_field(spec.base))?;
             crate::algebra::number_field::mul_relative_nf_coords(
                 a,
@@ -296,24 +281,15 @@ impl FieldTable {
         self.next_extension_id = self.next_extension_id.wrapping_add(1);
         let field = FieldId(self.next_field_id);
         self.next_field_id = self.next_field_id.wrapping_add(1);
-        let presentation_id = PresentationId(self.next_presentation_id);
+        let presentation_id = FieldPresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
         let kind = if matches!(self.presentation(base).map(|p| &p.kind), Some(FieldPresentationKind::Rationals)) {
-            FieldPresentationKind::NumberFieldPowerBasis {
-                extension: extension_id,
-                degree: absolute_degree,
-            }
-        } else {
-            FieldPresentationKind::NumberFieldTower {
-                base: self.presentation_id(base)?,
-                extension: extension_id,
-            }
+            FieldPresentationKind::NumberFieldPowerBasis { extension: extension_id, degree: absolute_degree }
+        }
+        else {
+            FieldPresentationKind::NumberFieldTower { base: self.presentation_id(base)?, extension: extension_id }
         };
-        let presentation = FieldPresentation {
-            id: presentation_id,
-            field,
-            kind,
-        };
+        let presentation = FieldPresentation { id: presentation_id, field, kind };
         self.by_key.insert(key, field);
         self.field_to_presentation.insert(field, presentation_id);
         self.presentations.insert(presentation_id, presentation);
@@ -364,7 +340,7 @@ impl FieldTable {
     }
 
     /// 域的默认 presentation id。
-    pub fn presentation_id(&self, field: FieldId) -> Result<PresentationId> {
+    pub fn presentation_id(&self, field: FieldId) -> Result<FieldPresentationId> {
         self.field_to_presentation.get(&field).copied().ok_or_else(|| unknown_field(field))
     }
 
@@ -389,10 +365,7 @@ impl FieldTable {
                 Ok(FieldDescriptor::Extension {
                     base: spec.base,
                     extension: *extension,
-                    degree: PropertyState::Proven {
-                        value: *degree,
-                        witness: PropertyWitness::placeholder("number_field"),
-                    },
+                    degree: PropertyState::Proven { value: *degree, witness: PropertyWitness::placeholder("number_field") },
                 })
             }
             FieldPresentationKind::NumberFieldTower { extension, .. } => {
@@ -442,7 +415,7 @@ impl FieldTable {
         }
         let field = FieldId(self.next_field_id);
         self.next_field_id = self.next_field_id.wrapping_add(1);
-        let presentation_id = PresentationId(self.next_presentation_id);
+        let presentation_id = FieldPresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
         let presentation = FieldPresentation { id: presentation_id, field, kind };
         self.by_key.insert(key, field);
@@ -530,7 +503,6 @@ fn biquadratic_absolute_modulus(base_abs_mod: &[Rational], d2: &Rational) -> Res
     let c0 = diff.mul(&diff);
     Ok(vec![c0, Rational::zero(), c2, Rational::zero(), Rational::one()])
 }
-
 
 #[cfg(test)]
 mod tests {

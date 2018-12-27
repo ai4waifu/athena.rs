@@ -6,11 +6,7 @@
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use super::{
-    canonical::canonicalize_polynomial,
-    expr::Polynomial,
-    ring_table::RingTable,
-};
+use super::{canonical::canonicalize_polynomial, expr::Polynomial, ring_table::RingTable};
 
 /// 多项式因式分解资源合同。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,7 +99,9 @@ impl PolynomialFactorization {
         match self.cofactor_status {
             PolynomialCofactorStatus::One if all_proven && !has_probable => PolynomialFactorizationCompleteness::Complete,
             PolynomialCofactorStatus::One if has_probable => PolynomialFactorizationCompleteness::Probable,
-            PolynomialCofactorStatus::Unsplit | PolynomialCofactorStatus::Unknown => PolynomialFactorizationCompleteness::Partial,
+            PolynomialCofactorStatus::Unsplit | PolynomialCofactorStatus::Unknown => {
+                PolynomialFactorizationCompleteness::Partial
+            }
             PolynomialCofactorStatus::One => PolynomialFactorizationCompleteness::Partial,
         }
     }
@@ -127,10 +125,10 @@ pub fn factor_univariate(
     limits: PolynomialFactorLimits,
 ) -> Result<PolynomialFactorization> {
     let poly = canonicalize_polynomial(polynomial, rings)?;
-    let ring = poly.ring;
+    let ring = poly.ring();
     let _desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
 
-    if poly.terms.is_empty() {
+    if poly.terms().is_empty() {
         return Err(Diagnostic::new(DiagnosticCode::DomainError)
             .detail("domain", "polynomial")
             .detail("operation", "factor_zero_polynomial"));
@@ -150,7 +148,7 @@ pub fn factor_univariate(
     }
 
     if deg == 0 {
-        let unit = poly.terms[0].coefficient.clone();
+        let unit = poly.terms()[0].coefficient.clone();
         return Ok(PolynomialFactorization {
             ring,
             unit,
@@ -192,10 +190,10 @@ pub fn factor_univariate(
 
 fn total_degree_univariate(poly: &Polynomial) -> Result<u32> {
     let mut max = 0u32;
-    for term in &poly.terms {
-        let term_deg: u32 = term.exponents.iter().sum();
+    for term in poly.terms() {
+        let term_deg: u32 = term.exponents().iter().sum();
         max = max.max(term_deg);
-        if term.exponents.iter().filter(|&&e| e != 0).count() > 1 {
+        if term.exponents().iter().filter(|&&e| e != 0).count() > 1 {
             return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "factor_requires_univariate"));

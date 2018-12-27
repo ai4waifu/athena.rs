@@ -132,7 +132,7 @@ fn jit_parity_without_jit_feature_is_eager_only() {
     b2.push_term(Number::small_int(2), vec![1]).unwrap();
     let rhs = b2.build(&session.rings).unwrap();
     let (prod, outcome) = athena_engine::mul_with_jit_parity(lhs, rhs, &session.rings).unwrap();
-    assert_eq!(prod.terms.len(), 1);
+    assert_eq!(prod.terms().len(), 1);
     assert_eq!(outcome, athena_engine::JitParityOutcome::EagerOnly);
 }
 

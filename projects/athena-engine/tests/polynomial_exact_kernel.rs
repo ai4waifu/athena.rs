@@ -34,7 +34,7 @@ fn build_univariate(rings: &RingTable, ring: athena_engine::RingId, terms: &[(i6
 }
 
 fn coeff_at_degree(poly: &athena_engine::Polynomial, d: u32) -> Option<String> {
-    poly.terms.iter().find(|t| t.exponents == vec![d]).map(|t| t.coefficient.to_render_string())
+    poly.terms().iter().find(|t| t.exponents() == vec![d]).map(|t| t.coefficient().to_render_string())
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn integer_add_cancels_to_zero() {
     let a = build_univariate(&rings, ring, &[(1, 1), (1, 0)]);
     let b = build_univariate(&rings, ring, &[(-1, 1), (-1, 0)]);
     let sum = add_polynomial(a, b, &rings).unwrap();
-    assert!(sum.terms.is_empty());
+    assert!(sum.terms().is_empty());
 }
 
 #[test]
@@ -113,8 +113,8 @@ fn large_integer_coefficients_mul() {
     let p1 = b1.build(&rings).unwrap();
     let p2 = build_univariate(&rings, ring, &[(2, 1)]);
     let prod = mul_polynomial(p1, p2, &rings).unwrap();
-    let c1 = prod.terms.iter().find(|t| t.exponents == vec![2]).unwrap();
-    assert_eq!(c1.coefficient.to_render_string(), "199999999999999999998");
+    let c1 = prod.terms().iter().find(|t| t.exponents() == vec![2]).unwrap();
+    assert_eq!(c1.coefficient().to_render_string(), "199999999999999999998");
 }
 
 #[test]

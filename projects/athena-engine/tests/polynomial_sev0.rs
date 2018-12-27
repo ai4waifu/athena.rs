@@ -20,7 +20,7 @@ fn intern_over_prime_field_uses_field_parent() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
-    let CoefficientParent::Field(field) = desc.coefficients
+    let CoefficientParent::Field(field) = desc.coefficient()s
     else {
         panic!("expected Field parent");
     };
@@ -50,9 +50,9 @@ fn finite_field_characteristic_from_descriptor() {
     let ring = table.intern_over_field(field, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(7)));
-    let coeff_ring = desc.coefficient_ring;
+    let coeff_ring = desc.coefficient()_ring;
     assert!(matches!(
-        table.coeff_rings().coefficient_parent(coeff_ring),
+        table.coeff_rings().coefficient()_parent(coeff_ring),
         CoefficientParent::Field(f) if f == field
     ));
 }
@@ -82,7 +82,7 @@ fn exponent_overflow_on_add_monomials_ok_when_distinct() {
     b2.push_term(Number::small_int(1), vec![1]).unwrap();
     let p2 = b2.build(&rings).unwrap();
     let sum = add_polynomial(p1, p2, &rings).unwrap();
-    assert_eq!(sum.terms.len(), 2);
+    assert_eq!(sum.terms().len(), 2);
 }
 
 #[test]

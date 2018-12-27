@@ -63,7 +63,7 @@ impl RingFingerprint {
 impl PolynomialFingerprint {
     /// 由 canonical 多项式计算。
     pub fn from_polynomial(poly: &Polynomial, rings: &RingTable) -> Result<Self> {
-        let desc = rings.get(poly.ring).ok_or_else(|| unknown_ring(poly.ring))?;
+        let desc = rings.get(poly.ring()).ok_or_else(|| unknown_ring(poly.ring()))?;
         let ring_fp = desc.ring_fingerprint;
         let mut body = Vec::new();
         body.extend_from_slice(POLY_WIRE_MAGIC);
@@ -94,16 +94,16 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
 }
 
 fn encode_polynomial_body(poly: &Polynomial, variable_count: usize, out: &mut Vec<u8>) -> Result<()> {
-    out.extend_from_slice(&(poly.terms.len() as u32).to_le_bytes());
-    for term in &poly.terms {
-        if term.exponents.len() != variable_count {
+    out.extend_from_slice(&(poly.terms().len() as u32).to_le_bytes());
+    for term in poly.terms() {
+        if term.exponents().len() != variable_count {
             return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "fingerprint_exponent_length"));
         }
-        append_number_wire(out, &term.coefficient)?;
-        out.extend_from_slice(&(term.exponents.len() as u32).to_le_bytes());
-        for e in &term.exponents {
+        append_number_wire(out, term.coefficient())?;
+        out.extend_from_slice(&(term.exponents().len() as u32).to_le_bytes());
+        for e in term.exponents() {
             out.extend_from_slice(&e.to_le_bytes());
         }
     }

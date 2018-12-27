@@ -18,8 +18,8 @@ fn builder_merges_duplicate_monomials() {
     b.push_term(Number::small_int(1), vec![1, 0]).unwrap();
     b.push_term(Number::small_int(2), vec![1, 0]).unwrap();
     let p = b.build(&rings).unwrap();
-    assert_eq!(p.terms.len(), 1);
-    assert_eq!(p.terms[0].coefficient.to_render_string(), "3");
+    assert_eq!(p.terms().len(), 1);
+    assert_eq!(p.terms()[0].coefficient().to_render_string(), "3");
 }
 
 #[test]
@@ -29,8 +29,8 @@ fn builder_drops_zero_coefficients() {
     b.push_term(Number::small_int(0), vec![0, 1]).unwrap();
     b.push_term(Number::small_int(5), vec![0, 0]).unwrap();
     let p = b.build(&rings).unwrap();
-    assert_eq!(p.terms.len(), 1);
-    assert_eq!(p.terms[0].exponents, vec![0, 0]);
+    assert_eq!(p.terms().len(), 1);
+    assert_eq!(p.terms()[0].exponents(), vec![0, 0]);
 }
 
 #[test]
@@ -40,9 +40,9 @@ fn builder_sorts_lex_descending() {
     b.push_term(Number::small_int(1), vec![0, 1]).unwrap();
     b.push_term(Number::small_int(1), vec![1, 0]).unwrap();
     let p = b.build(&rings).unwrap();
-    assert_eq!(p.terms.len(), 2);
-    assert_eq!(p.terms[0].exponents, vec![1, 0]);
-    assert_eq!(p.terms[1].exponents, vec![0, 1]);
+    assert_eq!(p.terms().len(), 2);
+    assert_eq!(p.terms()[0].exponents(), vec![1, 0]);
+    assert_eq!(p.terms()[1].exponents(), vec![0, 1]);
 }
 
 #[test]
@@ -92,8 +92,8 @@ fn session_normalize_via_execute_polynomial() {
                 athena_engine::PolynomialDomainValue::Polynomial(v) => v.inner,
                 _ => panic!("expected polynomial value"),
             };
-            assert_eq!(poly.terms.len(), 1);
-            assert_eq!(poly.terms[0].coefficient.to_render_string(), "2");
+            assert_eq!(poly.terms().len(), 1);
+            assert_eq!(poly.terms()[0].coefficient().to_render_string(), "2");
         }
         other => panic!("expected Exact, got {other:?}"),
     }

@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use athena_types::{AlgebraMapId, AutomorphismId, ExtensionId, FieldId, GroupId, PresentationId, SubgroupId};
+use athena_types::{
+    AlgebraMapId, AutomorphismId, ExtensionId, FieldId, FieldPresentationId, GroupId, GroupPresentationId, SubgroupId,
+};
 
 use super::{
     map::{
@@ -165,8 +167,8 @@ impl MapTable {
         &mut self,
         source: FieldId,
         target: FieldId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: FieldPresentationId,
+        target_presentation: FieldPresentationId,
     ) -> AlgebraMapId {
         self.register_canonical_q_to_fp(source, target, source_presentation, target_presentation)
     }
@@ -176,8 +178,8 @@ impl MapTable {
         &mut self,
         source: FieldId,
         target: FieldId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: FieldPresentationId,
+        target_presentation: FieldPresentationId,
     ) -> AlgebraMapId {
         if let Some(id) = self.canonical_embedding(source, target) {
             return id;
@@ -202,8 +204,8 @@ impl MapTable {
         &mut self,
         prime_field: FieldId,
         extension: FieldId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: FieldPresentationId,
+        target_presentation: FieldPresentationId,
     ) -> AlgebraMapId {
         if let Some(r) = self.prime_subfield_embeddings.get(&(prime_field, extension)) {
             return r.map.id;
@@ -229,7 +231,7 @@ impl MapTable {
         &mut self,
         extension: ExtensionId,
         field: FieldId,
-        presentation: PresentationId,
+        presentation: FieldPresentationId,
         frobenius_power: u32,
     ) -> AutomorphismId {
         if let Some(existing) = self.extension_automorphisms.get(&extension).and_then(|ids| {
@@ -265,8 +267,8 @@ impl MapTable {
         subgroup: SubgroupId,
         subgroup_group: GroupId,
         parent: GroupId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: GroupPresentationId,
+        target_presentation: GroupPresentationId,
     ) -> AlgebraMapId {
         if let Some(r) = self.subgroup_inclusions.get(&subgroup) {
             return r.map.id;
@@ -291,8 +293,8 @@ impl MapTable {
         &mut self,
         source: GroupId,
         target: GroupId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: GroupPresentationId,
+        target_presentation: GroupPresentationId,
         element_images: HashMap<Vec<u32>, RawPerm>,
     ) -> AlgebraMapId {
         let id = AlgebraMapId(self.next_id);
@@ -316,8 +318,8 @@ impl MapTable {
         subgroup: SubgroupId,
         parent: GroupId,
         quotient: GroupId,
-        source_presentation: PresentationId,
-        target_presentation: PresentationId,
+        source_presentation: GroupPresentationId,
+        target_presentation: GroupPresentationId,
     ) -> AlgebraMapId {
         if let Some(r) = self.quotient_projections.get(&subgroup) {
             return r.map.id;

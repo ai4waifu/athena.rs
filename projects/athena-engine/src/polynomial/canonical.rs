@@ -7,15 +7,16 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     coeff_kernel::CoeffRing,
-    expr::{MonomialTerm, Polynomial},
+    expr::{CanonicalPolynomial, MonomialTerm, Polynomial},
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
 };
 
-/// 将任意项列表规范化为 [`Polynomial`]（须已注册 [`RingId`]）。
-pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<Polynomial> {
-    let desc = rings.get(poly.ring).ok_or_else(|| ring_unknown(poly.ring))?;
-    canonicalize_terms(poly.ring, desc, poly.terms, rings)
+/// 将任意项列表规范化为 [`CanonicalPolynomial`]（须已注册 [`RingId`]）。
+pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<CanonicalPolynomial> {
+    let (ring, terms) = poly.into_parts();
+    let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+    canonicalize_terms(ring, desc, terms, rings)
 }
 
 pub(crate) fn canonicalize_terms(
@@ -23,30 +24,28 @@ pub(crate) fn canonicalize_terms(
     desc: &RingDescriptor,
     raw: Vec<MonomialTerm>,
     rings: &RingTable,
-) -> Result<Polynomial> {
+) -> Result<CanonicalPolynomial> {
     let n = desc.variable_count();
     let coeff_ring = rings.coeff_kernel(ring).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();
 
     for term in raw {
-        if term.exponents.len() != n {
+        let (coefficient, exponents) = term.into_parts();
+        if exponents.len() != n {
             return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "canonicalize_exponent_length"));
         }
-        validate_coefficient(
-            &term.coefficient,
-            rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?,
-        )?;
-        if term.coefficient.is_zero() {
+        validate_coefficient(&coefficient, rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?)?;
+        if coefficient.is_zero() {
             continue;
         }
-        match acc.get_mut(&term.exponents) {
+        match acc.get_mut(&exponents) {
             Some(existing) => {
-                *existing = merge_coefficients(existing.clone(), term.coefficient, coeff_ring.as_ref())?;
+                *existing = merge_coefficients(existing.clone(), coefficient, coeff_ring.as_ref())?;
             }
             None => {
-                acc.insert(term.exponents, term.coefficient);
+                acc.insert(exponents, coefficient);
             }
         }
     }
@@ -54,12 +53,12 @@ pub(crate) fn canonicalize_terms(
     let mut terms: Vec<MonomialTerm> = acc
         .into_iter()
         .filter(|(_, c)| !c.is_zero())
-        .map(|(exponents, coefficient)| MonomialTerm { coefficient, exponents })
+        .map(|(exponents, coefficient)| MonomialTerm::from_parts(coefficient, exponents))
         .collect();
 
     sort_terms_desc(&mut terms, &desc.monomial_layout)?;
 
-    Ok(Polynomial { ring, terms })
+    Ok(CanonicalPolynomial::from_canonical_parts(ring, terms))
 }
 
 fn sort_terms_desc(terms: &mut [MonomialTerm], layout: &super::monomial_layout::MonomialLayout) -> Result<()> {
@@ -68,15 +67,15 @@ fn sort_terms_desc(terms: &mut [MonomialTerm], layout: &super::monomial_layout::
         if sort_error.is_some() {
             return std::cmp::Ordering::Equal;
         }
-        if let Err(d) = layout.validate_exponents(&a.exponents) {
+        if let Err(d) = layout.validate_exponents(a.exponents()) {
             sort_error = Some(d);
             return std::cmp::Ordering::Equal;
         }
-        if let Err(d) = layout.validate_exponents(&b.exponents) {
+        if let Err(d) = layout.validate_exponents(b.exponents()) {
             sort_error = Some(d);
             return std::cmp::Ordering::Equal;
         }
-        layout.cmp_exponents_desc(&a.exponents, &b.exponents)
+        layout.cmp_exponents_desc(a.exponents(), b.exponents())
     });
     sort_error.map_or(Ok(()), Err)
 }

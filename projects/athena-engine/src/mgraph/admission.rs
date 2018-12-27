@@ -146,7 +146,7 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
             }
         }
         PolynomialDomainValue::UnivariateDivision(v) => {
-            if v.remainder.inner.terms.is_empty() {
+            if v.remainder.inner.terms().is_empty() {
                 Guarantee::ProvenExact
             }
             else {

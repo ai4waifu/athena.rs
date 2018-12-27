@@ -1,7 +1,7 @@
 //! 域与域元素对象合同。
 
 use athena_numeric::{Integer, Rational};
-use athena_types::{ExtensionId, FieldId, PresentationId};
+use athena_types::{ExtensionId, FieldId, FieldPresentationId};
 
 use crate::algebra::PropertyState;
 
@@ -13,7 +13,7 @@ pub struct Field {
     /// 数学描述（与 presentation 分离）。
     pub descriptor: FieldDescriptor,
     /// 默认 presentation。
-    pub presentation: PresentationId,
+    pub presentation: FieldPresentationId,
 }
 
 /// 域元素表示（按 presentation kind 解释）。
@@ -49,7 +49,7 @@ pub struct FieldElement {
     /// 所属域。
     pub field: FieldId,
     /// 解释 repr 的 presentation。
-    pub presentation: PresentationId,
+    pub presentation: FieldPresentationId,
     /// 私有表示。
     pub repr: FieldElementRepr,
 }

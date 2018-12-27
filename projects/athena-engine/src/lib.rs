@@ -39,10 +39,10 @@ pub use athena_numeric as numeric;
 
 pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, BsgsChain, CoefficientParent, ElementProvenance,
-    FieldEmbedding, FieldExtension, FieldPresentation, FieldPresentationId, FieldPresentationKind, FieldTable,
-    FiniteFieldPolySpec, GroupHomomorphism, GroupPresentation, GroupPresentationId, GroupPresentationKind, GroupPropertyFacts,
-    GroupTable, MapTable, MapVerification, MapVerificationKind, NumberFieldSpec, PermutationGroupSpec, PropertyState,
-    PropertyWitness, QuotientProjection, SubgroupInclusion, field_automorphism, frobenius_coords, is_galois_extension,
+    FieldEmbedding, FieldExtension, FieldPresentation, FieldPresentationKind, FieldTable, FiniteFieldPolySpec,
+    GroupHomomorphism, GroupPresentation, GroupPresentationKind, GroupPropertyFacts, GroupTable, MapTable, MapVerification,
+    MapVerificationKind, NumberFieldSpec, PermutationGroupSpec, PropertyState, PropertyWitness, QuotientProjection,
+    SubgroupInclusion, field_automorphism, frobenius_coords, is_galois_extension,
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
@@ -54,8 +54,9 @@ pub use athena_numeric::{
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AlgebraMapId, AssumptionSet, AssumptionSetId, AutomorphismId, CoefficientRingId, Condition, Diagnostic, DiagnosticCode,
-    DiagnosticPath, DiagnosticValue, DomainId, ExtensionId, FieldId, GroupElementId, GroupId, NodeId, OperatorId, Precision,
-    Predicate, PresentationId, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SubgroupId, SymbolId, TermId,
+    DiagnosticPath, DiagnosticValue, DomainId, ExtensionId, FieldId, FieldPresentationId, GroupElementId, GroupId,
+    GroupPresentationId, NodeId, OperatorId, Precision, Predicate, PresentationId, Result, RoundingMode, SerializationVersion,
+    Severity, SourceSpan, SubgroupId, SymbolId, TermId,
     wire::{ExactNumber, RealNumber, WireNumber},
 };
 pub use calculus::{
@@ -143,10 +144,14 @@ pub use polynomial::{
 };
 pub use session::Session;
 pub use solve::{
-    BindingId, BindingMap, BoundSymbol, BranchStatus, Constraint, ConstraintConnective, ConstraintSet, CoverageStatus,
-    Equation, ExecutionLimits, Inequality, InequalityOp, MultiplicityInfo, ProofRef, QuantifiedConstraint, Quantifier,
-    ResidualCertificate, ResumeToken, SolutionBranch, SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate,
-    SolveProblem, SolveRelationKind,
+    BindingId, BindingMap, BindingValue, BindingValueTable, BoundSymbol, BranchStatus, Constraint, ConstraintConnective,
+    ConstraintSet, CoverageStatus, Equation, ExecutionLimits, Inequality, InequalityOp, LinearAdaptedSolution,
+    MultiplicityInfo, ProofRef, QuantifiedConstraint, Quantifier, RelationalOperators, ResidualCertificate, ResumeToken,
+    SolutionBranch, SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate, SolveProblem, SolveRelationKind,
+    UnivariateAdaptedSolution, adapt_exact_linear_solve, adapt_machine_linear_solve, adapt_univariate_factorization,
+    coverage_from_exact_disposition, coverage_from_factorization, coverage_from_machine_disposition,
+    normalize_constraint_conjunction, normalize_relational_app, solve_linear_system_exact, solve_linear_system_machine,
+    solve_univariate_polynomial_roots,
 };
 pub use solver::{
     DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,

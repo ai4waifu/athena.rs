@@ -34,7 +34,7 @@ fn build(rings: &RingTable, ring: athena_engine::RingId, terms: &[(i64, i64, Vec
 }
 
 fn contains_poly_with_leading_exp(gb: &[athena_engine::Polynomial], exp: &[u32]) -> bool {
-    gb.iter().any(|p| p.terms.first().is_some_and(|t| t.exponents == exp))
+    gb.iter().any(|p| p.terms().first().is_some_and(|t| t.exponents() == exp))
 }
 
 #[test]
@@ -60,8 +60,8 @@ fn reduce_by_verified_groebner_basis() {
     let gb = computation.as_verified().unwrap();
     let f = build(&rings, ring, &[(1, 1, vec![2, 0])]);
     let rem = reduce_by_verified(f.clone(), gb, &rings).unwrap();
-    assert_eq!(rem.terms.len(), 1);
-    assert_eq!(rem.terms[0].exponents, vec![0, 0]);
+    assert_eq!(rem.terms().len(), 1);
+    assert_eq!(rem.terms()[0].exponents(), vec![0, 0]);
     assert!(!ideal_membership(f, gb, &rings).unwrap());
     let zero_member = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 0])]);
     assert!(ideal_membership(zero_member, gb, &rings).unwrap());
@@ -73,7 +73,7 @@ fn heuristic_reduce_ideal_still_available() {
     let g = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 0])]);
     let f = build(&rings, ring, &[(1, 1, vec![2, 0])]);
     let rem = reduce_ideal(f, &[g], &rings).unwrap();
-    assert_eq!(rem.terms[0].exponents, vec![0, 0]);
+    assert_eq!(rem.terms()[0].exponents(), vec![0, 0]);
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn elimination_ideal_in_y() {
     let out = athena_engine::compute_elimination_basis(vec![f1, f2], &rings, GroebnerLimits::default()).unwrap();
     assert_eq!(out.status(), GroebnerStatus::Verified);
     assert!(out.certificate().elimination_elements.is_some());
-    assert!(out.polynomials().iter().all(|p| p.terms.iter().all(|t| t.exponents[0] == 0)));
+    assert!(out.polynomials().iter().all(|p| p.terms().iter().all(|t| t.exponents()[0] == 0)));
     assert!(!out.polynomials().is_empty());
 }
 

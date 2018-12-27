@@ -20,6 +20,7 @@ mod property;
 mod subgroup;
 mod table;
 
+pub use athena_types::{FieldPresentationId, GroupPresentationId};
 pub use bsgs::BsgsChain;
 pub use element::{AlgebraElement, ElementProvenance};
 pub use extension::FieldExtension;
@@ -45,10 +46,7 @@ pub use number_field::{
 };
 pub use parent::{AlgebraParentId, CoefficientParent};
 pub use permutation::RawPerm;
-pub use presentation::{
-    FieldPresentation, FieldPresentationId, FieldPresentationKind, GroupPresentation, GroupPresentationId,
-    GroupPresentationKind,
-};
+pub use presentation::{FieldPresentation, FieldPresentationKind, GroupPresentation, GroupPresentationKind};
 pub use property::{PropertyState, PropertyWitness};
 pub use subgroup::{coset_representatives, is_normal, quotient_generators};
 pub use table::FieldTable;

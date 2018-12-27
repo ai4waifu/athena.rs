@@ -62,26 +62,26 @@ pub enum PolynomialReprBody {
 impl PolynomialRepr {
     /// 从 canonical [`Polynomial`] 转换到指定表示。
     pub fn from_polynomial(poly: &Polynomial, rings: &RingTable, target: ReprTarget) -> Result<Self> {
-        let desc = rings.get(poly.ring).ok_or_else(|| ring_unknown(poly.ring))?;
+        let desc = rings.get(poly.ring()).ok_or_else(|| ring_unknown(poly.ring()))?;
         let n = desc.variable_count();
         let body = match target {
-            ReprTarget::DistributedSparse => PolynomialReprBody::DistributedSparse { terms: poly.terms.clone() },
+            ReprTarget::DistributedSparse => PolynomialReprBody::DistributedSparse { terms: poly.terms().to_vec() },
             ReprTarget::DenseUnivariate { var_index } | ReprTarget::SparseUnivariate { var_index } => {
                 if var_index >= n {
                     return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                         .detail("domain", "polynomial")
                         .detail("operation", "repr_var_index_out_of_range"));
                 }
-                assert_univariate_in(&poly.terms, var_index, n)?;
+                assert_univariate_in(poly.terms(), var_index, n)?;
                 if matches!(target, ReprTarget::DenseUnivariate { .. }) {
-                    PolynomialReprBody::DenseUnivariate { var_index, coefficients: terms_to_dense(var_index, &poly.terms)? }
+                    PolynomialReprBody::DenseUnivariate { var_index, coefficients: terms_to_dense(var_index, poly.terms())? }
                 }
                 else {
-                    PolynomialReprBody::SparseUnivariate { var_index, terms: terms_to_sparse(var_index, &poly.terms)? }
+                    PolynomialReprBody::SparseUnivariate { var_index, terms: terms_to_sparse(var_index, poly.terms())? }
                 }
             }
         };
-        Ok(Self { ring: poly.ring, body })
+        Ok(Self { ring: poly.ring(), body })
     }
 
     /// 转回 canonical [`Polynomial`]（merge · 去零 · 排序）。
@@ -127,12 +127,12 @@ pub fn reprs_mathematically_equal(a: &PolynomialRepr, b: &PolynomialRepr, rings:
 
 fn assert_univariate_in(terms: &[MonomialTerm], var_index: usize, n: usize) -> Result<()> {
     for term in terms {
-        if term.exponents.len() != n {
+        if term.exponents().len() != n {
             return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "repr_exponent_length"));
         }
-        for (i, &exp) in term.exponents.iter().enumerate() {
+        for (i, &exp) in term.exponents().iter().enumerate() {
             if i != var_index && exp != 0 {
                 return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                     .detail("domain", "polynomial")
@@ -146,19 +146,19 @@ fn assert_univariate_in(terms: &[MonomialTerm], var_index: usize, n: usize) -> R
 fn terms_to_dense(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<Number>> {
     let mut max_deg = 0usize;
     for term in terms {
-        max_deg = max_deg.max(term.exponents[var_index] as usize);
+        max_deg = max_deg.max(term.exponents()[var_index] as usize);
     }
     let mut coeffs = vec![Number::small_int(0); max_deg + 1];
     for term in terms {
-        let d = term.exponents[var_index] as usize;
-        coeffs[d] = term.coefficient.clone();
+        let d = term.exponents()[var_index] as usize;
+        coeffs[d] = term.coefficient().clone();
     }
     strip_trailing_zeros(&mut coeffs);
     Ok(coeffs)
 }
 
 fn terms_to_sparse(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<(u32, Number)>> {
-    let mut out: Vec<(u32, Number)> = terms.iter().map(|t| (t.exponents[var_index], t.coefficient.clone())).collect();
+    let mut out: Vec<(u32, Number)> = terms.iter().map(|t| (t.exponents()[var_index], t.coefficient().clone())).collect();
     out.sort_by(|a, b| b.0.cmp(&a.0));
     Ok(out)
 }

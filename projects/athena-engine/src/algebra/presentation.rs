@@ -1,13 +1,7 @@
 //! 域与群的具体表示（与数学 descriptor 分离）。
 
 use athena_numeric::Integer;
-use athena_types::{ExtensionId, FieldId, PresentationId};
-
-/// 域 presentation 稳定句柄（内容与 [`FieldPresentation`] 一一对应）。
-pub type FieldPresentationId = PresentationId;
-
-/// 群 presentation 稳定句柄。
-pub type GroupPresentationId = PresentationId;
+use athena_types::{ExtensionId, FieldId, FieldPresentationId, GroupPresentationId};
 
 /// 域的具体表示种类（算法可后补，边界现冻结）。
 #[derive(Debug, Clone, PartialEq, Eq)]

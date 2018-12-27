@@ -43,11 +43,11 @@ fn rational_univariate_division() {
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::PolynomialDomainValue::UnivariateDivision(d) => {
-                assert!(d.remainder.inner.terms.is_empty());
-                assert_eq!(d.quotient.inner.terms[0].exponents, vec![1]);
-                assert_eq!(d.quotient.inner.terms[0].coefficient.to_render_string(), "1");
-                assert_eq!(d.quotient.inner.terms[1].exponents, vec![0]);
-                assert_eq!(d.quotient.inner.terms[1].coefficient.to_render_string(), "1");
+                assert!(d.remainder.inner.terms().is_empty());
+                assert_eq!(d.quotient.inner.terms()[0].exponents(), vec![1]);
+                assert_eq!(d.quotient.inner.terms()[0].coefficient().to_render_string(), "1");
+                assert_eq!(d.quotient.inner.terms()[1].exponents(), vec![0]);
+                assert_eq!(d.quotient.inner.terms()[1].coefficient().to_render_string(), "1");
             }
             other => panic!("unexpected value {other:?}"),
         },
@@ -71,8 +71,8 @@ fn integer_gcd_is_monic_primitive() {
     let a = uni(&rings, ring, &[(1, 2), (-1, 0)]);
     let b = uni(&rings, ring, &[(1, 1), (-1, 0)]);
     let g = gcd_univariate(a, b, &rings).unwrap();
-    assert_eq!(g.terms.len(), 2);
-    assert!(g.terms.iter().any(|t| t.exponents == vec![1] && t.coefficient.to_render_string() == "1"));
+    assert_eq!(g.terms().len(), 2);
+    assert!(g.terms().iter().any(|t| t.exponents() == vec![1] && t.coefficient().to_render_string() == "1"));
 }
 
 #[test]
@@ -81,9 +81,9 @@ fn prime_field_gcd() {
     let a = uni(&rings, ring, &[(3, 1), (1, 0)]);
     let b = uni(&rings, ring, &[(2, 1), (1, 0)]);
     let g = gcd_univariate(a, b, &rings).unwrap();
-    assert_eq!(g.terms.len(), 1);
-    assert_eq!(g.terms[0].exponents, vec![0]);
-    assert_eq!(g.terms[0].coefficient.to_render_string(), "1");
+    assert_eq!(g.terms().len(), 1);
+    assert_eq!(g.terms()[0].exponents(), vec![0]);
+    assert_eq!(g.terms()[0].coefficient().to_render_string(), "1");
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn gcd_request_via_execute_polynomial() {
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::PolynomialDomainValue::Polynomial(p) => {
-                assert_eq!(p.inner.terms.len(), 1);
+                assert_eq!(p.inner.terms().len(), 1);
             }
             other => panic!("unexpected {other:?}"),
         },

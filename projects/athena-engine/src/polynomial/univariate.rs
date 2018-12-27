@@ -28,53 +28,53 @@ pub fn div_univariate(
     rings: &RingTable,
 ) -> Result<UnivariateDivision> {
     ensure_same_ring(&dividend, &divisor)?;
-    let desc = rings.get(dividend.ring).ok_or_else(|| ring_unknown(dividend.ring))?;
+    let desc = rings.get(dividend.ring()).ok_or_else(|| ring_unknown(dividend.ring()))?;
     let var = detect_univariate_var(&dividend, desc.variable_count())?;
     let a = to_dense(&dividend, var, desc.variable_count())?;
     let b = to_dense(&divisor, var, desc.variable_count())?;
-    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(dividend.ring))?;
+    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(dividend.ring()))?;
     let (q, r) = match domain {
         CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(dividend.ring)?;
+            let coeff = rings.coeff_kernel(dividend.ring())?;
             div_dense_field(&a, &b, &coeff, policy)?
         }
         CoefficientDomain::Integer => div_dense_integer(&a, &b, policy)?,
         _ => return Err(unsupported_domain()),
     };
     Ok(UnivariateDivision {
-        quotient: from_dense(&q, var, desc.variable_count(), dividend.ring, rings)?,
-        remainder: from_dense(&r, var, desc.variable_count(), dividend.ring, rings)?,
+        quotient: from_dense(&q, var, desc.variable_count(), dividend.ring(), rings)?,
+        remainder: from_dense(&r, var, desc.variable_count(), dividend.ring(), rings)?,
     })
 }
 
 /// 单变量 GCD（零多项式返回零；非零时返回 primitive 意义下规范代表）。
 pub fn gcd_univariate(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Result<Polynomial> {
     ensure_same_ring(&lhs, &rhs)?;
-    let desc = rings.get(lhs.ring).ok_or_else(|| ring_unknown(lhs.ring))?;
+    let desc = rings.get(lhs.ring()).ok_or_else(|| ring_unknown(lhs.ring()))?;
     let var = detect_univariate_var(&lhs, desc.variable_count())?;
     let a = to_dense(&lhs, var, desc.variable_count())?;
     let b = to_dense(&rhs, var, desc.variable_count())?;
-    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring))?;
+    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring()))?;
     let g = match domain {
         CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(lhs.ring)?;
+            let coeff = rings.coeff_kernel(lhs.ring())?;
             gcd_dense_field(a, b, &coeff)?
         }
         CoefficientDomain::Integer => gcd_dense_integer(a, b)?,
         _ => return Err(unsupported_domain()),
     };
-    from_dense(&g, var, desc.variable_count(), lhs.ring, rings)
+    from_dense(&g, var, desc.variable_count(), lhs.ring(), rings)
 }
 
 /// 单变量 Sylvester 结式（系数环中的标量）。
 pub fn resultant_univariate(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Result<Number> {
     ensure_same_ring(&lhs, &rhs)?;
-    let desc = rings.get(lhs.ring).ok_or_else(|| ring_unknown(lhs.ring))?;
+    let desc = rings.get(lhs.ring()).ok_or_else(|| ring_unknown(lhs.ring()))?;
     let var = detect_univariate_var(&lhs, desc.variable_count())?;
     let a = to_dense(&lhs, var, desc.variable_count())?;
     let b = to_dense(&rhs, var, desc.variable_count())?;
-    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring))?;
-    resultant_dense(&a, &b, domain, lhs.ring, rings)
+    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring()))?;
+    resultant_dense(&a, &b, domain, lhs.ring(), rings)
 }
 
 fn div_dense_field(
@@ -356,15 +356,15 @@ fn detect_univariate_var(poly: &Polynomial, n: usize) -> Result<usize> {
     if n == 1 {
         return Ok(0);
     }
-    if poly.terms.is_empty() {
+    if poly.terms().is_empty() {
         return Ok(0);
     }
     let mut active = None;
-    for term in &poly.terms {
-        if term.exponents.len() != n {
+    for term in poly.terms() {
+        if term.exponents().len() != n {
             return Err(exponent_mismatch());
         }
-        for (i, &e) in term.exponents.iter().enumerate() {
+        for (i, &e) in term.exponents().iter().enumerate() {
             if e != 0 {
                 match active {
                     None => active = Some(i),
@@ -385,23 +385,23 @@ fn detect_univariate_var(poly: &Polynomial, n: usize) -> Result<usize> {
 
 fn to_dense(poly: &Polynomial, var: usize, n: usize) -> Result<Vec<Number>> {
     let mut max = 0usize;
-    for term in &poly.terms {
-        if term.exponents.len() != n {
+    for term in poly.terms() {
+        if term.exponents().len() != n {
             return Err(exponent_mismatch());
         }
-        for (i, &e) in term.exponents.iter().enumerate() {
+        for (i, &e) in term.exponents().iter().enumerate() {
             if i != var && e != 0 {
                 return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
                     .detail("domain", "polynomial")
                     .detail("operation", "univariate_multivariate"));
             }
         }
-        max = max.max(term.exponents[var] as usize);
+        max = max.max(term.exponents()[var] as usize);
     }
     let mut coeffs = vec![Number::small_int(0); max + 1];
-    for term in &poly.terms {
-        let d = term.exponents[var] as usize;
-        coeffs[d] = term.coefficient.clone();
+    for term in poly.terms() {
+        let d = term.exponents()[var] as usize;
+        coeffs[d] = term.coefficient().clone();
     }
     Ok(trim_dense(&coeffs))
 }
@@ -551,7 +551,7 @@ fn num_pow(base: Number, exp: usize) -> Result<Number> {
 }
 
 fn ensure_same_ring(lhs: &Polynomial, rhs: &Polynomial) -> Result<()> {
-    if lhs.ring != rhs.ring {
+    if lhs.ring() != rhs.ring() {
         return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
             .detail("domain", "polynomial")
             .detail("operation", "ring_mismatch"));
@@ -604,8 +604,8 @@ mod tests {
         let (rings, _, a) = z_poly(&[(1, 2), (-1, 0)]);
         let (_, _, b) = z_poly(&[(1, 1), (-1, 0)]);
         let g = gcd_univariate(a, b, &rings).unwrap();
-        assert_eq!(g.terms.len(), 2);
-        assert!(g.terms.iter().any(|t| t.exponents == vec![1] && t.coefficient.to_render_string() == "1"));
+        assert_eq!(g.terms().len(), 2);
+        assert!(g.terms().iter().any(|t| t.exponents() == vec![1] && t.coefficient().to_render_string() == "1"));
     }
 
     #[test]
@@ -621,8 +621,8 @@ mod tests {
         bb.push_term(Number::small_int(1), vec![0]).unwrap();
         let b = bb.build(&rings).unwrap();
         let g = gcd_univariate(a, b, &rings).unwrap();
-        assert_eq!(g.terms.len(), 1);
-        assert_eq!(g.terms[0].exponents, vec![0]);
-        assert_eq!(g.terms[0].coefficient.to_render_string(), "1");
+        assert_eq!(g.terms().len(), 1);
+        assert_eq!(g.terms()[0].exponents, vec![0]);
+        assert_eq!(g.terms()[0].coefficient.to_render_string(), "1");
     }
 }

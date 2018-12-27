@@ -60,7 +60,7 @@ impl Fixture for PolynomialMulParityFixture {
         b2.push_term(Number::small_int(2), vec![1]).map_err(|d| d.code.as_str().to_string())?;
         let rhs = b2.build(&rings).map_err(|d| d.code.as_str().to_string())?;
         let (prod, parity) = mul_with_jit_parity(lhs, rhs, &rings).map_err(|d| d.code.as_str().to_string())?;
-        if prod.terms.len() != 1 {
+        if prod.terms().len() != 1 {
             return Err("expected single term product".into());
         }
         if !matches!(parity, JitParityOutcome::EagerOnly | JitParityOutcome::JitUnavailable) {

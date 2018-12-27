@@ -34,9 +34,7 @@ fn sqrt2_squared_is_2() {
     let sq = mul_field_elements(&table, &sqrt2, &sqrt2).unwrap();
     assert_eq!(
         sq.repr,
-        FieldElementRepr::NumberFieldCoords {
-            coords: vec![Rational::from_integer(Integer::from_i64(2)), Rational::zero()]
-        }
+        FieldElementRepr::NumberFieldCoords { coords: vec![Rational::from_integer(Integer::from_i64(2)), Rational::zero()] }
     );
 }
 
@@ -47,10 +45,7 @@ fn inv_of_sqrt2() {
     let sqrt2 = canonical_number_field_element(&table, k, vec![Rational::zero(), Rational::one()]).unwrap();
     let inv = inv_field_element(&table, &sqrt2).unwrap();
     let prod = mul_field_elements(&table, &sqrt2, &inv).unwrap();
-    assert_eq!(
-        prod.repr,
-        FieldElementRepr::NumberFieldCoords { coords: vec![Rational::one(), Rational::zero()] }
-    );
+    assert_eq!(prod.repr, FieldElementRepr::NumberFieldCoords { coords: vec![Rational::one(), Rational::zero()] });
 }
 
 #[test]
@@ -98,12 +93,7 @@ fn sqrt3_squared_is_3_in_tower() {
     assert_eq!(
         sq.repr,
         FieldElementRepr::NumberFieldCoords {
-            coords: vec![
-                Rational::from_integer(Integer::from_i64(3)),
-                Rational::zero(),
-                Rational::zero(),
-                Rational::zero()
-            ]
+            coords: vec![Rational::from_integer(Integer::from_i64(3)), Rational::zero(), Rational::zero(), Rational::zero()]
         }
     );
 }

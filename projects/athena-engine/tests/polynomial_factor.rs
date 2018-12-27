@@ -48,7 +48,7 @@ fn higher_degree_returns_partial_cofactor() {
     let f = factor_univariate(p, &rings, PolynomialFactorLimits::default()).unwrap();
     assert_eq!(f.completeness(), PolynomialFactorizationCompleteness::Partial);
     assert!(f.factors.is_empty());
-    assert!(!f.cofactor.terms.is_empty());
+    assert!(!f.cofactor.terms().is_empty());
     assert!(!f.is_exact_witness());
 }
 

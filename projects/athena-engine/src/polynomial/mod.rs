@@ -31,13 +31,13 @@ mod univariate;
 mod value;
 
 pub use athena_types::CoefficientRingId;
-pub use builder::{CanonicalPolynomial, PolynomialBuilder};
+pub use builder::PolynomialBuilder;
 pub use cache_key::{PolynomialCacheKey, PolynomialCacheOp, cache_key_for_request};
 pub use canonical::canonicalize_polynomial;
 pub use certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus};
 pub use coeff_kernel::{CoeffRing, FpBigKernel, FpWordKernel, QCoeffKernel, SpecializedCoeffKernel, ZCoeffKernel};
 pub use coeff_ring_table::{CoeffRingTable, CoefficientRingDescriptor};
-pub use expr::{MonomialTerm, Polynomial};
+pub use expr::{CanonicalPolynomial, MonomialTerm, Polynomial};
 pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus,
     PolynomialFactorization, PolynomialFactorizationCompleteness, factor_univariate,

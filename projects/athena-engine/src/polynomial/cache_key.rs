@@ -107,7 +107,7 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable) -> 
 }
 
 fn ring_fingerprint_for(poly: &Polynomial, rings: &RingTable) -> Result<RingFingerprint> {
-    rings.ring_fingerprint(poly.ring).ok_or_else(|| {
+    rings.ring_fingerprint(poly.ring()).ok_or_else(|| {
         Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_unknown_ring")
@@ -122,7 +122,7 @@ fn single_input_key(op: PolynomialCacheOp, poly: &Polynomial, rings: &RingTable,
     let fp = poly_fingerprint(poly, rings)?;
     Ok(PolynomialCacheKey {
         operation: op,
-        ring: poly.ring,
+        ring: poly.ring(),
         ring_fingerprint: ring_fingerprint_for(poly, rings)?,
         input_fingerprints: vec![fp],
         input_hashes: vec![polynomial_canonical_hash(poly, rings)?],
@@ -137,7 +137,7 @@ fn two_input_key(
     rings: &RingTable,
     limits_fp: u64,
 ) -> Result<PolynomialCacheKey> {
-    if lhs.ring != rhs.ring {
+    if lhs.ring() != rhs.ring() {
         return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_ring_mismatch"));
@@ -146,7 +146,7 @@ fn two_input_key(
     let rfp = poly_fingerprint(rhs, rings)?;
     Ok(PolynomialCacheKey {
         operation: op,
-        ring: lhs.ring,
+        ring: lhs.ring(),
         ring_fingerprint: ring_fingerprint_for(lhs, rings)?,
         input_fingerprints: vec![lfp, rfp],
         input_hashes: vec![polynomial_canonical_hash(lhs, rings)?, polynomial_canonical_hash(rhs, rings)?],
@@ -165,12 +165,12 @@ fn many_input_key(
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_empty_generators"));
     }
-    let ring = generators[0].ring;
+    let ring = generators[0].ring();
     let ring_fingerprint = ring_fingerprint_for(&generators[0], rings)?;
     let mut input_fingerprints = Vec::with_capacity(generators.len());
     let mut input_hashes = Vec::with_capacity(generators.len());
     for g in generators {
-        if g.ring != ring {
+        if g.ring() != ring {
             return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "cache_key_ring_mismatch"));

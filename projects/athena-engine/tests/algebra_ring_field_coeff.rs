@@ -50,6 +50,6 @@ fn normalized_finite_field_mul_still_works() {
     b3.push_term(Number::small_int(2), vec![0]).unwrap();
     let p3 = b3.build(&rings).unwrap();
     let prod = mul_polynomial(sum, p3, &rings).unwrap();
-    let c0 = prod.terms.iter().find(|t| t.exponents == vec![0]).map(|t| t.coefficient.clone()).unwrap();
+    let c0 = prod.terms().iter().find(|t| t.exponents() == [0]).map(|t| t.coefficient().clone()).unwrap();
     assert_eq!(c0, Number::small_int(4));
 }

@@ -129,12 +129,12 @@ pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValu
         "incomplete polynomial factorization must not produce exact witness"
     );
     let (output_summary, groebner_steps) = match value {
-        PolynomialDomainValue::Polynomial(v) => (format!("poly:{}", v.inner.terms.len()), None),
+        PolynomialDomainValue::Polynomial(v) => (format!("poly:{}", v.inner.terms().len()), None),
         PolynomialDomainValue::GroebnerBasis(v) => {
             (format!("gb:{}:{}", v.basis.len(), v.certificate.s_pair_steps), Some(v.certificate.s_pair_steps))
         }
         PolynomialDomainValue::UnivariateDivision(v) => {
-            (format!("div:q{}:r{}", v.quotient.inner.terms.len(), v.remainder.inner.terms.len()), None)
+            (format!("div:q{}:r{}", v.quotient.inner.terms().len(), v.remainder.inner.terms().len()), None)
         }
         PolynomialDomainValue::Factorization(v) => (format!("factor:{}:{:?}", v.factors.len(), v.completeness()), None),
         PolynomialDomainValue::Placeholder => ("placeholder".into(), None),

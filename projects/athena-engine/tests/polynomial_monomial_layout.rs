@@ -39,10 +39,10 @@ fn canonical_sort_uses_layout_not_runtime_enum() {
     b.push_term(athena_engine::Number::small_int(1), vec![0, 1]).unwrap();
     b.push_term(athena_engine::Number::small_int(1), vec![2, 0]).unwrap();
     let poly = b.build(&table).unwrap();
-    assert_eq!(poly.terms.len(), 3);
-    assert_eq!(poly.terms[0].exponents, vec![2, 0]);
-    assert_eq!(poly.terms[1].exponents, vec![1, 0]);
-    assert_eq!(poly.terms[2].exponents, vec![0, 1]);
+    assert_eq!(poly.terms().len(), 3);
+    assert_eq!(poly.terms()[0].exponents(), vec![2, 0]);
+    assert_eq!(poly.terms()[1].exponents(), vec![1, 0]);
+    assert_eq!(poly.terms()[2].exponents(), vec![0, 1]);
 }
 
 #[test]

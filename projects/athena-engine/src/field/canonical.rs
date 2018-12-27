@@ -22,21 +22,11 @@ pub fn canonical_rational(table: &FieldTable, field: FieldId, numer: Integer, de
 }
 
 /// 在数域幂基中构造 canonical 元素。
-pub fn canonical_number_field_element(
-    table: &FieldTable,
-    field: FieldId,
-    coords: Vec<Rational>,
-) -> Result<FieldElement> {
-    let spec = table
-        .number_field_spec(field)
-        .ok_or_else(|| field_element_invalid("expected_number_field"))?;
+pub fn canonical_number_field_element(table: &FieldTable, field: FieldId, coords: Vec<Rational>) -> Result<FieldElement> {
+    let spec = table.number_field_spec(field).ok_or_else(|| field_element_invalid("expected_number_field"))?;
     let coords = canonical_nf_coords(coords, spec.absolute_degree)?;
     let presentation = table.presentation_id(field)?;
-    Ok(FieldElement {
-        field,
-        presentation,
-        repr: FieldElementRepr::NumberFieldCoords { coords },
-    })
+    Ok(FieldElement { field, presentation, repr: FieldElementRepr::NumberFieldCoords { coords } })
 }
 
 /// 在 𝔽_{p^n} 多项式基中构造 canonical 元素。
@@ -212,10 +202,10 @@ pub fn mul_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
             let spec = table.number_field_spec(lhs.field).ok_or_else(|| field_element_invalid("number_field_mul"))?;
             let prod = if spec.relative_degree == spec.absolute_degree {
                 mul_nf_coords(a, b, &spec.absolute_modulus)
-            } else {
-                let base_spec = table
-                    .number_field_spec(spec.base)
-                    .ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+            }
+            else {
+                let base_spec =
+                    table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
                 mul_relative_nf_coords(
                     a,
                     b,
@@ -256,10 +246,10 @@ pub fn inv_field_element(table: &FieldTable, element: &FieldElement) -> Result<F
             let spec = table.number_field_spec(element.field).ok_or_else(|| field_element_invalid("number_field_inv"))?;
             let inv = if spec.relative_degree == spec.absolute_degree {
                 inv_nf_coords(coords, &spec.absolute_modulus)?
-            } else {
-                let base_spec = table
-                    .number_field_spec(spec.base)
-                    .ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+            }
+            else {
+                let base_spec =
+                    table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
                 inv_relative_nf_coords(
                     coords,
                     &base_spec.absolute_modulus,

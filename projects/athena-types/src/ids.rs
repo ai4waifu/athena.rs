@@ -20,7 +20,7 @@ pub struct OperatorId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DomainId(pub u32);
 
-/// 群对象 id（Session / 注册表句柄）。
+/// 群对象 id（**Session-local** 查找句柄；跨 Session 用 fingerprint）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GroupId(pub u32);
 
@@ -28,11 +28,11 @@ pub struct GroupId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GroupElementId(pub u32);
 
-/// 域对象 id。
+/// 域对象 id（**Session-local** 查找句柄；跨 Session 用 fingerprint）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FieldId(pub u32);
 
-/// 域扩张 id。
+/// 域扩张 id（**Session-local**）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ExtensionId(pub u32);
 
@@ -40,13 +40,23 @@ pub struct ExtensionId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CoefficientRingId(pub u32);
 
-/// 多项式环 id（系数域 + 变量序列 + 单项式序的稳定身份）。
+/// 多项式环 id（**Session-local** 查找句柄；跨 Session 语义身份为 `RingFingerprint`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RingId(pub u32);
 
-/// 域 / 群 presentation 句柄（内容与 presentation 对象一一对应）。
+/// 擦除后的 presentation 句柄（仅跨域共享骨架；新代码用强类型）。
+///
+/// Session-local：数值相等不代表跨 Session 同一表示。跨 Session / 缓存 / 序列化用 fingerprint。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PresentationId(pub u32);
+
+/// 域 presentation 句柄（Session-local；禁止与 [`GroupPresentationId`] 混用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FieldPresentationId(pub u32);
+
+/// 群 presentation 句柄（Session-local；禁止与 [`FieldPresentationId`] 混用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct GroupPresentationId(pub u32);
 
 /// 代数映射 id（嵌入、同态、商投影等）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use athena_numeric::Integer;
-use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupId, PresentationId, Result, SubgroupId};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupId, GroupPresentationId, Result, SubgroupId};
 
 use crate::group::{Group, GroupDescriptor, Permutation, Subgroup};
 
@@ -47,8 +47,8 @@ pub struct GroupTable {
     next_group_id: u32,
     next_presentation_id: u32,
     next_subgroup_id: u32,
-    presentations: HashMap<PresentationId, GroupPresentation>,
-    group_to_presentation: HashMap<GroupId, PresentationId>,
+    presentations: HashMap<GroupPresentationId, GroupPresentation>,
+    group_to_presentation: HashMap<GroupId, GroupPresentationId>,
     by_key: HashMap<GroupInternKey, GroupId>,
     permutation_groups: HashMap<GroupId, PermutationGroupSpec>,
     map_table: MapTable,
@@ -77,7 +77,7 @@ impl GroupTable {
         let bsgs = BsgsChain::from_generators(&raw, degree);
         let group = GroupId(self.next_group_id);
         self.next_group_id = self.next_group_id.wrapping_add(1);
-        let presentation_id = PresentationId(self.next_presentation_id);
+        let presentation_id = GroupPresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
         let presentation =
             GroupPresentation { id: presentation_id, group, kind: GroupPresentationKind::Permutation { degree } };
@@ -203,7 +203,7 @@ impl GroupTable {
     }
 
     /// presentation id。
-    pub fn presentation_id(&self, group: GroupId) -> Result<PresentationId> {
+    pub fn presentation_id(&self, group: GroupId) -> Result<GroupPresentationId> {
         self.group_to_presentation.get(&group).copied().ok_or_else(|| unknown_group(group))
     }
 

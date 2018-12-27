@@ -1,7 +1,7 @@
 //! 群与元素对象合同。
 
 use athena_numeric::Integer;
-use athena_types::{GroupElementId, GroupId, PresentationId, SubgroupId};
+use athena_types::{GroupElementId, GroupId, GroupPresentationId, SubgroupId};
 
 use crate::algebra::{GroupPropertyFacts, PropertyState};
 
@@ -25,7 +25,7 @@ pub struct Group {
     /// 数学描述。
     pub descriptor: GroupDescriptor,
     /// 当前可运算 presentation。
-    pub presentation: PresentationId,
+    pub presentation: GroupPresentationId,
     /// 阶（冗余缓存；以 properties 为准）。
     pub order: Option<Integer>,
 }
@@ -67,7 +67,7 @@ pub struct GroupElement {
     /// 所属群。
     pub group: GroupId,
     /// repr 所属的 presentation。
-    pub presentation: PresentationId,
+    pub presentation: GroupPresentationId,
     /// 表示。
     pub repr: GroupElementRepr,
 }

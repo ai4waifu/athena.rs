@@ -1,6 +1,6 @@
 //! 代数映射与验证合同。
 
-use athena_types::{AlgebraMapId, PresentationId, SubgroupId};
+use athena_types::{AlgebraMapId, FieldPresentationId, GroupPresentationId, SubgroupId};
 
 use super::parent::AlgebraParentId;
 
@@ -60,9 +60,9 @@ pub struct FieldEmbedding {
     /// 底层映射 id。
     pub map: AlgebraMapId,
     /// 解释 generator images 的 presentation。
-    pub source_presentation: PresentationId,
+    pub source_presentation: FieldPresentationId,
     /// 解释 generator images 的 presentation。
-    pub target_presentation: PresentationId,
+    pub target_presentation: FieldPresentationId,
 }
 
 /// 群同态（G → H）。
@@ -71,9 +71,9 @@ pub struct GroupHomomorphism {
     /// 底层映射 id。
     pub map: AlgebraMapId,
     /// 源 presentation。
-    pub source_presentation: PresentationId,
+    pub source_presentation: GroupPresentationId,
     /// 靶 presentation。
-    pub target_presentation: PresentationId,
+    pub target_presentation: GroupPresentationId,
 }
 
 /// 子群包含 H ↪ G。
@@ -84,9 +84,9 @@ pub struct SubgroupInclusion {
     /// 子群 id。
     pub subgroup: SubgroupId,
     /// 子群 presentation。
-    pub source_presentation: PresentationId,
+    pub source_presentation: GroupPresentationId,
     /// 父群 presentation。
-    pub target_presentation: PresentationId,
+    pub target_presentation: GroupPresentationId,
 }
 
 /// 商投影 G → G/N。
@@ -97,7 +97,7 @@ pub struct QuotientProjection {
     /// 正规子群 id。
     pub subgroup: SubgroupId,
     /// 源 presentation。
-    pub source_presentation: PresentationId,
+    pub source_presentation: GroupPresentationId,
     /// 商群 presentation。
-    pub target_presentation: PresentationId,
+    pub target_presentation: GroupPresentationId,
 }
