@@ -20,7 +20,7 @@ fn intern_over_prime_field_uses_field_parent() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
-    let CoefficientParent::Field(field) = desc.coefficient()s
+    let CoefficientParent::Field(field) = desc.coefficients
     else {
         panic!("expected Field parent");
     };
@@ -50,9 +50,9 @@ fn finite_field_characteristic_from_descriptor() {
     let ring = table.intern_over_field(field, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let desc = table.get(ring).unwrap();
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(7)));
-    let coeff_ring = desc.coefficient()_ring;
+    let coeff_ring = desc.coefficient_ring;
     assert!(matches!(
-        table.coeff_rings().coefficient()_parent(coeff_ring),
+        table.coeff_rings().coefficient_parent(coeff_ring),
         CoefficientParent::Field(f) if f == field
     ));
 }

@@ -12,7 +12,7 @@ fn coefficient_ring_intern_idempotent() {
     let ring_b = table.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::GrLex).unwrap();
     let desc_a = table.get(ring_a).unwrap();
     let desc_b = table.get(ring_b).unwrap();
-    assert_eq!(desc_a.coefficient()_ring, desc_b.coefficient()_ring);
+    assert_eq!(desc_a.coefficient_ring, desc_b.coefficient_ring);
     assert_eq!(table.coeff_rings().len(), 1);
 }
 
@@ -22,9 +22,9 @@ fn distinct_coefficient_domains_get_distinct_ids() {
     let z = table.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let q = table.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let fp = table.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    let z_id = table.get(z).unwrap().coefficient()_ring;
-    let q_id = table.get(q).unwrap().coefficient()_ring;
-    let fp_id = table.get(fp).unwrap().coefficient()_ring;
+    let z_id = table.get(z).unwrap().coefficient_ring;
+    let q_id = table.get(q).unwrap().coefficient_ring;
+    let fp_id = table.get(fp).unwrap().coefficient_ring;
     assert_ne!(z_id, q_id);
     assert_ne!(z_id, fp_id);
     assert_ne!(q_id, fp_id);
@@ -35,7 +35,7 @@ fn distinct_coefficient_domains_get_distinct_ids() {
 fn coeff_ring_descriptor_matches_domain() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(11), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    let coeff_id = table.get(ring).unwrap().coefficient()_ring;
+    let coeff_id = table.get(ring).unwrap().coefficient_ring;
     let desc = table.coeff_rings().get(coeff_id).unwrap();
     assert!(matches!(desc.domain, CoefficientDomain::FiniteField { .. }));
 }
@@ -52,7 +52,7 @@ fn specialized_fp_kernel_mul_via_ring_table() {
     let p2 = b2.build(&rings).unwrap();
     let product = mul_polynomial(p1, p2, &rings).unwrap();
     assert_eq!(product.terms().len(), 1);
-    assert_eq!(product.terms()[0].coefficient(), Number::small_int(2));
+    assert_eq!(product.terms()[0].coefficient(), &Number::small_int(2));
 }
 
 #[test]
