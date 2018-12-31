@@ -47,12 +47,7 @@ pub struct SolutionBranch {
 impl SolutionBranch {
     /// 空条件、无重数的候选分支。
     pub fn candidate(bindings: BindingMap) -> Self {
-        Self {
-            bindings,
-            conditions: ConstraintSet::empty_and(),
-            multiplicity: None,
-            status: BranchStatus::Candidate,
-        }
+        Self { bindings, conditions: ConstraintSet::empty_and(), multiplicity: None, status: BranchStatus::Candidate }
     }
 }
 

@@ -71,10 +71,7 @@ fn find_instance_and_find_root_are_not_complete_sets() {
 
 #[test]
 fn solve_relation_kinds_are_not_equality() {
-    assert_eq!(
-        SolveRelationKind::Satisfies { solution: TermId(1), problem: TermId(2) }.name(),
-        "Satisfies"
-    );
+    assert_eq!(SolveRelationKind::Satisfies { solution: TermId(1), problem: TermId(2) }.name(), "Satisfies");
     assert!(!SolveRelationKind::Satisfies { solution: TermId(1), problem: TermId(2) }.drives_exact_rewrite());
     assert!(SolveRelationKind::CompleteFor { solution_set: TermId(3), problem: TermId(2) }.drives_exact_rewrite());
     assert!(!SolveRelationKind::LocalConvergence { root: TermId(4), policy_tag: "newton".into() }.drives_exact_rewrite());
