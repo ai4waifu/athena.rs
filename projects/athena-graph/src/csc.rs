@@ -2,7 +2,7 @@
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
-use crate::{GraphError, capability::GraphCapabilities};
+use crate::{capability::GraphCapabilities, error::GraphError, semantics::GraphStorageMetadata};
 
 /// Storage-backed 有向 CSC 图（列指针 + 行索引）。
 #[derive(Debug)]
@@ -11,26 +11,43 @@ pub struct CscGraph<O, I> {
     edges: u64,
     column_offsets: ChunkedArray<u64, O>,
     row_indices: ChunkedArray<u64, I>,
+    metadata: Option<GraphStorageMetadata>,
 }
 
 impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
-    /// 创建并校验 CSC 外边界。
+    /// 创建并全量校验 CSC invariants（含 offsets 单调）。
     pub fn new(
         nodes: u64,
         column_offsets: ChunkedArray<u64, O>,
         row_indices: ChunkedArray<u64, I>,
+    ) -> Result<Self, GraphError> {
+        Self::new_with_metadata(nodes, column_offsets, row_indices, None)
+    }
+
+    /// 创建并附带存储元数据。
+    pub fn new_with_metadata(
+        nodes: u64,
+        column_offsets: ChunkedArray<u64, O>,
+        row_indices: ChunkedArray<u64, I>,
+        metadata: Option<GraphStorageMetadata>,
     ) -> Result<Self, GraphError> {
         let required = nodes.checked_add(1).ok_or(GraphError::NodeOverflow)?;
         if column_offsets.shape().element_count() != required {
             return Err(GraphError::OffsetLength);
         }
         let edges = row_indices.shape().element_count();
-        let first = column_offsets.read_range(0, 1)?[0];
-        let last = column_offsets.read_range(nodes, 1)?[0];
-        if first != 0 || last != edges {
-            return Err(GraphError::Boundary);
-        }
-        Ok(Self { nodes, edges, column_offsets, row_indices })
+        validate_column_offsets_monotonic(&column_offsets, nodes, edges)?;
+        Ok(Self { nodes, edges, column_offsets, row_indices, metadata })
+    }
+
+    /// 绑定 / 替换元数据。
+    pub fn set_metadata(&mut self, metadata: GraphStorageMetadata) {
+        self.metadata = Some(metadata);
+    }
+
+    /// 存储元数据。
+    pub fn metadata(&self) -> Option<&GraphStorageMetadata> {
+        self.metadata.as_ref()
     }
 
     /// 节点数。
@@ -81,4 +98,29 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
             external_workspace: true,
         }
     }
+}
+
+fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(
+    offsets: &ChunkedArray<u64, O>,
+    nodes: u64,
+    edges: u64,
+) -> Result<(), GraphError> {
+    let first = offsets.read_range(0, 1)?[0];
+    if first != 0 {
+        return Err(GraphError::Boundary);
+    }
+    let mut prev = 0u64;
+    let mut i = 0u64;
+    while i <= nodes {
+        let cur = offsets.read_range(i, 1)?[0];
+        if cur < prev || cur > edges {
+            return Err(GraphError::OffsetNonMonotonic { index: i, prev, cur });
+        }
+        prev = cur;
+        i += 1;
+    }
+    if prev != edges {
+        return Err(GraphError::Boundary);
+    }
+    Ok(())
 }

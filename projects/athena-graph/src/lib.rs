@@ -11,9 +11,11 @@ mod capability;
 mod conversion;
 mod csc;
 mod csr;
+mod direction;
 mod error;
 mod graph;
 mod id;
+mod semantics;
 mod view;
 
 pub use algo::{UnionFind, bfs_order, connected_components, strongly_connected_components, topological_sort};
@@ -21,7 +23,12 @@ pub use capability::{GraphAlgorithmRequirements, GraphCapabilities};
 pub use conversion::{csr_to_csc, edge_list_to_csr, graph_edge_list, graph_to_csr};
 pub use csc::CscGraph;
 pub use csr::CsrGraph;
+pub use direction::GraphDirection;
 pub use error::GraphError;
-pub use graph::{Graph, GraphDirection, GraphView};
-pub use id::{EdgeId, GraphRevision, NodeId};
+pub use graph::{Graph, GraphBuilder, GraphView, ImmutableGraph};
+pub use id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId};
+pub use semantics::{
+    GraphFingerprint, GraphSemantics, GraphSnapshot, GraphStorageMetadata, MultiplicityPolicy, SelfLoopDegree, ViewFingerprint,
+    ViewMapping, ViewTransform,
+};
 pub use view::{EdgeFilteredView, InducedSubgraphView, ReversedGraphView};

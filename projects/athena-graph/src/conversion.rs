@@ -33,7 +33,13 @@ pub fn graph_to_csr<N, E>(
     let index_shape = LogicalShape::new([indices.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
     let offsets_arr = ChunkedArray::new(offset_shape, InMemoryStorage::from_vec(offsets), budget)?;
     let indices_arr = ChunkedArray::new(index_shape, InMemoryStorage::from_vec(indices), budget)?;
-    CsrGraph::new(nodes, offsets_arr, indices_arr)
+    let meta = crate::GraphStorageMetadata::csr_unbound(true).bind_snapshot(crate::GraphSnapshot::new(
+        graph.id(),
+        graph.revision(),
+        graph.semantics(),
+        crate::RepresentationId::CSR,
+    ));
+    CsrGraph::new_with_metadata(nodes, offsets_arr, indices_arr, Some(meta))
 }
 
 /// 边列表 `(source, target)` → CSR；边按 `(source, target)` 字典序排序后写入。

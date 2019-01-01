@@ -2,7 +2,7 @@
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
-use crate::{GraphError, capability::GraphCapabilities};
+use crate::{capability::GraphCapabilities, error::GraphError, semantics::GraphStorageMetadata};
 
 /// Storage-backed 有向 CSR 图。
 #[derive(Debug)]
@@ -11,22 +11,44 @@ pub struct CsrGraph<O, I> {
     edges: u64,
     offsets: ChunkedArray<u64, O>,
     indices: ChunkedArray<u64, I>,
+    metadata: Option<GraphStorageMetadata>,
 }
 
 impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
-    /// 创建并校验 CSR 外边界。
+    /// 创建并全量校验 CSR invariants（含 offsets 单调）。
     pub fn new(nodes: u64, offsets: ChunkedArray<u64, O>, indices: ChunkedArray<u64, I>) -> Result<Self, GraphError> {
+        Self::new_with_metadata(nodes, offsets, indices, None)
+    }
+
+    /// 创建并附带存储元数据。
+    pub fn new_with_metadata(
+        nodes: u64,
+        offsets: ChunkedArray<u64, O>,
+        indices: ChunkedArray<u64, I>,
+        metadata: Option<GraphStorageMetadata>,
+    ) -> Result<Self, GraphError> {
         let required = nodes.checked_add(1).ok_or(GraphError::NodeOverflow)?;
         if offsets.shape().element_count() != required {
             return Err(GraphError::OffsetLength);
         }
         let edges = indices.shape().element_count();
-        let first = offsets.read_range(0, 1)?[0];
-        let last = offsets.read_range(nodes, 1)?[0];
-        if first != 0 || last != edges {
-            return Err(GraphError::Boundary);
+        validate_offsets_monotonic(&offsets, nodes, edges)?;
+        if let Some(meta) = &metadata {
+            if meta.sorted_adjacency {
+                validate_sorted_adjacency(&offsets, &indices, nodes)?;
+            }
         }
-        Ok(Self { nodes, edges, offsets, indices })
+        Ok(Self { nodes, edges, offsets, indices, metadata })
+    }
+
+    /// 绑定 / 替换元数据。
+    pub fn set_metadata(&mut self, metadata: GraphStorageMetadata) {
+        self.metadata = Some(metadata);
+    }
+
+    /// 存储元数据。
+    pub fn metadata(&self) -> Option<&GraphStorageMetadata> {
+        self.metadata.as_ref()
     }
 
     /// 节点数。
@@ -68,13 +90,66 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
 
     /// capability 报告。
     pub fn capabilities(&self) -> GraphCapabilities {
+        let sorted = self.metadata.as_ref().map(|m| m.sorted_adjacency).unwrap_or(true);
         GraphCapabilities {
             in_memory: false,
-            sorted_adjacency: true,
+            sorted_adjacency: sorted,
             reverse_adjacency: false,
             random_access: true,
             chunked_sequential: true,
             external_workspace: true,
         }
     }
+}
+
+fn validate_offsets_monotonic<O: ArrayStorage<u64>>(
+    offsets: &ChunkedArray<u64, O>,
+    nodes: u64,
+    edges: u64,
+) -> Result<(), GraphError> {
+    let first = offsets.read_range(0, 1)?[0];
+    if first != 0 {
+        return Err(GraphError::Boundary);
+    }
+    let mut prev = 0u64;
+    // 逐段读取，避免一次性要求 offsets 全进内存。
+    let mut i = 0u64;
+    while i <= nodes {
+        let cur = offsets.read_range(i, 1)?[0];
+        if cur < prev || cur > edges {
+            return Err(GraphError::OffsetNonMonotonic { index: i, prev, cur });
+        }
+        prev = cur;
+        i += 1;
+    }
+    if prev != edges {
+        return Err(GraphError::Boundary);
+    }
+    Ok(())
+}
+
+fn validate_sorted_adjacency<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
+    offsets: &ChunkedArray<u64, O>,
+    indices: &ChunkedArray<u64, I>,
+    nodes: u64,
+) -> Result<(), GraphError> {
+    for node in 0..nodes {
+        let bounds = offsets.read_range(node, 2)?;
+        let start = bounds[0];
+        let end = bounds[1];
+        if start == end {
+            continue;
+        }
+        let mut prev = indices.read_range(start, 1)?[0];
+        let mut off = start + 1;
+        while off < end {
+            let cur = indices.read_range(off, 1)?[0];
+            if cur < prev {
+                return Err(GraphError::AdjacencyUnsorted { node, offset: off });
+            }
+            prev = cur;
+            off += 1;
+        }
+    }
+    Ok(())
 }
