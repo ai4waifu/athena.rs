@@ -27,11 +27,7 @@ impl Modulus {
 
     /// 将整数规范到 `[0, m)`。
     pub fn reduce(&self, n: &Integer) -> Integer {
-        let mut r = n.rem(&self.value);
-        if r.is_negative() {
-            r = r.add(&self.value);
-        }
-        r
+        n.rem_euclid(&self.value).expect("modulus > 1")
     }
 }
 

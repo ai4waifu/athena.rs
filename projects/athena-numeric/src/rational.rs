@@ -44,8 +44,8 @@ impl Rational {
             return Self { numer: Integer::zero(), denom: Integer::one() };
         }
         let g = numer.abs().gcd(&denom.abs());
-        let mut n = if g.is_one() { numer } else { numer.div(&g) };
-        let mut d = if g.is_one() { denom } else { denom.div(&g) };
+        let mut n = if g.is_one() { numer } else { numer.div(&g).expect("gcd") };
+        let mut d = if g.is_one() { denom } else { denom.div(&g).expect("gcd") };
         if d.is_negative() {
             n = n.neg();
             d = d.neg();
@@ -122,13 +122,13 @@ impl Rational {
         let mut d = other.denom.clone();
         let g1 = a.abs().gcd(&c.abs());
         if !g1.is_one() {
-            a = a.div(&g1);
-            c = c.div(&g1);
+            a = a.div(&g1).expect("gcd");
+            c = c.div(&g1).expect("gcd");
         }
         let g2 = b.abs().gcd(&d.abs());
         if !g2.is_one() {
-            b = b.div(&g2);
-            d = d.div(&g2);
+            b = b.div(&g2).expect("gcd");
+            d = d.div(&g2).expect("gcd");
         }
         a.mul(&d).cmp(&c.mul(&b))
     }
@@ -149,8 +149,8 @@ impl Rational {
         let mut d = rhs.denom.clone();
         let g = b.abs().gcd(&d.abs());
         if !g.is_one() {
-            b = b.div(&g);
-            d = d.div(&g);
+            b = b.div(&g).expect("gcd");
+            d = d.div(&g).expect("gcd");
         }
         let n = self.numer.mul(&d).add(&rhs.numer.mul(&b));
         let denom = self.denom.mul(&d);
@@ -245,13 +245,13 @@ fn cross_cancel_mul(a: Integer, b: Integer, c: Integer, d: Integer) -> (Integer,
     let mut d = d;
     let g1 = a.abs().gcd(&d.abs());
     if !g1.is_one() {
-        a = a.div(&g1);
-        d = d.div(&g1);
+        a = a.div(&g1).expect("gcd");
+        d = d.div(&g1).expect("gcd");
     }
     let g2 = c.abs().gcd(&b.abs());
     if !g2.is_one() {
-        c = c.div(&g2);
-        b = b.div(&g2);
+        c = c.div(&g2).expect("gcd");
+        b = b.div(&g2).expect("gcd");
     }
     (a.mul(&c), b.mul(&d))
 }

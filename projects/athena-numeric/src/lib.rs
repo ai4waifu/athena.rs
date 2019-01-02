@@ -37,7 +37,7 @@ pub use backends::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     PureRustBackend,
 };
-pub use big_float::BigFloat;
+pub use big_float::{BigFloat, RoundingStatus};
 pub use certificate::{CertificateMethod, NumericCertificate};
 pub use comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, NumericComparison};
 pub use complex::{BranchPolicy, Complex};

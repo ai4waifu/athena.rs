@@ -1,7 +1,9 @@
 //! 精确整数包装（纯 Rust 内部表示，不暴露 limb / `num-*`）。
 
-use crate::natural::Natural;
+use athena_types::{Diagnostic, DiagnosticCode, Result};
 use std::str::FromStr;
+
+use crate::natural::Natural;
 
 /// 符号（精确）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -189,35 +191,72 @@ impl Integer {
         Self { sign, mag: self.mag.mul(&rhs.mag) }
     }
 
-    /// 向零整除商。
-    pub fn div(&self, rhs: &Self) -> Self {
-        let (q, _) = self.div_rem(rhs);
-        q
-    }
-
-    /// 向零整除余数。
-    pub fn rem(&self, rhs: &Self) -> Self {
-        let (_, r) = self.div_rem(rhs);
-        r
-    }
-
-    fn div_rem(&self, rhs: &Self) -> (Self, Self) {
-        assert!(!rhs.is_zero());
+    /// 向零整除：商向零，余数与被除数同号。
+    pub fn div_rem_trunc(&self, rhs: &Self) -> Result<(Self, Self)> {
+        if rhs.is_zero() {
+            return Err(division_by_zero("div_rem_trunc"));
+        }
         let (q_mag, r_mag) = self.mag.div_rem(&rhs.mag);
         let q_sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
         let r_sign = self.sign;
-        (Self::from_mag_sign(q_mag, q_sign == Sign::Negative), Self::from_mag_sign(r_mag, r_sign == Sign::Negative))
+        Ok((Self::from_mag_sign(q_mag, q_sign == Sign::Negative), Self::from_mag_sign(r_mag, r_sign == Sign::Negative)))
     }
 
-    /// 模幂：`self^exp mod modulus`（`modulus` 须为正）。
-    pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Self {
-        assert!(modulus.is_positive());
-        if exp.is_negative() {
-            return Self::zero();
+    /// 欧几里得整除：余数满足 `0 <= r < |rhs|`。
+    pub fn div_rem_euclid(&self, rhs: &Self) -> Result<(Self, Self)> {
+        if rhs.is_zero() {
+            return Err(division_by_zero("div_rem_euclid"));
         }
-        let base = self.rem(modulus).abs();
-        let result_mag = base.mag.mod_pow(&exp.abs().mag, &modulus.abs().mag);
-        Self { sign: Sign::Positive, mag: result_mag }
+        let (mut q, mut r) = self.div_rem_trunc(rhs)?;
+        if r.is_negative() {
+            if rhs.is_positive() {
+                r = r.add(rhs);
+                q = q.sub(&Self::one());
+            }
+            else {
+                r = r.sub(rhs);
+                q = q.add(&Self::one());
+            }
+        }
+        debug_assert!(!r.is_negative());
+        debug_assert!(r.mag < rhs.mag || r.is_zero());
+        Ok((q, r))
+    }
+
+    /// 向零整除商（见 [`Self::div_rem_trunc`]）。
+    pub fn div(&self, rhs: &Self) -> Result<Self> {
+        Ok(self.div_rem_trunc(rhs)?.0)
+    }
+
+    /// 向零整除余数（见 [`Self::div_rem_trunc`]）。语言级 truncating rem，**不是**欧几里得模。
+    pub fn rem(&self, rhs: &Self) -> Result<Self> {
+        Ok(self.div_rem_trunc(rhs)?.1)
+    }
+
+    /// 欧几里得余数：`0 <= r < |rhs|`。
+    pub fn rem_euclid(&self, rhs: &Self) -> Result<Self> {
+        Ok(self.div_rem_euclid(rhs)?.1)
+    }
+
+    /// 模幂：`self^exp mod modulus`（`modulus` 须为正；底数经欧几里得归约）。
+    ///
+    /// 负指数暂不支持（返回诊断，不静默返零）。
+    pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Result<Self> {
+        if !modulus.is_positive() {
+            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+                .detail("domain", "numeric")
+                .detail("operation", "mod_pow")
+                .detail("reason", "modulus_not_positive"));
+        }
+        if exp.is_negative() {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "numeric")
+                .detail("operation", "mod_pow")
+                .detail("reason", "negative_exponent_requires_modular_inverse"));
+        }
+        let base = self.rem_euclid(modulus)?;
+        let result_mag = base.mag.mod_pow(&exp.mag, &modulus.mag);
+        Ok(Self { sign: Sign::Positive, mag: result_mag })
     }
 
     /// 绝对值的二进制位宽（`0` → `0`）。
@@ -318,7 +357,7 @@ impl Integer {
     }
 
     /// 非负 `u32` 指数幂（独立实现，不回调 [`pow`]）。
-    pub fn pow_u32(&self, exp: u32) -> Result<Self, ()> {
+    pub fn pow_u32(&self, exp: u32) -> std::result::Result<Self, ()> {
         if exp as i64 > Self::MAX_POW_EXP {
             return Err(());
         }
@@ -345,7 +384,7 @@ impl Integer {
     pub const MAX_POW_EXP: i64 = 10_000;
 
     /// 非负整数幂（二进制幂；指数须 `>= 0` 且 `<= MAX_POW_EXP`）。
-    pub fn pow(&self, exp: &Integer) -> Result<Self, ()> {
+    pub fn pow(&self, exp: &Integer) -> std::result::Result<Self, ()> {
         if exp.is_negative() {
             return Err(());
         }
@@ -366,28 +405,33 @@ impl Integer {
         let mut acc = Self::one();
         let mut base = self.clone();
         let mut e = exp.clone();
+        let two = Integer::from_i64(2);
         while !e.is_zero() {
             if e.is_odd() {
                 acc = acc.mul(&base);
             }
             base = base.mul(&base);
-            e = e.div(&Integer::from_i64(2));
+            e = e.div(&two).map_err(|_| ())?;
         }
         Ok(acc)
     }
 
-    /// 整数平方根（完全平方时精确；否则向下取整，供 `kernel_number` 检测）。
-    pub fn int_sqrt(&self) -> Self {
+    /// 非负整数平方根（向下取整）。负数返回域错误，不静默返零。
+    pub fn int_sqrt(&self) -> Result<Self> {
         if self.is_negative() {
-            return Self::zero();
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "numeric")
+                .detail("operation", "int_sqrt")
+                .detail("reason", "negative"));
         }
         if self.is_zero() {
-            return Self::zero();
+            return Ok(Self::zero());
         }
         let mut lo = Self::zero();
         let mut hi = self.clone().add(&Self::one());
+        let two = Integer::from_i64(2);
         while lo.add(&Integer::one()).cmp(&hi) == std::cmp::Ordering::Less {
-            let mid = lo.add(&hi).div(&Integer::from_i64(2));
+            let mid = lo.add(&hi).div(&two).expect("divisor two");
             if mid.mul(&mid) <= *self {
                 lo = mid;
             }
@@ -395,7 +439,7 @@ impl Integer {
                 hi = mid;
             }
         }
-        lo
+        Ok(lo)
     }
 
     /// Binary wire sign code: `0` zero · `1` positive · `2` negative.
@@ -413,8 +457,7 @@ impl Integer {
     }
 
     /// Decode binary wire integer from sign code + magnitude bytes.
-    pub(crate) fn from_wire_magnitude(sign: u8, mag_bytes: &[u8]) -> Result<Self, athena_types::Diagnostic> {
-        use athena_types::{Diagnostic, DiagnosticCode};
+    pub(crate) fn from_wire_magnitude(sign: u8, mag_bytes: &[u8]) -> Result<Self> {
         let mag = Natural::wire_decode_magnitude(mag_bytes).map_err(|_| {
             Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
@@ -424,8 +467,7 @@ impl Integer {
     }
 
     /// Decode from sign code + already-decoded magnitude.
-    pub(crate) fn from_wire_parts(sign: u8, mag: Natural) -> Result<Self, athena_types::Diagnostic> {
-        use athena_types::{Diagnostic, DiagnosticCode};
+    pub(crate) fn from_wire_parts(sign: u8, mag: Natural) -> Result<Self> {
         match sign {
             0 => Ok(Self::zero()),
             1 if mag.is_zero() => Ok(Self::zero()),
@@ -437,6 +479,10 @@ impl Integer {
                 .detail("operation", "wire_sign_decode")),
         }
     }
+}
+
+fn division_by_zero(op: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::NumericDivisionByZero).detail("domain", "numeric").detail("operation", op)
 }
 
 fn f64_represents_integer(f: f64, n: &Integer) -> bool {
@@ -481,7 +527,7 @@ impl From<u64> for Integer {
 impl FromStr for Integer {
     type Err = ();
     /// Decode canonical decimal digits
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let t = s.trim();
         if t.is_empty() {
             return Err(());

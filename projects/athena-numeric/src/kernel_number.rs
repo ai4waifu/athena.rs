@@ -144,12 +144,12 @@ pub fn sqrt(n: &NumericValue) -> Result<Option<NumericValue>> {
         Lifted::Real(_) => None,
         Lifted::Integer(v) if v.is_negative() => None,
         Lifted::Integer(v) => {
-            let root = v.int_sqrt();
+            let root = v.int_sqrt()?;
             if root.mul(&root) == v { Some(unlift_exact_int(root)) } else { None }
         }
         Lifted::Rational(r) if r.is_non_negative() => {
-            let num = r.numerator().int_sqrt();
-            let den = r.denominator().int_sqrt();
+            let num = r.numerator().int_sqrt()?;
+            let den = r.denominator().int_sqrt()?;
             if num.mul(&num) == r.numerator() && den.mul(&den) == r.denominator() {
                 Some(unlift_exact_rat(Rational::try_new(num, den)?))
             }

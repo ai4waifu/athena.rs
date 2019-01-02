@@ -58,7 +58,8 @@ impl NumericValue {
             Self::Real(Real::Machine(_)) => true,
             Self::Real(Real::BigFloat(b)) => b.validate().is_ok(),
             Self::Complex(_) => true,
-            Self::Modular(_) | Self::FiniteField(_) | Self::PAdic(_) | Self::Interval(_) | Self::Algebraic(_) => false,
+            Self::Modular(_) | Self::FiniteField(_) | Self::Interval(_) | Self::Algebraic(_) => false,
+            Self::PAdic(v) => v.validate().is_ok(),
         };
         if ok {
             Ok(())
@@ -137,9 +138,8 @@ impl NumericValue {
     /// 精度（由 variant 推导）。
     pub fn precision(&self) -> PrecisionInfo {
         match self {
-            Self::Integer(_) | Self::Rational(_) | Self::Modular(_) | Self::FiniteField(_) | Self::PAdic(_) => {
-                PrecisionInfo::exact()
-            }
+            Self::Integer(_) | Self::Rational(_) | Self::Modular(_) | Self::FiniteField(_) => PrecisionInfo::exact(),
+            Self::PAdic(v) => PrecisionInfo::arbitrary(v.precision.saturating_mul(8).max(1)),
             Self::Real(Real::Machine(_)) => PrecisionInfo::machine(),
             Self::Real(Real::BigFloat(b)) => PrecisionInfo::arbitrary(b.precision_bits()),
             Self::Complex(_) | Self::Interval(_) | Self::Algebraic(_) => PrecisionInfo::exact(),

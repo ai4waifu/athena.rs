@@ -52,7 +52,7 @@ impl ModulusContext {
             let r = barrett_mod_natural(aa.magnitude(), bb.magnitude(), mag, &bp.mu, bp.k);
             return Integer::from_positive_natural(r);
         }
-        aa.mul(&bb).rem(m)
+        aa.mul(&bb).rem_euclid(m).expect("modulus")
     }
 
     /// 模幂（优先 Montgomery 预计算常量）。
@@ -119,7 +119,7 @@ fn extended_gcd_inverse(a: &Integer, modulus: &Integer) -> Result<Integer> {
     let mut old_s = Integer::one();
     let mut s = Integer::zero();
     while !r.is_zero() {
-        let q = old_r.div(&r);
+        let q = old_r.div(&r).expect("nonzero remainder");
         let next_r = old_r.sub(&q.mul(&r));
         old_r = r;
         r = next_r;
@@ -130,9 +130,5 @@ fn extended_gcd_inverse(a: &Integer, modulus: &Integer) -> Result<Integer> {
     if !old_r.is_one() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).arg("gcd", old_r.to_decimal_string()));
     }
-    let mut inv = old_s.rem(modulus);
-    if inv.is_negative() {
-        inv = inv.add(modulus);
-    }
-    Ok(inv)
+    Ok(old_s.rem_euclid(modulus).expect("modulus"))
 }

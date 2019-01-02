@@ -16,17 +16,40 @@ fn int_from_wire(s: &str) -> Integer {
 fn div_rem_mod_pow_bits() {
     let a = Integer::from_i64(17);
     let b = Integer::from_i64(5);
-    assert_eq!(a.div(&b), Integer::from_i64(3));
-    assert_eq!(a.rem(&b), Integer::from_i64(2));
+    assert_eq!(a.div(&b).unwrap(), Integer::from_i64(3));
+    assert_eq!(a.rem(&b).unwrap(), Integer::from_i64(2));
     assert!(a.is_positive());
     assert!(Integer::one().is_one());
     assert_eq!(Integer::from_i64(8).bits(), 4);
     let m = Integer::from_i64(7);
-    assert_eq!(Integer::from_i64(3).mod_pow(&Integer::from_i64(4), &m), Integer::from_i64(4));
+    assert_eq!(Integer::from_i64(3).mod_pow(&Integer::from_i64(4), &m).unwrap(), Integer::from_i64(4));
     assert_eq!(Integer::from_u64(42).to_u64(), Some(42));
     assert_eq!(Integer::from_i64(-1).to_u64(), None);
     let big = int_from_wire("99999999999999999999");
     assert_eq!(big.to_decimal_string(), "99999999999999999999");
+}
+
+#[test]
+fn trunc_vs_euclid_negative() {
+    let a = Integer::from_i64(-2);
+    let m = Integer::from_i64(5);
+    assert_eq!(a.rem(&m).unwrap(), Integer::from_i64(-2));
+    assert_eq!(a.rem_euclid(&m).unwrap(), Integer::from_i64(3));
+    assert_eq!(a.mod_pow(&Integer::from_i64(3), &m).unwrap(), Integer::from_i64(2)); // 3^3 = 27 ≡ 2
+    // Wrong trunc+abs path would have used base 2 → 8 ≡ 3.
+    assert_ne!(Integer::from_i64(2).mod_pow(&Integer::from_i64(3), &m).unwrap(), a.mod_pow(&Integer::from_i64(3), &m).unwrap());
+}
+
+#[test]
+fn public_div_zero_and_mod_pow_diagnostics() {
+    let err = Integer::from_i64(1).div(&Integer::zero()).unwrap_err();
+    assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_DIVISION_BY_ZERO");
+    let err = Integer::from_i64(2).mod_pow(&Integer::from_i64(3), &Integer::from_i64(-5)).unwrap_err();
+    assert_eq!(err.code.as_str(), "ATHENA_MODULUS_INVALID");
+    let err = Integer::from_i64(2).mod_pow(&Integer::from_i64(-1), &Integer::from_i64(5)).unwrap_err();
+    assert_eq!(err.code.as_str(), "ATHENA_UNSUPPORTED_OPERATION");
+    let err = Integer::from_i64(-4).int_sqrt().unwrap_err();
+    assert_eq!(err.code.as_str(), "ATHENA_DOMAIN_ERROR");
 }
 
 #[test]

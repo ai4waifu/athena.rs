@@ -235,6 +235,8 @@ pub enum DiagnosticCode {
     NumericConversionForbidden,
     /// 数值资源上限（limb / significand / wire 预算耗尽）。
     NumericResourceLimit,
+    /// 数值除以零。
+    NumericDivisionByZero,
     /// 采样域非法（非有限、空区间等）。
     SamplingDomainInvalid,
     /// 采样资源上限（样本数过小/过大）。
@@ -315,6 +317,7 @@ impl DiagnosticCode {
             Self::NumericBackendUnavailable => "ATHENA_NUMERIC_BACKEND_UNAVAILABLE",
             Self::NumericConversionForbidden => "ATHENA_NUMERIC_CONVERSION_FORBIDDEN",
             Self::NumericResourceLimit => "ATHENA_NUMERIC_RESOURCE_LIMIT",
+            Self::NumericDivisionByZero => "ATHENA_NUMERIC_DIVISION_BY_ZERO",
             Self::SamplingDomainInvalid => "ATHENA_SAMPLING_DOMAIN_INVALID",
             Self::SamplingResourceLimit => "ATHENA_SAMPLING_RESOURCE_LIMIT",
             Self::SamplingCancelled => "ATHENA_SAMPLING_CANCELLED",

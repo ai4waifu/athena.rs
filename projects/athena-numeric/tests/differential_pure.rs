@@ -123,7 +123,7 @@ fn integer_signed_ops_algebraic_identities() {
         assert_eq!(a.mul(&b), b.mul(&a));
         assert_eq!(a.add(&b).sub(&b), a);
         if !b.is_zero() {
-            assert_eq!(a.div(&b).mul(&b).add(&a.rem(&b)), a);
+            assert_eq!(a.div(&b).unwrap().mul(&b).add(&a.rem(&b).unwrap()), a);
         }
     }
 }

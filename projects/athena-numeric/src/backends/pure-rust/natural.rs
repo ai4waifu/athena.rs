@@ -78,6 +78,67 @@ impl Natural {
         self.debug_assert_invariants();
     }
 
+    /// 右移 `n` 位（丢弃低位）。
+    pub(crate) fn shr_bits(&self, n: u64) -> Self {
+        if n == 0 || self.is_zero() {
+            return self.clone();
+        }
+        let bits = self.bits();
+        if n >= bits {
+            return Self::zero();
+        }
+        let limb_shift = (n / 64) as usize;
+        let bit_shift = (n % 64) as u32;
+        let el = limb_kernel::effective_len(&self.limbs);
+        if limb_shift >= el {
+            return Self::zero();
+        }
+        let out_len = el - limb_shift;
+        let mut out = vec![0u64; out_len];
+        for i in 0..out_len {
+            let src = i + limb_shift;
+            out[i] = self.limbs[src] >> bit_shift;
+            if bit_shift != 0 && src + 1 < el {
+                out[i] |= self.limbs[src + 1] << (64 - bit_shift);
+            }
+        }
+        Self::from_limbs(out)
+    }
+
+    /// 测试第 `index` 位（0 = LSB）。越界为 false。
+    pub(crate) fn bit(&self, index: u64) -> bool {
+        let limb_i = (index / 64) as usize;
+        let el = limb_kernel::effective_len(&self.limbs);
+        if limb_i >= el {
+            return false;
+        }
+        let bit_i = (index % 64) as u32;
+        (self.limbs[limb_i] >> bit_i) & 1 == 1
+    }
+
+    /// 是否有低于 `bit_index` 的任意置位（即 bits `[0, bit_index)`）。
+    pub(crate) fn any_bits_below(&self, bit_index: u64) -> bool {
+        if bit_index == 0 || self.is_zero() {
+            return false;
+        }
+        let full_limbs = (bit_index / 64) as usize;
+        let rem_bits = (bit_index % 64) as u32;
+        let el = limb_kernel::effective_len(&self.limbs);
+        let scan = full_limbs.min(el);
+        for &limb in &self.limbs[..scan] {
+            if limb != 0 {
+                return true;
+            }
+        }
+        if rem_bits > 0 && full_limbs < el {
+            let mask = (1u64 << rem_bits) - 1;
+            if self.limbs[full_limbs] & mask != 0 {
+                return true;
+            }
+        }
+        false
+    }
+
     /// 加小整数。
     pub fn add_u64(&self, rhs: u64) -> Self {
         if rhs == 0 {

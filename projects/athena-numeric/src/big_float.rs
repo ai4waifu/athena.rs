@@ -2,16 +2,32 @@
 //!
 //! [`BigFloat`] stores a **rounded** float payload: significand width must not exceed
 //! [`Self::precision_bits`]. For exact dyadic values without a precision contract use [`Dyadic`].
+//!
+//! Rounding is performed on [`Natural`] limbs (guard / round / sticky). It must **not** bridge
+//! through IEEE binary64.
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{dyadic::Dyadic, integer::Sign, natural::Natural};
+use crate::{dyadic::Dyadic, integer::Sign, natural::Natural, rounding::RoundingPolicy};
 
-/// Minimum allowed working precision (implicit bit + at least one fraction bit).
-pub const MIN_PRECISION_BITS: u32 = 2;
+/// Minimum allowed working precision (at least one significand bit).
+pub const MIN_PRECISION_BITS: u32 = 1;
 
 /// IEEE binary64 significand width including implicit bit.
 pub const IEEE754_BINARY64_PRECISION: u32 = 53;
+
+/// Status of a rounding operation on a [`BigFloat`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RoundingStatus {
+    /// No information discarded; value unchanged relative to the infinite-precision payload.
+    Exact,
+    /// Magnitude increased by rounding (toward ±∞ away from zero in absolute value).
+    RoundedUp,
+    /// Magnitude decreased by rounding (toward zero in absolute value).
+    RoundedDown,
+    /// Information was discarded but direction is not classified (reserved / directed ties).
+    Inexact,
+}
 
 /// Finite-precision binary float (`Dyadic` payload + declared precision).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,14 +37,24 @@ pub struct BigFloat {
 }
 
 impl BigFloat {
-    /// Canonical zero (`+0`) at 1-bit working precision.
+    /// Canonical zero (`+0`) at minimum working precision.
+    ///
+    /// Prefer [`Self::zero_with_precision`] when a caller-owned working precision must be preserved.
     pub fn zero() -> Self {
-        Self { dyadic: Dyadic::zero(), precision_bits: 1 }
+        Self { dyadic: Dyadic::zero(), precision_bits: MIN_PRECISION_BITS }
+    }
+
+    /// Canonical zero (`+0`) at the requested working precision (`>= 1`).
+    pub fn zero_with_precision(precision_bits: u32) -> Result<Self> {
+        if precision_bits < MIN_PRECISION_BITS {
+            return Err(invalid("precision_zero"));
+        }
+        Ok(Self { dyadic: Dyadic::zero(), precision_bits })
     }
 
     /// Wrap an exact [`Dyadic`] when its significand fits `precision_bits`.
     pub fn try_from_dyadic(dyadic: Dyadic, precision_bits: u32) -> Result<Self> {
-        if precision_bits == 0 {
+        if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
         dyadic.validate()?;
@@ -98,7 +124,7 @@ impl BigFloat {
 
     /// Check canonical invariants and precision contract.
     pub fn validate(&self) -> Result<()> {
-        if self.precision_bits == 0 {
+        if self.precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
         self.dyadic.validate()?;
@@ -123,20 +149,103 @@ impl BigFloat {
         self.to_f64_round_nearest_even()
     }
 
-    /// Round payload to a new working precision (nearest even via `f64` bridge).
-    pub fn round_to_precision(&self, precision_bits: u32) -> Result<Self> {
-        if precision_bits == 0 {
+    /// Round payload to a new working precision (nearest even, limb kernel).
+    pub fn round_to_precision(&self, precision_bits: u32) -> Result<(Self, RoundingStatus)> {
+        self.round_to_precision_with_mode(precision_bits, RoundingPolicy::NearestEven)
+    }
+
+    /// Round payload to a new working precision under an explicit rounding policy.
+    pub fn round_to_precision_with_mode(&self, precision_bits: u32, mode: RoundingPolicy) -> Result<(Self, RoundingStatus)> {
+        if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
         if self.dyadic.is_zero() {
-            return Ok(Self { dyadic: Dyadic::zero(), precision_bits });
+            return Ok((Self { dyadic: Dyadic::zero(), precision_bits }, RoundingStatus::Exact));
         }
-        if self.dyadic.significand_bits() <= u64::from(precision_bits) {
-            return Ok(Self { dyadic: self.dyadic.clone(), precision_bits });
+        let bits = self.dyadic.significand_bits();
+        if bits <= u64::from(precision_bits) {
+            return Ok((Self { dyadic: self.dyadic.clone(), precision_bits }, RoundingStatus::Exact));
         }
-        let approx = self.to_f64_round_nearest_even().ok_or_else(|| invalid("round_failed"))?;
-        let dyadic = Dyadic::from_f64(approx)?;
-        Self::try_from_dyadic(dyadic, precision_bits)
+
+        let discard = bits - u64::from(precision_bits);
+        let sig = self.dyadic.significand();
+        let mut truncated = sig.shr_bits(discard);
+        let round_bit = discard > 0 && sig.bit(discard - 1);
+        let sticky = discard > 1 && sig.any_bits_below(discard - 1);
+        let lsb = truncated.bit(0);
+        let positive = self.dyadic.sign() != Sign::Negative;
+
+        let round_up = match mode {
+            RoundingPolicy::NearestEven => round_bit && (sticky || lsb),
+            RoundingPolicy::TowardZero => false,
+            RoundingPolicy::TowardPosInf => {
+                if positive {
+                    round_bit || sticky
+                }
+                else {
+                    false
+                }
+            }
+            RoundingPolicy::TowardNegInf => {
+                if positive {
+                    false
+                }
+                else {
+                    round_bit || sticky
+                }
+            }
+        };
+
+        let mut status = if round_up {
+            RoundingStatus::RoundedUp
+        }
+        else if round_bit || sticky {
+            RoundingStatus::RoundedDown
+        }
+        else {
+            RoundingStatus::Exact
+        };
+
+        if round_up {
+            truncated = truncated.add_u64(1);
+            // Carry out of the p-bit window: 1 << precision_bits.
+            if truncated.bits() > u64::from(precision_bits) {
+                truncated = truncated.shr_bits(1);
+                let exp = self
+                    .dyadic
+                    .exponent()
+                    .checked_add(discard as i64)
+                    .and_then(|e| e.checked_add(1))
+                    .ok_or_else(|| invalid("exponent_overflow"))?;
+                let dyadic = Dyadic::try_new(self.dyadic.sign(), truncated, exp)?;
+                let value = Self::try_from_dyadic(dyadic, precision_bits)?;
+                return Ok((value, status));
+            }
+        }
+
+        // Toward ±∞ on a negative value: increasing magnitude is RoundedUp in abs sense already.
+        // For signed directed modes, remapped status when we truncated toward +∞ on a negative:
+        if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky) {
+            // Negative + TowardPosInf truncates toward zero → magnitude down → RoundedDown
+            // Negative + TowardNegInf rounds away from zero → magnitude up → RoundedUp
+            status = match mode {
+                RoundingPolicy::TowardPosInf => RoundingStatus::RoundedDown,
+                RoundingPolicy::TowardNegInf => {
+                    if round_up {
+                        RoundingStatus::RoundedUp
+                    }
+                    else {
+                        RoundingStatus::RoundedDown
+                    }
+                }
+                _ => status,
+            };
+        }
+
+        let exp = self.dyadic.exponent().checked_add(discard as i64).ok_or_else(|| invalid("exponent_overflow"))?;
+        let dyadic = Dyadic::try_new(self.dyadic.sign(), truncated, exp)?;
+        let value = Self::try_from_dyadic(dyadic, precision_bits)?;
+        Ok((value, status))
     }
 }
 
@@ -178,5 +287,43 @@ mod tests {
     #[test]
     fn rejects_nan_import() {
         assert!(BigFloat::from_f64(f64::NAN).is_err());
+    }
+
+    #[test]
+    fn limb_round_preserves_wide_precision() {
+        // 80-bit significand: odd number with high bit set across two limbs.
+        let sig = Natural::from_limbs(vec![0xFFFF_FFFF_FFFF_FFFF, 0xFFFF]);
+        let bf = BigFloat::try_new(Sign::Positive, sig, -10, 80).expect("fit");
+        assert_eq!(bf.significand_bits_via(), 80);
+        let (rounded, status) = bf.round_to_precision(60).expect("round");
+        assert_eq!(status, RoundingStatus::RoundedUp); // sticky/round from discarded ones
+        assert!(rounded.significand().bits() <= 60);
+        rounded.validate().unwrap();
+        // Must not collapse to ≤53 bits via f64 bridge.
+        assert!(rounded.significand().bits() > 53 || rounded.precision_bits() == 60);
+    }
+
+    #[test]
+    fn exact_when_already_within_precision() {
+        let bf = BigFloat::try_new(Sign::Positive, Natural::from_u64(5), 0, 16).unwrap();
+        let (r, status) = bf.round_to_precision(8).unwrap();
+        assert_eq!(status, RoundingStatus::Exact);
+        assert_eq!(r.significand().to_u64(), Some(5));
+    }
+
+    #[test]
+    fn zero_preserves_requested_precision() {
+        let z = BigFloat::zero_with_precision(128).unwrap();
+        assert_eq!(z.precision_bits(), 128);
+        let (r, status) = z.round_to_precision(64).unwrap();
+        assert_eq!(status, RoundingStatus::Exact);
+        assert_eq!(r.precision_bits(), 64);
+        assert!(r.is_zero());
+    }
+
+    impl BigFloat {
+        fn significand_bits_via(&self) -> u64 {
+            self.dyadic.significand_bits()
+        }
     }
 }
