@@ -1,4 +1,4 @@
-//! 图论与 `DomainRequest::GraphTheory` 集成测试（G3–G4：SCC · Bipartite · MST）。
+//! 图论与 `DomainRequest::GraphTheory` 集成测试。
 
 use athena_engine::{
     BipartiteResult, ConnectedComponentsResult, DomainRequest, DomainResult, GraphCertificate, GraphHandle, GraphObject,
@@ -12,11 +12,7 @@ fn sample_graph() -> GraphObject {
         vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(3), GraphNodeId(4), 1)];
     GraphObject::from_edges(
         GraphHandle { id: 1, node_count: 5 },
-        GraphSemantics {
-            direction: GraphDirection::Undirected,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
+        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
         edges,
     )
 }
@@ -40,27 +36,16 @@ fn connected_components_via_domain_request() {
 fn strongly_connected_components_cycle() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 10, node_count: 3 },
-        GraphSemantics {
-            direction: GraphDirection::Directed,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
-        vec![
-            (GraphNodeId(0), GraphNodeId(1), 1),
-            (GraphNodeId(1), GraphNodeId(2), 1),
-            (GraphNodeId(2), GraphNodeId(0), 1),
-        ],
+        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
+        vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(0), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::StronglyConnectedComponents { graph });
     let GraphTheoryResult::Exact { value } = result
     else {
         panic!("expected exact");
     };
-    let GraphTheoryValue::StronglyConnectedComponents(StronglyConnectedComponentsResult {
-        component_count,
-        property,
-        ..
-    }) = value
+    let GraphTheoryValue::StronglyConnectedComponents(StronglyConnectedComponentsResult { component_count, property, .. }) =
+        value
     else {
         panic!("expected scc");
     };
@@ -79,16 +64,8 @@ fn strongly_connected_components_rejects_undirected() {
 fn bipartite_true_with_coloring_certificate() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 11, node_count: 4 },
-        GraphSemantics {
-            direction: GraphDirection::Undirected,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
-        vec![
-            (GraphNodeId(0), GraphNodeId(1), 1),
-            (GraphNodeId(1), GraphNodeId(2), 1),
-            (GraphNodeId(2), GraphNodeId(3), 1),
-        ],
+        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
+        vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(3), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::Bipartite { graph });
     let GraphTheoryResult::Exact { value } = result
@@ -108,16 +85,8 @@ fn bipartite_true_with_coloring_certificate() {
 fn bipartite_false_with_odd_cycle_certificate() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 12, node_count: 3 },
-        GraphSemantics {
-            direction: GraphDirection::Undirected,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
-        vec![
-            (GraphNodeId(0), GraphNodeId(1), 1),
-            (GraphNodeId(1), GraphNodeId(2), 1),
-            (GraphNodeId(2), GraphNodeId(0), 1),
-        ],
+        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
+        vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(0), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::Bipartite { graph });
     let GraphTheoryResult::Exact { value } = result
@@ -138,13 +107,11 @@ fn bipartite_false_with_odd_cycle_certificate() {
 
 #[test]
 fn minimum_spanning_forest_weighted() {
+    let mut semantics = GraphSemantics::new(GraphDirection::Undirected, WeightDomain::NonNegativeInteger);
+    semantics.allows_self_loops = true;
     let graph = GraphObject::from_edges(
         GraphHandle { id: 13, node_count: 4 },
-        GraphSemantics {
-            direction: GraphDirection::Undirected,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::NonNegativeInteger,
-        },
+        semantics,
         vec![
             (GraphNodeId(0), GraphNodeId(1), 1),
             (GraphNodeId(1), GraphNodeId(2), 2),
@@ -157,12 +124,8 @@ fn minimum_spanning_forest_weighted() {
     else {
         panic!("expected exact");
     };
-    let GraphTheoryValue::MinimumSpanningForest(MinimumSpanningForestResult {
-        total_weight,
-        tree_count,
-        edges,
-        property,
-    }) = value
+    let GraphTheoryValue::MinimumSpanningForest(MinimumSpanningForestResult { total_weight, tree_count, edges, property }) =
+        value
     else {
         panic!("expected mst");
     };
@@ -170,10 +133,7 @@ fn minimum_spanning_forest_weighted() {
     assert_eq!(tree_count, 2);
     assert_eq!(edges.len(), 2);
     assert_eq!(property.state, GraphPropertyState::ProvenTrue);
-    assert!(matches!(
-        property.certificate,
-        Some(GraphCertificate::KruskalForest { edge_count: 2, tree_count: 2, .. })
-    ));
+    assert!(matches!(property.certificate, Some(GraphCertificate::KruskalForest { edge_count: 2, tree_count: 2, .. })));
 }
 
 #[test]
@@ -181,11 +141,7 @@ fn shortest_path_unweighted() {
     let edges = vec![(GraphNodeId(0), GraphNodeId(1), 0), (GraphNodeId(1), GraphNodeId(2), 0)];
     let graph = GraphObject::from_edges(
         GraphHandle { id: 2, node_count: 3 },
-        GraphSemantics {
-            direction: GraphDirection::Directed,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
+        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         edges,
     );
     let result =
@@ -206,11 +162,7 @@ fn shortest_path_unweighted() {
 fn shortest_path_weighted() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 3, node_count: 3 },
-        GraphSemantics {
-            direction: GraphDirection::Directed,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::NonNegativeInteger,
-        },
+        GraphSemantics::new(GraphDirection::Directed, WeightDomain::NonNegativeInteger),
         vec![(GraphNodeId(0), GraphNodeId(1), 5), (GraphNodeId(0), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(1), 1)],
     );
     let result =
@@ -238,11 +190,7 @@ fn session_execute_graph_theory() {
 fn shortest_path_unreachable() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 4, node_count: 2 },
-        GraphSemantics {
-            direction: GraphDirection::Directed,
-            allows_self_loops: false,
-            weight_domain: WeightDomain::Unweighted,
-        },
+        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1)],
     );
     let result =
@@ -252,4 +200,12 @@ fn shortest_path_unreachable() {
         panic!("expected exact unreachable");
     };
     assert!(matches!(value, GraphTheoryValue::ShortestPath(ShortestPathResult::Unreachable { .. })));
+}
+
+#[test]
+fn graph_object_binds_snapshot_to_handle_id() {
+    let graph = sample_graph();
+    assert_eq!(graph.snapshot.graph_id.0, graph.handle.id);
+    assert_eq!(graph.revision().0, 1);
+    assert_eq!(graph.snapshot.representation, athena_graph::RepresentationId::ADJACENCY_LIST);
 }

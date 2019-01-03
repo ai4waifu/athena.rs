@@ -11,6 +11,7 @@ mod property;
 mod request;
 mod result;
 
+pub use athena_graph::{GraphId, GraphRevision, GraphSnapshot, RepresentationId};
 pub use object::{
     GraphAssumptions, GraphHandle, GraphNodeId, GraphObject, GraphPresentation, GraphProvenance, GraphSemantics, MemoryGraph,
     WeightDomain,
