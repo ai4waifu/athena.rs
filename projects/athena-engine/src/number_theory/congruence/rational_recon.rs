@@ -18,7 +18,7 @@ pub fn rational_reconstruction(
         return RationalReconstruction::NotFound { reason: RationalReconstructionFailure::InvalidBounds };
     }
 
-    let half = m.div(&Integer::from_i64(2));
+    let half = m.div(&Integer::from_i64(2)).expect("div");
     let default_bound = if half.is_zero() { isqrt(&Integer::one()) } else { isqrt(&half) };
     let n_bound = max_numerator.cloned().unwrap_or_else(|| default_bound.clone());
     let d_bound = max_denominator.cloned().unwrap_or(default_bound);
@@ -43,7 +43,7 @@ pub fn rational_reconstruction(
                 }
             }
         }
-        let q = old_r.div(&rem);
+        let q = old_r.div(&rem).expect("div");
         let next_r = old_r.sub(&q.mul(&rem));
         old_r = rem;
         rem = next_r;

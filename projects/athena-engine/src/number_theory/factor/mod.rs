@@ -166,8 +166,8 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
     let trial_cert = PrimeCertificate::TrialDivision { bound: limits.max_trial() };
     let two = Integer::from_i64(2);
     let mut exp2 = 0u32;
-    while m.rem(&two).is_zero() {
-        *m = m.div(&two);
+    while m.rem(&two).expect("rem").is_zero() {
+        *m = m.div(&two).expect("div");
         exp2 += 1;
     }
     if exp2 > 0 {
@@ -192,8 +192,8 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
         }
 
         let mut e = 0u32;
-        while m.rem(&pb).is_zero() {
-            *m = m.div(&pb);
+        while m.rem(&pb).expect("rem").is_zero() {
+            *m = m.div(&pb).expect("div");
             e += 1;
         }
         if e > 0 {
@@ -232,7 +232,7 @@ fn run_composite_pipeline<P: FactorProducer>(frontier: &mut FactorFrontier, limi
         }
         match try_split(&n, limits, &mut frontier.steps_used, max_steps, producer) {
             Some(d) if d > Integer::one() && d != n => {
-                let q = n.div(&d);
+                let q = n.div(&d).expect("div");
                 stack.push(d);
                 stack.push(q);
             }

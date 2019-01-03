@@ -15,7 +15,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
     let eg = extended_gcd(a, m);
     let g = eg.g;
     let b_mod_g = {
-        let mut r = b.rem(&g);
+        let mut r = b.rem(&g).expect("rem");
         if r.is_negative() {
             r = r.add(&g);
         }
@@ -28,9 +28,9 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
     }
 
     // 解 a' x ≡ b' (mod m')，其中 a'=a/g, b'=b/g, m'=m/g。
-    let a_red = a.div(&g);
-    let b_red = b.div(&g);
-    let m_red = m.div(&g);
+    let a_red = a.div(&g).expect("div");
+    let b_red = b.div(&g).expect("div");
+    let m_red = m.div(&g).expect("div");
     let eg2 = extended_gcd(&a_red, &m_red);
     // eg2.s * a_red ≡ 1 (mod m_red) 当 gcd=1。
     if !eg2.g.is_one() {
@@ -41,7 +41,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
                 .detail("reason", "reduced_system_not_coprime"),
         };
     }
-    let mut x0 = eg2.s.mul(&b_red).rem(&m_red);
+    let mut x0 = eg2.s.mul(&b_red).rem(&m_red).expect("rem");
     if x0.is_negative() {
         x0 = x0.add(&m_red);
     }

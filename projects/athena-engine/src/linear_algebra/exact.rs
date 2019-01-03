@@ -179,7 +179,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
                     .mul(&a[(k * n + k) as usize])
                     .sub(&a[(i * n + k) as usize].mul(&a[(k * n + j) as usize]));
                 // exact division by prev
-                a[(i * n + j) as usize] = num.div(&prev);
+                a[(i * n + j) as usize] = num.div(&prev).expect("div");
             }
         }
         prev = a[(k * n + k) as usize].clone();

@@ -41,11 +41,11 @@ pub fn mod_pow(base: &Integer, exp: &Integer, modulus: &Modulus) -> Result<Modul
     if exp.is_negative() {
         let inv = mod_inverse(base, modulus)?;
         let pos = exp.neg();
-        let r = inv.residue().mod_pow(&pos, modulus.value());
+        let r = inv.residue().mod_pow(&pos, modulus.value()).expect("mod_pow");
         return Ok(ModularValue::new(r, modulus.clone()));
     }
     let b = modulus.reduce(base);
-    let r = b.mod_pow(exp, modulus.value());
+    let r = b.mod_pow(exp, modulus.value()).expect("mod_pow");
     Ok(ModularValue::new(r, modulus.clone()))
 }
 

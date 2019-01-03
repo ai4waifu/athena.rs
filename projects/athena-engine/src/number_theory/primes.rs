@@ -27,7 +27,7 @@ pub fn primality_test(n: &Integer, miller_rabin_rounds: Option<u32>) -> Primalit
     if n == &Integer::from_i64(2) || n == &Integer::from_i64(3) {
         return Primality::Prime { certificate: PrimeCertificate::SmallPrime };
     }
-    if n.rem(&Integer::from_i64(2)).is_zero() {
+    if n.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
         return Primality::Composite { witness: CompositeWitness::Even };
     }
 
@@ -175,7 +175,7 @@ fn smallest_factor(n: &Integer) -> Option<Integer> {
         if n == &pb {
             return None;
         }
-        if n.rem(&pb).is_zero() {
+        if n.rem(&pb).expect("rem").is_zero() {
             return Some(pb);
         }
     }
@@ -188,8 +188,8 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
     let n_minus_one = n.sub(&one);
     let mut d = n_minus_one.clone();
     let mut s = 0u32;
-    while d.rem(&two).is_zero() {
-        d = d.div(&two);
+    while d.rem(&two).expect("rem").is_zero() {
+        d = d.div(&two).expect("div");
         s += 1;
     }
 
@@ -198,20 +198,20 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
 
     for &a in &FIXED_MR_BASES[..use_rounds] {
         let base = Integer::from(a);
-        if base.rem(n).is_zero() {
+        if base.rem(n).expect("rem").is_zero() {
             if &base != n {
                 return MrFixedOutcome::Composite { base: a };
             }
             continue;
         }
         bases_used.push(a);
-        let mut x = base.mod_pow(&d, n);
+        let mut x = base.mod_pow(&d, n).expect("mod_pow");
         if x == one || x == n_minus_one {
             continue;
         }
         let mut composite = true;
         for _ in 1..s {
-            x = x.mod_pow(&two, n);
+            x = x.mod_pow(&two, n).expect("mod_pow");
             if x == n_minus_one {
                 composite = false;
                 break;
@@ -246,7 +246,7 @@ impl Iterator for PrimeIterator {
             self.current = Integer::from_i64(3);
             return Some(Integer::from_i64(2));
         }
-        if self.current.rem(&Integer::from_i64(2)).is_zero() {
+        if self.current.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
             self.current = self.current.add(&Integer::one());
         }
         loop {

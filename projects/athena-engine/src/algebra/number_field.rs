@@ -250,7 +250,7 @@ fn lcm_int(a: &Integer, b: &Integer) -> Integer {
     if a.is_zero() || b.is_zero() {
         return Integer::zero();
     }
-    a.mul(b).div(&a.gcd(b)).abs()
+    a.mul(b).div(&a.gcd(b)).expect("div").abs()
 }
 
 fn to_primitive_z(coeffs: &[Rational]) -> Result<Vec<Integer>> {
@@ -258,14 +258,14 @@ fn to_primitive_z(coeffs: &[Rational]) -> Result<Vec<Integer>> {
     for c in coeffs {
         dens = lcm_int(&dens, &c.denominator());
     }
-    let mut ints: Vec<Integer> = coeffs.iter().map(|c| c.numerator().mul(&dens.div(&c.denominator()))).collect();
+    let mut ints: Vec<Integer> = coeffs.iter().map(|c| c.numerator().mul(&dens.div(&c.denominator()).expect("div"))).collect();
     let mut g = Integer::zero();
     for c in &ints {
         g = if g.is_zero() { c.abs() } else { g.gcd(&c.abs()) };
     }
     if !g.is_zero() && !g.is_one() {
         for c in &mut ints {
-            *c = c.div(&g);
+            *c = c.div(&g).expect("div");
         }
     }
     Ok(ints)
@@ -307,7 +307,7 @@ fn small_divisors(n: &Integer) -> Vec<Integer> {
     let mut out = Vec::new();
     let mut d = Integer::one();
     while d.cmp(&abs) != std::cmp::Ordering::Greater {
-        if abs.rem(&d).is_zero() {
+        if abs.rem(&d).expect("rem").is_zero() {
             out.push(d.clone());
         }
         d = d.add(&Integer::one());
@@ -332,13 +332,13 @@ fn is_eisenstein(z: &[Integer]) -> bool {
     }
     for p_cand in [2i64, 3, 5, 7, 11, 13, 17, 19, 23] {
         let p = Integer::from_i64(p_cand);
-        if !c0.rem(&p).is_zero() || z[n].rem(&p).is_zero() {
+        if !c0.rem(&p).expect("rem").is_zero() || z[n].rem(&p).expect("rem").is_zero() {
             continue;
         }
-        if z[..n].iter().any(|c| !c.rem(&p).is_zero()) {
+        if z[..n].iter().any(|c| !c.rem(&p).expect("rem").is_zero()) {
             continue;
         }
-        if c0.rem(&p.mul(&p)).is_zero() {
+        if c0.rem(&p.mul(&p)).expect("rem").is_zero() {
             continue;
         }
         return true;
@@ -387,10 +387,10 @@ fn div_rem_z(a: &[Integer], b: &[Integer]) -> (Vec<Integer>, Vec<Integer>) {
     while rem.len() >= bb.len() {
         let dr = rem.len() - 1;
         let lr = rem[dr].clone();
-        if !lr.rem(&lb).is_zero() {
+        if !lr.rem(&lb).expect("rem").is_zero() {
             return (Vec::new(), a.to_vec());
         }
-        let q = lr.div(&lb);
+        let q = lr.div(&lb).expect("div");
         let pos = dr - db;
         quot[pos] = q.clone();
         for i in 0..=db {

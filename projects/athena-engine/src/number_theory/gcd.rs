@@ -15,7 +15,7 @@ pub fn lcm(a: &Integer, b: &Integer) -> Integer {
         return Integer::zero();
     }
     let g = gcd(a, b);
-    a.abs().div(&g).mul(&b.abs())
+    a.abs().div(&g).expect("div").mul(&b.abs())
 }
 
 /// 扩展欧几里得：返回 `g = gcd(|a|,|b|)` 与 Bézout，使 `s·a + t·b = ±g` 对齐到 `s·a + t·b = g`（对原符号校正）。
@@ -29,7 +29,7 @@ pub fn extended_gcd(a: &Integer, b: &Integer) -> ExtendedGcd {
     let mut old_t = Integer::zero();
     let mut t = Integer::one();
     while !r.is_zero() {
-        let q = old_r.div(&r);
+        let q = old_r.div(&r).expect("div");
         let next_r = old_r.sub(&q.mul(&r));
         old_r = r;
         r = next_r;

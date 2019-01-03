@@ -8,16 +8,16 @@ pub fn pollard_p1(n: &Integer, seed: u64, b1: u32) -> Option<Integer> {
         return None;
     }
     let mut a = Integer::from_u64(2 + (seed % 10_000));
-    if a.rem(n).is_zero() {
+    if a.rem(n).expect("rem").is_zero() {
         a = a.add(&Integer::one());
     }
-    a = a.rem(n);
+    a = a.rem(n).expect("rem");
     if a.is_zero() || a.is_one() {
         a = Integer::from_i64(2);
     }
 
     let m = smooth_exponent(b1);
-    let am = a.mod_pow(&m, n);
+    let am = a.mod_pow(&m, n).expect("mod_pow");
     let g = am.sub(&Integer::one()).gcd(n);
     if !g.is_one() && g != *n { Some(g) } else { None }
 }

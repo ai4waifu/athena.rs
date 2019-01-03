@@ -466,8 +466,8 @@ fn is_square_rational(r: &Rational) -> bool {
     }
     let n = r.numerator().abs();
     let d = r.denominator();
-    let sn = n.int_sqrt();
-    let sd = d.int_sqrt();
+    let sn = n.int_sqrt().expect("int_sqrt");
+    let sd = d.int_sqrt().expect("int_sqrt");
     sn.mul(&sn) == n && sd.mul(&sd) == d
 }
 

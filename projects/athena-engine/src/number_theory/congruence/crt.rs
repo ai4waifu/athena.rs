@@ -18,7 +18,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
     let eg = extended_gcd(mv, nv);
     let g = eg.g;
     let diff = a_red.sub(&b_red);
-    let mut diff_mod_g = diff.rem(&g);
+    let mut diff_mod_g = diff.rem(&g).expect("rem");
     if diff_mod_g.is_negative() {
         diff_mod_g = diff_mod_g.add(&g);
     }
@@ -27,8 +27,8 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
     }
 
     // x = a + m * t，其中 t ≡ (b-a)/g * (m/g)^{-1} (mod n/g)
-    let m_g = mv.div(&g);
-    let n_g = nv.div(&g);
+    let m_g = mv.div(&g).expect("div");
+    let n_g = nv.div(&g).expect("div");
     let eg2 = extended_gcd(&m_g, &n_g);
     if !eg2.g.is_one() {
         return Err(Diagnostic::new(DiagnosticCode::CongruenceInconsistent)
@@ -37,7 +37,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
             .detail("reason", "reduced_moduli_not_coprime"));
     }
     let inv = eg2.s;
-    let mut t = b_red.sub(&a_red).div(&g).mul(&inv).rem(&n_g);
+    let mut t = b_red.sub(&a_red).div(&g).expect("div").mul(&inv).rem(&n_g).expect("rem");
     if t.is_negative() {
         t = t.add(&n_g);
     }

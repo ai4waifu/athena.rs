@@ -503,7 +503,7 @@ fn primitive_part_dense(v: &[Number], content: &Integer) -> Result<Vec<Number>> 
     }
     v.iter()
         .map(|c| match c {
-            Number::Integer(n) => Ok(Number::integer(n.div(content))),
+            Number::Integer(n) => Ok(Number::integer(n.div(content).expect("div"))),
             _ => Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
                 .detail("domain", "polynomial")
                 .detail("operation", "primitive_part")),

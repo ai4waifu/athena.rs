@@ -52,7 +52,7 @@ fn integer_root(n: &Integer, exp: u32) -> Option<Integer> {
     let mut lo = Integer::zero();
     let mut hi = isqrt(n).add(&Integer::one());
     while lo.add(&Integer::one()) < hi {
-        let mid = lo.add(&hi).div(&Integer::from_i64(2));
+        let mid = lo.add(&hi).div(&Integer::from_i64(2)).expect("div");
         match mid.pow_u32(exp) {
             Ok(p) if p <= *n => lo = mid,
             Ok(_) => hi = mid,

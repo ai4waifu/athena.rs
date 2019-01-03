@@ -167,14 +167,7 @@ fn reduce_i_to_u64(n: &Integer, p: u64) -> u64 {
         return r as u64;
     }
     let m = Integer::from_u64(p);
-    let r = {
-        let mut r = n.rem(&m);
-        if r.is_negative() {
-            r = r.add(&m);
-        }
-        r
-    };
-    r.to_u64().expect("residue in [0, p)")
+    n.rem_euclid(&m).expect("modulus").to_u64().expect("residue in [0, p)")
 }
 
 fn add_mod(a: u64, b: u64, p: u64) -> u64 {

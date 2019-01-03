@@ -7,13 +7,13 @@ pub fn pollard_rho(n: &Integer, seed: u64, c: i64, max_iters: u64) -> Option<Int
     if n.is_one() {
         return None;
     }
-    if n.rem(&Integer::from_i64(2)).is_zero() {
+    if n.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
         return Some(Integer::from_i64(2));
     }
 
     let c_int = Integer::from_i64(c);
     let f = |x: &Integer| -> Integer {
-        let mut y = x.mul(x).add(&c_int).rem(n);
+        let mut y = x.mul(x).add(&c_int).rem(n).expect("rem");
         if y.is_negative() {
             y = y.add(n);
         }

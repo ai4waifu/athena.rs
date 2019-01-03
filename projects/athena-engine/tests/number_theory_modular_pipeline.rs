@@ -23,7 +23,7 @@ fn modulus_context_precomputes_montgomery_and_barrett() {
 fn mod_pow_with_table_matches_direct() {
     let m = Modulus::new(97).unwrap();
     let mut table = ModulusTable::new();
-    let direct = Integer::from_i64(3).mod_pow(&Integer::from_i64(10), m.value());
+    let direct = Integer::from_i64(3).mod_pow(&Integer::from_i64(10), m.value()).expect("mod_pow");
     let via = mod_pow_with_table(&3.into(), &10.into(), &m, &mut table).unwrap();
     assert_eq!(via.residue(), &direct);
     assert!(via.modulus_id().is_some());
@@ -37,7 +37,7 @@ fn batch_mod_inverse_product_tree() {
     let invs = batch_mod_inverse(&residues, &p, &mut table).unwrap();
     assert_eq!(invs.len(), 3);
     for (r, inv) in residues.iter().zip(invs.iter()) {
-        let prod = r.mul(inv.residue()).rem(p.value());
+        let prod = r.mul(inv.residue()).rem(p.value()).expect("rem");
         assert_eq!(prod, Integer::one());
     }
 }
@@ -51,8 +51,8 @@ fn batch_mod_inverse_via_request() {
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::ModularList(v) } => {
             assert_eq!(v.len(), 2);
-            assert_eq!(v[0].residue().mul(&2.into()).rem(&Integer::from_i64(11)), Integer::one());
-            assert_eq!(v[1].residue().mul(&3.into()).rem(&Integer::from_i64(11)), Integer::one());
+            assert_eq!(v[0].residue().mul(&2.into()).rem(&Integer::from_i64(11)).expect("rem"), Integer::one());
+            assert_eq!(v[1].residue().mul(&3.into()).rem(&Integer::from_i64(11)).expect("rem"), Integer::one());
         }
         other => panic!("{other:?}"),
     }
@@ -88,5 +88,5 @@ fn mod_inverse_interned() {
     let mut table = ModulusTable::new();
     let v = mod_inverse_with_table(&3.into(), &m, &mut table).unwrap();
     assert!(v.modulus_id().is_some());
-    assert_eq!(v.residue().mul(&3.into()).rem(m.value()), Integer::one());
+    assert_eq!(v.residue().mul(&3.into()).rem(m.value()).expect("rem"), Integer::one());
 }

@@ -79,8 +79,8 @@ fn crt_non_coprime_consistent() {
     match chinese_remainder_pair(&2.into(), &m4, &6.into(), &m6).unwrap() {
         CrtResult::Consistent { solution, modulus_lcm } => {
             assert_eq!(modulus_lcm.value(), &Integer::from_i64(12));
-            assert_eq!(solution.residue().rem(&Integer::from_i64(4)), Integer::from_i64(2));
-            assert_eq!(solution.residue().rem(&Integer::from_i64(6)), Integer::from_i64(0)); // 6 mod 6 = 0, wait 6≡0
+            assert_eq!(solution.residue().rem(&Integer::from_i64(4)).expect("rem"), Integer::from_i64(2));
+            assert_eq!(solution.residue().rem(&Integer::from_i64(6)).expect("rem"), Integer::from_i64(0)); // 6 mod 6 = 0, wait 6≡0
         }
         other => panic!("{other:?}"),
     }

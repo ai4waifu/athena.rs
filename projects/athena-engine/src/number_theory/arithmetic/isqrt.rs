@@ -13,7 +13,7 @@ pub fn isqrt(n: &Integer) -> Integer {
     let mut x = n.clone();
     let two = Integer::from_i64(2);
     loop {
-        let y = x.add(&n.div(&x)).div(&two);
+        let y = x.add(&n.div(&x).expect("div")).div(&two).expect("div");
         if y >= x {
             while x.mul(&x).cmp(n) == std::cmp::Ordering::Greater {
                 x = x.sub(&Integer::one());

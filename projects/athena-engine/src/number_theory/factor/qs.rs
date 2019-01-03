@@ -9,12 +9,8 @@ pub fn fermat_split(n: &Integer, max_steps: u64) -> Option<Integer> {
     if n.is_one() {
         return None;
     }
-    if n.rem(&Integer::from_i64(2)).is_zero() {
-        return if *n > Integer::from_i64(2) {
-            Some(Integer::from_i64(2))
-        } else {
-            None
-        };
+    if n.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
+        return if *n > Integer::from_i64(2) { Some(Integer::from_i64(2)) } else { None };
     }
     let mut a = isqrt(n);
     if a.mul(&a).cmp(n) == std::cmp::Ordering::Less {
@@ -38,12 +34,8 @@ pub fn dixon_split(n: &Integer, seed: u64, max_steps: u64) -> Option<Integer> {
     if n.is_one() {
         return None;
     }
-    if n.rem(&Integer::from_i64(2)).is_zero() {
-        return if *n > Integer::from_i64(2) {
-            Some(Integer::from_i64(2))
-        } else {
-            None
-        };
+    if n.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
+        return if *n > Integer::from_i64(2) { Some(Integer::from_i64(2)) } else { None };
     }
     if max_steps == 0 {
         return None;
@@ -54,7 +46,7 @@ pub fn dixon_split(n: &Integer, seed: u64, max_steps: u64) -> Option<Integer> {
     let factor_base = build_factor_base(n, fb_bound);
     if factor_base.len() == 1 {
         let p = Integer::from_u64(u64::from(factor_base[0]));
-        if n.rem(&p).is_zero() && p != *n {
+        if n.rem(&p).expect("rem").is_zero() && p != *n {
             return Some(p);
         }
     }
@@ -73,9 +65,7 @@ pub fn dixon_split(n: &Integer, seed: u64, max_steps: u64) -> Option<Integer> {
 
     while steps < max_steps {
         steps += 1;
-        rng = rng
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .wrapping_add(0x517C_C1B7);
+        rng = rng.wrapping_mul(0x9E37_79B9_7F4A_7C15).wrapping_add(0x517C_C1B7);
         let x = next_candidate(n, rng, steps);
         if x.is_zero() || x.is_one() {
             continue;
@@ -85,11 +75,12 @@ pub fn dixon_split(n: &Integer, seed: u64, max_steps: u64) -> Option<Integer> {
             return Some(g0);
         }
 
-        let q = x.mul(&x).rem(n);
+        let q = x.mul(&x).rem(n).expect("rem");
         if q.is_zero() {
             continue;
         }
-        let Some(exps) = factor_smooth(q, &factor_base) else {
+        let Some(exps) = factor_smooth(q, &factor_base)
+        else {
             continue;
         };
         let parity: Vec<u8> = exps.iter().map(|e| (e & 1) as u8).collect();
@@ -173,13 +164,13 @@ fn is_prime_u32(n: u32) -> bool {
 fn next_candidate(n: &Integer, rng: u64, step: u64) -> Integer {
     if step % 2 == 0 {
         isqrt(n).add(&Integer::one()).add(&Integer::from_u64(step / 2))
-    } else if let Some(nv) = n.to_u64() {
+    }
+    else if let Some(nv) = n.to_u64() {
         let m = nv.saturating_sub(2).max(2);
         Integer::from_u64(2 + (rng % m))
-    } else {
-        isqrt(n)
-            .add(&Integer::one())
-            .add(&Integer::from_u64((rng % 10_000).wrapping_add(step)))
+    }
+    else {
+        isqrt(n).add(&Integer::one()).add(&Integer::from_u64((rng % 10_000).wrapping_add(step)))
     }
 }
 
@@ -187,19 +178,15 @@ fn factor_smooth(mut q: Integer, fb: &[u32]) -> Option<Vec<u32>> {
     let mut exps = vec![0u32; fb.len()];
     for (i, &p) in fb.iter().enumerate() {
         let pb = Integer::from_u64(u64::from(p));
-        while q.rem(&pb).is_zero() {
-            q = q.div(&pb);
+        while q.rem(&pb).expect("rem").is_zero() {
+            q = q.div(&pb).expect("div");
             exps[i] += 1;
             if q.is_one() {
                 return Some(exps);
             }
         }
     }
-    if q.is_one() {
-        Some(exps)
-    } else {
-        None
-    }
+    if q.is_one() { Some(exps) } else { None }
 }
 
 fn insert_relation(
@@ -222,25 +209,23 @@ fn insert_relation(
                 *a ^= *b;
             }
             comb = sym_diff(comb, pcomb);
-        } else {
+        }
+        else {
             pivots[c] = Some(reduced.len());
             reduced.push((parity, comb));
             return None;
         }
     }
 
-    if comb.is_empty() {
-        None
-    } else {
-        Some(comb)
-    }
+    if comb.is_empty() { None } else { Some(comb) }
 }
 
 fn sym_diff(mut a: Vec<usize>, b: &[usize]) -> Vec<usize> {
     for &x in b {
         if let Some(pos) = a.iter().position(|&y| y == x) {
             a.swap_remove(pos);
-        } else {
+        }
+        else {
             a.push(x);
         }
     }
@@ -255,7 +240,7 @@ fn dependency_factor(n: &Integer, factor_base: &[u32], relations: &[Relation], c
     let mut x_prod = Integer::one();
     for &i in comb {
         let rel = &relations[i];
-        x_prod = x_prod.mul(&rel.x).rem(n);
+        x_prod = x_prod.mul(&rel.x).rem(n).expect("rem");
         for (t, e) in total.iter_mut().zip(rel.exps.iter()) {
             *t = t.saturating_add(*e);
         }
@@ -272,20 +257,16 @@ fn dependency_factor(n: &Integer, factor_base: &[u32], relations: &[Relation], c
         }
         let p = Integer::from_u64(u64::from(factor_base[j]));
         for _ in 0..half {
-            y = y.mul(&p).rem(n);
+            y = y.mul(&p).rem(n).expect("rem");
         }
     }
 
-    let diff = if x_prod >= y {
-        x_prod.sub(&y)
-    } else {
-        y.sub(&x_prod)
-    };
+    let diff = if x_prod >= y { x_prod.sub(&y) } else { y.sub(&x_prod) };
     let g = diff.gcd(n);
     if g > Integer::one() && g != *n {
         return Some(g);
     }
-    let sum = x_prod.add(&y).rem(n);
+    let sum = x_prod.add(&y).rem(n).expect("rem");
     let g2 = sum.gcd(n);
     if g2 > Integer::one() && g2 != *n {
         return Some(g2);
