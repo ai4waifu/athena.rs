@@ -1,6 +1,9 @@
 //! 稳定标识符 newtype（IR 与注册表）。
 
-/// Core term id（arena 索引）。
+/// Core term id（arena **存储**索引，不是语义表达式身份）。
+///
+/// 语义表达式用 [ExprId]；已计算值用 [ValueId]；结果容器用 [ResultId]。
+/// 禁止把 [TermId] 当作上述三者的替身。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TermId(pub u32);
 
@@ -70,9 +73,49 @@ pub struct AutomorphismId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SubgroupId(pub u32);
 
-/// 假设集合 id（Session / 请求附着）。
+/// 假设集合 id（Session / 请求附着；过渡期与 [AssumptionScopeId] 并存）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionSetId(pub u32);
+
+/// 假设作用域 id（Living 24 SEM1）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AssumptionScopeId(pub u32);
+
+/// 理论 / 猜想上下文 id（Living 23 ANT0 / 24 SEM1）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TheoryContextId(pub u32);
+
+/// 表面语法身份（产品层 / 方言 Form；非 Athena 语义表达式）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FormId(pub u32);
+
+/// 语义表达式身份（Living 24 SEM0）。
+///
+/// 不等于 [TermId]（存储）、[ValueId]（已计算值）、[ResultId]（结果容器）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ExprId(pub u32);
+
+/// 已计算或已验证的值身份（Living 24 SEM0）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ValueId(pub u32);
+
+/// 结果容器身份（解集 / 条件结果等；Living 24 SEM0）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ResultId(pub u32);
+
+/// 证明 / 证据引用身份（Living 24 SEM0）。
+///
+/// 不得混入表达式 equality，也不得与 [ExprId] / [ValueId] / [ResultId] 互换。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ProofRef(pub u64);
+
+/// 多项式对象身份（SEM0 预留；对象表在 engine）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PolynomialId(pub u32);
+
+/// 矩阵对象身份（SEM0 预留；对象表在 engine）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct MatrixId(pub u32);
 
 /// 源码位置（字节偏移）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

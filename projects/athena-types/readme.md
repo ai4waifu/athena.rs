@@ -4,7 +4,8 @@
 
 ## 职责范围
 
-- 稳定 ID（`TermId`、`NodeId`、`SymbolId`、`OperatorId`、`DomainId`）与轻量 `NumericKind`。
+- 稳定 ID（`TermId` 存储索引 · `ExprId` / `ValueId` / `ResultId` / `ProofRef` 语义身份 · `SymbolId` · `OperatorId` · `DomainId`）与轻量 `NumericKind`。
+- `AssumptionScope`（合并 / 冲突 / 继承 / 投影）与过渡期 `AssumptionSet`。
 - 过渡期宿主 wire：`wire::{WireNumber, ExactNumber, RealNumber}`（执行态数值在 `athena-numeric::NumericValue`）。
 - 精度与舍入策略类型（合同枚举，不含运算）。
 - source span 与语言无关诊断。

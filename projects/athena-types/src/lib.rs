@@ -8,17 +8,23 @@ mod assumption;
 mod diagnostic;
 mod ids;
 mod numeric_kind;
+mod scope;
 /// 过渡期宿主 wire（十进制字符串）；执行路径请用 `athena_numeric::NumericValue`。
 pub mod wire;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
-    AlgebraMapId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId, FieldPresentationId,
-    GroupElementId, GroupId, GroupPresentationId, NodeId, OperatorId, PresentationId, RingId, SerializationVersion, SourceSpan,
-    SubgroupId, SymbolId, TermId,
+    AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExprId, ExtensionId,
+    FieldId, FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId,
+    PolynomialId, PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId,
+    TheoryContextId, ValueId,
 };
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};
+pub use scope::{
+    AssumptionBranchPolicy, AssumptionScope, ScopeApplicability, ScopeConflict, ScopeConflictKind, ScopeMergeOutcome,
+    TheoryContext,
+};
 pub use wire::{ExactNumber, RealNumber, WireNumber};
 
 /// 近似算术的舍入模式（合同）。
