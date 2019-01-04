@@ -90,18 +90,9 @@ fn induced_view_maps_only_kept_nodes_and_internal_edges() {
 fn csr_rejects_non_monotonic_offsets() {
     let budget = MemoryBudget::new(4096).unwrap();
     // [0, 5, 3, 10]：首尾若单独看可能“碰巧”，但中间非单调。
-    let offsets = ChunkedArray::new(
-        LogicalShape::new([4]).unwrap(),
-        InMemoryStorage::from_vec(vec![0, 5, 3, 10]),
-        budget,
-    )
-    .unwrap();
-    let indices = ChunkedArray::new(
-        LogicalShape::new([10]).unwrap(),
-        InMemoryStorage::from_vec(vec![0; 10]),
-        budget,
-    )
-    .unwrap();
+    let offsets =
+        ChunkedArray::new(LogicalShape::new([4]).unwrap(), InMemoryStorage::from_vec(vec![0, 5, 3, 10]), budget).unwrap();
+    let indices = ChunkedArray::new(LogicalShape::new([10]).unwrap(), InMemoryStorage::from_vec(vec![0; 10]), budget).unwrap();
     let err = CsrGraph::new(3, offsets, indices).unwrap_err();
     assert!(matches!(err, athena_graph::GraphError::OffsetNonMonotonic { .. }));
 }
