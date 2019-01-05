@@ -1,8 +1,10 @@
 //! 解集与分支。
 
+use athena_types::ProofRef;
+
 use super::{
     binding::{BindingMap, BoundSymbol},
-    certificate::{ProofRef, ResidualCertificate},
+    certificate::ResidualCertificate,
     constraint::ConstraintSet,
     coverage::CoverageStatus,
     domain::SolveDomain,

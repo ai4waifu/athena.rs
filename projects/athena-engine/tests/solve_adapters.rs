@@ -1,10 +1,10 @@
 //! 线性 / 一元多项式 → 统一 SolutionSet，以及 IR 关系归一化。
 
 use athena_engine::{
-    BindingValue, BoundSymbol, CoefficientDomain, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode,
-    MatrixValue, MonomialOrder, Number, PolynomialBuilder, PolynomialFactorLimits, RelationalOperators, RingTable,
-    SolveDisposition, SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SourceSpan, SymbolId, TermArena, TermBuilder,
-    TermKind, adapt_univariate_factorization, assemble_solve_problem, execute_linear_system_goal, factor_univariate,
+    BindingValue, BoundSymbol, CoefficientDomain, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, MatrixValue,
+    MonomialOrder, Number, PolynomialBuilder, PolynomialFactorLimits, RelationalOperators, RingTable, SolveDisposition,
+    SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SourceSpan, SymbolId, TermArena, TermBuilder, TermKind,
+    adapt_univariate_factorization, assemble_solve_problem, execute_linear_system_goal, factor_univariate,
     normalize_relational_app, solve_linear_system_exact, solve_linear_system_machine, solve_univariate_polynomial_roots,
 };
 use athena_numeric::{Integer, Rational};

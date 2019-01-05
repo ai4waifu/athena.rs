@@ -32,7 +32,7 @@ pub use adapters_linear::{
 };
 pub use adapters_univariate::{UnivariateAdaptedSolution, adapt_univariate_factorization, solve_univariate_polynomial_roots};
 pub use binding::{BindingId, BindingMap, BoundSymbol};
-pub use certificate::{ProofRef, ResidualCertificate};
+pub use certificate::{ResidualCertificate, proof_ref_from_witness};
 pub use constraint::{
     Constraint, ConstraintConnective, ConstraintSet, Equation, Inequality, InequalityOp, QuantifiedConstraint, Quantifier,
     SolvePredicate,
