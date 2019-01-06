@@ -9,6 +9,7 @@ mod diagnostic;
 mod ids;
 mod numeric_kind;
 mod scope;
+mod status;
 /// 过渡期宿主 wire（十进制字符串）；执行路径请用 `athena_numeric::NumericValue`。
 pub mod wire;
 
@@ -25,6 +26,7 @@ pub use scope::{
     AssumptionBranchPolicy, AssumptionScope, ScopeApplicability, ScopeConflict, ScopeConflictKind, ScopeMergeOutcome,
     TheoryContext,
 };
+pub use status::ComputationStatus;
 pub use wire::{ExactNumber, RealNumber, WireNumber};
 
 /// 近似算术的舍入模式（合同）。
