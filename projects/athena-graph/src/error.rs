@@ -42,6 +42,20 @@ pub enum GraphError {
         /// 未满足的需求。
         requirement: GraphAlgorithmRequirements,
     },
+    /// 派生 CSC 相对源 CSR 已过期（revision / graph_id 不匹配）。
+    StaleCsc {
+        /// 派生时记录的源修订。
+        derived_from: crate::GraphRevision,
+        /// 当前 CSR 修订（若可知）。
+        current: Option<crate::GraphRevision>,
+    },
+    /// 属性列长度与 nodes/edges 不匹配。
+    PropertyLengthMismatch {
+        /// 期望长度。
+        expected: u64,
+        /// 实际长度。
+        actual: u64,
+    },
     /// 下层 ndarray 错误。
     Array(ArrayError),
     /// 图含环，无法拓扑排序。

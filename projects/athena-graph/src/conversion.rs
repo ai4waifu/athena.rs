@@ -74,6 +74,9 @@ pub fn edge_list_to_csr(
 }
 
 /// CSR → CSC（按需物化；读取完整 indices 后转置）。
+///
+/// 若 CSR 带 metadata，CSC 继承 `graph_id`/`revision`/`semantics` 并标记为 [`RepresentationId::CSC`]。
+/// 长期缓存请用 [`crate::DerivedCsc`]，以便在源 revision 变更后显式失效。
 pub fn csr_to_csc<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
     csr: &CsrGraph<O, I>,
     budget: MemoryBudget,
@@ -100,7 +103,26 @@ pub fn csr_to_csc<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
     let index_shape = LogicalShape::new([row_indices.len() as u64]).map_err(|_| GraphError::NodeOverflow)?;
     let column_offsets_arr = ChunkedArray::new(offset_shape, InMemoryStorage::from_vec(column_offsets), budget)?;
     let row_indices_arr = ChunkedArray::new(index_shape, InMemoryStorage::from_vec(row_indices), budget)?;
-    CscGraph::new(nodes, column_offsets_arr, row_indices_arr)
+    let metadata = csr.metadata().map(|m| {
+        let mut meta = crate::GraphStorageMetadata {
+            representation_id: crate::RepresentationId::CSC,
+            graph_id: m.graph_id,
+            revision: m.revision,
+            semantics: m.semantics,
+            sorted_adjacency: m.sorted_adjacency,
+            allows_duplicate_targets: m.allows_duplicate_targets,
+        };
+        if let (Some(gid), Some(rev), Some(sem)) = (m.graph_id, m.revision, m.semantics) {
+            meta = meta.bind_snapshot(crate::GraphSnapshot::new(
+                gid,
+                rev,
+                sem,
+                crate::RepresentationId::CSC,
+            ));
+        }
+        meta
+    });
+    CscGraph::new_with_metadata(nodes, column_offsets_arr, row_indices_arr, metadata)
 }
 
 /// 从 [`Graph`] 导出边列表 `(source, target, edge_id)`。
