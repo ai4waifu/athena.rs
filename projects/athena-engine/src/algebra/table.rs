@@ -22,6 +22,7 @@ use crate::{
 
 use super::{
     extension::{FieldExtension, extension_tower_fields},
+    fingerprint::FieldFingerprint,
     map_table::MapTable,
     presentation::{FieldPresentation, FieldPresentationKind},
 };
@@ -74,6 +75,25 @@ impl FieldTable {
     /// 按 FieldId 查 presentation。
     pub fn presentation(&self, field: FieldId) -> Option<&FieldPresentation> {
         self.field_to_presentation.get(&field).and_then(|id| self.presentations.get(id))
+    }
+
+    /// 域内容指纹（跨 Session 可比较；不含 [`FieldId`]）。
+    pub fn field_fingerprint(&self, field: FieldId) -> Option<FieldFingerprint> {
+        match self.presentation(field).map(|p| &p.kind)? {
+            FieldPresentationKind::Rationals => Some(FieldFingerprint::rationals()),
+            FieldPresentationKind::PrimeField { characteristic } => Some(FieldFingerprint::prime_field(characteristic)),
+            FieldPresentationKind::FiniteFieldPolynomialBasis { .. } => {
+                let spec = self.poly_extensions.get(&field)?;
+                Some(FieldFingerprint::finite_field_polynomial_basis(&spec.characteristic, &spec.modulus))
+            }
+            FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. } => {
+                let spec = self.number_fields.get(&field)?;
+                let abs: Vec<_> =
+                    spec.absolute_modulus.iter().map(|c| (c.numerator().clone(), c.denominator().clone())).collect();
+                Some(FieldFingerprint::number_field(&abs))
+            }
+            other => Some(FieldFingerprint::from_presentation_kind_tag(other)),
+        }
     }
 
     /// 域特征（素域与 𝔽_{p^n} 均返回 p）。

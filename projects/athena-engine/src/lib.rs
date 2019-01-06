@@ -39,10 +39,11 @@ pub use athena_numeric as numeric;
 
 pub use algebra::{
     AlgebraElement, AlgebraMap, AlgebraMapKind, AlgebraParentId, BsgsChain, CoefficientParent, ElementProvenance,
-    FieldEmbedding, FieldExtension, FieldPresentation, FieldPresentationKind, FieldTable, FiniteFieldPolySpec,
-    GroupHomomorphism, GroupPresentation, GroupPresentationKind, GroupPropertyFacts, GroupTable, MapTable, MapVerification,
-    MapVerificationKind, NumberFieldSpec, PermutationGroupSpec, PropertyState, PropertyWitness, QuotientProjection,
-    SubgroupInclusion, field_automorphism, frobenius_coords, is_galois_extension,
+    FieldEmbedding, FieldExtension, FieldFingerprint, FieldPresentation, FieldPresentationFingerprint, FieldPresentationKind,
+    FieldTable, FiniteFieldPolySpec, GroupFingerprint, GroupHomomorphism, GroupPresentation, GroupPresentationFingerprint,
+    GroupPresentationKind, GroupPropertyFacts, GroupTable, MapTable, MapVerification, MapVerificationKind, NumberFieldSpec,
+    PermutationGroupSpec, PropertyState, PropertyWitness, QuotientProjection, SubgroupInclusion, field_automorphism,
+    frobenius_coords, is_galois_extension,
 };
 pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{

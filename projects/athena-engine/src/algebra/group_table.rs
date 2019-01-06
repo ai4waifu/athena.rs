@@ -9,10 +9,10 @@ use crate::group::{Group, GroupDescriptor, Permutation, Subgroup};
 
 use super::{
     bsgs::BsgsChain,
+    fingerprint::GroupFingerprint,
     map_table::MapTable,
     permutation::{RawPerm, validate_images},
     presentation::{GroupPresentation, GroupPresentationKind},
-    property::{PropertyState, PropertyWitness},
     subgroup::{coset_index, is_normal, quotient_generators, verify_homomorphism_and_cache},
 };
 
@@ -218,16 +218,29 @@ impl GroupTable {
         let spec = self.permutation_spec(group).ok_or_else(|| unknown_group(group))?;
         Ok(Group {
             id: group,
-            descriptor: GroupDescriptor::Abstract {
-                order: PropertyState::Proven {
-                    value: spec.bsgs.order.clone(),
-                    witness: PropertyWitness::placeholder("bsgs_order"),
-                },
-                properties: Default::default(),
-            },
+            descriptor: GroupDescriptor::Permutation { degree: spec.degree },
             presentation: self.presentation_id(group)?,
             order: Some(spec.bsgs.order.clone()),
         })
+    }
+
+    /// 群内容指纹（跨 Session 可比较；不含 [`GroupId`]）。
+    pub fn group_fingerprint(&self, group: GroupId) -> Option<GroupFingerprint> {
+        let spec = self.permutation_spec(group)?;
+        let gens: Vec<Vec<u32>> = spec.generators.iter().map(|g| g.images().to_vec()).collect();
+        Some(GroupFingerprint::from_permutation_generators(spec.degree, &gens))
+    }
+
+    /// 要求群已绑定可计算 presentation（抽象仅知阶的 descriptor 拒入计算 API）。
+    pub fn ensure_computable(&self, group: GroupId) -> Result<()> {
+        if self.permutation_spec(group).is_some() {
+            Ok(())
+        } else {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "group")
+                .detail("operation", "abstract_descriptor_not_computable")
+                .detail("group_id", group.0.to_string()))
+        }
     }
 
     /// 校验置换属于已注册群。

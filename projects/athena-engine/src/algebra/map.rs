@@ -1,19 +1,11 @@
 //! 代数映射与验证合同。
 
-use athena_types::{AlgebraMapId, FieldPresentationId, GroupPresentationId, SubgroupId};
+use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldPresentationId, GroupPresentationId, SubgroupId};
 
 use super::parent::AlgebraParentId;
+use super::property::{PropertyState, PropertyWitness};
 
-/// 映射验证策略与结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MapVerification {
-    /// 验证种类。
-    pub kind: MapVerificationKind,
-    /// 是否已通过验证（仅 kind 为具体策略时为 true）。
-    pub verified: bool,
-}
-
-/// 映射验证种类。
+/// 映射验证种类（策略标签；结果见 [`MapVerification::status`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MapVerificationKind {
     /// 尚未验证。
@@ -24,6 +16,37 @@ pub enum MapVerificationKind {
     DegreeCheck,
     /// 外部证书（adapter）。
     ExternalCertificate,
+}
+
+/// 映射验证状态（禁止薄 `verified: bool`）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapVerification {
+    /// 验证种类。
+    pub kind: MapVerificationKind,
+    /// 证明态（`()` 载荷：仅关心是否已证）。
+    pub status: PropertyState<()>,
+}
+
+impl MapVerification {
+    /// 未验证。
+    pub fn unverified() -> Self {
+        Self { kind: MapVerificationKind::Unverified, status: PropertyState::Unknown }
+    }
+
+    /// 已证明成立。
+    pub fn proven(kind: MapVerificationKind, witness: PropertyWitness) -> Self {
+        Self { kind, status: PropertyState::Proven { value: (), witness } }
+    }
+
+    /// 已否证。
+    pub fn disproven(kind: MapVerificationKind, witness: PropertyWitness) -> Self {
+        Self { kind, status: PropertyState::Disproven { witness } }
+    }
+
+    /// 是否已证明。
+    pub fn is_proven(&self) -> bool {
+        self.status.is_proven()
+    }
 }
 
 /// 映射种类（不含元素 payload，images 由领域模块填充）。
@@ -40,7 +63,7 @@ pub enum AlgebraMapKind {
 }
 
 /// 统一代数映射。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AlgebraMap {
     /// 稳定 id。
     pub id: AlgebraMapId,
@@ -52,6 +75,20 @@ pub struct AlgebraMap {
     pub kind: AlgebraMapKind,
     /// 验证状态。
     pub verification: MapVerification,
+}
+
+impl AlgebraMap {
+    /// 要求映射已验证，否则诊断。
+    pub fn require_proven(&self) -> athena_types::Result<()> {
+        if self.verification.is_proven() {
+            Ok(())
+        } else {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "algebra")
+                .detail("operation", "map_not_proven")
+                .detail("map_id", self.id.0.to_string()))
+        }
+    }
 }
 
 /// 域嵌入（K → L）。
@@ -98,6 +135,6 @@ pub struct QuotientProjection {
     pub subgroup: SubgroupId,
     /// 源 presentation。
     pub source_presentation: GroupPresentationId,
-    /// 商群 presentation。
+    /// 商 presentation。
     pub target_presentation: GroupPresentationId,
 }

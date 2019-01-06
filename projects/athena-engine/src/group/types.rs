@@ -15,6 +15,11 @@ pub enum GroupDescriptor {
         /// 其他性质摘要。
         properties: GroupPropertyFacts,
     },
+    /// 置换群：已绑定度数，可经 table-backed presentation 运算。
+    Permutation {
+        /// 作用度数。
+        degree: u32,
+    },
 }
 
 /// 群对象。
