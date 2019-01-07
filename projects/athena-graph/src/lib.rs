@@ -16,6 +16,7 @@ mod direction;
 mod error;
 mod graph;
 mod id;
+mod property;
 mod semantics;
 mod view;
 
@@ -29,6 +30,7 @@ pub use direction::GraphDirection;
 pub use error::GraphError;
 pub use graph::{Graph, GraphBuilder, GraphView, ImmutableGraph};
 pub use id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId};
+pub use property::{PropertyCell, PropertyColumn, PropertyStore, WeightColumn, WeightDomainTag};
 pub use semantics::{
     GraphFingerprint, GraphSemantics, GraphSnapshot, GraphStorageMetadata, MultiplicityPolicy, SelfLoopDegree, ViewFingerprint,
     ViewMapping, ViewTransform,
