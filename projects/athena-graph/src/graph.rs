@@ -242,6 +242,7 @@ impl<N, E> Graph<N, E> {
             random_access: true,
             chunked_sequential: false,
             external_workspace: false,
+            distributed_shards: false,
         }
     }
 

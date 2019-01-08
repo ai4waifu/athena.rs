@@ -96,6 +96,16 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
             random_access: true,
             chunked_sequential: true,
             external_workspace: true,
+            distributed_shards: false,
+        }
+    }
+
+    /// 校验算法需求；不满足则 [`GraphError::CapabilityMismatch`]（禁止偷偷物化）。
+    pub fn ensure_capabilities(&self, req: crate::GraphAlgorithmRequirements) -> Result<(), GraphError> {
+        if self.capabilities().satisfies(req) {
+            Ok(())
+        } else {
+            Err(GraphError::CapabilityMismatch { requirement: req })
         }
     }
 }
