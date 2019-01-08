@@ -40,6 +40,27 @@ fn map_verification_has_no_thin_bool() {
 }
 
 #[test]
+fn abstract_group_id_rejected_by_ensure_computable() {
+    let table = GroupTable::new();
+    // Fresh GroupId never registered → not computable.
+    let err = table.ensure_computable(athena_engine::GroupId(99)).unwrap_err();
+    assert_eq!(err.details.get("operation").map(ToString::to_string).as_deref(), Some("abstract_descriptor_not_computable"));
+}
+
+#[test]
+fn unproven_map_rejected_by_require_proven() {
+    use athena_engine::{AlgebraMap, AlgebraMapId, AlgebraMapKind, AlgebraParentId, FieldId};
+    let map = AlgebraMap {
+        id: AlgebraMapId(0),
+        source: AlgebraParentId::Field(FieldId(0)),
+        target: AlgebraParentId::Field(FieldId(1)),
+        kind: AlgebraMapKind::FieldEmbedding,
+        verification: MapVerification::unverified(),
+    };
+    assert!(map.require_proven().is_err());
+}
+
+#[test]
 fn permutation_group_record_is_computable_descriptor() {
     let mut table = GroupTable::new();
     let g = match execute_group_with_table_mut(

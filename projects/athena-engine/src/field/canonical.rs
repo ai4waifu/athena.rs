@@ -61,6 +61,7 @@ pub fn apply_prime_subfield_embedding(
         return Err(field_element_invalid("not_prime_subfield_embedding"));
     }
     let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
+    map.require_proven()?;
     let (source, target) = field_endpoints(map)?;
     if element.field != source {
         return Err(field_mismatch());
@@ -84,6 +85,7 @@ pub fn apply_base_field_embedding(
     element: &FieldElement,
 ) -> Result<FieldElement> {
     let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
+    map.require_proven()?;
     let (source, target) = field_endpoints(map)?;
     if element.field != source {
         return Err(field_mismatch());
@@ -135,6 +137,7 @@ pub fn apply_field_embedding(
     element: &FieldElement,
 ) -> Result<FieldElement> {
     let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
+    map.require_proven()?;
     let (source, target) = field_endpoints(map)?;
     if element.field != source {
         return Err(field_mismatch());
