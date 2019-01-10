@@ -5,25 +5,16 @@ use std::collections::VecDeque;
 use crate::{Graph, GraphDirection, GraphError, NodeId};
 
 /// 确定性 BFS 访问顺序（有向图沿出边；无向图沿邻接）。
+///
+/// 扩展序：邻接目标按 [`NodeId`] 升序入队（与边插入顺序无关）。完整可取消/可恢复 API 见
+/// [`crate::deterministic_bfs`]。
 pub fn bfs_order<N, E>(graph: &Graph<N, E>, start: NodeId) -> Result<Vec<NodeId>, GraphError> {
-    if start.0 >= graph.node_count() {
-        return Err(GraphError::InvalidNode);
-    }
-    let mut seen = vec![false; graph.node_count() as usize];
-    let mut order = Vec::new();
-    let mut queue = VecDeque::from([start]);
-    seen[start.0 as usize] = true;
-    while let Some(node) = queue.pop_front() {
-        order.push(node);
-        for next in graph.neighbors(node) {
-            let i = next.0 as usize;
-            if !seen[i] {
-                seen[i] = true;
-                queue.push_back(next);
-            }
+    match crate::deterministic_bfs(graph, start, None)? {
+        crate::DeterministicBfsOutcome::Complete(order) => Ok(order),
+        crate::DeterministicBfsOutcome::Cancelled { .. } => {
+            unreachable!("cancel is None")
         }
     }
-    Ok(order)
 }
 
 /// DAG 拓扑排序；存在环时返回 [`GraphError::CycleDetected`]。

@@ -14,6 +14,7 @@ mod csr;
 mod derived_csc;
 mod direction;
 mod error;
+mod frontier;
 mod graph;
 mod id;
 mod property;
@@ -28,6 +29,10 @@ pub use csr::CsrGraph;
 pub use derived_csc::DerivedCsc;
 pub use direction::GraphDirection;
 pub use error::GraphError;
+pub use frontier::{
+    CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, deterministic_bfs,
+    resume_deterministic_bfs, sort_neighbors_deterministic,
+};
 pub use graph::{Graph, GraphBuilder, GraphView, ImmutableGraph};
 pub use id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId};
 pub use property::{PropertyCell, PropertyColumn, PropertyStore, WeightColumn, WeightDomainTag};
