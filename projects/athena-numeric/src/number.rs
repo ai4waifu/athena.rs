@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    algebraic::AlgebraicNumber, big_float::BigFloat, complex::Complex, domain::NumericDomain, finite_field::FiniteFieldValue,
+    algebraic::AlgebraicNumber, complex::Complex, decimal::Decimal, domain::NumericDomain, finite_field::FiniteFieldValue,
     integer::Integer, interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
     rational::Rational, real::Real,
 };
@@ -92,13 +92,13 @@ impl NumericValue {
     }
 
     /// 任意精度有限实数。
-    pub fn big_float(b: BigFloat) -> Self {
+    pub fn big_float(b: Decimal) -> Self {
         Self::Real(Real::big_float(b))
     }
 
     /// 从有限 IEEE binary64 导入任意精度实数（拒绝 NaN/Inf）。
     pub fn big_float_from_f64(x: f64) -> Result<Self> {
-        Ok(Self::big_float(BigFloat::from_f64(x)?))
+        Ok(Self::big_float(Decimal::from_f64(x)?))
     }
 
     /// 同 [`Self::machine_real`]。

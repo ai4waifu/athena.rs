@@ -3,10 +3,10 @@
 
 pub mod algebraic;
 pub mod backends;
-pub mod big_float;
 pub mod certificate;
 pub mod comparison;
 pub mod complex;
+pub mod decimal;
 pub mod domain;
 pub mod dyadic;
 pub mod evidence;
@@ -37,10 +37,10 @@ pub use backends::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     PureRustBackend,
 };
-pub use big_float::{BigFloat, RoundingStatus};
 pub use certificate::{CertificateMethod, NumericCertificate};
 pub use comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, NumericComparison};
 pub use complex::{BranchPolicy, Complex};
+pub use decimal::{Decimal, RoundingStatus};
 pub use domain::NumericDomain;
 pub use dyadic::Dyadic;
 #[allow(deprecated)]

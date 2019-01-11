@@ -2,7 +2,7 @@
 //! CI 显式运行：`cargo test -p athena-numeric --test numeric_promotion`
 
 use athena_numeric::{
-    BigFloat, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,
+    Decimal, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,
     PrecisionKind, Promotion, PromotionPolicy, Rational, Real,
 };
 
@@ -127,7 +127,7 @@ fn machine_to_arbitrary_is_honest_53_bit_import() {
 
 #[test]
 fn arbitrary_to_machine_requires_policy() {
-    let bf = BigFloat::from_f64(1.25).unwrap();
+    let bf = Decimal::from_f64(1.25).unwrap();
     let v = NumericValue::big_float(bf);
     let err = DefaultPromotion::promote_real_precision(v, PrecisionKind::Machine, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
@@ -135,7 +135,7 @@ fn arbitrary_to_machine_requires_policy() {
 
 #[test]
 fn arbitrary_to_machine_roundtrip() {
-    let bf = BigFloat::from_f64(core::f64::consts::PI).unwrap();
+    let bf = Decimal::from_f64(core::f64::consts::PI).unwrap();
     let v = NumericValue::big_float(bf);
     let policy = PromotionPolicy { allow_exact_to_machine: false, allow_arbitrary_to_machine: true };
     let m = DefaultPromotion::promote_real_precision(v, PrecisionKind::Machine, &policy).unwrap();

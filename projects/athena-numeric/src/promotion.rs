@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
-    big_float::BigFloat, domain::NumericDomain, integer::Integer, number::NumericValue, precision::PrecisionKind,
+    decimal::Decimal, domain::NumericDomain, integer::Integer, number::NumericValue, precision::PrecisionKind,
     rational::Rational, real::Real,
 };
 
@@ -115,7 +115,7 @@ impl Promotion for DefaultPromotion {
 }
 
 impl DefaultPromotion {
-    /// Same-domain Real precision change (Machine ↔ Arbitrary via [`BigFloat`]).
+    /// Same-domain Real precision change (Machine ↔ Arbitrary via [`Decimal`]).
     pub fn promote_real_precision(
         value: NumericValue,
         target_kind: PrecisionKind,
@@ -132,7 +132,7 @@ impl DefaultPromotion {
                 if !x.is_finite() {
                     return Ok(value);
                 }
-                let bf = BigFloat::from_f64(*x).map_err(|_| forbidden("machine_to_arbitrary"))?;
+                let bf = Decimal::from_f64(*x).map_err(|_| forbidden("machine_to_arbitrary"))?;
                 Ok(NumericValue::big_float(bf))
             }
             (NumericValue::Real(Real::BigFloat(b)), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {

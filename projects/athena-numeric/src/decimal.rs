@@ -1,6 +1,6 @@
 //! Binary arbitrary-precision real with explicit working precision.
 //!
-//! [`BigFloat`] stores a **rounded** float payload: significand width must not exceed
+//! [`Decimal`] stores a **rounded** float payload: significand width must not exceed
 //! [`Self::precision_bits`]. For exact dyadic values without a precision contract use [`Dyadic`].
 //!
 //! Rounding is performed on [`Natural`] limbs (guard / round / sticky). It must **not** bridge
@@ -16,7 +16,7 @@ pub const MIN_PRECISION_BITS: u32 = 1;
 /// IEEE binary64 significand width including implicit bit.
 pub const IEEE754_BINARY64_PRECISION: u32 = 53;
 
-/// Status of a rounding operation on a [`BigFloat`].
+/// Status of a rounding operation on a [`Decimal`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RoundingStatus {
     /// No information discarded; value unchanged relative to the infinite-precision payload.
@@ -31,12 +31,12 @@ pub enum RoundingStatus {
 
 /// Finite-precision binary float (`Dyadic` payload + declared precision).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BigFloat {
+pub struct Decimal {
     dyadic: Dyadic,
     precision_bits: u32,
 }
 
-impl BigFloat {
+impl Decimal {
     /// Canonical zero (`+0`) at minimum working precision.
     ///
     /// Prefer [`Self::zero_with_precision`] when a caller-owned working precision must be preserved.
@@ -270,7 +270,7 @@ mod tests {
         let samples =
             [0.0, -0.0, 1.0, -1.0, 0.5, 3.0, f64::MIN_POSITIVE, f64::MAX, f64::MIN, 1.5, f64::from_bits(0x0000_0000_0000_0001)];
         for x in samples {
-            let bf = BigFloat::from_f64(x).expect("finite");
+            let bf = Decimal::from_f64(x).expect("finite");
             bf.validate().expect("valid");
             let back = bf.to_f64_exact().expect("exact");
             assert_eq!(back.to_bits(), x.to_bits(), "failed for {x:?}");
@@ -280,20 +280,20 @@ mod tests {
     #[test]
     fn rejects_payload_wider_than_precision() {
         let sig = Natural::from_limbs(vec![9007199254740993, 1]);
-        let err = BigFloat::try_new(Sign::Positive, sig, 0, 53).unwrap_err();
+        let err = Decimal::try_new(Sign::Positive, sig, 0, 53).unwrap_err();
         assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_PRECISION_LOSS");
     }
 
     #[test]
     fn rejects_nan_import() {
-        assert!(BigFloat::from_f64(f64::NAN).is_err());
+        assert!(Decimal::from_f64(f64::NAN).is_err());
     }
 
     #[test]
     fn limb_round_preserves_wide_precision() {
         // 80-bit significand: odd number with high bit set across two limbs.
         let sig = Natural::from_limbs(vec![0xFFFF_FFFF_FFFF_FFFF, 0xFFFF]);
-        let bf = BigFloat::try_new(Sign::Positive, sig, -10, 80).expect("fit");
+        let bf = Decimal::try_new(Sign::Positive, sig, -10, 80).expect("fit");
         assert_eq!(bf.significand_bits_via(), 80);
         let (rounded, status) = bf.round_to_precision(60).expect("round");
         assert_eq!(status, RoundingStatus::RoundedUp); // sticky/round from discarded ones
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn exact_when_already_within_precision() {
-        let bf = BigFloat::try_new(Sign::Positive, Natural::from_u64(5), 0, 16).unwrap();
+        let bf = Decimal::try_new(Sign::Positive, Natural::from_u64(5), 0, 16).unwrap();
         let (r, status) = bf.round_to_precision(8).unwrap();
         assert_eq!(status, RoundingStatus::Exact);
         assert_eq!(r.significand().to_u64(), Some(5));
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn zero_preserves_requested_precision() {
-        let z = BigFloat::zero_with_precision(128).unwrap();
+        let z = Decimal::zero_with_precision(128).unwrap();
         assert_eq!(z.precision_bits(), 128);
         let (r, status) = z.round_to_precision(64).unwrap();
         assert_eq!(status, RoundingStatus::Exact);
@@ -321,7 +321,7 @@ mod tests {
         assert!(r.is_zero());
     }
 
-    impl BigFloat {
+    impl Decimal {
         fn significand_bits_via(&self) -> u64 {
             self.dyadic.significand_bits()
         }
