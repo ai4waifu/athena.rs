@@ -26,6 +26,7 @@ pub mod object;
 pub mod plot;
 pub mod polynomial;
 pub mod rewriter;
+pub mod semantic;
 pub mod session;
 pub mod solve;
 pub mod solver;
@@ -55,11 +56,11 @@ pub use athena_numeric::{
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AlgebraMapId, AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, AssumptionSetId, AutomorphismId,
-    CoefficientRingId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId, ExprId, ExtensionId,
-    FieldId, FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId,
-    PolynomialId, Precision, Predicate, PresentationId, ProofRef, Result, ResultId, RoundingMode, ScopeApplicability,
-    ScopeConflict, ScopeConflictKind, ScopeMergeOutcome, SerializationVersion, Severity, SourceSpan, SubgroupId, SymbolId,
-    TermId, TheoryContext, TheoryContextId, ValueId,
+    CoefficientRingId, ComputationStatus, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
+    ExprId, ExtensionId, FieldId, FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId,
+    OperatorId, PolynomialId, Precision, Predicate, PresentationId, ProofRef, Result, ResultId, RoundingMode,
+    ScopeApplicability, ScopeConflict, ScopeConflictKind, ScopeMergeOutcome, SerializationVersion, Severity, SourceSpan,
+    SubgroupId, SymbolId, TermId, TheoryContext, TheoryContextId, ValueId,
     wire::{ExactNumber, RealNumber, WireNumber},
 };
 pub use calculus::{
@@ -86,8 +87,8 @@ pub use galois::{
     execute_galois, execute_galois_with_tables,
 };
 pub use graph_theory::{
-    BipartiteResult, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphId, GraphNodeId,
-    GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance,
+    BipartiteResult, CertificateStrength, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphId,
+    GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance,
     GraphRevision, GraphSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MemoryGraph,
     MinimumSpanningForestResult, RepresentationId, ShortestPathResult, SpanningEdge, StronglyConnectedComponentsResult,
     WeightDomain, execute_graph_theory, operation_name,
@@ -146,17 +147,18 @@ pub use polynomial::{
     polynomial_fingerprint, polynomial_fingerprint_u64, record_polynomial_result, reduce_by_verified, reduce_ideal,
     reprs_mathematically_equal, resultant_univariate, sub_polynomial, verify_groebner_basis,
 };
+pub use semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable};
 pub use session::Session;
 pub use solve::{
     BindingId, BindingMap, BindingValue, BindingValueTable, BoundSymbol, BranchStatus, Constraint, ConstraintConnective,
-    ConstraintSet, CoverageStatus, Equation, ExecutionLimits, Inequality, InequalityOp, LinearAdaptedSolution,
-    LinearSolveMode, MultiplicityInfo, QuantifiedConstraint, Quantifier, RelationalOperators, ResidualCertificate,
-    ResumeToken, SolutionBranch, SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate, SolveProblem,
-    SolveRelationKind, UnivariateAdaptedSolution, adapt_exact_linear_solve, adapt_machine_linear_solve,
-    adapt_univariate_factorization, assemble_solve_problem, coverage_from_exact_disposition, coverage_from_factorization,
-    coverage_from_machine_disposition, execute_linear_system_goal, execute_polynomial_root_goal,
-    normalize_constraint_conjunction, normalize_relational_app, proof_ref_from_witness, require_goal,
-    solve_linear_system_exact, solve_linear_system_machine, solve_univariate_polynomial_roots,
+    ConstraintSet, CoverageStatus, Equation, ExecutionLimits, Inequality, InequalityOp, LinearAdaptedSolution, LinearSolveMode,
+    MultiplicityInfo, QuantifiedConstraint, Quantifier, RelationalOperators, ResidualCertificate, ResumeToken, SolutionBranch,
+    SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate, SolveProblem, SolveRelationKind,
+    UnivariateAdaptedSolution, adapt_exact_linear_solve, adapt_machine_linear_solve, adapt_univariate_factorization,
+    assemble_solve_problem, coverage_from_exact_disposition, coverage_from_factorization, coverage_from_machine_disposition,
+    execute_linear_system_goal, execute_polynomial_root_goal, normalize_constraint_conjunction, normalize_relational_app,
+    proof_ref_from_witness, require_goal, solve_linear_system_exact, solve_linear_system_machine,
+    solve_univariate_polynomial_roots,
 };
 pub use solver::{
     DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,
