@@ -46,7 +46,7 @@ fn groebner_trivial_generators_to_verified_basis() {
     assert_eq!(computation.status(), GroebnerStatus::Verified);
     let gb = computation.as_verified().expect("verified");
     assert!(gb.certificate.complete);
-    assert!(gb.certificate.verified);
+    assert!(gb.certificate.verification.is_proven());
     assert!(gb.verification.all_s_pairs_reduce_to_zero);
     assert_eq!(gb.certificate.algorithm, athena_engine::GroebnerAlgorithm::Buchberger);
     assert!(contains_poly_with_leading_exp(gb.basis(), &[1, 0]) || contains_poly_with_leading_exp(gb.basis(), &[0, 1]));
@@ -110,7 +110,7 @@ fn session_groebner_via_execute_polynomial() {
                 assert_eq!(v.status, GroebnerStatus::Verified);
                 assert_eq!(v.basis.len(), 1);
                 assert!(v.certificate.complete);
-                assert!(v.certificate.verified);
+                assert!(v.certificate.verification.is_proven());
             }
             _ => panic!("expected GroebnerBasis"),
         },
@@ -135,7 +135,7 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
         compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     assert_eq!(computation.status(), GroebnerStatus::Partial);
-    assert!(!computation.certificate().verified);
+    assert!(!computation.certificate().verification.is_proven());
     assert!(!computation.certificate().complete);
     assert!(computation.as_verified().is_none());
 }
@@ -154,7 +154,7 @@ fn basis_size_limit_yields_resource_limited() {
         GroebnerComputation::ResourceLimited(_) | GroebnerComputation::Partial(_) | GroebnerComputation::Complete(_)
     ));
     if let GroebnerComputation::ResourceLimited(f) = &computation {
-        assert!(!f.certificate.verified);
+        assert!(!f.certificate.verification.is_proven());
     }
 }
 

@@ -2,6 +2,8 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
+use crate::algebra::{PropertyState, PropertyWitness};
+
 use super::{
     builder::PolynomialBuilder,
     canonical::canonicalize_polynomial,
@@ -210,7 +212,10 @@ pub fn compute_groebner_basis(
         basis_elements: basis.len(),
         s_pair_steps: steps,
         complete: true,
-        verified: true,
+        verification: PropertyState::Proven {
+            value: (),
+            witness: PropertyWitness::placeholder("groebner_independent_verifier"),
+        },
         elimination_elements: None,
     };
     Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: ideal.ring, basis, certificate, verification }))
@@ -245,7 +250,7 @@ pub fn compute_elimination_basis(
             let mut certificate = verified.certificate;
             certificate.basis_elements = elim.len();
             certificate.elimination_elements = Some(elim.len());
-            certificate.verified = true;
+            certificate.mark_verified();
             certificate.complete = true;
             Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis {
                 ring: verified.ring,
@@ -258,14 +263,14 @@ pub fn compute_elimination_basis(
             frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
             frontier.certificate.basis_elements = frontier.candidates.len();
             frontier.certificate.elimination_elements = Some(frontier.candidates.len());
-            frontier.certificate.verified = false;
+            frontier.certificate.mark_unverified();
             Ok(GroebnerComputation::Partial(frontier))
         }
         GroebnerComputation::ResourceLimited(mut frontier) => {
             frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
             frontier.certificate.basis_elements = frontier.candidates.len();
             frontier.certificate.elimination_elements = Some(frontier.candidates.len());
-            frontier.certificate.verified = false;
+            frontier.certificate.mark_unverified();
             Ok(GroebnerComputation::ResourceLimited(frontier))
         }
     }
@@ -367,7 +372,7 @@ fn frontier(
         basis_elements: candidates.len(),
         s_pair_steps: steps,
         complete,
-        verified: false,
+        verification: PropertyState::Unknown,
         elimination_elements,
     };
     GroebnerFrontier { ring, candidates, certificate }
