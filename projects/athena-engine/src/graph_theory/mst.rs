@@ -44,12 +44,18 @@ pub fn minimum_spanning_forest_l1(graph: &GraphObject) -> Result<MinimumSpanning
         }
     }
     let tree_count = uf.set_count() as u64;
-    let edge_count = selected.len() as u64;
     let property = GraphPropertyResult::proven(
         GraphPropertyKind::SpanningForest,
         total_weight,
         "kruskal",
-        GraphCertificate::KruskalForest { algorithm: "kruskal", edge_count, tree_count },
+        GraphCertificate::MstCut {
+            algorithm: "kruskal",
+            edges: selected.clone(),
+            total_weight,
+            tree_count,
+            weight_domain: graph.semantics.weight_domain,
+        },
+        graph.snapshot.clone(),
     );
     Ok(MinimumSpanningForestResult { edges: selected, total_weight, tree_count, property })
 }

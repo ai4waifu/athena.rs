@@ -70,14 +70,30 @@ pub fn shortest_path_non_negative(
             }
         }
     }
+
+    let edge_weights = collect_edge_weights(&graph.memory, unit_weight);
+    let dist_opt: Vec<Option<u64>> = dist.iter().map(|&d| if d == u64::MAX { None } else { Some(d) }).collect();
+    let dual = GraphCertificate::ShortestPathDual {
+        algorithm: "dijkstra",
+        source,
+        target,
+        dist: dist_opt,
+        pred: prev.clone(),
+        edge_weights,
+        nonnegative_assumed: true,
+        relaxations,
+    };
+
     if dist[target.0 as usize] == u64::MAX {
         return Ok(ShortestPathResult::Unreachable {
             property: GraphPropertyResult {
                 kind: GraphPropertyKind::Reachability,
                 state: GraphPropertyState::ProvenFalse,
                 value: (),
-                certificate: Some(GraphCertificate::ShortestPathWitness { algorithm: "dijkstra", relaxations }),
+                certificate: Some(dual),
+                strength: super::property::CertificateStrength::Summary,
                 algorithm: "dijkstra",
+                snapshot: graph.snapshot.clone(),
             },
         });
     }
@@ -101,10 +117,16 @@ pub fn shortest_path_non_negative(
             kind: GraphPropertyKind::Reachability,
             state: GraphPropertyState::ProvenTrue,
             value: dist[target.0 as usize],
-            certificate: Some(GraphCertificate::ShortestPathWitness { algorithm: "dijkstra", relaxations }),
+            certificate: Some(dual),
+            strength: super::property::CertificateStrength::Summary,
             algorithm: "dijkstra",
+            snapshot: graph.snapshot.clone(),
         },
     })
+}
+
+fn collect_edge_weights(memory: &MemoryGraph, unit_weight: bool) -> Vec<(GraphNodeId, GraphNodeId, u64)> {
+    memory.edges.iter().map(|(s, t, w)| (*s, *t, if unit_weight { 1 } else { *w })).collect()
 }
 
 fn validate_weight_domain(graph: &GraphObject) -> Result<(), Diagnostic> {

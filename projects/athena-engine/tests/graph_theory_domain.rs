@@ -51,7 +51,9 @@ fn strongly_connected_components_cycle() {
     };
     assert_eq!(component_count, 1);
     assert_eq!(property.state, GraphPropertyState::ProvenTrue);
-    assert!(matches!(property.certificate, Some(GraphCertificate::TraversalWitness { algorithm: "kosaraju", .. })));
+    assert!(matches!(property.certificate, Some(GraphCertificate::SccPartition { algorithm: "kosaraju", .. })));
+    assert_eq!(property.strength, athena_engine::CertificateStrength::Summary);
+    assert!(!property.allows_exact_admission());
 }
 
 #[test]
@@ -133,7 +135,9 @@ fn minimum_spanning_forest_weighted() {
     assert_eq!(tree_count, 2);
     assert_eq!(edges.len(), 2);
     assert_eq!(property.state, GraphPropertyState::ProvenTrue);
-    assert!(matches!(property.certificate, Some(GraphCertificate::KruskalForest { edge_count: 2, tree_count: 2, .. })));
+    assert!(matches!(property.certificate, Some(GraphCertificate::MstCut { tree_count: 2, total_weight: 3, .. })));
+    assert_eq!(property.strength, athena_engine::CertificateStrength::Summary);
+    assert!(!property.allows_exact_admission());
 }
 
 #[test]

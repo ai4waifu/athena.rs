@@ -30,7 +30,8 @@ pub fn bipartite_l1(graph: &GraphObject) -> BipartiteResult {
         while let Some(u) = queue.pop_front() {
             if color[u] == 0 {
                 left.push(NodeId(u as u64));
-            } else {
+            }
+            else {
                 right.push(NodeId(u as u64));
             }
             for &v in &undirected[u] {
@@ -38,7 +39,8 @@ pub fn bipartite_l1(graph: &GraphObject) -> BipartiteResult {
                     color[v] = 1 - color[u];
                     parent[v] = Some(u);
                     queue.push_back(v);
-                } else if color[v] == color[u] {
+                }
+                else if color[v] == color[u] {
                     let cycle = reconstruct_odd_cycle(u, v, &parent);
                     return BipartiteResult::NotBipartite {
                         property: GraphPropertyResult::disproven(
@@ -46,6 +48,7 @@ pub fn bipartite_l1(graph: &GraphObject) -> BipartiteResult {
                             (),
                             "bfs_2color",
                             GraphCertificate::OddCycle { algorithm: "bfs_2color", cycle },
+                            graph.snapshot.clone(),
                         ),
                     };
                 }
@@ -61,6 +64,7 @@ pub fn bipartite_l1(graph: &GraphObject) -> BipartiteResult {
             true,
             "bfs_2color",
             GraphCertificate::BipartiteColoring { algorithm: "bfs_2color", left, right },
+            graph.snapshot.clone(),
         ),
     }
 }

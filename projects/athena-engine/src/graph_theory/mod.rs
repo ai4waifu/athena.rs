@@ -16,7 +16,7 @@ pub use object::{
     GraphAssumptions, GraphHandle, GraphNodeId, GraphObject, GraphPresentation, GraphProvenance, GraphSemantics, MemoryGraph,
     WeightDomain,
 };
-pub use property::{GraphCertificate, GraphPropertyKind, GraphPropertyResult, GraphPropertyState};
+pub use property::{CertificateStrength, GraphCertificate, GraphPropertyKind, GraphPropertyResult, GraphPropertyState};
 pub use request::GraphTheoryRequest;
 pub use result::{
     BipartiteResult, ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
