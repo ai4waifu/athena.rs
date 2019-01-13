@@ -2,7 +2,7 @@
 
 use athena_engine::{
     CoefficientDomain, MonomialOrder, Number, PolynomialBuilder, PolynomialCacheOp, PolynomialRequest, RingTable, Session,
-    SymbolId, cache_key_for_request, polynomial_canonical_hash, polynomial_fingerprint,
+    SymbolId, cache_key_for_request, fnv1a64, polynomial_canonical_hash, polynomial_fingerprint,
 };
 
 #[test]
@@ -52,4 +52,18 @@ fn cache_key_distinguishes_operations_with_fingerprints() {
     assert_ne!(k_add.operation, k_mul.operation);
     assert_eq!(k_add.operation, PolynomialCacheOp::Add);
     assert_eq!(k_add.ring_fingerprint, k_mul.ring_fingerprint);
+}
+
+#[test]
+fn fnv1a64_empty_is_offset_basis() {
+    assert_eq!(fnv1a64(&[]), 0xcbf29ce484222325);
+}
+
+#[test]
+fn ring_fingerprint_independent_of_ring_handle_allocation() {
+    let mut a = RingTable::new();
+    let mut b = RingTable::new();
+    let ring_a = a.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
+    let ring_b = b.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
+    assert_eq!(a.get(ring_a).unwrap().ring_fingerprint, b.get(ring_b).unwrap().ring_fingerprint);
 }

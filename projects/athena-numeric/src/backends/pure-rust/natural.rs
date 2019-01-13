@@ -265,13 +265,13 @@ impl Natural {
         Self::from_limbs(limb_kernel::gcd(self.limbs.clone(), other.limbs.clone()))
     }
 
-    /// Canonical limb slice (crate-private kernel view).
-    pub(crate) fn as_limbs(&self) -> &[u64] {
+    /// Borrow little-endian limbs.
+    pub fn as_limbs(&self) -> &[u64] {
         &self.limbs
     }
 
-    /// Canonical limb buffer (crate-private; for limb kernel tests).
-    pub(crate) fn from_limbs(limbs: Vec<u64>) -> Self {
+    /// Construct from little-endian limbs (canonicalized).
+    pub fn from_limbs(limbs: Vec<u64>) -> Self {
         let limbs = limb_kernel::normalize_trim(limbs);
         let n = Self { limbs };
         n.debug_assert_invariants();

@@ -113,6 +113,6 @@ impl ScratchWorkspace {
     }
 }
 
-pub(crate) fn kernel_err(op: &str) -> Diagnostic {
+pub fn kernel_err(op: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "numeric").detail("operation", op)
 }

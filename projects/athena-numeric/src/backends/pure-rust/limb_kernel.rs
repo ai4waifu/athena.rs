@@ -254,7 +254,7 @@ fn add_wide_to_out(out: &mut Vec<u64>, idx: usize, wide: u128) {
 }
 
 /// Symmetric schoolbook squaring: diagonal once, off-diagonal doubled (`j > i` only).
-fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
+pub(crate) fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     if la == 0 || is_zero(a) {
         return vec![0];
@@ -289,7 +289,7 @@ pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
     })
 }
 
-fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub(crate) fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     let lb = effective_len(b);
     let mut out = vec![0u64; la + lb];
@@ -315,7 +315,7 @@ fn mul_schoolbook(a: &[u64], b: &[u64]) -> Vec<u64> {
     normalize_trim(out)
 }
 
-fn karatsuba_mul(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub(crate) fn karatsuba_mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     let lb = effective_len(b);
     let n = la.max(lb).next_power_of_two().max(MUL_KARATSUBA_THRESHOLD);
@@ -669,7 +669,7 @@ fn mul_mod_mont(a: &[u64], b: &[u64], m: &[u64]) -> Vec<u64> {
     montgomery_redc(&mut t, m, n_prime)
 }
 
-fn div2_mod(exp: &mut Vec<u64>) {
+pub(crate) fn div2_mod(exp: &mut Vec<u64>) {
     let len = effective_len(exp);
     if len == 0 {
         return;
@@ -1066,231 +1066,5 @@ impl LimbKernel for PureRustLimbKernel {
         q_out.set_canonical(q, budget)?;
         r_out.set_canonical(r, budget)?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod contract_tests {
-    use super::*;
-
-    #[test]
-    fn limb_kernel_add_into_respects_budget() {
-        let budget = ExecutionBudget::from_limits(&crate::backends::NumericBackendLimits {
-            max_limbs: Some(2),
-            max_significand_bits: None,
-            max_wire_payload_bytes: None,
-            max_pow_exp: None,
-        });
-        let a = vec![1u64, 1u64, 1u64];
-        let b = vec![1u64];
-        let mut out = LimbBuffer::zero();
-        let mut scratch = ScratchWorkspace::default();
-        let err = PureRustLimbKernel::add_into(&a, &b, &mut out, &mut scratch, &budget).unwrap_err();
-        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_RESOURCE_LIMIT");
-    }
-}
-
-#[cfg(test)]
-mod primitive_tests {
-    use super::*;
-
-    fn lcg_next(state: &mut u64) -> u64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        *state
-    }
-
-    #[test]
-    fn mul_wide_matches_u128_product() {
-        for &a in &[0, 1, u64::MAX - 1, u64::MAX] {
-            for &b in &[0, 1, u64::MAX - 1, u64::MAX] {
-                let (hi, lo) = mul_wide(a, b);
-                let prod = (a as u128) * (b as u128);
-                assert_eq!(lo, prod as u64);
-                assert_eq!(hi, (prod >> 64) as u64);
-            }
-        }
-        let mut seed = 0xC0FFEE_u64;
-        for _ in 0..50_000 {
-            let a = lcg_next(&mut seed);
-            let b = lcg_next(&mut seed);
-            let (hi, lo) = mul_wide(a, b);
-            let prod = (a as u128) * (b as u128);
-            assert_eq!(lo, prod as u64);
-            assert_eq!(hi, (prod >> 64) as u64);
-        }
-    }
-
-    #[test]
-    fn adc_matches_u128_add_with_carry() {
-        for carry in 0u64..=1 {
-            for &a in &[0, 1, u64::MAX - 1, u64::MAX] {
-                for &b in &[0, 1, u64::MAX - 1, u64::MAX] {
-                    let (sum, c_out) = adc(a, b, carry);
-                    let wide = (a as u128) + (b as u128) + (carry as u128);
-                    assert_eq!(sum, wide as u64);
-                    assert_eq!(c_out, (wide >> 64) as u64);
-                }
-            }
-        }
-        let mut seed = 0xADC_u64;
-        for _ in 0..50_000 {
-            let a = lcg_next(&mut seed);
-            let b = lcg_next(&mut seed);
-            let carry = lcg_next(&mut seed) & 1;
-            let (sum, c_out) = adc(a, b, carry);
-            let wide = (a as u128) + (b as u128) + (carry as u128);
-            assert_eq!(sum, wide as u64);
-            assert_eq!(c_out, (wide >> 64) as u64);
-        }
-    }
-
-    #[test]
-    fn sbb_matches_borrow_subtraction() {
-        for borrow in 0u64..=1 {
-            for &a in &[0, 1, u64::MAX - 1, u64::MAX] {
-                for &b in &[0, 1, u64::MAX - 1, u64::MAX] {
-                    let (diff, b_out) = sbb(a, b, borrow);
-                    let sub = (b as u128) + (borrow as u128);
-                    let a128 = a as u128;
-                    let (ref_diff, ref_borrow) =
-                        if a128 >= sub { ((a128 - sub) as u64, 0) } else { ((a128 + (1u128 << 64) - sub) as u64, 1) };
-                    assert_eq!(diff, ref_diff);
-                    assert_eq!(b_out, ref_borrow);
-                }
-            }
-        }
-        let mut seed = 0x5BB_u64;
-        for _ in 0..50_000 {
-            let a = lcg_next(&mut seed);
-            let b = lcg_next(&mut seed);
-            let borrow = lcg_next(&mut seed) & 1;
-            let (diff, b_out) = sbb(a, b, borrow);
-            let sub = (b as u128) + (borrow as u128);
-            let a128 = a as u128;
-            let (ref_diff, ref_borrow) =
-                if a128 >= sub { ((a128 - sub) as u64, 0) } else { ((a128 + (1u128 << 64) - sub) as u64, 1) };
-            assert_eq!(diff, ref_diff);
-            assert_eq!(b_out, ref_borrow);
-        }
-    }
-
-    #[test]
-    fn mac_matches_fused_multiply_add() {
-        for &acc in &[0, u64::MAX] {
-            for &a in &[0, 1, u64::MAX] {
-                for &b in &[0, 1, u64::MAX] {
-                    for carry in [0u128, 1, u64::MAX as u128] {
-                        let (limb, c_out) = mac(acc, a, b, carry);
-                        let wide = (acc as u128) + (a as u128) * (b as u128) + carry;
-                        assert_eq!(limb, wide as u64);
-                        assert_eq!(c_out, wide >> 64);
-                    }
-                }
-            }
-        }
-        let mut seed = 0xA0C_u64;
-        for _ in 0..50_000 {
-            let acc = lcg_next(&mut seed);
-            let a = lcg_next(&mut seed);
-            let b = lcg_next(&mut seed);
-            // Carry in schoolbook is always `sum >> 64` from the prior mac step.
-            let carry = lcg_next(&mut seed) as u128;
-            let (limb, c_out) = mac(acc, a, b, carry);
-            let wide = (acc as u128) + (a as u128) * (b as u128) + carry;
-            assert_eq!(limb, wide as u64);
-            assert_eq!(c_out, wide >> 64);
-        }
-    }
-
-    #[test]
-    fn karatsuba_matches_schoolbook() {
-        let mut seed = 0x4710_u64;
-        for _ in 0..32 {
-            let la = (lcg_next(&mut seed) as usize % 80) + MUL_KARATSUBA_THRESHOLD;
-            let lb = (lcg_next(&mut seed) as usize % 80) + MUL_KARATSUBA_THRESHOLD;
-            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
-            let b: Vec<u64> = (0..lb).map(|_| lcg_next(&mut seed)).collect();
-            let school = mul_schoolbook(&a, &b);
-            let kara = karatsuba_mul(&a, &b);
-            assert_eq!(school, kara, "Karatsuba diverged from schoolbook");
-        }
-    }
-
-    #[test]
-    fn sqr_matches_mul() {
-        let mut seed = 0x5A00_u64;
-        for _ in 0..64 {
-            let la = (lcg_next(&mut seed) as usize % 80) + 1;
-            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
-            let via_mul = mul(&a, &a);
-            let via_sqr = sqr(&a);
-            assert_eq!(via_mul, via_sqr, "sqr diverged from mul");
-        }
-    }
-
-    #[test]
-    fn mul_1_matches_mul_single_limb() {
-        let mut seed = 0xB160_u64;
-        for _ in 0..256 {
-            let la = (lcg_next(&mut seed) as usize % 40) + 1;
-            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
-            let n = lcg_next(&mut seed) | 1;
-            assert_eq!(mul_1(&a, n), mul(&a, &[n]));
-        }
-    }
-
-    #[test]
-    fn addmul_1_matches_add_mul_1() {
-        let mut seed = 0xC170_u64;
-        for _ in 0..256 {
-            let lr = (lcg_next(&mut seed) as usize % 40) + 1;
-            let la = (lcg_next(&mut seed) as usize % 40) + 1;
-            let r: Vec<u64> = (0..lr).map(|_| lcg_next(&mut seed)).collect();
-            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
-            let n = lcg_next(&mut seed) | 1;
-            assert_eq!(addmul_1(&r, &a, n), add_n(&r, &mul_1(&a, n)));
-        }
-    }
-
-    #[test]
-    fn lehmer_gcd_matches_binary_gcd() {
-        let mut seed = 0x6CD2_u64;
-        for _ in 0..64 {
-            let la = (lcg_next(&mut seed) as usize % 48) + 1;
-            let lb = (lcg_next(&mut seed) as usize % 48) + 1;
-            let a: Vec<u64> = (0..la).map(|_| lcg_next(&mut seed)).collect();
-            let b: Vec<u64> = (0..lb).map(|_| lcg_next(&mut seed)).collect();
-            assert_eq!(gcd(a.clone(), b.clone()), binary_gcd(a, b));
-        }
-    }
-
-    #[test]
-    fn montgomery_mod_pow_matches_binary() {
-        let mut seed = 0xF002_u64;
-        for _ in 0..32 {
-            let base: Vec<u64> = (0..4).map(|_| lcg_next(&mut seed)).collect();
-            let mut exp = vec![lcg_next(&mut seed) | 1, lcg_next(&mut seed)];
-            if is_zero(&exp) {
-                exp = vec![1];
-            }
-            let m = vec![0xFFFF_FFFF_FFFF_FFFDu64, 1];
-            let via_mont = mod_pow_montgomery(&base, &exp, &m);
-            let via_bin = std_mod_pow(&base, &exp, &m);
-            assert_eq!(via_mont, via_bin);
-        }
-    }
-
-    fn std_mod_pow(base: &[u64], exp: &[u64], modulus: &[u64]) -> Vec<u64> {
-        let (_, mut base_r) = div_rem(base, modulus);
-        let mut result = vec![1];
-        let mut e = exp.to_vec();
-        while !is_zero(&e) {
-            if (e[0] & 1) == 1 {
-                result = div_rem(&mul(&result, &base_r), modulus).1;
-            }
-            base_r = div_rem(&mul(&base_r, &base_r), modulus).1;
-            div2_mod(&mut e);
-        }
-        normalize_trim(result)
     }
 }

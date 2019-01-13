@@ -523,24 +523,3 @@ fn biquadratic_absolute_modulus(base_abs_mod: &[Rational], d2: &Rational) -> Res
     let c0 = diff.mul(&diff);
     Ok(vec![c0, Rational::zero(), c2, Rational::zero(), Rational::one()])
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn composite_prime_field_rejected() {
-        let mut table = FieldTable::new();
-        let err = table.prime_field(Integer::from_i64(6)).unwrap_err();
-        assert_eq!(err.code.as_str(), "ATHENA_MODULUS_INVALID");
-    }
-
-    #[test]
-    fn prime_field_intern_idempotent() {
-        let mut table = FieldTable::new();
-        let a = table.prime_field(Integer::from_i64(5)).unwrap();
-        let b = table.prime_field(Integer::from_i64(5)).unwrap();
-        assert_eq!(a, b);
-        assert_eq!(table.characteristic(a), Some(Integer::from_i64(5)));
-    }
-}

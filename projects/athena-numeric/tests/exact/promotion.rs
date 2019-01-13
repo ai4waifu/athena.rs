@@ -1,5 +1,5 @@
-//! promotion 合同：Integer↔Rational · Exact↔Machine · Machine↔Arbitrary · mismatch 诊断。
-//! CI 显式运行：`cargo test -p athena-numeric --test numeric_promotion`
+//! Integer↔Rational, Exact↔Machine, and Machine↔Arbitrary promotion contracts.
+//! CI filter: `cargo test -p athena-numeric --test main promotion`
 
 use athena_numeric::{
     Decimal, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,

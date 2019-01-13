@@ -1,4 +1,4 @@
-//! `BigFloat` 表示不变量（promotion 见 `numeric_promotion`）。
+//! `BigFloat` / `Decimal` representation invariants (see `exact::promotion` for promotion).
 
 use athena_numeric::{Decimal, integer::Sign, natural::Natural};
 

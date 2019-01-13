@@ -205,23 +205,3 @@ fn unknown_ring(ring: athena_types::RingId) -> Diagnostic {
         .detail("operation", "fingerprint_unknown_ring")
         .detail("ring_id", ring.0.to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::polynomial::{CoefficientDomain, MonomialOrder, RingTable};
-
-    #[test]
-    fn ring_fingerprint_independent_of_ring_handle_allocation() {
-        let mut a = RingTable::new();
-        let mut b = RingTable::new();
-        let ring_a = a.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
-        let ring_b = b.intern(CoefficientDomain::Integer, vec![SymbolId(1)], MonomialOrder::Lex).unwrap();
-        assert_eq!(a.get(ring_a).unwrap().ring_fingerprint, b.get(ring_b).unwrap().ring_fingerprint);
-    }
-
-    #[test]
-    fn fnv1a64_empty_is_offset_basis() {
-        assert_eq!(fnv1a64(&[]), FNV_OFFSET_BASIS);
-    }
-}

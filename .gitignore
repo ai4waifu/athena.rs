@@ -22,3 +22,9 @@ dist/
 *.txt
 *.log
 *.exe
+
+# llvm-cov local outputs
+coverage-summary.txt
+lcov.info
+coverage-html/
+

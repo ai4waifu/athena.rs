@@ -63,3 +63,21 @@ fn distinct_orders_distinct_layouts() {
     let e2 = vec![0, 1];
     assert_ne!(lex.cmp_exponents(&e1, &e2), weighted.cmp_exponents(&e1, &e2));
 }
+
+#[test]
+fn pack_unpack_roundtrip_16bit() {
+    let layout = MonomialLayout::compile(&MonomialOrder::Lex, 3).unwrap();
+    assert_eq!(layout.bits_per_exponent(), 16);
+    assert_eq!(layout.packed_words_per_monomial(), 1);
+    let exp = vec![1u32, 65535, 0];
+    let packed = layout.pack(&exp).unwrap();
+    assert_eq!(layout.unpack(&packed).unwrap(), exp);
+}
+
+#[test]
+fn cmp_packed_matches_unpacked() {
+    let layout = MonomialLayout::compile(&MonomialOrder::GrLex, 2).unwrap();
+    let a = layout.pack(&[2, 0]).unwrap();
+    let b = layout.pack(&[1, 1]).unwrap();
+    assert_eq!(layout.cmp_packed(&a, &b).unwrap(), layout.cmp_exponents(&[2, 0], &[1, 1]));
+}
