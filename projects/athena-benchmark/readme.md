@@ -30,14 +30,21 @@ cargo run -p athena-benchmark --release -- --groups numeric,ir --json
 cargo run -p athena-benchmark --release -- --warmup 5 --samples 50
 ```
 
-## Criterion：Athena vs `num-bigint` vs `ibig`
+## Criterion：`compare-bigint`
 
-`ramp` 已弃用且依赖 nightly asm，**不**纳入可复现对照；纯 Rust 高性能对照用 `ibig`。
+| Feature | 对照库 |
+|---------|--------|
+| `compare-num-bigint` | `num-bigint` |
+| `compare-ibig` | `ibig` |
+| `compare-malachite` | `malachite` |
+| `compare-bigint` | 以上全部（跑完整 PK 用这个） |
+
+不接 GMP / `gmp-mpfr-sys`：Windows 需要 MSYS2 + `windows-gnu`，限制太多。纯 Rust 顶尖对照用 `malachite`。
 
 ```sh
-cargo bench -p athena-benchmark --features bigint-compare --bench bigint_compare
+cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint
 ```
 
 覆盖 `add` / `mul` / `div` / `gcd` / `pow`，位宽 `64 / 256 / 1024 / 4096`。报告在 `target/criterion/`（含 HTML）。
 
-外部 bigint 依赖仅挂在本 crate 的可选 feature 上，**不得**回流到 `athena-types` / `athena-numeric` / `athena-engine`。
+外部 bigint 依赖仅挂在本 crate 的可选 `compare-*` feature 上，**不得**回流到 `athena-types` / `athena-numeric` / `athena-engine`。

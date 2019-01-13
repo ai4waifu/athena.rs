@@ -1,19 +1,22 @@
-//! Athena `Integer` vs `num-bigint` vs `ibig`（Criterion）。
+//! Athena `Integer` vs `num-bigint` vs `ibig` vs `malachite`（Criterion）。
 //!
-//! `ramp` 已弃用且依赖 nightly asm，不纳入可复现对照。
+//! 仅纯 Rust 对照。GMP / `gmp-mpfr-sys` 在 Windows 上依赖 MSYS2 + `*-windows-gnu`，本仓库不接。
 //!
 //! ```sh
-//! 运行：`cargo bench -p athena-benchmark --features bigint-compare --bench bigint_compare`
+//! 运行：`cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint`
 //! ```
 
 #![allow(missing_docs)]
 
 use std::hint::black_box;
+use std::str::FromStr;
 
 use athena_numeric::{Integer, number_from_wire};
 use athena_types::wire::WireNumber;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use ibig::{IBig, ops::Abs};
+use ibig::{IBig, ops::Abs as IbigAbs};
+use malachite::Integer as MalachiteInteger;
+use malachite::base::num::arithmetic::traits::{Abs as MalachiteAbs, Pow as MalachitePow};
 use num_bigint::BigInt;
 use num_traits::{Num, Signed, Zero, pow::Pow};
 
@@ -26,7 +29,7 @@ fn gen_decimal(bits: u32, seed: u64) -> String {
         n = n.mul(&mix).add(&Integer::from_u64(0xD1B5_4A32_D192_ED03));
     }
     while n.bits() > u64::from(bits) {
-        n = n.div(&Integer::from_i64(2));
+        n = n.div(&Integer::from_i64(2)).expect("shrink bits");
     }
     if n.is_zero() {
         n = Integer::one();
@@ -62,8 +65,20 @@ fn gcd_num(a: &BigInt, b: &BigInt) -> BigInt {
 
 fn gcd_ibig(a: &IBig, b: &IBig) -> IBig {
     let zero = IBig::from(0);
-    let mut x = a.abs();
-    let mut y = b.abs();
+    let mut x = IbigAbs::abs(a.clone());
+    let mut y = IbigAbs::abs(b.clone());
+    while y != zero {
+        let r = &x % &y;
+        x = y;
+        y = r;
+    }
+    x
+}
+
+fn gcd_malachite(a: &MalachiteInteger, b: &MalachiteInteger) -> MalachiteInteger {
+    let zero = MalachiteInteger::from(0);
+    let mut x = MalachiteAbs::abs(a.clone());
+    let mut y = MalachiteAbs::abs(b.clone());
     while y != zero {
         let r = &x % &y;
         x = y;
@@ -76,6 +91,10 @@ fn integer_from_wire_decimal(s: &str) -> Integer {
     number_from_wire(&WireNumber::from_decimal_str(s).unwrap()).unwrap().as_integer().unwrap().clone()
 }
 
+fn malachite_from_decimal(s: &str) -> MalachiteInteger {
+    MalachiteInteger::from_str(s).expect("malachite parse")
+}
+
 fn bench_add(c: &mut Criterion) {
     let mut group = c.benchmark_group("bigint_add");
     for &bits in BITS {
@@ -86,6 +105,8 @@ fn bench_add(c: &mut Criterion) {
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
         let b_ibig: IBig = b_s.parse().unwrap();
+        let a_mal = malachite_from_decimal(&a_s);
+        let b_mal = malachite_from_decimal(&b_s);
 
         group.bench_with_input(BenchmarkId::new("athena", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(a_ath.add(&b_ath)));
@@ -95,6 +116,9 @@ fn bench_add(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("ibig", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(&a_ibig + &b_ibig));
+        });
+        group.bench_with_input(BenchmarkId::new("malachite", bits), &bits, |bencher, _| {
+            bencher.iter(|| black_box(&a_mal + &b_mal));
         });
     }
     group.finish();
@@ -110,6 +134,8 @@ fn bench_mul(c: &mut Criterion) {
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
         let b_ibig: IBig = b_s.parse().unwrap();
+        let a_mal = malachite_from_decimal(&a_s);
+        let b_mal = malachite_from_decimal(&b_s);
 
         group.bench_with_input(BenchmarkId::new("athena", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(a_ath.mul(&b_ath)));
@@ -119,6 +145,9 @@ fn bench_mul(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("ibig", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(&a_ibig * &b_ibig));
+        });
+        group.bench_with_input(BenchmarkId::new("malachite", bits), &bits, |bencher, _| {
+            bencher.iter(|| black_box(&a_mal * &b_mal));
         });
     }
     group.finish();
@@ -137,6 +166,9 @@ fn bench_div(c: &mut Criterion) {
         let a_ibig: IBig = a_s.parse().unwrap();
         let b_ibig: IBig = b_s.parse().unwrap();
         let prod_ibig = &a_ibig * &b_ibig;
+        let a_mal = malachite_from_decimal(&a_s);
+        let b_mal = malachite_from_decimal(&b_s);
+        let prod_mal = &a_mal * &b_mal;
 
         group.bench_with_input(BenchmarkId::new("athena", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(prod_ath.div(&a_ath)));
@@ -147,9 +179,10 @@ fn bench_div(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("ibig", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(&prod_ibig / &a_ibig));
         });
-        let _ = &b_ath;
-        let _ = &b_num;
-        let _ = &b_ibig;
+        group.bench_with_input(BenchmarkId::new("malachite", bits), &bits, |bencher, _| {
+            bencher.iter(|| black_box(&prod_mal / &a_mal));
+        });
+        let _ = (&b_ath, &b_num, &b_ibig, &b_mal);
     }
     group.finish();
 }
@@ -164,6 +197,8 @@ fn bench_gcd(c: &mut Criterion) {
         let b_num = BigInt::from_str_radix(&b_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
         let b_ibig: IBig = b_s.parse().unwrap();
+        let a_mal = malachite_from_decimal(&a_s);
+        let b_mal = malachite_from_decimal(&b_s);
 
         group.bench_with_input(BenchmarkId::new("athena", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(a_ath.gcd(&b_ath)));
@@ -173,6 +208,9 @@ fn bench_gcd(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("ibig", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(gcd_ibig(&a_ibig, &b_ibig)));
+        });
+        group.bench_with_input(BenchmarkId::new("malachite", bits), &bits, |bencher, _| {
+            bencher.iter(|| black_box(gcd_malachite(&a_mal, &b_mal)));
         });
     }
     group.finish();
@@ -187,6 +225,8 @@ fn bench_pow(c: &mut Criterion) {
         let e_ath = Integer::from_u64(u64::from(exp));
         let a_num = BigInt::from_str_radix(&a_s, 10).unwrap();
         let a_ibig: IBig = a_s.parse().unwrap();
+        let a_mal = malachite_from_decimal(&a_s);
+        let exp_u64 = u64::from(exp);
 
         group.bench_with_input(BenchmarkId::new("athena", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(a_ath.pow(&e_ath).expect("pow")));
@@ -196,6 +236,9 @@ fn bench_pow(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("ibig", bits), &bits, |bencher, _| {
             bencher.iter(|| black_box(a_ibig.pow(usize::try_from(exp).unwrap())));
+        });
+        group.bench_with_input(BenchmarkId::new("malachite", bits), &bits, |bencher, _| {
+            bencher.iter(|| black_box(MalachitePow::pow(a_mal.clone(), exp_u64)));
         });
     }
     group.finish();
