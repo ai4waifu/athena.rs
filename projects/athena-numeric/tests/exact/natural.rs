@@ -1,4 +1,4 @@
-//! Natural (unsigned big integer) arithmetic and limb-kernel tests.
+//! `Natural`（无符号大整数）算术与 limb 内核测试。
 
 use athena_numeric::{Integer, NumericValue, natural::Natural, number_from_wire};
 use athena_types::wire::{ExactNumber, WireNumber};
@@ -54,7 +54,7 @@ fn div_rem_identity_large() {
 
 #[test]
 fn karatsuba_path_large_mul() {
-    // ~640 decimal digits → >32 limbs, forces Karatsuba in limb kernel.
+    // 约 640 位十进制数字 → >32 limb，迫使 limb 内核走 Karatsuba。
     let digits = "9876543210".repeat(64);
     let a = Natural::from_str(&digits).unwrap();
     let b = Natural::from_str("8888888888888888888888888888888888888888888888888888888888888888").unwrap();

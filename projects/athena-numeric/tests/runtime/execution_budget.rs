@@ -1,4 +1,4 @@
-//! Execution budget public contract tests.
+//! 执行预算公开合同测试。
 
 use athena_numeric::{Dyadic, ExecutionBudget, NumericBackendLimits, NumericContext};
 

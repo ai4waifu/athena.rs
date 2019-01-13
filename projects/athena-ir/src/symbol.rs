@@ -1,8 +1,8 @@
-//! Symbol intern table for IR.
+//! IR 符号 intern 表。
 
 use athena_types::SymbolId;
 
-/// Interned symbol names.
+/// 已 intern 的符号名。
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     names: Vec<String>,
@@ -10,12 +10,12 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    /// Empty table.
+    /// 空表。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Intern a symbol name → stable id.
+    /// intern 符号名 → 稳定 id。
     pub fn intern(&mut self, name: impl Into<String>) -> SymbolId {
         let name = name.into();
         if let Some(id) = self.index.get(&name) {
@@ -27,17 +27,17 @@ impl SymbolTable {
         id
     }
 
-    /// Resolve id to name.
+    /// 将 id 解析为名字。
     pub fn resolve(&self, id: SymbolId) -> Option<&str> {
         self.names.get(id.0 as usize).map(String::as_str)
     }
 
-    /// Number of interned symbols.
+    /// 已 intern 符号数量。
     pub fn len(&self) -> usize {
         self.names.len()
     }
 
-    /// Whether empty.
+    /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }

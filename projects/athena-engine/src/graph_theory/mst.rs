@@ -1,4 +1,4 @@
-//! 最小生成森林（L1 · Kruskal）。
+//! 最小生成森林（Kruskal）。
 
 use athena_graph::UnionFind;
 use athena_types::{Diagnostic, DiagnosticCode};

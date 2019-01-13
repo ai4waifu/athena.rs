@@ -53,7 +53,7 @@
 //! | 𝒰 | （无） | `RootUniverse` |
 //! | w ∈ 𝓦 | `ScopeRef` | 全量 `World` struct |
 //! | r ∈ 𝓕(w) | `RelationRef` + `RelationRecord` | 第二套 God DAG |
-//! | Σ | `ScopeEdge` / `ScopeRelationKind` | world registry |
+//! | Σ | `ScopeEdge` / `ScopeRelationKind` | 世界注册表 |
 //! | Outer | `OuterCandidate` | `OuterWorld` |
 //! | A | `MGraphCore::admit` | 绕过 `EvidenceVerifier` |
 //! | C | `MGraphCore::close` | 闭包队列进 claim |
@@ -71,14 +71,14 @@
 //!
 //! # 算子语义（摘要）
 //!
-//! **Admission**
+//! **接纳（Admission）**
 //!
 //! ```text
 //! A(𝕄, vc) = 𝕄'  若 verify(vc) = Admitted
 //! I_rel' = I_rel ∪ { record(vc) }     单调追加，不可撤销
 //! ```
 //!
-//! **Closure**
+//! **闭包（Closure）**
 //!
 //! ```text
 //! Cl(F₀) = ⋃_n F_n   F_{n+1} = F_n ∪ one_step_T(F_n)
@@ -86,7 +86,7 @@
 //! close 不将 Candidate 当作事实
 //! ```
 //!
-//! **Projection（查询）**
+//! **投影（Projection，查询）**
 //!
 //! ```text
 //! StableFact(V)  = ⋂_{w∈V} Accepted 纤维
@@ -115,7 +115,7 @@
 //! α(c) ⊑ a  ⇔  c ⊑ γ(a)
 //! ```
 //!
-//! Verifier + admit 才是 Inner 入口；α  alone 不够。
+//! Verifier + admit 才是 Inner 入口；仅有 α 不够。
 //!
 //! # 范畴论禁令
 //!
@@ -128,5 +128,5 @@
 //! 根源宇宙是背景，不是对象。
 //! 内世界是 scope，不是复制的完整模型。
 //! 外世界是候选来源，不是全量容器。
-//! M-Graph = scoped relation index + admission + closure
+//! M-Graph = 带作用域的关系索引 + 接纳 + 闭包
 //! ```

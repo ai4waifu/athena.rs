@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, SourceSpan, TermId};
 
 use crate::{node::TermKind, symbol::SymbolTable};
 
-/// Arena -backed Core CAS IR。
+/// 基于 arena 的 Core CAS IR。
 #[derive(Debug, Default)]
 pub struct TermArena {
     nodes: Vec<TermKind>,

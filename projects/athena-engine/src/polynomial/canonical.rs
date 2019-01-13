@@ -1,4 +1,4 @@
-//! Canonical polynomial construction（merge · sort · drop zero）。
+//! 多项式 canonical 构造（合并 · 排序 · 丢弃零项）。
 
 use std::collections::HashMap;
 

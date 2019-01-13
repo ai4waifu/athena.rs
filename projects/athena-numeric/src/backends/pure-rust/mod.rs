@@ -1,4 +1,4 @@
-//! Default pure-Rust numeric backend (WASM-safe, deterministic).
+//! 默认纯 Rust 数值 backend（WASM 安全、确定性）。
 
 mod buffer;
 pub(crate) mod limb_kernel;
@@ -42,10 +42,10 @@ const PURE_RUST_CONTRACT: NumericBackendContract = NumericBackendContract {
     },
 };
 
-/// Wire payload byte limit for decode and serialization guards.
+/// 解码与序列化守卫用的 wire 载荷字节上限。
 pub(crate) const PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES: u32 = PURE_RUST_WIRE_PAYLOAD_LIMIT;
 
-/// Default pure-Rust backend.
+/// 默认纯 Rust backend。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PureRustBackend;
 

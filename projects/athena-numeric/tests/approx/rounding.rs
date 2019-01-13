@@ -1,4 +1,4 @@
-//! Directed `f64` rounding primitive tests (moved from `src/rounding/directed.rs`).
+//! 定向 `f64` 舍入原语测试（自 `src/rounding/directed.rs` 迁出）。
 
 use athena_numeric::rounding::{
     f64_add_down, f64_add_up, f64_div_down, f64_div_up, f64_mul_down, f64_mul_up, f64_sub_down, f64_sub_up,

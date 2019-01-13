@@ -93,12 +93,12 @@ impl NumericValueWire {
         }
     }
 
-    /// Flatten to canonical binary blob (`ANV1` header + domain + payload).
+    /// 展平为规范二进制 blob（`ANV1` 头 + 域 + 载荷）。
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
         encode_blob(self.version, self.kind, self.sign, &self.precision, &self.domain_payload, &self.payload)
     }
 
-    /// Parse canonical binary blob.
+    /// 解析规范二进制 blob。
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Diagnostic> {
         let WireBlobParts { version, kind, sign, precision, domain_payload, payload } = decode_blob(bytes)?;
         Ok(Self { kind, domain_payload, payload, sign, precision, version })

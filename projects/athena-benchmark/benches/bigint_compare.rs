@@ -3,7 +3,7 @@
 //! `ramp` 已弃用且依赖 nightly asm，不纳入可复现对照。
 //!
 //! ```sh
-//! cargo bench -p athena-benchmark --features bigint-compare --bench bigint_compare
+//! 运行：`cargo bench -p athena-benchmark --features bigint-compare --bench bigint_compare`
 //! ```
 
 #![allow(missing_docs)]

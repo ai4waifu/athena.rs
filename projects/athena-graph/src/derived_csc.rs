@@ -2,9 +2,7 @@
 
 use athena_ndarray::{ArrayStorage, InMemoryStorage, MemoryBudget};
 
-use crate::{
-    CscGraph, CsrGraph, GraphError, GraphId, GraphRevision, GraphStorageMetadata, RepresentationId, csr_to_csc,
-};
+use crate::{CscGraph, CsrGraph, GraphError, GraphId, GraphRevision, GraphStorageMetadata, RepresentationId, csr_to_csc};
 
 /// 由 CSR 按需派生的 CSC；绑定源 `GraphId`/`GraphRevision`，源变更后不可用。
 ///

@@ -1,4 +1,4 @@
-//! 数域 `$\mathbb{Q}(\alpha)$` 幂基与相对扩张算术。
+//! 数域 `ℚ(α)` 幂基与相对扩张算术。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
@@ -10,15 +10,15 @@ pub struct NumberFieldSpec {
     pub extension: ExtensionId,
     /// 相对基域 K。
     pub base: FieldId,
-    /// 绝对基域（`$\mathbb{Q}$`）。
+    /// 绝对基域（`ℚ`）。
     pub absolute_base: FieldId,
     /// 相对次数 `[L:K]`。
     pub relative_degree: u32,
-    /// 绝对次数 `[L:\mathbb{Q}]`。
+    /// 绝对次数 `[L:ℚ]`。
     pub absolute_degree: u32,
     /// 相对定义多项式（系数取自 K 的绝对坐标，升幂首一）。
     pub relative_modulus: Vec<Vec<Rational>>,
-    /// 绝对定义 / 极小多项式（升幂首一，系数 `$\in\mathbb{Q}$`）。
+    /// 绝对定义 / 极小多项式（升幂首一，系数 `∈ℚ`）。
     pub absolute_modulus: Vec<Rational>,
 }
 
@@ -50,7 +50,7 @@ pub fn validate_rational_modulus(coeffs: &[Rational]) -> Result<u32> {
     u32::try_from(coeffs.len() - 1).map_err(|_| ext_err("modulus_degree_overflow"))
 }
 
-/// `$\mathbb{Q}[x]$` 不可约性（首一）。
+/// `ℚ[x]` 不可约性（首一）。
 pub fn is_irreducible_over_rationals(coeffs: &[Rational]) -> Result<bool> {
     let n = validate_rational_modulus(coeffs)? as usize;
     if n <= 1 {

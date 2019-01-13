@@ -42,8 +42,8 @@ pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus,
     PolynomialFactorization, PolynomialFactorizationCompleteness, factor_univariate,
 };
-pub use fingerprint::{fnv1a64, 
-    FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, polynomial_fingerprint,
+pub use fingerprint::{
+    FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint,
     polynomial_fingerprint_u64,
 };
 pub use groebner::{

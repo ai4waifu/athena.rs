@@ -11,7 +11,7 @@ pub struct ChunkedArray<T, S> {
     marker: std::marker::PhantomData<T>,
 }
 
-/// 首轮 `Array` 合同别名：storage-backed 逻辑数组。
+/// 首轮 `Array` 合同别名：存储后端 逻辑数组。
 pub type Array<T, S> = ChunkedArray<T, S>;
 
 /// 内存驻留的只读连续视图（小数组便利路径，不是规模上限）。

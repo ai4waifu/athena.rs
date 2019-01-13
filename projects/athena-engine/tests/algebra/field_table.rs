@@ -1,4 +1,4 @@
-//! FieldTable intern tests (moved from `src/algebra/table.rs`).
+//! `FieldTable` intern 测试（自 `src/algebra/table.rs` 迁出）。
 
 use athena_engine::{FieldTable, Integer};
 

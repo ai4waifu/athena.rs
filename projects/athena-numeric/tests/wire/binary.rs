@@ -1,4 +1,4 @@
-//! Binary wire roundtrip and text/binary separation tests.
+//! 二进制 wire 往返与文本/二进制分离测试。
 
 use athena_numeric::{Integer, NumericValue, NumericValueWire};
 use athena_types::NumericKind;

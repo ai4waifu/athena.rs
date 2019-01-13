@@ -113,12 +113,7 @@ pub fn csr_to_csc<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
             allows_duplicate_targets: m.allows_duplicate_targets,
         };
         if let (Some(gid), Some(rev), Some(sem)) = (m.graph_id, m.revision, m.semantics) {
-            meta = meta.bind_snapshot(crate::GraphSnapshot::new(
-                gid,
-                rev,
-                sem,
-                crate::RepresentationId::CSC,
-            ));
+            meta = meta.bind_snapshot(crate::GraphSnapshot::new(gid, rev, sem, crate::RepresentationId::CSC));
         }
         meta
     });

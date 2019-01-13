@@ -1,14 +1,14 @@
 //! 数值 backend 合同与分派。
 //!
-//! Layout:
+//! 目录布局：
 //! ```text
 //! backends/
-//!   mod.rs           — trait, capabilities, limits
-//!   pure-rust/       — default WASM-safe kernel (limb arithmetic + `Natural`)
+//!   mod.rs           — trait、能力标志、资源上限
+//!   pure-rust/       — 默认 WASM 安全内核（limb 算术 + `Natural`）
 //! ```
 //!
-//! Future optional backends (e.g. `native-accelerated/`) live as sibling directories;
-//! the Rust module name uses underscores (`pure_rust`) because identifiers cannot contain `-`.
+//! 未来可选 backend（如 `native-accelerated/`）作为同级目录存在；
+//! Rust 模块名用下划线（`pure_rust`），因为标识符不能含 `-`。
 
 #[path = "pure-rust/mod.rs"]
 pub mod pure_rust;
@@ -17,87 +17,87 @@ pub use pure_rust::PureRustBackend;
 
 use crate::{domain::NumericDomain, precision::PrecisionKind};
 
-/// Capability flags for dispatch and host reporting.
+/// 分派与宿主上报用的能力标志。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericCapability {
-    /// Exact integer arithmetic.
+    /// 精确整数算术。
     ExactInteger,
-    /// Exact rational arithmetic.
+    /// 精确有理算术。
     ExactRational,
-    /// IEEE binary64 machine reals.
+    /// IEEE binary64 机器实数。
     MachineReal,
-    /// Arbitrary-real skeleton (IEEE754 promotion path).
+    /// 任意精度实数骨架（IEEE754 promotion 路径）。
     ArbitraryRealSkeleton,
-    /// Modular integer reduction.
+    /// 模整数约化。
     ModularInteger,
-    /// Interval enclosure skeleton.
+    /// 区间包络骨架。
     IntervalEnclosure,
-    /// Directed rounding for interval endpoints.
+    /// 区间端点的定向舍入。
     DirectedRounding,
-    /// Promotion with explicit diagnostics.
+    /// 带显式诊断的 promotion。
     ExplicitPromotion,
-    /// Deterministic pure-Rust execution.
+    /// 确定性纯 Rust 执行。
     Deterministic,
 }
 
-/// Numeric operations backends may advertise and dispatch.
+/// backend 可声明并分派的数值运算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericOperation {
-    /// Addition.
+    /// 加法。
     Add,
-    /// Subtraction.
+    /// 减法。
     Sub,
-    /// Multiplication.
+    /// 乘法。
     Mul,
-    /// Division.
+    /// 除法。
     Div,
-    /// Exponentiation.
+    /// 幂运算。
     Pow,
-    /// Negation.
+    /// 取负。
     Neg,
-    /// Absolute value.
+    /// 绝对值。
     Abs,
-    /// Square root.
+    /// 平方根。
     Sqrt,
-    /// Factorial.
+    /// 阶乘。
     Factorial,
-    /// Greatest common divisor.
+    /// 最大公约数。
     Gcd,
-    /// Ordered comparison.
+    /// 有序比较。
     Compare,
-    /// Domain / precision promotion.
+    /// 域 / 精度 promotion。
     Promote,
-    /// Interval addition.
+    /// 区间加法。
     IntervalAdd,
-    /// Interval multiplication.
+    /// 区间乘法。
     IntervalMul,
 }
 
-/// Result semantics a backend guarantees for an operation.
+/// backend 对某运算保证的结果语义。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericResultMode {
-    /// Exact symbolic / integer / rational result.
+    /// 精确符号 / 整数 / 有理结果。
     Exact,
-    /// IEEE binary64 machine result.
+    /// IEEE binary64 机器结果。
     Machine,
-    /// Arbitrary-real skeleton (IEEE754 bit pattern).
+    /// 任意精度实数骨架（IEEE754 位模式）。
     ArbitrarySkeleton,
-    /// Interval enclosure with directed rounding.
+    /// 带定向舍入的区间包络。
     IntervalEnclosure,
-    /// Certified result with attached proof metadata.
+    /// 附带证明元数据的认证结果。
     Certified,
 }
 
-/// Resource and wire limits advertised by a backend.
+/// backend 声明的资源与 wire 上限。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericBackendLimits {
-    /// Maximum limb count for big integers (None = unbounded contract).
+    /// 大整数最大 limb 数（`None` = 合同无上界）。
     pub max_limbs: Option<u32>,
-    /// Maximum significand bits for arbitrary reals.
+    /// 任意精度实数最大尾数位数。
     pub max_significand_bits: Option<u32>,
-    /// Maximum binary bytes for canonical wire magnitude / domain payload decode.
+    /// 规范 wire 幅度 / 域载荷解码的最大二进制字节数。
     pub max_wire_payload_bytes: Option<u32>,
-    /// Maximum exponent magnitude for `pow` (None = backend default policy).
+    /// `pow` 指数幅度上限（`None` = backend 默认策略）。
     pub max_pow_exp: Option<i64>,
 }
 
@@ -112,56 +112,56 @@ impl Default for NumericBackendLimits {
     }
 }
 
-/// Static backend contract (capabilities, limits, availability).
+/// 静态 backend 合同（能力、上限、可用性）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericBackendContract {
-    /// Stable backend id.
+    /// 稳定 backend id。
     pub id: &'static str,
-    /// Safe for wasm32 builds.
+    /// 可用于 wasm32 构建。
     pub wasm_safe: bool,
-    /// Requires native-only libraries (BLAS/MKL/MPFR candidates).
+    /// 需要仅原生库（BLAS/MKL/MPFR 候选）。
     pub native_only: bool,
-    /// May participate in JIT compilation plans.
+    /// 可参与 JIT 编译计划。
     pub jit_eligible: bool,
-    /// Reproducible results under fixed policy.
+    /// 固定策略下结果可复现。
     pub deterministic: bool,
-    /// Canonical binary wire (decimal text is explicit via [`crate::wire_text`] only).
+    /// 规范二进制 wire（十进制文本仅经 [`crate::wire_text`] 显式使用）。
     pub default_radix: u8,
-    /// Advertised capabilities.
+    /// 声明的能力。
     pub capabilities: &'static [NumericCapability],
-    /// Resource limits.
+    /// 资源上限。
     pub limits: NumericBackendLimits,
 }
 
-/// Numeric backend capability surface.
+/// 数值 backend 能力面。
 pub trait NumericBackend {
-    /// Full static contract.
+    /// 完整静态合同。
     fn contract(&self) -> &'static NumericBackendContract;
 
-    /// Backend name.
+    /// backend 名称。
     fn name(&self) -> &'static str {
         self.contract().id
     }
 
-    /// Whether the backend is usable on wasm32.
+    /// backend 是否可用于 wasm32。
     fn wasm_safe(&self) -> bool {
         self.contract().wasm_safe
     }
 
-    /// Whether a capability is advertised.
+    /// 是否声明了某能力。
     fn has_capability(&self, cap: NumericCapability) -> bool {
         self.contract().capabilities.contains(&cap)
     }
 
-    /// Whether the backend supports a domain in the current maturity gate.
+    /// 当前成熟度门控下是否支持某域。
     fn supports_domain(&self, domain: &NumericDomain) -> bool;
 
-    /// Whether the backend supports a precision kind.
+    /// 是否支持某精度种类。
     fn supports_precision(&self, kind: PrecisionKind) -> bool;
 
-    /// Whether the backend can perform `op` on `domain` producing `result`.
+    /// 是否能在 `domain` 上执行 `op` 并产出 `result`。
     fn supports_operation(&self, domain: &NumericDomain, op: NumericOperation, result: NumericResultMode) -> bool;
 }
 
-/// Wire payload byte limit for the default pure-Rust backend (shared with decode).
+/// 默认纯 Rust backend 的 wire 载荷字节上限（与解码共用）。
 pub(crate) use pure_rust::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES;

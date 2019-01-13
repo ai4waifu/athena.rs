@@ -1,4 +1,4 @@
-//! Built-in function registry smoke tests.
+//! 内置函数注册表冒烟测试。
 
 use athena_engine::lookup_function;
 

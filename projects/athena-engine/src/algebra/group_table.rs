@@ -202,7 +202,7 @@ impl GroupTable {
         self.group_to_presentation.get(&group).and_then(|id| self.presentations.get(id))
     }
 
-    /// presentation id。
+    /// presentation 标识。
     pub fn presentation_id(&self, group: GroupId) -> Result<GroupPresentationId> {
         self.group_to_presentation.get(&group).copied().ok_or_else(|| unknown_group(group))
     }
@@ -235,7 +235,8 @@ impl GroupTable {
     pub fn ensure_computable(&self, group: GroupId) -> Result<()> {
         if self.permutation_spec(group).is_some() {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "group")
                 .detail("operation", "abstract_descriptor_not_computable")

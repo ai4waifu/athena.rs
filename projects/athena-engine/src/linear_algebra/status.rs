@@ -5,7 +5,7 @@
 pub enum AlgorithmGuarantee {
     /// 精确可验证。
     Exact,
-    /// 概率性（L4 随机化；L1 不产出）。
+    /// 概率性（随机化路径；精确/机器路径不产出）。
     Probable,
     /// 机器近似。
     Approximate,

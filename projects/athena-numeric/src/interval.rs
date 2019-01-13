@@ -1,4 +1,4 @@
-//! Interval arithmetic skeleton with enforced invariants and directed rounding.
+//! 区间算术骨架：强制不变量与定向舍入。
 
 use std::cmp::Ordering;
 
@@ -10,63 +10,63 @@ use crate::{
     rounding::{f64_add_down, f64_add_up, f64_div_down, f64_div_up, f64_mul_down, f64_mul_up, f64_sub_down, f64_sub_up},
 };
 
-/// IEEE 1788-style decoration (skeleton).
+/// IEEE 1788 风格装饰（骨架）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum IntervalDecoration {
-    /// Certain.
+    /// 确定。
     Certain,
-    /// Defined.
+    /// 已定义。
     Defined,
-    /// Trivial.
+    /// 平凡。
     #[default]
     Trivial,
-    /// Ill-conditioned.
+    /// 病态。
     Ill,
 }
 
-/// Real interval with enforced invariants.
+/// 带强制不变量的实区间。
 ///
-/// Invariants:
-/// - [`Interval::Empty`] is the canonical empty set.
-/// - [`Interval::Entire`] is the canonical unbounded set.
-/// - [`Interval::Bounded`] requires finite-or-infinite endpoints with `lower <= upper`, no NaN.
+/// 不变量：
+/// - [`Interval::Empty`] 为规范空集。
+/// - [`Interval::Entire`] 为规范无界全集。
+/// - [`Interval::Bounded`] 要求有限或无穷端点且 `lower ≤ upper`，无 NaN。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Interval {
-    /// Empty set (canonical; do not encode as inverted bounds).
+    /// 空集（规范；勿用倒置边界编码）。
     Empty,
-    /// Entire real line `(-∞, +∞)`.
+    /// 整个实线 `(-∞, +∞)`。
     Entire {
-        /// Decoration.
+        /// 装饰。
         decoration: IntervalDecoration,
     },
-    /// Closed bounded interval `[lower, upper]` (endpoints may be ±∞ for one-sided unbounded sets).
+    /// 闭有界区间 `[lower, upper]`（单侧无界时端点可为 ±∞）。
     Bounded {
-        /// Lower endpoint (directed rounding: toward −∞ when computed).
+        /// 下端点（计算时定向舍入朝 −∞）。
         lower: Real,
-        /// Upper endpoint (directed rounding: toward +∞ when computed).
+        /// 上端点（计算时定向舍入朝 +∞）。
         upper: Real,
-        /// Decoration.
+        /// 装饰。
         decoration: IntervalDecoration,
     },
 }
 
 impl Interval {
-    /// Empty interval.
+    /// 空区间。
     pub fn empty() -> Self {
         Self::Empty
     }
 
-    /// Entire real line.
+    /// 整个实线。
     pub fn entire() -> Self {
         Self::Entire { decoration: IntervalDecoration::Trivial }
     }
 
-    /// Entire with decoration.
+    /// 带装饰的全集。
     pub fn entire_with(decoration: IntervalDecoration) -> Self {
         Self::Entire { decoration }
     }
 
-    /// Point interval `[x, x]`.
+    /// 点区间 `[x, x]`。
     pub fn try_point(x: Real) -> Result<Self> {
         if !x.is_finite() {
             return Err(invalid("interval_point_non_finite"));
@@ -74,7 +74,7 @@ impl Interval {
         Self::try_bounded(x.clone(), x, IntervalDecoration::Certain)
     }
 
-    /// Bounded interval with validation.
+    /// 带校验的有界区间。
     pub fn try_bounded(lower: Real, upper: Real, decoration: IntervalDecoration) -> Result<Self> {
         let lo = endpoint_f64(&lower, "interval_lower")?;
         let hi = endpoint_f64(&upper, "interval_upper")?;
@@ -95,7 +95,7 @@ impl Interval {
         }
     }
 
-    /// Enclose a single machine value with outward rounding.
+    /// 用外向舍入包络单个机器值。
     pub fn try_enclose_f64(x: f64) -> Result<Self> {
         if x.is_nan() {
             return Err(invalid("interval_enclose_nan"));
@@ -111,7 +111,7 @@ impl Interval {
         Self::try_point(Real::machine(x))
     }
 
-    /// Decoration.
+    /// 装饰。
     pub fn decoration(&self) -> IntervalDecoration {
         match self {
             Self::Empty => IntervalDecoration::Trivial,
@@ -119,17 +119,17 @@ impl Interval {
         }
     }
 
-    /// Whether the interval is empty.
+    /// 区间是否为空。
     pub fn is_empty(&self) -> bool {
         matches!(self, Self::Empty)
     }
 
-    /// Whether the interval is the entire real line.
+    /// 区间是否为整个实线。
     pub fn is_entire(&self) -> bool {
         matches!(self, Self::Entire { .. })
     }
 
-    /// Lower endpoint if bounded or one-sided unbounded.
+    /// 有界或单侧无界时的下端点。
     pub fn lower(&self) -> Option<&Real> {
         match self {
             Self::Bounded { lower, .. } => Some(lower),
@@ -137,7 +137,7 @@ impl Interval {
         }
     }
 
-    /// Upper endpoint if bounded or one-sided unbounded.
+    /// 有界或单侧无界时的上端点。
     pub fn upper(&self) -> Option<&Real> {
         match self {
             Self::Bounded { upper, .. } => Some(upper),
@@ -145,7 +145,7 @@ impl Interval {
         }
     }
 
-    /// Machine `f64` bounds when both endpoints are representable.
+    /// 两端点均可表示时的机器 `f64` 边界。
     pub fn as_f64_bounds(&self) -> Option<(f64, f64)> {
         match self {
             Self::Bounded { lower, upper, .. } => Some((lower.as_f64()?, upper.as_f64()?)),
@@ -153,12 +153,12 @@ impl Interval {
         }
     }
 
-    /// Precision kind hint.
+    /// 精度种类提示。
     pub fn precision_kind(&self) -> PrecisionKind {
         PrecisionKind::Interval
     }
 
-    /// Interval addition with directed rounding on machine endpoints.
+    /// 机器端点上带定向舍入的区间加法。
     pub fn add(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
@@ -178,7 +178,7 @@ impl Interval {
         }
     }
 
-    /// Interval subtraction with directed rounding.
+    /// 带定向舍入的区间减法。
     pub fn sub(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
@@ -200,7 +200,7 @@ impl Interval {
         }
     }
 
-    /// Interval multiplication with directed rounding (machine endpoints only).
+    /// 带定向舍入的区间乘法（仅机器端点）。
     pub fn mul(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
@@ -222,7 +222,7 @@ impl Interval {
         }
     }
 
-    /// Interval division with directed rounding (machine endpoints only).
+    /// 带定向舍入的区间除法（仅机器端点）。
     pub fn div(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
@@ -253,7 +253,7 @@ impl Interval {
         }
     }
 
-    /// Whether `x` is contained in the interval (machine endpoints only).
+    /// `x` 是否落在区间内（仅机器端点）。
     pub fn contains_f64(&self, x: f64) -> Result<bool> {
         if x.is_nan() {
             return Ok(false);

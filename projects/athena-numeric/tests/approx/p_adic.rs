@@ -1,4 +1,4 @@
-//! `$\mathbb{Q}_p$` 固定精度算术。
+//! `ℚ_p` 固定精度算术。
 
 use athena_numeric::{Integer, NumericValue, PAdicValue, PrecisionKind, Rational};
 

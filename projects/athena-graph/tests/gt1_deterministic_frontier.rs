@@ -1,8 +1,7 @@
-//! GT1g：确定性 frontier、稳定邻接扩展序、取消与恢复。
+//! 确定性 frontier、稳定邻接扩展序、取消与恢复。
 
 use athena_graph::{
-    CancelFlag, DeterministicBfsOutcome, Graph, GraphDirection, bfs_order, deterministic_bfs,
-    resume_deterministic_bfs,
+    CancelFlag, DeterministicBfsOutcome, Graph, GraphDirection, bfs_order, deterministic_bfs, resume_deterministic_bfs,
 };
 
 #[test]

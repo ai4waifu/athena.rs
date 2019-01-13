@@ -13,9 +13,9 @@ use super::{
 /// 元素缓冲（精确与机器不得混用同一不透明 `f64` 语义）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum MatrixBuffer {
-    /// `$\mathbb{Z}$` 稠密缓冲（`Arc` 支持别名 / copy-on-write）。
+    /// `ℤ` 稠密缓冲（`Arc` 支持别名 / copy-on-write）。
     Integers(Arc<Vec<Integer>>),
-    /// `$\mathbb{Q}$` 稠密缓冲。
+    /// `ℚ` 稠密缓冲。
     Rationals(Arc<Vec<Rational>>),
     /// 机器实数稠密缓冲。
     MachineF64(Arc<Vec<f64>>),
@@ -49,17 +49,17 @@ pub struct MatrixValue {
 }
 
 impl MatrixValue {
-    /// Parent。
+    /// 矩阵 parent。
     pub const fn parent(&self) -> MatrixParent {
         self.parent
     }
 
-    /// Shape。
+    /// 矩阵 shape。
     pub const fn shape(&self) -> MatrixShape {
         self.shape
     }
 
-    /// Layout。
+    /// 存储 layout。
     pub const fn layout(&self) -> Layout {
         self.layout
     }
@@ -293,7 +293,7 @@ impl MatrixValue {
         }
     }
 
-    /// 提升 `$\mathbb{Z}$` → `$\mathbb{Q}$`（精确路径）。
+    /// 提升 `ℤ` → `ℚ`（精确路径）。
     pub fn promote_integers_to_rationals(&self) -> Result<Self, Diagnostic> {
         match &self.data {
             MatrixBuffer::Integers(_) => {

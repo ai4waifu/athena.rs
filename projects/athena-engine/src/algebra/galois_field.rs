@@ -1,4 +1,4 @@
-//! 有限域扩张上的 Galois 性质与伽罗瓦群（`$\mathbb{F}_{p^n}/\mathbb{F}_p$`）。
+//! 有限域扩张上的 Galois 性质与伽罗瓦群（`𝔽_{pⁿ}/𝔽_p`）。
 
 use athena_numeric::Integer;
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, Result};
@@ -9,7 +9,7 @@ use crate::{
     group::Permutation,
 };
 
-/// 扩张是否可分（`$\mathbb{F}_{p^n}/\mathbb{F}_p$` 恒为真）。
+/// 扩张是否可分（`𝔽_{pⁿ}/𝔽_p` 恒为真）。
 pub fn is_extension_separable(table: &FieldTable, extension: ExtensionId) -> Result<bool> {
     let record = table.extension_record(extension).ok_or_else(|| unknown_extension(extension))?;
     match &record.separable {
@@ -18,7 +18,7 @@ pub fn is_extension_separable(table: &FieldTable, extension: ExtensionId) -> Res
     }
 }
 
-/// 扩张是否正规（`$\mathbb{F}_{p^n}/\mathbb{F}_p$` 恒为真）。
+/// 扩张是否正规（`𝔽_{pⁿ}/𝔽_p` 恒为真）。
 pub fn is_extension_normal(table: &FieldTable, extension: ExtensionId) -> Result<bool> {
     let record = table.extension_record(extension).ok_or_else(|| unknown_extension(extension))?;
     match &record.normal {
@@ -32,7 +32,7 @@ pub fn is_galois_extension(table: &FieldTable, extension: ExtensionId) -> Result
     Ok(is_extension_separable(table, extension)? && is_extension_normal(table, extension)?)
 }
 
-/// 构造 `$\mathbb{F}_{p^n}/\mathbb{F}_p$` 的完整伽罗瓦群（循环群 `$C_n$`）。
+/// 构造 `𝔽_{pⁿ}/𝔽_p` 的完整伽罗瓦群（循环群 `Cₙ`）。
 pub fn galois_group_of_extension(
     table: &mut FieldTable,
     groups: &mut GroupTable,

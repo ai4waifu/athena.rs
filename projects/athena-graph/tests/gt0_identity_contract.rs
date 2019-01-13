@@ -1,4 +1,4 @@
-//! GT0 身份 / snapshot / view mapping / CSR 单调校验合同。
+//! 图身份 / snapshot / view mapping / CSR 单调校验合同。
 
 use athena_graph::{
     CsrGraph, Graph, GraphBuilder, GraphDirection, GraphId, GraphRevision, GraphSemantics, InducedSubgraphView,

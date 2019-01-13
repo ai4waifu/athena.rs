@@ -1,4 +1,4 @@
-//! L0 矩阵不变量 + L1 精确/机器双路径 + 跨方言 canonical parity。
+//! 矩阵不变量、精确/机器双路径与跨方言规范奇偶校验。
 
 use athena_engine::{
     AlgorithmGuarantee, DialectArgs, DialectMatrixOp, DialectOrigin, DomainRequest, DomainResult, IndexSpec,

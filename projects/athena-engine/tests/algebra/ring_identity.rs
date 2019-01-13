@@ -1,4 +1,4 @@
-//! Algebra identity: fingerprint, map verification, abstract descriptor guards.
+//! 代数身份：指纹、映射验证、抽象描述子守卫。
 
 use athena_engine::{
     FieldFingerprint, FieldTable, GroupFingerprint, GroupRequest, GroupTable, Integer, MapVerification, MapVerificationKind,
@@ -42,7 +42,7 @@ fn map_verification_has_no_thin_bool() {
 #[test]
 fn abstract_group_id_rejected_by_ensure_computable() {
     let table = GroupTable::new();
-    // Fresh GroupId never registered → not computable.
+    // 从未注册的新 `GroupId` → 不可计算。
     let err = table.ensure_computable(athena_engine::GroupId(99)).unwrap_err();
     assert_eq!(err.details.get("operation").map(ToString::to_string).as_deref(), Some("abstract_descriptor_not_computable"));
 }

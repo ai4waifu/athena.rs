@@ -1,6 +1,6 @@
-//! Integration tests for `athena-numeric`.
+//! `athena-numeric` 集成测试。
 
-mod exact;
 mod approx;
+mod exact;
 mod runtime;
 mod wire;

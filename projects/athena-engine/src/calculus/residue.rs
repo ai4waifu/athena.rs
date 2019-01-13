@@ -1,4 +1,4 @@
-//! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（bootstrap）。
+//! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现）。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -33,7 +33,7 @@ impl Residue {
 
 /// 计算 `Res(expression, variable → point)`。
 ///
-/// Bootstrap：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
+/// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
 pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> CalculusResult<Residue> {
     match laurent(expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {

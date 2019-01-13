@@ -1,4 +1,4 @@
-//! [`AssumptionScope`] Session intern 表（Living `24` SEM1）。
+//! [`AssumptionScope`] Session intern 表。
 
 use std::collections::BTreeMap;
 

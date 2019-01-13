@@ -1,35 +1,34 @@
-//! Binary arbitrary-precision real with explicit working precision.
+//! 带显式工作精度的二进制任意精度实数。
 //!
-//! [`Decimal`] stores a **rounded** float payload: significand width must not exceed
-//! [`Self::precision_bits`]. For exact dyadic values without a precision contract use [`Dyadic`].
+//! [`Decimal`] 存储**已舍入**的浮点载荷：尾数宽度不得超过 [`Self::precision_bits`]。
+//! 无精度合同时的精确二元有理数请用 [`Dyadic`]。
 //!
-//! Rounding is performed on [`Natural`] limbs (guard / round / sticky). It must **not** bridge
-//! through IEEE binary64.
+//! 舍入在 [`Natural`] limb 上完成（guard / round / sticky），**不得**经 IEEE binary64 中转。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{dyadic::Dyadic, integer::Sign, natural::Natural, rounding::RoundingPolicy};
 
-/// Minimum allowed working precision (at least one significand bit).
+/// 允许的最小工作精度（至少一个尾数位）。
 pub const MIN_PRECISION_BITS: u32 = 1;
 
-/// IEEE binary64 significand width including implicit bit.
+/// IEEE binary64 尾数宽度（含隐含位）。
 pub const IEEE754_BINARY64_PRECISION: u32 = 53;
 
-/// Status of a rounding operation on a [`Decimal`].
+/// 对 [`Decimal`] 舍入操作的状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RoundingStatus {
-    /// No information discarded; value unchanged relative to the infinite-precision payload.
+    /// 未丢弃信息；相对无限精度载荷值不变。
     Exact,
-    /// Magnitude increased by rounding (toward ±∞ away from zero in absolute value).
+    /// 舍入使幅度增大（绝对值上远离零，朝 ±∞）。
     RoundedUp,
-    /// Magnitude decreased by rounding (toward zero in absolute value).
+    /// 舍入使幅度减小（绝对值上朝向零）。
     RoundedDown,
-    /// Information was discarded but direction is not classified (reserved / directed ties).
+    /// 已丢弃信息但方向未分类（保留 / 定向平局）。
     Inexact,
 }
 
-/// Finite-precision binary float (`Dyadic` payload + declared precision).
+/// 有限精度二进制浮点（`Dyadic` 载荷 + 声明精度）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decimal {
     dyadic: Dyadic,
@@ -37,14 +36,14 @@ pub struct Decimal {
 }
 
 impl Decimal {
-    /// Canonical zero (`+0`) at minimum working precision.
+    /// 最小工作精度下的规范零（`+0`）。
     ///
-    /// Prefer [`Self::zero_with_precision`] when a caller-owned working precision must be preserved.
+    /// 须保留调用方工作精度时优先用 [`Self::zero_with_precision`]。
     pub fn zero() -> Self {
         Self { dyadic: Dyadic::zero(), precision_bits: MIN_PRECISION_BITS }
     }
 
-    /// Canonical zero (`+0`) at the requested working precision (`>= 1`).
+    /// 指定工作精度（`≥ 1`）下的规范零（`+0`）。
     pub fn zero_with_precision(precision_bits: u32) -> Result<Self> {
         if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
@@ -52,7 +51,7 @@ impl Decimal {
         Ok(Self { dyadic: Dyadic::zero(), precision_bits })
     }
 
-    /// Wrap an exact [`Dyadic`] when its significand fits `precision_bits`.
+    /// 当尾数落入 `precision_bits` 时包装精确 [`Dyadic`]。
     pub fn try_from_dyadic(dyadic: Dyadic, precision_bits: u32) -> Result<Self> {
         if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
@@ -67,54 +66,54 @@ impl Decimal {
         Ok(Self { dyadic, precision_bits })
     }
 
-    /// Construct from raw parts (exact dyadic must fit precision).
+    /// 由原始部件构造（精确二元有理须落入精度）。
     pub fn try_new(sign: Sign, significand: Natural, exponent: i64, precision_bits: u32) -> Result<Self> {
         let dyadic = Dyadic::try_new(sign, significand, exponent)?;
         Self::try_from_dyadic(dyadic, precision_bits)
     }
 
-    /// Import finite `f64` with honest 53-bit working precision.
+    /// 导入有限 `f64`，诚实使用 53 位工作精度。
     pub fn from_f64(x: f64) -> Result<Self> {
         let dyadic = Dyadic::from_f64(x)?;
         Self::try_from_dyadic(dyadic, IEEE754_BINARY64_PRECISION)
     }
 
-    /// Exact dyadic payload.
+    /// 精确二元有理载荷。
     pub fn dyadic(&self) -> &Dyadic {
         &self.dyadic
     }
 
-    /// Sign.
+    /// 符号。
     pub fn sign(&self) -> Sign {
         self.dyadic.sign()
     }
 
-    /// Unsigned significand magnitude.
+    /// 无符号尾数幅度。
     pub fn significand(&self) -> &Natural {
         self.dyadic.significand()
     }
 
-    /// Binary exponent.
+    /// 二进制指数。
     pub fn exponent(&self) -> i64 {
         self.dyadic.exponent()
     }
 
-    /// Declared working precision in bits.
+    /// 声明的工作精度（位）。
     pub fn precision_bits(&self) -> u32 {
         self.precision_bits
     }
 
-    /// Whether exactly zero.
+    /// 是否恰为零。
     pub fn is_zero(&self) -> bool {
         self.dyadic.is_zero()
     }
 
-    /// Whether exactly one (`+1`).
+    /// 是否恰为 `+1`。
     pub fn is_one(&self) -> bool {
         self.dyadic.is_one()
     }
 
-    /// Strip trailing binary zeros on the exact payload.
+    /// 去掉精确载荷末尾的二进制零。
     pub fn normalize(&mut self) {
         self.dyadic.normalize();
         if let Err(e) = self.validate() {
@@ -122,7 +121,7 @@ impl Decimal {
         }
     }
 
-    /// Check canonical invariants and precision contract.
+    /// 校验规范不变量与精度合同。
     pub fn validate(&self) -> Result<()> {
         if self.precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
@@ -134,27 +133,27 @@ impl Decimal {
         Ok(())
     }
 
-    /// Export to `f64` when the payload is exactly representable.
+    /// 载荷可精确表示时导出为 `f64`。
     pub fn to_f64_exact(&self) -> Option<f64> {
         self.dyadic.to_f64_exact()
     }
 
-    /// Round to nearest IEEE binary64 (ties to even).
+    /// 舍入到最近 IEEE binary64（平局取偶）。
     pub fn to_f64_round_nearest_even(&self) -> Option<f64> {
         self.dyadic.to_f64_round_nearest_even()
     }
 
-    /// Lossy `f64` after rounding to nearest even.
+    /// 舍入到最近偶后的有损 `f64`。
     pub fn to_f64_approximate(&self) -> Option<f64> {
         self.to_f64_round_nearest_even()
     }
 
-    /// Round payload to a new working precision (nearest even, limb kernel).
+    /// 将载荷舍入到新工作精度（最近偶，limb 内核）。
     pub fn round_to_precision(&self, precision_bits: u32) -> Result<(Self, RoundingStatus)> {
         self.round_to_precision_with_mode(precision_bits, RoundingPolicy::NearestEven)
     }
 
-    /// Round payload to a new working precision under an explicit rounding policy.
+    /// 在显式舍入策略下将载荷舍入到新工作精度。
     pub fn round_to_precision_with_mode(&self, precision_bits: u32, mode: RoundingPolicy) -> Result<(Self, RoundingStatus)> {
         if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
@@ -208,7 +207,7 @@ impl Decimal {
 
         if round_up {
             truncated = truncated.add_u64(1);
-            // Carry out of the p-bit window: 1 << precision_bits.
+            // 进位超出 p 位窗口：`1 << precision_bits`。
             if truncated.bits() > u64::from(precision_bits) {
                 truncated = truncated.shr_bits(1);
                 let exp = self
@@ -223,11 +222,11 @@ impl Decimal {
             }
         }
 
-        // Toward ±∞ on a negative value: increasing magnitude is RoundedUp in abs sense already.
-        // For signed directed modes, remapped status when we truncated toward +∞ on a negative:
+        // 负值朝 ±∞：绝对值意义上幅度增大已是 RoundedUp。
+        // 有符号定向模式下，对负值朝 +∞ 截断时重映射状态：
         if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky) {
-            // Negative + TowardPosInf truncates toward zero → magnitude down → RoundedDown
-            // Negative + TowardNegInf rounds away from zero → magnitude up → RoundedUp
+            // 负 + TowardPosInf 朝零截断 → 幅度下降 → RoundedDown
+            // 负 + TowardNegInf 远离零舍入 → 幅度上升 → RoundedUp
             status = match mode {
                 RoundingPolicy::TowardPosInf => RoundingStatus::RoundedDown,
                 RoundingPolicy::TowardNegInf => {

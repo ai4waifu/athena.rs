@@ -37,7 +37,7 @@ impl ExactNumber {
         }
     }
 
-    /// Whether exactly zero.
+    /// 是否恰为零。
     pub fn is_zero(&self) -> bool {
         match self {
             Self::Integer(s) => decimal_is_zero(s),
@@ -45,7 +45,7 @@ impl ExactNumber {
         }
     }
 
-    /// Whether exactly one.
+    /// 是否恰为一。
     pub fn is_one(&self) -> bool {
         match self {
             Self::Integer(s) => decimal_as_i64(s) == Some(1),
@@ -53,7 +53,7 @@ impl ExactNumber {
         }
     }
 
-    /// Whether exactly `-1`.
+    /// 是否恰为 `-1`。
     pub fn is_neg_one(&self) -> bool {
         match self {
             Self::Integer(s) => decimal_as_i64(s) == Some(-1),
@@ -61,7 +61,7 @@ impl ExactNumber {
         }
     }
 
-    /// Integer when representable as `i64`.
+    /// 可表示为 `i64` 时的整数。
     pub fn as_integer_exp(&self) -> Option<i64> {
         match self {
             Self::Integer(s) => decimal_as_i64(s),
@@ -71,56 +71,56 @@ impl ExactNumber {
     }
 }
 
-/// Inexact real storage (phase 1: machine float only).
+/// 非精确实数存储（当前仅机器浮点）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RealNumber {
-    /// IEEE-754 binary64.
+    /// IEEE 754 binary64。
     Machine(f64),
 }
 
 impl RealNumber {
-    /// Whether zero.
+    /// 是否为零。
     pub fn is_zero(&self) -> bool {
         matches!(self, Self::Machine(n) if *n == 0.0)
     }
 
-    /// Whether one.
+    /// 是否为一。
     pub fn is_one(&self) -> bool {
         matches!(self, Self::Machine(n) if *n == 1.0)
     }
 
-    /// Whether `-1`.
+    /// 是否为 `-1`。
     pub fn is_neg_one(&self) -> bool {
         matches!(self, Self::Machine(n) if *n == -1.0)
     }
 }
 
-/// Unified kernel number (wire-stable representation).
+/// 统一内核数值（线协议稳定表示）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Number {
-    /// Exact integer or rational.
+    /// 精确整数或有理数。
     Exact(ExactNumber),
-    /// Inexact real.
+    /// 非精确实数。
     Real(RealNumber),
 }
 
 impl Number {
-    /// Machine real.
+    /// 机器实数。
     pub fn machine(n: f64) -> Self {
         Self::Real(RealNumber::Machine(n))
     }
 
-    /// Small `i64` convenience.
+    /// 小整数 `i64` 便捷构造。
     pub fn small_int(n: i64) -> Self {
         Self::Exact(ExactNumber::Integer(n.to_string()))
     }
 
-    /// Parse decimal integer string (optional `+/-`).
+    /// 解析十进制整数字符串（可选 `+/-`）。
     pub fn from_decimal_str(s: &str) -> Option<Self> {
         Self::from_exact_literal(s)
     }
 
-    /// Parse exact literal: integer or `numer/denom` decimal wire (SXO / host frontend).
+    /// 解析精确字面量：整数或 `numer/denom` 十进制 wire（SXO / 宿主前端）。
     pub fn from_exact_literal(s: &str) -> Option<Self> {
         let t = s.trim();
         if t.is_empty() {
@@ -147,7 +147,7 @@ impl Number {
         }
     }
 
-    /// Exact rational from `i64` numerator / denominator.
+    /// 由 `i64` 分子 / 分母构造精确有理数。
     pub fn rational_i64(num: i64, den: i64) -> crate::Result<Self> {
         use crate::{Diagnostic, DiagnosticCode};
         if den == 0 {
@@ -164,7 +164,7 @@ impl Number {
         }
     }
 
-    /// Whether exactly zero.
+    /// 是否恰为零。
     pub fn is_zero(&self) -> bool {
         match self {
             Self::Exact(e) => e.is_zero(),
@@ -172,7 +172,7 @@ impl Number {
         }
     }
 
-    /// Whether exactly one.
+    /// 是否恰为一。
     pub fn is_one(&self) -> bool {
         match self {
             Self::Exact(e) => e.is_one(),
@@ -180,7 +180,7 @@ impl Number {
         }
     }
 
-    /// Whether exactly `-1`.
+    /// 是否恰为 `-1`。
     pub fn is_neg_one(&self) -> bool {
         match self {
             Self::Exact(e) => e.is_neg_one(),
@@ -188,7 +188,7 @@ impl Number {
         }
     }
 
-    /// Truthiness for logic (exact non-zero → true; NaN → false).
+    /// 逻辑真值（精确非零 → true；NaN → false）。
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::Exact(e) => !e.is_zero(),
@@ -196,7 +196,7 @@ impl Number {
         }
     }
 
-    /// Integer exponent when representable as `i64`.
+    /// 可表示为 `i64` 时的整数指数。
     pub fn as_integer_exp(&self) -> Option<i64> {
         match self {
             Self::Exact(e) => e.as_integer_exp(),
@@ -204,7 +204,7 @@ impl Number {
         }
     }
 
-    /// Exact integer when representable as `i64`.
+    /// 可表示为 `i64` 时的精确整数。
     pub fn as_exact_integer(&self) -> Option<i64> {
         self.as_integer_exp()
     }

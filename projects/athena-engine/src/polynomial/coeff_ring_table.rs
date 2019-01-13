@@ -38,7 +38,7 @@ pub(crate) struct CoeffRingEntry {
     /// 预计算模数（𝔽_p）；供未来 ℤ/nℤ kernel 复用。
     #[allow(dead_code)]
     prime_modulus: Option<Modulus>,
-    /// F3 专用内核；ℤ/nℤ 等精确但非 F3 域为 `None`。
+    /// 专用精确内核；ℤ/nℤ 等精确但非专用域为 `None`。
     kernel: Option<SpecializedCoeffKernel>,
 }
 
@@ -91,7 +91,7 @@ impl CoeffRingTable {
         self.by_id.get(&id).map(|e| &e.descriptor)
     }
 
-    /// 按 id 查专用内核（算法热路径；非 F3 域报错）。
+    /// 按 id 查专用内核（算法热路径；非专用域报错）。
     pub(crate) fn kernel(&self, id: CoefficientRingId) -> Result<&SpecializedCoeffKernel, Diagnostic> {
         self.entry(id)?.kernel().ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)

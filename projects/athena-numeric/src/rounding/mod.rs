@@ -1,24 +1,24 @@
-//! Rounding policy and directed IEEE binary64 primitives for interval enclosure.
+//! 舍入策略与区间包络用定向 IEEE binary64 原语。
 
 mod directed;
 
 pub use directed::{f64_add_down, f64_add_up, f64_div_down, f64_div_up, f64_mul_down, f64_mul_up, f64_sub_down, f64_sub_up};
 
-/// Rounding policy.
+/// 舍入策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RoundingPolicy {
-    /// Round to nearest, ties to even.
+    /// 舍入到最近，平局取偶。
     #[default]
     NearestEven,
-    /// Toward zero.
+    /// 朝向零。
     TowardZero,
-    /// Toward +∞ (upper interval endpoints).
+    /// 朝 +∞（区间上端点）。
     TowardPosInf,
-    /// Toward −∞ (lower interval endpoints).
+    /// 朝 −∞（区间下端点）。
     TowardNegInf,
 }
 
-/// Round a machine real toward the given direction (identity for stored `f64` today).
+/// 将机器实数朝给定方向舍入（当前对已存 `f64` 为恒等）。
 pub fn directed_round(x: f64, mode: RoundingPolicy) -> f64 {
     if x.is_nan() {
         return x;

@@ -1,4 +1,4 @@
-//! Carry-safe arithmetic smoke tests (exercises limb kernel via `Natural`).
+//! 进位安全算术冒烟测试（经 `Natural` 锻炼 limb 内核）。
 
 use athena_numeric::natural::Natural;
 use std::str::FromStr;
@@ -24,7 +24,7 @@ fn mul_schoolbook_vs_karatsuba_crosscheck() {
     let a = Natural::from_str(&"1234567890".repeat(70)).unwrap();
     let b = Natural::from_str(&"9876543210".repeat(70)).unwrap();
     let prod = a.mul(&b);
-    // q * a + r = prod with r < a
+    // `q * a + r = prod` 且 `r < a`
     let (q, r) = prod.div_rem(&a);
     assert_eq!(r, Natural::zero());
     assert_eq!(q, b);

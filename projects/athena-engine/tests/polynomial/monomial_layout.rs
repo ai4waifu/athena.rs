@@ -1,4 +1,4 @@
-//! MonomialLayout + compiled monomial order（环 intern 时编译）。
+//! `MonomialLayout` + 已编译单项式序（环 intern 时编译）。
 
 use athena_engine::{CoefficientDomain, MonomialLayout, MonomialOrder, RingTable, SymbolId};
 

@@ -26,7 +26,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
         return Ok(CrtResult::Inconsistent { left_index: 0, right_index: 1, gcd: g, residue_difference: diff });
     }
 
-    // x = a + m * t，其中 t ≡ (b-a)/g * (m/g)^{-1} (mod n/g)
+    // CRT：x = a + m·t，其中 t ≡ (b−a)/g · (m/g)⁻¹ (mod n/g)
     let m_g = mv.div(&g).expect("div");
     let n_g = nv.div(&g).expect("div");
     let eg2 = extended_gcd(&m_g, &n_g);

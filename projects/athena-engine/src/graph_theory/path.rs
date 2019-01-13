@@ -1,4 +1,4 @@
-//! 非负权最短路（L1 · Dijkstra）。
+//! 非负权最短路（Dijkstra）。
 
 use std::{cmp::Ordering, collections::BinaryHeap};
 

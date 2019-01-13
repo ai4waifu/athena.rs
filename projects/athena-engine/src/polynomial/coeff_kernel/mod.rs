@@ -21,7 +21,7 @@ pub enum SpecializedCoeffKernel {
     Integer(ZCoeffKernel),
     /// ℚ。
     Rational(QCoeffKernel),
-    /// 𝔽_p · `u64` word path。
+    /// 𝔽_p · `u64` 字路径。
     FpWord(FpWordKernel),
     /// 𝔽_p · 大素数 `Modulus` path。
     FpBig(FpBigKernel),
@@ -44,7 +44,7 @@ impl SpecializedCoeffKernel {
         }
     }
 
-    /// F3 精确内核支持的系数域。
+    /// 精确系数内核支持的系数域。
     pub fn supports(domain: &CoefficientDomain) -> bool {
         matches!(domain, CoefficientDomain::Integer | CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. })
     }
@@ -144,7 +144,7 @@ impl<'a> CoeffRing<'a> {
 }
 
 impl CoefficientDomain {
-    /// F3 精确内核支持的系数域。
+    /// 精确系数内核支持的系数域。
     pub fn is_f3_supported(&self) -> bool {
         SpecializedCoeffKernel::supports(self)
     }

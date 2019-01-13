@@ -1,4 +1,4 @@
-//! BSGS chain smoke tests (moved from `src/algebra/bsgs.rs`).
+//! BSGS 链冒烟测试（自 `src/algebra/bsgs.rs` 迁出）。
 
 use athena_engine::{BsgsChain, Integer, algebra::RawPerm};
 

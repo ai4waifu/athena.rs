@@ -1,4 +1,4 @@
-//! Congruence, CRT and rational reconstruction tests.
+//! 同余、CRT 与有理重建测试。
 
 use athena_engine::{
     CongruenceSolution, CrtResult, Integer, Modulus, ModulusTable, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue,
@@ -8,7 +8,7 @@ use athena_engine::{
 
 #[test]
 fn linear_unique_class() {
-    // 3x ≡ 4 (mod 5) → x ≡ 3 (mod 5) because 3*3=9≡4
+    // 3x ≡ 4 (mod 5) → x ≡ 3 (mod 5)，因 3·3=9≡4
     let m = Modulus::new(5).unwrap();
     let out = solve_linear_congruence(&3.into(), &4.into(), &m);
     match out {
@@ -22,7 +22,7 @@ fn linear_unique_class() {
 
 #[test]
 fn linear_multiple_classes() {
-    // 2x ≡ 4 (mod 6) → x ≡ 2 (mod 3), multiplicity 2
+    // 2x ≡ 4 (mod 6) → x ≡ 2 (mod 3)，重数 2
     let m = Modulus::new(6).unwrap();
     let out = solve_linear_congruence(&2.into(), &4.into(), &m);
     match out {
@@ -46,7 +46,7 @@ fn linear_multiple_classes() {
 
 #[test]
 fn linear_no_solution() {
-    // 2x ≡ 3 (mod 6) — gcd=2 does not divide 3
+    // 2x ≡ 3 (mod 6) — gcd=2 不整除 3
     let m = Modulus::new(6).unwrap();
     let out = solve_linear_congruence(&2.into(), &3.into(), &m);
     match out {
@@ -59,7 +59,7 @@ fn linear_no_solution() {
 
 #[test]
 fn crt_coprime() {
-    // x ≡ 2 (mod 3), x ≡ 3 (mod 5) → x ≡ 8 (mod 15)
+    // 同余组：x ≡ 2 (mod 3), x ≡ 3 (mod 5) → x ≡ 8 (mod 15)
     let m3 = Modulus::new(3).unwrap();
     let m5 = Modulus::new(5).unwrap();
     match chinese_remainder_pair(&2.into(), &m3, &3.into(), &m5).unwrap() {
@@ -73,7 +73,7 @@ fn crt_coprime() {
 
 #[test]
 fn crt_non_coprime_consistent() {
-    // x ≡ 2 (mod 4), x ≡ 6 (mod 6) → gcd=2 divides 2-6=-4; lcm=12; x ≡ 6 (mod 12)
+    // 同余组：x ≡ 2 (mod 4), x ≡ 6 (mod 6) → gcd=2 整除 2−6=−4；lcm=12；x ≡ 6 (mod 12)
     let m4 = Modulus::new(4).unwrap();
     let m6 = Modulus::new(6).unwrap();
     match chinese_remainder_pair(&2.into(), &m4, &6.into(), &m6).unwrap() {
@@ -88,7 +88,7 @@ fn crt_non_coprime_consistent() {
 
 #[test]
 fn crt_inconsistent() {
-    // x ≡ 1 (mod 4), x ≡ 2 (mod 6) — gcd=2 does not divide 1-2
+    // 同余组：x ≡ 1 (mod 4), x ≡ 2 (mod 6) — gcd=2 不整除 1−2
     let m4 = Modulus::new(4).unwrap();
     let m6 = Modulus::new(6).unwrap();
     match chinese_remainder_pair(&1.into(), &m4, &2.into(), &m6).unwrap() {
@@ -114,7 +114,7 @@ fn crt_multi_via_request() {
 
 #[test]
 fn rational_recon_half() {
-    // 1/2 mod 7 = inv(2) = 4
+    // 验算：1/2 mod 7 = inv(2) = 4
     let m = Modulus::new(7).unwrap();
     match rational_reconstruction(&4.into(), &m, Some(&1.into()), Some(&2.into())) {
         RationalReconstruction::Found { value } => {

@@ -1,4 +1,4 @@
-//! Bridge `evaluate` coverage (integration tests live next to the crate root).
+//! 桥接 `evaluate` 覆盖（集成测试位于 crate 根旁）。
 
 use athena_engine::{Term, evaluate};
 

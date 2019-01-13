@@ -6,7 +6,7 @@
 //! 可用于重写的精确事实”。只有 verifier 接受的无条件 `ProvenExact` 等式，才允许
 //! 合并到 exact union-find 或驱动语义重写。
 //!
-//! ## Galois connection（伽罗瓦连接）
+//! ## 伽罗瓦连接
 //!
 //! M-Graph 背后的抽象解释思想，是在具体语义域 `C` 与抽象事实域 `A` 之间维护一对
 //! 伴随映射 `α`（抽象）和 `γ`（具体化）：
@@ -27,10 +27,10 @@
 //! ## 与 KernelIR 的关系
 //!
 //! ```text
-//! AthenaIR / runtime state
-//!     -- α：抽取 claims --> M-Graph facts + evidence
-//!     -- verified closure --> verified subgraph
-//!     -- extraction --> KernelIR -> guard -> JIT / eager fallback
+//! AthenaIR / 运行时状态
+//!     -- α：抽取 claim --> M-Graph 事实 + 证据
+//!     -- 已验证闭包 --> 已验证子图
+//!     -- 抽取 --> KernelIR → 守卫 → JIT / eager 回退
 //! ```
 //!
 //! 只有 verified subgraph 才能生成 [`KernelIR`](https://docs.rs/athena-engine) 执行计划。

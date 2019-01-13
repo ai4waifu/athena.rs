@@ -71,9 +71,9 @@ fn cancel_aborts_sampling() {
 fn mid_loop_cancel() {
     let flag = Arc::new(AtomicBool::new(false));
     let flag2 = Arc::clone(&flag);
-    // Force cancel after first check by setting before call still false, then... we need mid-loop.
-    // Simulate: start uncancelled; for tiny grid, set cancel during by using a flag flipped in parallel is hard in unit test.
-    // Instead: verify Ordering path — uncancelled succeeds, then cancelled.
+    // 意图：首次检查后强制取消；调用前仍为 false，需要循环中途翻转。
+    // 模拟：初始未取消；对小网格在循环中途置取消。单测里并行翻转标志较难。
+    // 改为：验证 Ordering 路径 — 未取消成功，再取消。
     let expr = Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]);
     let ok = sample_1d(
         &expr,
@@ -95,7 +95,7 @@ fn mid_loop_cancel() {
 
 #[test]
 fn discontinuity_inserts_gap_on_jump() {
-    // tan crosses π/2 asymptote on [1, 2]; adjacent finite samples jump sign with large |Δy|.
+    // tan 在 [1, 2] 穿越 π/2 渐近线；相邻有限采样符号跳变且 |Δy| 很大。
     let expr = Term::apply("Tan", vec![Term::symbol("x")]);
     let curve = sample_1d(
         &expr,

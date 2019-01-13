@@ -77,11 +77,11 @@ pub struct SubgroupId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionSetId(pub u32);
 
-/// 假设作用域 id（Living 24 SEM1）。
+/// 假设作用域 id。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct AssumptionScopeId(pub u32);
 
-/// 理论 / 猜想上下文 id（Living 23 ANT0 / 24 SEM1）。
+/// 理论 / 猜想上下文 id。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TheoryContextId(pub u32);
 
@@ -89,31 +89,31 @@ pub struct TheoryContextId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FormId(pub u32);
 
-/// 语义表达式身份（Living 24 SEM0）。
+/// 语义表达式身份。
 ///
 /// 不等于 [TermId]（存储）、[ValueId]（已计算值）、[ResultId]（结果容器）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ExprId(pub u32);
 
-/// 已计算或已验证的值身份（Living 24 SEM0）。
+/// 已计算或已验证的值身份。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ValueId(pub u32);
 
-/// 结果容器身份（解集 / 条件结果等；Living 24 SEM0）。
+/// 结果容器身份（解集 / 条件结果等）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResultId(pub u32);
 
-/// 证明 / 证据引用身份（Living 24 SEM0）。
+/// 证明 / 证据引用身份。
 ///
 /// 不得混入表达式 equality，也不得与 [ExprId] / [ValueId] / [ResultId] 互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ProofRef(pub u64);
 
-/// 多项式对象身份（SEM0 预留；对象表在 engine）。
+/// 多项式对象身份（预留；对象表在 engine）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PolynomialId(pub u32);
 
-/// 矩阵对象身份（SEM0 预留；对象表在 engine）。
+/// 矩阵对象身份（预留；对象表在 engine）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MatrixId(pub u32);
 

@@ -1,4 +1,4 @@
-//! Wire number parse and normalization tests.
+//! Wire 数值解析与规范化测试。
 
 use athena_types::wire::{ExactNumber, WireNumber};
 

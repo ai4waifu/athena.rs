@@ -1,4 +1,4 @@
-//! 有理数重构（Wang / 扩展欧几里得）。
+//! 有理数重构（Wang / extended Euclidean）。
 
 use athena_numeric::{Integer, Modulus, Rational};
 

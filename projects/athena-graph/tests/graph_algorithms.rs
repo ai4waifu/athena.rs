@@ -1,4 +1,4 @@
-//! In-memory graph algorithm contract tests.
+//! 内存图算法合同测试。
 
 use athena_graph::{Graph, GraphDirection, NodeId, bfs_order, connected_components, topological_sort};
 

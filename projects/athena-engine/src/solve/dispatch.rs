@@ -35,9 +35,7 @@ pub fn execute_linear_system_goal(
 ) -> Result<LinearAdaptedSolution, Diagnostic> {
     require_goal(problem, SolveGoal::LinearSystemSolve)?;
     match mode {
-        LinearSolveMode::Exact => {
-            solve_linear_system_exact(a, b, problem.unknowns.clone(), problem.domain.clone())
-        }
+        LinearSolveMode::Exact => solve_linear_system_exact(a, b, problem.unknowns.clone(), problem.domain.clone()),
         LinearSolveMode::Machine { pivot_threshold } => {
             solve_linear_system_machine(a, b, problem.unknowns.clone(), problem.domain.clone(), pivot_threshold)
         }

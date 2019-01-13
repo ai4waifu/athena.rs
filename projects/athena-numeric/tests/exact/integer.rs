@@ -1,4 +1,4 @@
-//! Integer arithmetic, ordering, and boundary conversion tests.
+//! 整数算术、序与边界转换测试。
 
 use std::cmp::Ordering;
 
@@ -36,7 +36,7 @@ fn trunc_vs_euclid_negative() {
     assert_eq!(a.rem(&m).unwrap(), Integer::from_i64(-2));
     assert_eq!(a.rem_euclid(&m).unwrap(), Integer::from_i64(3));
     assert_eq!(a.mod_pow(&Integer::from_i64(3), &m).unwrap(), Integer::from_i64(2)); // 3^3 = 27 ≡ 2
-    // Wrong trunc+abs path would have used base 2 → 8 ≡ 3.
+    // 错误的 trunc+abs 路径会把底数当成 2 → 8 ≡ 3。
     assert_ne!(Integer::from_i64(2).mod_pow(&Integer::from_i64(3), &m).unwrap(), a.mod_pow(&Integer::from_i64(3), &m).unwrap());
 }
 

@@ -1,4 +1,4 @@
-//! Evidence admission gate — 唯一可信接纳边界。
+//! 证据接纳门控 — 唯一可信接纳边界。
 //!
 //! `EvidenceVerifier::verify` → [`VerifiedClaim`] → [`SemanticCore::commit`] → [`ExactUnionFind`]。
 

@@ -1,10 +1,10 @@
-//! Storage-backed CSR。
+//! 存储后端 CSR。
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
 use crate::{capability::GraphCapabilities, error::GraphError, semantics::GraphStorageMetadata};
 
-/// Storage-backed 有向 CSR 图。
+/// 存储后端有向 CSR 图。
 #[derive(Debug)]
 pub struct CsrGraph<O, I> {
     nodes: u64,
@@ -104,12 +104,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
 
     /// 校验算法需求；不满足则 [`GraphError::CapabilityMismatch`]（禁止偷偷物化）。
     pub fn ensure_capabilities(&self, req: crate::GraphAlgorithmRequirements) -> Result<(), GraphError> {
-        if self.capabilities().satisfies(req) {
-            Ok(())
-        }
-        else {
-            Err(GraphError::CapabilityMismatch { requirement: req })
-        }
+        if self.capabilities().satisfies(req) { Ok(()) } else { Err(GraphError::CapabilityMismatch { requirement: req }) }
     }
 }
 

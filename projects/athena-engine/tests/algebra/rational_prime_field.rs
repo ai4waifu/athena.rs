@@ -47,7 +47,7 @@ fn embed_rational_via_explicit_map() {
     let map = table.canonical_embedding_rationals_to_prime(f5).unwrap();
     let half = canonical_rational(&table, q, Integer::from_i64(1), Integer::from_i64(2)).unwrap();
     let embedded = apply_field_embedding(&table, table.map_table(), map, &half).unwrap();
-    // 1/2 mod 5 = 1 * 2^{-1} = 1 * 3 = 3
+    // 验算：1/2 mod 5 = 1 * 2^{-1} = 1 * 3 = 3
     assert_eq!(embedded.repr, FieldElementRepr::PrimeFieldResidue { value: Integer::from_i64(3) });
 }
 

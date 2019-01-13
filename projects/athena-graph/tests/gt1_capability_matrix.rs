@@ -1,8 +1,6 @@
-//! GT1j：capability 矩阵正反测（失败必须结构化，禁止偷偷物化）。
+//! capability 矩阵正反测（失败必须结构化，禁止偷偷物化）。
 
-use athena_graph::{
-    Graph, GraphAlgorithmRequirements, GraphDirection, GraphError, edge_list_to_csr,
-};
+use athena_graph::{Graph, GraphAlgorithmRequirements, GraphDirection, GraphError, edge_list_to_csr};
 use athena_ndarray::MemoryBudget;
 
 #[test]
@@ -52,10 +50,7 @@ fn memory_graph_satisfies_random_access_rejects_when_disabled() {
     g.ensure_capabilities(GraphAlgorithmRequirements::random_access_storage()).unwrap();
     // 构造一个无随机访问的假 capability 场景：CSR 有 random_access，内存图也有。
     // 反例：要求 sorted_adjacency 时内存图失败。
-    let req = GraphAlgorithmRequirements {
-        sorted_adjacency: true,
-        ..GraphAlgorithmRequirements::in_memory_traversal()
-    };
+    let req = GraphAlgorithmRequirements { sorted_adjacency: true, ..GraphAlgorithmRequirements::in_memory_traversal() };
     assert!(matches!(g.ensure_capabilities(req), Err(GraphError::CapabilityMismatch { .. })));
 }
 
@@ -100,10 +95,7 @@ fn distributed_shards_rejected_on_all_current_backends() {
 fn csr_rejects_reverse_adjacency_csc_accepts() {
     let budget = MemoryBudget::new(4096).unwrap();
     let csr = edge_list_to_csr(2, vec![(0, 1)], budget).unwrap();
-    let req = GraphAlgorithmRequirements {
-        reverse_adjacency: true,
-        ..GraphAlgorithmRequirements::chunked_csr_scan()
-    };
+    let req = GraphAlgorithmRequirements { reverse_adjacency: true, ..GraphAlgorithmRequirements::chunked_csr_scan() };
     assert!(matches!(csr.ensure_capabilities(req), Err(GraphError::CapabilityMismatch { .. })));
     let csc = athena_graph::csr_to_csc(&csr, budget).unwrap();
     csc.ensure_capabilities(req).unwrap();

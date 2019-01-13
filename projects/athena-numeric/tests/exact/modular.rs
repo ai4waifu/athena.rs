@@ -1,4 +1,4 @@
-//! Modular reduction and residue tests.
+//! 模约化与剩余测试。
 
 use athena_numeric::{Integer, ModularValue, Modulus};
 

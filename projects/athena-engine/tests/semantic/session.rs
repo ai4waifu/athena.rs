@@ -1,4 +1,4 @@
-//! Session semantic tables smoke tests.
+//! Session 语义表冒烟测试。
 
 use athena_engine::{
     AssumptionScope, AssumptionScopeTable, ExprBindingTable, Predicate, ResultIdTable, Session, SymbolId, TermId, ValueIdTable,

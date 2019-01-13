@@ -1,4 +1,4 @@
-//! Interval invariant and directed-arithmetic enclosure tests.
+//! 区间不变量与定向算术包络测试。
 
 use athena_numeric::{Interval, IntervalDecoration, Real};
 

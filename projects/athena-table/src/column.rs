@@ -4,7 +4,7 @@ use athena_ndarray::{ArrayStorage, ChunkedArray, LogicalShape, MemoryBudget};
 
 use crate::{Field, LazyTable, LogicalPlan, Schema, TableError};
 
-/// 单列元数据 + storage-backed 值缓冲。
+/// 单列元数据 + 存储后端 值缓冲。
 #[derive(Debug)]
 pub struct ChunkedColumn<T, S> {
     field: Field,
@@ -107,7 +107,7 @@ impl Table {
     }
 }
 
-/// 构造一维 storage-backed 列的便利函数。
+/// 构造一维 存储后端 列的便利函数。
 pub fn column_from_store<T, S: ArrayStorage<T>>(
     field: Field,
     store: S,

@@ -1,7 +1,7 @@
 //! 线性代数领域模块（`athena-engine` 内）。
 //!
-//! L0：`MatrixParent` / shape / layout / `IndexSpec` / 构造与基础算子。
-//! L1：精确（`$\mathbb{Q}$` 消元 · Bareiss）与机器（部分主元 LU）双路径。
+//! 矩阵父对象 / shape / layout / `IndexSpec` / 构造与基础算子。
+//! 精确（`ℚ` 消元 · Bareiss）与机器（部分主元 LU）双路径。
 
 mod dialect;
 mod equality;

@@ -1,4 +1,4 @@
-//! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）bootstrap。
+//! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -35,7 +35,7 @@ pub struct Series {
     pub center: Term,
     /// 幂次项 `(coefficient, power)`：
     /// - 有限中心：`coeff * (variable - center)^power`
-    /// - `Infinity`：`coeff * variable^power`
+    /// - `Infinity`：系数形式 `coeff * variable^power`
     pub terms: Vec<(Term, i64)>,
     /// 截断阶（有限中心：最高幂次；渐近：保留的 `t=1/x` 最高幂次）。
     pub order: u32,
@@ -337,7 +337,7 @@ fn valuation(expr: &Term, var: &str) -> Option<i64> {
 }
 
 fn remap_asymptotic_series(series: Series, variable: &str, order: u32) -> Series {
-    // g(t)=f(1/t) ~ Σ a_k t^k  ⇒  f(x) ~ Σ a_k x^{-k}
+    // 无穷远处换元：g(t)=f(1/t) ~ Σ a_k tᵏ  ⇒  f(x) ~ Σ a_k x⁻ᵏ
     let terms: Vec<(Term, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, -power)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,

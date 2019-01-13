@@ -1,4 +1,4 @@
-//! Rational cross-cancellation and numeric ordering tests.
+//! 有理交叉约分与数值序测试。
 
 use std::cmp::Ordering;
 

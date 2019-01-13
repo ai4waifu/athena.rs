@@ -35,7 +35,7 @@ impl RepresentationId {
 
 /// 图结构修订号。
 ///
-/// 生命周期（GT0）：
+/// 图生命周期：
 /// - `add_node` / `add_edge` 各递增 1
 /// - [`crate::Graph::transaction`] 内多次 mutation 在提交时只递增 1
 /// - 视图创建不递增底图 revision

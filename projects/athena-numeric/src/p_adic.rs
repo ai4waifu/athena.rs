@@ -1,17 +1,17 @@
-//! 固定精度 `$\mathbb{Q}_p$`（模 `$p^n$` 截断）。
+//! 固定精度 `ℚ_p`（模 `pⁿ` 截断）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{integer::Integer, rational::Rational};
 
-/// p-adic 截断值：小端 `$p$`-进制 digits，长度 `≤ precision`。
+/// p-adic 截断值：小端 `p`-进制 digits，长度 `≤ precision`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PAdicValue {
-    /// 素数 `$p$`。
+    /// 素数 `p`。
     pub prime: Integer,
-    /// 精度 `$n$`（模 `$p^n$`）。
+    /// 精度 `n`（模 `pⁿ`）。
     pub precision: u32,
-    /// 小端 digits，每位 `$0 ≤ d_i < p$`。
+    /// 小端 digits，每位 `0 ≤ d_i < p`。
     pub digits: Vec<u32>,
 }
 
@@ -23,7 +23,7 @@ impl PAdicValue {
         Ok(v.normalized())
     }
 
-    /// 从整数嵌入（截断至 `$p^n$`）。
+    /// 从整数嵌入（截断至 `pⁿ`）。
     pub fn from_integer(n: &Integer, prime: Integer, precision: u32) -> Result<Self> {
         validate_prime_precision(&prime, precision)?;
         let modulus = pow_prime(&prime, precision)?;
@@ -31,7 +31,7 @@ impl PAdicValue {
         Ok(from_residue(r, prime, precision))
     }
 
-    /// 从有理嵌入：分母须与 `$p$` 互素。
+    /// 从有理嵌入：分母须与 `p` 互素。
     pub fn from_rational(r: &Rational, prime: Integer, precision: u32) -> Result<Self> {
         validate_prime_precision(&prime, precision)?;
         let den = r.denominator();
@@ -86,7 +86,7 @@ impl PAdicValue {
         Self::try_new(self.prime.clone(), new_precision, digits)
     }
 
-    /// 零扩展到更大精度（同 `$p$`）。
+    /// 零扩展到更大精度（同 `p`）。
     pub fn lift(&self, new_precision: u32) -> Result<Self> {
         if new_precision < self.precision {
             return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
@@ -96,7 +96,7 @@ impl PAdicValue {
         Self::try_new(self.prime.clone(), new_precision, self.digits.clone())
     }
 
-    /// 加法（同 `$p$`、同精度）。
+    /// 加法（同 `p`、同精度）。
     pub fn add(&self, other: &Self) -> Result<Self> {
         same_domain(self, other)?;
         let m = pow_prime(&self.prime, self.precision)?;
@@ -127,7 +127,7 @@ impl PAdicValue {
         Ok(from_residue(normalize_mod(r, &m), self.prime.clone(), self.precision))
     }
 
-    /// 逆元（须为 `$p$`-adic 单位）。
+    /// 逆元（须为 `p`-adic 单位）。
     pub fn inv(&self) -> Result<Self> {
         if !self.is_unit() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
@@ -141,7 +141,7 @@ impl PAdicValue {
         Ok(from_residue(inv, self.prime.clone(), self.precision))
     }
 
-    /// 是否为 `$p$`-adic 单位（`$v_p = 0$`）。
+    /// 是否为 `p`-adic 单位（`vₚ = 0`）。
     pub fn is_unit(&self) -> bool {
         match self.digits.first() {
             Some(&d) => d != 0,
@@ -149,7 +149,7 @@ impl PAdicValue {
         }
     }
 
-    /// 是否为零（模 `$p^n$`）。
+    /// 是否为零（模 `pⁿ`）。
     pub fn is_zero(&self) -> bool {
         self.digits.iter().all(|&d| d == 0)
     }

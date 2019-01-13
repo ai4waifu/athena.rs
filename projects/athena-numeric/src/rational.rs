@@ -1,14 +1,14 @@
-//! Exact rational wrapper (pure Rust; numerator / denominator are [`Integer`]).
+//! 精确有理包装（纯 Rust；分子 / 分母为 [`Integer`]）。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 use std::cmp::Ordering;
 
 use crate::integer::{Integer, Sign};
 
-/// Exact rational (reduced, positive denominator; also [`ExactRational`]).
+/// 精确有理（既约、分母为正；亦称 [`ExactRational`]）。
 ///
-/// Does not implement [`Ord`]: field lexicographic order is not numeric order.
-/// Use [`Self::cmp_numeric`].
+/// 不实现 [`Ord`]：域上字典序不是数值序。
+/// 请用 [`Self::cmp_numeric`]。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rational {
     numer: Integer,
@@ -19,12 +19,12 @@ pub struct Rational {
 pub type ExactRational = Rational;
 
 impl Rational {
-    /// Construct from an integer.
+    /// 由整数构造。
     pub fn from_integer(n: Integer) -> Self {
         Self { numer: n, denom: Integer::one() }
     }
 
-    /// Numerator / denominator (auto-reduced; zero denominator fails).
+    /// 分子 / 分母（自动约分；分母为零失败）。
     pub fn try_new(numer: Integer, denom: Integer) -> Result<Self, Diagnostic> {
         if denom.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
@@ -34,7 +34,7 @@ impl Rational {
         Ok(Self::normalize_pair(numer, denom))
     }
 
-    /// Numerator / denominator (auto-reduced). Panics on zero denominator — prefer [`try_new`].
+    /// 分子 / 分母（自动约分）。分母为零时 panic — 优先用 [`try_new`]。
     pub fn new(numer: Integer, denom: Integer) -> Self {
         Self::try_new(numer, denom).expect("rational denominator must be non-zero")
     }
@@ -53,22 +53,22 @@ impl Rational {
         if d.is_one() { Self { numer: n, denom: Integer::one() } } else { Self { numer: n, denom: d } }
     }
 
-    /// Explicit normalize (positive denominator, reduced).
+    /// 显式规范化（正分母、既约）。
     pub fn normalize(self) -> Self {
         Self::normalize_pair(self.numer, self.denom)
     }
 
-    /// Zero.
+    /// 零。
     pub fn zero() -> Self {
         Self { numer: Integer::zero(), denom: Integer::one() }
     }
 
-    /// One.
+    /// 一。
     pub fn one() -> Self {
         Self { numer: Integer::one(), denom: Integer::one() }
     }
 
-    /// Numerator.
+    /// 分子。
     pub fn numerator(&self) -> Integer {
         if self.denom.is_one() && !self.numer.is_zero() {
             self.numer.clone()
@@ -81,37 +81,37 @@ impl Rational {
         }
     }
 
-    /// Denominator (always positive; 1 for integers).
+    /// 分母（恒为正；整数时为 1）。
     pub fn denominator(&self) -> Integer {
         if self.numer.is_zero() { Integer::one() } else { self.denom.clone() }
     }
 
-    /// Whether zero.
+    /// 是否为零。
     pub fn is_zero(&self) -> bool {
         self.numer.is_zero()
     }
 
-    /// Whether negative.
+    /// 是否为负。
     pub fn is_negative(&self) -> bool {
         self.numer.is_negative()
     }
 
-    /// Whether non-negative (zero counts as non-negative).
+    /// 是否非负（零计为非负）。
     pub fn is_non_negative(&self) -> bool {
         !self.numer.is_negative()
     }
 
-    /// Whether an integer (denominator is 1).
+    /// 是否为整数（分母为 1）。
     pub fn is_integer(&self) -> bool {
         self.denom.is_one()
     }
 
-    /// Sign.
+    /// 符号。
     pub fn sign(&self) -> Sign {
         self.numer.sign()
     }
 
-    /// Numeric comparison with cross-cancellation before comparing `a*d` and `c*b`.
+    /// 数值比较：先交叉约分再比较 `a*d` 与 `c*b`。
     pub fn cmp_numeric(&self, other: &Self) -> Ordering {
         if self == other {
             return Ordering::Equal;
@@ -133,17 +133,17 @@ impl Rational {
         a.mul(&d).cmp(&c.mul(&b))
     }
 
-    /// Absolute value.
+    /// 绝对值。
     pub fn abs(&self) -> Self {
         Self { numer: self.numer.abs(), denom: self.denom.clone() }
     }
 
-    /// Negation.
+    /// 取负。
     pub fn neg(&self) -> Self {
         Self { numer: self.numer.neg(), denom: self.denom.clone() }
     }
 
-    /// Addition (cross-cancel `gcd(b,d)` before combining).
+    /// 加法（合并前交叉约去 `gcd(b,d)`）。
     pub fn add(&self, rhs: &Self) -> Self {
         let mut b = self.denom.clone();
         let mut d = rhs.denom.clone();
@@ -157,18 +157,18 @@ impl Rational {
         Self::normalize_pair(n, denom)
     }
 
-    /// Subtraction.
+    /// 减法。
     pub fn sub(&self, rhs: &Self) -> Self {
         self.add(&rhs.neg())
     }
 
-    /// Multiplication (cross-cancel before product).
+    /// 乘法（乘积前交叉约分）。
     pub fn mul(&self, rhs: &Self) -> Self {
         let (n, d) = cross_cancel_mul(self.numer.clone(), self.denom.clone(), rhs.numer.clone(), rhs.denom.clone());
         Self::normalize_pair(n, d)
     }
 
-    /// Division (cross-cancel then multiply `a/b * d/c`).
+    /// 除法（交叉约分后做 `a/b * d/c`）。
     pub fn try_div(&self, rhs: &Self) -> Result<Self, Diagnostic> {
         if rhs.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
@@ -179,7 +179,7 @@ impl Rational {
         Ok(Self::normalize_pair(n, d))
     }
 
-    /// Non-negative integer power.
+    /// 非负整数幂。
     pub fn pow_u32(&self, exp: u32) -> Result<Self, Diagnostic> {
         if exp == 0 {
             return Ok(Self::one());
@@ -189,7 +189,7 @@ impl Rational {
         Ok(Self::normalize_pair(n, d))
     }
 
-    /// Exact binary64 conversion when fully representable.
+    /// 可完全表示时精确转为 binary64。
     pub fn try_to_f64_exact(&self) -> Option<f64> {
         if self.is_integer() {
             return self.numerator().try_to_f64_exact();
@@ -210,7 +210,7 @@ impl Rational {
         if nf.to_bits() == (q * df).to_bits() { Some(q) } else { None }
     }
 
-    /// Explicit approximate `f64`.
+    /// 显式近似 `f64`。
     pub fn to_f64_approximate(&self) -> Option<f64> {
         let nf = self.numerator().to_f64_approximate()?;
         let df = self.denominator().to_f64_approximate()?;
@@ -221,12 +221,12 @@ impl Rational {
         if q.is_finite() { Some(q) } else { None }
     }
 
-    /// Alias of [`try_to_f64_exact`].
+    /// [`try_to_f64_exact`] 的别名。
     pub fn to_f64_exact_machine(&self) -> Option<f64> {
         self.try_to_f64_exact()
     }
 
-    /// `numer/denom` decimal payload for host text rendering.
+    /// 供宿主文本渲染的 `numer/denom` 十进制载荷。
     pub fn to_wire_string(&self) -> String {
         if self.denom.is_one() {
             self.numer.to_decimal_string()
@@ -237,7 +237,7 @@ impl Rational {
     }
 }
 
-/// Cross-cancel before multiplying `a/b * c/d`.
+/// 相乘 `a/b * c/d` 前交叉约分。
 fn cross_cancel_mul(a: Integer, b: Integer, c: Integer, d: Integer) -> (Integer, Integer) {
     let mut a = a;
     let mut b = b;

@@ -1,4 +1,4 @@
-//! SEM0 身份分离与 SEM1 `AssumptionScope` 合同。
+//! 身份分离与 `AssumptionScope` 合同。
 
 use athena_types::{
     AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, ExprId, Predicate, ProofRef, ResultId,

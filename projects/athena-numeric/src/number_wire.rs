@@ -1,4 +1,4 @@
-//! Wire decode: `athena_types::wire::WireNumber` → [`NumericValue`].
+//! Wire 解码：`athena_types::wire::WireNumber` → [`NumericValue`]。
 //!
 //! SXO / 宿主 frontend 负责源文本 parse → wire。数值内核只接受已规范化的 wire 载荷。
 
@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 use crate::{integer::Integer, number::NumericValue, rational::Rational};
 
-/// Decode host wire into execution [`NumericValue`].
+/// 将宿主 wire 解码为执行用 [`NumericValue`]。
 pub fn from_wire(n: &WireNumber) -> Result<NumericValue> {
     match n {
         WireNumber::Exact(ExactNumber::Integer(s)) => decode_wire_integer(s).map(NumericValue::integer),

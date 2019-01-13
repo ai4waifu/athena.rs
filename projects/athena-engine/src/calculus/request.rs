@@ -195,7 +195,7 @@ pub enum CalculusRequest {
         /// 假设。
         assumptions: AssumptionSet,
     },
-    /// 一阶 ODE 求解（bootstrap 子集）。
+    /// 一阶 ODE 求解（引导实现子集）。
     SolveOde {
         /// 方程项（`Equal[…]`）。
         equation: Term,

@@ -1,2 +1,2 @@
-//! Core IR (`athena-ir` crate).
+//! 核心 IR（`athena-ir` crate）。
 pub use athena_ir::*;
