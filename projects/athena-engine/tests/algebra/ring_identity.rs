@@ -1,4 +1,4 @@
-//! AA0/AA1：fingerprint · map verification · 抽象 descriptor 门禁。
+//! Algebra identity: fingerprint, map verification, abstract descriptor guards.
 
 use athena_engine::{
     FieldFingerprint, FieldTable, GroupFingerprint, GroupRequest, GroupTable, Integer, MapVerification, MapVerificationKind,

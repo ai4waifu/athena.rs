@@ -1,4 +1,4 @@
-//! Gate 1+ calculus: ConditionalResult, DomainRequest, Abs/Sqrt, limit, series.
+//! Calculus contracts: ConditionalResult, DomainRequest, Abs/Sqrt, limit, series.
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
@@ -104,7 +104,7 @@ fn limit_finite_polynomial() {
 }
 
 #[test]
-fn limit_gate1_unevaluated_infinity() {
+fn limit_unevaluated_infinity() {
     let engine = AthenaEngine::new();
     let req = DomainRequest::Calculus(CalculusRequest::Limit {
         expression: Term::apply("Sin", vec![Term::symbol("x")]),

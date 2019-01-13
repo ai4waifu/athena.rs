@@ -1,4 +1,4 @@
-//! SEV-0 数学正确性：环特征 · 素域验证 · 指数溢出 · canonical 排序错误传播。
+//! 环特征、素域验证、指数溢出与 canonical 排序错误传播。
 
 use athena_engine::{
     CoefficientDomain, CoefficientParent, Integer, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, SymbolId,

@@ -20,5 +20,44 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Tests
         run: cargo test --workspace
-      - name: Numeric promotion gate
-        run: cargo test -p athena-numeric --test numeric_promotion
+      - name: Numeric promotion contract
+        run: cargo test -p athena-numeric --test main promotion
+
+  coverage:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    # Report-only: never blocks merge on percentage.
+    continue-on-error: true
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Run llvm-cov
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info
+          cargo llvm-cov --workspace --html --output-dir coverage-html
+          cargo llvm-cov --workspace --summary-only | tee coverage-summary.txt
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Line coverage (report only)"
+            echo
+            echo '```'
+            cat coverage-summary.txt || echo "(no summary)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            lcov.info
+            coverage-html
+            coverage-summary.txt
+          if-no-files-found: warn

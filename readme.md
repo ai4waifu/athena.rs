@@ -63,18 +63,23 @@ arena、重写器、公共门面以及多个求值和领域模块已经存在。
 
 ```sh
 cargo test --workspace
+cargo test -p athena-numeric --test main promotion
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
+cargo llvm-cov --workspace --summary-only
 cargo run -p athena-benchmark --release -- --groups numeric,ir --json
 ```
 
 迭代单个 crate：
 
 ```sh
-cargo test -p athena-engine
+cargo test -p athena-engine --test main
+cargo test -p athena-numeric --test main
 cargo test -p athena-ir
 cargo doc -p athena --no-deps
 ```
+
+行覆盖率用 `cargo llvm-cov` 汇报（CI 上传 artifact 与 job summary），不设百分比失败门槛。测试布局见 Living「测试与验收」：每 crate `tests/main.rs` + 域 `mod.rs`。
 
 修改数值、IR、求值、重写或对象语义时，应同时覆盖正常结果、边界输入、资源限制和结构化错误路径。默认保持纯 Rust，并确保 `wasm32`
 构建不依赖系统 GPU、MKL 或 BLAS。

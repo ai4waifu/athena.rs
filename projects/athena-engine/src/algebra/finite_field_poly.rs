@@ -341,39 +341,3 @@ pub fn frobenius_power_coords(coords: &[Integer], power: u32, spec: &FiniteField
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gf4_mul_square() {
-        let p = Modulus::new(Integer::from_i64(2)).unwrap();
-        let spec = FiniteFieldPolySpec {
-            extension: ExtensionId(0),
-            base: FieldId(0),
-            characteristic: Integer::from_i64(2),
-            degree: 2,
-            modulus: vec![Integer::one(), Integer::one(), Integer::one()],
-        };
-        let a = vec![Integer::one(), Integer::one()];
-        let sq = mul_coords(&a, &a, &spec, &p);
-        assert_eq!(sq, vec![Integer::zero(), Integer::one()]);
-    }
-
-    #[test]
-    fn gf4_inverse_of_x() {
-        let p = Modulus::new(Integer::from_i64(2)).unwrap();
-        let spec = FiniteFieldPolySpec {
-            extension: ExtensionId(0),
-            base: FieldId(0),
-            characteristic: Integer::from_i64(2),
-            degree: 2,
-            modulus: vec![Integer::one(), Integer::one(), Integer::one()],
-        };
-        let x = vec![Integer::zero(), Integer::one()];
-        let inv = inv_coords(&x, &spec, &p).unwrap();
-        let prod = mul_coords(&x, &inv, &spec, &p);
-        assert_eq!(prod, vec![Integer::one(), Integer::zero()]);
-    }
-}

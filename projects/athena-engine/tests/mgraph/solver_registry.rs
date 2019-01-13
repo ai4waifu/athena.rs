@@ -50,7 +50,7 @@ fn score_candidate_is_stable_integer() {
 }
 
 #[test]
-fn solver_request_scaffold() {
+fn solver_request_smoke() {
     let req = SolverRequest {
         domain: DomainRef::Arithmetic,
         roots: vec![TermId(1)],

@@ -82,16 +82,3 @@ pub fn validate_images(images: &[u32], degree: u32) -> Result<()> {
 fn permutation_invalid(operation: &'static str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::PermutationInvalid).detail("domain", "group").detail("operation", operation)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn compose_follows_right_to_left_on_points() {
-        let p = RawPerm::new(vec![1, 0, 2], 3).unwrap();
-        let q = RawPerm::new(vec![1, 2, 0], 3).unwrap();
-        let pq = p.compose(&q).unwrap();
-        assert_eq!(pq.apply(0), p.apply(q.apply(0)));
-    }
-}
