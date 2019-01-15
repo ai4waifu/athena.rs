@@ -1,1 +1,1 @@
-//! Runtime object model (placeholder).
+//! 运行时对象模型（占位）。

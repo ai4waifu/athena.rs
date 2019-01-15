@@ -1,6 +1,6 @@
 //! 残差证书句柄。
 //!
-//! 证明身份统一为 [`athena_types::ProofRef`]（Living `24` SEM0）。
+//! 证明身份统一为 [`athena_types::ProofRef`]。
 
 use athena_types::{ProofRef, TermId};
 

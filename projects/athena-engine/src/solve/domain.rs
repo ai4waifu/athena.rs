@@ -7,13 +7,13 @@ use crate::algebra::AlgebraParentId;
 /// 求解定义域（必须显式，禁止默认吞掉）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolveDomain {
-    /// `$\mathbb{Z}$`
+    /// `ℤ`
     Integers,
-    /// `$\mathbb{Q}$`
+    /// `ℚ`
     Rationals,
-    /// `$\mathbb{R}$`
+    /// `ℝ`
     Reals,
-    /// `$\mathbb{C}$`
+    /// `ℂ`
     Complexes,
     /// 有限域（经 [`FieldId`]）。
     FiniteField {

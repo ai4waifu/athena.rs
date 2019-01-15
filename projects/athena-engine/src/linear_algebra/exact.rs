@@ -1,4 +1,4 @@
-//! L1 精确路径：`$\mathbb{Q}$` 高斯消元 / RREF / 秩 / 求解，以及 `$\mathbb{Z}$` Bareiss。
+//! 精确路径：`ℚ` Gaussian 消元 / RREF / 秩 / 求解，以及 `ℤ` Bareiss。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
@@ -69,7 +69,7 @@ fn swap_rows(a: &mut [Rational], cols: u64, r1: u64, r2: u64) {
     }
 }
 
-/// `$\mathbb{Q}$` 上带部分主元的 RREF。
+/// `ℚ` 上带部分主元的 RREF。
 pub fn rref_rational(matrix: &MatrixValue) -> Result<ExactRrefResult, Diagnostic> {
     if matrix.parent().element.is_machine() {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "rref_requires_exact"));
@@ -130,7 +130,7 @@ pub fn rank_exact(matrix: &MatrixValue) -> Result<ExactRankResult, Diagnostic> {
     Ok(ExactRankResult { rank: rref.rank, guarantee: AlgorithmGuarantee::Exact })
 }
 
-/// Bareiss 分式自由行列式（`$\mathbb{Z}$` 或提升后的整数有理矩阵要求分母全为 1）。
+/// Bareiss 分式自由行列式（`ℤ` 或提升后的整数有理矩阵要求分母全为 1）。
 pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
     if !matrix.shape().is_square() {
         return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "det_requires_square"));
@@ -146,7 +146,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
     let mut a: Vec<Integer> = Vec::with_capacity(rats.len());
     for r in &rats {
         if !r.is_integer() {
-            // 回退到 Q 上 PLU 风格积主元（经 RREF 不可直接得 det 符号积）；改用高斯消元积。
+            // 回退到 Q 上 PLU 风格积主元（经 RREF 不可直接得 det 符号积）；改用 Gaussian 消元积。
             return det_rational_product(matrix);
         }
         a.push(r.numerator());
@@ -154,7 +154,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
     let mut sign = Integer::one();
     let mut prev = Integer::one();
     for k in 0..n.saturating_sub(1) {
-        // partial pivot in Z
+        // ℤ 上部分主元
         let mut piv = k;
         for i in k..n {
             if !a[(i * n + k) as usize].is_zero() {
@@ -178,7 +178,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
                 let num = a[(i * n + j) as usize]
                     .mul(&a[(k * n + k) as usize])
                     .sub(&a[(i * n + k) as usize].mul(&a[(k * n + j) as usize]));
-                // exact division by prev
+                // 对 prev 做精确整除
                 a[(i * n + j) as usize] = num.div(&prev).expect("div");
             }
         }
@@ -230,7 +230,7 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
     }
     let m = a.shape().rows;
     let n = a.shape().cols;
-    // Augment [A|b]
+    // 增广矩阵 [A|b]
     let mut aug = Vec::with_capacity((m * (n + 1)) as usize);
     let ar = a.to_rationals_row_major()?;
     let br = b.to_rationals_row_major()?;
@@ -279,7 +279,7 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
         pivot_cols.push(col);
         row += 1;
     }
-    // inconsistency: pivot in augmented column
+    // 不一致：主元落在增广列
     for r in 0..m {
         let mut all_zero = true;
         for c in 0..n {

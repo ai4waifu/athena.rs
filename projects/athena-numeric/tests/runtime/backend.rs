@@ -1,4 +1,4 @@
-//! Numeric backend contract tests.
+//! 数值 backend 合同测试。
 
 use athena_numeric::{
     NumericBackend, NumericCapability, NumericDomain, NumericOperation, NumericResultMode, PrecisionKind, PureRustBackend,

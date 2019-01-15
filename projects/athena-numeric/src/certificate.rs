@@ -21,7 +21,7 @@ pub struct NumericCertificate {
     pub absolute_error: Option<Real>,
     /// 相对误差上界。
     pub relative_error: Option<Real>,
-    /// enclosure。
+    /// 包络。
     pub enclosure: Option<Interval>,
     /// 方法。
     pub method: CertificateMethod,

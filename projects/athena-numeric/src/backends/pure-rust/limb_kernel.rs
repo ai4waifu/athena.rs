@@ -1,7 +1,7 @@
-//! Limb kernel for the pure-Rust backend.
+//! 纯 Rust backend 的 limb 内核。
 //!
-//! All multi-precision primitives operate on little-endian canonical limb slices:
-//! no trailing zero limbs except the single `[0]` zero value.
+//! 所有多精度原语作用于小端规范 limb 切片：
+//! 除单一 `[0]` 零值外无尾随零 limb。
 
 use athena_types::Result;
 
@@ -31,10 +31,10 @@ fn with_kernel_scratch<R>(f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget
     })
 }
 
-/// Karatsuba multiplication threshold (limbs per operand).
+/// Karatsuba 乘法阈值（每操作数 limb 数）。
 pub(crate) const MUL_KARATSUBA_THRESHOLD: usize = 32;
 
-/// Full-width single-limb product: `(hi, lo) = a * b`.
+/// 全宽单 limb 乘积：`(hi, lo) = a * b`。
 #[inline]
 #[allow(dead_code)]
 pub(crate) fn mul_wide(a: u64, b: u64) -> (u64, u64) {
@@ -42,14 +42,14 @@ pub(crate) fn mul_wide(a: u64, b: u64) -> (u64, u64) {
     ((prod >> 64) as u64, prod as u64)
 }
 
-/// Add with carry: `(sum, carry_out) = a + b + carry_in` (`carry_in` is 0 or 1).
+/// 带进位加法：`(sum, carry_out) = a + b + carry_in`（`carry_in` 为 0 或 1）。
 #[inline]
 pub(crate) fn adc(a: u64, b: u64, carry: u64) -> (u64, u64) {
     let sum = (a as u128) + (b as u128) + (carry as u128);
     (sum as u64, (sum >> 64) as u64)
 }
 
-/// Subtract with borrow: `(diff, borrow_out) = a - b - borrow_in`.
+/// 带借位减法：`(diff, borrow_out) = a - b - borrow_in`。
 #[inline]
 pub(crate) fn sbb(a: u64, b: u64, borrow: u64) -> (u64, u64) {
     let sub = (b as u128) + (borrow as u128);
@@ -57,7 +57,7 @@ pub(crate) fn sbb(a: u64, b: u64, borrow: u64) -> (u64, u64) {
     if a128 >= sub { ((a128 - sub) as u64, 0) } else { ((a128 + (1u128 << 64) - sub) as u64, 1) }
 }
 
-/// Fused multiply-add into limb: `(limb, carry) = acc + a * b + carry`.
+/// 融合乘加写入 limb：`(limb, carry) = acc + a * b + carry`。
 #[inline]
 pub(crate) fn mac(acc: u64, a: u64, b: u64, carry: u128) -> (u64, u128) {
     let sum = (acc as u128) + (a as u128) * (b as u128) + carry;
@@ -126,7 +126,7 @@ pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     })
 }
 
-/// Multiply by a single limb (`n > 0`).
+/// 乘以单个 limb（`n > 0`）。
 pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
     with_kernel_scratch(|scratch, budget| {
         let mut out = LimbBuffer::zero();
@@ -156,7 +156,7 @@ fn mul_1_limbs(a: &[u64], limb: u64) -> Vec<u64> {
     normalize_trim(out)
 }
 
-/// In-place `r += a * n` for single limb `n > 0`.
+/// 就地 `r += a * n`（单 limb `n > 0`）。
 pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     if n == 0 || is_zero(a) {
         return 0;
@@ -183,7 +183,7 @@ pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     carry as u64
 }
 
-/// Subtract `a * n` from `r`; returns `true` on borrow (underflow).
+/// 从 `r` 减去 `a * n`；发生借位（下溢）时返回 `true`。
 pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
     if n == 0 || is_zero(a) {
         return false;
@@ -225,7 +225,7 @@ pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
     false
 }
 
-/// Fused add-multiply: `r + a * n` for single limb `n > 0`.
+/// 融合加乘：`r + a * n`（单 limb `n > 0`）。
 pub(crate) fn addmul_1(r: &[u64], a: &[u64], n: u64) -> Vec<u64> {
     assert!(n != 0);
     if is_zero(a) {
@@ -253,7 +253,7 @@ fn add_wide_to_out(out: &mut Vec<u64>, idx: usize, wide: u128) {
     }
 }
 
-/// Symmetric schoolbook squaring: diagonal once, off-diagonal doubled (`j > i` only).
+/// 对称小学平方：对角线一次，非对角加倍（仅 `j > i`）。
 pub(crate) fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     if la == 0 || is_zero(a) {
@@ -280,7 +280,7 @@ pub(crate) fn sqr_schoolbook(a: &[u64]) -> Vec<u64> {
     normalize_trim(out)
 }
 
-/// Square (`a * a`).
+/// 平方（`a * a`）。
 pub(crate) fn sqr(a: &[u64]) -> Vec<u64> {
     with_kernel_scratch(|scratch, budget| {
         let mut out = LimbBuffer::zero();
@@ -481,7 +481,7 @@ fn shr_vec(v: &[u64], bits: u32) -> Vec<u64> {
 
 const LEHMER_THRESHOLD: usize = 3;
 
-/// Non-negative GCD (Lehmer for wide operands, binary GCD tail).
+/// 非负 GCD（宽操作数用 Lehmer，尾部 binary GCD）。
 pub(crate) fn gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
     a = normalize_trim(a);
     b = normalize_trim(b);
@@ -619,7 +619,7 @@ fn lincomb_signed(c0: i64, v0: &[u64], c1: i64, v1: &[u64]) -> Option<Vec<u64>> 
 
 const MONTGOMERY_THRESHOLD: usize = 2;
 
-/// Odd modulus with at least two limbs → Montgomery mod_pow eligible.
+/// 至少两 limb 的奇模数 → 可走 Montgomery 模幂。
 pub(crate) fn mod_pow_montgomery_eligible(modulus: &[u64]) -> bool {
     !is_zero(modulus) && (modulus[0] & 1) == 1 && effective_len(modulus) >= MONTGOMERY_THRESHOLD
 }
@@ -686,13 +686,13 @@ pub(crate) fn div2_mod(exp: &mut Vec<u64>) {
     }
 }
 
-/// Modular exponentiation via Montgomery reduction (odd `modulus`).
+/// 经 Montgomery 约化的模幂（奇 `modulus`）。
 pub(crate) fn mod_pow_montgomery(base: &[u64], exp: &[u64], modulus: &[u64]) -> Vec<u64> {
     let (n_prime, r2) = montgomery_precompute(modulus);
     mod_pow_montgomery_precomputed(base, exp, modulus, n_prime, &r2)
 }
 
-/// Precompute `-m⁻¹ mod 2^64` and `R² mod m` for odd `modulus`.
+/// 为奇 `modulus` 预计算 `-m⁻¹ mod 2^64` 与 `R² mod m`。
 pub(crate) fn montgomery_precompute(modulus: &[u64]) -> (u64, Vec<u64>) {
     let n_prime = montgomery_nprime(modulus[0]);
     let n = effective_len(modulus);
@@ -703,7 +703,7 @@ pub(crate) fn montgomery_precompute(modulus: &[u64]) -> (u64, Vec<u64>) {
     (n_prime, r2)
 }
 
-/// Montgomery mod_pow with cached `(n_prime, r² mod m)`.
+/// 使用缓存 `(n_prime, r² mod m)` 的 Montgomery 模幂。
 pub(crate) fn mod_pow_montgomery_precomputed(
     base: &[u64],
     exp: &[u64],
@@ -755,7 +755,7 @@ fn mul_mod_mont_with(a: &[u64], b: &[u64], m: &[u64], n_prime: u64) -> Vec<u64> 
     montgomery_redc(&mut t, m, n_prime)
 }
 
-/// Montgomery modular multiply `a·b mod m` (odd `modulus`, cached `n_prime`).
+/// Montgomery 模乘 `a·b mod m`（奇 `modulus`，缓存 `n_prime`）。
 pub(crate) fn mul_mod_montgomery_precomputed(a: &[u64], b: &[u64], modulus: &[u64], n_prime: u64) -> Vec<u64> {
     mul_mod_mont_with(a, b, modulus, n_prime)
 }
@@ -864,7 +864,7 @@ fn shl_assign(v: &mut Vec<u64>, bits: u32) {
     }
 }
 
-/// Right-shift canonical limbs by `bits`, returning quotient limbs and low remainder bits.
+/// 将规范 limb 右移 `bits`，返回商 limb 与低位余数比特。
 pub(crate) fn shr_natural(v: &[u64], bits: u32) -> (Vec<u64>, u64) {
     if bits == 0 || is_zero(v) {
         return (normalize_trim(v.to_vec()), 0);
@@ -895,7 +895,7 @@ pub(crate) fn shr_natural(v: &[u64], bits: u32) -> (Vec<u64>, u64) {
     (normalize_trim(out), remainder)
 }
 
-/// Private limb execution contract (output buffers + scratch + budget).
+/// 私有 limb 执行合同（输出缓冲 + scratch + 预算）。
 pub(crate) trait LimbKernel {
     fn add_into(
         a: &[u64],
@@ -941,7 +941,7 @@ pub(crate) trait LimbKernel {
     ) -> Result<()>;
 }
 
-/// Default pure-Rust limb kernel.
+/// 默认纯 Rust limb 内核。
 pub(crate) struct PureRustLimbKernel;
 
 impl LimbKernel for PureRustLimbKernel {

@@ -1,4 +1,4 @@
-//! 域扩张塔与 Galois 群（`$\mathbb{F}_{p^n}/\mathbb{F}_p$`）。
+//! 域扩张塔与 Galois 群（`𝔽_{pⁿ}/𝔽_p`）。
 
 use athena_engine::{
     FieldExtension, FieldTable, GaloisComputation, GaloisDomainValue, GaloisRequest, GaloisResult, GroupTable, Integer,

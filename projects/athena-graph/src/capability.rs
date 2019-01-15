@@ -50,7 +50,7 @@ impl GraphAlgorithmRequirements {
         }
     }
 
-    /// storage-backed CSR 顺序扫描。
+    /// 存储后端 CSR 顺序扫描。
     pub const fn chunked_csr_scan() -> Self {
         Self {
             require_in_memory: false,
@@ -150,7 +150,7 @@ pub struct GraphCapabilities {
     pub chunked_sequential: bool,
     /// 工作区可落外存 storage。
     pub external_workspace: bool,
-    /// 图数据已按分片分布（当前 bootstrap 恒为 false）。
+    /// 图数据已按分片分布（当前 引导实现恒为 false）。
     pub distributed_shards: bool,
 }
 

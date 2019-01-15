@@ -1,4 +1,4 @@
-//! Out-of-core chunk iteration contract tests.
+//! 超内存分块迭代合同测试。
 
 use athena_ndarray::{ArrayStorage, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities};
 

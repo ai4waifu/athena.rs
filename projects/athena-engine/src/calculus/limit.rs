@@ -124,7 +124,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
         if degree < 0 {
             return CalculusResult::Exact { value: Term::int(0), conditions: Vec::new() };
         }
-        // degree > 0: ∞ → ∞ * leading；负向趋近时用 (−∞)^degree。
+        // 正次数：∞ → ∞·leading；负向趋近时用 (−∞)^degree。
         let mut sign_positive = num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
         if leading.is_zero() {
             return unevaluated_limit(

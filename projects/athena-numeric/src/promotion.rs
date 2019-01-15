@@ -115,7 +115,7 @@ impl Promotion for DefaultPromotion {
 }
 
 impl DefaultPromotion {
-    /// Same-domain Real precision change (Machine ↔ Arbitrary via [`Decimal`]).
+    /// 同域 Real 精度变更（经 [`Decimal`] 的 Machine ↔ Arbitrary）。
     pub fn promote_real_precision(
         value: NumericValue,
         target_kind: PrecisionKind,

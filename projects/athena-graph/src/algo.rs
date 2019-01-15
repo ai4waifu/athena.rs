@@ -142,7 +142,7 @@ pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<No
     Ok(labels)
 }
 
-/// 并查集（L0 结构原语）。
+/// 并查集（结构原语）。
 #[derive(Debug, Clone)]
 pub struct UnionFind {
     parent: Vec<usize>,

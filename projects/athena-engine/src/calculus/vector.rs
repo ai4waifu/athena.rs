@@ -142,7 +142,7 @@ impl Divergence {
     }
 }
 
-/// 三维向量场旋度：独立对象（bootstrap 仅 ℝ³）。
+/// 三维向量场旋度：独立对象（引导实现仅 ℝ³）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Curl {
     /// 输入分量 (Fₓ, Fᵧ, F_z)。

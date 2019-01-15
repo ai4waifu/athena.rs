@@ -8,7 +8,7 @@ use crate::{
 /// 平行边策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum MultiplicityPolicy {
-    /// 简单图：拒绝平行边（bootstrap 仍允许存储层插入时由调用方约束）。
+    /// 简单图：拒绝平行边（引导实现仍允许存储层插入时由调用方约束）。
     #[default]
     Simple,
     /// 允许多重边。

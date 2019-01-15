@@ -1,4 +1,4 @@
-//! Numeric evidence arena tests.
+//! 数值证据 arena 测试。
 
 use athena_numeric::{Integer, NumericBinding, NumericEvidenceArena, NumericEvidenceRecord, NumericValue};
 

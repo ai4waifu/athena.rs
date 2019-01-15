@@ -1,1 +1,1 @@
-//! Symbols and bindings (placeholder).
+//! 符号与绑定（占位）。

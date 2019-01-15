@@ -1,4 +1,4 @@
-//! 整数 gcd / lcm / 扩展欧几里得。
+//! 整数 gcd / lcm / extended Euclidean。
 
 use athena_numeric::Integer;
 
@@ -18,7 +18,7 @@ pub fn lcm(a: &Integer, b: &Integer) -> Integer {
     a.abs().div(&g).expect("div").mul(&b.abs())
 }
 
-/// 扩展欧几里得：返回 `g = gcd(|a|,|b|)` 与 Bézout，使 `s·a + t·b = ±g` 对齐到 `s·a + t·b = g`（对原符号校正）。
+/// extended Euclidean：返回 `g = gcd(|a|,|b|)` 与 Bézout，使 `s·a + t·b = ±g` 对齐到 `s·a + t·b = g`（对原符号校正）。
 pub fn extended_gcd(a: &Integer, b: &Integer) -> ExtendedGcd {
     let a_sign = if a.is_negative() { Integer::from_i64(-1) } else { Integer::one() };
     let b_sign = if b.is_negative() { Integer::from_i64(-1) } else { Integer::one() };

@@ -1,23 +1,23 @@
-//! Numeric evidence arena — tags and certificates stay outside canonical [`NumericValue`].
+//! 数值证据 arena — 标签与证书留在规范 [`NumericValue`] 之外。
 
 use std::collections::HashMap;
 
 use crate::{certificate::NumericCertificate, number::NumericValue};
 
-/// Opaque handle to interned numeric evidence (tags, certificates, witness metadata).
+/// 已 intern 数值证据的不透明句柄（标签、证书、见证元数据）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct NumericEvidenceId(pub u32);
 
-/// Evidence payload stored in [`NumericEvidenceArena`], not embedded in [`NumericValue`].
+/// 存于 [`NumericEvidenceArena`] 的证据载荷，不嵌入 [`NumericValue`]。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct NumericEvidenceRecord {
-    /// Source / derivation tags (skeleton until structured ProofRef).
+    /// 来源 / 推导标签（结构化 ProofRef 落地前的骨架）。
     pub tags: Vec<String>,
-    /// Optional numerical certificate.
+    /// 可选数值证书。
     pub certificate: Option<NumericCertificate>,
 }
 
-/// Intern table for numeric evidence. Canonical values remain evidence-free.
+/// 数值证据 intern 表。规范值本身不含证据。
 #[derive(Debug, Default)]
 pub struct NumericEvidenceArena {
     records: Vec<NumericEvidenceRecord>,
@@ -25,19 +25,19 @@ pub struct NumericEvidenceArena {
 }
 
 impl NumericEvidenceArena {
-    /// Empty arena.
+    /// 空 arena。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Append a record and return a fresh id (no deduplication).
+    /// 追加记录并返回新 id（不消重）。
     pub fn allocate(&mut self, record: NumericEvidenceRecord) -> NumericEvidenceId {
         let id = NumericEvidenceId(self.records.len() as u32);
         self.records.push(record);
         id
     }
 
-    /// Intern by tag list only. Reuses an existing id when tags match exactly.
+    /// 仅按标签列表 intern。标签完全相同时复用已有 id。
     pub fn intern_tags(&mut self, tags: Vec<String>) -> NumericEvidenceId {
         if let Some(&id) = self.tag_index.get(&tags) {
             return id;
@@ -47,23 +47,23 @@ impl NumericEvidenceArena {
         id
     }
 
-    /// Resolve id → record.
+    /// 解析 id → 记录。
     pub fn resolve(&self, id: NumericEvidenceId) -> Option<&NumericEvidenceRecord> {
         self.records.get(id.0 as usize)
     }
 
-    /// Number of stored records.
+    /// 已存记录数。
     pub fn len(&self) -> usize {
         self.records.len()
     }
 
-    /// Whether empty.
+    /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
     }
 }
 
-/// Canonical value plus optional external evidence handle (math equality uses value only).
+/// 规范值加可选外部证据句柄（数学相等只看值）。
 #[derive(Debug, Clone)]
 pub struct NumericBinding {
     value: NumericValue,
@@ -71,32 +71,32 @@ pub struct NumericBinding {
 }
 
 impl NumericBinding {
-    /// Value without evidence.
+    /// 无证据的值。
     pub fn new(value: NumericValue) -> Self {
         Self { value, evidence: None }
     }
 
-    /// Value with an arena evidence id.
+    /// 带 arena 证据 id 的值。
     pub fn with_evidence(value: NumericValue, evidence: NumericEvidenceId) -> Self {
         Self { value, evidence: Some(evidence) }
     }
 
-    /// Canonical numeric payload.
+    /// 规范数值载荷。
     pub fn value(&self) -> &NumericValue {
         &self.value
     }
 
-    /// Into canonical payload.
+    /// 转为规范载荷。
     pub fn into_value(self) -> NumericValue {
         self.value
     }
 
-    /// Evidence handle if attached.
+    /// 若已附加则返回证据句柄。
     pub fn evidence(&self) -> Option<NumericEvidenceId> {
         self.evidence
     }
 
-    /// Attach or replace evidence id.
+    /// 附加或替换证据 id。
     pub fn set_evidence(&mut self, evidence: Option<NumericEvidenceId>) {
         self.evidence = evidence;
     }
@@ -110,6 +110,6 @@ impl PartialEq for NumericBinding {
 
 impl Eq for NumericBinding {}
 
-/// Deprecated alias for migration from embedded provenance.
+/// 自嵌入 provenance 迁移用的弃用别名。
 #[deprecated(note = "use NumericEvidenceRecord with NumericEvidenceArena")]
 pub type NumericProvenance = NumericEvidenceRecord;

@@ -1,12 +1,12 @@
-//! Integration tests for `athena-engine`.
+//! `athena-engine` 集成测试入口。
 
 mod algebra;
-mod polynomial;
-mod number_theory;
-mod mgraph;
-mod solve;
 mod calculus;
-mod linear_algebra;
-mod graph_theory;
 mod eval;
+mod graph_theory;
+mod linear_algebra;
+mod mgraph;
+mod number_theory;
+mod polynomial;
 mod semantic;
+mod solve;

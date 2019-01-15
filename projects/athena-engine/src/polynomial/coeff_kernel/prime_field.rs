@@ -141,7 +141,7 @@ pub fn select_fp_kernel(modulus: Modulus) -> Result<FpKernelKind> {
 /// 𝔽_p 内核变体（intern 时选定）。
 #[derive(Debug, Clone)]
 pub enum FpKernelKind {
-    /// `u64` word path。
+    /// `u64` 字路径。
     Word(FpWordKernel),
     /// 大素数 `Modulus` path。
     Big(FpBigKernel),
@@ -183,7 +183,7 @@ fn neg_mod(a: u64, p: u64) -> u64 {
 }
 
 fn inv_mod(a: u64, p: u64) -> Result<u64> {
-    // Extended Euclid on i128 for signed intermediates.
+    // extended Euclidean：在 `i128` 上处理有符号中间量。
     let mut t: i128 = 0;
     let mut new_t: i128 = 1;
     let mut r: i128 = p as i128;

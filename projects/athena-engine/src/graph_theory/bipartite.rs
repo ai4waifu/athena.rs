@@ -1,4 +1,4 @@
-//! 二部性判定（L1 · BFS 二染色）。
+//! 二部性判定（BFS 二染色）。
 
 use std::collections::{HashMap, VecDeque};
 

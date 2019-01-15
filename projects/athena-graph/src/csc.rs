@@ -1,10 +1,10 @@
-//! Storage-backed CSC（按需构建，不默认与 CSR 双物化）。
+//! 存储后端 CSC（按需构建，不默认与 CSR 双物化）。
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
 use crate::{capability::GraphCapabilities, error::GraphError, semantics::GraphStorageMetadata};
 
-/// Storage-backed 有向 CSC 图（列指针 + 行索引）。
+/// 存储后端有向 CSC 图（列指针 + 行索引）。
 #[derive(Debug)]
 pub struct CscGraph<O, I> {
     nodes: u64,
@@ -102,11 +102,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
 
     /// 校验算法需求；不满足则 [`GraphError::CapabilityMismatch`]（禁止偷偷物化）。
     pub fn ensure_capabilities(&self, req: crate::GraphAlgorithmRequirements) -> Result<(), GraphError> {
-        if self.capabilities().satisfies(req) {
-            Ok(())
-        } else {
-            Err(GraphError::CapabilityMismatch { requirement: req })
-        }
+        if self.capabilities().satisfies(req) { Ok(()) } else { Err(GraphError::CapabilityMismatch { requirement: req }) }
     }
 }
 

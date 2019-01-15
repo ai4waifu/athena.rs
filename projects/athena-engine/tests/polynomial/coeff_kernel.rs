@@ -1,4 +1,4 @@
-//! Dedicated coefficient kernels for Z, Q, FpWord, and FpBig.
+//! 专用系数内核：ℤ、ℚ、`FpWord`、`FpBig`。
 
 use athena_engine::{
     CoefficientDomain, Integer, MonomialOrder, Number, PolynomialBuilder, RingTable, SymbolId, add_polynomial, mul_polynomial,
@@ -30,7 +30,7 @@ fn fp_word_kernel_mul_and_inv() {
     let mut b2 = PolynomialBuilder::new(ring);
     b2.push_term(Number::small_int(5), vec![0]).unwrap();
     let c = b2.build(&rings).unwrap();
-    // 3x * 5 = 15x ≡ x (mod 7)
+    // 验算：3x · 5 = 15x ≡ x (mod 7)
     let product = mul_polynomial(p, c, &rings).unwrap();
     assert_eq!(product.terms().len(), 1);
     assert_eq!(product.terms()[0].coefficient(), &Number::small_int(1));
@@ -45,7 +45,7 @@ fn fp_word_kernel_neg_wrap() {
     b.push_term(Number::small_int(2), vec![0]).unwrap();
     let p = b.build(&rings).unwrap();
     let zero = PolynomialBuilder::new(ring).build(&rings).unwrap();
-    // 0 - 2 ≡ 3 (mod 5)
+    // 验算：0 − 2 ≡ 3 (mod 5)
     let neg = athena_engine::sub_polynomial(zero, p, &rings).unwrap();
     assert_eq!(neg.terms()[0].coefficient(), &Number::small_int(3));
 }

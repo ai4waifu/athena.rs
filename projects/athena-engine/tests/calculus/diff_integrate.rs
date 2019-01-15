@@ -1,4 +1,4 @@
-//! Calculus contracts: ConditionalResult, DomainRequest, Abs/Sqrt, limit, series.
+//! 微积分合同：`ConditionalResult`、`DomainRequest`、Abs/Sqrt、极限、级数。
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
@@ -156,7 +156,7 @@ fn taylor_polynomial_exact() {
 #[test]
 fn laurent_simple_pole() {
     let engine = AthenaEngine::new();
-    // 1/x about 0 → x^{-1}
+    // 1/x 在 0 展开 → x^{-1}
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Laurent {
         expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
         variable: "x".into(),
@@ -172,7 +172,7 @@ fn laurent_simple_pole() {
         other => panic!("expected Laurent Series, got {other:?}"),
     }
 
-    // (1+x)/x about 0 → x^{-1} + 1
+    // (1+x)/x 在 0 展开 → x^{-1} + 1
     let expr = Term::apply(
         "Times",
         vec![
@@ -196,7 +196,7 @@ fn laurent_simple_pole() {
 #[test]
 fn residue_simple_poles() {
     let engine = AthenaEngine::new();
-    // Res(1/x, 0) = 1
+    // 留数：Res(1/x, 0) = 1
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
         expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
         variable: "x".into(),
@@ -211,7 +211,7 @@ fn residue_simple_poles() {
         other => panic!("expected Residue Exact, got {other:?}"),
     }
 
-    // Res(1/x^2, 0) = 0（二阶极点，无 x^{-1}）
+    // 留数：Res(1/x², 0) = 0（二阶极点，无 x⁻¹）
     let out2 = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Residue {
         expression: Term::apply("Power", vec![Term::symbol("x"), Term::int(-2)]),
         variable: "x".into(),
@@ -226,7 +226,7 @@ fn residue_simple_poles() {
         other => panic!("expected Residue Exact for 1/x^2, got {other:?}"),
     }
 
-    // Residue[(1+x)/x, {x, 0}] → 1
+    // 形态：Residue[(1+x)/x, {x, 0}] → 1
     let expr = Term::apply(
         "Times",
         vec![
@@ -247,21 +247,21 @@ fn residue_simple_poles() {
 
 #[test]
 fn special_function_registry_derivatives() {
-    // Sinh' = Cosh
+    // 导数：Sinh' = Cosh
     let d_sinh = athena_engine::differentiate(&Term::apply("Sinh", vec![Term::symbol("x")]), "x");
     assert_eq!(d_sinh, Term::apply("Cosh", vec![Term::symbol("x")]));
 
-    // ArcTan' = 1/(1+x^2)
+    // 导数：ArcTan' = 1/(1+x^2)
     let d_atan = athena_engine::differentiate(&Term::apply("ArcTan", vec![Term::symbol("x")]), "x");
     let text = format!("{d_atan:?}");
     assert!(text.contains('1') || text.contains("Power"), "got {text}");
 
-    // Erf' contains Exp and Pi
+    // 误差函数：Erf' 含 Exp 与 Pi
     let d_erf = athena_engine::differentiate(&Term::apply("Erf", vec![Term::symbol("x")]), "x");
     let text = format!("{d_erf:?}");
     assert!(text.contains("Exp") && text.contains("Pi"), "got {text}");
 
-    // Gamma' = Gamma * PolyGamma[0, ·]
+    // 导数：Gamma' = Gamma * PolyGamma[0, ·]
     let d_gamma = athena_engine::differentiate(&Term::apply("Gamma", vec![Term::symbol("x")]), "x");
     let text = format!("{d_gamma:?}");
     assert!(text.contains("Gamma") && text.contains("PolyGamma"), "got {text}");
@@ -273,7 +273,7 @@ fn special_function_registry_derivatives() {
 #[test]
 fn asymptotic_at_infinity() {
     let engine = AthenaEngine::new();
-    // x^2 + 1 as x→∞
+    // 极限：x²+1，x→∞
     let poly = Term::apply("Plus", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Asymptotic {
         expression: poly,
@@ -475,7 +475,7 @@ fn hessian_quadratic() {
 #[test]
 fn divergence_of_linear_field() {
     let engine = AthenaEngine::new();
-    // F = (x, y) ⇒ div = 2
+    // 场：F = (x, y) ⇒ div = 2
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Divergence {
         components: vec![Term::symbol("x"), Term::symbol("y")],
         variables: vec!["x".into(), "y".into()],
@@ -492,7 +492,7 @@ fn divergence_of_linear_field() {
 #[test]
 fn curl_of_linear_3d_field() {
     let engine = AthenaEngine::new();
-    // F = (−y, x, 0) ⇒ curl = (0, 0, 2)
+    // 场：F = (−y, x, 0) ⇒ curl = (0, 0, 2)
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Curl {
         components: vec![Term::apply("Times", vec![Term::int(-1), Term::symbol("y")]), Term::symbol("x"), Term::int(0)],
         variables: vec!["x".into(), "y".into(), "z".into()],
@@ -560,7 +560,7 @@ fn ode_ivp_y_prime_const() {
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, athena_engine::VerificationStatus::Verified { .. }));
-            // y = 2x + 1
+            // 解：y = 2x + 1
             let text = format!("{:?}", sol.explicit);
             assert!(text.contains('x') && text.contains('1'), "got {text}");
         }
@@ -571,7 +571,7 @@ fn ode_ivp_y_prime_const() {
 #[test]
 fn ode_separable_g_of_x() {
     let engine = AthenaEngine::new();
-    // y' = x ⇒ y = x^2/2
+    // ODE：y' = x ⇒ y = x²/2
     let eq = Term::apply("Equal", vec![Term::apply("D", vec![Term::symbol("y"), Term::symbol("x")]), Term::symbol("x")]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::SolveOde {
         equation: eq,
@@ -593,7 +593,7 @@ fn ode_separable_g_of_x() {
 #[test]
 fn ode_power_y_squared() {
     let engine = AthenaEngine::new();
-    // y' = y^2 ⇒ y = -1/x
+    // ODE：y' = y² ⇒ y = -1/x
     let eq = Term::apply(
         "Equal",
         vec![
@@ -623,7 +623,7 @@ fn ode_power_y_squared() {
 #[test]
 fn ode_bernoulli_const_and_separable_xy2() {
     let engine = AthenaEngine::new();
-    // y' = 2y + y^2 ⇒ y = -2
+    // ODE：y' = 2y + y² ⇒ y = -2
     let eq = Term::apply(
         "Equal",
         vec![
@@ -652,7 +652,7 @@ fn ode_bernoulli_const_and_separable_xy2() {
         other => panic!("expected Bernoulli constant y=-2, got {other:?}"),
     }
 
-    // y' = x y^2 ⇒ y = -1/(x^2/2) = -2/x^2
+    // ODE：y' = x·y² ⇒ y = -1/(x²/2) = -2/x²
     let eq2 = Term::apply(
         "Equal",
         vec![
@@ -709,7 +709,7 @@ fn laplace_exp_and_sin() {
 #[test]
 fn fourier_exp_abs_decay() {
     let engine = AthenaEngine::new();
-    // Exp[-Abs[t]] → 2/(1+ω²)
+    // 形态：Exp[-Abs[t]] → 2/(1+ω²)
     let expr = Term::apply("Exp", vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Abs", vec![Term::symbol("t")])])]);
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Transform {
         kind: athena_engine::TransformKind::Fourier,

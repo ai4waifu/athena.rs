@@ -126,7 +126,7 @@ impl Factorization {
     }
 }
 
-/// 扩展欧几里得：`s·a + t·b = g`。
+/// extended Euclidean：`s·a + t·b = g`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtendedGcd {
     /// `gcd(|a|,|b|)`（非负）。
@@ -240,7 +240,7 @@ pub enum RationalReconstruction {
 pub enum RationalReconstructionFailure {
     /// 模数过小或界非法。
     InvalidBounds,
-    /// 扩展欧几里得路径未产生满足 `|n|≤N`、`|d|≤D` 的解。
+    /// extended Euclidean路径未产生满足 `|n|≤N`、`|d|≤D` 的解。
     NoCandidate,
 }
 

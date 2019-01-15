@@ -1,4 +1,4 @@
-//! 同余命题索引（stable 指纹 union-find；F5 合同）。
+//! 同余命题索引（stable 指纹 union-find）。
 
 use std::collections::HashMap;
 

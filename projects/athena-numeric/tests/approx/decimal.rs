@@ -1,4 +1,4 @@
-//! `Decimal` representation and limb rounding tests (moved from `src/decimal.rs`).
+//! `Decimal` 表示与 limb 舍入测试（自 `src/decimal.rs` 迁出）。
 
 use athena_numeric::{Decimal, RoundingStatus, integer::Sign, natural::Natural};
 
@@ -28,15 +28,15 @@ fn rejects_nan_import() {
 
 #[test]
 fn limb_round_preserves_wide_precision() {
-    // 80-bit significand: odd number with high bit set across two limbs.
+    // 80 位尾数：跨两 limb 且最高位置位的奇数。
     let sig = Natural::from_limbs(vec![0xFFFF_FFFF_FFFF_FFFF, 0xFFFF]);
     let bf = Decimal::try_new(Sign::Positive, sig, -10, 80).expect("fit");
     assert_eq!(bf.significand().bits(), 80);
     let (rounded, status) = bf.round_to_precision(60).expect("round");
-    assert_eq!(status, RoundingStatus::RoundedUp); // sticky/round from discarded ones
+    assert_eq!(status, RoundingStatus::RoundedUp); // 来自丢弃位的 sticky/round
     assert!(rounded.significand().bits() <= 60);
     rounded.validate().unwrap();
-    // Must not collapse to <=53 bits via f64 bridge.
+    // 不得经 f64 桥接塌缩到 ≤53 位。
     assert!(rounded.significand().bits() > 53 || rounded.precision_bits() == 60);
 }
 

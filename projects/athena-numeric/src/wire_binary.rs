@@ -1,4 +1,4 @@
-//! Frozen binary wire codec (schema `ANV1`).
+//! 冻结二进制 wire 编解码（schema `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
@@ -9,10 +9,10 @@ use crate::{
     rational::Rational,
 };
 
-/// Magic bytes for numeric binary wire v1.
+/// 数值二进制 wire v1 的魔数。
 pub const WIRE_MAGIC: &[u8; 4] = b"ANV1";
 
-/// Fixed header length in bytes.
+/// 固定头长度（字节）。
 pub const WIRE_HEADER_LEN: usize = 28;
 
 const FLAG_PRECISION_GUARANTEED: u8 = 1;
@@ -111,7 +111,7 @@ pub(crate) fn decode_rational_payload(sign: u8, payload: &[u8]) -> Result<Ration
     Rational::try_new(numer, denom)
 }
 
-/// Flatten header + domain + payload into one byte blob.
+/// 将头 + 域 + 载荷展平为单一字节块。
 pub fn encode_blob(
     version: SerializationVersion,
     kind: NumericKind,
@@ -140,23 +140,23 @@ pub fn encode_blob(
     Ok(out)
 }
 
-/// Parsed wire sections from a flat blob.
+/// 从平面 blob 解析出的 wire 各段。
 pub struct WireBlobParts {
-    /// Schema version.
+    /// schema 版本。
     pub version: SerializationVersion,
-    /// Numeric kind.
+    /// 数值种类。
     pub kind: NumericKind,
-    /// Sign code.
+    /// 符号码。
     pub sign: u8,
-    /// Precision metadata.
+    /// 精度元数据。
     pub precision: PrecisionInfo,
-    /// Domain extension bytes.
+    /// 域扩展字节。
     pub domain_payload: Vec<u8>,
-    /// Value payload bytes.
+    /// 值载荷字节。
     pub payload: Vec<u8>,
 }
 
-/// Parse a flat binary blob into wire sections.
+/// 将平面二进制 blob 解析为 wire 各段。
 pub fn decode_blob(bytes: &[u8]) -> Result<WireBlobParts, Diagnostic> {
     if bytes.len() < WIRE_HEADER_LEN {
         return Err(wire_err("header_short"));

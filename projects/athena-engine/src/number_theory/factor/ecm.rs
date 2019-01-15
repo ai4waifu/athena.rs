@@ -1,4 +1,4 @@
-//! ECM stage 1（Montgomery 曲线，纯 Rust bootstrap）。
+//! ECM stage 1（Montgomery 曲线，纯 Rust 引导实现）。
 
 use athena_numeric::Integer;
 

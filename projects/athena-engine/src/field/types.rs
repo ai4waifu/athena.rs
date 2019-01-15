@@ -21,7 +21,7 @@ pub struct Field {
 pub enum FieldElementRepr {
     /// ℚ：约分后、分母为正的有理数 payload。
     Rational {
-        /// canonical [`Rational`]。
+        /// canonical 有理数 [`Rational`]。
         value: Rational,
     },
     /// 𝔽_p：约化后的 residue。

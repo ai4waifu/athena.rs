@@ -207,7 +207,7 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
 fn peak_rss_bytes() -> Option<u64> {
     #[cfg(target_os = "windows")]
     {
-        // Best-effort via PowerShell; failure → null（不挡 CI）。
+        // 尽力通过 PowerShell 读取；失败则返回 null（不挡 CI）。
         let out = std::process::Command::new("powershell")
             .args(["-NoProfile", "-Command", "(Get-Process -Id $PID).WorkingSet64"])
             .output()

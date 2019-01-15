@@ -1,4 +1,4 @@
-//! L1 机器路径：部分主元 LU、三角求解、残差。
+//! 机器路径：部分主元 LU、三角求解、残差。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -124,13 +124,13 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
     let mut y = b.to_f64_row_major()?;
     apply_pivots(&mut y, &lu.pivots);
     let a = lu.combined.to_f64_row_major()?;
-    // forward subst Ly = Pb
+    // 前代：Ly = Pb
     for i in 0..n {
         for j in 0..i {
             y[i as usize] -= a[idx(n, i, j)] * y[j as usize];
         }
     }
-    // back subst Ux = y
+    // 回代：Ux = y
     let mut x = y;
     for i in (0..n).rev() {
         for j in (i + 1)..n {

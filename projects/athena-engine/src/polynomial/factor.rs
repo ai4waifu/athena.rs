@@ -118,7 +118,7 @@ impl PolynomialFactorization {
 /// - 常数 → `Complete`（仅 `unit`）
 /// - 一次 → `Complete`（`ProvenIrreducible`）
 /// - 更高次数且 `deg ≤ max_degree` → `Partial`（整式作 cofactor）
-/// - `deg > max_degree` → `ResourceLimited` + `input_rejected`
+/// - `deg > max_degree` → `ResourceLimited` + `input_rejected`（输入拒绝）
 pub fn factor_univariate(
     polynomial: Polynomial,
     rings: &RingTable,

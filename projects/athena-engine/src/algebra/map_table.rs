@@ -89,7 +89,7 @@ impl MapTable {
         self.maps.get(&id)
     }
 
-    /// 查 canonical embedding（source → target）。
+    /// 查 canonical embedding（源 → 靶）。
     pub fn canonical_embedding(&self, source: FieldId, target: FieldId) -> Option<AlgebraMapId> {
         self.embeddings.get(&(source, target)).map(|r| r.map.id)
     }
@@ -138,7 +138,7 @@ impl MapTable {
         self.quotient_projections.get(&subgroup)
     }
 
-    /// Quotient projection underlying AlgebraMap (for require_proven).
+    /// 商投影底层 [`AlgebraMap`]（供 `require_proven` 使用）。
     pub fn quotient_projection_map(&self, subgroup: SubgroupId) -> Option<&AlgebraMap> {
         self.quotient_projections.get(&subgroup).map(|r| &r.map)
     }

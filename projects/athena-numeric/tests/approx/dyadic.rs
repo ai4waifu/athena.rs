@@ -1,4 +1,4 @@
-//! `Dyadic` normalize and export tests (moved from `src/dyadic.rs`).
+//! `Dyadic` 规范化与导出测试（自 `src/dyadic.rs` 迁出）。
 
 use athena_numeric::{Dyadic, integer::Sign, natural::Natural};
 

@@ -10,7 +10,7 @@ pub enum PrecisionKind {
     Machine,
     /// 任意精度。
     Arbitrary,
-    /// 区间 enclosure。
+    /// 区间包络。
     Interval,
     /// 带证书。
     Certified,

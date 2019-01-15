@@ -1,4 +1,4 @@
-//! Real representation smoke tests.
+//! Real 表示冒烟测试。
 
 use athena_numeric::{Decimal, Real};
 

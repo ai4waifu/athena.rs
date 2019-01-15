@@ -1,4 +1,4 @@
-//! `$\mathbb{Q}(\alpha)$` 数域幂基与相对塔。
+//! `ℚ(α)` 数域幂基与相对塔。
 
 use athena_engine::{
     FieldDescriptor, FieldElementRepr, FieldTable, Integer, PropertyState, Rational, canonical_number_field_element,

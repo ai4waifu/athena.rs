@@ -1,4 +1,4 @@
-//! Direct unit tests for number-theory primitives (gcd, factor, modular, primes).
+//! 数论原语直接单元测试（gcd、分解、模运算、素数）。
 
 use std::str::FromStr;
 

@@ -1,4 +1,4 @@
-//! L0 矩阵算子：索引、切片、转置、矩阵乘、逐元素乘。
+//! 矩阵算子：索引、切片、转置、矩阵乘、逐元素乘。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};

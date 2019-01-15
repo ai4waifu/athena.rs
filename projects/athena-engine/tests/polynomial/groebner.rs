@@ -147,7 +147,7 @@ fn basis_size_limit_yields_resource_limited() {
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let computation =
         compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 10_000, max_basis_size: 2 }).unwrap();
-    // May be Partial or ResourceLimited depending on when size trips; both are unverified.
+    // 可能为 Partial 或 ResourceLimited（取决于何时触达规模上限）；二者均未验证。
     assert!(!computation.is_verified());
     assert!(matches!(
         computation,
@@ -170,7 +170,7 @@ fn verify_groebner_basis_accepts_buchberger_output() {
 #[test]
 fn verify_rejects_non_groebner_pair() {
     let (rings, ring) = q_xy_lex();
-    // Classic non-GB under lex (x > y): {x^2 - y, x*y - 1}. S-pair yields y^2 - x which does not reduce to 0.
+    // 经典非 Gröbner 基（lex，x > y）：{x^2 - y, x*y - 1}。S-对得到 y^2 - x，不可约化为 0。
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let report = verify_groebner_basis(&[g1, g2], &rings).unwrap();
@@ -185,7 +185,7 @@ fn reduce_by_verified_rejects_unverified_certificate() {
     let computation =
         compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
-    // Construct a fake VerifiedGroebnerBasis with incomplete certificate must not be possible via API;
-    // membership / reduce_by_verified only accept VerifiedGroebnerBasis from Complete.
+    // 经 API 构造证书不完整的假 `VerifiedGroebnerBasis` 必须不可行；
+    // membership / reduce_by_verified 仅接受来自 Complete 的 `VerifiedGroebnerBasis`。
     assert!(computation.as_verified().is_none());
 }

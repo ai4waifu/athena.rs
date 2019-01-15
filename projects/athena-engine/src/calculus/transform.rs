@@ -1,4 +1,4 @@
-//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z bootstrap。
+//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现。
 
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
@@ -28,7 +28,7 @@ impl RegionOfConvergence {
         }
     }
 
-    /// 傅里叶频率在实轴上（经典 L¹ / Schwartz 像）。
+    /// Fourier 频率在实轴上（经典 L¹ / Schwartz 像）。
     pub fn real_line(omega: &str) -> Self {
         Self { predicate: Some(Term::apply("Element", vec![Term::symbol(omega), Term::symbol("Reals")])), known: true }
     }
@@ -123,9 +123,9 @@ pub fn laplace_checked(
     }
 }
 
-/// 傅里叶变换（非单位角频率约定 `∫ f(t) e^{-I ω t} dt`）。
+/// Fourier 变换（非单位角频率约定 `∫ f(t) e^{-I ω t} dt`）。
 ///
-/// Bootstrap：双边指数衰减、高斯、因果指数，以及标量 / 加法线性组合。结果始终携带 ROC。
+/// 引导实现：双边指数衰减、Gaussian、因果指数，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn fourier_checked(
     expression: &Term,
     time_variable: &str,
@@ -161,7 +161,7 @@ pub fn fourier_checked(
 
 /// 单边 Z 变换 `X(z) = Σ_{n=0}^{∞} x[n] z^{-n}`。
 ///
-/// Bootstrap：`KroneckerDelta`、单位阶跃 / 常数、`a^n`、`n a^n`，以及标量 / 加法线性组合。结果始终携带 ROC。
+/// 引导实现：`KroneckerDelta`、单位阶跃 / 常数、`a^n`、`n a^n`，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn z_checked(
     expression: &Term,
     time_variable: &str,
@@ -197,13 +197,13 @@ pub fn z_checked(
 
 fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergence)> {
     if let Some(n) = number_from_term(expr).cloned() {
-        // L{c} = c/s, Re(s)>0
+        // Laplace：ℒ{c} = c/s，Re(s)>0
         let body =
             evaluate(&Term::apply("Times", vec![Term::number(n), Term::apply("Power", vec![Term::symbol(s), Term::int(-1)])]));
         return Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))));
     }
     if expr.is_symbol(t) {
-        // L{t} = 1/s^2
+        // Laplace：ℒ{t} = 1/s²
         let body = Term::apply("Power", vec![Term::symbol(s), Term::int(-2)]);
         return Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))));
     }
@@ -248,7 +248,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         return None;
                     }
                     let n_u = u32::try_from(n).ok()?;
-                    // L{t^n} = n! / s^{n+1}
+                    // Laplace：ℒ{tⁿ} = n!/sⁿ⁺¹
                     let fact = factorial_u32(n_u)?;
                     let body = evaluate(&Term::apply(
                         "Times",
@@ -260,7 +260,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     Some((body, RegionOfConvergence::re_s_greater(s, Number::small_int(0))))
                 }
                 "Exp" if args.len() == 1 => {
-                    // Exp[a t] 或 Exp[Times[a,t]]
+                    // 形态：Exp[a t] 或 Exp[Times[a,t]]
                     let a = match_coeff_times_var(&args[0], t)?;
                     // 1/(s-a), Re(s)>a（实数 a）
                     let body = evaluate(&Term::apply(
@@ -277,7 +277,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                 }
                 "Sin" if args.len() == 1 => {
                     let w = match_coeff_times_var(&args[0], t)?;
-                    // w / (s^2 + w^2)
+                    // Laplace：w/(s²+w²)
                     let den = evaluate(&Term::apply(
                         "Plus",
                         vec![
@@ -339,7 +339,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
-                    // UnitStep[t] * Exp[-a t] → 1/(a + I ω), a>0
+                    // 形态：UnitStep[t] * Exp[-a t] → 1/(a + I ω)，a>0
                     if let Some(rest) = split_unit_step(args, t) {
                         return fourier_causal_exp(rest, t, omega);
                     }
@@ -347,7 +347,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                 }
                 "Exp" if args.len() == 1 => {
                     if let Some(a) = match_neg_coeff_abs_var(&args[0], t) {
-                        // Exp[-a Abs[t]] → 2a / (a² + ω²), a>0
+                        // 形态：Exp[-a Abs[t]] → 2a / (a² + ω²)，a>0
                         if !number_is_positive(&a) {
                             return None;
                         }
@@ -368,7 +368,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         return Some((body, RegionOfConvergence::real_line(omega)));
                     }
                     if let Some(a) = match_neg_coeff_square_var(&args[0], t) {
-                        // Exp[-a t²] → √(π/a) Exp[-ω²/(4a)], a>0
+                        // 形态：Exp[-a t²] → √(π/a) Exp[-ω²/(4a)]，a>0
                         if !number_is_positive(&a) {
                             return None;
                         }
@@ -408,7 +408,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
 }
 
 fn fourier_causal_exp(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConvergence)> {
-    // Exp[-a t] with a>0 → 1/(a + I ω)
+    // 形态：Exp[-a t]（a>0）→ 1/(a + I ω)
     let Term::Application { head, arguments: args } = expr
     else {
         return None;
@@ -541,7 +541,7 @@ fn match_coeff_times_var(term: &Term, var: &str) -> Option<Number> {
 
 fn roc_half_plane_bound(roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate.as_ref()?;
-    // Greater[Re[s], a]
+    // 形态：Greater[Re[s], a]
     match pred {
         Term::Application { head, arguments: args } if head.is_symbol("Greater") && args.len() == 2 => {
             number_from_term(&args[1]).cloned()
@@ -552,7 +552,7 @@ fn roc_half_plane_bound(roc: &RegionOfConvergence) -> Option<Number> {
 
 fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
     if let Some(c) = number_from_term(expr).cloned() {
-        // c · u[n] → c z/(z-1), |z|>1
+        // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let body = z_over_z_minus(z, &Number::small_int(1));
         let body = evaluate(&Term::apply("Times", vec![Term::number(c), body]));
         return Some((body, RegionOfConvergence::abs_z_greater(z, Number::small_int(1))));
@@ -583,7 +583,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                             roc.predicate.as_ref(),
                             Some(Term::Application { head, .. }) if head.is_symbol("Element")
                         ) {
-                            // entire plane — radius stays
+                            // 整平面收敛 — 半径保持不变
                         }
                         else if !roc.known {
                             return None;
@@ -613,7 +613,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
-                    // n * a^n → a z / (z-a)^2
+                    // Z 变换：n·aⁿ → a·z/(z-a)²
                     if let Some(a) = match_n_times_power(args, n) {
                         let radius = num_abs(a.clone());
                         let den = evaluate(&Term::apply(
@@ -632,7 +632,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                         ));
                         return Some((body, RegionOfConvergence::abs_z_greater(z, radius)));
                     }
-                    // UnitStep[n] * Power[a,n]
+                    // 形态：UnitStep[n] * Power[a,n]
                     if let Some(rest) = split_unit_step(args, n) {
                         return z_one(rest, n, z);
                     }
@@ -640,7 +640,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                 }
                 "Power" if args.len() == 2 && args[1].is_symbol(n) => {
                     let a = number_from_term(&args[0]).cloned()?;
-                    // a^n → z/(z-a), |z|>|a|
+                    // Z 变换：aⁿ → z/(z-a)，|z|>|a|
                     let radius = num_abs(a.clone());
                     Some((z_over_z_minus(z, &a), RegionOfConvergence::abs_z_greater(z, radius)))
                 }
@@ -699,7 +699,7 @@ fn match_power_base(term: &Term, n: &str) -> Option<Number> {
 
 fn roc_abs_radius(roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate.as_ref()?;
-    // Greater[Abs[z], r]
+    // 形态：Greater[Abs[z], r]
     match pred {
         Term::Application { head, arguments: args }
             if head.is_symbol("Greater")

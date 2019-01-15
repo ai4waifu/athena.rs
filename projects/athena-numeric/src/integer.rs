@@ -202,7 +202,7 @@ impl Integer {
         Ok((Self::from_mag_sign(q_mag, q_sign == Sign::Negative), Self::from_mag_sign(r_mag, r_sign == Sign::Negative)))
     }
 
-    /// 欧几里得整除：余数满足 `0 <= r < |rhs|`。
+    /// Euclidean 整除：余数满足 `0 <= r < |rhs|`。
     pub fn div_rem_euclid(&self, rhs: &Self) -> Result<(Self, Self)> {
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_euclid"));
@@ -228,17 +228,17 @@ impl Integer {
         Ok(self.div_rem_trunc(rhs)?.0)
     }
 
-    /// 向零整除余数（见 [`Self::div_rem_trunc`]）。语言级 truncating rem，**不是**欧几里得模。
+    /// 向零整除余数（见 [`Self::div_rem_trunc`]）。语言级 truncating rem，**不是** Euclidean 模。
     pub fn rem(&self, rhs: &Self) -> Result<Self> {
         Ok(self.div_rem_trunc(rhs)?.1)
     }
 
-    /// 欧几里得余数：`0 <= r < |rhs|`。
+    /// Euclidean 余数：`0 <= r < |rhs|`。
     pub fn rem_euclid(&self, rhs: &Self) -> Result<Self> {
         Ok(self.div_rem_euclid(rhs)?.1)
     }
 
-    /// 模幂：`self^exp mod modulus`（`modulus` 须为正；底数经欧几里得归约）。
+    /// 模幂：`self^exp mod modulus`（`modulus` 须为正；底数经 Euclidean 归约）。
     ///
     /// 负指数暂不支持（返回诊断，不静默返零）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Result<Self> {
@@ -442,7 +442,7 @@ impl Integer {
         Ok(lo)
     }
 
-    /// Binary wire sign code: `0` zero · `1` positive · `2` negative.
+    /// 二进制 wire 符号码：`0` 零 · `1` 正 · `2` 负。
     pub(crate) fn wire_sign_code(&self) -> u8 {
         match self.sign {
             Sign::Zero => 0,
@@ -451,12 +451,12 @@ impl Integer {
         }
     }
 
-    /// Unsigned magnitude bytes for binary wire.
+    /// 二进制 wire 的无符号幅度字节。
     pub(crate) fn wire_magnitude_bytes(&self) -> Vec<u8> {
         self.mag.wire_encode_magnitude()
     }
 
-    /// Decode binary wire integer from sign code + magnitude bytes.
+    /// 由符号码 + 幅度字节解码二进制 wire 整数。
     pub(crate) fn from_wire_magnitude(sign: u8, mag_bytes: &[u8]) -> Result<Self> {
         let mag = Natural::wire_decode_magnitude(mag_bytes).map_err(|_| {
             Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
@@ -466,7 +466,7 @@ impl Integer {
         Self::from_wire_parts(sign, mag)
     }
 
-    /// Decode from sign code + already-decoded magnitude.
+    /// 由符号码 + 已解码幅度解码。
     pub(crate) fn from_wire_parts(sign: u8, mag: Natural) -> Result<Self> {
         match sign {
             0 => Ok(Self::zero()),
@@ -526,7 +526,7 @@ impl From<u64> for Integer {
 
 impl FromStr for Integer {
     type Err = ();
-    /// Decode canonical decimal digits
+    /// 解码规范十进制数字
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let t = s.trim();
         if t.is_empty() {

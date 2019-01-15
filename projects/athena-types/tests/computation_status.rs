@@ -1,4 +1,4 @@
-//! SEM2 `ComputationStatus` 合同。
+//! `ComputationStatus` 合同。
 
 use athena_types::ComputationStatus;
 

@@ -61,7 +61,7 @@ struct FirstOrderRhs {
 
 /// 求解已解码方程项给出的一阶 ODE。
 ///
-/// Bootstrap 形态：
+/// 引导实现支持的形态：
 /// - `Equal[D[y, x], a]` → 特解 `y = a x`
 /// - `Equal[D[y, x], Times[a, y]]` → 特解 `y = Exp[a x]`
 /// - `Equal[Plus[D[y, x], Times[p, y]], q]`（数值 `p≠0`）→ 特解 `y = q/p`
@@ -150,13 +150,13 @@ pub fn solve_ode_checked(
 }
 
 fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0: &Term, y0: &Term) -> Term {
-    // y' = a (常数) → y = a x + C, C = y0 - a x0
+    // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = number_from_term(f).cloned() {
         let ax0 = evaluate(&Term::apply("Times", vec![Term::number(a.clone()), x0.clone()]));
         let c = evaluate(&Term::apply("Plus", vec![y0.clone(), Term::apply("Times", vec![Term::int(-1), ax0])]));
         return evaluate(&Term::apply("Plus", vec![Term::apply("Times", vec![Term::number(a), Term::symbol(independent)]), c]));
     }
-    // y' = a y → y = y0 Exp[a (x - x0)]
+    // 解：y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(f, dependent) {
         let delta = evaluate(&Term::apply(
             "Plus",
@@ -167,7 +167,7 @@ fn apply_ivp(dependent: &str, independent: &str, f: &Term, particular: &Term, x0
             vec![y0.clone(), Term::apply("Exp", vec![Term::apply("Times", vec![Term::number(a), delta])])],
         ));
     }
-    // y' = g(x)（无 y）→ y = ∫g + C, C = y0 - F(x0)
+    // 仅含自变量：y' = g(x) → y = ∫g + C，C = y0 − F(x0)
     if !contains_symbol(f, dependent) {
         let fx0 = evaluate(&replace_symbol(particular, independent, x0));
         let c = evaluate(&Term::apply("Plus", vec![y0.clone(), Term::apply("Times", vec![Term::int(-1), fx0])]));
@@ -205,11 +205,11 @@ fn try_power_of_y(f: &Term, dependent: &str, independent: &str) -> Option<Term> 
         return None;
     }
     if n == 2 {
-        // y = -1/(c x)
+        // 分离变量解：y = -1/(c·x)
         let den = evaluate(&Term::apply("Times", vec![Term::number(c), Term::symbol(independent)]));
         return Some(evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![den, Term::int(-1)])])));
     }
-    // y = ((1-n) c x)^{1/(1-n)} — 仅当指数为 ±1 时构造，便于求值验证
+    // 幂次分离：y = ((1−n)·c·x)^{1/(1−n)} — 仅当指数为 ±1 时构造，便于求值验证
     let one_minus_n = 1i64 - n;
     if one_minus_n == 0 {
         return None;
@@ -248,7 +248,7 @@ fn try_bernoulli_const(f: &Term, dependent: &str, independent: &str) -> Option<T
         return None;
     }
     if n == 2 {
-        // y = -a/b
+        // 平衡解：y = -a/b
         return Some(evaluate(&Term::apply(
             "Times",
             vec![Term::int(-1), Term::apply("Divide", vec![Term::number(a), Term::number(b)])],
@@ -257,7 +257,7 @@ fn try_bernoulli_const(f: &Term, dependent: &str, independent: &str) -> Option<T
     None
 }
 
-/// 可分离 `y' = g(x) y^n`（bootstrap：`n=2` ⇒ `y = -1/∫g`）。
+/// 可分离 `y' = g(x) y^n`（引导实现：`n=2` ⇒ `y = -1/∫g`）。
 fn try_separable_g_y_power(f: &Term, dependent: &str, independent: &str) -> Option<Term> {
     let (g, n) = match_g_times_y_power(f, dependent)?;
     if n != 2 {
@@ -307,7 +307,7 @@ fn match_scaled_power_of_y(f: &Term, dependent: &str) -> Option<(Number, i64)> {
 }
 
 fn match_bernoulli_const_rhs(f: &Term, dependent: &str) -> Option<(Number, Number, i64)> {
-    // Plus[Times[a,y], Times[b, Power[y,n]]] （两项，顺序任意）
+    // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
     let Term::Application { head, arguments: args } = f
     else {
         return None;
@@ -364,7 +364,7 @@ fn match_g_times_y_power(f: &Term, dependent: &str) -> Option<(Term, i64)> {
 }
 
 fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
-    // Equal[D[y,x], rhs]
+    // 形态：Equal[D[y,x], rhs]
     if let Term::Application { head, arguments: args } = equation {
         if head.is_symbol("Equal") && args.len() == 2 && is_d_of(&args[0], dependent, independent) {
             return Some(FirstOrderRhs { f: args[1].clone() });
@@ -372,7 +372,7 @@ fn recognize_y_prime_equals(equation: &Term, dependent: &str, independent: &str)
         if head.is_symbol("Equal") && args.len() == 2 && is_d_of(&args[1], dependent, independent) {
             return Some(FirstOrderRhs { f: args[0].clone() });
         }
-        // Equal[Plus[D[y,x], Times[p,y]], q]  ⇒  y' = q - p y
+        // 形态：Equal[Plus[D[y,x], Times[p,y]], q]  ⇒  y' = q - p y
         if head.is_symbol("Equal") && args.len() == 2 {
             if let Some(p) = match_d_plus_p_y(&args[0], dependent, independent) {
                 let q = number_from_term(&args[1]).cloned().unwrap_or_else(|| Number::small_int(0));
@@ -405,7 +405,7 @@ fn match_d_plus_p_y(term: &Term, dependent: &str, independent: &str) -> Option<N
 }
 
 fn match_as_linear_forced(f: &Term, dependent: &str) -> Option<(Number, Number)> {
-    // f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
+    // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
     match f {
         Term::Application { head, arguments: args } if head.is_symbol("Plus") && args.len() == 2 => {
             let (q_term, py_term) = if number_from_term(&args[0]).is_some() {

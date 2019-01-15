@@ -177,7 +177,7 @@ impl FieldTable {
         self.number_fields.get(&field)
     }
 
-    /// 注册绝对数域 `$\mathbb{Q}(\alpha)=\mathbb{Q}[x]/(m)$`。
+    /// 注册绝对数域 `ℚ(α)=ℚ[x]/(m)`。
     pub fn number_field_from_minimal_polynomial(&mut self, minimal_polynomial: Vec<Rational>) -> Result<FieldId> {
         let monic = make_monic(minimal_polynomial)?;
         let degree = validate_rational_modulus(&monic)?;
@@ -194,7 +194,7 @@ impl FieldTable {
         self.alloc_number_field(base, base, degree, degree, relative_modulus_from_rational(&monic, 1)?, monic, key)
     }
 
-    /// 相对扩张：在数域（或 `$\mathbb{Q}$`）上邻接有理系数首一不可约多项式的根。
+    /// 相对扩张：在数域（或 `ℚ`）上邻接有理系数首一不可约多项式的根。
     pub fn relative_number_field(&mut self, base: FieldId, relative_polynomial: Vec<Rational>) -> Result<FieldId> {
         let monic = make_monic(relative_polynomial)?;
         let relative_degree = validate_rational_modulus(&monic)?;
@@ -244,7 +244,7 @@ impl FieldTable {
         self.alloc_number_field(base, absolute_base, relative_degree, absolute_degree, relative_modulus, absolute_modulus, key)
     }
 
-    /// 元素在 `$\mathbb{Q}$` 上的首一极小多项式。
+    /// 元素在 `ℚ` 上的首一极小多项式。
     pub fn minimal_polynomial_over_rationals(&self, field: FieldId, coords: &[Rational]) -> Result<Vec<Rational>> {
         let spec = self.number_fields.get(&field).ok_or_else(|| unknown_field(field))?;
         let n = spec.absolute_degree as usize;

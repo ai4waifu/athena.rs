@@ -166,7 +166,7 @@ fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
-    // LaurentSeries[expr, {x, c, n}]
+    // 形态：LaurentSeries[expr, {x, c, n}]
     let [expr, spec] = args
     else {
         return None;
@@ -191,7 +191,7 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
-    // Asymptotic[expr, {x, Infinity, n}] 或 Asymptotic[expr, x, n]
+    // 形态：Asymptotic[expr, {x, Infinity, n}] 或 Asymptotic[expr, x, n]
     match args {
         [expr, spec] => {
             let Term::List(items) = spec
@@ -225,7 +225,7 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_residue(args: &[Term]) -> Option<CalculusRequest> {
-    // Residue[expr, {z, a}] 或 Residue[expr, z, a]
+    // 形态：Residue[expr, {z, a}] 或 Residue[expr, z, a]
     match args {
         [expr, spec] => {
             let Term::List(items) = spec
@@ -273,7 +273,7 @@ fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
-    // LaplaceTransform[expr, t, s]
+    // 形态：LaplaceTransform[expr, t, s]
     let [expression, time, transform] = args
     else {
         return None;
@@ -288,7 +288,7 @@ fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_fourier(args: &[Term]) -> Option<CalculusRequest> {
-    // FourierTransform[expr, t, ω]
+    // 形态：FourierTransform[expr, t, ω]
     let [expression, time, transform] = args
     else {
         return None;
@@ -303,7 +303,7 @@ fn lower_fourier(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_z(args: &[Term]) -> Option<CalculusRequest> {
-    // ZTransform[expr, n, z]
+    // 形态：ZTransform[expr, n, z]
     let [expression, time, transform] = args
     else {
         return None;
@@ -318,7 +318,7 @@ fn lower_z(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_divergence(args: &[Term]) -> Option<CalculusRequest> {
-    // Divergence[{F1,…}, {x1,…}]
+    // 形态：Divergence[{F1,…}, {x1,…}]
     let [comps, vars] = args
     else {
         return None;
@@ -340,7 +340,7 @@ fn lower_divergence(args: &[Term]) -> Option<CalculusRequest> {
 }
 
 fn lower_curl(args: &[Term]) -> Option<CalculusRequest> {
-    // Curl[{Fx,Fy,Fz}, {x,y,z}]
+    // 形态：Curl[{Fx,Fy,Fz}, {x,y,z}]
     let [comps, vars] = args
     else {
         return None;

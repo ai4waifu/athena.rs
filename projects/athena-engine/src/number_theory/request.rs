@@ -21,7 +21,7 @@ pub enum NumberTheoryRequest {
         /// 右操作数。
         b: Integer,
     },
-    /// 扩展欧几里得。
+    /// extended Euclidean。
     ExtendedGcd {
         /// `a`。
         a: Integer,

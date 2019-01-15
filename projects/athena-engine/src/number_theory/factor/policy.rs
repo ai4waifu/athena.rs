@@ -24,7 +24,7 @@ pub struct FactorAlgorithms {
     pub pollard_p1: bool,
     /// ECM（Montgomery stage 1）。
     pub ecm: bool,
-    /// QS bootstrap（Fermat 近距分解）。
+    /// QS 引导实现（Fermat 近距分解）。
     pub quadratic_sieve: bool,
 }
 

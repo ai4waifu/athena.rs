@@ -1,4 +1,4 @@
-//! CSR out-of-core neighbor streaming tests.
+//! CSR 超内存邻接流式读取测试。
 
 use athena_graph::CsrGraph;
 use athena_ndarray::{ArrayStorage, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities};

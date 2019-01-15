@@ -2,8 +2,10 @@
 
 use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, FieldPresentationId, GroupPresentationId, SubgroupId};
 
-use super::parent::AlgebraParentId;
-use super::property::{PropertyState, PropertyWitness};
+use super::{
+    parent::AlgebraParentId,
+    property::{PropertyState, PropertyWitness},
+};
 
 /// 映射验证种类（策略标签；结果见 [`MapVerification::status`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +84,8 @@ impl AlgebraMap {
     pub fn require_proven(&self) -> athena_types::Result<()> {
         if self.verification.is_proven() {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "algebra")
                 .detail("operation", "map_not_proven")

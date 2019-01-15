@@ -1,4 +1,4 @@
-//! Schema / LazyTable / chunked column contract tests.
+//! Schema / LazyTable / 分块列合同测试。
 
 use athena_ndarray::{ArrayStorage, MemoryBudget, StorageCapabilities};
 use athena_table::{Field, LogicalType, Schema, Table, TableExpr, column_from_store};

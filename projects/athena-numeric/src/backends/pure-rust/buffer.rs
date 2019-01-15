@@ -1,4 +1,4 @@
-//! Caller-owned limb buffers and scratch workspace for the pure-Rust kernel.
+//! 纯 Rust 内核的调用方自有 limb 缓冲与 scratch 工作区。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -6,31 +6,31 @@ use crate::execution_budget::ExecutionBudget;
 
 use super::limb_kernel::{effective_len, normalize_trim};
 
-/// Growable little-endian limb buffer (storage may include trailing zeros during work).
+/// 可增长小端 limb 缓冲（工作中存储可含尾随零）。
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LimbBuffer {
     limbs: Vec<u64>,
 }
 
-/// Scratch pool reused across kernel primitives.
+/// 跨内核原语复用的 scratch 池。
 #[derive(Debug, Default)]
 pub(crate) struct ScratchWorkspace {
     pool: Vec<LimbBuffer>,
 }
 
 impl LimbBuffer {
-    /// Empty buffer with canonical zero `[0]`.
+    /// 含规范零 `[0]` 的空缓冲。
     pub(crate) fn zero() -> Self {
         Self { limbs: vec![0] }
     }
 
-    /// Allocate capacity for at least `limbs` entries under budget.
+    /// 在预算下分配至少 `limbs` 项容量。
     pub(crate) fn with_capacity(limbs: usize, budget: &ExecutionBudget) -> Result<Self> {
         budget.check_limbs(limbs)?;
         Ok(Self { limbs: Vec::with_capacity(limbs) })
     }
 
-    /// Import canonical limbs under budget.
+    /// 在预算下导入规范 limb。
     pub(crate) fn from_canonical(v: &[u64], budget: &ExecutionBudget) -> Result<Self> {
         let el = effective_len(v);
         budget.check_limbs(el)?;
@@ -42,23 +42,23 @@ impl LimbBuffer {
         Ok(Self { limbs })
     }
 
-    /// Canonical little-endian slice (trimmed, at least one limb).
+    /// 规范小端切片（已修剪，至少一个 limb）。
     pub(crate) fn as_canonical(&self) -> &[u64] {
         let el = effective_len(&self.limbs);
         &self.limbs[..el]
     }
 
-    /// Logical canonical limb count.
+    /// 逻辑规范 limb 数。
     pub(crate) fn canonical_len(&self) -> usize {
         effective_len(&self.limbs)
     }
 
-    /// Raw storage length (may exceed canonical length during work).
+    /// 原始存储长度（工作中可超过规范长度）。
     pub(crate) fn storage_len(&self) -> usize {
         self.limbs.len()
     }
 
-    /// Ensure storage can hold `limbs` entries (not necessarily canonical).
+    /// 确保存储可容纳 `limbs` 项（不必已规范）。
     pub(crate) fn ensure_storage(&mut self, limbs: usize, budget: &ExecutionBudget) -> Result<()> {
         budget.check_limbs(limbs)?;
         if self.limbs.len() < limbs {
@@ -67,7 +67,7 @@ impl LimbBuffer {
         Ok(())
     }
 
-    /// Replace contents with canonical limbs.
+    /// 用规范 limb 替换内容。
     pub(crate) fn set_canonical(&mut self, v: Vec<u64>, budget: &ExecutionBudget) -> Result<()> {
         let trimmed = normalize_trim(v);
         budget.check_limbs(trimmed.len())?;
@@ -75,25 +75,25 @@ impl LimbBuffer {
         Ok(())
     }
 
-    /// Canonical limb vector (trimmed).
+    /// 规范 limb 向量（已修剪）。
     pub(crate) fn into_canonical_vec(self) -> Vec<u64> {
         normalize_trim(self.limbs)
     }
 
-    /// Mutable storage slice for kernel writes (`len` entries).
+    /// 供内核写入的可变存储切片（`len` 项）。
     pub(crate) fn storage_mut(&mut self, len: usize, budget: &ExecutionBudget) -> Result<&mut [u64]> {
         self.ensure_storage(len, budget)?;
         Ok(&mut self.limbs[..len])
     }
 
-    /// Trim trailing zeros in place to canonical form.
+    /// 就地修剪尾随零至规范形。
     pub(crate) fn trim_canonical(&mut self) {
         self.limbs = normalize_trim(self.limbs.clone());
     }
 }
 
 impl ScratchWorkspace {
-    /// Borrow a scratch buffer with at least `capacity` limbs.
+    /// 借用至少 `capacity` 个 limb 的 scratch 缓冲。
     pub(crate) fn buffer(&mut self, capacity: usize, budget: &ExecutionBudget) -> Result<&mut LimbBuffer> {
         budget.check_limbs(capacity)?;
         if self.pool.is_empty() {
@@ -104,7 +104,7 @@ impl ScratchWorkspace {
         Ok(buf)
     }
 
-    /// Clear scratch buffers between top-level operations.
+    /// 在顶层运算之间清空 scratch 缓冲。
     pub(crate) fn clear(&mut self) {
         for b in &mut self.pool {
             b.limbs.clear();

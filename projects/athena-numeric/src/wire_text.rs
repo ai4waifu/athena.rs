@@ -1,11 +1,11 @@
-//! Explicit decimal text wire (host / debug only — not the canonical binary schema).
+//! 显式十进制文本 wire（仅宿主 / 调试 — 非规范二进制 schema）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind};
 
 use crate::{integer::Integer, number::NumericValue, rational::Rational, serialization::NumericValueWire};
 
 impl NumericValueWire {
-    /// Encode to human-readable decimal text (explicit text format, not canonical wire).
+    /// 编码为可读十进制文本（显式文本格式，非规范 wire）。
     pub fn encode_text(value: &NumericValue) -> Result<String, Diagnostic> {
         match value {
             NumericValue::Integer(n) => Ok(n.to_decimal_string()),
@@ -16,7 +16,7 @@ impl NumericValueWire {
         }
     }
 
-    /// Decode decimal text into a wire record (text payload, exact precision).
+    /// 将十进制文本解码为 wire 记录（文本载荷、精确精度）。
     pub fn decode_text(kind: NumericKind, text: &str) -> Result<NumericValueWire, Diagnostic> {
         if text.len() as u32 > crate::backends::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
@@ -49,7 +49,7 @@ fn text_err(op: &str) -> Diagnostic {
 use std::str::FromStr;
 
 impl Rational {
-    /// Decode decimal text `numer` or `numer/denom` (text format only).
+    /// 解码十进制文本 `numer` 或 `numer/denom`（仅文本格式）。
     pub(crate) fn decode_wire_text(s: &str) -> Result<Self, Diagnostic> {
         if let Some((n, d)) = s.split_once('/') {
             let numer = Integer::from_str(n).map_err(|_| text_err("rational_numer"))?;

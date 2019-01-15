@@ -1,7 +1,6 @@
-//! Limb arithmetic coverage via public `Natural` / budget APIs.
+//! 经公开 `Natural` / 预算 API 覆盖 limb 算术。
 //!
-//! Direct `limb_kernel` unit tests lived under `src/` and are rewritten here so the
-//! kernel module stays crate-private.
+//! 直接的 `limb_kernel` 单元测试曾在 `src/`，现改写于此，使内核模块保持 crate 私有。
 
 use athena_numeric::{ExecutionBudget, NumericBackendLimits, natural::Natural};
 use std::str::FromStr;

@@ -380,7 +380,7 @@ impl Diagnostic {
 
 impl fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Debug/log only: wire code. Localized prose belongs in the product catalog.
+        // 仅供调试/日志：输出 wire code。本地化文案属于产品目录。
         write!(f, "{}", self.code.as_str())?;
         if !self.args.is_empty() {
             write!(f, " args={{")?;

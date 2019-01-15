@@ -100,7 +100,7 @@ pub enum GraphProvenance {
     FromEdgeList,
 }
 
-/// 内存图载体（L1 bootstrap）。
+/// 内存图载体（引导实现）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryGraph {
     /// 语义。

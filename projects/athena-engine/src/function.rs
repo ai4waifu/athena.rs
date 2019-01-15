@@ -1,4 +1,4 @@
-//! 特殊函数定义表 — domain / 导数 / 分支策略（bootstrap）。
+//! 特殊函数定义表 — domain / 导数 / 分支策略（引导实现）。
 //!
 //! 微积分算法经本表查询一元函数的形式导数，而不是在 `differentiate` 里无限堆 `match` 臂。
 //! 第一阶段覆盖：初等三角/双曲/反三角、`Exp`/`Log`/`Sqrt`/`Abs`/`Sign`、`Gamma`、`Erf`。
@@ -26,7 +26,7 @@ pub type UnaryDerivative = fn(arg: &Term) -> Term;
 pub struct FunctionDefinition {
     /// 头部符号名（如 `Sin`、`Gamma`）。
     pub name: &'static str,
-    /// 元数（bootstrap 仅 1）。
+    /// 元数（引导实现仅 1）。
     pub arity: usize,
     /// 分支策略。
     pub branch: BranchPolicy,
@@ -96,7 +96,7 @@ fn deriv_tanh(arg: &Term) -> Term {
 }
 
 fn deriv_arcsin(arg: &Term) -> Term {
-    // 1/Sqrt[1-u^2]
+    // 形式：1/Sqrt[1-u^2]
     Term::apply(
         "Power",
         vec![
@@ -120,7 +120,7 @@ fn deriv_arccos(arg: &Term) -> Term {
 }
 
 fn deriv_arctan(arg: &Term) -> Term {
-    // 1/(1+u^2)
+    // 形式：1/(1+u^2)
     Term::apply(
         "Power",
         vec![Term::apply("Plus", vec![Term::int(1), Term::apply("Power", vec![arg.clone(), Term::int(2)])]), Term::int(-1)],
@@ -128,12 +128,12 @@ fn deriv_arctan(arg: &Term) -> Term {
 }
 
 fn deriv_sqrt(arg: &Term) -> Term {
-    // 1/(2 Sqrt[u])
+    // 形式：1/(2 Sqrt[u])
     Term::apply("Power", vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![arg.clone()])]), Term::int(-1)])
 }
 
 fn deriv_abs(arg: &Term) -> Term {
-    // Abs[u]/u  （条件在 differentiate_checked）
+    // 绝对值分支：Abs[u]/u（条件在 differentiate_checked）
     Term::apply("Times", vec![Term::apply("Abs", vec![arg.clone()]), Term::apply("Power", vec![arg.clone(), Term::int(-1)])])
 }
 
@@ -143,7 +143,7 @@ fn deriv_sign(_arg: &Term) -> Term {
 }
 
 fn deriv_gamma(arg: &Term) -> Term {
-    // Γ'(z) = Γ(z) PolyGamma[0, z]
+    // 形式：Γ'(z) = Γ(z) PolyGamma[0, z]
     Term::apply(
         "Times",
         vec![Term::apply("Gamma", vec![arg.clone()]), Term::apply("PolyGamma", vec![Term::int(0), arg.clone()])],
@@ -151,7 +151,7 @@ fn deriv_gamma(arg: &Term) -> Term {
 }
 
 fn deriv_erf(arg: &Term) -> Term {
-    // (2/Sqrt[Pi]) Exp[-u^2]
+    // 形式：(2/Sqrt[Pi]) Exp[-u^2]
     Term::apply(
         "Times",
         vec![

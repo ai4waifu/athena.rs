@@ -5,7 +5,7 @@ use super::object::{GraphNodeId, GraphObject};
 /// 图论域请求（禁止字符串算法名）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum GraphTheoryRequest {
-    /// 弱连通分量（有向图按无向解释，同 `athena-graph` L0）。
+    /// 弱连通分量（有向图按无向解释，同 `athena-graph` 基础算法）。
     ConnectedComponents {
         /// 输入图。
         graph: GraphObject,

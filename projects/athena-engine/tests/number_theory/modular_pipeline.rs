@@ -1,4 +1,4 @@
-//! Montgomery/Barrett kernel, ModulusId path, batch inverse, factor pipeline.
+//! Montgomery/Barrett 内核、`ModulusId` 路径、批量逆元、分解流水线。
 
 use athena_engine::{
     FactorAlgorithms, FactorLimits, FactorizationCompleteness, Integer, Modulus, ModulusTable, NumberTheoryRequest,

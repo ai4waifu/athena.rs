@@ -1,4 +1,4 @@
-//! In-memory storage helper tests.
+//! 内存存储辅助测试。
 
 use athena_ndarray::{MemoryBudget, array1d};
 

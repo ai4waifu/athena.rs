@@ -1,11 +1,11 @@
 //! `MatrixParent` — 元素域、shape 策略、精度与稀疏合同（禁止仅用 dtype）。
 
-/// 矩阵元素所属代数 parent（L0/L1 子集）。
+/// 矩阵元素所属代数 parent（当前精确/机器子集）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ElementParentKind {
-    /// 精确整数环 `$\mathbb{Z}$`。
+    /// 精确整数环 `ℤ`。
     Integers,
-    /// 精确有理域 `$\mathbb{Q}$`。
+    /// 精确有理域 `ℚ`。
     Rationals,
     /// 机器实数（IEEE binary64）。
     MachineReal,
@@ -41,7 +41,7 @@ pub enum RoundingPolicy {
     IeeeBinary64,
 }
 
-/// 稀疏存储策略（L0 仅 Dense；CSR/CSC 在 L2）。
+/// 稀疏存储策略（当前仅 Dense；CSR/CSC 后续）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SparseStrategy {
     /// 稠密缓冲。

@@ -32,7 +32,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
     let b_red = b.div(&g).expect("div");
     let m_red = m.div(&g).expect("div");
     let eg2 = extended_gcd(&a_red, &m_red);
-    // eg2.s * a_red ≡ 1 (mod m_red) 当 gcd=1。
+    // Bézout：eg2.s · a_red ≡ 1 (mod m_red)，当 gcd = 1。
     if !eg2.g.is_one() {
         return NumberTheoryResult::Unevaluated {
             reason: Diagnostic::new(DiagnosticCode::CongruenceInconsistent)

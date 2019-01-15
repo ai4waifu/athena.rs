@@ -1,4 +1,4 @@
-//! Randomized differential tests using in-crate reference algorithms (no `num-*` oracle).
+//! 使用 crate 内参考算法的随机差分测试（无 `num-*` oracle）。
 
 use athena_numeric::{Integer, natural::Natural};
 use std::str::FromStr;

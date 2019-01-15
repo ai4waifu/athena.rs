@@ -52,7 +52,7 @@ impl MatrixShape {
         Ok(Self::new(self.rows, rhs.cols))
     }
 
-    /// 逐元素乘 / 广播诊断：当前 L0 要求同 shape（不做隐式广播扩张）。
+    /// 逐元素乘 / 广播诊断：当前要求同 shape（不做隐式广播扩张）。
     pub fn hadamard(self, rhs: Self) -> Result<Self, Diagnostic> {
         if self != rhs {
             return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)

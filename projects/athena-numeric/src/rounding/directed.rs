@@ -1,11 +1,10 @@
-//! Directed IEEE binary64 rounding for interval enclosures.
+//! 区间包络用的定向 IEEE binary64 舍入。
 //!
-//! Outward rounding uses error-free reversal checks (Boost.Interval style), not
-//! re-rounded reverse operations.
+//! 外向舍入用无误差反向检查（Boost.Interval 风格），而非再舍入的反向运算。
 
 use std::cmp::Ordering;
 
-/// `a + b` rounded toward −∞.
+/// `a + b` 朝 −∞ 舍入。
 pub fn f64_add_down(a: f64, b: f64) -> f64 {
     let mut r = a + b;
     if !r.is_finite() {
@@ -17,7 +16,7 @@ pub fn f64_add_down(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a + b` rounded toward +∞.
+/// `a + b` 朝 +∞ 舍入。
 pub fn f64_add_up(a: f64, b: f64) -> f64 {
     let mut r = a + b;
     if !r.is_finite() {
@@ -29,7 +28,7 @@ pub fn f64_add_up(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a - b` rounded toward −∞.
+/// `a - b` 朝 −∞ 舍入。
 pub fn f64_sub_down(a: f64, b: f64) -> f64 {
     let mut r = a - b;
     if !r.is_finite() {
@@ -41,7 +40,7 @@ pub fn f64_sub_down(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a - b` rounded toward +∞.
+/// `a - b` 朝 +∞ 舍入。
 pub fn f64_sub_up(a: f64, b: f64) -> f64 {
     let mut r = a - b;
     if !r.is_finite() {
@@ -53,7 +52,7 @@ pub fn f64_sub_up(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a * b` rounded toward −∞.
+/// `a * b` 朝 −∞ 舍入。
 pub fn f64_mul_down(a: f64, b: f64) -> f64 {
     let mut r = a * b;
     if !r.is_finite() || r == 0.0 {
@@ -65,7 +64,7 @@ pub fn f64_mul_down(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a * b` rounded toward +∞.
+/// `a * b` 朝 +∞ 舍入。
 pub fn f64_mul_up(a: f64, b: f64) -> f64 {
     let mut r = a * b;
     if !r.is_finite() || r == 0.0 {
@@ -77,7 +76,7 @@ pub fn f64_mul_up(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a / b` rounded toward −∞.
+/// `a / b` 朝 −∞ 舍入。
 pub fn f64_div_down(a: f64, b: f64) -> f64 {
     let mut r = a / b;
     if !r.is_finite() {
@@ -89,7 +88,7 @@ pub fn f64_div_down(a: f64, b: f64) -> f64 {
     r
 }
 
-/// `a / b` rounded toward +∞.
+/// `a / b` 朝 +∞ 舍入。
 pub fn f64_div_up(a: f64, b: f64) -> f64 {
     let mut r = a / b;
     if !r.is_finite() {

@@ -1,4 +1,4 @@
-//! GT1c：派生 CSC 相对源 CSR revision 失效。
+//! 派生 CSC 相对源 CSR revision 失效。
 
 use athena_graph::{DerivedCsc, Graph, GraphDirection, GraphError, graph_to_csr};
 use athena_ndarray::MemoryBudget;

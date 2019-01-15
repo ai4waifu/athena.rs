@@ -1,4 +1,4 @@
-//! Session and environment.
+//! Session 与求值环境。
 
 use crate::{
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
@@ -8,20 +8,20 @@ use crate::{
     semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable},
 };
 
-/// Mutable evaluation session (bindings, options, ring registry, M-Graph, SEM tables).
+/// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表）。
 #[derive(Debug, Default)]
 pub struct Session {
     /// 多项式环 intern 表。
     pub rings: RingTable,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
-    /// SEM0：表达式身份 ↔ 存储 `TermId`。
+    /// 表达式身份 ↔ 存储 `TermId`。
     pub exprs: ExprBindingTable,
-    /// SEM0：值对象身份。
+    /// 值对象身份。
     pub values: ValueIdTable,
-    /// SEM0：结果容器身份。
+    /// 结果容器身份。
     pub results: ResultIdTable,
-    /// SEM1：假设作用域 intern。
+    /// 假设作用域 intern。
     pub assumption_scopes: AssumptionScopeTable,
 }
 

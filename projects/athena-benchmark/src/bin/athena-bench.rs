@@ -10,21 +10,21 @@ use athena_benchmark::{
 use clap::Parser;
 
 #[derive(Debug, Parser)]
-#[command(name = "athena-bench", about = "Athena kernel benchmarks (deterministic fixtures)")]
+#[command(name = "athena-bench", about = "Athena 内核基准（确定性 fixture）")]
 struct Args {
-    /// Comma-separated groups: numeric,bigint,ir,rewriter,engine,domains,jit (default: all)
+    /// 逗号分隔分组：numeric,bigint,ir,rewriter,engine,domains,jit（默认全部）
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
 
-    /// Warmup iterations per fixture
+    /// 每个 fixture 的预热次数
     #[arg(long, default_value_t = 3)]
     warmup: usize,
 
-    /// Timed samples per fixture
+    /// 每个 fixture 的计时采样次数
     #[arg(long, default_value_t = 25)]
     samples: usize,
 
-    /// Emit machine-readable JSON report
+    /// 输出机器可读 JSON 报告
     #[arg(long)]
     json: bool,
 }

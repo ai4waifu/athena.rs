@@ -257,7 +257,7 @@ impl Natural {
         }
     }
 
-    /// 非负最大公约数（binary GCD via limb kernel）。
+    /// 非负最大公约数（经 limb 内核的 binary GCD）。
     pub fn gcd(&self, other: &Self) -> Self {
         if self.is_zero() && other.is_zero() {
             return Self::zero();
@@ -265,12 +265,12 @@ impl Natural {
         Self::from_limbs(limb_kernel::gcd(self.limbs.clone(), other.limbs.clone()))
     }
 
-    /// Borrow little-endian limbs.
+    /// 借用小端 limb。
     pub fn as_limbs(&self) -> &[u64] {
         &self.limbs
     }
 
-    /// Construct from little-endian limbs (canonicalized).
+    /// 由小端 limb 构造（已规范化）。
     pub fn from_limbs(limbs: Vec<u64>) -> Self {
         let limbs = limb_kernel::normalize_trim(limbs);
         let n = Self { limbs };
@@ -278,7 +278,7 @@ impl Natural {
         n
     }
 
-    /// Binary wire magnitude: `u32` little-endian limb count + `u64` little-endian limbs.
+    /// 二进制 wire 幅度：`u32` 小端 limb 计数 + `u64` 小端 limb。
     pub(crate) fn wire_encode_magnitude(&self) -> Vec<u8> {
         let el = limb_kernel::effective_len(&self.limbs);
         let mut out = Vec::with_capacity(4 + el * 8);
@@ -289,7 +289,7 @@ impl Natural {
         out
     }
 
-    /// Decode [`Self::wire_encode_magnitude`] bytes under an execution budget.
+    /// 在执行预算下解码 [`Self::wire_encode_magnitude`] 字节。
     pub(crate) fn wire_decode_magnitude_budgeted(
         bytes: &[u8],
         budget: &crate::execution_budget::ExecutionBudget,
@@ -315,12 +315,12 @@ impl Natural {
         Ok(Self::from_limbs(limbs))
     }
 
-    /// Decode [`Self::wire_encode_magnitude`] bytes.
+    /// 解码 [`Self::wire_encode_magnitude`] 字节。
     pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self, ()> {
         Self::wire_decode_magnitude_budgeted(bytes, &crate::execution_budget::ExecutionBudget::unlimited())
     }
 
-    /// Split the first magnitude chunk from a concatenated rational payload.
+    /// 从拼接的有理载荷中拆出首个幅度块。
     pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> Result<(Self, &[u8]), ()> {
         if bytes.len() < 4 {
             return Err(());

@@ -11,21 +11,21 @@ use super::{
 /// 方言表面算子（仅 lowering；不进入算法语义）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DialectMatrixOp {
-    /// Mathematica `Dot` / MATLAB `*`（`mtimes`）。
+    /// 方言：Mathematica `Dot` / MATLAB `*`（`mtimes`）。
     MatMul,
-    /// Mathematica 逐元素 `Times` on matrices / MATLAB `.*`。
+    /// 方言：Mathematica 矩阵逐元素 `Times` / MATLAB `.*`。
     Hadamard,
-    /// Mathematica / MATLAB `Transpose`。
+    /// 方言：Mathematica / MATLAB `Transpose`。
     Transpose,
     /// Mathematica `Part` / MATLAB `()` 标量取元。
     IndexScalar,
-    /// Mathematica `LinearSolve` / MATLAB `\` / `mldivide`。
+    /// 方言：Mathematica `LinearSolve` / MATLAB `\` / `mldivide`。
     LinearSolve,
-    /// Mathematica `Det` / MATLAB `det`。
+    /// 方言：Mathematica `Det` / MATLAB `det`。
     Det,
-    /// Mathematica `MatrixRank` / MATLAB `rank`。
+    /// 方言：Mathematica `MatrixRank` / MATLAB `rank`。
     Rank,
-    /// Mathematica `RowReduce`。
+    /// 方言：Mathematica `RowReduce`。
     Rref,
 }
 

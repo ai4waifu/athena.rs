@@ -1,4 +1,4 @@
-//! F0 多项式环身份：RingId · RingDescriptor · MonomialOrder。
+//! 多项式环身份：`RingId` · `RingDescriptor` · `MonomialOrder`。
 
 use athena_engine::{CoefficientDomain, CoefficientParent, MonomialOrder, RingTable, SymbolId};
 

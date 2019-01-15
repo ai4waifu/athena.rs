@@ -1,10 +1,10 @@
-//! Exact dyadic rationals: `sign × significand × 2^exponent` with odd significand normalization.
+//! 精确二元有理：`sign × significand × 2^exponent`，非零时尾数规范为奇数。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{integer::Sign, natural::Natural};
 
-/// Exact binary rational: `sign · significand · 2^exponent` (odd significand when non-zero).
+/// 精确二进制有理：`sign · significand · 2^exponent`（非零时尾数为奇）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dyadic {
     sign: Sign,
@@ -13,12 +13,12 @@ pub struct Dyadic {
 }
 
 impl Dyadic {
-    /// Canonical zero (`+0`).
+    /// 规范零（`+0`）。
     pub fn zero() -> Self {
         Self { sign: Sign::Zero, significand: Natural::zero(), exponent: 0 }
     }
 
-    /// Construct and normalize; rejects invalid shapes after normalization.
+    /// 构造并规范化；规范化后拒绝非法形状。
     pub fn try_new(sign: Sign, significand: Natural, exponent: i64) -> Result<Self> {
         let mut v = Self { sign, significand, exponent };
         v.normalize();
@@ -26,7 +26,7 @@ impl Dyadic {
         Ok(v)
     }
 
-    /// Import a finite IEEE binary64 value as an exact dyadic.
+    /// 将有限 IEEE binary64 导入为精确二元有理。
     pub fn from_f64(x: f64) -> Result<Self> {
         if x.is_nan() || x.is_infinite() {
             return Err(invalid("non_finite_f64"));
@@ -61,37 +61,37 @@ impl Dyadic {
         Ok(v)
     }
 
-    /// Sign.
+    /// 符号。
     pub fn sign(&self) -> Sign {
         self.sign
     }
 
-    /// Unsigned significand magnitude.
+    /// 无符号尾数幅度。
     pub fn significand(&self) -> &Natural {
         &self.significand
     }
 
-    /// Binary exponent.
+    /// 二进制指数。
     pub fn exponent(&self) -> i64 {
         self.exponent
     }
 
-    /// Whether exactly zero.
+    /// 是否恰为零。
     pub fn is_zero(&self) -> bool {
         self.significand.is_zero()
     }
 
-    /// Whether exactly one (`+1`).
+    /// 是否恰为 `+1`。
     pub fn is_one(&self) -> bool {
         self.sign == Sign::Positive && self.significand.is_one() && self.exponent == 0
     }
 
-    /// Significand bit width (zero → 0).
+    /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
         self.significand.bits()
     }
 
-    /// Strip trailing binary zeros and canonicalize zero sign.
+    /// 去掉末尾二进制零并规范零的符号。
     pub fn normalize(&mut self) {
         if self.significand.is_zero() {
             if self.sign == Sign::Negative {
@@ -111,7 +111,7 @@ impl Dyadic {
         }
     }
 
-    /// Check canonical invariants.
+    /// 校验规范不变量。
     pub fn validate(&self) -> Result<()> {
         if self.significand.is_zero() {
             if self.exponent != 0 {
@@ -131,12 +131,12 @@ impl Dyadic {
         Ok(())
     }
 
-    /// Export to `f64` when exactly representable (no rounding).
+    /// 可精确表示时导出为 `f64`（不舍入）。
     pub fn to_f64_exact(&self) -> Option<f64> {
         ieee::encode_finite(self.sign, &self.significand, self.exponent)
     }
 
-    /// Round to nearest IEEE binary64 (ties to even).
+    /// 舍入到最近 IEEE binary64（平局取偶）。
     pub fn to_f64_round_nearest_even(&self) -> Option<f64> {
         ieee::round_to_binary64(self.sign, &self.significand, self.exponent)
     }
