@@ -1,6 +1,6 @@
 //! 复数（骨架；不依赖 `num-complex`）。
 
-use crate::real::Real;
+use crate::value::real::Real;
 
 /// 分支策略（与特殊函数 registry 对齐，骨架枚举）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

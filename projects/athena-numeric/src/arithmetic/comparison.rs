@@ -73,7 +73,7 @@ impl DefaultNumericCompare {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
             }
             (NumericValue::Real(a), NumericValue::Real(b)) => {
-                use crate::real::Real;
+                use crate::value::real::Real;
                 match (a, b) {
                     (Real::Machine(x), Real::Machine(y)) if _policy.allow_approximate && x.is_finite() && y.is_finite() => {
                         let tol = 1e-12 * (1.0 + x.abs() + y.abs());

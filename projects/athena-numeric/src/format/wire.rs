@@ -38,14 +38,14 @@ pub fn to_wire(n: &NumericValue) -> WireNumber {
                 })
             }
         }
-        NumericValue::Real(crate::real::Real::Machine(x)) => WireNumber::machine(*x),
+        NumericValue::Real(crate::value::real::Real::Machine(x)) => WireNumber::machine(*x),
         _ => WireNumber::Exact(ExactNumber::Integer(n.to_render_string())),
     }
 }
 
 fn decode_wire_integer(s: &str) -> Result<Integer> {
     let payload_len = s.len() as u32;
-    if payload_len > crate::backends::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+    if payload_len > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
         return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
             .detail("domain", "numeric")
             .detail("operation", "wire_payload_limit"));

@@ -2,20 +2,21 @@
 //!
 //! 目录布局：
 //! ```text
-//! backends/
+//! backend/
 //!   mod.rs           — trait、能力标志、资源上限
-//!   pure-rust/       — 默认 WASM 安全内核（limb 算术 + `Natural`）
+//!   pure_rust/       — 默认 WASM 安全内核（limb 算术 + limb kernel）
 //! ```
 //!
 //! 未来可选 backend（如 `native-accelerated/`）作为同级目录存在；
 //! Rust 模块名用下划线（`pure_rust`），因为标识符不能含 `-`。
 
-#[path = "pure-rust/mod.rs"]
+#[path = "pure_rust/mod.rs"]
 pub mod pure_rust;
 
 pub use pure_rust::PureRustBackend;
 
-use crate::{domain::NumericDomain, precision::PrecisionKind};
+
+use crate::{representation::domain::NumericDomain, representation::precision::PrecisionKind};
 
 /// 分派与宿主上报用的能力标志。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

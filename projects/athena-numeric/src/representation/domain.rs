@@ -11,7 +11,7 @@ pub enum NumericDomain {
     Integer,
     /// ℚ。
     Rational,
-    /// ℝ（机器或任意精度由 [`crate::precision::PrecisionInfo`] 区分）。
+    /// ℝ（机器或任意精度由 [`crate::representation::precision::PrecisionInfo`] 区分）。
     Real,
     /// ℂ。
     Complex,

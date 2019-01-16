@@ -88,7 +88,7 @@ impl ModulusContext {
     /// 由 [`Modulus`] 构造（未 intern 时 `id` 占位为 `ModulusId(0)`，由 [`ModulusTable`] 覆写）。
     pub fn from_modulus(modulus: Modulus) -> Self {
         let bit_length = modulus.value().bits();
-        let is_odd = !modulus.value().rem(&crate::integer::Integer::from_i64(2)).expect("two").is_zero();
+        let is_odd = !modulus.value().rem(&crate::value::integer::Integer::from_i64(2)).expect("two").is_zero();
         let montgomery = if is_odd { montgomery_for_modulus(&modulus) } else { None };
         let barrett = Some(barrett_for_modulus(&modulus));
         Self { id: ModulusId(0), modulus, bit_length, is_odd, montgomery, barrett, timing: ModularTimingPolicy::VariableTime }

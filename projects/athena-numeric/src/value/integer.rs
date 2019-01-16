@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 use std::str::FromStr;
 
-use crate::natural::Natural;
+use crate::{execution_budget::NumericContext, natural::Natural};
 
 /// 符号（精确）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -144,78 +144,108 @@ impl Integer {
         }
     }
 
-    /// 非负最大公约数；`gcd(0,0) = 0`。
+    /// 非负最大公约数；`gcd(0,0) = 0`（默认上下文）。
     pub fn gcd(&self, other: &Self) -> Self {
+        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 非负最大公约数（服从 `ctx` 预算）。
+    pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
         let a = self.abs().mag;
         let b = other.abs().mag;
         if a.is_zero() && b.is_zero() {
-            return Self::zero();
+            return Ok(Self::zero());
         }
-        let g = Natural::gcd(&a, &b);
-        Self { sign: Sign::Positive, mag: g }
+        let g = Natural::try_gcd(&a, &b, ctx)?;
+        Ok(Self { sign: Sign::Positive, mag: g })
     }
 
-    /// 加法。
+    /// 加法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        match (self.sign, rhs.sign) {
+        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 加法（服从 `ctx` 预算）。
+    pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        Ok(match (self.sign, rhs.sign) {
             (Sign::Zero, _) => rhs.clone(),
             (_, Sign::Zero) => self.clone(),
-            (Sign::Positive, Sign::Positive) => Self { sign: Sign::Positive, mag: self.mag.add(&rhs.mag) },
-            (Sign::Negative, Sign::Negative) => Self { sign: Sign::Negative, mag: self.mag.add(&rhs.mag) },
+            (Sign::Positive, Sign::Positive) => Self { sign: Sign::Positive, mag: self.mag.try_add(&rhs.mag, ctx)? },
+            (Sign::Negative, Sign::Negative) => Self { sign: Sign::Negative, mag: self.mag.try_add(&rhs.mag, ctx)? },
             (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                 let sa = &self.mag;
                 let sb = &rhs.mag;
                 if sa >= sb {
-                    let mag = sa.sub(sb);
+                    let mag = sa.try_sub(sb, ctx)?;
                     Self::from_mag_sign(mag, self.sign == Sign::Negative)
                 }
                 else {
-                    let mag = sb.sub(sa);
+                    let mag = sb.try_sub(sa, ctx)?;
                     Self::from_mag_sign(mag, rhs.sign == Sign::Negative)
                 }
             }
-        }
+        })
     }
 
-    /// 减法。
+    /// 减法（默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
         self.add(&rhs.neg())
     }
 
-    /// 乘法。
-    pub fn mul(&self, rhs: &Self) -> Self {
-        if self.is_zero() || rhs.is_zero() {
-            return Self::zero();
-        }
-        let sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
-        Self { sign, mag: self.mag.mul(&rhs.mag) }
+    /// 减法（服从 `ctx` 预算）。
+    pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        self.try_add(&rhs.neg(), ctx)
     }
 
-    /// 向零整除：商向零，余数与被除数同号。
+    /// 乘法（默认上下文）。
+    pub fn mul(&self, rhs: &Self) -> Self {
+        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 乘法（服从 `ctx` 预算）。
+    pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        if self.is_zero() || rhs.is_zero() {
+            return Ok(Self::zero());
+        }
+        let sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
+        Ok(Self { sign, mag: self.mag.try_mul(&rhs.mag, ctx)? })
+    }
+
+    /// 向零整除：商向零，余数与被除数同号（默认上下文）。
     pub fn div_rem_trunc(&self, rhs: &Self) -> Result<(Self, Self)> {
+        self.try_div_rem_trunc(rhs, &NumericContext::pure_rust_default())
+    }
+
+    /// 向零整除（服从 `ctx` 预算）。
+    pub fn try_div_rem_trunc(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_trunc"));
         }
-        let (q_mag, r_mag) = self.mag.div_rem(&rhs.mag);
+        let (q_mag, r_mag) = self.mag.try_div_rem(&rhs.mag, ctx)?;
         let q_sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
         let r_sign = self.sign;
         Ok((Self::from_mag_sign(q_mag, q_sign == Sign::Negative), Self::from_mag_sign(r_mag, r_sign == Sign::Negative)))
     }
 
-    /// Euclidean 整除：余数满足 `0 <= r < |rhs|`。
+    /// Euclidean 整除：余数满足 `0 <= r < |rhs|`（默认上下文）。
     pub fn div_rem_euclid(&self, rhs: &Self) -> Result<(Self, Self)> {
+        self.try_div_rem_euclid(rhs, &NumericContext::pure_rust_default())
+    }
+
+    /// Euclidean 整除（服从 `ctx` 预算）。
+    pub fn try_div_rem_euclid(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_euclid"));
         }
-        let (mut q, mut r) = self.div_rem_trunc(rhs)?;
+        let (mut q, mut r) = self.try_div_rem_trunc(rhs, ctx)?;
         if r.is_negative() {
             if rhs.is_positive() {
-                r = r.add(rhs);
-                q = q.sub(&Self::one());
+                r = r.try_add(rhs, ctx)?;
+                q = q.try_sub(&Self::one(), ctx)?;
             }
             else {
-                r = r.sub(rhs);
-                q = q.add(&Self::one());
+                r = r.try_sub(rhs, ctx)?;
+                q = q.try_add(&Self::one(), ctx)?;
             }
         }
         debug_assert!(!r.is_negative());
@@ -242,6 +272,11 @@ impl Integer {
     ///
     /// 负指数暂不支持（返回诊断，不静默返零）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Result<Self> {
+        self.try_mod_pow(exp, modulus, &NumericContext::pure_rust_default())
+    }
+
+    /// 模幂（服从 `ctx` 预算）。
+    pub fn try_mod_pow(&self, exp: &Self, modulus: &Self, ctx: &NumericContext) -> Result<Self> {
         if !modulus.is_positive() {
             return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
                 .detail("domain", "numeric")
@@ -254,8 +289,8 @@ impl Integer {
                 .detail("operation", "mod_pow")
                 .detail("reason", "negative_exponent_requires_modular_inverse"));
         }
-        let base = self.rem_euclid(modulus)?;
-        let result_mag = base.mag.mod_pow(&exp.mag, &modulus.mag);
+        let base = self.try_div_rem_euclid(modulus, ctx)?.1;
+        let result_mag = base.mag.try_mod_pow(&exp.mag, &modulus.mag, ctx)?;
         Ok(Self { sign: Sign::Positive, mag: result_mag })
     }
 
