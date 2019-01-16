@@ -12,7 +12,7 @@ use clap::Parser;
 #[derive(Debug, Parser)]
 #[command(name = "athena-bench", about = "Athena 内核基准（确定性 fixture）")]
 struct Args {
-    /// 逗号分隔分组：numeric,bigint,ir,rewriter,engine,domains,jit（默认全部）
+    /// 逗号分隔分组：numeric,ir,rewriter,engine,domains,jit,infra（默认全部）
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
 

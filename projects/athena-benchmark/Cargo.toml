@@ -12,17 +12,20 @@ name = "athena-bench"
 path = "src/bin/athena-bench.rs"
 
 [[bench]]
-name = "bigint_compare"
+name = "compare_bigint"
 harness = false
-required-features = ["bigint-compare"]
+required-features = ["compare-bigint"]
 
 [features]
 default = []
 # Reserved for athena-jit; without a JIT crate the jit group is skipped.
 jit = []
-# Criterion microbench vs external bigints. Does not affect athena-* core crates.
-# `ramp` is deprecated / nightly-only; `ibig` is the pure-Rust stand-in.
-bigint-compare = ["dep:num-bigint", "dep:num-traits", "dep:ibig"]
+# External bigint PK peers (Criterion). Never flows into athena-* core crates.
+# Pure Rust only. GMP/`gmp-mpfr-sys` needs MSYS2 + windows-gnu and is not wired.
+compare-num-bigint = ["dep:num-bigint", "dep:num-traits"]
+compare-ibig = ["dep:ibig"]
+compare-malachite = ["dep:malachite"]
+compare-bigint = ["compare-num-bigint", "compare-ibig", "compare-malachite"]
 
 [dependencies]
 athena-numeric = { workspace = true }
@@ -40,6 +43,7 @@ clap = { workspace = true }
 num-bigint = { version = "0.4", default-features = false, features = ["std"], optional = true }
 num-traits = { version = "0.2", optional = true }
 ibig = { version = "0.3.6", optional = true, default-features = false, features = ["std"] }
+malachite = { version = "0.11", optional = true, default-features = false, features = ["naturals_and_integers"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
