@@ -3,7 +3,8 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 use std::cmp::Ordering;
 
-use crate::integer::{Integer, Sign};
+use crate::policy::execution_budget::NumericContext;
+use crate::value::integer::{Integer, Sign};
 
 /// 精确有理（既约、分母为正；亦称 [`ExactRational`]）。
 ///
@@ -143,39 +144,71 @@ impl Rational {
         Self { numer: self.numer.neg(), denom: self.denom.clone() }
     }
 
-    /// 加法（合并前交叉约去 `gcd(b,d)`）。
+    /// 加法（合并前交叉约去 `gcd(b,d)`；默认上下文）。
     pub fn add(&self, rhs: &Self) -> Self {
-        let mut b = self.denom.clone();
-        let mut d = rhs.denom.clone();
-        let g = b.abs().gcd(&d.abs());
-        if !g.is_one() {
-            b = b.div(&g).expect("gcd");
-            d = d.div(&g).expect("gcd");
-        }
-        let n = self.numer.mul(&d).add(&rhs.numer.mul(&b));
-        let denom = self.denom.mul(&d);
-        Self::normalize_pair(n, denom)
+        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
-    /// 减法。
+    /// 加法（服从 `ctx` 预算）。
+    pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        let mut b = self.denom.clone();
+        let mut d = rhs.denom.clone();
+        let g = b.abs().try_gcd(&d.abs(), ctx)?;
+        if !g.is_one() {
+            b = b.try_div_rem_trunc(&g, ctx)?.0;
+            d = d.try_div_rem_trunc(&g, ctx)?.0;
+        }
+        let n = self.numer.try_mul(&d, ctx)?.try_add(&rhs.numer.try_mul(&b, ctx)?, ctx)?;
+        let denom = self.denom.try_mul(&d, ctx)?;
+        Ok(Self::normalize_pair(n, denom))
+    }
+
+    /// 减法（默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
         self.add(&rhs.neg())
     }
 
-    /// 乘法（乘积前交叉约分）。
-    pub fn mul(&self, rhs: &Self) -> Self {
-        let (n, d) = cross_cancel_mul(self.numer.clone(), self.denom.clone(), rhs.numer.clone(), rhs.denom.clone());
-        Self::normalize_pair(n, d)
+    /// 减法（服从 `ctx` 预算）。
+    pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        self.try_add(&rhs.neg(), ctx)
     }
 
-    /// 除法（交叉约分后做 `a/b * d/c`）。
+    /// 乘法（乘积前交叉约分；默认上下文）。
+    pub fn mul(&self, rhs: &Self) -> Self {
+        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 乘法（服从 `ctx` 预算）。
+    pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        let (n, d) = cross_cancel_mul_ctx(
+            self.numer.clone(),
+            self.denom.clone(),
+            rhs.numer.clone(),
+            rhs.denom.clone(),
+            ctx,
+        )?;
+        Ok(Self::normalize_pair(n, d))
+    }
+
+    /// 除法（交叉约分后做 `a/b * d/c`；默认上下文）。
     pub fn try_div(&self, rhs: &Self) -> Result<Self, Diagnostic> {
+        self.try_div_ctx(rhs, &NumericContext::pure_rust_default())
+    }
+
+    /// 除法（服从 `ctx` 预算）。
+    pub fn try_div_ctx(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
         if rhs.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
                 .detail("domain", "numeric")
                 .detail("operation", "rational_div"));
         }
-        let (n, d) = cross_cancel_mul(self.numer.clone(), self.denom.clone(), rhs.denom.clone(), rhs.numer.clone());
+        let (n, d) = cross_cancel_mul_ctx(
+            self.numer.clone(),
+            self.denom.clone(),
+            rhs.denom.clone(),
+            rhs.numer.clone(),
+            ctx,
+        )?;
         Ok(Self::normalize_pair(n, d))
     }
 
@@ -237,21 +270,27 @@ impl Rational {
     }
 }
 
-/// 相乘 `a/b * c/d` 前交叉约分。
-fn cross_cancel_mul(a: Integer, b: Integer, c: Integer, d: Integer) -> (Integer, Integer) {
+/// 相乘 `a/b * c/d` 前交叉约分（服从预算）。
+fn cross_cancel_mul_ctx(
+    a: Integer,
+    b: Integer,
+    c: Integer,
+    d: Integer,
+    ctx: &NumericContext,
+) -> Result<(Integer, Integer), Diagnostic> {
     let mut a = a;
     let mut b = b;
     let mut c = c;
     let mut d = d;
-    let g1 = a.abs().gcd(&d.abs());
+    let g1 = a.abs().try_gcd(&d.abs(), ctx)?;
     if !g1.is_one() {
-        a = a.div(&g1).expect("gcd");
-        d = d.div(&g1).expect("gcd");
+        a = a.try_div_rem_trunc(&g1, ctx)?.0;
+        d = d.try_div_rem_trunc(&g1, ctx)?.0;
     }
-    let g2 = c.abs().gcd(&b.abs());
+    let g2 = c.abs().try_gcd(&b.abs(), ctx)?;
     if !g2.is_one() {
-        c = c.div(&g2).expect("gcd");
-        b = b.div(&g2).expect("gcd");
+        c = c.try_div_rem_trunc(&g2, ctx)?.0;
+        b = b.try_div_rem_trunc(&g2, ctx)?.0;
     }
-    (a.mul(&c), b.mul(&d))
+    Ok((a.try_mul(&c, ctx)?, b.try_mul(&d, ctx)?))
 }

@@ -1,11 +1,6 @@
 //! 默认纯 Rust 数值 backend（WASM 安全、确定性）。
 
-mod buffer;
 pub(crate) mod limb_kernel;
-
-pub mod natural;
-
-pub use natural::Natural;
 
 use super::{
     NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
@@ -38,7 +33,7 @@ const PURE_RUST_CONTRACT: NumericBackendContract = NumericBackendContract {
         max_limbs: None,
         max_significand_bits: Some(53),
         max_wire_payload_bytes: Some(PURE_RUST_WIRE_PAYLOAD_LIMIT),
-        max_pow_exp: Some(crate::integer::Integer::MAX_POW_EXP),
+        max_pow_exp: Some(crate::value::integer::Integer::MAX_POW_EXP),
     },
 };
 

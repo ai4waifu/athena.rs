@@ -2,7 +2,7 @@
 
 use athena_types::FieldId;
 
-use crate::integer::Integer;
+use crate::value::integer::Integer;
 
 /// 有限域中的元素（canonical 系数 payload）。
 ///

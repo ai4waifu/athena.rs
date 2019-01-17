@@ -2,7 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::backends::{NumericBackend, NumericBackendLimits, PureRustBackend};
+use crate::backend::{NumericBackend, NumericBackendLimits, PureRustBackend};
 
 /// 由 backend 上限或 Session 策略接入的执行预算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,10 +84,21 @@ impl ExecutionBudget {
         self.check_limbs(out)
     }
 
-    /// 估算并检查 Karatsuba 乘法 scratch（保守）。
+    /// 估算并检查 Karatsuba 乘法 scratch（保守上界，与内核逐层公式同阶）。
     pub fn check_mul_scratch(&self, a_limbs: usize, b_limbs: usize) -> Result<()> {
         let n = a_limbs.max(b_limbs);
-        self.check_limbs(n * 4 + a_limbs + b_limbs)
+        if n < 32 {
+            return self.check_limbs(a_limbs + b_limbs);
+        }
+        // 与 `karatsuba_scratch_limbs` 同构：每层 z0+z2+asum+bsum+z1
+        let mut m = n.next_power_of_two().max(2);
+        let mut total = 0usize;
+        while m >= 32 {
+            let half = m / 2;
+            total = total.saturating_add(2 * half + 2 * half + (half + 1) + (half + 1) + (2 * half + 2));
+            m = half;
+        }
+        self.check_limbs(total.max(a_limbs + b_limbs))
     }
 
     /// 估算并检查除法商缓冲。
@@ -104,12 +115,17 @@ pub struct NumericContext {
 }
 
 impl NumericContext {
-    /// 来自 [`crate::backends::PureRustBackend`] 的纯 Rust 默认上限。
+    /// 来自 [`crate::backend::PureRustBackend`] 的纯 Rust 默认上限。
     pub fn pure_rust_default() -> Self {
         Self { budget: ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits) }
     }
 
-    /// 无限制预算。
+    /// 由显式 backend / Session 上限构造。
+    pub fn from_limits(limits: &NumericBackendLimits) -> Self {
+        Self { budget: ExecutionBudget::from_limits(limits) }
+    }
+
+    /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
     pub fn unlimited() -> Self {
         Self { budget: ExecutionBudget::unlimited() }
     }

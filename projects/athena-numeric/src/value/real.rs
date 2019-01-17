@@ -1,6 +1,6 @@
 //! 实数：IEEE binary64 或二进制 [`Decimal`]。
 
-use crate::decimal::Decimal;
+use crate::representation::big_float::Decimal;
 
 /// 实数值表示。
 #[derive(Debug, Clone, PartialEq)]

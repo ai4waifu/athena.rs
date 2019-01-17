@@ -1,6 +1,9 @@
-//! 非负大整数（纯 Rust limb 表示；算法委托 [`super::limb_kernel`]）。
+//! 非负大整数（纯 Rust limb 表示；算法委托 [`crate::kernel::limb`]）。
 
-use super::limb_kernel;
+use athena_types::{Diagnostic, DiagnosticCode, Result};
+
+use crate::policy::execution_budget::NumericContext;
+use crate::kernel::limb as limb_kernel;
 use std::{cmp::Ordering, str::FromStr};
 
 /// 自然数（小端 `u64` limb，无尾随零）。
@@ -75,6 +78,7 @@ impl Natural {
             carry = new_carry;
         }
         self.limbs = limb_kernel::normalize_trim(std::mem::take(&mut self.limbs));
+        #[cfg(debug_assertions)]
         self.debug_assert_invariants();
     }
 
@@ -139,73 +143,130 @@ impl Natural {
         false
     }
 
-    /// 加小整数。
+    /// 加小整数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add_u64(&self, rhs: u64) -> Self {
-        if rhs == 0 {
-            return self.clone();
-        }
-        Self::from_limbs(limb_kernel::add_n(&self.limbs, &[rhs]))
+        self.try_add_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
-    /// 乘小整数。
+    /// 加小整数（服从 `ctx` 预算）。
+    pub fn try_add_u64(&self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
+        if rhs == 0 {
+            return Ok(self.clone());
+        }
+        Ok(Self::from_limbs(limb_kernel::add_n_budgeted(&self.limbs, &[rhs], ctx.budget())?))
+    }
+
+    /// 乘小整数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn mul_u64(&self, rhs: u64) -> Self {
+        self.try_mul_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 乘小整数（服从 `ctx` 预算）。
+    pub fn try_mul_u64(&self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
         if self.is_zero() || rhs == 0 {
-            return Self::zero();
+            return Ok(Self::zero());
         }
         if rhs == 1 {
-            return self.clone();
+            return Ok(self.clone());
         }
-        Self::from_limbs(limb_kernel::mul_1(&self.limbs, rhs))
+        Ok(Self::from_limbs(limb_kernel::mul_1_budgeted(&self.limbs, rhs, ctx.budget())?))
     }
 
-    /// 加法。
+    /// 加法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        Self::from_limbs(limb_kernel::add_n(&self.limbs, &rhs.limbs))
+        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
-    /// 减法（要求 `self >= rhs`）。
+    /// 加法（服从 `ctx` 预算）。
+    pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        Ok(Self::from_limbs(limb_kernel::add_n_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
+    }
+
+    /// 减法（要求 `self >= rhs`；默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
-        assert!(self >= rhs);
-        Self::from_limbs(limb_kernel::sub_n(&self.limbs, &rhs.limbs))
+        self.try_sub(rhs, &NumericContext::pure_rust_default()).expect("natural sub precondition or unbounded default")
     }
 
-    /// 乘法。
+    /// 减法（`self >= rhs`；服从 `ctx` 预算）。
+    pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        if self < rhs {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_sub")
+                .detail("reason", "underflow"));
+        }
+        Ok(Self::from_limbs(limb_kernel::sub_n_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
+    }
+
+    /// 乘法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        Self::from_limbs(limb_kernel::mul(&self.limbs, &rhs.limbs))
+        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
-    /// 平方。
+    /// 乘法（服从 `ctx` 预算）。
+    pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        Ok(Self::from_limbs(limb_kernel::mul_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
+    }
+
+    /// 平方（默认 [`NumericContext::pure_rust_default`]）。
     pub fn sqr(&self) -> Self {
-        Self::from_limbs(limb_kernel::sqr(&self.limbs))
+        self.try_sqr(&NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
-    /// 除法与余数（`rhs > 0`）。
+    /// 平方（服从 `ctx` 预算）。
+    pub fn try_sqr(&self, ctx: &NumericContext) -> Result<Self> {
+        Ok(Self::from_limbs(limb_kernel::sqr_budgeted(&self.limbs, ctx.budget())?))
+    }
+
+    /// 除法与余数（`rhs > 0`；默认上下文）。
     pub fn div_rem(&self, rhs: &Self) -> (Self, Self) {
-        let (q, r) = limb_kernel::div_rem(&self.limbs, &rhs.limbs);
-        (Self::from_limbs(q), Self::from_limbs(r))
+        self.try_div_rem(rhs, &NumericContext::pure_rust_default()).expect("div_rem divisor non-zero and unbounded default")
     }
 
-    /// 模幂（`modulus > 0`）；奇模数且足够宽时走 Montgomery 路径。
+    /// 除法与余数（服从 `ctx` 预算；除数为零返回诊断）。
+    pub fn try_div_rem(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
+        if rhs.is_zero() {
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_div_rem"));
+        }
+        let (q, r) = limb_kernel::div_rem_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?;
+        Ok((Self::from_limbs(q), Self::from_limbs(r)))
+    }
+
+    /// 模幂（`modulus > 0`；默认上下文）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Self {
-        assert!(!modulus.is_zero());
+        self.try_mod_pow(exp, modulus, &NumericContext::pure_rust_default())
+            .expect("mod_pow modulus non-zero and unbounded default")
+    }
+
+    /// 模幂（服从 `ctx` 预算；奇模数足够宽时走 Montgomery）。
+    pub fn try_mod_pow(&self, exp: &Self, modulus: &Self, ctx: &NumericContext) -> Result<Self> {
+        if modulus.is_zero() {
+            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_mod_pow")
+                .detail("reason", "modulus_zero"));
+        }
+        ctx.budget().check_limbs(limb_kernel::effective_len(&modulus.limbs))?;
         if modulus.is_one() {
-            return Self::zero();
+            return Ok(Self::zero());
         }
         if limb_kernel::mod_pow_montgomery_eligible(&modulus.limbs) {
-            return Self::from_limbs(limb_kernel::mod_pow_montgomery(&self.limbs, &exp.limbs, &modulus.limbs));
+            // Montgomery 内部仍走 convenience 包装；入口已按模数 limb 预算门控。
+            return Ok(Self::from_limbs(limb_kernel::mod_pow_montgomery(&self.limbs, &exp.limbs, &modulus.limbs)));
         }
         let mut result = Self::one();
-        let mut base = self.clone();
-        base = base.div_rem(modulus).1;
+        let mut base = self.try_div_rem(modulus, ctx)?.1;
         let mut e = exp.clone();
         while !e.is_zero() {
             if e.is_odd() {
-                result = result.mul(&base).div_rem(modulus).1;
+                result = result.try_mul(&base, ctx)?.try_div_rem(modulus, ctx)?.1;
             }
-            base = base.sqr().div_rem(modulus).1;
+            base = base.try_sqr(ctx)?.try_div_rem(modulus, ctx)?.1;
             e.div2();
         }
-        result
+        Ok(result)
     }
 
     /// 是否为 2 的幂（正整数）。
@@ -257,12 +318,19 @@ impl Natural {
         }
     }
 
-    /// 非负最大公约数（经 limb 内核的 binary GCD）。
+    /// 非负最大公约数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn gcd(&self, other: &Self) -> Self {
+        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+    }
+
+    /// 非负最大公约数（服从 `ctx` 预算；结果 limb ≤ `min(self, other)`）。
+    pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
         if self.is_zero() && other.is_zero() {
-            return Self::zero();
+            return Ok(Self::zero());
         }
-        Self::from_limbs(limb_kernel::gcd(self.limbs.clone(), other.limbs.clone()))
+        let bound = limb_kernel::effective_len(&self.limbs).min(limb_kernel::effective_len(&other.limbs)).max(1);
+        ctx.budget().check_limbs(bound)?;
+        Ok(Self::from_limbs(limb_kernel::gcd(self.limbs.clone(), other.limbs.clone())))
     }
 
     /// 借用小端 limb。
@@ -274,6 +342,7 @@ impl Natural {
     pub fn from_limbs(limbs: Vec<u64>) -> Self {
         let limbs = limb_kernel::normalize_trim(limbs);
         let n = Self { limbs };
+        #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
     }
@@ -292,8 +361,8 @@ impl Natural {
     /// 在执行预算下解码 [`Self::wire_encode_magnitude`] 字节。
     pub(crate) fn wire_decode_magnitude_budgeted(
         bytes: &[u8],
-        budget: &crate::execution_budget::ExecutionBudget,
-    ) -> Result<Self, ()> {
+        budget: &crate::policy::execution_budget::ExecutionBudget,
+    ) -> std::result::Result<Self, ()> {
         if bytes.len() < 4 {
             return Err(());
         }
@@ -316,12 +385,12 @@ impl Natural {
     }
 
     /// 解码 [`Self::wire_encode_magnitude`] 字节。
-    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self, ()> {
-        Self::wire_decode_magnitude_budgeted(bytes, &crate::execution_budget::ExecutionBudget::unlimited())
+    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> std::result::Result<Self, ()> {
+        Self::wire_decode_magnitude_budgeted(bytes, &crate::policy::execution_budget::ExecutionBudget::unlimited())
     }
 
     /// 从拼接的有理载荷中拆出首个幅度块。
-    pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> Result<(Self, &[u8]), ()> {
+    pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> std::result::Result<(Self, &[u8]), ()> {
         if bytes.len() < 4 {
             return Err(());
         }
@@ -349,7 +418,7 @@ impl FromStr for Natural {
     type Err = ();
 
     /// 十进制解析（仅数字，无符号）。
-    fn from_str(digits: &str) -> Result<Self, Self::Err> {
+    fn from_str(digits: &str) -> std::result::Result<Self, Self::Err> {
         if digits.is_empty() {
             return Err(());
         }

@@ -174,7 +174,7 @@ impl NumericValue {
             Self::Integer(n) => n.to_i64() == Some(-1),
             Self::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
             Self::Real(Real::Machine(x)) => *x == -1.0,
-            Self::Real(Real::BigFloat(b)) => b.sign() == crate::integer::Sign::Negative && b.is_one(),
+            Self::Real(Real::BigFloat(b)) => b.sign() == crate::value::integer::Sign::Negative && b.is_one(),
             _ => false,
         }
     }
