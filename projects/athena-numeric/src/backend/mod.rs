@@ -15,6 +15,8 @@ pub mod pure_rust;
 
 pub use pure_rust::PureRustBackend;
 
+#[cfg(feature = "native-accelerated")]
+pub mod native;
 
 use crate::{representation::domain::NumericDomain, representation::precision::PrecisionKind};
 
