@@ -3,8 +3,10 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 use std::cmp::Ordering;
 
-use crate::policy::execution_budget::NumericContext;
-use crate::value::integer::{Integer, Sign};
+use crate::{
+    policy::execution_budget::NumericContext,
+    value::integer::{Integer, Sign},
+};
 
 /// 精确有理（既约、分母为正；亦称 [`ExactRational`]）。
 ///
@@ -180,13 +182,7 @@ impl Rational {
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
-        let (n, d) = cross_cancel_mul_ctx(
-            self.numer.clone(),
-            self.denom.clone(),
-            rhs.numer.clone(),
-            rhs.denom.clone(),
-            ctx,
-        )?;
+        let (n, d) = cross_cancel_mul_ctx(self.numer.clone(), self.denom.clone(), rhs.numer.clone(), rhs.denom.clone(), ctx)?;
         Ok(Self::normalize_pair(n, d))
     }
 
@@ -202,13 +198,7 @@ impl Rational {
                 .detail("domain", "numeric")
                 .detail("operation", "rational_div"));
         }
-        let (n, d) = cross_cancel_mul_ctx(
-            self.numer.clone(),
-            self.denom.clone(),
-            rhs.denom.clone(),
-            rhs.numer.clone(),
-            ctx,
-        )?;
+        let (n, d) = cross_cancel_mul_ctx(self.numer.clone(), self.denom.clone(), rhs.denom.clone(), rhs.numer.clone(), ctx)?;
         Ok(Self::normalize_pair(n, d))
     }
 

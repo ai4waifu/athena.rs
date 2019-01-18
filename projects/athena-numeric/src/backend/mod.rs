@@ -18,7 +18,7 @@ pub use pure_rust::PureRustBackend;
 #[cfg(feature = "native-accelerated")]
 pub mod native;
 
-use crate::{representation::domain::NumericDomain, representation::precision::PrecisionKind};
+use crate::representation::{domain::NumericDomain, precision::PrecisionKind};
 
 /// 分派与宿主上报用的能力标志。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

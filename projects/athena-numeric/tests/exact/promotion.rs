@@ -103,12 +103,12 @@ fn promotion_real_to_exact_forbidden() {
 }
 
 #[test]
-fn promotion_machine_to_arbitrary_imports_bigfloat() {
+fn promotion_machine_to_arbitrary_imports_decimal() {
     let m = NumericValue::machine_real(1.5);
     let promoted =
         DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).expect("promote");
     assert_eq!(promoted.precision().kind, PrecisionKind::Arbitrary);
-    assert_eq!(promoted.as_real().and_then(|r| r.as_big_float()).unwrap().to_f64_exact(), Some(1.5));
+    assert_eq!(promoted.as_real().and_then(|r| r.as_decimal()).unwrap().to_f64_exact(), Some(1.5));
 }
 
 #[test]
@@ -117,18 +117,18 @@ fn machine_to_arbitrary_is_honest_53_bit_import() {
     let promoted =
         DefaultPromotion::promote_real_precision(m, PrecisionKind::Arbitrary, &PromotionPolicy::default()).expect("promote");
     match promoted.as_real() {
-        Some(Real::BigFloat(b)) => {
+        Some(Real::Decimal(b)) => {
             assert_eq!(b.precision_bits(), 53);
             assert_eq!(b.to_f64_exact(), Some(1.5));
         }
-        other => panic!("expected BigFloat, got {other:?}"),
+        other => panic!("expected Decimal, got {other:?}"),
     }
 }
 
 #[test]
 fn arbitrary_to_machine_requires_policy() {
     let bf = Decimal::from_f64(1.25).unwrap();
-    let v = NumericValue::big_float(bf);
+    let v = NumericValue::decimal(bf);
     let err = DefaultPromotion::promote_real_precision(v, PrecisionKind::Machine, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
 }
@@ -136,7 +136,7 @@ fn arbitrary_to_machine_requires_policy() {
 #[test]
 fn arbitrary_to_machine_roundtrip() {
     let bf = Decimal::from_f64(core::f64::consts::PI).unwrap();
-    let v = NumericValue::big_float(bf);
+    let v = NumericValue::decimal(bf);
     let policy = PromotionPolicy { allow_exact_to_machine: false, allow_arbitrary_to_machine: true };
     let m = DefaultPromotion::promote_real_precision(v, PrecisionKind::Machine, &policy).unwrap();
     assert_eq!(m.as_machine_f64().unwrap().to_bits(), core::f64::consts::PI.to_bits());

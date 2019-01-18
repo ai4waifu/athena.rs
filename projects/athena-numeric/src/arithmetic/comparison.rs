@@ -82,10 +82,10 @@ impl DefaultNumericCompare {
                     (Real::Machine(x), Real::Machine(y)) => {
                         Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                     }
-                    (Real::BigFloat(a), Real::BigFloat(b)) => {
+                    (Real::Decimal(a), Real::Decimal(b)) => {
                         Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                     }
-                    (Real::Machine(x), Real::BigFloat(b)) | (Real::BigFloat(b), Real::Machine(x)) => match b.to_f64_exact() {
+                    (Real::Machine(x), Real::Decimal(b)) | (Real::Decimal(b), Real::Machine(x)) => match b.to_f64_exact() {
                         Some(y) if x.is_finite() => Ok(if x.to_bits() == y.to_bits() {
                             NumericComparison::ExactEqual
                         }

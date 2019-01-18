@@ -133,9 +133,9 @@ impl DefaultPromotion {
                     return Ok(value);
                 }
                 let bf = Decimal::from_f64(*x).map_err(|_| forbidden("machine_to_arbitrary"))?;
-                Ok(NumericValue::big_float(bf))
+                Ok(NumericValue::decimal(bf))
             }
-            (NumericValue::Real(Real::BigFloat(b)), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
+            (NumericValue::Real(Real::Decimal(b)), PrecisionKind::Arbitrary, PrecisionKind::Machine) => {
                 if !policy.allow_arbitrary_to_machine {
                     return Err(forbidden("arbitrary_to_machine"));
                 }
