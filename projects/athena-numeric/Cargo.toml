@@ -19,4 +19,5 @@ athena-types = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
-unsafe_code = "forbid"
+# Magnitude union / OwnedLimbBuffer 需要窄域 unsafe；其余模块保持 deny。
+unsafe_code = "deny"

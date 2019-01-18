@@ -61,6 +61,106 @@ pub(crate) fn mac(acc: u64, a: u64, b: u64, carry: u128) -> (u64, u128) {
     (sum as u64, sum >> 64)
 }
 
+// --- 固定宽度合同（1/2 limb；禁止走通用循环 / Karatsuba）---
+
+/// `Limb1 + Limb1`：`(lo, carry)`，`carry ∈ {0,1}`。
+#[inline]
+pub(crate) fn add_1(a: u64, b: u64) -> (u64, u64) {
+    let (sum, carry) = a.overflowing_add(b);
+    (sum, u64::from(carry))
+}
+
+/// `Limb1 × Limb1`：全宽积（`u128` 仅作累加器，非存储）。
+#[inline]
+pub(crate) fn mul_1x1(a: u64, b: u64) -> u128 {
+    (a as u128) * (b as u128)
+}
+
+/// `Limb1 + Limb2`：最多 3 limbs；返回 `(limbs, effective_len)`。
+#[inline]
+pub(crate) fn add_1_2(a: u64, b: [u64; 2]) -> ([u64; 3], usize) {
+    let (lo, c0) = adc(a, b[0], 0);
+    let (hi, c1) = adc(b[1], 0, c0);
+    if c1 == 0 {
+        if hi == 0 {
+            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
+        } else {
+            ([lo, hi, 0], 2)
+        }
+    } else {
+        ([lo, hi, c1], 3)
+    }
+}
+
+/// `Limb2 + Limb2`：双 limb adc；进位则 3 limbs。
+#[inline]
+pub(crate) fn add_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 3], usize) {
+    let (lo, c0) = adc(a[0], b[0], 0);
+    let (hi, c1) = adc(a[1], b[1], c0);
+    if c1 == 0 {
+        if hi == 0 {
+            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
+        } else {
+            ([lo, hi, 0], 2)
+        }
+    } else {
+        ([lo, hi, c1], 3)
+    }
+}
+
+/// `Limb2 × Limb1`：最多 3 limbs。
+#[inline]
+pub(crate) fn mul_2x1(a: [u64; 2], b: u64) -> ([u64; 3], usize) {
+    if b == 0 {
+        return ([0, 0, 0], 0);
+    }
+    // `mul_wide` → (hi, lo)
+    let (hi0, lo) = mul_wide(a[0], b);
+    let (hi1, mid_lo) = mul_wide(a[1], b);
+    let (mid, c1) = adc(mid_lo, hi0, 0);
+    let hi = hi1 + c1;
+    if hi == 0 {
+        if mid == 0 {
+            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
+        } else {
+            ([lo, mid, 0], 2)
+        }
+    } else {
+        ([lo, mid, hi], 3)
+    }
+}
+
+/// `Limb2 × Limb2`：最多 4 limbs。
+#[inline]
+pub(crate) fn mul_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 4], usize) {
+    let p00 = mul_1x1(a[0], b[0]);
+    let p01 = mul_1x1(a[0], b[1]);
+    let p10 = mul_1x1(a[1], b[0]);
+    let p11 = mul_1x1(a[1], b[1]);
+
+    let mut out = [0u64; 4];
+    out[0] = p00 as u64;
+    let mut carry = p00 >> 64;
+
+    let t1 = (p01 as u64 as u128) + (p10 as u64 as u128) + carry;
+    out[1] = t1 as u64;
+    carry = t1 >> 64;
+
+    let t2 = (p01 >> 64) + (p10 >> 64) + (p11 as u64 as u128) + carry;
+    out[2] = t2 as u64;
+    carry = t2 >> 64;
+
+    let t3 = (p11 >> 64) + carry;
+    out[3] = t3 as u64;
+    debug_assert!(t3 >> 64 == 0);
+
+    let mut len = 4;
+    while len > 0 && out[len - 1] == 0 {
+        len -= 1;
+    }
+    (out, len)
+}
+
 pub(crate) fn is_zero(v: &[u64]) -> bool {
     effective_len(v) == 1 && v[0] == 0
 }
