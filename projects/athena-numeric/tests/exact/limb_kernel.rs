@@ -88,3 +88,26 @@ fn large_decimal_roundtrip_mul() {
     assert!(r.is_zero());
     assert_eq!(q, b);
 }
+
+/// 回归：`next_power_of_two` 切分曾使 Karatsuba scratch 在平方增长路径上 `mid > len`。
+#[test]
+fn karatsuba_square_near_threshold_no_scratch_panic() {
+    for limbs in [32usize, 33, 48, 63, 64, 65, 96, 128] {
+        let mut seed = 0xBEEF_u64.wrapping_add(limbs as u64 * 17);
+        let a = random_natural(&mut seed, limbs);
+        let sq = a.sqr();
+        assert_eq!(sq, a.mul(&a));
+    }
+}
+
+#[test]
+fn pow_4096_bit_base_small_exp_no_panic() {
+    use athena_numeric::Integer;
+    // 与 `compare_bigint` 的 4096-bit / exp=3 同阶，曾触发 limb_kernel panic。
+    let digits = "9".repeat(1233); // ~4096 bits
+    let base = Integer::from_str(&digits).unwrap();
+    let exp = Integer::from_u64(3);
+    let powered = base.pow(&exp).expect("pow");
+    let via_mul = base.mul(&base).mul(&base);
+    assert_eq!(powered, via_mul);
+}
