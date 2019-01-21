@@ -29,6 +29,8 @@ pub use certificate::{CertificateMethod, NumericCertificate};
 pub use arithmetic::comparison::{ComparisonPolicy, DefaultNumericCompare, NumericCompare, NumericComparison};
 pub use value::complex::{BranchPolicy, Complex};
 pub use representation::big_float::{Decimal, RoundingStatus};
+/// 有限精度二进制浮点（与 [`Decimal`] 同义；Living 命名对齐）。
+pub type BigFloat = Decimal;
 pub use representation::domain::NumericDomain;
 pub use representation::dyadic::Dyadic;
 #[allow(deprecated)]
