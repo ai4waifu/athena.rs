@@ -1,7 +1,8 @@
 //! `GcMode` 与作用域 guard（禁止进程级全局开关）。
+#![allow(unsafe_code)]
 
 use core::cell::Cell;
-use core::marker::PhantomData;
+use core::ptr::NonNull;
 
 use crate::ids::SegmentId;
 
@@ -28,7 +29,7 @@ pub struct GcPressure {
     pub threshold_hit: bool,
 }
 
-/// 控制器状态（嵌入 `GcHeap`）。
+/// 控制器状态（嵌入 `GcHeap`，经 `Rc` 共享给 guard）。
 #[derive(Debug)]
 pub struct GcController {
     mode: Cell<GcMode>,
@@ -116,40 +117,37 @@ impl GcController {
     }
 
     /// 进入 Disabled（作用域）。
-    pub fn suspend(&self) -> GcSuspendGuard<'_> {
+    pub fn suspend(self: &std::rc::Rc<Self>) -> GcSuspendGuard {
         self.suspend_depth.set(self.suspend_depth.get().saturating_add(1));
         GcSuspendGuard {
-            ctrl: self,
-            _marker: PhantomData,
+            ctrl: std::rc::Rc::clone(self),
         }
     }
 
     /// 进入 Deferred（作用域）。
-    pub fn defer(&self) -> GcDeferGuard<'_> {
+    pub fn defer(self: &std::rc::Rc<Self>) -> GcDeferGuard {
         self.defer_depth.set(self.defer_depth.get().saturating_add(1));
         GcDeferGuard {
-            ctrl: self,
-            _marker: PhantomData,
+            ctrl: std::rc::Rc::clone(self),
         }
     }
 
-    pub(crate) fn end_suspend(&self) {
+    fn end_suspend(&self) {
         self.suspend_depth.set(self.suspend_depth.get().saturating_sub(1));
     }
 
-    pub(crate) fn end_defer(&self) {
+    fn end_defer(&self) {
         self.defer_depth.set(self.defer_depth.get().saturating_sub(1));
     }
 }
 
 /// `GcMode::Disabled` 作用域 guard。
 #[derive(Debug)]
-pub struct GcSuspendGuard<'a> {
-    ctrl: &'a GcController,
-    _marker: PhantomData<*const ()>,
+pub struct GcSuspendGuard {
+    ctrl: std::rc::Rc<GcController>,
 }
 
-impl Drop for GcSuspendGuard<'_> {
+impl Drop for GcSuspendGuard {
     fn drop(&mut self) {
         self.ctrl.end_suspend();
     }
@@ -157,37 +155,42 @@ impl Drop for GcSuspendGuard<'_> {
 
 /// `GcMode::Deferred` 作用域 guard。
 #[derive(Debug)]
-pub struct GcDeferGuard<'a> {
-    ctrl: &'a GcController,
-    _marker: PhantomData<*const ()>,
+pub struct GcDeferGuard {
+    ctrl: std::rc::Rc<GcController>,
 }
 
-impl Drop for GcDeferGuard<'_> {
+impl Drop for GcDeferGuard {
     fn drop(&mut self) {
         self.ctrl.end_defer();
     }
 }
 
 /// Segment pin guard（持有期内禁止 reclaim 该段）。
-#[derive(Debug)]
-pub struct GcPinGuard<'a> {
-    heap: &'a crate::heap::GcHeap,
+///
+/// 使用 `NonNull` 避免冻结 `GcHeap` 借用，便于 kernel 路径同时 `&mut` 写 limb。
+pub struct GcPinGuard {
+    heap: NonNull<crate::heap::GcHeap>,
     segments: Vec<SegmentId>,
 }
 
-impl<'a> GcPinGuard<'a> {
-    pub(crate) fn new(heap: &'a crate::heap::GcHeap, segments: Vec<SegmentId>) -> Self {
+impl GcPinGuard {
+    pub(crate) fn new(heap: &crate::heap::GcHeap, segments: Vec<SegmentId>) -> Self {
         for id in &segments {
             heap.pin_segment(*id);
         }
-        Self { heap, segments }
+        Self {
+            heap: NonNull::from(heap),
+            segments,
+        }
     }
 }
 
-impl Drop for GcPinGuard<'_> {
+impl Drop for GcPinGuard {
     fn drop(&mut self) {
+        // SAFETY: heap 指针在 guard 存活期内有效（调用方合同：不 move/drop heap）。
+        let heap = unsafe { self.heap.as_ref() };
         for id in &self.segments {
-            self.heap.unpin_segment(*id);
+            heap.unpin_segment(*id);
         }
     }
 }

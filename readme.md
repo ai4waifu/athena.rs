@@ -10,7 +10,7 @@ Athena 的类型和 IR，再通过公共门面提交计算。
 Athena 内核负责：
 
 - 精确整数、有理数及其它数值域的表示、精度和 promotion。
-- Arena 管理的 Core IR、稳定 ID、结构共享、验证和确定性哈希。
+- Runtime heap 管理的 Core IR 与数值 block、稳定 ID、结构共享、验证和确定性哈希。
 - 求值、符号绑定、作用域、会话状态和资源限制。
 - 规范化、规则重写、化简以及可组合的 rewrite pipeline。
 - 微分、积分、级数、变换、数论和其它领域算法。
@@ -39,8 +39,9 @@ facade 中复制另一套求值或会话语义。
 | Crate                                                     | 作用                                                   |
 |-----------------------------------------------------------|--------------------------------------------------------|
 | [`athena-types`](projects/athena-types/readme.md)         | 共享 ID、数值元数据、诊断、span 和版本合同             |
+| [`athena-gc`](projects/athena-gc/readme.md)               | CAS runtime GC heap：segmented arena、tracing、scratch、`GcMode` |
 | [`athena-numeric`](projects/athena-numeric/readme.md)     | 数值塔、精度、promotion 和数值证书                     |
-| [`athena-ir`](projects/athena-ir/readme.md)               | Core IR、arena、构建器、验证和哈希                     |
+| [`athena-ir`](projects/athena-ir/readme.md)               | Core IR、构建器、验证和哈希（对象存储终局归属 runtime heap） |
 | [`athena-rewriter`](projects/athena-rewriter/readme.md)   | 规范化、规则匹配、重写结果和重写诊断                   |
 | [`athena-engine`](projects/athena-engine/readme.md)       | 唯一执行引擎，包含 Session、M-Graph、solver 和领域编排 |
 | [`athena`](projects/athena/readme.md)                     | 薄公共门面和稳定 re-export                             |
@@ -49,7 +50,7 @@ facade 中复制另一套求值或会话语义。
 | [`athena-table`](projects/athena-table/readme.md)         | 列式表、schema 与惰性查询合同（非 ML）                 |
 | [`athena-benchmark`](projects/athena-benchmark/readme.md) | 固定输入集上的性能和资源基准                           |
 
-数学主题应作为已有 crate 中职责清晰的模块演进。除非依赖关系、版本生命周期和测试边界确实独立，否则不要新增微型 crate。M-Graph
+依赖方向：`types → gc → numeric → ir → rewriter → engine → athena`。数学主题应作为已有 crate 中职责清晰的模块演进。除非依赖关系、版本生命周期和测试边界确实独立，否则不要新增微型 crate。`athena-gc` 是运行时基础层，不是领域微 crate；禁止再拆 `athena-arena`。M-Graph
 和 solver 继续归属于 `athena-engine`，不另建同名 crate。
 
 ## 当前状态
@@ -79,7 +80,8 @@ cargo test -p athena-ir
 cargo doc -p athena --no-deps
 ```
 
-行覆盖率用 `cargo llvm-cov` 汇报（CI 上传 artifact 与 job summary），不设百分比失败门槛。测试布局见 Living「测试与验收」：每 crate `tests/main.rs` + 域 `mod.rs`。
+行覆盖率用 `cargo llvm-cov` 汇报（CI 上传 artifact 与 job summary），不设百分比失败门槛。测试布局见 Living「测试与验收」：每
+crate `tests/main.rs` + 域 `mod.rs`。
 
 修改数值、IR、求值、重写或对象语义时，应同时覆盖正常结果、边界输入、资源限制和结构化错误路径。默认保持纯 Rust，并确保 `wasm32`
 构建不依赖系统 GPU、MKL 或 BLAS。

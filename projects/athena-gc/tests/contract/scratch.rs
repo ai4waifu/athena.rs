@@ -8,8 +8,9 @@ fn rewind_restores_cursor_without_losing_capacity() {
     let budget = HeapBudget::default();
     scratch.ensure(4096, &budget, true).expect("ensure");
     let mark = scratch.mark();
+    assert_eq!(scratch.used_bytes(), 0);
     let _ = scratch.allocate_limbs_zeroed(16, &budget).expect("alloc");
-    assert!(scratch.used_bytes() > mark.cursor_for_test());
+    assert!(scratch.used_bytes() >= 16 * 8);
     scratch.rewind(mark);
     assert_eq!(scratch.used_bytes(), 0);
     assert!(scratch.capacity_bytes() >= 4096);
