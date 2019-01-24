@@ -8,7 +8,8 @@ use core::{
 
 use super::{
     meta::{
-        Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, mode_of,
+        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta,
+        heap_len, is_negative, mode_of,
     },
     owned::OwnedLimbBuffer,
     union::Magnitude,
@@ -144,6 +145,34 @@ impl TaggedMagnitude {
     #[inline]
     pub(crate) fn is_zero(&self) -> bool {
         matches!(self.mode(), Mode::Zero)
+    }
+
+    /// `meta` 负号位（Zero 时必须为 false）。
+    #[inline]
+    pub(crate) fn is_negative(&self) -> bool {
+        !self.is_zero() && is_negative(self.meta)
+    }
+
+    /// 清除 sign 位的克隆（供 `Natural` / 幅度运算）。
+    #[inline]
+    pub(crate) fn clone_unsigned(&self) -> Self {
+        let mut out = self.clone();
+        out.meta &= !META_SIGN_BIT;
+        out
+    }
+
+    /// 设置符号；零恒为 unsigned Zero。
+    #[inline]
+    pub(crate) fn with_negative(mut self, negative: bool) -> Self {
+        if self.is_zero() {
+            return Self::zero();
+        }
+        if negative {
+            self.meta |= META_SIGN_BIT;
+        } else {
+            self.meta &= !META_SIGN_BIT;
+        }
+        self
     }
 
     /// 一次分派后的只读 limb 视图（Zero → `[0]`）。
@@ -291,7 +320,7 @@ impl Drop for TaggedMagnitude {
 
 impl PartialEq for TaggedMagnitude {
     fn eq(&self, other: &Self) -> bool {
-        self.as_limbs() == other.as_limbs()
+        self.is_negative() == other.is_negative() && self.as_limbs() == other.as_limbs()
     }
 }
 
@@ -299,6 +328,7 @@ impl Eq for TaggedMagnitude {}
 
 impl Hash for TaggedMagnitude {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.is_negative().hash(state);
         self.as_limbs().hash(state);
     }
 }

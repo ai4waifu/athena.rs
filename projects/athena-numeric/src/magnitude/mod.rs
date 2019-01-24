@@ -11,7 +11,7 @@ mod tagged;
 mod union;
 mod view;
 
-pub(crate) use meta::Mode;
+pub(crate) use meta::{Mode, is_negative as meta_is_negative};
 pub(crate) use tagged::TaggedMagnitude;
 use union::{HeapPayload, Magnitude};
 

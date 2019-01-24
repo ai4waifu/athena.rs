@@ -9,6 +9,7 @@ use std::{cmp::Ordering, str::FromStr};
 /// 自然数（小端 `u64` limb，无尾随零）。
 ///
 /// 布局：内嵌 [`TaggedMagnitude`]（`meta` + `Magnitude` union），LP64 上 24 bytes。
+/// `meta` sign 位恒为 0。
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct Natural {
     inner: TaggedMagnitude,
@@ -506,6 +507,19 @@ impl Natural {
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
+    }
+
+    /// 由无符号 [`TaggedMagnitude`] 构造（清除 sign 位）。
+    pub(crate) fn from_tagged(inner: TaggedMagnitude) -> Self {
+        let n = Self { inner: inner.with_negative(false) };
+        #[cfg(debug_assertions)]
+        n.debug_assert_invariants();
+        n
+    }
+
+    /// 取出内部 tagged 表示。
+    pub(crate) fn into_tagged(self) -> TaggedMagnitude {
+        self.inner
     }
 
     /// 固定宽度结果回写（≤4 limbs，不经中间 `Vec`）。
