@@ -15,7 +15,7 @@ pub enum NumericValue {
     Integer(Integer),
     /// 精确有理 ℚ。
     Rational(Rational),
-    /// 实数 ℝ（[`Real::Machine`] 或 [`Real::BigFloat`]）。
+    /// 实数 ℝ（[`Real::Machine`] 或 [`Real::Decimal`]）。
     Real(Real),
     /// 复数 ℂ（骨架）。
     Complex(Complex),
@@ -56,7 +56,7 @@ impl NumericValue {
         let ok = match self {
             Self::Integer(_) | Self::Rational(_) => true,
             Self::Real(Real::Machine(_)) => true,
-            Self::Real(Real::BigFloat(b)) => b.validate().is_ok(),
+            Self::Real(Real::Decimal(b)) => b.validate().is_ok(),
             Self::Complex(_) => true,
             Self::Modular(_) | Self::FiniteField(_) | Self::Interval(_) | Self::Algebraic(_) => false,
             Self::PAdic(v) => v.validate().is_ok(),
@@ -92,13 +92,13 @@ impl NumericValue {
     }
 
     /// 任意精度有限实数。
-    pub fn big_float(b: Decimal) -> Self {
-        Self::Real(Real::big_float(b))
+    pub fn decimal(b: Decimal) -> Self {
+        Self::Real(Real::decimal(b))
     }
 
     /// 从有限 IEEE binary64 导入任意精度实数（拒绝 NaN/Inf）。
-    pub fn big_float_from_f64(x: f64) -> Result<Self> {
-        Ok(Self::big_float(Decimal::from_f64(x)?))
+    pub fn decimal_from_f64(x: f64) -> Result<Self> {
+        Ok(Self::decimal(Decimal::from_f64(x)?))
     }
 
     /// 同 [`Self::machine_real`]。
@@ -141,7 +141,7 @@ impl NumericValue {
             Self::Integer(_) | Self::Rational(_) | Self::Modular(_) | Self::FiniteField(_) => PrecisionInfo::exact(),
             Self::PAdic(v) => PrecisionInfo::arbitrary(v.precision.saturating_mul(8).max(1)),
             Self::Real(Real::Machine(_)) => PrecisionInfo::machine(),
-            Self::Real(Real::BigFloat(b)) => PrecisionInfo::arbitrary(b.precision_bits()),
+            Self::Real(Real::Decimal(b)) => PrecisionInfo::arbitrary(b.precision_bits()),
             Self::Complex(_) | Self::Interval(_) | Self::Algebraic(_) => PrecisionInfo::exact(),
         }
     }
@@ -152,7 +152,7 @@ impl NumericValue {
             Self::Integer(n) => n.is_zero(),
             Self::Rational(r) => r.is_zero(),
             Self::Real(Real::Machine(x)) => *x == 0.0,
-            Self::Real(Real::BigFloat(b)) => b.is_zero(),
+            Self::Real(Real::Decimal(b)) => b.is_zero(),
             _ => false,
         }
     }
@@ -163,7 +163,7 @@ impl NumericValue {
             Self::Integer(n) => n.is_one(),
             Self::Rational(r) => r.is_integer() && r.numerator().is_one(),
             Self::Real(Real::Machine(x)) => *x == 1.0,
-            Self::Real(Real::BigFloat(b)) => b.is_one(),
+            Self::Real(Real::Decimal(b)) => b.is_one(),
             _ => false,
         }
     }
@@ -174,7 +174,7 @@ impl NumericValue {
             Self::Integer(n) => n.to_i64() == Some(-1),
             Self::Rational(r) => r.is_integer() && r.numerator().to_i64() == Some(-1),
             Self::Real(Real::Machine(x)) => *x == -1.0,
-            Self::Real(Real::BigFloat(b)) => b.sign() == crate::value::integer::Sign::Negative && b.is_one(),
+            Self::Real(Real::Decimal(b)) => b.sign() == crate::value::integer::Sign::Negative && b.is_one(),
             _ => false,
         }
     }
@@ -185,7 +185,7 @@ impl NumericValue {
             Self::Integer(n) => !n.is_zero(),
             Self::Rational(r) => !r.is_zero(),
             Self::Real(Real::Machine(x)) => *x != 0.0 && !x.is_nan(),
-            Self::Real(Real::BigFloat(b)) => !b.is_zero(),
+            Self::Real(Real::Decimal(b)) => !b.is_zero(),
             _ => false,
         }
     }
@@ -225,7 +225,7 @@ impl NumericValue {
                     format!("{x}")
                 }
             }
-            Self::Real(Real::BigFloat(b)) => {
+            Self::Real(Real::Decimal(b)) => {
                 if let Some(x) = b.to_f64_exact() {
                     if x.fract() == 0.0 && x.abs() < 1e15 { format!("{}", x as i64) } else { format!("{x}") }
                 }

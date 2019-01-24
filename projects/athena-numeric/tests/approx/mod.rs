@@ -1,4 +1,3 @@
-mod big_float;
 mod decimal;
 mod dyadic;
 mod f64_contract;

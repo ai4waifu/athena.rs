@@ -15,7 +15,7 @@ fn lift(n: &NumericValue) -> Result<Lifted> {
         NumericValue::Integer(i) => Ok(Lifted::Integer(i.clone())),
         NumericValue::Rational(r) => Ok(Lifted::Rational(r.clone())),
         NumericValue::Real(Real::Machine(x)) => Ok(Lifted::Real(*x)),
-        NumericValue::Real(Real::BigFloat(b)) => b.to_f64_approximate().map(Lifted::Real).ok_or_else(|| {
+        NumericValue::Real(Real::Decimal(b)) => b.to_f64_approximate().map(Lifted::Real).ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "kernel_lift")
         }),
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

@@ -2,8 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::policy::execution_budget::NumericContext;
-use crate::kernel::limb as limb_kernel;
+use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext};
 use std::{cmp::Ordering, str::FromStr};
 
 /// 自然数（小端 `u64` limb，无尾随零）。
@@ -179,6 +178,17 @@ impl Natural {
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        // Hot path for the overwhelmingly common machine-word case. Besides
+        // avoiding the generic kernel dispatch this keeps the carry logic in
+        // registers and performs exactly one allocation for the result.
+        if self.limbs.len() == 1 && rhs.limbs.len() == 1 {
+            ctx.budget().check_limbs(2)?;
+            let (lo, carry) = self.limbs[0].overflowing_add(rhs.limbs[0]);
+            if !carry {
+                return Ok(Self { limbs: vec![lo] });
+            }
+            return Ok(Self { limbs: vec![lo, 1] });
+        }
         Ok(Self::from_limbs(limb_kernel::add_n_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
     }
 
@@ -195,6 +205,10 @@ impl Natural {
                 .detail("operation", "natural_sub")
                 .detail("reason", "underflow"));
         }
+        if self.limbs.len() == 1 && rhs.limbs.len() == 1 {
+            ctx.budget().check_limbs(1)?;
+            return Ok(Self { limbs: vec![self.limbs[0] - rhs.limbs[0]] });
+        }
         Ok(Self::from_limbs(limb_kernel::sub_n_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
     }
 
@@ -205,6 +219,11 @@ impl Natural {
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        if self.limbs.len() == 1 && rhs.limbs.len() == 1 {
+            ctx.budget().check_limbs(2)?;
+            let (hi, lo) = limb_kernel::mul_wide(self.limbs[0], rhs.limbs[0]);
+            return Ok(if hi == 0 { Self { limbs: vec![lo] } } else { Self { limbs: vec![lo, hi] } });
+        }
         Ok(Self::from_limbs(limb_kernel::mul_budgeted(&self.limbs, &rhs.limbs, ctx.budget())?))
     }
 

@@ -117,7 +117,7 @@ impl Decimal {
     pub fn normalize(&mut self) {
         self.dyadic.normalize();
         if let Err(e) = self.validate() {
-            panic!("BigFloat invariant broken after normalize: {:?}", e);
+            panic!("Decimal invariant broken after normalize: {:?}", e);
         }
     }
 
