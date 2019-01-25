@@ -51,7 +51,7 @@ pub(crate) fn barrett_for_modulus(modulus: &Modulus) -> BarrettParams {
     let mag = modulus.value().magnitude();
     let k = mag.bits().max(1) as u32;
     let two_2k = power_of_two_natural(2 * k);
-    let mu = two_2k.div_rem(mag).0;
+    let mu = two_2k.div_rem(&mag).0;
     BarrettParams { mu, k }
 }
 

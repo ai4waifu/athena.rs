@@ -1,11 +1,12 @@
-//! 精确整数包装（纯 Rust 内部表示，不暴露 limb / `num-*`）。
+//! 精确整数（自有 `meta + Magnitude`；`Sign` 仅为语义 API）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 use std::str::FromStr;
 
+use crate::magnitude::MagnitudePair;
 use crate::{execution_budget::NumericContext, natural::Natural};
 
-/// 符号（精确）。
+/// 符号（语义 API；不作为 [`Integer`] 存储字段）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Sign {
     /// 负。
@@ -18,12 +19,19 @@ pub enum Sign {
 
 /// 精确整数（稳定公共包装；亦称 [`ExactInteger`]）。
 ///
+/// 布局：`meta`（mode+sign+heap_len）+ `union Magnitude`，LP64 上 24 bytes。
+/// 经私有 [`MagnitudePair`] 做 Drop/Clone；无独立 `Sign` 字段、不嵌套 `Natural`。
 /// 排序必须是数学序：负数额值反序、正数额值正序。禁止 derive `Ord`。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Integer {
-    sign: Sign,
-    mag: Natural,
+    inner: MagnitudePair,
 }
+
+#[cfg(target_pointer_width = "64")]
+const _: () = {
+    assert!(core::mem::size_of::<Integer>() == 24);
+    assert!(core::mem::align_of::<Integer>() == 8);
+};
 
 impl PartialOrd for Integer {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -34,14 +42,14 @@ impl PartialOrd for Integer {
 impl Ord for Integer {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
-        match (self.sign, other.sign) {
+        match (self.sign(), other.sign()) {
             (Sign::Negative, Sign::Positive) | (Sign::Negative, Sign::Zero) => Ordering::Less,
             (Sign::Positive, Sign::Negative) | (Sign::Zero, Sign::Negative) => Ordering::Greater,
             (Sign::Zero, Sign::Zero) => Ordering::Equal,
             (Sign::Zero, Sign::Positive) => Ordering::Less,
             (Sign::Positive, Sign::Zero) => Ordering::Greater,
-            (Sign::Positive, Sign::Positive) => self.mag.cmp(&other.mag),
-            (Sign::Negative, Sign::Negative) => other.mag.cmp(&self.mag),
+            (Sign::Positive, Sign::Positive) => self.inner.as_limbs().cmp(other.inner.as_limbs()),
+            (Sign::Negative, Sign::Negative) => other.inner.as_limbs().cmp(self.inner.as_limbs()),
         }
     }
 }
@@ -51,26 +59,25 @@ pub type ExactInteger = Integer;
 
 impl Integer {
     fn from_mag_sign(mag: Natural, negative: bool) -> Self {
-        if mag.is_zero() {
-            Self { sign: Sign::Zero, mag }
-        }
-        else if negative {
-            Self { sign: Sign::Negative, mag }
-        }
-        else {
-            Self { sign: Sign::Positive, mag }
-        }
+        Self { inner: mag.into_pair().with_negative(negative) }
+    }
+
+    fn from_pair(inner: MagnitudePair) -> Self {
+        Self { inner }
+    }
+
+    /// 无符号幅度（克隆；供模运算等）。
+    fn abs_natural(&self) -> Natural {
+        Natural::from_pair(self.inner.clone_clear_sign())
     }
 
     /// 由已解码 `i64` 构造。
     pub fn from_i64(n: i64) -> Self {
         if n == 0 {
             Self::zero()
-        }
-        else if n < 0 {
+        } else if n < 0 {
             Self::from_mag_sign(Natural::from_u64(n.unsigned_abs()), true)
-        }
-        else {
+        } else {
             Self::from_mag_sign(Natural::from_u64(n as u64), false)
         }
     }
@@ -82,17 +89,17 @@ impl Integer {
 
     /// 零。
     pub fn zero() -> Self {
-        Self { sign: Sign::Zero, mag: Natural::zero() }
+        Self { inner: MagnitudePair::zero() }
     }
 
     /// 一。
     pub fn one() -> Self {
-        Self { sign: Sign::Positive, mag: Natural::one() }
+        Self::from_mag_sign(Natural::one(), false)
     }
 
     /// 非负幅度（crate 内部；模内核用）。
-    pub(crate) fn magnitude(&self) -> &Natural {
-        &self.mag
+    pub(crate) fn magnitude(&self) -> Natural {
+        self.abs_natural()
     }
 
     /// 由非负 [`Natural`] 构造（crate 内部）。
@@ -102,86 +109,97 @@ impl Integer {
 
     /// 是否为零。
     pub fn is_zero(&self) -> bool {
-        self.sign == Sign::Zero
+        self.inner.is_zero()
     }
 
     /// 是否为一。
     pub fn is_one(&self) -> bool {
-        self.sign == Sign::Positive && self.mag.is_one()
+        matches!(self.sign(), Sign::Positive) && self.inner.as_limbs() == [1]
     }
 
     /// 是否为负。
     pub fn is_negative(&self) -> bool {
-        self.sign == Sign::Negative
+        self.inner.is_negative()
     }
 
     /// 是否为正。
     pub fn is_positive(&self) -> bool {
-        self.sign == Sign::Positive
+        matches!(self.sign(), Sign::Positive)
     }
 
     /// 是否非负（零视为非负）。
     pub fn is_non_negative(&self) -> bool {
-        self.sign != Sign::Negative
+        !self.is_negative()
     }
 
-    /// 符号。
+    /// 符号（由 `meta` 解码；零无负零）。
     pub fn sign(&self) -> Sign {
-        self.sign
+        if self.inner.is_zero() {
+            Sign::Zero
+        } else if self.inner.is_negative() {
+            Sign::Negative
+        } else {
+            Sign::Positive
+        }
     }
 
     /// 绝对值。
     pub fn abs(&self) -> Self {
-        if self.is_zero() { Self::zero() } else { Self { sign: Sign::Positive, mag: self.mag.clone() } }
+        Self::from_pair(self.inner.clone_clear_sign())
     }
 
     /// 取负。
     pub fn neg(&self) -> Self {
-        match self.sign {
+        match self.sign() {
             Sign::Zero => Self::zero(),
-            Sign::Positive => Self { sign: Sign::Negative, mag: self.mag.clone() },
-            Sign::Negative => Self { sign: Sign::Positive, mag: self.mag.clone() },
+            Sign::Positive => Self::from_pair(self.inner.clone().with_negative(true)),
+            Sign::Negative => Self::from_pair(self.inner.clone_clear_sign()),
         }
     }
 
     /// 非负最大公约数；`gcd(0,0) = 0`（默认上下文）。
     pub fn gcd(&self, other: &Self) -> Self {
-        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_gcd(other, &NumericContext::pure_rust_default())
+            .expect("pure-rust default max_limbs unbounded")
     }
 
     /// 非负最大公约数（服从 `ctx` 预算）。
     pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
-        let a = self.abs().mag;
-        let b = other.abs().mag;
+        let a = self.abs_natural();
+        let b = other.abs_natural();
         if a.is_zero() && b.is_zero() {
             return Ok(Self::zero());
         }
         let g = Natural::try_gcd(&a, &b, ctx)?;
-        Ok(Self { sign: Sign::Positive, mag: g })
+        Ok(Self::from_positive_natural(g))
     }
 
     /// 加法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::pure_rust_default())
+            .expect("pure-rust default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
-        Ok(match (self.sign, rhs.sign) {
+        Ok(match (self.sign(), rhs.sign()) {
             (Sign::Zero, _) => rhs.clone(),
             (_, Sign::Zero) => self.clone(),
-            (Sign::Positive, Sign::Positive) => Self { sign: Sign::Positive, mag: self.mag.try_add(&rhs.mag, ctx)? },
-            (Sign::Negative, Sign::Negative) => Self { sign: Sign::Negative, mag: self.mag.try_add(&rhs.mag, ctx)? },
+            (Sign::Positive, Sign::Positive) => {
+                Self::from_positive_natural(self.abs_natural().try_add(&rhs.abs_natural(), ctx)?)
+            }
+            (Sign::Negative, Sign::Negative) => {
+                Self::from_mag_sign(self.abs_natural().try_add(&rhs.abs_natural(), ctx)?, true)
+            }
             (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
-                let sa = &self.mag;
-                let sb = &rhs.mag;
+                let sa = self.abs_natural();
+                let sb = rhs.abs_natural();
                 if sa >= sb {
-                    let mag = sa.try_sub(sb, ctx)?;
-                    Self::from_mag_sign(mag, self.sign == Sign::Negative)
-                }
-                else {
-                    let mag = sb.try_sub(sa, ctx)?;
-                    Self::from_mag_sign(mag, rhs.sign == Sign::Negative)
+                    let mag = sa.try_sub(&sb, ctx)?;
+                    Self::from_mag_sign(mag, self.is_negative())
+                } else {
+                    let mag = sb.try_sub(&sa, ctx)?;
+                    Self::from_mag_sign(mag, rhs.is_negative())
                 }
             }
         })
@@ -199,7 +217,8 @@ impl Integer {
 
     /// 乘法（默认上下文）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::pure_rust_default())
+            .expect("pure-rust default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
@@ -207,8 +226,11 @@ impl Integer {
         if self.is_zero() || rhs.is_zero() {
             return Ok(Self::zero());
         }
-        let sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
-        Ok(Self { sign, mag: self.mag.try_mul(&rhs.mag, ctx)? })
+        let negative = self.is_negative() != rhs.is_negative();
+        Ok(Self::from_mag_sign(
+            self.abs_natural().try_mul(&rhs.abs_natural(), ctx)?,
+            negative,
+        ))
     }
 
     /// 向零整除：商向零，余数与被除数同号（默认上下文）。
@@ -221,10 +243,10 @@ impl Integer {
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_trunc"));
         }
-        let (q_mag, r_mag) = self.mag.try_div_rem(&rhs.mag, ctx)?;
-        let q_sign = if self.sign == rhs.sign { Sign::Positive } else { Sign::Negative };
-        let r_sign = self.sign;
-        Ok((Self::from_mag_sign(q_mag, q_sign == Sign::Negative), Self::from_mag_sign(r_mag, r_sign == Sign::Negative)))
+        let (q_mag, r_mag) = self.abs_natural().try_div_rem(&rhs.abs_natural(), ctx)?;
+        let q_neg = self.is_negative() != rhs.is_negative();
+        let r_neg = self.is_negative();
+        Ok((Self::from_mag_sign(q_mag, q_neg), Self::from_mag_sign(r_mag, r_neg)))
     }
 
     /// Euclidean 整除：余数满足 `0 <= r < |rhs|`（默认上下文）。
@@ -242,14 +264,13 @@ impl Integer {
             if rhs.is_positive() {
                 r = r.try_add(rhs, ctx)?;
                 q = q.try_sub(&Self::one(), ctx)?;
-            }
-            else {
+            } else {
                 r = r.try_sub(rhs, ctx)?;
                 q = q.try_add(&Self::one(), ctx)?;
             }
         }
         debug_assert!(!r.is_negative());
-        debug_assert!(r.mag < rhs.mag || r.is_zero());
+        debug_assert!(r.abs_natural() < rhs.abs_natural() || r.is_zero());
         Ok((q, r))
     }
 
@@ -290,13 +311,15 @@ impl Integer {
                 .detail("reason", "negative_exponent_requires_modular_inverse"));
         }
         let base = self.try_div_rem_euclid(modulus, ctx)?.1;
-        let result_mag = base.mag.try_mod_pow(&exp.mag, &modulus.mag, ctx)?;
-        Ok(Self { sign: Sign::Positive, mag: result_mag })
+        let result_mag = base
+            .abs_natural()
+            .try_mod_pow(&exp.abs_natural(), &modulus.abs_natural(), ctx)?;
+        Ok(Self::from_positive_natural(result_mag))
     }
 
     /// 绝对值的二进制位宽（`0` → `0`）。
     pub fn bits(&self) -> u64 {
-        self.mag.bits()
+        self.abs_natural().bits()
     }
 
     /// 可无损落入 `i64` 时返回（含 `i64::MIN` 与零）。
@@ -304,8 +327,8 @@ impl Integer {
         if self.is_zero() {
             return Some(0);
         }
-        let u = self.mag.to_u128()?;
-        let wide = match self.sign {
+        let u = self.abs_natural().to_u128()?;
+        let wide = match self.sign() {
             Sign::Zero => 0_i128,
             Sign::Positive => i128::try_from(u).ok()?,
             Sign::Negative => {
@@ -323,8 +346,8 @@ impl Integer {
         if self.is_zero() {
             return Some(0);
         }
-        match self.sign {
-            Sign::Positive => self.mag.to_u64(),
+        match self.sign() {
+            Sign::Positive => self.abs_natural().to_u64(),
             Sign::Negative | Sign::Zero => None,
         }
     }
@@ -334,8 +357,8 @@ impl Integer {
         if self.is_zero() {
             return Some(0);
         }
-        match self.sign {
-            Sign::Positive => self.mag.to_u128(),
+        match self.sign() {
+            Sign::Positive => self.abs_natural().to_u128(),
             Sign::Negative | Sign::Zero => None,
         }
     }
@@ -348,7 +371,7 @@ impl Integer {
         if self.is_zero() {
             return Some(0.0);
         }
-        let u = self.abs().mag.to_u128()?;
+        let u = self.abs_natural().to_u128()?;
         if u > Self::F64_EXACT_ABS_MAX {
             return None;
         }
@@ -356,7 +379,11 @@ impl Integer {
         if !f.is_finite() {
             return None;
         }
-        if f64_represents_integer(f, self) { Some(f) } else { None }
+        if f64_represents_integer(f, self) {
+            Some(f)
+        } else {
+            None
+        }
     }
 
     /// 明确近似的 `f64`（不保证可逆；宿主桥接用）。
@@ -374,21 +401,21 @@ impl Integer {
 
     /// 十进制调试字符串（非本地化用户文案）。
     pub fn to_decimal_string(&self) -> String {
-        match self.sign {
+        match self.sign() {
             Sign::Zero => "0".to_string(),
-            Sign::Positive => self.mag.to_decimal_string(),
-            Sign::Negative => format!("-{}", self.mag.to_decimal_string()),
+            Sign::Positive => self.abs_natural().to_decimal_string(),
+            Sign::Negative => format!("-{}", self.abs_natural().to_decimal_string()),
         }
     }
 
     /// 是否为 2 的幂（正整数）。
     pub fn is_power_of_two(&self) -> bool {
-        self.is_positive() && self.mag.is_power_of_two()
+        self.is_positive() && self.abs_natural().is_power_of_two()
     }
 
     /// 是否为奇数。
     pub fn is_odd(&self) -> bool {
-        !self.is_zero() && self.mag.is_odd()
+        !self.is_zero() && self.abs_natural().is_odd()
     }
 
     /// 非负 `u32` 指数幂（独立实现，不回调 [`pow`]）。
@@ -433,8 +460,7 @@ impl Integer {
             if e > Self::MAX_POW_EXP {
                 return Err(());
             }
-        }
-        else {
+        } else {
             return Err(());
         }
         let mut acc = Self::one();
@@ -469,8 +495,7 @@ impl Integer {
             let mid = lo.add(&hi).div(&two).expect("divisor two");
             if mid.mul(&mid) <= *self {
                 lo = mid;
-            }
-            else {
+            } else {
                 hi = mid;
             }
         }
@@ -479,7 +504,7 @@ impl Integer {
 
     /// 二进制 wire 符号码：`0` 零 · `1` 正 · `2` 负。
     pub(crate) fn wire_sign_code(&self) -> u8 {
-        match self.sign {
+        match self.sign() {
             Sign::Zero => 0,
             Sign::Positive => 1,
             Sign::Negative => 2,
@@ -488,7 +513,7 @@ impl Integer {
 
     /// 二进制 wire 的无符号幅度字节。
     pub(crate) fn wire_magnitude_bytes(&self) -> Vec<u8> {
-        self.mag.wire_encode_magnitude()
+        self.abs_natural().wire_encode_magnitude()
     }
 
     /// 由符号码 + 幅度字节解码二进制 wire 整数。
@@ -517,7 +542,9 @@ impl Integer {
 }
 
 fn division_by_zero(op: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::NumericDivisionByZero).detail("domain", "numeric").detail("operation", op)
+    Diagnostic::new(DiagnosticCode::NumericDivisionByZero)
+        .detail("domain", "numeric")
+        .detail("operation", op)
 }
 
 fn f64_represents_integer(f: f64, n: &Integer) -> bool {
@@ -527,7 +554,7 @@ fn f64_represents_integer(f: f64, n: &Integer) -> bool {
     if n.is_zero() {
         return f == 0.0;
     }
-    let u = match n.abs().mag.to_u128() {
+    let u = match n.abs_natural().to_u128() {
         Some(v) => v,
         None => return false,
     };

@@ -1,4 +1,6 @@
-//! 默认纯 Rust 数值 backend（WASM 安全、确定性）。
+//! 默认纯 Rust limb kernel backend（WASM 安全、确定性、语义基线）。
+//!
+//! 提供 Athena limb 算术实现与能力广告；不拥有 `Magnitude`/arena，不包装 foreign bigint。
 
 pub(crate) mod limb_kernel;
 

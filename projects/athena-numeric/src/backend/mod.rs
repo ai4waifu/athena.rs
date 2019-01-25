@@ -1,13 +1,21 @@
-//! 数值 backend 合同与分派。
+//! Limb kernel backend 合同与分派。
+//!
+//! backend **只**提供 limb 算术实现：借用 Athena 已分配的 limb / scratch buffer 写入结果。
+//! 禁止 foreign bigint wrapper-as-value（GMP `mpz_t` / `num-bigint` 对象不得作为
+//! `Integer`/`Natural`/`NumericValue` 的生产路径存储）。
+//!
+//! ```text
+//! Magnitude → LimbView → backend kernel → Athena-owned out buffer → canonicalize
+//! ```
 //!
 //! 目录布局：
 //! ```text
 //! backend/
-//!   mod.rs           — trait、能力标志、资源上限
-//!   pure_rust/       — 默认 WASM 安全内核（limb 算术 + limb kernel）
+//!   mod.rs           — 能力标志、资源上限（值级分派门面，逐步收束到 *_into）
+//!   pure_rust/       — 默认 WASM 安全 limb kernel（语义基线）
+//!   native/          — 可选加速（feature）；仍只操作 `&[u64]`/`&mut [u64]`
 //! ```
 //!
-//! 未来可选 backend（如 `native-accelerated/`）作为同级目录存在；
 //! Rust 模块名用下划线（`pure_rust`），因为标识符不能含 `-`。
 
 #[path = "pure_rust/mod.rs"]
