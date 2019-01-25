@@ -100,19 +100,18 @@ pub(crate) fn cmp_slice(a: &[u64], b: &[u64]) -> Ordering {
 }
 
 /// Karatsuba 递归所需 scratch limb 总数（逐层顺序复用 `rest`）。
+///
+/// 切分用 `m = ceil(n/2)`，**不用** `next_power_of_two`：后者会让 `(al+ah)` 子问题
+/// 回升到与父层同宽，导致 `rest` 上 `split_at_mut` 触发 `mid > len`。
 pub(crate) fn karatsuba_scratch_limbs(n_limbs: usize) -> usize {
     if n_limbs < MUL_KARATSUBA_THRESHOLD {
         return 0;
     }
-    let mut n = n_limbs.next_power_of_two().max(2);
-    let mut total = 0usize;
-    while n >= MUL_KARATSUBA_THRESHOLD {
-        let m = n / 2;
-        // z0(2m) + z2(2m) + a_sum(m+1) + b_sum(m+1) + z1(2m+2)
-        total = total.saturating_add(2 * m + 2 * m + (m + 1) + (m + 1) + (2 * m + 2));
-        n = m;
-    }
-    total
+    let m = (n_limbs + 1) / 2;
+    // z0(2m) + z2(2m) + a_sum(m+1) + b_sum(m+1) + z1(2m+2)
+    let level = 2 * m + 2 * m + (m + 1) + (m + 1) + (2 * m + 2);
+    // 顺序复用：子问题最坏是 sum 乘积，宽度 `m+1`
+    level.saturating_add(karatsuba_scratch_limbs(m + 1))
 }
 
 /// Knuth 除法 scratch：归一化 u、v、商，以及可选余数右移缓冲。
@@ -303,7 +302,8 @@ fn mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
     let lb = effective_len(b);
     let need = (la + lb).max(1);
     debug_assert!(out.len() >= need);
-    out[..need].fill(0);
+    // 必须清零整段 `out`：Karatsuba 临时区来自 scratch，高位残留会破坏后续比较/减法。
+    out.fill(0);
     if is_zero(a) || is_zero(b) {
         return;
     }
@@ -312,8 +312,8 @@ fn mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
         return;
     }
 
-    let n = la.max(lb).next_power_of_two();
-    let m = n / 2;
+    let n = la.max(lb);
+    let m = (n + 1) / 2;
     let (al, ah) = split_lo_hi(a, m);
     let (bl, bh) = split_lo_hi(b, m);
 
@@ -347,11 +347,11 @@ fn mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
         sub_assign_slices(z1, z2);
     }
 
-    // out = z0 + (z1 << m) + (z2 << n) where n = 2m
-    out[..need].fill(0);
+    // out = z0 + (z1 << m) + (z2 << 2m)
+    out.fill(0);
     add_assign_shifted(out, z0, 0);
     add_assign_shifted(out, z1, m);
-    add_assign_shifted(out, z2, n);
+    add_assign_shifted(out, z2, 2 * m);
 }
 
 /// 就地 `r += a * n`（单 limb `n`）。

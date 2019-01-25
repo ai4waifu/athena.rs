@@ -84,19 +84,18 @@ impl ExecutionBudget {
         self.check_limbs(out)
     }
 
-    /// 估算并检查 Karatsuba 乘法 scratch（保守上界，与内核逐层公式同阶）。
+    /// 估算并检查 Karatsuba 乘法 scratch（与 `karatsuba_scratch_limbs` 同构）。
     pub fn check_mul_scratch(&self, a_limbs: usize, b_limbs: usize) -> Result<()> {
         let n = a_limbs.max(b_limbs);
         if n < 32 {
             return self.check_limbs(a_limbs + b_limbs);
         }
-        // 与 `karatsuba_scratch_limbs` 同构：每层 z0+z2+asum+bsum+z1
-        let mut m = n.next_power_of_two().max(2);
+        let mut width = n;
         let mut total = 0usize;
-        while m >= 32 {
-            let half = m / 2;
+        while width >= 32 {
+            let half = (width + 1) / 2;
             total = total.saturating_add(2 * half + 2 * half + (half + 1) + (half + 1) + (2 * half + 2));
-            m = half;
+            width = half + 1;
         }
         self.check_limbs(total.max(a_limbs + b_limbs))
     }
