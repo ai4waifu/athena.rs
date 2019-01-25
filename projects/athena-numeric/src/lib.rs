@@ -1,4 +1,6 @@
 //! Athena 数值塔 — 表示、运算、精度、promotion、证书。
+//!
+//! unsafe 边界：仅 `magnitude` 窄模块（纯 `union Magnitude` + `OwnedLimbBuffer`）允许 unsafe。
 #![deny(missing_docs)]
 
 pub mod arithmetic;
@@ -6,6 +8,7 @@ pub mod backend;
 pub mod certificate;
 pub mod format;
 pub mod kernel;
+pub(crate) mod magnitude;
 pub mod policy;
 pub mod representation;
 pub mod value;

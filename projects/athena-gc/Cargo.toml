@@ -1,0 +1,16 @@
+[package]
+name = "athena-gc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Athena CAS runtime GC heap — segmented arena, tracing roots, scratch, GcMode"
+publish = false
+
+[dependencies]
+athena-types = { workspace = true }
+
+[lints.rust]
+missing_docs = "warn"
+# Segment / header / limb block 需要窄域 unsafe；其余模块保持 deny。
+unsafe_code = "deny"

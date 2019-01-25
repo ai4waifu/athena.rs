@@ -1,0 +1,136 @@
+//! Magnitude / TaggedMagnitude 布局与 canonical 表示测试。
+
+use athena_numeric::natural::Natural;
+use std::mem::{align_of, size_of};
+
+#[test]
+fn natural_size_align_lp64() {
+    assert_eq!(size_of::<Natural>(), 24);
+    assert_eq!(align_of::<Natural>(), 8);
+}
+
+#[test]
+fn modes_upgrade_downgrade() {
+    let z = Natural::zero();
+    assert!(z.is_zero());
+    assert_eq!(z.as_limbs(), &[0]);
+
+    let a = Natural::from_u64(1);
+    assert_eq!(a.as_limbs(), &[1]);
+
+    let b = Natural::from_limbs(vec![0, 1]);
+    assert_eq!(b.as_limbs(), &[0, 1]);
+
+    let c = Natural::from_limbs(vec![1, 2, 3]);
+    assert_eq!(c.as_limbs(), &[1, 2, 3]);
+
+    // 尾随零不得进入错误 mode。
+    let d = Natural::from_limbs(vec![5, 0, 0]);
+    assert_eq!(d.as_limbs(), &[5]);
+
+    let e = Natural::from_limbs(vec![0, 0, 0]);
+    assert!(e.is_zero());
+    assert_eq!(e.as_limbs(), &[0]);
+}
+
+#[test]
+fn clone_drop_heap() {
+    let a = Natural::from_limbs(vec![1, 2, 3, 4]);
+    let b = a.clone();
+    assert_eq!(a, b);
+    assert_eq!(a.as_limbs(), &[1, 2, 3, 4]);
+    drop(a);
+    assert_eq!(b.to_decimal_string(), {
+        // 1 + 2*2^64 + 3*2^128 + 4*2^192 — 只校验 round-trip 等式
+        b.clone().to_decimal_string()
+    });
+}
+
+#[test]
+fn arithmetic_still_works_across_modes() {
+    let a = Natural::from_u64(u64::MAX);
+    let b = Natural::from_u64(2);
+    let s = a.add(&b);
+    assert_eq!(s.as_limbs(), &[1, 1]);
+
+    let p = a.mul(&a);
+    assert_eq!(p.as_limbs().len(), 2);
+
+    let h = Natural::from_limbs(vec![u64::MAX, u64::MAX, u64::MAX]);
+    let q = h.add(&Natural::one());
+    assert_eq!(q.as_limbs(), &[0, 0, 0, 1]);
+}
+
+#[test]
+fn eq_ord_hash_ignore_repr() {
+    use std::collections::HashSet;
+    let a = Natural::from_limbs(vec![7]);
+    let b = Natural::from_u64(7);
+    assert_eq!(a, b);
+    assert_eq!(a.cmp(&b), std::cmp::Ordering::Equal);
+
+    let mut set = HashSet::new();
+    set.insert(a);
+    assert!(set.contains(&b));
+}
+
+#[test]
+fn limb1_add_stays_inline() {
+    let a = Natural::from_u64(3);
+    let b = Natural::from_u64(5);
+    let s = a.add(&b);
+    assert_eq!(s.as_limbs(), &[8]);
+    // len==1 ⇒ Limb1，非 Heap
+    assert_eq!(s.as_limbs().len(), 1);
+
+    let overflow = Natural::from_u64(u64::MAX).add(&Natural::one());
+    assert_eq!(overflow.as_limbs(), &[0, 1]);
+    // len==2 ⇒ Limb2，非 Heap
+    assert_eq!(overflow.as_limbs().len(), 2);
+}
+
+#[test]
+fn limb1_mul_product_stays_limb2() {
+    let a = Natural::from_u64(u64::MAX);
+    let p = a.mul(&a);
+    // (2^64-1)^2 = 2^128 - 2^65 + 1 → 恰好 2 limbs
+    assert_eq!(p.as_limbs().len(), 2);
+    assert_eq!(p.as_limbs(), &[1, u64::MAX - 1]);
+}
+
+#[test]
+fn limb2_add_carry_upgrades_to_heap() {
+    let a = Natural::from_limbs(vec![u64::MAX, u64::MAX]);
+    let b = Natural::one();
+    let s = a.add(&b);
+    assert_eq!(s.as_limbs(), &[0, 0, 1]);
+    assert_eq!(s.as_limbs().len(), 3);
+}
+
+#[test]
+fn limb2_mul_fixed_width() {
+    let a = Natural::from_limbs(vec![u64::MAX, 1]);
+    let b = Natural::from_u64(2);
+    let p = a.mul(&b);
+    assert_eq!(p.as_limbs(), &[u64::MAX - 1, 3]);
+    assert_eq!(p.as_limbs().len(), 2);
+
+    let c = Natural::from_limbs(vec![u64::MAX, u64::MAX]);
+    let q = c.mul(&c);
+    assert!(q.as_limbs().len() >= 3);
+    assert!(q.as_limbs().len() <= 4);
+}
+
+#[test]
+fn fixed_width_commutative() {
+    let cases = [
+        (Natural::from_u64(0), Natural::from_u64(9)),
+        (Natural::from_u64(u64::MAX), Natural::from_u64(u64::MAX)),
+        (Natural::from_limbs(vec![1, 1]), Natural::from_limbs(vec![2, 3])),
+        (Natural::from_limbs(vec![u64::MAX, u64::MAX]), Natural::from_u64(u64::MAX)),
+    ];
+    for (a, b) in cases {
+        assert_eq!(a.add(&b), b.add(&a));
+        assert_eq!(a.mul(&b), b.mul(&a));
+    }
+}
