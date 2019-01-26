@@ -3,6 +3,7 @@
 
 use core::cell::Cell;
 use core::ptr::NonNull;
+use std::rc::Rc;
 use std::time::Instant;
 
 use crate::budget::HeapBudget;
@@ -33,7 +34,7 @@ pub struct GcHeap {
     access_clock: u64,
     /// 当前 resident（各存活 segment capacity 之和）。
     resident_bytes: usize,
-    controller: GcController,
+    controller: Rc<GcController>,
     roots: RootRegistry,
     scratch: ScratchArena,
     stats: HeapStats,
@@ -55,7 +56,7 @@ impl GcHeap {
             next_generation: 1,
             access_clock: 0,
             resident_bytes: 0,
-            controller: GcController::new(),
+            controller: Rc::new(GcController::new()),
             roots: RootRegistry::new(),
             scratch: ScratchArena::new(),
             stats: HeapStats::default(),
@@ -67,8 +68,8 @@ impl GcHeap {
         &self.budget
     }
 
-    /// GC 控制器。
-    pub fn gc(&self) -> &GcController {
+    /// GC 控制器（`Rc`，guard 不占用 `GcHeap` 借用）。
+    pub fn gc(&self) -> &Rc<GcController> {
         &self.controller
     }
 
@@ -99,18 +100,18 @@ impl GcHeap {
         self.controller.effective_mode()
     }
 
-    /// Suspend（Disabled）。
-    pub fn suspend(&self) -> GcSuspendGuard<'_> {
+    /// Suspend（Disabled）。guard 只持有 `GcController`，可与 `&mut GcHeap` 交错使用。
+    pub fn suspend(&self) -> GcSuspendGuard {
         self.controller.suspend()
     }
 
     /// Defer。
-    pub fn defer(&self) -> GcDeferGuard<'_> {
+    pub fn defer(&self) -> GcDeferGuard {
         self.controller.defer()
     }
 
-    /// Pin 若干 segment。
-    pub fn pin(&self, segments: &[SegmentId]) -> GcPinGuard<'_> {
+    /// Pin 若干 segment。guard 使用裸指针，不冻结 `GcHeap` 借用。
+    pub fn pin(&self, segments: &[SegmentId]) -> GcPinGuard {
         GcPinGuard::new(self, segments.to_vec())
     }
 
@@ -124,6 +125,19 @@ impl GcHeap {
         if let Some(seg) = self.segment_ref(id) {
             seg.meta.pin_count.set(seg.meta.pin_count.get().saturating_sub(1));
         }
+    }
+
+    /// 已分配 block 的可写 limb 视图（校验 segment 仍存活）。
+    pub fn numeric_limbs_mut(&mut self, block: &NumericBlock) -> Result<&mut [u64]> {
+        self.segment_ref(block.segment_id).ok_or(GcError::UnknownAllocation)?;
+        // SAFETY: block 由本 heap 分配；segment 仍在；调用方持有 &mut self。
+        Ok(unsafe { core::slice::from_raw_parts_mut(block.ptr.as_ptr(), block.capacity) })
+    }
+
+    /// 只读 limb 视图。
+    pub fn numeric_limbs(&self, block: &NumericBlock) -> Result<&[u64]> {
+        self.segment_ref(block.segment_id).ok_or(GcError::UnknownAllocation)?;
+        Ok(unsafe { core::slice::from_raw_parts(block.ptr.as_ptr(), block.capacity) })
     }
 
     /// 分配 numeric limb block，返回指向 **limb 起点** 的指针与 capacity（limb 数）。
@@ -322,8 +336,7 @@ impl GcHeap {
             index: index as u32,
             generation,
         };
-        let mut bytes = Vec::with_capacity(capacity);
-        bytes.resize(capacity, 0);
+        let bytes = vec![0u8; capacity];
         self.segments[index] = Some(SegmentStorage {
             meta: SegmentMeta {
                 id,
