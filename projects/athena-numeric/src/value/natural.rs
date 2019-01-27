@@ -4,15 +4,34 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::magnitude::{Mode, MagnitudePair};
 use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext};
-use std::{cmp::Ordering, str::FromStr};
+use std::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
 /// 自然数（小端 `u64` limb，无尾随零）。
 ///
-/// 布局：`meta`（仅 mode+heap_len）+ `union Magnitude`，LP64 上 24 bytes。
-/// 经私有 [`MagnitudePair`] 做 Drop/Clone；不解释 sign。
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
+/// 布局：`meta`（mode+heap_len；sign 位 don't-care）+ `union Magnitude`，LP64 上 24 bytes。
+/// 经私有 [`MagnitudePair`] 做 Drop/Clone；读取时不解释 sign，语义恒为非负。
+#[derive(Clone, Default)]
 pub struct Natural {
     inner: MagnitudePair,
+}
+
+impl PartialEq for Natural {
+    fn eq(&self, other: &Self) -> bool {
+        // 忽略 meta sign/reserved don't-care 位。
+        self.as_limbs() == other.as_limbs()
+    }
+}
+
+impl Eq for Natural {}
+
+impl Hash for Natural {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_limbs().hash(state);
+    }
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -509,15 +528,15 @@ impl Natural {
         n
     }
 
-    /// 由无符号 [`MagnitudePair`] 构造（清除 sign 位）。
+    /// 由物理 pair 构造（**不**清零 sign don't-care 位）。
     pub(crate) fn from_pair(inner: MagnitudePair) -> Self {
-        let n = Self { inner: inner.with_negative(false) };
+        let n = Self { inner };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
     }
 
-    /// 取出内部 tagged 表示。
+    /// 取出内部物理 pair（保留 don't-care bits）。
     pub(crate) fn into_pair(self) -> MagnitudePair {
         self.inner
     }
@@ -627,5 +646,29 @@ impl FromStr for Natural {
             n = n.mul_u64(10).add_u64(u64::from(ch as u32 - u32::from(b'0')));
         }
         Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integer::Integer;
+    use std::collections::HashSet;
+
+    #[test]
+    fn natural_sign_bit_is_semantic_dont_care() {
+        let a = Natural::from_u64(42);
+        let b = Natural::from_pair(a.clone().into_pair().with_negative(true));
+        assert_eq!(a, b);
+        assert_eq!(a.cmp(&b), Ordering::Equal);
+
+        let mut set = HashSet::new();
+        set.insert(a);
+        assert!(set.contains(&b));
+    }
+
+    #[test]
+    fn integer_interprets_sign_bit() {
+        assert_ne!(Integer::from_u64(42), Integer::from_i64(-42));
     }
 }

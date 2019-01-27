@@ -12,7 +12,7 @@ mod pair;
 mod union;
 mod view;
 
-pub(crate) use meta::{Mode, is_negative as meta_is_negative};
+pub(crate) use meta::{Mode, NAT_RELEVANT_MASK, is_negative as meta_is_negative};
 pub(crate) use pair::MagnitudePair;
 use union::{HeapPayload, Magnitude};
 
