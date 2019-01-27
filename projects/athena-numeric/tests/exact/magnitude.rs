@@ -1,12 +1,26 @@
-//! Magnitude / TaggedMagnitude 布局与 canonical 表示测试。
+//! Magnitude / Nat·Int（`meta + Magnitude`）布局与 canonical 表示测试。
 
+use athena_numeric::integer::{Integer, Sign};
 use athena_numeric::natural::Natural;
 use std::mem::{align_of, size_of};
 
 #[test]
-fn natural_size_align_lp64() {
+fn natural_and_integer_size_align_lp64() {
     assert_eq!(size_of::<Natural>(), 24);
     assert_eq!(align_of::<Natural>(), 8);
+    assert_eq!(size_of::<Integer>(), 24);
+    assert_eq!(align_of::<Integer>(), 8);
+}
+
+#[test]
+fn integer_sign_in_meta_not_separate_field() {
+    let n = Integer::from_i64(-7);
+    assert_eq!(n.sign(), Sign::Negative);
+    assert_eq!(n.abs().sign(), Sign::Positive);
+    assert_eq!(n.neg().to_i64(), Some(7));
+    assert_eq!(size_of::<Integer>(), size_of::<Natural>());
+    assert!(Integer::zero().is_zero());
+    assert_eq!(Integer::from_i64(-1).abs(), Integer::one());
 }
 
 #[test]

@@ -2,17 +2,17 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::magnitude::{Mode, TaggedMagnitude};
+use crate::magnitude::{Mode, MagnitudePair};
 use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext};
 use std::{cmp::Ordering, str::FromStr};
 
 /// 自然数（小端 `u64` limb，无尾随零）。
 ///
-/// 布局：内嵌 [`TaggedMagnitude`]（`meta` + `Magnitude` union），LP64 上 24 bytes。
-/// `meta` sign 位恒为 0。
+/// 布局：`meta`（仅 mode+heap_len）+ `union Magnitude`，LP64 上 24 bytes。
+/// 经私有 [`MagnitudePair`] 做 Drop/Clone；不解释 sign。
 #[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct Natural {
-    inner: TaggedMagnitude,
+    inner: MagnitudePair,
 }
 
 #[cfg(target_pointer_width = "64")]
@@ -42,12 +42,12 @@ impl Ord for Natural {
 impl Natural {
     /// 零。
     pub fn zero() -> Self {
-        Self { inner: TaggedMagnitude::zero() }
+        Self { inner: MagnitudePair::zero() }
     }
 
     /// 一。
     pub fn one() -> Self {
-        Self { inner: TaggedMagnitude::from_u64(1) }
+        Self { inner: MagnitudePair::from_u64(1) }
     }
 
     /// 是否为零。
@@ -67,7 +67,7 @@ impl Natural {
 
     /// 由 `u64` 构造。
     pub fn from_u64(n: u64) -> Self {
-        Self { inner: TaggedMagnitude::from_u64(n) }
+        Self { inner: MagnitudePair::from_u64(n) }
     }
 
     /// 二进制位宽（零 → 0）。
@@ -183,7 +183,7 @@ impl Natural {
                 Ok(if carry == 0 {
                     Self::from_u64(lo)
                 } else {
-                    Self { inner: TaggedMagnitude::from_limb2([lo, 1]) }
+                    Self { inner: MagnitudePair::from_limb2([lo, 1]) }
                 })
             }
             Mode::Limb2 => {
@@ -217,7 +217,7 @@ impl Natural {
             Mode::Limb1 => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
-                Ok(Self { inner: TaggedMagnitude::from_u128(limb_kernel::mul_1x1(a, rhs)) })
+                Ok(Self { inner: MagnitudePair::from_u128(limb_kernel::mul_1x1(a, rhs)) })
             }
             Mode::Limb2 => {
                 let a = self.inner.as_limb2().expect("Limb2");
@@ -250,7 +250,7 @@ impl Natural {
                 Ok(if carry == 0 {
                     Self::from_u64(lo)
                 } else {
-                    Self { inner: TaggedMagnitude::from_limb2([lo, 1]) }
+                    Self { inner: MagnitudePair::from_limb2([lo, 1]) }
                 })
             }
             (Mode::Limb1, Mode::Limb2) => {
@@ -313,7 +313,7 @@ impl Natural {
                 let a = self.inner.as_limb1().expect("Limb1");
                 let b = rhs.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
-                Ok(Self { inner: TaggedMagnitude::from_u128(limb_kernel::mul_1x1(a, b)) })
+                Ok(Self { inner: MagnitudePair::from_u128(limb_kernel::mul_1x1(a, b)) })
             }
             (Mode::Limb1, Mode::Limb2) => {
                 let a = self.inner.as_limb1().expect("Limb1");
@@ -357,7 +357,7 @@ impl Natural {
             Mode::Limb1 => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
-                Ok(Self { inner: TaggedMagnitude::from_u128(limb_kernel::mul_1x1(a, a)) })
+                Ok(Self { inner: MagnitudePair::from_u128(limb_kernel::mul_1x1(a, a)) })
             }
             Mode::Limb2 => {
                 let a = self.inner.as_limb2().expect("Limb2");
@@ -503,14 +503,14 @@ impl Natural {
 
     /// 由小端 limb 构造（已规范化）。
     pub fn from_limbs(limbs: Vec<u64>) -> Self {
-        let n = Self { inner: TaggedMagnitude::from_limbs(&limbs) };
+        let n = Self { inner: MagnitudePair::from_limbs(&limbs) };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
     }
 
-    /// 由无符号 [`TaggedMagnitude`] 构造（清除 sign 位）。
-    pub(crate) fn from_tagged(inner: TaggedMagnitude) -> Self {
+    /// 由无符号 [`MagnitudePair`] 构造（清除 sign 位）。
+    pub(crate) fn from_pair(inner: MagnitudePair) -> Self {
         let n = Self { inner: inner.with_negative(false) };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
@@ -518,14 +518,14 @@ impl Natural {
     }
 
     /// 取出内部 tagged 表示。
-    pub(crate) fn into_tagged(self) -> TaggedMagnitude {
+    pub(crate) fn into_pair(self) -> MagnitudePair {
         self.inner
     }
 
     /// 固定宽度结果回写（≤4 limbs，不经中间 `Vec`）。
     #[inline]
     fn from_fixed(limbs: &[u64]) -> Self {
-        let n = Self { inner: TaggedMagnitude::from_fixed_limbs(limbs) };
+        let n = Self { inner: MagnitudePair::from_fixed_limbs(limbs) };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n

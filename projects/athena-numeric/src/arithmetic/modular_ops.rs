@@ -39,17 +39,19 @@ impl ModulusContext {
         let aa = self.modulus.reduce(a);
         let bb = self.modulus.reduce(b);
         let mag = m.magnitude();
+        let aa_mag = aa.magnitude();
+        let bb_mag = bb.magnitude();
         if let Some(mp) = &self.montgomery {
             let prod = limb_kernel::mul_mod_montgomery_precomputed(
-                aa.magnitude().as_limbs(),
-                bb.magnitude().as_limbs(),
+                aa_mag.as_limbs(),
+                bb_mag.as_limbs(),
                 mag.as_limbs(),
                 mp.n_prime,
             );
             return Integer::from_positive_natural(Natural::from_limbs(prod));
         }
         if let Some(bp) = &self.barrett {
-            let r = barrett_mod_natural(aa.magnitude(), bb.magnitude(), mag, &bp.mu, bp.k);
+            let r = barrett_mod_natural(&aa_mag, &bb_mag, &mag, &bp.mu, bp.k);
             return Integer::from_positive_natural(r);
         }
         aa.mul(&bb).rem_euclid(m).expect("modulus")
@@ -61,17 +63,19 @@ impl ModulusContext {
             return Integer::zero();
         }
         let mag = self.modulus.value().magnitude();
+        let base_mag = base.abs().magnitude();
+        let exp_mag = exp.abs().magnitude();
         if let Some(mp) = &self.montgomery {
             let out = limb_kernel::mod_pow_montgomery_precomputed(
-                base.abs().magnitude().as_limbs(),
-                exp.abs().magnitude().as_limbs(),
+                base_mag.as_limbs(),
+                exp_mag.as_limbs(),
                 mag.as_limbs(),
                 mp.n_prime,
                 mp.r2.as_limbs(),
             );
             return Integer::from_positive_natural(Natural::from_limbs(out));
         }
-        Integer::from_positive_natural(base.abs().magnitude().mod_pow(exp.abs().magnitude(), mag))
+        Integer::from_positive_natural(base_mag.mod_pow(&exp_mag, &mag))
     }
 }
 

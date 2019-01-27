@@ -1,4 +1,6 @@
-//! `TaggedMagnitude`：`meta` + 纯 `union Magnitude` 的安全封装。
+//! 物理 `{meta, Magnitude}` 对：仅 Drop/Clone/union 访问。
+//!
+//! `meta` 各位的**语义**由外层 `Natural` / `Integer` / … 定义，本类型不充当跨类型语义包装。
 #![allow(unsafe_code)]
 
 use core::{
@@ -19,16 +21,16 @@ use super::{
 /// 规范零的静态 limb 视图（`as_limbs` 兼容 `[0]`）。
 static ZERO_LIMB: [u64; 1] = [0];
 
-/// 带 tag 的完整 magnitude（24 bytes on LP64）。
+/// 物理布局：`meta` + `union Magnitude`（24 bytes on LP64）。
 ///
 /// 所有 union 字段读写必须经本类型；外部禁止猜读 `magnitude`。
 #[repr(C)]
-pub(crate) struct TaggedMagnitude {
+pub(crate) struct MagnitudePair {
     meta: usize,
     magnitude: Magnitude,
 }
 
-impl TaggedMagnitude {
+impl MagnitudePair {
     /// 规范零。
     #[inline]
     pub(crate) fn zero() -> Self {
@@ -155,7 +157,7 @@ impl TaggedMagnitude {
 
     /// 清除 sign 位的克隆（供 `Natural` / 幅度运算）。
     #[inline]
-    pub(crate) fn clone_unsigned(&self) -> Self {
+    pub(crate) fn clone_clear_sign(&self) -> Self {
         let mut out = self.clone();
         out.meta &= !META_SIGN_BIT;
         out
@@ -271,13 +273,13 @@ fn effective_len(limbs: &[u64]) -> usize {
     n
 }
 
-impl Default for TaggedMagnitude {
+impl Default for MagnitudePair {
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl Clone for TaggedMagnitude {
+impl Clone for MagnitudePair {
     fn clone(&self) -> Self {
         match self.mode() {
             Mode::Zero => Self::zero(),
@@ -306,7 +308,7 @@ impl Clone for TaggedMagnitude {
     }
 }
 
-impl Drop for TaggedMagnitude {
+impl Drop for MagnitudePair {
     fn drop(&mut self) {
         if matches!(self.mode(), Mode::Heap) {
             // SAFETY: Heap mode → heap active。
@@ -318,24 +320,24 @@ impl Drop for TaggedMagnitude {
     }
 }
 
-impl PartialEq for TaggedMagnitude {
+impl PartialEq for MagnitudePair {
     fn eq(&self, other: &Self) -> bool {
         self.is_negative() == other.is_negative() && self.as_limbs() == other.as_limbs()
     }
 }
 
-impl Eq for TaggedMagnitude {}
+impl Eq for MagnitudePair {}
 
-impl Hash for TaggedMagnitude {
+impl Hash for MagnitudePair {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.is_negative().hash(state);
         self.as_limbs().hash(state);
     }
 }
 
-impl core::fmt::Debug for TaggedMagnitude {
+impl core::fmt::Debug for MagnitudePair {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("TaggedMagnitude")
+        f.debug_struct("MagnitudePair")
             .field("mode", &self.mode())
             .field("limbs", &self.as_limbs())
             .finish()
@@ -343,7 +345,7 @@ impl core::fmt::Debug for TaggedMagnitude {
 }
 
 /// 用新值替换 `slot`（先写新 storage/meta，再释放旧 heap）。
-pub(crate) fn replace_with(slot: &mut TaggedMagnitude, new: TaggedMagnitude) {
+pub(crate) fn replace_with(slot: &mut MagnitudePair, new: MagnitudePair) {
     let old_meta = slot.meta;
     let old_mag = slot.magnitude;
     slot.meta = new.meta;
