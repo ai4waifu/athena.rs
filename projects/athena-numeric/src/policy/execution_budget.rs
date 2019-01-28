@@ -1,5 +1,9 @@
-//! 数值内核执行的分配与增长预算。
+//! 数值内核执行的分配与增长预算 + runtime heap 句柄。
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use athena_gc::{GcHeap, HeapBudget};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::backend::{NumericBackend, NumericBackendLimits, PureRustBackend};
@@ -15,7 +19,11 @@ pub struct ExecutionBudget {
 impl ExecutionBudget {
     /// 无 limb / 载荷上限（开发 / 测试）。
     pub fn unlimited() -> Self {
-        Self { max_limbs: None, max_significand_bits: None, max_wire_payload_bytes: None }
+        Self {
+            max_limbs: None,
+            max_significand_bits: None,
+            max_wire_payload_bytes: None,
+        }
     }
 
     /// 由静态 backend 合同构造。
@@ -102,36 +110,77 @@ impl ExecutionBudget {
 
     /// 估算并检查除法商缓冲。
     pub fn check_div(&self, u_limbs: usize, v_limbs: usize) -> Result<()> {
-        let q = if v_limbs == 0 { u_limbs + 1 } else { u_limbs.saturating_sub(v_limbs) + 1 };
+        let q = if v_limbs == 0 {
+            u_limbs + 1
+        } else {
+            u_limbs.saturating_sub(v_limbs) + 1
+        };
         self.check_limbs(q.max(u_limbs) + v_limbs + 2)
     }
 }
 
-/// 数值执行上下文：预算 + backend 选择钩子。
-#[derive(Debug, Clone, Copy)]
+/// 数值执行上下文：预算 + backend 钩子 + runtime heap。
+#[derive(Clone)]
 pub struct NumericContext {
     budget: ExecutionBudget,
+    heap: Rc<RefCell<GcHeap>>,
+}
+
+impl core::fmt::Debug for NumericContext {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("NumericContext")
+            .field("budget", &self.budget)
+            .field("heap_id", &self.heap.borrow().id())
+            .finish()
+    }
 }
 
 impl NumericContext {
-    /// 来自 [`crate::backend::PureRustBackend`] 的纯 Rust 默认上限。
+    /// 来自 [`crate::backend::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
     pub fn pure_rust_default() -> Self {
-        Self { budget: ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits) }
+        Self {
+            budget: ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
+            heap: GcHeap::shared_default(),
+        }
     }
 
-    /// 由显式 backend / Session 上限构造。
+    /// 由显式 backend / Session 上限构造（线程默认 heap）。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
-        Self { budget: ExecutionBudget::from_limits(limits) }
+        Self {
+            budget: ExecutionBudget::from_limits(limits),
+            heap: GcHeap::shared_default(),
+        }
     }
 
     /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
     pub fn unlimited() -> Self {
-        Self { budget: ExecutionBudget::unlimited() }
+        Self {
+            budget: ExecutionBudget::unlimited(),
+            heap: GcHeap::shared_default(),
+        }
+    }
+
+    /// Session / 测试：显式绑定 heap。
+    pub fn with_heap(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
+        Self { budget, heap }
+    }
+
+    /// 新建隔离 heap（不与线程默认共享）。
+    pub fn with_new_heap(budget: ExecutionBudget, heap_budget: HeapBudget) -> Self {
+        Self {
+            budget,
+            heap: GcHeap::new_shared(heap_budget),
+        }
     }
 
     /// 当前预算。
     pub fn budget(&self) -> &ExecutionBudget {
         &self.budget
+    }
+
+    /// Runtime heap。
+    pub fn heap(&self) -> &Rc<RefCell<GcHeap>> {
+        &self.heap
     }
 }
 

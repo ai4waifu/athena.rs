@@ -1,7 +1,7 @@
-//! 纯 Rust backend 的 limb 内核。
+//! 纯 Rust machine kernel：固定宽度原语 + 通用 `*_into`。
 //!
-//! 执行合同：原语写入调用方自有 [`LimbBuffer`]，递归算法先估算 scratch 并一次分配；
-//! 禁止「算完再吞并新 `Vec`」作为主路径。
+//! 只写调用方自有 [`LimbBuffer`] / scratch。算法策略与分配/GC 不在本层。
+//! 禁止「算完再吞并新 `Vec`」作为值层主路径（`*_budgeted` 仅便利/测试）。
 
 use athena_types::Result;
 
@@ -15,7 +15,11 @@ thread_local! {
     static KERNEL_SCRATCH: RefCell<ScratchWorkspace> = RefCell::new(ScratchWorkspace::default());
 }
 
-fn with_kernel_scratch<R>(budget: &ExecutionBudget, f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R) -> R {
+/// 借用线程本地 scratch 执行 kernel（调用结束清空）。
+pub(crate) fn with_kernel_scratch<R>(
+    budget: &ExecutionBudget,
+    f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R,
+) -> R {
     KERNEL_SCRATCH.with(|cell| {
         if let Ok(mut scratch) = cell.try_borrow_mut() {
             let result = f(&mut *scratch, budget);
@@ -128,6 +132,59 @@ pub(crate) fn mul_2x1(a: [u64; 2], b: u64) -> ([u64; 3], usize) {
     } else {
         ([lo, mid, hi], 3)
     }
+}
+
+/// `Limb1 − Limb1`（要求 `a >= b`）。
+#[inline]
+pub(crate) fn sub_1(a: u64, b: u64) -> u64 {
+    debug_assert!(a >= b);
+    a.wrapping_sub(b)
+}
+
+/// `Limb2 − Limb1`（要求 `a >= b`）；返回 `(limbs, effective_len)`。
+#[inline]
+pub(crate) fn sub_2_1(a: [u64; 2], b: u64) -> ([u64; 2], usize) {
+    let (lo, br0) = sbb(a[0], b, 0);
+    let (hi, br1) = sbb(a[1], 0, br0);
+    debug_assert!(br1 == 0, "sub_2_1 underflow");
+    if hi == 0 {
+        ([lo, 0], if lo == 0 { 0 } else { 1 })
+    } else {
+        ([lo, hi], 2)
+    }
+}
+
+/// `Limb2 − Limb2`（要求 `a >= b`）。
+#[inline]
+pub(crate) fn sub_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 2], usize) {
+    let (lo, br0) = sbb(a[0], b[0], 0);
+    let (hi, br1) = sbb(a[1], b[1], br0);
+    debug_assert!(br1 == 0, "sub_2 underflow");
+    if hi == 0 {
+        ([lo, 0], if lo == 0 { 0 } else { 1 })
+    } else {
+        ([lo, hi], 2)
+    }
+}
+
+/// `Limb1 ÷ Limb1`：`(q, r)`，`b != 0`。
+#[inline]
+pub(crate) fn div_rem_1(a: u64, b: u64) -> (u64, u64) {
+    debug_assert!(b != 0);
+    (a / b, a % b)
+}
+
+/// 至多两 limb 的无符号值除法（两侧均可落入 `u128`）。
+#[inline]
+pub(crate) fn div_rem_u128(a: u128, b: u128) -> (u128, u128) {
+    debug_assert!(b != 0);
+    (a / b, a % b)
+}
+
+/// `[lo, hi]` → `u128`（`hi` 可为 0）。
+#[inline]
+pub(crate) fn limbs2_to_u128(limbs: [u64; 2]) -> u128 {
+    (limbs[0] as u128) | ((limbs[1] as u128) << 64)
 }
 
 /// `Limb2 × Limb2`：最多 4 limbs。

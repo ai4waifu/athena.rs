@@ -62,8 +62,12 @@ impl Integer {
         Self { inner: mag.into_pair().with_negative(negative) }
     }
 
-    fn from_pair(inner: MagnitudePair) -> Self {
+    pub(crate) fn from_pair(inner: MagnitudePair) -> Self {
         Self { inner }
+    }
+
+    pub(crate) fn into_pair(self) -> MagnitudePair {
+        self.inner
     }
 
     /// 无符号幅度（克隆；供模运算等）。
@@ -526,17 +530,29 @@ impl Integer {
         Self::from_wire_parts(sign, mag)
     }
 
-    /// 由符号码 + 已解码幅度解码。
+    /// 由符号码 + 已解码幅度解码（canonical：`sign=0` ⇔ mag 为零；禁止负零）。
     pub(crate) fn from_wire_parts(sign: u8, mag: Natural) -> Result<Self> {
+        use crate::format::validation::{reject_non_canonical, WireReject};
         match sign {
-            0 => Ok(Self::zero()),
-            1 if mag.is_zero() => Ok(Self::zero()),
-            1 => Ok(Self::from_mag_sign(mag, false)),
-            2 if mag.is_zero() => Ok(Self::zero()),
-            2 => Ok(Self::from_mag_sign(mag, true)),
-            _ => Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_sign_decode")),
+            0 => {
+                if !mag.is_zero() {
+                    return Err(reject_non_canonical(WireReject::SignZeroNonzeroMag));
+                }
+                Ok(Self::zero())
+            }
+            1 => {
+                if mag.is_zero() {
+                    return Err(reject_non_canonical(WireReject::SignPosZeroMag));
+                }
+                Ok(Self::from_mag_sign(mag, false))
+            }
+            2 => {
+                if mag.is_zero() {
+                    return Err(reject_non_canonical(WireReject::SignNegZeroMag));
+                }
+                Ok(Self::from_mag_sign(mag, true))
+            }
+            _ => Err(reject_non_canonical(WireReject::SignUnknown)),
         }
     }
 }
@@ -604,5 +620,13 @@ impl FromStr for Integer {
         }
         let mag = Natural::from_str(digits)?;
         Ok(Self::from_mag_sign(mag, negative))
+    }
+}
+
+impl athena_gc::Trace for Integer {
+    fn trace(&self, tracer: &mut dyn athena_gc::Tracer) {
+        if let Some(ptr) = self.inner.heap_ptr() {
+            tracer.mark_allocation(ptr.as_ptr().cast());
+        }
     }
 }

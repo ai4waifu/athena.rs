@@ -1,3 +1,4 @@
+mod gc_heap;
 mod integer;
 mod kernel_number;
 mod limb_kernel;
