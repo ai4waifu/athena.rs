@@ -1,4 +1,7 @@
 //! `meta` 位编码：mode / sign / heap_len。
+//!
+//! 各位是否**语义有效**由外层类型决定（见 Living 14）。
+//! `Natural`：sign 位为 don't-care，读取时视为 NonNegative，不要求物理清零。
 
 /// mode 掩码（bit 0..1）。
 pub(crate) const MODE_MASK: usize = 0b11;
@@ -10,10 +13,13 @@ pub(crate) const MODE_LIMB1: usize = 0b01;
 pub(crate) const MODE_LIMB2: usize = 0b10;
 /// Heap。
 pub(crate) const MODE_HEAP: usize = 0b11;
-/// sign 位（bit 2）；Natural 恒为 0。
+/// sign 位（bit 2）；`Natural` 不解释；`Integer` 等有符号外层解释。
 pub(crate) const META_SIGN_BIT: usize = 1 << 2;
 /// heap len 起始位移（bit 3..）。
 pub(crate) const LEN_SHIFT: usize = 3;
+
+/// `Natural` Eq/Hash/fingerprint 相关位：mode + heap_len（忽略 sign）。
+pub(crate) const NAT_RELEVANT_MASK: usize = !META_SIGN_BIT;
 
 /// 宽度 / 表示 mode。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
