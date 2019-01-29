@@ -51,6 +51,10 @@ pub enum GcError {
     },
     /// 指针不属于本 heap 的已知 allocation。
     UnknownAllocation,
+    /// Heap 正被借用，无法经 registry 重入。
+    HeapBusy,
+    /// 线程本地 registry 已销毁（线程退出路径）。
+    RegistryUnavailable,
 }
 
 impl fmt::Display for GcError {
@@ -76,6 +80,8 @@ impl fmt::Display for GcError {
                 write!(f, "stale object: index={index} generation={expected_generation}")
             }
             Self::UnknownAllocation => write!(f, "unknown allocation"),
+            Self::HeapBusy => write!(f, "heap busy"),
+            Self::RegistryUnavailable => write!(f, "gc registry unavailable"),
         }
     }
 }

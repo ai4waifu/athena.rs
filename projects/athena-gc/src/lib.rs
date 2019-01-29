@@ -11,6 +11,8 @@ mod header;
 mod heap;
 mod ids;
 mod mode;
+mod object;
+mod registry;
 mod root;
 mod scratch;
 mod segment;
@@ -21,13 +23,21 @@ pub use budget::HeapBudget;
 pub use error::{GcError, Result};
 pub use header::{AllocationHeader, BlockKind, MarkState};
 pub use heap::{CollectReport, GcHeap, NumericBlock};
-pub use ids::{GcObjectId, RootToken, SegmentId};
+pub use ids::{GcObjectId, HeapId, RootToken, SegmentId};
 pub use mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcPressure, GcSuspendGuard};
+pub use object::ObjectBlock;
 pub use root::{GcRoot, RootKind, RootRegistry};
 pub use scratch::{ScratchArena, ScratchMark};
 pub use segment::{SegmentKind, SegmentMeta};
 pub use stats::HeapStats;
-pub use trace::{Trace, Tracer};
+pub use trace::{EmptyObjectGraph, ObjectGraph, Trace, Tracer};
 
 /// 与 Living 文档一致的别名。
 pub type ArenaHeap = GcHeap;
+
+pub use heap::heap_id_for_limbs;
+
+/// 经 registry 借用已登记 heap（闭包可失败；供 numeric Clone / 分配）。
+pub fn with_registered_heap<R>(id: HeapId, f: impl FnOnce(&mut GcHeap) -> Result<R>) -> Result<R> {
+    registry::with_heap(id, f).and_then(core::convert::identity)
+}

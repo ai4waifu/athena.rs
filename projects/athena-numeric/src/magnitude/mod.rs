@@ -6,13 +6,15 @@
 //! - 值对象入口至多一次 mode 分派，之后只向 kernel 传 `LimbView`。
 //! - 更新顺序：先写新 storage → 再写新 meta → 最后释放旧 heap。
 
+mod gc_err;
 mod meta;
 mod owned;
 mod pair;
 mod union;
 mod view;
 
-pub(crate) use meta::{Mode, NAT_RELEVANT_MASK, is_negative as meta_is_negative};
+pub(crate) use gc_err::gc_alloc_err;
+pub(crate) use meta::Mode;
 pub(crate) use pair::MagnitudePair;
 use union::{HeapPayload, Magnitude};
 

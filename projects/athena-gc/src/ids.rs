@@ -1,5 +1,9 @@
 //! GC / arena 身份类型。
 
+/// 进程内 heap 注册号（写入 `AllocationHeader`，供 Drop 回找）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct HeapId(pub u32);
+
 /// Segment 稳定索引（复用时 generation 递增）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SegmentId {

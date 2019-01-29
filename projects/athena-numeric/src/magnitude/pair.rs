@@ -6,7 +6,12 @@
 use core::{
     hash::{Hash, Hasher},
     mem,
+    ptr::NonNull,
 };
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use athena_gc::{GcHeap, heap_id_for_limbs};
 
 use super::{
     meta::{
@@ -17,9 +22,6 @@ use super::{
     union::Magnitude,
     view::LimbView,
 };
-
-/// 规范零的静态 limb 视图（`as_limbs` 兼容 `[0]`）。
-static ZERO_LIMB: [u64; 1] = [0];
 
 /// 物理布局：`meta` + `union Magnitude`（24 bytes on LP64）。
 ///
@@ -104,6 +106,50 @@ impl MagnitudePair {
         }
     }
 
+    /// 由小端 limbs 构造，分配到指定 heap。
+    pub(crate) fn from_limbs_in(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64]) -> athena_gc::Result<Self> {
+        let el = effective_len(limbs);
+        match el {
+            0 => Ok(Self::zero()),
+            1 => {
+                let limb = limbs[0];
+                Ok(if limb == 0 {
+                    Self::zero()
+                } else {
+                    Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } }
+                })
+            }
+            2 => {
+                let lo = limbs[0];
+                let hi = limbs[1];
+                debug_assert!(hi != 0);
+                Ok(Self {
+                    meta: encode_limb2_meta(false),
+                    magnitude: Magnitude { limb2: [lo, hi] },
+                })
+            }
+            _ => {
+                debug_assert!(limbs[el - 1] != 0);
+                let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
+                let payload = buf.into_payload();
+                Ok(Self {
+                    meta: encode_heap_meta(el, false),
+                    magnitude: Magnitude { heap: payload },
+                })
+            }
+        }
+    }
+
+    /// Heap limb 指针（仅 Heap mode）。
+    pub(crate) fn heap_ptr(&self) -> Option<NonNull<u64>> {
+        if matches!(self.mode(), Mode::Heap) {
+            // SAFETY: Heap active。
+            Some(unsafe { self.magnitude.heap.ptr })
+        } else {
+            None
+        }
+    }
+
     /// Limb1 的数值；非 Limb1 返回 `None`。
     #[inline]
     pub(crate) fn as_limb1(&self) -> Option<u64> {
@@ -132,24 +178,27 @@ impl MagnitudePair {
         mode_of(self.meta)
     }
 
-    /// 逻辑 limb 长度（Zero → 0）。
+    /// 逻辑 limb 长度（零亦为 1：`[0]`）。
     #[inline]
     pub(crate) fn limb_len(&self) -> usize {
         match self.mode() {
-            Mode::Zero => 0,
             Mode::Limb1 => 1,
             Mode::Limb2 => 2,
             Mode::Heap => heap_len(self.meta),
         }
     }
 
-    /// 是否为零。
+    /// 是否为零：合法 `Limb1` 且 `limb1 == 0`。
     #[inline]
     pub(crate) fn is_zero(&self) -> bool {
-        matches!(self.mode(), Mode::Zero)
+        if !matches!(self.mode(), Mode::Limb1) {
+            return false;
+        }
+        // SAFETY: Limb1 mode → limb1 active。
+        unsafe { self.magnitude.limb1 == 0 }
     }
 
-    /// `meta` 负号位（Zero 时必须为 false）。
+    /// `meta` 负号位（semantic zero 时忽略，恒返回 false）。
     #[inline]
     pub(crate) fn is_negative(&self) -> bool {
         !self.is_zero() && is_negative(self.meta)
@@ -163,7 +212,7 @@ impl MagnitudePair {
         out
     }
 
-    /// 设置符号；零恒为 unsigned Zero。
+    /// 设置符号；零保持 `Limb1(0)`（sign 可保留 don't-care，此处归零仅为便利）。
     #[inline]
     pub(crate) fn with_negative(mut self, negative: bool) -> Self {
         if self.is_zero() {
@@ -177,11 +226,10 @@ impl MagnitudePair {
         self
     }
 
-    /// 一次分派后的只读 limb 视图（Zero → `[0]`）。
+    /// 一次分派后的只读 limb 视图（零 → `[0]`）。
     #[inline]
     pub(crate) fn as_limbs(&self) -> &[u64] {
         match self.mode() {
-            Mode::Zero => &ZERO_LIMB,
             Mode::Limb1 => {
                 // SAFETY: Limb1 mode → limb1 为 active field。
                 unsafe { core::slice::from_ref(&self.magnitude.limb1) }
@@ -241,11 +289,8 @@ impl MagnitudePair {
     #[cfg(debug_assertions)]
     fn debug_assert_invariants(&self) {
         match self.mode() {
-            Mode::Zero => {}
             Mode::Limb1 => {
-                // SAFETY: mode Limb1。
-                let limb = unsafe { self.magnitude.limb1 };
-                debug_assert_ne!(limb, 0, "Limb1 must be non-zero; use Zero mode");
+                // limb1 == 0 合法（semantic zero）；无额外 assert。
             }
             Mode::Limb2 => {
                 // SAFETY: mode Limb2。
@@ -282,7 +327,6 @@ impl Default for MagnitudePair {
 impl Clone for MagnitudePair {
     fn clone(&self) -> Self {
         match self.mode() {
-            Mode::Zero => Self::zero(),
             Mode::Limb1 => {
                 // SAFETY: Limb1 active。
                 let limb = unsafe { self.magnitude.limb1 };
@@ -296,11 +340,16 @@ impl Clone for MagnitudePair {
             Mode::Heap => {
                 let len = heap_len(self.meta);
                 // SAFETY: Heap active。
-                let (src, capacity) = unsafe {
+                let (src, capacity, heap_id) = unsafe {
                     let heap = self.magnitude.heap;
-                    (core::slice::from_raw_parts(heap.ptr.as_ptr(), len), heap.capacity)
+                    (
+                        core::slice::from_raw_parts(heap.ptr.as_ptr(), len),
+                        heap.capacity,
+                        heap_id_for_limbs(heap.ptr),
+                    )
                 };
-                let buf = OwnedLimbBuffer::alloc_copy(src, capacity.max(len));
+                let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(len))
+                    .unwrap_or_else(|_| OwnedLimbBuffer::alloc_copy(src, capacity.max(len)));
                 let payload = buf.into_payload();
                 Self { meta: self.meta, magnitude: Magnitude { heap: payload } }
             }

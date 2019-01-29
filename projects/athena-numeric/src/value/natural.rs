@@ -2,8 +2,10 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::magnitude::{Mode, MagnitudePair};
-use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext};
+use crate::kernel::{LimbBuffer, limb as limb_kernel};
+use crate::magnitude::{Mode, MagnitudePair, gc_alloc_err};
+use crate::policy::execution_budget::NumericContext;
+use limb_kernel::{LimbKernel, PureRustLimbKernel};
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
@@ -191,7 +193,7 @@ impl Natural {
             return Ok(self.clone());
         }
         match self.inner.mode() {
-            Mode::Zero => {
+            Mode::Limb1 if self.is_zero() => {
                 ctx.budget().check_limbs(1)?;
                 Ok(Self::from_u64(rhs))
             }
@@ -211,9 +213,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::add_1_2(rhs, a);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            Mode::Heap => {
-                Ok(Self::from_limbs(limb_kernel::add_n_budgeted(self.as_limbs(), &[rhs], ctx.budget())?))
-            }
+            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::add_into(self.as_limbs(), &[rhs], out, scratch, budget)
+            }),
         }
     }
 
@@ -232,7 +234,6 @@ impl Natural {
             return Ok(self.clone());
         }
         match self.inner.mode() {
-            Mode::Zero => Ok(Self::zero()),
             Mode::Limb1 => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
@@ -244,9 +245,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2x1(a, rhs);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            Mode::Heap => {
-                Ok(Self::from_limbs(limb_kernel::mul_1_budgeted(self.as_limbs(), rhs, ctx.budget())?))
-            }
+            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::mul_1_into(self.as_limbs(), rhs, out, scratch, budget)
+            }),
         }
     }
 
@@ -258,9 +259,13 @@ impl Natural {
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        if self.is_zero() {
+            return Ok(rhs.clone());
+        }
+        if rhs.is_zero() {
+            return Ok(self.clone());
+        }
         match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Zero, _) => Ok(rhs.clone()),
-            (_, Mode::Zero) => Ok(self.clone()),
             (Mode::Limb1, Mode::Limb1) => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 let b = rhs.inner.as_limb1().expect("Limb1");
@@ -293,11 +298,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::add_2(a, b);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            _ => Ok(Self::from_limbs(limb_kernel::add_n_budgeted(
-                self.as_limbs(),
-                rhs.as_limbs(),
-                ctx.budget(),
-            )?)),
+            _ => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::add_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+            }),
         }
     }
 
@@ -315,7 +318,31 @@ impl Natural {
                 .detail("operation", "natural_sub")
                 .detail("reason", "underflow"));
         }
-        Ok(Self::from_limbs(limb_kernel::sub_n_budgeted(self.as_limbs(), rhs.as_limbs(), ctx.budget())?))
+        match (self.inner.mode(), rhs.inner.mode()) {
+            (Mode::Limb1, Mode::Limb1) => {
+                let a = self.inner.as_limb1().expect("Limb1");
+                let b = rhs.inner.as_limb1().expect("Limb1");
+                ctx.budget().check_limbs(1)?;
+                Ok(Self::from_u64(limb_kernel::sub_1(a, b)))
+            }
+            (Mode::Limb2, Mode::Limb1) => {
+                let a = self.inner.as_limb2().expect("Limb2");
+                let b = rhs.inner.as_limb1().expect("Limb1");
+                ctx.budget().check_limbs(2)?;
+                let (limbs, len) = limb_kernel::sub_2_1(a, b);
+                Ok(Self::from_fixed(&limbs[..len]))
+            }
+            (Mode::Limb2, Mode::Limb2) => {
+                let a = self.inner.as_limb2().expect("Limb2");
+                let b = rhs.inner.as_limb2().expect("Limb2");
+                ctx.budget().check_limbs(2)?;
+                let (limbs, len) = limb_kernel::sub_2(a, b);
+                Ok(Self::from_fixed(&limbs[..len]))
+            }
+            _ => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::sub_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+            }),
+        }
     }
 
     /// 乘法（默认 [`NumericContext::pure_rust_default`]）。
@@ -326,8 +353,10 @@ impl Natural {
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        if self.is_zero() || rhs.is_zero() {
+            return Ok(Self::zero());
+        }
         match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Zero, _) | (_, Mode::Zero) => Ok(Self::zero()),
             (Mode::Limb1, Mode::Limb1) => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 let b = rhs.inner.as_limb1().expect("Limb1");
@@ -355,11 +384,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2(a, b);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            _ => Ok(Self::from_limbs(limb_kernel::mul_budgeted(
-                self.as_limbs(),
-                rhs.as_limbs(),
-                ctx.budget(),
-            )?)),
+            _ => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::mul_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+            }),
         }
     }
 
@@ -371,8 +398,10 @@ impl Natural {
 
     /// 平方（服从 `ctx` 预算）。
     pub fn try_sqr(&self, ctx: &NumericContext) -> Result<Self> {
+        if self.is_zero() {
+            return Ok(Self::zero());
+        }
         match self.inner.mode() {
-            Mode::Zero => Ok(Self::zero()),
             Mode::Limb1 => {
                 let a = self.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
@@ -384,7 +413,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2(a, a);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            Mode::Heap => Ok(Self::from_limbs(limb_kernel::sqr_budgeted(self.as_limbs(), ctx.budget())?)),
+            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
+                PureRustLimbKernel::sqr_into(self.as_limbs(), out, scratch, budget)
+            }),
         }
     }
 
@@ -401,8 +432,44 @@ impl Natural {
                 .detail("domain", "numeric")
                 .detail("operation", "natural_div_rem"));
         }
-        let (q, r) = limb_kernel::div_rem_budgeted(self.as_limbs(), rhs.as_limbs(), ctx.budget())?;
-        Ok((Self::from_limbs(q), Self::from_limbs(r)))
+        if self.is_zero() {
+            return Ok((Self::zero(), Self::zero()));
+        }
+        match (self.inner.mode(), rhs.inner.mode()) {
+            (Mode::Limb1, Mode::Limb1) => {
+                let a = self.inner.as_limb1().expect("Limb1");
+                let b = rhs.inner.as_limb1().expect("Limb1");
+                ctx.budget().check_limbs(1)?;
+                let (q, r) = limb_kernel::div_rem_1(a, b);
+                Ok((Self::from_u64(q), Self::from_u64(r)))
+            }
+            (Mode::Limb1 | Mode::Limb2, Mode::Limb1 | Mode::Limb2) => {
+                let numer = self.to_u128().expect("Limb1/2 fits u128");
+                let denom = rhs.to_u128().expect("Limb1/2 fits u128");
+                ctx.budget().check_limbs(2)?;
+                let (q, r) = limb_kernel::div_rem_u128(numer, denom);
+                Ok((
+                    Self { inner: MagnitudePair::from_u128(q) },
+                    Self { inner: MagnitudePair::from_u128(r) },
+                ))
+            }
+            _ => limb_kernel::with_kernel_scratch(ctx.budget(), |scratch, budget| {
+                let mut q = LimbBuffer::zero();
+                let mut r = LimbBuffer::zero();
+                PureRustLimbKernel::div_rem_into(
+                    self.as_limbs(),
+                    rhs.as_limbs(),
+                    &mut q,
+                    &mut r,
+                    scratch,
+                    budget,
+                )?;
+                Ok((
+                    Self::from_limb_slice_in(ctx, q.as_canonical())?,
+                    Self::from_limb_slice_in(ctx, r.as_canonical())?,
+                ))
+            }),
+        }
     }
 
     /// 模幂（`modulus > 0`；默认上下文）。
@@ -424,11 +491,10 @@ impl Natural {
             return Ok(Self::zero());
         }
         if limb_kernel::mod_pow_montgomery_eligible(modulus.as_limbs()) {
-            return Ok(Self::from_limbs(limb_kernel::mod_pow_montgomery(
-                self.as_limbs(),
-                exp.as_limbs(),
-                modulus.as_limbs(),
-            )));
+            return Self::from_limbs_in(
+                ctx,
+                limb_kernel::mod_pow_montgomery(self.as_limbs(), exp.as_limbs(), modulus.as_limbs()),
+            );
         }
         let mut result = Self::one();
         let mut base = self.try_div_rem(modulus, ctx)?.1;
@@ -512,7 +578,7 @@ impl Natural {
         }
         let bound = self.as_limbs().len().min(other.as_limbs().len()).max(1);
         ctx.budget().check_limbs(bound)?;
-        Ok(Self::from_limbs(limb_kernel::gcd(self.as_limbs().to_vec(), other.as_limbs().to_vec())))
+        Self::from_limbs_in(ctx, limb_kernel::gcd(self.as_limbs().to_vec(), other.as_limbs().to_vec()))
     }
 
     /// 借用小端 limb（生命周期绑在 `&self`；禁止跨 move 持有）。
@@ -520,12 +586,39 @@ impl Natural {
         self.inner.as_limbs()
     }
 
-    /// 由小端 limb 构造（已规范化）。
+    /// 由小端 limb 构造（已规范化；线程默认 heap）。
     pub fn from_limbs(limbs: Vec<u64>) -> Self {
         let n = Self { inner: MagnitudePair::from_limbs(&limbs) };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
+    }
+
+    /// 由小端 limb 构造到 `ctx` 绑定的 heap。
+    pub fn from_limbs_in(ctx: &NumericContext, limbs: Vec<u64>) -> Result<Self> {
+        Self::from_limb_slice_in(ctx, &limbs)
+    }
+
+    /// 由 limb 切片发布到 `ctx` heap（无额外 `Vec`）。
+    pub(crate) fn from_limb_slice_in(ctx: &NumericContext, limbs: &[u64]) -> Result<Self> {
+        let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_err)?;
+        Ok(Self::from_pair(inner))
+    }
+
+    /// Kernel `*_into` 后 canonicalize 并发布（值层 executor，非 machine kernel）。
+    fn publish_into(
+        ctx: &NumericContext,
+        write: impl FnOnce(
+            &mut LimbBuffer,
+            &mut crate::kernel::ScratchWorkspace,
+            &crate::policy::execution_budget::ExecutionBudget,
+        ) -> Result<()>,
+    ) -> Result<Self> {
+        limb_kernel::with_kernel_scratch(ctx.budget(), |scratch, budget| {
+            let mut out = LimbBuffer::zero();
+            write(&mut out, scratch, budget)?;
+            Self::from_limb_slice_in(ctx, out.as_canonical())
+        })
     }
 
     /// 由物理 pair 构造（**不**清零 sign don't-care 位）。
@@ -615,7 +708,7 @@ impl Natural {
         debug_assert!(!limbs.is_empty(), "Natural as_limbs must expose at least [0]");
         if self.is_zero() {
             debug_assert_eq!(limbs, &[0]);
-            debug_assert!(matches!(self.inner.mode(), Mode::Zero));
+            debug_assert!(matches!(self.inner.mode(), Mode::Limb1));
         } else {
             debug_assert_ne!(*limbs.last().unwrap(), 0);
             match limbs.len() {
@@ -646,6 +739,14 @@ impl FromStr for Natural {
             n = n.mul_u64(10).add_u64(u64::from(ch as u32 - u32::from(b'0')));
         }
         Ok(n)
+    }
+}
+
+impl athena_gc::Trace for Natural {
+    fn trace(&self, tracer: &mut dyn athena_gc::Tracer) {
+        if let Some(ptr) = self.inner.heap_ptr() {
+            tracer.mark_allocation(ptr.as_ptr().cast());
+        }
     }
 }
 
