@@ -1,6 +1,7 @@
-//! 默认纯 Rust limb kernel backend（WASM 安全、确定性、语义基线）。
+//! 默认纯 Rust machine kernel（WASM 安全、确定性、语义基线）。
 //!
-//! 提供 Athena limb 算术实现与能力广告；不拥有 `Magnitude`/arena，不包装 foreign bigint。
+//! 只实现 Athena limb 写入；不拥有 `Magnitude`/arena，不包装 foreign bigint。
+//! [`PureRustBackend`] 的 capability 广告是过渡门面，不是算法层。
 
 pub(crate) mod limb_kernel;
 

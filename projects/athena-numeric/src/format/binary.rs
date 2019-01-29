@@ -108,7 +108,7 @@ pub(crate) fn decode_rational_payload(sign: u8, payload: &[u8]) -> Result<Ration
     }
     let numer = Integer::from_wire_parts(sign, numer_mag)?;
     let denom = Integer::from_wire_parts(1, denom_mag)?;
-    Rational::try_new(numer, denom)
+    Rational::try_from_canonical_wire(numer, denom)
 }
 
 /// 将头 + 域 + 载荷展平为单一字节块。

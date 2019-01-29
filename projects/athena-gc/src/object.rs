@@ -36,10 +36,10 @@ impl ObjectSlot {
 }
 
 /// 解析结果。
-pub(crate) fn resolve_slot<'a>(
-    slots: &'a [Option<ObjectSlot>],
+pub(crate) fn resolve_slot(
+    slots: &[Option<ObjectSlot>],
     id: GcObjectId,
-) -> Result<&'a ObjectSlot> {
+) -> Result<&ObjectSlot> {
     let slot = slots
         .get(id.index as usize)
         .and_then(|s| s.as_ref())

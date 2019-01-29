@@ -187,6 +187,22 @@ pub(crate) fn limbs2_to_u128(limbs: [u64; 2]) -> u128 {
     (limbs[0] as u128) | ((limbs[1] as u128) << 64)
 }
 
+/// `Limb2 ÷ Limb1`（`d != 0`）：商最多 2 limbs。
+#[inline]
+pub(crate) fn div_rem_2_1(u: [u64; 2], d: u64) -> ([u64; 2], usize, u64) {
+    debug_assert!(d != 0);
+    let n = limbs2_to_u128(u);
+    let q = n / (d as u128);
+    let r = (n % (d as u128)) as u64;
+    let lo = q as u64;
+    let hi = (q >> 64) as u64;
+    if hi == 0 {
+        ([lo, 0], if lo == 0 { 0 } else { 1 }, r)
+    } else {
+        ([lo, hi], 2, r)
+    }
+}
+
 /// `Limb2 × Limb2`：最多 4 limbs。
 #[inline]
 pub(crate) fn mul_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 4], usize) {
@@ -562,7 +578,7 @@ pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
 }
 
 fn div_rem_1_into(u: &[u64], d: u64, q_out: &mut LimbBuffer, r_out: &mut LimbBuffer, budget: &ExecutionBudget) -> Result<()> {
-    assert!(d != 0);
+    assert_ne!(d, 0);
     let la = effective_len(u);
     if la == 1 && u[0] < d {
         q_out.set_zero(budget)?;
@@ -789,7 +805,7 @@ pub(crate) fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
 }
 
 pub(crate) fn addmul_1(r: &[u64], a: &[u64], n: u64) -> Vec<u64> {
-    assert!(n != 0);
+    assert_ne!(n, 0);
     if is_zero(a) {
         return normalize_trim(r.to_vec());
     }

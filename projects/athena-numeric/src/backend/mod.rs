@@ -1,20 +1,32 @@
-//! Limb kernel backend 合同与分派。
+//! Machine kernel 提供者（过渡目录名；终局语义同 `kernel/`）。
 //!
-//! backend **只**提供 limb 算术实现：借用 Athena 已分配的 limb / scratch buffer 写入结果。
-//! 禁止 foreign bigint wrapper-as-value（GMP `mpz_t` / `num-bigint` 对象不得作为
-//! `Integer`/`Natural`/`NumericValue` 的生产路径存储）。
+//! **`backend` 不是可替换的完整大整数实现。** 它只提供已绑定的底层 limb
+//! 执行：借用 Athena 已分配的 limb / scratch，写入结果。禁止拥有值、禁止
+//! allocator/GC、禁止接收完整 [`crate::NumericContext`]、禁止 foreign bigint
+//! wrapper-as-value。
 //!
+//! 四层正交（Living `13`）：
 //! ```text
-//! Magnitude → LimbView → backend kernel → Athena-owned out buffer → canonicalize
+//! storage     — Magnitude / meta / LimbView
+//! algorithm   — schoolbook / Karatsuba / …
+//! kernel      — pure Rust / ADX / AArch64 / Wasm SIMD（本模块）
+//! dispatch    — 宽度分派 + planner + executor（value 热路径）
 //! ```
 //!
-//! 目录布局：
+//! ```text
+//! Magnitude → executor resolve → LimbView → KernelTable → Athena out → canonicalize
+//! ```
+//!
+//! 目录布局（过渡）：
 //! ```text
 //! backend/
-//!   mod.rs           — 能力标志、资源上限（值级分派门面，逐步收束到 *_into）
+//!   mod.rs           — 宿主上报用能力/上限门面（终局迁出 machine kernel）
 //!   pure_rust/       — 默认 WASM 安全 limb kernel（语义基线）
 //!   native/          — 可选加速（feature）；仍只操作 `&[u64]`/`&mut [u64]`
 //! ```
+//!
+//! 本文件中的 [`NumericBackend`] / [`NumericCapability`] 是**过渡门面**
+//!（资源与宿主上报），不是 machine kernel API。
 //!
 //! Rust 模块名用下划线（`pure_rust`），因为标识符不能含 `-`。
 
@@ -28,7 +40,7 @@ pub mod native;
 
 use crate::representation::{domain::NumericDomain, precision::PrecisionKind};
 
-/// 分派与宿主上报用的能力标志。
+/// 分派与宿主上报用的能力标志（过渡；终局拆为 Machine/Algorithm/Resource）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericCapability {
     /// 精确整数算术。
@@ -51,7 +63,7 @@ pub enum NumericCapability {
     Deterministic,
 }
 
-/// backend 可声明并分派的数值运算。
+/// 宿主上报用的数值运算标签（过渡门面；非 kernel 入口）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericOperation {
     /// 加法。
@@ -84,7 +96,7 @@ pub enum NumericOperation {
     IntervalMul,
 }
 
-/// backend 对某运算保证的结果语义。
+/// 宿主上报用的结果语义标签（过渡门面）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericResultMode {
     /// 精确符号 / 整数 / 有理结果。
@@ -99,7 +111,7 @@ pub enum NumericResultMode {
     Certified,
 }
 
-/// backend 声明的资源与 wire 上限。
+/// 资源与 wire 上限（ResourceCapability 过渡面）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericBackendLimits {
     /// 大整数最大 limb 数（`None` = 合同无上界）。
@@ -108,7 +120,7 @@ pub struct NumericBackendLimits {
     pub max_significand_bits: Option<u32>,
     /// 规范 wire 幅度 / 域载荷解码的最大二进制字节数。
     pub max_wire_payload_bytes: Option<u32>,
-    /// `pow` 指数幅度上限（`None` = backend 默认策略）。
+    /// `pow` 指数幅度上限（`None` = 默认策略）。
     pub max_pow_exp: Option<i64>,
 }
 
@@ -123,10 +135,10 @@ impl Default for NumericBackendLimits {
     }
 }
 
-/// 静态 backend 合同（能力、上限、可用性）。
+/// 静态资源/宿主合同（过渡；非 `KernelTable`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericBackendContract {
-    /// 稳定 backend id。
+    /// 稳定 id。
     pub id: &'static str,
     /// 可用于 wasm32 构建。
     pub wasm_safe: bool,
@@ -144,17 +156,17 @@ pub struct NumericBackendContract {
     pub limits: NumericBackendLimits,
 }
 
-/// 数值 backend 能力面。
+/// 宿主能力面（过渡门面；machine kernel 入口是 `*_into` / `KernelTable`）。
 pub trait NumericBackend {
     /// 完整静态合同。
     fn contract(&self) -> &'static NumericBackendContract;
 
-    /// backend 名称。
+    /// 名称。
     fn name(&self) -> &'static str {
         self.contract().id
     }
 
-    /// backend 是否可用于 wasm32。
+    /// 是否可用于 wasm32。
     fn wasm_safe(&self) -> bool {
         self.contract().wasm_safe
     }
@@ -174,5 +186,5 @@ pub trait NumericBackend {
     fn supports_operation(&self, domain: &NumericDomain, op: NumericOperation, result: NumericResultMode) -> bool;
 }
 
-/// 默认纯 Rust backend 的 wire 载荷字节上限（与解码共用）。
+/// 默认纯 Rust kernel 的 wire 载荷字节上限（与解码共用）。
 pub(crate) use pure_rust::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES;
