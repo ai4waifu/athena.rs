@@ -304,14 +304,12 @@ impl GcHeap {
     }
 
     /// 标记 allocation 可达。
-    pub fn mark_payload(&mut self, payload: *const u8) -> Result<()> {
-        if payload.is_null() {
-            return Err(GcError::UnknownAllocation);
-        }
+    pub fn mark_payload(&mut self, payload: NonNull<u8>) -> Result<()> {
         let header = unsafe {
             payload
+                .as_ptr()
                 .sub(AllocationHeader::size())
-                .cast::<AllocationHeader>() as *mut AllocationHeader
+                .cast::<AllocationHeader>()
         };
         unsafe {
             (*header).mark_state = MarkState::Black;
@@ -327,7 +325,7 @@ impl GcHeap {
 
     /// 标记 limbs。
     pub fn mark_limbs(&mut self, limbs: NonNull<u64>) -> Result<()> {
-        self.mark_payload(limbs.as_ptr().cast())
+        self.mark_payload(limbs.cast())
     }
 
     /// 显式释放 numeric block（Rust Drop 路径）。
@@ -623,7 +621,7 @@ impl GcHeap {
         }
         slot.mark.set(MarkState::Black);
         if let Some(block) = slot.block {
-            let _ = self.mark_payload(block.ptr.as_ptr());
+            let _ = self.mark_payload(block.ptr);
         }
         gray.push(id);
     }
@@ -648,7 +646,9 @@ impl Tracer for MarkingTracer<'_> {
     }
 
     fn mark_allocation(&mut self, payload: *const u8) {
-        let _ = self.heap.mark_payload(payload);
+        if let Some(ptr) = NonNull::new(payload.cast_mut()) {
+            let _ = self.heap.mark_payload(ptr);
+        }
     }
 }
 
