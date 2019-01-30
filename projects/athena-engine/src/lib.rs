@@ -23,6 +23,7 @@ pub mod linear_algebra;
 pub mod mgraph;
 pub mod number_theory;
 pub mod object;
+pub mod optimization;
 pub mod plot;
 pub mod polynomial;
 pub mod rewriter;
@@ -129,6 +130,14 @@ pub use number_theory::{
     is_perfect_power, isqrt, isqrt_if_exact, jacobi_symbol, kronecker_symbol, lcm, mod_inverse, mod_inverse_with_table,
     mod_pow, mod_pow_with_table, next_prime_after, perfect_power_decomposition, primality_test, primes_up_to, qs_split,
     rational_reconstruction, solve_linear_congruence, verify_factorization,
+};
+pub use optimization::{
+    AlgorithmPolicy, BoundCertificate, CertificateKind, ClosureStatus, Constraint as OptimizationConstraint, ConstraintId,
+    ConstraintRelation, DecisionVariable, FINGERPRINT_ALGORITHM as OPTIMIZATION_FINGERPRINT_ALGORITHM, FeasibleSet,
+    Integrality, Objective, ObjectiveId, ObjectiveSense, OptimalityKind, OptimizationFingerprint, OptimizationFrontier,
+    OptimizationLimits, OptimizationProblem, OptimizationRequest, OptimizationResult, ProblemClass, ProblemId, VariableDomain,
+    VariableId, VariableMetadata, execute_optimization, fingerprint_placeholder as optimization_fingerprint_placeholder,
+    operation_name as optimization_operation_name,
 };
 pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{

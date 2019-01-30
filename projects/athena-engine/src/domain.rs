@@ -1,6 +1,6 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
-//! 微积分、数论、多项式、群、域、伽罗瓦、图论经此入口进入 `athena-engine`。
+//! 微积分、数论、多项式、群、域、伽罗瓦、图论、线性代数、优化经此入口进入 `athena-engine`。
 
 use athena_types::Diagnostic;
 
@@ -12,6 +12,7 @@ use crate::{
     group::{GroupRequest, GroupResult, execute_group},
     linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
+    optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
     polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial},
 };
 
@@ -34,6 +35,8 @@ pub enum DomainRequest {
     GraphTheory(GraphTheoryRequest),
     /// 线性代数。
     LinearAlgebra(LinearAlgebraRequest),
+    /// 优化与规划（Living `16`，非 Solve 别名）。
+    Optimization(OptimizationRequest),
 }
 
 /// 顶层域结果 — 按域区分，禁止压成无类型 map。
@@ -55,6 +58,8 @@ pub enum DomainResult {
     GraphTheory(GraphTheoryResult),
     /// 线性代数结果。
     LinearAlgebra(LinearAlgebraResult),
+    /// 优化结果。
+    Optimization(OptimizationResult),
 }
 
 /// 分派顶层 [`DomainRequest`]。
@@ -68,5 +73,6 @@ pub fn execute_domain(request: DomainRequest) -> Result<DomainResult, Diagnostic
         DomainRequest::GaloisTheory(req) => Ok(DomainResult::GaloisTheory(execute_galois(req))),
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
         DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req))),
+        DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
     }
 }

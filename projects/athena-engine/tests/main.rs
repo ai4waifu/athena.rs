@@ -7,6 +7,7 @@ mod graph_theory;
 mod linear_algebra;
 mod mgraph;
 mod number_theory;
+mod optimization;
 mod polynomial;
 mod semantic;
 mod solve;
