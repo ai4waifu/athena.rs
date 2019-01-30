@@ -522,11 +522,7 @@ impl Integer {
 
     /// 由符号码 + 幅度字节解码二进制 wire 整数。
     pub(crate) fn from_wire_magnitude(sign: u8, mag_bytes: &[u8]) -> Result<Self> {
-        let mag = Natural::wire_decode_magnitude(mag_bytes).map_err(|_| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_decode")
-        })?;
+        let mag = Natural::wire_decode_magnitude(mag_bytes)?;
         Self::from_wire_parts(sign, mag)
     }
 
