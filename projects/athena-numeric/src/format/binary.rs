@@ -101,10 +101,14 @@ pub(crate) fn decode_integer_payload(sign: u8, payload: &[u8]) -> Result<Integer
 }
 
 pub(crate) fn decode_rational_payload(sign: u8, payload: &[u8]) -> Result<Rational, Diagnostic> {
-    let (numer_mag, rest) = Natural::wire_take_magnitude(payload).map_err(|_| wire_err("rational_numer"))?;
-    let (denom_mag, tail) = Natural::wire_take_magnitude(rest).map_err(|_| wire_err("rational_denom"))?;
+    use crate::format::validation::{reject_non_canonical, WireReject};
+    let (numer_mag, rest) = Natural::wire_take_magnitude(payload)?;
+    let (denom_mag, tail) = Natural::wire_take_magnitude(rest)?;
     if !tail.is_empty() {
-        return Err(wire_err("rational_trailing"));
+        return Err(reject_non_canonical(WireReject::RationalTrailing));
+    }
+    if denom_mag.is_zero() {
+        return Err(reject_non_canonical(WireReject::RationalDenomZero));
     }
     let numer = Integer::from_wire_parts(sign, numer_mag)?;
     let denom = Integer::from_wire_parts(1, denom_mag)?;
