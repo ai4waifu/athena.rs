@@ -645,7 +645,7 @@ impl Natural {
 
     /// 二进制 wire 幅度：`u32` 小端 limb 计数 + `u64` 小端 limb。
     ///
-    /// 零编码为 `count=1` 且 limb `0`（与历史 `Vec` 表示一致）；解码亦接受 `count=0`。
+    /// 零编码为 `count=1` 且 limb `0`。解码拒绝 `count=0` 与尾随零 limb。
     pub(crate) fn wire_encode_magnitude(&self) -> Vec<u8> {
         let limbs = self.as_limbs();
         let el = limbs.len();
@@ -657,46 +657,83 @@ impl Natural {
         out
     }
 
-    /// 在执行预算下解码 [`Self::wire_encode_magnitude`] 字节。
+    /// 在执行预算下解码 [`Self::wire_encode_magnitude`] 字节（canonical reject）。
     pub(crate) fn wire_decode_magnitude_budgeted(
         bytes: &[u8],
         budget: &crate::policy::execution_budget::ExecutionBudget,
-    ) -> std::result::Result<Self, ()> {
+    ) -> Result<Self> {
+        use crate::format::validation::assert_canonical_magnitude_limbs;
         if bytes.len() < 4 {
-            return Err(());
+            return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_short"));
         }
-        budget.check_wire_bytes(bytes.len()).map_err(|_| ())?;
-        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| ())?) as usize;
-        budget.check_limbs(count).map_err(|_| ())?;
-        let need = 4usize.checked_add(count.checked_mul(8).ok_or(())?).ok_or(())?;
+        budget.check_wire_bytes(bytes.len())?;
+        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_count")
+        })?) as usize;
+        budget.check_limbs(count)?;
+        let need = 4usize.checked_add(count.checked_mul(8).ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_overflow")
+        })?)
+        .ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_overflow")
+        })?;
         if bytes.len() != need {
-            return Err(());
-        }
-        if count == 0 {
-            return Ok(Self::zero());
+            return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_len"));
         }
         let mut limbs = Vec::with_capacity(count);
         for i in 0..count {
             let off = 4 + i * 8;
-            limbs.push(u64::from_le_bytes(bytes[off..off + 8].try_into().map_err(|_| ())?));
+            limbs.push(u64::from_le_bytes(bytes[off..off + 8].try_into().map_err(|_| {
+                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                    .detail("domain", "numeric")
+                    .detail("operation", "wire_magnitude_limb")
+            })?));
         }
+        assert_canonical_magnitude_limbs(count, &limbs)?;
         Ok(Self::from_limbs(limbs))
     }
 
     /// 解码 [`Self::wire_encode_magnitude`] 字节。
-    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> std::result::Result<Self, ()> {
+    pub(crate) fn wire_decode_magnitude(bytes: &[u8]) -> Result<Self> {
         Self::wire_decode_magnitude_budgeted(bytes, &crate::policy::execution_budget::ExecutionBudget::unlimited())
     }
 
     /// 从拼接的有理载荷中拆出首个幅度块。
-    pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> std::result::Result<(Self, &[u8]), ()> {
+    pub(crate) fn wire_take_magnitude(bytes: &[u8]) -> Result<(Self, &[u8])> {
         if bytes.len() < 4 {
-            return Err(());
+            return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_short"));
         }
-        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| ())?) as usize;
-        let total = 4usize.checked_add(count.checked_mul(8).ok_or(())?).ok_or(())?;
+        let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_count")
+        })?) as usize;
+        let total = 4usize.checked_add(count.checked_mul(8).ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_overflow")
+        })?)
+        .ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_overflow")
+        })?;
         if bytes.len() < total {
-            return Err(());
+            return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                .detail("domain", "numeric")
+                .detail("operation", "wire_magnitude_truncated"));
         }
         let mag = Self::wire_decode_magnitude(&bytes[..total])?;
         Ok((mag, &bytes[total..]))
