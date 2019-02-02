@@ -1,13 +1,19 @@
-//! 执行策略门面（过渡）：宿主上报能力 / 资源上限。
+//! 执行策略：宽度分派 executor · 能力三分 · 宿主上报门面。
 //!
-//! **不是** machine kernel。Machine kernel 在 [`crate::kernel`]（`pure_rust` 等）。
-//! 宽度分派与 `*_into` 发布当前仍在 `value::*` 热路径；本模块只保留
-//! `NumericBackend` / `NumericCapability` 过渡合同，终局拆为
-//! Machine / Algorithm / Resource capability。
+//! **不是** machine kernel。Machine kernel 在 [`crate::kernel`]。
+//! 能力三分见 [`capability`]；宽度分派见 [`executor`]。
+
+mod capability;
+mod executor;
+
+pub use capability::{
+    AlgorithmCapability, CapabilityBundle, MachineCapability, ResourceCapability,
+};
+pub use executor::NumericExecutor;
 
 use crate::representation::{domain::NumericDomain, precision::PrecisionKind};
 
-/// 分派与宿主上报用的能力标志（过渡；终局拆为 Machine/Algorithm/Resource）。
+/// 宿主域能力广告（过渡门面；与 Machine/Algorithm/Resource 正交，勿再往此枚举塞 ISA）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NumericCapability {
     /// 精确整数算术。

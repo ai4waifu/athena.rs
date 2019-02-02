@@ -5,10 +5,10 @@
 //! 四层正交（Living `13`）：
 //! ```text
 //! storage    — Magnitude / meta / views
-//! algorithm  — 数学策略（抽离中）
-//! kernel     — pure_rust / 未来 ISA KernelTable
-//! dispatch   — 宿主能力门面（宽度分派仍在 value 热路径）
-//! foreign    — oracle / copy-boundary（不进默认路径）
+//! algorithm  — 数学策略（`AlgorithmPlanner`）
+//! kernel     — pure_rust / x86_64 `KernelTable`（context 级绑定）
+//! dispatch   — 能力三分 · `NumericExecutor` 宽度分派
+//! foreign    — oracle / native-accelerated（不进默认路径）
 //! ```
 #![deny(missing_docs)]
 
@@ -46,7 +46,9 @@ pub use crate::{
         CertificateMethod, NumericBinding, NumericCertificate, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord,
     },
     dispatch::{
-        NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
+        AlgorithmCapability, CapabilityBundle, MachineCapability, NumericBackend, NumericBackendContract,
+        NumericBackendLimits, NumericCapability, NumericExecutor, NumericOperation, NumericResultMode,
+        ResourceCapability,
     },
     format::{
         binary as wire_binary, serialization,
@@ -54,7 +56,7 @@ pub use crate::{
         text as wire_text, wire as number_wire,
         wire::{from_wire as number_from_wire, to_wire as number_to_wire},
     },
-    kernel::{PureRustBackend, ScratchWorkspace},
+    kernel::{KernelTable, PureRustBackend, ScratchWorkspace},
     policy::{CancellationToken, ExecutionBudget, NumericContext, execution_budget},
     representation::{
         decimal,
