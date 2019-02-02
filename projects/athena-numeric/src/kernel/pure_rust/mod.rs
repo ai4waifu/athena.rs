@@ -1,14 +1,18 @@
 //! 默认纯 Rust machine kernel（WASM 安全、确定性、语义基线）。
 //!
 //! 只实现 Athena limb 写入；不拥有 `Magnitude`/arena，不包装 foreign bigint。
-//! [`PureRustBackend`] 的 capability 广告是过渡门面，不是算法层。
+//! [`PureRustBackend`] 的 capability 广告是过渡门面，挂在本模块仅因默认
+//! kernel 与默认资源上限同源；算法策略终局迁 [`crate::algorithm`]。
 
 pub(crate) mod limb_kernel;
 
-use super::{
-    NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
+use crate::{
+    dispatch::{
+        NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
+    },
+    domain::NumericDomain,
+    precision::PrecisionKind,
 };
-use crate::{domain::NumericDomain, precision::PrecisionKind};
 
 const PURE_RUST_WIRE_PAYLOAD_LIMIT: u32 = 1 << 20;
 
@@ -43,7 +47,7 @@ const PURE_RUST_CONTRACT: NumericBackendContract = NumericBackendContract {
 /// 解码与序列化守卫用的 wire 载荷字节上限。
 pub(crate) const PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES: u32 = PURE_RUST_WIRE_PAYLOAD_LIMIT;
 
-/// 默认纯 Rust backend。
+/// 默认纯 Rust machine-kernel 提供者（宿主合同门面）。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PureRustBackend;
 

@@ -145,7 +145,7 @@ impl Dyadic {
 mod ieee {
     use super::{Natural, Sign};
 
-    use crate::backend::pure_rust::limb_kernel;
+    use crate::kernel::limb as limb_kernel;
 
     pub(super) fn encode_finite(sign: Sign, sig: &Natural, exp: i64) -> Option<f64> {
         if sig.is_zero() {

@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::policy::execution_budget::ExecutionBudget;
 
-use crate::backend::pure_rust::limb_kernel::effective_len;
+use crate::kernel::pure_rust::limb_kernel::effective_len;
 
 /// 可增长小端 limb 缓冲（工作中存储可含尾随零）。
 #[derive(Debug, Clone, Default)]
@@ -12,9 +12,9 @@ pub(crate) struct LimbBuffer {
     limbs: Vec<u64>,
 }
 
-/// 顶层一次分配的连续 scratch 竞技场（按 bump 切分，递归中不再 `Vec` 分配）。
+/// 顶层一次分配的连续 limb scratch（bump；经 [`crate::NumericContext`] 统一挂钩）。
 #[derive(Debug, Default)]
-pub(crate) struct ScratchWorkspace {
+pub struct ScratchWorkspace {
     arena: Vec<u64>,
     cursor: usize,
 }
@@ -127,8 +127,13 @@ impl LimbBuffer {
 }
 
 impl ScratchWorkspace {
+    /// 空 scratch。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// 确保竞技场至少 `limbs` 项，并重置 bump 游标。
-    pub(crate) fn ensure(&mut self, limbs: usize, budget: &ExecutionBudget) -> Result<()> {
+    pub fn ensure(&mut self, limbs: usize, budget: &ExecutionBudget) -> Result<()> {
         budget.check_limbs(limbs.max(1))?;
         if self.arena.capacity() < limbs {
             self.arena = Vec::with_capacity(limbs);
@@ -141,7 +146,7 @@ impl ScratchWorkspace {
     }
 
     /// 从竞技场 bump `n` 个已清零 limb；不足时返回诊断（调用方须先 `ensure`）。
-    pub(crate) fn alloc(&mut self, n: usize) -> Result<&mut [u64]> {
+    pub fn alloc(&mut self, n: usize) -> Result<&mut [u64]> {
         let start = self.cursor;
         let end = start.checked_add(n).ok_or_else(|| kernel_err("scratch_overflow"))?;
         if end > self.arena.len() {
@@ -154,12 +159,12 @@ impl ScratchWorkspace {
     }
 
     /// 当前 bump 标记（供递归子作用域回滚）。
-    pub(crate) fn mark(&self) -> usize {
+    pub fn mark(&self) -> usize {
         self.cursor
     }
 
     /// 回滚到先前标记。
-    pub(crate) fn rewind(&mut self, mark: usize) {
+    pub fn rewind(&mut self, mark: usize) {
         debug_assert!(mark <= self.cursor);
         self.cursor = mark;
     }
@@ -170,7 +175,7 @@ impl ScratchWorkspace {
     }
 
     /// 在顶层运算之间清空逻辑内容（保留容量，重置游标）。
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.arena.fill(0);
         self.cursor = 0;
     }

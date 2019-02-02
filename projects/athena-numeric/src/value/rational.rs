@@ -4,11 +4,13 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use std::cmp::Ordering;
 
 use crate::{
-    format::validation::{reject_non_canonical, WireReject},
-    magnitude::MagnitudePair,
+    format::validation::{WireReject, reject_non_canonical},
     policy::execution_budget::NumericContext,
-    value::integer::{Integer, Sign},
-    value::natural::Natural,
+    storage::MagnitudePair,
+    value::{
+        integer::{Integer, Sign},
+        natural::Natural,
+    },
 };
 
 /// 精确有理（既约、分母为正；亦称 [`ExactRational`]）。
@@ -34,10 +36,7 @@ const _: () = {
 
 impl core::fmt::Debug for Rational {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Rational")
-            .field("numer", &self.numerator())
-            .field("denom", &self.denominator())
-            .finish()
+        f.debug_struct("Rational").field("numer", &self.numerator()).field("denom", &self.denominator()).finish()
     }
 }
 
@@ -52,10 +51,7 @@ impl Eq for Rational {}
 impl Rational {
     fn from_parts(numer: Integer, denom: Natural) -> Self {
         debug_assert!(!denom.is_zero());
-        Self {
-            numer: numer.into_pair(),
-            denom: denom.into_pair(),
-        }
+        Self { numer: numer.into_pair(), denom: denom.into_pair() }
     }
 
     /// 由整数构造。
@@ -113,11 +109,7 @@ impl Rational {
         if n.is_zero() {
             return Self::zero();
         }
-        let denom_nat = if d.is_one() {
-            Natural::one()
-        } else {
-            d.magnitude()
-        };
+        let denom_nat = if d.is_one() { Natural::one() } else { d.magnitude() };
         Self::from_parts(n, denom_nat)
     }
 
@@ -143,11 +135,7 @@ impl Rational {
 
     /// 分母（恒为正；整数 / 零时为 1）。
     pub fn denominator(&self) -> Integer {
-        if self.is_zero() {
-            Integer::one()
-        } else {
-            Integer::from_positive_natural(Natural::from_pair(self.denom.clone()))
-        }
+        if self.is_zero() { Integer::one() } else { Integer::from_positive_natural(Natural::from_pair(self.denom.clone())) }
     }
 
     /// 是否为零。
@@ -174,9 +162,11 @@ impl Rational {
     pub fn sign(&self) -> Sign {
         if self.numer.is_zero() {
             Sign::Zero
-        } else if self.numer.is_negative() {
+        }
+        else if self.numer.is_negative() {
             Sign::Negative
-        } else {
+        }
+        else {
             Sign::Positive
         }
     }
@@ -215,12 +205,12 @@ impl Rational {
 
     /// 加法（合并前交叉约去 `gcd(b,d)`；默认上下文）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        ctx.check_entry()?;
         let mut b = self.denominator();
         let mut d = rhs.denominator();
         let g = b.abs().try_gcd(&d.abs(), ctx)?;
@@ -228,10 +218,7 @@ impl Rational {
             b = b.try_div_rem_trunc(&g, ctx)?.0;
             d = d.try_div_rem_trunc(&g, ctx)?.0;
         }
-        let n = self
-            .numerator()
-            .try_mul(&d, ctx)?
-            .try_add(&rhs.numerator().try_mul(&b, ctx)?, ctx)?;
+        let n = self.numerator().try_mul(&d, ctx)?.try_add(&rhs.numerator().try_mul(&b, ctx)?, ctx)?;
         let denom = self.denominator().try_mul(&d, ctx)?;
         Ok(Self::normalize_pair(n, denom))
     }
@@ -248,19 +235,13 @@ impl Rational {
 
     /// 乘法（乘积前交叉约分；默认上下文）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
-        let (n, d) = cross_cancel_mul_ctx(
-            self.numerator(),
-            self.denominator(),
-            rhs.numerator(),
-            rhs.denominator(),
-            ctx,
-        )?;
+        ctx.check_entry()?;
+        let (n, d) = cross_cancel_mul_ctx(self.numerator(), self.denominator(), rhs.numerator(), rhs.denominator(), ctx)?;
         Ok(Self::normalize_pair(n, d))
     }
 
@@ -271,18 +252,13 @@ impl Rational {
 
     /// 除法（服从 `ctx` 预算）。
     pub fn try_div_ctx(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        ctx.check_entry()?;
         if rhs.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
                 .detail("domain", "numeric")
                 .detail("operation", "rational_div"));
         }
-        let (n, d) = cross_cancel_mul_ctx(
-            self.numerator(),
-            self.denominator(),
-            rhs.denominator(),
-            rhs.numerator(),
-            ctx,
-        )?;
+        let (n, d) = cross_cancel_mul_ctx(self.numerator(), self.denominator(), rhs.denominator(), rhs.numerator(), ctx)?;
         Ok(Self::normalize_pair(n, d))
     }
 
@@ -291,14 +267,8 @@ impl Rational {
         if exp == 0 {
             return Ok(Self::one());
         }
-        let n = self
-            .numerator()
-            .pow_u32(exp)
-            .map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
-        let d = self
-            .denominator()
-            .pow_u32(exp)
-            .map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
+        let n = self.numerator().pow_u32(exp).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
+        let d = self.denominator().pow_u32(exp).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
         Ok(Self::normalize_pair(n, d))
     }
 
@@ -320,11 +290,7 @@ impl Rational {
         if !q.is_finite() {
             return None;
         }
-        if nf.to_bits() == (q * df).to_bits() {
-            Some(q)
-        } else {
-            None
-        }
+        if nf.to_bits() == (q * df).to_bits() { Some(q) } else { None }
     }
 
     /// 显式近似 `f64`。
@@ -335,11 +301,7 @@ impl Rational {
             return None;
         }
         let q = nf / df;
-        if q.is_finite() {
-            Some(q)
-        } else {
-            None
-        }
+        if q.is_finite() { Some(q) } else { None }
     }
 
     /// [`try_to_f64_exact`] 的别名。
@@ -351,12 +313,9 @@ impl Rational {
     pub fn to_wire_string(&self) -> String {
         if self.is_integer() {
             self.numerator().to_decimal_string()
-        } else {
-            format!(
-                "{}/{}",
-                self.numerator().to_decimal_string(),
-                self.denominator().to_decimal_string()
-            )
+        }
+        else {
+            format!("{}/{}", self.numerator().to_decimal_string(), self.denominator().to_decimal_string())
         }
     }
 }

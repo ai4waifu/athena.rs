@@ -18,7 +18,7 @@ impl NumericValueWire {
 
     /// 将十进制文本解码为 wire 记录（文本载荷、精确精度）。
     pub fn decode_text(kind: NumericKind, text: &str) -> Result<NumericValueWire, Diagnostic> {
-        if text.len() as u32 > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+        if text.len() as u32 > crate::kernel::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
                 .detail("operation", "text_payload_limit"));

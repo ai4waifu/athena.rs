@@ -15,7 +15,7 @@ pub(crate) struct HeapPayload {
 
 /// 持久 magnitude 的纯 storage union（16 bytes on LP64）。
 ///
-/// 禁止在未核对 `meta.mode` 的情况下读取字段。
+/// **警告**：绝对禁止在未核对 `meta.mode` 的情况下读取字段。
 #[repr(C)]
 pub(crate) union Magnitude {
     pub(crate) limb1: u64,
@@ -25,9 +25,9 @@ pub(crate) union Magnitude {
 
 // `Magnitude` 仅含 Copy 字段；手动实现以便在 Tagged 路径外不轻易复制未配对状态。
 impl Clone for Magnitude {
+    /// clone 时按位复制整个 union 槽位，语义正确性由外层 meta 保证。
     #[inline]
     fn clone(&self) -> Self {
-        // 按位复制整个 union 槽位；语义正确性由外层 meta 保证。
         *self
     }
 }

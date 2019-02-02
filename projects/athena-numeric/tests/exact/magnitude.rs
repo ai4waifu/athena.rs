@@ -1,7 +1,9 @@
 //! Magnitude / Nat·Int（`meta + Magnitude`）布局与 canonical 表示测试。
 
-use athena_numeric::integer::{Integer, Sign};
-use athena_numeric::natural::Natural;
+use athena_numeric::{
+    integer::{Integer, Sign},
+    natural::Natural,
+};
 use std::mem::{align_of, size_of};
 
 #[test]

@@ -3,8 +3,8 @@
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
 use crate::{
-    backends::pure_rust::limb_kernel,
     integer::Integer,
+    kernel::limb as limb_kernel,
     modular::ModularValue,
     modulus_context::{ModulusContext, ModulusTable},
     natural::Natural,
@@ -42,12 +42,8 @@ impl ModulusContext {
         let aa_mag = aa.magnitude();
         let bb_mag = bb.magnitude();
         if let Some(mp) = &self.montgomery {
-            let prod = limb_kernel::mul_mod_montgomery_precomputed(
-                aa_mag.as_limbs(),
-                bb_mag.as_limbs(),
-                mag.as_limbs(),
-                mp.n_prime,
-            );
+            let prod =
+                limb_kernel::mul_mod_montgomery_precomputed(aa_mag.as_limbs(), bb_mag.as_limbs(), mag.as_limbs(), mp.n_prime);
             return Integer::from_positive_natural(Natural::from_limbs(prod));
         }
         if let Some(bp) = &self.barrett {

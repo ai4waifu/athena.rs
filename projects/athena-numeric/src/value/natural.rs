@@ -2,9 +2,11 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::kernel::{LimbBuffer, limb as limb_kernel};
-use crate::magnitude::{Mode, MagnitudePair, gc_alloc_err};
-use crate::policy::execution_budget::NumericContext;
+use crate::{
+    kernel::{LimbBuffer, limb as limb_kernel},
+    policy::execution_budget::NumericContext,
+    storage::{MagnitudePair, Mode, gc_alloc_error},
+};
 use limb_kernel::{LimbKernel, PureRustLimbKernel};
 use std::{
     cmp::Ordering,
@@ -183,12 +185,12 @@ impl Natural {
 
     /// 加小整数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add_u64(&self, rhs: u64) -> Self {
-        self.try_add_u64(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_add_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 加小整数（服从 `ctx` 预算）。
     pub fn try_add_u64(&self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if rhs == 0 {
             return Ok(self.clone());
         }
@@ -201,11 +203,7 @@ impl Natural {
                 let a = self.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
                 let (lo, carry) = limb_kernel::add_1(a, rhs);
-                Ok(if carry == 0 {
-                    Self::from_u64(lo)
-                } else {
-                    Self { inner: MagnitudePair::from_limb2([lo, 1]) }
-                })
+                Ok(if carry == 0 { Self::from_u64(lo) } else { Self { inner: MagnitudePair::from_limb2([lo, 1]) } })
             }
             Mode::Limb2 => {
                 let a = self.inner.as_limb2().expect("Limb2");
@@ -221,12 +219,12 @@ impl Natural {
 
     /// 乘小整数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn mul_u64(&self, rhs: u64) -> Self {
-        self.try_mul_u64(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_mul_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 乘小整数（服从 `ctx` 预算）。
     pub fn try_mul_u64(&self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self.is_zero() || rhs == 0 {
             return Ok(Self::zero());
         }
@@ -253,12 +251,12 @@ impl Natural {
 
     /// 加法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self.is_zero() {
             return Ok(rhs.clone());
         }
@@ -271,11 +269,7 @@ impl Natural {
                 let b = rhs.inner.as_limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
                 let (lo, carry) = limb_kernel::add_1(a, b);
-                Ok(if carry == 0 {
-                    Self::from_u64(lo)
-                } else {
-                    Self { inner: MagnitudePair::from_limb2([lo, 1]) }
-                })
+                Ok(if carry == 0 { Self::from_u64(lo) } else { Self { inner: MagnitudePair::from_limb2([lo, 1]) } })
             }
             (Mode::Limb1, Mode::Limb2) => {
                 let a = self.inner.as_limb1().expect("Limb1");
@@ -306,12 +300,12 @@ impl Natural {
 
     /// 减法（要求 `self >= rhs`；默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
-        self.try_sub(rhs, &NumericContext::pure_rust_default())
-            .expect("natural sub precondition or unbounded default")
+        self.try_sub(rhs, &NumericContext::pure_rust_default()).expect("natural sub precondition or unbounded default")
     }
 
     /// 减法（`self >= rhs`；服从 `ctx` 预算）。
     pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self < rhs {
             return Err(Diagnostic::new(DiagnosticCode::DomainError)
                 .detail("domain", "numeric")
@@ -347,12 +341,12 @@ impl Natural {
 
     /// 乘法（默认 [`NumericContext::pure_rust_default`]）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self.is_zero() || rhs.is_zero() {
             return Ok(Self::zero());
         }
@@ -392,12 +386,12 @@ impl Natural {
 
     /// 平方（默认 [`NumericContext::pure_rust_default`]）。
     pub fn sqr(&self) -> Self {
-        self.try_sqr(&NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_sqr(&NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 平方（服从 `ctx` 预算）。
     pub fn try_sqr(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self.is_zero() {
             return Ok(Self::zero());
         }
@@ -421,12 +415,12 @@ impl Natural {
 
     /// 除法与余数（`rhs > 0`；默认上下文）。
     pub fn div_rem(&self, rhs: &Self) -> (Self, Self) {
-        self.try_div_rem(rhs, &NumericContext::pure_rust_default())
-            .expect("div_rem divisor non-zero and unbounded default")
+        self.try_div_rem(rhs, &NumericContext::pure_rust_default()).expect("div_rem divisor non-zero and unbounded default")
     }
 
     /// 除法与余数（服从 `ctx` 预算；除数为零返回诊断）。
     pub fn try_div_rem(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
+        ctx.check_entry()?;
         if rhs.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
                 .detail("domain", "numeric")
@@ -448,27 +442,16 @@ impl Natural {
                 let denom = rhs.to_u128().expect("Limb1/2 fits u128");
                 ctx.budget().check_limbs(2)?;
                 let (q, r) = limb_kernel::div_rem_u128(numer, denom);
-                Ok((
-                    Self { inner: MagnitudePair::from_u128(q) },
-                    Self { inner: MagnitudePair::from_u128(r) },
-                ))
+                Ok((Self { inner: MagnitudePair::from_u128(q) }, Self { inner: MagnitudePair::from_u128(r) }))
             }
-            _ => limb_kernel::with_kernel_scratch(ctx.budget(), |scratch, budget| {
+            _ => {
                 let mut q = LimbBuffer::zero();
                 let mut r = LimbBuffer::zero();
-                PureRustLimbKernel::div_rem_into(
-                    self.as_limbs(),
-                    rhs.as_limbs(),
-                    &mut q,
-                    &mut r,
-                    scratch,
-                    budget,
-                )?;
-                Ok((
-                    Self::from_limb_slice_in(ctx, q.as_canonical())?,
-                    Self::from_limb_slice_in(ctx, r.as_canonical())?,
-                ))
-            }),
+                ctx.with_scratch_frame(|scratch, budget| {
+                    PureRustLimbKernel::div_rem_into(self.as_limbs(), rhs.as_limbs(), &mut q, &mut r, scratch, budget)
+                })?;
+                Ok((Self::from_limb_slice_in(ctx, q.as_canonical())?, Self::from_limb_slice_in(ctx, r.as_canonical())?))
+            }
         }
     }
 
@@ -480,6 +463,7 @@ impl Natural {
 
     /// 模幂（服从 `ctx` 预算；奇模数足够宽时走 Montgomery）。
     pub fn try_mod_pow(&self, exp: &Self, modulus: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if modulus.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
                 .detail("domain", "numeric")
@@ -545,11 +529,7 @@ impl Natural {
             return Some(0);
         }
         let limbs = self.as_limbs();
-        if limbs.len() == 1 {
-            Some(limbs[0])
-        } else {
-            None
-        }
+        if limbs.len() == 1 { Some(limbs[0]) } else { None }
     }
 
     /// 可落入 `u128` 时返回。
@@ -567,12 +547,12 @@ impl Natural {
 
     /// 非负最大公约数（默认 [`NumericContext::pure_rust_default`]）。
     pub fn gcd(&self, other: &Self) -> Self {
-        self.try_gcd(other, &NumericContext::pure_rust_default())
-            .expect("pure-rust default max_limbs unbounded")
+        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
     }
 
     /// 非负最大公约数（服从 `ctx` 预算；结果 limb ≤ `min(self, other)`）。
     pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
         if self.is_zero() && other.is_zero() {
             return Ok(Self::zero());
         }
@@ -601,7 +581,8 @@ impl Natural {
 
     /// 由 limb 切片发布到 `ctx` heap（无额外 `Vec`）。
     pub(crate) fn from_limb_slice_in(ctx: &NumericContext, limbs: &[u64]) -> Result<Self> {
-        let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_err)?;
+        ctx.check_entry()?;
+        let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_error)?;
         Ok(Self::from_pair(inner))
     }
 
@@ -614,11 +595,10 @@ impl Natural {
             &crate::policy::execution_budget::ExecutionBudget,
         ) -> Result<()>,
     ) -> Result<Self> {
-        limb_kernel::with_kernel_scratch(ctx.budget(), |scratch, budget| {
-            let mut out = LimbBuffer::zero();
-            write(&mut out, scratch, budget)?;
-            Self::from_limb_slice_in(ctx, out.as_canonical())
-        })
+        ctx.check_entry()?;
+        let mut out = LimbBuffer::zero();
+        ctx.with_scratch_frame(|scratch, budget| write(&mut out, scratch, budget))?;
+        Self::from_limb_slice_in(ctx, out.as_canonical())
     }
 
     /// 由物理 pair 构造（**不**清零 sign don't-care 位）。
@@ -675,16 +655,17 @@ impl Natural {
                 .detail("operation", "wire_magnitude_count")
         })?) as usize;
         budget.check_limbs(count)?;
-        let need = 4usize.checked_add(count.checked_mul(8).ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_overflow")
-        })?)
-        .ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_overflow")
-        })?;
+        let need = 4usize
+            .checked_add(count.checked_mul(8).ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                    .detail("domain", "numeric")
+                    .detail("operation", "wire_magnitude_overflow")
+            })?)
+            .ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                    .detail("domain", "numeric")
+                    .detail("operation", "wire_magnitude_overflow")
+            })?;
         if bytes.len() != need {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
@@ -720,16 +701,17 @@ impl Natural {
                 .detail("domain", "numeric")
                 .detail("operation", "wire_magnitude_count")
         })?) as usize;
-        let total = 4usize.checked_add(count.checked_mul(8).ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_overflow")
-        })?)
-        .ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_overflow")
-        })?;
+        let total = 4usize
+            .checked_add(count.checked_mul(8).ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                    .detail("domain", "numeric")
+                    .detail("operation", "wire_magnitude_overflow")
+            })?)
+            .ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+                    .detail("domain", "numeric")
+                    .detail("operation", "wire_magnitude_overflow")
+            })?;
         if bytes.len() < total {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
@@ -746,7 +728,8 @@ impl Natural {
         if self.is_zero() {
             debug_assert_eq!(limbs, &[0]);
             debug_assert!(matches!(self.inner.mode(), Mode::Limb1));
-        } else {
+        }
+        else {
             debug_assert_ne!(*limbs.last().unwrap(), 0);
             match limbs.len() {
                 1 => debug_assert!(matches!(self.inner.mode(), Mode::Limb1)),

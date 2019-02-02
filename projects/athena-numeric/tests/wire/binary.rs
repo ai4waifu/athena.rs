@@ -161,8 +161,5 @@ fn accept_canonical_half_rational() {
     payload.extend(mag_bytes(1, &[2]));
     let wire = rat_wire(1, payload);
     let back = wire.decode().unwrap();
-    assert_eq!(
-        back,
-        NumericValue::rational(Rational::new(Integer::from_i64(1), Integer::from_i64(2)))
-    );
+    assert_eq!(back, NumericValue::rational(Rational::new(Integer::from_i64(1), Integer::from_i64(2))));
 }

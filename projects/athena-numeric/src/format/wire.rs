@@ -45,7 +45,7 @@ pub fn to_wire(n: &NumericValue) -> WireNumber {
 
 fn decode_wire_integer(s: &str) -> Result<Integer> {
     let payload_len = s.len() as u32;
-    if payload_len > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+    if payload_len > crate::kernel::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
         return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
             .detail("domain", "numeric")
             .detail("operation", "wire_payload_limit"));
