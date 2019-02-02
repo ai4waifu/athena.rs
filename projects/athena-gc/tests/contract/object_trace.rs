@@ -1,8 +1,6 @@
 //! Object arena + tracing collect 合同。
 
-use athena_gc::{
-    EmptyObjectGraph, GcHeap, GcMode, GcObjectId, HeapBudget, ObjectGraph, RootKind, Tracer,
-};
+use athena_gc::{EmptyObjectGraph, GcHeap, GcMode, GcObjectId, HeapBudget, ObjectGraph, RootKind, Tracer};
 
 struct EdgeGraph {
     edges: Vec<(GcObjectId, GcObjectId)>,
@@ -45,9 +43,7 @@ fn tracing_collect_sweeps_unreachable_object() {
     let orphan = heap.allocate_object(8).expect("orphan");
 
     let token = heap.roots_mut().register(root, RootKind::Session);
-    let graph = EdgeGraph {
-        edges: vec![(root, child)],
-    };
+    let graph = EdgeGraph { edges: vec![(root, child)] };
 
     let report = heap.collect_traced(&graph).expect("collect");
     assert!(report.objects_swept >= 1);

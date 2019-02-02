@@ -1,8 +1,7 @@
 //! `GcMode` 与作用域 guard（禁止进程级全局开关）。
 #![allow(unsafe_code)]
 
-use core::cell::Cell;
-use core::ptr::NonNull;
+use core::{cell::Cell, ptr::NonNull};
 
 use crate::ids::SegmentId;
 
@@ -119,17 +118,13 @@ impl GcController {
     /// 进入 Disabled（作用域）。
     pub fn suspend(self: &std::rc::Rc<Self>) -> GcSuspendGuard {
         self.suspend_depth.set(self.suspend_depth.get().saturating_add(1));
-        GcSuspendGuard {
-            ctrl: std::rc::Rc::clone(self),
-        }
+        GcSuspendGuard { ctrl: std::rc::Rc::clone(self) }
     }
 
     /// 进入 Deferred（作用域）。
     pub fn defer(self: &std::rc::Rc<Self>) -> GcDeferGuard {
         self.defer_depth.set(self.defer_depth.get().saturating_add(1));
-        GcDeferGuard {
-            ctrl: std::rc::Rc::clone(self),
-        }
+        GcDeferGuard { ctrl: std::rc::Rc::clone(self) }
     }
 
     fn end_suspend(&self) {
@@ -178,10 +173,7 @@ impl GcPinGuard {
         for id in &segments {
             heap.pin_segment(*id);
         }
-        Self {
-            heap: NonNull::from(heap),
-            segments,
-        }
+        Self { heap: NonNull::from(heap), segments }
     }
 }
 

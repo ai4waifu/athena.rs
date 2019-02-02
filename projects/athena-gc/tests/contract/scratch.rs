@@ -19,10 +19,7 @@ fn rewind_restores_cursor_without_losing_capacity() {
 #[test]
 fn scratch_respects_byte_budget() {
     let mut scratch = ScratchArena::new();
-    let budget = HeapBudget {
-        max_scratch_bytes: 64,
-        ..HeapBudget::default()
-    };
+    let budget = HeapBudget { max_scratch_bytes: 64, ..HeapBudget::default() };
     let err = scratch.ensure(128, &budget, true).expect_err("should fail");
     assert!(matches!(err, athena_gc::GcError::ScratchBytesLimit { .. }));
 }

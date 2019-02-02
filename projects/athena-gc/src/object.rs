@@ -1,11 +1,12 @@
 //! Object arena：带 generation 的 `GcObjectId` 槽位。
 
-use core::cell::Cell;
-use core::ptr::NonNull;
+use core::{cell::Cell, ptr::NonNull};
 
-use crate::error::{GcError, Result};
-use crate::header::MarkState;
-use crate::ids::{GcObjectId, SegmentId};
+use crate::{
+    error::{GcError, Result},
+    header::MarkState,
+    ids::{GcObjectId, SegmentId},
+};
 
 /// Object segment 中的一块 payload。
 #[derive(Debug, Clone, Copy)]
@@ -27,31 +28,18 @@ pub(crate) struct ObjectSlot {
 
 impl ObjectSlot {
     pub(crate) fn vacant(generation: u32) -> Self {
-        Self {
-            generation,
-            mark: Cell::new(MarkState::White),
-            block: None,
-        }
+        Self { generation, mark: Cell::new(MarkState::White), block: None }
     }
 }
 
 /// 解析结果。
-pub(crate) fn resolve_slot(
-    slots: &[Option<ObjectSlot>],
-    id: GcObjectId,
-) -> Result<&ObjectSlot> {
+pub(crate) fn resolve_slot(slots: &[Option<ObjectSlot>], id: GcObjectId) -> Result<&ObjectSlot> {
     let slot = slots
         .get(id.index as usize)
         .and_then(|s| s.as_ref())
-        .ok_or(GcError::StaleObject {
-            index: id.index,
-            expected_generation: id.generation,
-        })?;
+        .ok_or(GcError::StaleObject { index: id.index, expected_generation: id.generation })?;
     if slot.generation != id.generation || slot.block.is_none() {
-        return Err(GcError::StaleObject {
-            index: id.index,
-            expected_generation: id.generation,
-        });
+        return Err(GcError::StaleObject { index: id.index, expected_generation: id.generation });
     }
     Ok(slot)
 }

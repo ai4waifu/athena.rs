@@ -1,24 +1,23 @@
 //! `GcHeap`：segmented non-moving bump 堆 + object arena + tracing collect。
 #![allow(unsafe_code)]
 
-use core::cell::Cell;
-use core::ptr::NonNull;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::time::Instant;
+use core::{cell::Cell, ptr::NonNull};
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
-use crate::budget::HeapBudget;
-use crate::error::{GcError, Result};
-use crate::header::{AllocationHeader, BlockKind, MarkState};
-use crate::ids::{GcObjectId, HeapId, SegmentId};
-use crate::mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcSuspendGuard};
-use crate::object::{ObjectBlock, ObjectSlot, resolve_slot};
-use crate::registry;
-use crate::root::RootRegistry;
-use crate::scratch::ScratchArena;
-use crate::segment::{SegmentKind, SegmentMeta};
-use crate::stats::HeapStats;
-use crate::trace::{ObjectGraph, Tracer};
+use crate::{
+    budget::HeapBudget,
+    error::{GcError, Result},
+    header::{AllocationHeader, BlockKind, MarkState},
+    ids::{GcObjectId, HeapId, SegmentId},
+    mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcSuspendGuard},
+    object::{ObjectBlock, ObjectSlot, resolve_slot},
+    registry,
+    root::RootRegistry,
+    scratch::ScratchArena,
+    segment::{SegmentKind, SegmentMeta},
+    stats::HeapStats,
+    trace::{ObjectGraph, Tracer},
+};
 
 /// 默认 segment 容量。
 const DEFAULT_SEGMENT_BYTES: usize = 256 * 1024;
@@ -175,17 +174,9 @@ impl GcHeap {
             return Err(GcError::InvalidCapacity);
         }
         self.budget.check_limbs(capacity_limbs)?;
-        let payload_bytes = capacity_limbs
-            .checked_mul(core::mem::size_of::<u64>())
-            .ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) =
-            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX)?;
-        Ok(NumericBlock {
-            ptr: limbs.cast(),
-            capacity: capacity_limbs,
-            segment_id: seg_id,
-            heap_id: self.id,
-        })
+        let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
+        let (seg_id, limbs) = self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX)?;
+        Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
     /// 分配 object 槽 + payload，返回 [`GcObjectId`]。
@@ -195,26 +186,19 @@ impl GcHeap {
         }
         let index = if let Some(i) = self.free_objects.pop() {
             i
-        } else {
+        }
+        else {
             let i = u32::try_from(self.objects.len()).map_err(|_| GcError::InvalidCapacity)?;
             self.objects.push(None);
             i
         };
-        let generation = self
-            .objects
-            .get(index as usize)
-            .and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1)))
-            .unwrap_or(1);
-        let (seg_id, ptr) =
-            self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index)?;
+        let generation =
+            self.objects.get(index as usize).and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1))).unwrap_or(1);
+        let (seg_id, ptr) = self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index)?;
         self.objects[index as usize] = Some(ObjectSlot {
             generation,
             mark: Cell::new(MarkState::White),
-            block: Some(ObjectBlock {
-                ptr,
-                byte_len: payload_bytes,
-                segment_id: seg_id,
-            }),
+            block: Some(ObjectBlock { ptr, byte_len: payload_bytes, segment_id: seg_id }),
         });
         Ok(GcObjectId { index, generation })
     }
@@ -223,10 +207,7 @@ impl GcHeap {
     pub fn object_payload_mut(&mut self, id: GcObjectId) -> Result<&mut [u8]> {
         let block = {
             let slot = resolve_slot(&self.objects, id)?;
-            slot.block.ok_or(GcError::StaleObject {
-                index: id.index,
-                expected_generation: id.generation,
-            })?
+            slot.block.ok_or(GcError::StaleObject { index: id.index, expected_generation: id.generation })?
         };
         // SAFETY: block 由本 heap 分配且 slot 仍存活。
         Ok(unsafe { core::slice::from_raw_parts_mut(block.ptr.as_ptr(), block.byte_len) })
@@ -236,10 +217,7 @@ impl GcHeap {
     pub fn object_payload(&self, id: GcObjectId) -> Result<&[u8]> {
         let block = {
             let slot = resolve_slot(&self.objects, id)?;
-            slot.block.ok_or(GcError::StaleObject {
-                index: id.index,
-                expected_generation: id.generation,
-            })?
+            slot.block.ok_or(GcError::StaleObject { index: id.index, expected_generation: id.generation })?
         };
         Ok(unsafe { core::slice::from_raw_parts(block.ptr.as_ptr(), block.byte_len) })
     }
@@ -247,17 +225,12 @@ impl GcHeap {
     /// 显式释放 object（推进 generation，可供 stale 检测）。
     pub fn release_object(&mut self, id: GcObjectId) -> Result<()> {
         let index = id.index as usize;
-        let Some(Some(slot)) = self.objects.get(index) else {
-            return Err(GcError::StaleObject {
-                index: id.index,
-                expected_generation: id.generation,
-            });
+        let Some(Some(slot)) = self.objects.get(index)
+        else {
+            return Err(GcError::StaleObject { index: id.index, expected_generation: id.generation });
         };
         if slot.generation != id.generation || slot.block.is_none() {
-            return Err(GcError::StaleObject {
-                index: id.index,
-                expected_generation: id.generation,
-            });
+            return Err(GcError::StaleObject { index: id.index, expected_generation: id.generation });
         }
         if let Some(mut slot) = self.objects[index].take() {
             if let Some(block) = slot.block.take() {
@@ -284,12 +257,7 @@ impl GcHeap {
 
     /// Header（limb 或 object payload 起点）。
     pub fn header_for_payload(&self, payload: NonNull<u8>) -> Result<&AllocationHeader> {
-        let header = unsafe {
-            payload
-                .as_ptr()
-                .sub(AllocationHeader::size())
-                .cast::<AllocationHeader>()
-        };
+        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         let hdr = unsafe { &*header };
         if hdr.heap_id != self.id {
             return Err(GcError::UnknownAllocation);
@@ -305,12 +273,7 @@ impl GcHeap {
 
     /// 标记 allocation 可达。
     pub fn mark_payload(&mut self, payload: NonNull<u8>) -> Result<()> {
-        let header = unsafe {
-            payload
-                .as_ptr()
-                .sub(AllocationHeader::size())
-                .cast::<AllocationHeader>()
-        };
+        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         unsafe {
             (*header).mark_state = MarkState::Black;
             if (*header).block_kind == BlockKind::Object {
@@ -365,11 +328,7 @@ impl GcHeap {
                 }
             }
             objects_swept = self.sweep_unmarked_objects();
-            let ids: Vec<SegmentId> = self
-                .segments
-                .iter()
-                .filter_map(|s| s.as_ref().map(|x| x.meta.id))
-                .collect();
+            let ids: Vec<SegmentId> = self.segments.iter().filter_map(|s| s.as_ref().map(|x| x.meta.id)).collect();
             for id in ids {
                 if self.try_reclaim_segment(id) {
                     reclaimed = reclaimed.saturating_add(1);
@@ -410,9 +369,7 @@ impl GcHeap {
         payload_bytes: usize,
         object_index: u32,
     ) -> Result<(SegmentId, NonNull<u8>)> {
-        let total = AllocationHeader::size()
-            .checked_add(payload_bytes)
-            .ok_or(GcError::InvalidCapacity)?;
+        let total = AllocationHeader::size().checked_add(payload_bytes).ok_or(GcError::InvalidCapacity)?;
         let (seg_index, offset) = self.bump_allocate(kind, total)?;
         let seg = self.segments[seg_index].as_mut().expect("segment");
         let seg_id = seg.meta.id;
@@ -429,15 +386,12 @@ impl GcHeap {
                 object_index,
             });
         }
-        let payload = unsafe {
-            NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset + AllocationHeader::size()))
-        };
+        let payload = unsafe { NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset + AllocationHeader::size())) };
         seg.meta.live_count = seg.meta.live_count.saturating_add(1);
         self.touch(seg_index);
         self.controller.record_allocation(total);
         self.stats.allocation_count = self.stats.allocation_count.saturating_add(1);
-        self.stats.total_arena_bytes_allocated =
-            self.stats.total_arena_bytes_allocated.saturating_add(total);
+        self.stats.total_arena_bytes_allocated = self.stats.total_arena_bytes_allocated.saturating_add(total);
         if self.controller.should_collect_after_alloc() {
             let _ = self.collect();
         }
@@ -445,17 +399,13 @@ impl GcHeap {
     }
 
     fn release_payload(&mut self, payload: NonNull<u8>, expected: BlockKind) -> Result<()> {
-        let header = unsafe {
-            payload
-                .as_ptr()
-                .sub(AllocationHeader::size())
-                .cast::<AllocationHeader>()
-        };
+        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         let (seg_id, kind) = unsafe { ((*header).segment_id, (*header).block_kind) };
         if kind != expected {
             return Err(GcError::UnknownAllocation);
         }
-        let Some(seg) = self.segment_mut(seg_id) else {
+        let Some(seg) = self.segment_mut(seg_id)
+        else {
             return Err(GcError::UnknownAllocation);
         };
         if seg.meta.live_count > 0 {
@@ -477,12 +427,7 @@ impl GcHeap {
         for seg in self.segments.iter_mut().flatten() {
             let mut offset = 0usize;
             while offset + AllocationHeader::size() <= seg.meta.used {
-                let header = unsafe {
-                    seg.bytes
-                        .as_mut_ptr()
-                        .add(offset)
-                        .cast::<AllocationHeader>()
-                };
+                let header = unsafe { seg.bytes.as_mut_ptr().add(offset).cast::<AllocationHeader>() };
                 unsafe {
                     (*header).mark_state = MarkState::White;
                     let step = AllocationHeader::size() + (*header).byte_len as usize;
@@ -496,9 +441,8 @@ impl GcHeap {
         let mut swept = 0u64;
         let indices: Vec<usize> = (0..self.objects.len()).collect();
         for index in indices {
-            let should_sweep = self.objects[index]
-                .as_ref()
-                .is_some_and(|s| s.block.is_some() && s.mark.get() == MarkState::White);
+            let should_sweep =
+                self.objects[index].as_ref().is_some_and(|s| s.block.is_some() && s.mark.get() == MarkState::White);
             if !should_sweep {
                 continue;
             }
@@ -517,7 +461,10 @@ impl GcHeap {
 
     fn bump_allocate(&mut self, kind: SegmentKind, bytes: usize) -> Result<(usize, usize)> {
         for (index, slot) in self.segments.iter_mut().enumerate() {
-            let Some(seg) = slot.as_mut() else { continue };
+            let Some(seg) = slot.as_mut()
+            else {
+                continue;
+            };
             if seg.meta.kind != kind {
                 continue;
             }
@@ -542,15 +489,13 @@ impl GcHeap {
         self.next_generation = self.next_generation.wrapping_add(1).max(1);
         let index = if let Some(free) = self.free_segment_slots.pop() {
             free
-        } else {
+        }
+        else {
             let i = self.segments.len();
             self.segments.push(None);
             i
         };
-        let id = SegmentId {
-            index: index as u32,
-            generation,
-        };
+        let id = SegmentId { index: index as u32, generation };
         self.segments[index] = Some(SegmentStorage {
             meta: SegmentMeta {
                 id,
@@ -570,10 +515,12 @@ impl GcHeap {
     }
 
     fn try_reclaim_segment(&mut self, id: SegmentId) -> bool {
-        let Some(index) = self.resolve_index(id) else {
+        let Some(index) = self.resolve_index(id)
+        else {
             return false;
         };
-        let Some(seg) = self.segments[index].as_ref() else {
+        let Some(seg) = self.segments[index].as_ref()
+        else {
             return false;
         };
         if !seg.meta.is_reclaimable() {
@@ -610,7 +557,8 @@ impl GcHeap {
     }
 
     fn mark_object_id(&mut self, id: GcObjectId, gray: &mut Vec<GcObjectId>) {
-        let Some(Some(slot)) = self.objects.get(id.index as usize) else {
+        let Some(Some(slot)) = self.objects.get(id.index as usize)
+        else {
             return;
         };
         if slot.generation != id.generation || slot.block.is_none() {
@@ -688,11 +636,7 @@ fn align_up(value: usize, align: usize) -> usize {
 pub fn heap_id_for_limbs(limbs: NonNull<u64>) -> HeapId {
     // SAFETY: 调用方保证 ptr 指向本运行时分配的 limb 区。
     unsafe {
-        let header = limbs
-            .as_ptr()
-            .cast::<u8>()
-            .sub(AllocationHeader::size())
-            .cast::<AllocationHeader>();
+        let header = limbs.as_ptr().cast::<u8>().sub(AllocationHeader::size()).cast::<AllocationHeader>();
         (*header).heap_id
     }
 }
