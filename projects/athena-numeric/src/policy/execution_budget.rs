@@ -1,12 +1,15 @@
-//! 数值内核执行的分配与增长预算 + runtime heap 句柄。
+//! 数值内核执行的分配与增长预算 + runtime heap / scratch / cancel。
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use athena_gc::{GcHeap, HeapBudget};
+use athena_gc::{GcHeap, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::backend::{NumericBackend, NumericBackendLimits, PureRustBackend};
+use crate::{
+    dispatch::{NumericBackend, NumericBackendLimits},
+    kernel::{PureRustBackend, ScratchWorkspace},
+    policy::cancel::CancellationToken,
+};
 
 /// 由 backend 上限或 Session 策略接入的执行预算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,11 +22,7 @@ pub struct ExecutionBudget {
 impl ExecutionBudget {
     /// 无 limb / 载荷上限（开发 / 测试）。
     pub fn unlimited() -> Self {
-        Self {
-            max_limbs: None,
-            max_significand_bits: None,
-            max_wire_payload_bytes: None,
-        }
+        Self { max_limbs: None, max_significand_bits: None, max_wire_payload_bytes: None }
     }
 
     /// 由静态 backend 合同构造。
@@ -110,20 +109,21 @@ impl ExecutionBudget {
 
     /// 估算并检查除法商缓冲。
     pub fn check_div(&self, u_limbs: usize, v_limbs: usize) -> Result<()> {
-        let q = if v_limbs == 0 {
-            u_limbs + 1
-        } else {
-            u_limbs.saturating_sub(v_limbs) + 1
-        };
+        let q = if v_limbs == 0 { u_limbs + 1 } else { u_limbs.saturating_sub(v_limbs) + 1 };
         self.check_limbs(q.max(u_limbs) + v_limbs + 2)
     }
 }
 
-/// 数值执行上下文：预算 + backend 钩子 + runtime heap。
+/// 数值执行上下文：预算 + 取消 + heap 分配 + kernel scratch。
+///
+/// `NumericContext ≠ allocator`：GC 策略在 `athena-gc` / engine；本类型只提供准入与钩子。
 #[derive(Clone)]
 pub struct NumericContext {
     budget: ExecutionBudget,
     heap: Rc<RefCell<GcHeap>>,
+    cancel: CancellationToken,
+    /// 值层 / kernel 共用的 limb scratch（非 GC tracing）。
+    scratch: Rc<RefCell<ScratchWorkspace>>,
 }
 
 impl core::fmt::Debug for NumericContext {
@@ -131,46 +131,48 @@ impl core::fmt::Debug for NumericContext {
         f.debug_struct("NumericContext")
             .field("budget", &self.budget)
             .field("heap_id", &self.heap.borrow().id())
+            .field("cancelled", &self.cancel.is_cancelled())
             .finish()
     }
 }
 
 impl NumericContext {
-    /// 来自 [`crate::backend::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
+    fn assemble(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
+        Self { budget, heap, cancel: CancellationToken::new(), scratch: Rc::new(RefCell::new(ScratchWorkspace::default())) }
+    }
+
+    /// 来自 [`crate::kernel::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
     pub fn pure_rust_default() -> Self {
-        Self {
-            budget: ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
-            heap: GcHeap::shared_default(),
-        }
+        Self::assemble(
+            ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
+            GcHeap::shared_default(),
+        )
     }
 
     /// 由显式 backend / Session 上限构造（线程默认 heap）。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
-        Self {
-            budget: ExecutionBudget::from_limits(limits),
-            heap: GcHeap::shared_default(),
-        }
+        Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default())
     }
 
     /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
     pub fn unlimited() -> Self {
-        Self {
-            budget: ExecutionBudget::unlimited(),
-            heap: GcHeap::shared_default(),
-        }
+        Self::assemble(ExecutionBudget::unlimited(), GcHeap::shared_default())
     }
 
     /// Session / 测试：显式绑定 heap。
     pub fn with_heap(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
-        Self { budget, heap }
+        Self::assemble(budget, heap)
     }
 
     /// 新建隔离 heap（不与线程默认共享）。
     pub fn with_new_heap(budget: ExecutionBudget, heap_budget: HeapBudget) -> Self {
-        Self {
-            budget,
-            heap: GcHeap::new_shared(heap_budget),
-        }
+        Self::assemble(budget, GcHeap::new_shared(heap_budget))
+    }
+
+    /// 绑定外部取消令牌（Session 级共享）。
+    pub fn with_cancellation(mut self, token: CancellationToken) -> Self {
+        self.cancel = token;
+        self
     }
 
     /// 当前预算。
@@ -181,6 +183,76 @@ impl NumericContext {
     /// Runtime heap。
     pub fn heap(&self) -> &Rc<RefCell<GcHeap>> {
         &self.heap
+    }
+
+    /// 取消令牌。
+    pub fn cancellation(&self) -> &CancellationToken {
+        &self.cancel
+    }
+
+    /// 请求取消。
+    pub fn cancel(&self) {
+        self.cancel.cancel();
+    }
+
+    /// 是否已取消。
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
+    }
+
+    /// 已取消则失败。
+    pub fn check_cancelled(&self) -> Result<()> {
+        self.cancel.check()
+    }
+
+    /// 运算入口准入：取消 +（可选扩展）其它闸门。
+    pub fn check_entry(&self) -> Result<()> {
+        self.check_cancelled()
+    }
+
+    /// 借用 kernel limb scratch（统一钩子；调用方负责 `rewind`/`clear`）。
+    pub fn with_scratch<R>(&self, f: impl FnOnce(&mut ScratchWorkspace) -> R) -> R {
+        let mut scratch = self.scratch.borrow_mut();
+        f(&mut scratch)
+    }
+
+    /// 在预算下执行并在结束后 `clear` scratch。
+    pub fn with_scratch_frame<R>(&self, f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R) -> R {
+        let mut scratch = self.scratch.borrow_mut();
+        let result = f(&mut scratch, &self.budget);
+        scratch.clear();
+        result
+    }
+
+    /// GC heap 上的 byte scratch 水位。
+    pub fn gc_scratch_mark(&self) -> ScratchMark {
+        self.heap.borrow_mut().scratch().mark()
+    }
+
+    /// 回滚 GC scratch 到标记。
+    pub fn gc_scratch_rewind(&self, mark: ScratchMark) {
+        self.heap.borrow_mut().scratch().rewind(mark);
+    }
+
+    /// 在 GC scratch 上执行（自动 rewind）。
+    pub fn with_gc_scratch<R>(&self, f: impl FnOnce(&mut ScratchArena) -> R) -> R {
+        let mut heap = self.heap.borrow_mut();
+        let mark = heap.scratch().mark();
+        let result = f(heap.scratch());
+        heap.scratch().rewind(mark);
+        result
+    }
+
+    /// 经 context 分配 numeric limb block（检查取消）。
+    pub fn allocate_numeric_block(&self, capacity_limbs: usize) -> Result<NumericBlock> {
+        self.check_entry()?;
+        self.budget.check_limbs(capacity_limbs)?;
+        self.heap.borrow_mut().allocate_numeric_block(capacity_limbs).map_err(|e| {
+            Diagnostic::new(DiagnosticCode::NumericResourceLimit)
+                .detail("domain", "numeric")
+                .detail("kind", "gc_alloc")
+                .detail("reason", e.to_string())
+        })
     }
 }
 

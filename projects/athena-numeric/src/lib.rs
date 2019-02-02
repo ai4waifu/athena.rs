@@ -1,16 +1,27 @@
 //! Athena 数值塔 — 表示、运算、精度、promotion、证书。
 //!
-//! unsafe 边界：仅 `magnitude` 窄模块（纯 `union Magnitude` + `OwnedLimbBuffer`）允许 unsafe。
+//! unsafe 边界：仅 `storage` 窄模块（纯 `union Magnitude` + `OwnedLimbBuffer`）允许 unsafe。
+//!
+//! 四层正交（Living `13`）：
+//! ```text
+//! storage    — Magnitude / meta / views
+//! algorithm  — 数学策略（抽离中）
+//! kernel     — pure_rust / 未来 ISA KernelTable
+//! dispatch   — 宿主能力门面（宽度分派仍在 value 热路径）
+//! foreign    — oracle / copy-boundary（不进默认路径）
+//! ```
 #![deny(missing_docs)]
 
+pub mod algorithm;
 pub mod arithmetic;
-pub mod backend;
 pub mod certificate;
+pub mod dispatch;
+pub mod foreign;
 pub mod format;
 pub mod kernel;
-pub(crate) mod magnitude;
 pub mod policy;
 pub mod representation;
+pub(crate) mod storage;
 pub mod value;
 
 // —— 稳定模块路径（真实模块，不是别名文件）——
@@ -31,13 +42,11 @@ pub use crate::{
         rounding,
         rounding::RoundingPolicy,
     },
-    backend as backends,
-    backend::{
-        NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
-        PureRustBackend,
-    },
     certificate::{
         CertificateMethod, NumericBinding, NumericCertificate, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord,
+    },
+    dispatch::{
+        NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
     },
     format::{
         binary as wire_binary, serialization,
@@ -45,7 +54,8 @@ pub use crate::{
         text as wire_text, wire as number_wire,
         wire::{from_wire as number_from_wire, to_wire as number_to_wire},
     },
-    policy::{ExecutionBudget, NumericContext, execution_budget},
+    kernel::{PureRustBackend, ScratchWorkspace},
+    policy::{CancellationToken, ExecutionBudget, NumericContext, execution_budget},
     representation::{
         decimal,
         decimal::{Decimal, RoundingStatus},
@@ -81,3 +91,15 @@ pub use crate::{
         real::Real,
     },
 };
+
+/// 兼容旧路径名：宿主门面 + 默认 kernel 提供者。
+///
+/// 新代码请用 [`crate::dispatch`] 与 [`crate::kernel::PureRustBackend`]。
+pub mod backend {
+    pub use crate::{dispatch::*, kernel::PureRustBackend};
+}
+
+/// 兼容旧别名 `backends`。
+pub mod backends {
+    pub use crate::backend::*;
+}

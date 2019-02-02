@@ -1,42 +1,9 @@
-//! Machine kernel 提供者（过渡目录名；终局语义同 `kernel/`）。
+//! 执行策略门面（过渡）：宿主上报能力 / 资源上限。
 //!
-//! **`backend` 不是可替换的完整大整数实现。** 它只提供已绑定的底层 limb
-//! 执行：借用 Athena 已分配的 limb / scratch，写入结果。禁止拥有值、禁止
-//! allocator/GC、禁止接收完整 [`crate::NumericContext`]、禁止 foreign bigint
-//! wrapper-as-value。
-//!
-//! 四层正交（Living `13`）：
-//! ```text
-//! storage     — Magnitude / meta / LimbView
-//! algorithm   — schoolbook / Karatsuba / …
-//! kernel      — pure Rust / ADX / AArch64 / Wasm SIMD（本模块）
-//! dispatch    — 宽度分派 + planner + executor（value 热路径）
-//! ```
-//!
-//! ```text
-//! Magnitude → executor resolve → LimbView → KernelTable → Athena out → canonicalize
-//! ```
-//!
-//! 目录布局（过渡）：
-//! ```text
-//! backend/
-//!   mod.rs           — 宿主上报用能力/上限门面（终局迁出 machine kernel）
-//!   pure_rust/       — 默认 WASM 安全 limb kernel（语义基线）
-//!   native/          — 可选加速（feature）；仍只操作 `&[u64]`/`&mut [u64]`
-//! ```
-//!
-//! 本文件中的 [`NumericBackend`] / [`NumericCapability`] 是**过渡门面**
-//!（资源与宿主上报），不是 machine kernel API。
-//!
-//! Rust 模块名用下划线（`pure_rust`），因为标识符不能含 `-`。
-
-#[path = "pure_rust/mod.rs"]
-pub mod pure_rust;
-
-pub use pure_rust::PureRustBackend;
-
-#[cfg(feature = "native-accelerated")]
-pub mod native;
+//! **不是** machine kernel。Machine kernel 在 [`crate::kernel`]（`pure_rust` 等）。
+//! 宽度分派与 `*_into` 发布当前仍在 `value::*` 热路径；本模块只保留
+//! `NumericBackend` / `NumericCapability` 过渡合同，终局拆为
+//! Machine / Algorithm / Resource capability。
 
 use crate::representation::{domain::NumericDomain, precision::PrecisionKind};
 
@@ -135,7 +102,7 @@ impl Default for NumericBackendLimits {
     }
 }
 
-/// 静态资源/宿主合同（过渡；非 `KernelTable`）。
+/// 静态资源/宿主合同（过渡；非 [`crate::kernel`] 的 `KernelTable`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NumericBackendContract {
     /// 稳定 id。
@@ -156,7 +123,7 @@ pub struct NumericBackendContract {
     pub limits: NumericBackendLimits,
 }
 
-/// 宿主能力面（过渡门面；machine kernel 入口是 `*_into` / `KernelTable`）。
+/// 宿主能力面（过渡门面；machine kernel 入口是 `*_into` / KernelTable）。
 pub trait NumericBackend {
     /// 完整静态合同。
     fn contract(&self) -> &'static NumericBackendContract;
@@ -185,6 +152,3 @@ pub trait NumericBackend {
     /// 是否能在 `domain` 上执行 `op` 并产出 `result`。
     fn supports_operation(&self, domain: &NumericDomain, op: NumericOperation, result: NumericResultMode) -> bool;
 }
-
-/// 默认纯 Rust kernel 的 wire 载荷字节上限（与解码共用）。
-pub(crate) use pure_rust::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES;

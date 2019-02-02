@@ -8,15 +8,14 @@ use core::{
     mem,
     ptr::NonNull,
 };
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use athena_gc::{GcHeap, heap_id_for_limbs};
 
 use super::{
     meta::{
-        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta,
-        heap_len, is_negative, mode_of,
+        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, is_negative,
+        mode_of,
     },
     owned::OwnedLimbBuffer,
     union::Magnitude,
@@ -42,11 +41,7 @@ impl MagnitudePair {
     /// 由 `u64` 构造。
     #[inline]
     pub(crate) fn from_u64(n: u64) -> Self {
-        if n == 0 {
-            Self::zero()
-        } else {
-            Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: n } }
-        }
+        if n == 0 { Self::zero() } else { Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: n } } }
     }
 
     /// 由双 limb 构造（`hi != 0`；否则退化为 `from_u64(lo)`）。
@@ -54,7 +49,8 @@ impl MagnitudePair {
     pub(crate) fn from_limb2(limbs: [u64; 2]) -> Self {
         if limbs[1] == 0 {
             Self::from_u64(limbs[0])
-        } else {
+        }
+        else {
             Self { meta: encode_limb2_meta(false), magnitude: Magnitude { limb2: limbs } }
         }
     }
@@ -64,9 +60,11 @@ impl MagnitudePair {
     pub(crate) fn from_u128(n: u128) -> Self {
         if n == 0 {
             Self::zero()
-        } else if n <= u64::MAX as u128 {
+        }
+        else if n <= u64::MAX as u128 {
             Self::from_u64(n as u64)
-        } else {
+        }
+        else {
             Self::from_limb2([n as u64, (n >> 64) as u64])
         }
     }
@@ -87,7 +85,8 @@ impl MagnitudePair {
                 let limb = limbs[0];
                 if limb == 0 {
                     Self::zero()
-                } else {
+                }
+                else {
                     Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } }
                 }
             }
@@ -115,7 +114,8 @@ impl MagnitudePair {
                 let limb = limbs[0];
                 Ok(if limb == 0 {
                     Self::zero()
-                } else {
+                }
+                else {
                     Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } }
                 })
             }
@@ -123,19 +123,13 @@ impl MagnitudePair {
                 let lo = limbs[0];
                 let hi = limbs[1];
                 debug_assert!(hi != 0);
-                Ok(Self {
-                    meta: encode_limb2_meta(false),
-                    magnitude: Magnitude { limb2: [lo, hi] },
-                })
+                Ok(Self { meta: encode_limb2_meta(false), magnitude: Magnitude { limb2: [lo, hi] } })
             }
             _ => {
                 debug_assert!(limbs[el - 1] != 0);
                 let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
                 let payload = buf.into_payload();
-                Ok(Self {
-                    meta: encode_heap_meta(el, false),
-                    magnitude: Magnitude { heap: payload },
-                })
+                Ok(Self { meta: encode_heap_meta(el, false), magnitude: Magnitude { heap: payload } })
             }
         }
     }
@@ -145,7 +139,8 @@ impl MagnitudePair {
         if matches!(self.mode(), Mode::Heap) {
             // SAFETY: Heap active。
             Some(unsafe { self.magnitude.heap.ptr })
-        } else {
+        }
+        else {
             None
         }
     }
@@ -156,7 +151,8 @@ impl MagnitudePair {
         if matches!(self.mode(), Mode::Limb1) {
             // SAFETY: Limb1 mode → limb1 active。
             Some(unsafe { self.magnitude.limb1 })
-        } else {
+        }
+        else {
             None
         }
     }
@@ -167,7 +163,8 @@ impl MagnitudePair {
         if matches!(self.mode(), Mode::Limb2) {
             // SAFETY: Limb2 mode → limb2 active。
             Some(unsafe { self.magnitude.limb2 })
-        } else {
+        }
+        else {
             None
         }
     }
@@ -220,7 +217,8 @@ impl MagnitudePair {
         }
         if negative {
             self.meta |= META_SIGN_BIT;
-        } else {
+        }
+        else {
             self.meta &= !META_SIGN_BIT;
         }
         self
@@ -342,11 +340,7 @@ impl Clone for MagnitudePair {
                 // SAFETY: Heap active。
                 let (src, capacity, heap_id) = unsafe {
                     let heap = self.magnitude.heap;
-                    (
-                        core::slice::from_raw_parts(heap.ptr.as_ptr(), len),
-                        heap.capacity,
-                        heap_id_for_limbs(heap.ptr),
-                    )
+                    (core::slice::from_raw_parts(heap.ptr.as_ptr(), len), heap.capacity, heap_id_for_limbs(heap.ptr))
                 };
                 let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(len))
                     .unwrap_or_else(|_| OwnedLimbBuffer::alloc_copy(src, capacity.max(len)));
@@ -386,10 +380,7 @@ impl Hash for MagnitudePair {
 
 impl core::fmt::Debug for MagnitudePair {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("MagnitudePair")
-            .field("mode", &self.mode())
-            .field("limbs", &self.as_limbs())
-            .finish()
+        f.debug_struct("MagnitudePair").field("mode", &self.mode()).field("limbs", &self.as_limbs()).finish()
     }
 }
 

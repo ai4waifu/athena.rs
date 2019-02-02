@@ -85,15 +85,7 @@ pub(crate) fn mul_1x1(a: u64, b: u64) -> u128 {
 pub(crate) fn add_1_2(a: u64, b: [u64; 2]) -> ([u64; 3], usize) {
     let (lo, c0) = adc(a, b[0], 0);
     let (hi, c1) = adc(b[1], 0, c0);
-    if c1 == 0 {
-        if hi == 0 {
-            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
-        } else {
-            ([lo, hi, 0], 2)
-        }
-    } else {
-        ([lo, hi, c1], 3)
-    }
+    if c1 == 0 { if hi == 0 { ([lo, 0, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, hi, 0], 2) } } else { ([lo, hi, c1], 3) }
 }
 
 /// `Limb2 + Limb2`：双 limb adc；进位则 3 limbs。
@@ -101,15 +93,7 @@ pub(crate) fn add_1_2(a: u64, b: [u64; 2]) -> ([u64; 3], usize) {
 pub(crate) fn add_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 3], usize) {
     let (lo, c0) = adc(a[0], b[0], 0);
     let (hi, c1) = adc(a[1], b[1], c0);
-    if c1 == 0 {
-        if hi == 0 {
-            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
-        } else {
-            ([lo, hi, 0], 2)
-        }
-    } else {
-        ([lo, hi, c1], 3)
-    }
+    if c1 == 0 { if hi == 0 { ([lo, 0, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, hi, 0], 2) } } else { ([lo, hi, c1], 3) }
 }
 
 /// `Limb2 × Limb1`：最多 3 limbs。
@@ -124,12 +108,9 @@ pub(crate) fn mul_2x1(a: [u64; 2], b: u64) -> ([u64; 3], usize) {
     let (mid, c1) = adc(mid_lo, hi0, 0);
     let hi = hi1 + c1;
     if hi == 0 {
-        if mid == 0 {
-            ([lo, 0, 0], if lo == 0 { 0 } else { 1 })
-        } else {
-            ([lo, mid, 0], 2)
-        }
-    } else {
+        if mid == 0 { ([lo, 0, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, mid, 0], 2) }
+    }
+    else {
         ([lo, mid, hi], 3)
     }
 }
@@ -147,11 +128,7 @@ pub(crate) fn sub_2_1(a: [u64; 2], b: u64) -> ([u64; 2], usize) {
     let (lo, br0) = sbb(a[0], b, 0);
     let (hi, br1) = sbb(a[1], 0, br0);
     debug_assert!(br1 == 0, "sub_2_1 underflow");
-    if hi == 0 {
-        ([lo, 0], if lo == 0 { 0 } else { 1 })
-    } else {
-        ([lo, hi], 2)
-    }
+    if hi == 0 { ([lo, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, hi], 2) }
 }
 
 /// `Limb2 − Limb2`（要求 `a >= b`）。
@@ -160,11 +137,7 @@ pub(crate) fn sub_2(a: [u64; 2], b: [u64; 2]) -> ([u64; 2], usize) {
     let (lo, br0) = sbb(a[0], b[0], 0);
     let (hi, br1) = sbb(a[1], b[1], br0);
     debug_assert!(br1 == 0, "sub_2 underflow");
-    if hi == 0 {
-        ([lo, 0], if lo == 0 { 0 } else { 1 })
-    } else {
-        ([lo, hi], 2)
-    }
+    if hi == 0 { ([lo, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, hi], 2) }
 }
 
 /// `Limb1 ÷ Limb1`：`(q, r)`，`b != 0`。
@@ -196,11 +169,7 @@ pub(crate) fn div_rem_2_1(u: [u64; 2], d: u64) -> ([u64; 2], usize, u64) {
     let r = (n % (d as u128)) as u64;
     let lo = q as u64;
     let hi = (q >> 64) as u64;
-    if hi == 0 {
-        ([lo, 0], if lo == 0 { 0 } else { 1 }, r)
-    } else {
-        ([lo, hi], 2, r)
-    }
+    if hi == 0 { ([lo, 0], if lo == 0 { 0 } else { 1 }, r) } else { ([lo, hi], 2, r) }
 }
 
 /// `Limb2 × Limb2`：最多 4 limbs。

@@ -4,10 +4,9 @@ use athena_gc::GcError;
 use athena_types::{Diagnostic, DiagnosticCode};
 
 /// 将 `athena-gc` 错误映射为 numeric 诊断。
-pub(crate) fn gc_alloc_err(err: GcError) -> Diagnostic {
+pub(crate) fn gc_alloc_error(err: GcError) -> Diagnostic {
     match err {
-        GcError::ArenaBytesLimit { requested_total, limit }
-        | GcError::ScratchBytesLimit { requested_total, limit } => {
+        GcError::ArenaBytesLimit { requested_total, limit } | GcError::ScratchBytesLimit { requested_total, limit } => {
             Diagnostic::new(DiagnosticCode::NumericResourceLimit)
                 .detail("domain", "numeric")
                 .detail("kind", "arena_bytes")

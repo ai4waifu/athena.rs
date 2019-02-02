@@ -101,7 +101,7 @@ pub(crate) fn decode_integer_payload(sign: u8, payload: &[u8]) -> Result<Integer
 }
 
 pub(crate) fn decode_rational_payload(sign: u8, payload: &[u8]) -> Result<Rational, Diagnostic> {
-    use crate::format::validation::{reject_non_canonical, WireReject};
+    use crate::format::validation::{WireReject, reject_non_canonical};
     let (numer_mag, rest) = Natural::wire_take_magnitude(payload)?;
     let (denom_mag, tail) = Natural::wire_take_magnitude(rest)?;
     if !tail.is_empty() {
@@ -204,7 +204,7 @@ pub fn decode_blob(bytes: &[u8]) -> Result<WireBlobParts, Diagnostic> {
 }
 
 fn check_payload_limit(len: usize, op: &str) -> Result<(), Diagnostic> {
-    if len as u32 > crate::backend::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+    if len as u32 > crate::kernel::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
         return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
             .detail("domain", "numeric")
             .detail("operation", op));
