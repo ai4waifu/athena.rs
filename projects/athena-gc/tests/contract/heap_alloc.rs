@@ -1,7 +1,6 @@
 //! Numeric block 分配 / pin / collect 合同。
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use athena_gc::{BlockKind, GcHeap, GcMode, HeapBudget, RootKind};
 
@@ -77,12 +76,7 @@ fn pin_blocks_reclaim() {
 
 #[test]
 fn arena_budget_rejects_oversized_request() {
-    let budget = HeapBudget {
-        max_arena_bytes: 1024,
-        max_segment_count: 2,
-        max_limbs: 1_000_000,
-        max_scratch_bytes: 1024,
-    };
+    let budget = HeapBudget { max_arena_bytes: 1024, max_segment_count: 2, max_limbs: 1_000_000, max_scratch_bytes: 1024 };
     let rc = GcHeap::new(budget);
     let err = rc.borrow_mut().allocate_numeric_block(8).expect_err("budget");
     assert!(matches!(err, athena_gc::GcError::ArenaBytesLimit { .. }));
@@ -91,10 +85,7 @@ fn arena_budget_rejects_oversized_request() {
 #[test]
 fn root_registry_register_unregister() {
     with_heap(|_rc, heap| {
-        let id = athena_gc::GcObjectId {
-            index: 1,
-            generation: 1,
-        };
+        let id = athena_gc::GcObjectId { index: 1, generation: 1 };
         let token = heap.roots_mut().register(id, RootKind::Session);
         assert_eq!(heap.roots().len(), 1);
         assert!(heap.roots_mut().unregister(token));
@@ -104,10 +95,7 @@ fn root_registry_register_unregister() {
 
 #[test]
 fn defer_records_pressure_without_auto_reclaim_on_alloc() {
-    let budget = HeapBudget {
-        max_arena_bytes: 64 * 1024 * 1024,
-        ..HeapBudget::default()
-    };
+    let budget = HeapBudget { max_arena_bytes: 64 * 1024 * 1024, ..HeapBudget::default() };
     let rc = GcHeap::new(budget);
     let mut heap = rc.borrow_mut();
     heap.gc().set_auto_threshold_bytes(1);

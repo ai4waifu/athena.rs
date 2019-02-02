@@ -8,15 +8,16 @@
 
 #![allow(missing_docs)]
 
-use std::hint::black_box;
-use std::str::FromStr;
+use std::{hint::black_box, str::FromStr};
 
 use athena_numeric::{Integer, number_from_wire};
 use athena_types::wire::WireNumber;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use ibig::{IBig, ops::Abs as IbigAbs};
-use malachite::Integer as MalachiteInteger;
-use malachite::base::num::arithmetic::traits::{Abs as MalachiteAbs, Pow as MalachitePow};
+use malachite::{
+    Integer as MalachiteInteger,
+    base::num::arithmetic::traits::{Abs as MalachiteAbs, Pow as MalachitePow},
+};
 use num_bigint::BigInt;
 use num_traits::{Num, Signed, Zero, pow::Pow};
 

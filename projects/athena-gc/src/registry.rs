@@ -3,12 +3,16 @@
 //! Session 合同为单线程；不用跨线程 `Mutex` + `Rc`。
 //! TLS 析构顺序不定：所有入口用 `try_with`，线程退出时静默跳过（允许泄漏）。
 
-use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::{
+    cell::RefCell,
+    rc::{Rc, Weak},
+};
 
-use crate::error::{GcError, Result};
-use crate::heap::GcHeap;
-use crate::ids::HeapId;
+use crate::{
+    error::{GcError, Result},
+    heap::GcHeap,
+    ids::HeapId,
+};
 
 #[derive(Default)]
 struct Registry {
@@ -27,7 +31,8 @@ pub fn register(heap: &Rc<RefCell<GcHeap>>) -> HeapId {
             let mut reg = reg.borrow_mut();
             let index = if let Some(i) = reg.free.pop() {
                 i
-            } else {
+            }
+            else {
                 let i = u32::try_from(reg.slots.len()).expect("heap id overflow");
                 reg.slots.push(None);
                 i

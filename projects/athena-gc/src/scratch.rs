@@ -3,8 +3,10 @@
 
 use core::mem::MaybeUninit;
 
-use crate::budget::HeapBudget;
-use crate::error::{GcError, Result};
+use crate::{
+    budget::HeapBudget,
+    error::{GcError, Result},
+};
 
 /// Scratch bump 水位标记。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,26 +90,19 @@ impl ScratchArena {
             }
         }
         if end > self.buf.len() {
-            return Err(GcError::ScratchUnderrun {
-                need: bytes,
-                remaining: self.buf.len().saturating_sub(self.cursor),
-            });
+            return Err(GcError::ScratchUnderrun { need: bytes, remaining: self.buf.len().saturating_sub(self.cursor) });
         }
         let start = self.cursor;
         self.cursor = end;
         self.peak_bytes = self.peak_bytes.max(self.cursor);
         // SAFETY: MaybeUninit<u8> 与 u8 布局相同；调用方负责初始化。
-        Ok(unsafe {
-            core::slice::from_raw_parts_mut(self.buf.as_mut_ptr().add(start).cast::<MaybeUninit<u8>>(), bytes)
-        })
+        Ok(unsafe { core::slice::from_raw_parts_mut(self.buf.as_mut_ptr().add(start).cast::<MaybeUninit<u8>>(), bytes) })
     }
 
     /// Bump 分配并清零的 `u64` limb 切片。
     pub fn allocate_limbs_zeroed(&mut self, limbs: usize, budget: &HeapBudget) -> Result<&mut [u64]> {
         budget.check_limbs(limbs.max(1))?;
-        let bytes = limbs
-            .checked_mul(core::mem::size_of::<u64>())
-            .ok_or(GcError::InvalidCapacity)?;
+        let bytes = limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
         // 对齐到 8。
         let align_pad = (8 - (self.cursor % 8)) % 8;
         if align_pad > 0 {
@@ -118,8 +113,6 @@ impl ScratchArena {
             b.write(0);
         }
         // SAFETY: 已全部写 0；对齐满足 u64。
-        Ok(unsafe {
-            core::slice::from_raw_parts_mut(slot.as_mut_ptr().cast::<u64>(), limbs)
-        })
+        Ok(unsafe { core::slice::from_raw_parts_mut(slot.as_mut_ptr().cast::<u64>(), limbs) })
     }
 }

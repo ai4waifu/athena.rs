@@ -31,10 +31,7 @@ impl HeapBudget {
     pub fn check_arena_bytes(&self, current: usize, additional: usize) -> Result<()> {
         let total = current.checked_add(additional).ok_or(GcError::InvalidCapacity)?;
         if total > self.max_arena_bytes {
-            return Err(GcError::ArenaBytesLimit {
-                requested_total: total,
-                limit: self.max_arena_bytes,
-            });
+            return Err(GcError::ArenaBytesLimit { requested_total: total, limit: self.max_arena_bytes });
         }
         Ok(())
     }
@@ -42,10 +39,7 @@ impl HeapBudget {
     /// 检查 segment 数。
     pub fn check_segment_count(&self, count: usize) -> Result<()> {
         if count > self.max_segment_count {
-            return Err(GcError::SegmentCountLimit {
-                count,
-                limit: self.max_segment_count,
-            });
+            return Err(GcError::SegmentCountLimit { count, limit: self.max_segment_count });
         }
         Ok(())
     }
@@ -53,10 +47,7 @@ impl HeapBudget {
     /// 检查 limb 数。
     pub fn check_limbs(&self, limbs: usize) -> Result<()> {
         if limbs > self.max_limbs {
-            return Err(GcError::LimbLimit {
-                requested: limbs,
-                limit: self.max_limbs,
-            });
+            return Err(GcError::LimbLimit { requested: limbs, limit: self.max_limbs });
         }
         Ok(())
     }
@@ -65,10 +56,7 @@ impl HeapBudget {
     pub fn check_scratch_bytes(&self, current: usize, additional: usize) -> Result<()> {
         let total = current.checked_add(additional).ok_or(GcError::InvalidCapacity)?;
         if total > self.max_scratch_bytes {
-            return Err(GcError::ScratchBytesLimit {
-                requested_total: total,
-                limit: self.max_scratch_bytes,
-            });
+            return Err(GcError::ScratchBytesLimit { requested_total: total, limit: self.max_scratch_bytes });
         }
         Ok(())
     }
