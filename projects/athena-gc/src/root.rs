@@ -1,4 +1,6 @@
-//! Root registry：Session / TS handle / graph / cache pin 等统一登记。
+//! Root registry：Session / TS handle / graph / cache pin / numeric 等统一登记。
+
+use core::ptr::NonNull;
 
 use crate::ids::{GcObjectId, RootToken};
 
@@ -23,9 +25,11 @@ pub enum RootKind {
     CachePin,
     /// 用户显式 retain。
     UserRetain,
+    /// Session 持有的 numeric limb block。
+    Numeric,
 }
 
-/// 已登记 root。
+/// 已登记 object root。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GcRoot {
     /// 令牌。
@@ -36,12 +40,25 @@ pub struct GcRoot {
     pub kind: RootKind,
 }
 
+/// 已登记 numeric payload root（GC-owned limb block）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NumericRoot {
+    /// 令牌。
+    pub token: RootToken,
+    /// Limb / payload 起点。
+    pub payload: NonNull<u8>,
+    /// 种类（通常 [`RootKind::Numeric`]）。
+    pub kind: RootKind,
+}
+
 /// Root 表。
 #[derive(Debug, Default)]
 pub struct RootRegistry {
     next_token: u64,
     roots: Vec<Option<GcRoot>>,
     free: Vec<usize>,
+    numeric_roots: Vec<Option<NumericRoot>>,
+    numeric_free: Vec<usize>,
 }
 
 impl RootRegistry {
@@ -50,7 +67,7 @@ impl RootRegistry {
         Self::default()
     }
 
-    /// 登记 root，返回令牌。
+    /// 登记 object root，返回令牌。
     pub fn register(&mut self, object: GcObjectId, kind: RootKind) -> RootToken {
         let token = RootToken(self.next_token);
         self.next_token = self.next_token.wrapping_add(1);
@@ -64,7 +81,21 @@ impl RootRegistry {
         token
     }
 
-    /// 移除 root（未知令牌则 no-op）。
+    /// 登记 numeric payload root。
+    pub fn register_numeric(&mut self, payload: NonNull<u8>, kind: RootKind) -> RootToken {
+        let token = RootToken(self.next_token);
+        self.next_token = self.next_token.wrapping_add(1);
+        let root = NumericRoot { token, payload, kind };
+        if let Some(slot) = self.numeric_free.pop() {
+            self.numeric_roots[slot] = Some(root);
+        }
+        else {
+            self.numeric_roots.push(Some(root));
+        }
+        token
+    }
+
+    /// 移除 object root（未知令牌则 no-op）。
     pub fn unregister(&mut self, token: RootToken) -> bool {
         for (i, slot) in self.roots.iter_mut().enumerate() {
             if slot.as_ref().is_some_and(|r| r.token == token) {
@@ -76,18 +107,40 @@ impl RootRegistry {
         false
     }
 
-    /// 迭代当前 roots。
+    /// 移除 numeric root。
+    pub fn unregister_numeric(&mut self, token: RootToken) -> bool {
+        for (i, slot) in self.numeric_roots.iter_mut().enumerate() {
+            if slot.as_ref().is_some_and(|r| r.token == token) {
+                *slot = None;
+                self.numeric_free.push(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 迭代当前 object roots。
     pub fn iter(&self) -> impl Iterator<Item = GcRoot> + '_ {
         self.roots.iter().filter_map(|s| *s)
     }
 
-    /// 当前 root 数量。
+    /// 迭代 numeric roots。
+    pub fn iter_numeric(&self) -> impl Iterator<Item = NumericRoot> + '_ {
+        self.numeric_roots.iter().filter_map(|s| *s)
+    }
+
+    /// 当前 object root 数量。
     pub fn len(&self) -> usize {
         self.roots.iter().filter(|s| s.is_some()).count()
     }
 
-    /// 是否为空。
+    /// Numeric root 数量。
+    pub fn numeric_len(&self) -> usize {
+        self.numeric_roots.iter().filter(|s| s.is_some()).count()
+    }
+
+    /// 是否为空（object + numeric）。
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.len() == 0 && self.numeric_len() == 0
     }
 }

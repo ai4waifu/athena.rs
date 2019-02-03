@@ -2,5 +2,6 @@
 
 mod heap_alloc;
 mod mode;
+mod numeric_trace;
 mod object_trace;
 mod scratch;

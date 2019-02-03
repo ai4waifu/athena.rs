@@ -26,7 +26,7 @@ pub use heap::{CollectReport, GcHeap, NumericBlock};
 pub use ids::{GcObjectId, HeapId, RootToken, SegmentId};
 pub use mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcPressure, GcSuspendGuard};
 pub use object::ObjectBlock;
-pub use root::{GcRoot, RootKind, RootRegistry};
+pub use root::{GcRoot, NumericRoot, RootKind, RootRegistry};
 pub use scratch::{ScratchArena, ScratchMark};
 pub use segment::{SegmentKind, SegmentMeta};
 pub use stats::HeapStats;
