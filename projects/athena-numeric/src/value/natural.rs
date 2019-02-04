@@ -7,7 +7,6 @@ use crate::{
     policy::execution_budget::NumericContext,
     storage::{MagnitudePair, Mode, gc_alloc_error},
 };
-use limb_kernel::{LimbKernel, PureRustLimbKernel};
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
@@ -212,7 +211,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::add_into(self.as_limbs(), &[rhs], out, scratch, budget)
+                ctx.kernels().add_into(self.as_limbs(), &[rhs], out, scratch, budget)
             }),
         }
     }
@@ -244,7 +243,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::mul_1_into(self.as_limbs(), rhs, out, scratch, budget)
+                ctx.kernels().mul_1_into(self.as_limbs(), rhs, out, scratch, budget)
             }),
         }
     }
@@ -256,46 +255,7 @@ impl Natural {
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
-        ctx.check_entry()?;
-        if self.is_zero() {
-            return Ok(rhs.clone());
-        }
-        if rhs.is_zero() {
-            return Ok(self.clone());
-        }
-        match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Limb1, Mode::Limb1) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(2)?;
-                let (lo, carry) = limb_kernel::add_1(a, b);
-                Ok(if carry == 0 { Self::from_u64(lo) } else { Self { inner: MagnitudePair::from_limb2([lo, 1]) } })
-            }
-            (Mode::Limb1, Mode::Limb2) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb2().expect("Limb2");
-                ctx.budget().check_limbs(3)?;
-                let (limbs, len) = limb_kernel::add_1_2(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            (Mode::Limb2, Mode::Limb1) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(3)?;
-                let (limbs, len) = limb_kernel::add_1_2(b, a);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            (Mode::Limb2, Mode::Limb2) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb2().expect("Limb2");
-                ctx.budget().check_limbs(3)?;
-                let (limbs, len) = limb_kernel::add_2(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            _ => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::add_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
-            }),
-        }
+        crate::dispatch::NumericExecutor::add_natural(self, rhs, ctx)
     }
 
     /// 减法（要求 `self >= rhs`；默认上下文）。
@@ -305,38 +265,7 @@ impl Natural {
 
     /// 减法（`self >= rhs`；服从 `ctx` 预算）。
     pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
-        ctx.check_entry()?;
-        if self < rhs {
-            return Err(Diagnostic::new(DiagnosticCode::DomainError)
-                .detail("domain", "numeric")
-                .detail("operation", "natural_sub")
-                .detail("reason", "underflow"));
-        }
-        match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Limb1, Mode::Limb1) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(1)?;
-                Ok(Self::from_u64(limb_kernel::sub_1(a, b)))
-            }
-            (Mode::Limb2, Mode::Limb1) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(2)?;
-                let (limbs, len) = limb_kernel::sub_2_1(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            (Mode::Limb2, Mode::Limb2) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb2().expect("Limb2");
-                ctx.budget().check_limbs(2)?;
-                let (limbs, len) = limb_kernel::sub_2(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            _ => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::sub_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
-            }),
-        }
+        crate::dispatch::NumericExecutor::sub_natural(self, rhs, ctx)
     }
 
     /// 乘法（默认 [`NumericContext::pure_rust_default`]）。
@@ -346,42 +275,7 @@ impl Natural {
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
-        ctx.check_entry()?;
-        if self.is_zero() || rhs.is_zero() {
-            return Ok(Self::zero());
-        }
-        match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Limb1, Mode::Limb1) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(2)?;
-                Ok(Self { inner: MagnitudePair::from_u128(limb_kernel::mul_1x1(a, b)) })
-            }
-            (Mode::Limb1, Mode::Limb2) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb2().expect("Limb2");
-                ctx.budget().check_limbs(3)?;
-                let (limbs, len) = limb_kernel::mul_2x1(b, a);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            (Mode::Limb2, Mode::Limb1) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb1().expect("Limb1");
-                ctx.budget().check_limbs(3)?;
-                let (limbs, len) = limb_kernel::mul_2x1(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            (Mode::Limb2, Mode::Limb2) => {
-                let a = self.inner.as_limb2().expect("Limb2");
-                let b = rhs.inner.as_limb2().expect("Limb2");
-                ctx.budget().check_limbs(4)?;
-                let (limbs, len) = limb_kernel::mul_2(a, b);
-                Ok(Self::from_fixed(&limbs[..len]))
-            }
-            _ => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::mul_into(self.as_limbs(), rhs.as_limbs(), out, scratch, budget)
-            }),
-        }
+        crate::dispatch::NumericExecutor::mul_natural(self, rhs, ctx)
     }
 
     /// 平方（默认 [`NumericContext::pure_rust_default`]）。
@@ -408,7 +302,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                PureRustLimbKernel::sqr_into(self.as_limbs(), out, scratch, budget)
+                ctx.kernels().sqr_into(self.as_limbs(), out, scratch, budget)
             }),
         }
     }
@@ -448,7 +342,7 @@ impl Natural {
                 let mut q = LimbBuffer::zero();
                 let mut r = LimbBuffer::zero();
                 ctx.with_scratch_frame(|scratch, budget| {
-                    PureRustLimbKernel::div_rem_into(self.as_limbs(), rhs.as_limbs(), &mut q, &mut r, scratch, budget)
+                    ctx.kernels().div_rem_into(self.as_limbs(), rhs.as_limbs(), &mut q, &mut r, scratch, budget)
                 })?;
                 Ok((Self::from_limb_slice_in(ctx, q.as_canonical())?, Self::from_limb_slice_in(ctx, r.as_canonical())?))
             }
@@ -587,6 +481,18 @@ impl Natural {
     }
 
     /// Kernel `*_into` 后 canonicalize 并发布（值层 executor，非 machine kernel）。
+    pub(crate) fn publish_with_kernel(
+        ctx: &NumericContext,
+        write: impl FnOnce(
+            &mut LimbBuffer,
+            &mut crate::kernel::ScratchWorkspace,
+            &crate::policy::execution_budget::ExecutionBudget,
+        ) -> Result<()>,
+    ) -> Result<Self> {
+        Self::publish_into(ctx, write)
+    }
+
+    /// Kernel `*_into` 后 canonicalize 并发布（值层 executor，非 machine kernel）。
     fn publish_into(
         ctx: &NumericContext,
         write: impl FnOnce(
@@ -599,6 +505,48 @@ impl Natural {
         let mut out = LimbBuffer::zero();
         ctx.with_scratch_frame(|scratch, budget| write(&mut out, scratch, budget))?;
         Self::from_limb_slice_in(ctx, out.as_canonical())
+    }
+
+    /// 当前 storage mode（供 executor 宽度分派）。
+    #[inline]
+    pub(crate) fn mode(&self) -> Mode {
+        self.inner.mode()
+    }
+
+    /// Limb 逻辑长度。
+    #[inline]
+    pub(crate) fn limb_len(&self) -> usize {
+        self.inner.limb_len()
+    }
+
+    /// Limb1 载荷。
+    #[inline]
+    pub(crate) fn limb1(&self) -> Option<u64> {
+        self.inner.as_limb1()
+    }
+
+    /// Limb2 载荷。
+    #[inline]
+    pub(crate) fn limb2(&self) -> Option<[u64; 2]> {
+        self.inner.as_limb2()
+    }
+
+    /// 由 Limb2 构造。
+    #[inline]
+    pub(crate) fn from_limb2(limbs: [u64; 2]) -> Self {
+        Self { inner: MagnitudePair::from_limb2(limbs) }
+    }
+
+    /// 固定宽度结果（executor 入口）。
+    #[inline]
+    pub(crate) fn from_fixed_limbs(limbs: &[u64]) -> Self {
+        Self::from_fixed(limbs)
+    }
+
+    /// 由 `u128` 幅度构造。
+    #[inline]
+    pub(crate) fn from_u128_mag(v: u128) -> Self {
+        Self { inner: MagnitudePair::from_u128(v) }
     }
 
     /// 由物理 pair 构造（**不**清零 sign don't-care 位）。

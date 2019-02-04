@@ -6,8 +6,8 @@ use athena_gc::{GcHeap, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    dispatch::{NumericBackend, NumericBackendLimits},
-    kernel::{PureRustBackend, ScratchWorkspace},
+    dispatch::{CapabilityBundle, MachineCapability, NumericBackend, NumericBackendLimits},
+    kernel::{KernelTable, PureRustBackend, ScratchWorkspace},
     policy::cancel::CancellationToken,
 };
 
@@ -114,7 +114,7 @@ impl ExecutionBudget {
     }
 }
 
-/// 数值执行上下文：预算 + 取消 + heap 分配 + kernel scratch。
+/// 数值执行上下文：预算 + 取消 + heap 分配 + kernel scratch + 冻结能力 / `KernelTable`。
 ///
 /// `NumericContext ≠ allocator`：GC 策略在 `athena-gc` / engine；本类型只提供准入与钩子。
 #[derive(Clone)]
@@ -124,6 +124,10 @@ pub struct NumericContext {
     cancel: CancellationToken,
     /// 值层 / kernel 共用的 limb scratch（非 GC tracing）。
     scratch: Rc<RefCell<ScratchWorkspace>>,
+    /// Context 创建时冻结的能力束。
+    capabilities: CapabilityBundle,
+    /// Context 创建时绑定的 machine kernel 表。
+    kernels: KernelTable,
 }
 
 impl core::fmt::Debug for NumericContext {
@@ -132,41 +136,86 @@ impl core::fmt::Debug for NumericContext {
             .field("budget", &self.budget)
             .field("heap_id", &self.heap.borrow().id())
             .field("cancelled", &self.cancel.is_cancelled())
+            .field("kernel", &self.kernels.id())
             .finish()
     }
 }
 
 impl NumericContext {
-    fn assemble(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
-        Self { budget, heap, cancel: CancellationToken::new(), scratch: Rc::new(RefCell::new(ScratchWorkspace::default())) }
+    fn assemble(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>, capabilities: CapabilityBundle) -> Self {
+        let kernels = KernelTable::bind(capabilities.machine);
+        Self {
+            budget,
+            heap,
+            cancel: CancellationToken::new(),
+            scratch: Rc::new(RefCell::new(ScratchWorkspace::default())),
+            capabilities,
+            kernels,
+        }
     }
 
     /// 来自 [`crate::kernel::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
     pub fn pure_rust_default() -> Self {
+        let mut caps = CapabilityBundle::pure_rust_default();
+        caps.resource = crate::dispatch::ResourceCapability::from_limits(
+            NumericBackend::contract(&PureRustBackend::default()).limits,
+        );
         Self::assemble(
             ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
             GcHeap::shared_default(),
+            caps,
         )
     }
 
-    /// 由显式 backend / Session 上限构造（线程默认 heap）。
+    /// 由显式 backend / Session 上限构造（线程默认 heap · pure Rust kernel）。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
-        Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default())
+        let mut caps = CapabilityBundle::pure_rust_default();
+        caps.resource = crate::dispatch::ResourceCapability::from_limits(*limits);
+        Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default(), caps)
     }
 
     /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
     pub fn unlimited() -> Self {
-        Self::assemble(ExecutionBudget::unlimited(), GcHeap::shared_default())
+        let mut caps = CapabilityBundle::pure_rust_default();
+        caps.resource = crate::dispatch::ResourceCapability::unlimited();
+        Self::assemble(ExecutionBudget::unlimited(), GcHeap::shared_default(), caps)
     }
 
-    /// Session / 测试：显式绑定 heap。
+    /// Session / 测试：显式绑定 heap（pure Rust kernel）。
     pub fn with_heap(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
-        Self::assemble(budget, heap)
+        Self::assemble(budget, heap, CapabilityBundle::pure_rust_default())
     }
 
     /// 新建隔离 heap（不与线程默认共享）。
     pub fn with_new_heap(budget: ExecutionBudget, heap_budget: HeapBudget) -> Self {
-        Self::assemble(budget, GcHeap::new_shared(heap_budget))
+        Self::assemble(budget, GcHeap::new_shared(heap_budget), CapabilityBundle::pure_rust_default())
+    }
+
+    /// 显式能力束 + heap（绑定对应 `KernelTable`）。
+    pub fn with_capabilities(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>, capabilities: CapabilityBundle) -> Self {
+        let mut caps = capabilities;
+        // 资源上限与 ExecutionBudget 对齐。
+        caps.resource.limits.max_limbs = budget.max_limbs();
+        caps.resource.limits.max_significand_bits = budget.max_significand_bits();
+        caps.resource.limits.max_wire_payload_bytes = budget.max_wire_payload_bytes();
+        Self::assemble(budget, heap, caps)
+    }
+
+    /// 强制使用 pure Rust `KernelTable`（parity / 差分）。
+    pub fn with_pure_rust_kernels(mut self) -> Self {
+        self.capabilities.machine = MachineCapability::PURE_RUST;
+        self.kernels = KernelTable::pure_rust();
+        self
+    }
+
+    /// 冻结的能力束。
+    pub fn capabilities(&self) -> CapabilityBundle {
+        self.capabilities
+    }
+
+    /// 已绑定的 machine kernel 表。
+    pub fn kernels(&self) -> KernelTable {
+        self.kernels
     }
 
     /// 绑定外部取消令牌（Session 级共享）。

@@ -1,11 +1,25 @@
-//! 可选 native limb 加速占位（feature `native-accelerated`）。
+//! 可选 native limb 加速（feature `native-accelerated`）。
 //!
-//! 合同：优先 mpn 风格（Athena 提供 `&[u64]` / `&mut [u64]`）。
-//! 若某库只能走 object API，必须留在 `foreign/` copy 边界并单独记账，
-//! 不得与零拷贝 `kernel` 路径混报，也不得作为 `Integer`/`Natural` 存储。
+//! 合同：Athena 提供 `&[u64]` / `&mut [u64]`；本适配器绑定 ISA/`KernelTable`，
+//! 不持有 foreign bigint 对象。启用 feature 后默认走主机 ISA 表（与 pure Rust parity）。
 
-#![allow(dead_code)]
+use crate::{
+    dispatch::{CapabilityBundle, MachineCapability},
+    kernel::KernelTable,
+};
 
-/// Native limb / copy-boundary 占位（启用 feature 后落地）。
+/// Native limb 加速适配器：暴露已绑定的 [`KernelTable`]。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NativeAcceleratedAdapter;
+
+impl NativeAcceleratedAdapter {
+    /// 按主机 `MachineCapability` 绑定 kernel 表。
+    pub fn kernel_table() -> KernelTable {
+        KernelTable::bind(MachineCapability::detect_host())
+    }
+
+    /// 推荐的能力束（主机 ISA + 默认算法/资源）。
+    pub fn capability_bundle() -> CapabilityBundle {
+        CapabilityBundle::host_default()
+    }
+}

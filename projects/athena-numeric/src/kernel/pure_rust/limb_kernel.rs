@@ -34,7 +34,7 @@ pub(crate) fn with_kernel_scratch<R>(
 }
 
 /// Karatsuba 乘法阈值（每操作数 limb 数）。
-pub(crate) const MUL_KARATSUBA_THRESHOLD: usize = 32;
+pub(crate) use crate::algorithm::{MUL_KARATSUBA_THRESHOLD, karatsuba_scratch_limbs};
 
 /// 全宽单 limb 乘积：`(hi, lo) = a * b`。
 #[inline]
@@ -239,21 +239,6 @@ pub(crate) fn cmp_slice(a: &[u64], b: &[u64]) -> Ordering {
         }
     }
     Ordering::Equal
-}
-
-/// Karatsuba 递归所需 scratch limb 总数（逐层顺序复用 `rest`）。
-///
-/// 切分用 `m = ceil(n/2)`，**不用** `next_power_of_two`：后者会让 `(al+ah)` 子问题
-/// 回升到与父层同宽，导致 `rest` 上 `split_at_mut` 触发 `mid > len`。
-pub(crate) fn karatsuba_scratch_limbs(n_limbs: usize) -> usize {
-    if n_limbs < MUL_KARATSUBA_THRESHOLD {
-        return 0;
-    }
-    let m = (n_limbs + 1) / 2;
-    // z0(2m) + z2(2m) + a_sum(m+1) + b_sum(m+1) + z1(2m+2)
-    let level = 2 * m + 2 * m + (m + 1) + (m + 1) + (2 * m + 2);
-    // 顺序复用：子问题最坏是 sum 乘积，宽度 `m+1`
-    level.saturating_add(karatsuba_scratch_limbs(m + 1))
 }
 
 /// Knuth 除法 scratch：归一化 u、v、商，以及可选余数右移缓冲。
@@ -1297,22 +1282,37 @@ impl LimbKernel for PureRustLimbKernel {
         scratch: &mut ScratchWorkspace,
         budget: &ExecutionBudget,
     ) -> Result<()> {
+        use crate::algorithm::{MulStrategy, select_mul_strategy};
+        use crate::dispatch::AlgorithmCapability;
+
         if is_zero(a) || is_zero(b) {
             return out.set_zero(budget);
         }
         let la = effective_len(a);
         let lb = effective_len(b);
         budget.check_mul(la, lb)?;
-        let scratch_need = karatsuba_scratch_limbs(la.max(lb));
-        budget.check_limbs(scratch_need.max(la + lb))?;
-        scratch.ensure(scratch_need, budget)?;
-        let out_len = la + lb;
-        let storage = out.storage_mut(out_len, budget)?;
-        storage.fill(0);
-        let scratch_slice = scratch.as_mut_slice();
-        mul_rec(a, b, storage, scratch_slice);
-        out.trim_canonical();
-        Ok(())
+        match select_mul_strategy(la, lb, AlgorithmCapability::DEFAULT) {
+            MulStrategy::Zero => out.set_zero(budget),
+            MulStrategy::Schoolbook => {
+                let storage = out.storage_mut(la + lb, budget)?;
+                storage.fill(0);
+                mul_schoolbook_into(a, b, storage);
+                out.trim_canonical();
+                Ok(())
+            }
+            MulStrategy::Karatsuba => {
+                let scratch_need = karatsuba_scratch_limbs(la.max(lb));
+                budget.check_limbs(scratch_need.max(la + lb))?;
+                scratch.ensure(scratch_need, budget)?;
+                let out_len = la + lb;
+                let storage = out.storage_mut(out_len, budget)?;
+                storage.fill(0);
+                let scratch_slice = scratch.as_mut_slice();
+                mul_rec(a, b, storage, scratch_slice);
+                out.trim_canonical();
+                Ok(())
+            }
+        }
     }
 
     fn mul_1_into(
