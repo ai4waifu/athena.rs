@@ -77,32 +77,10 @@ impl MagnitudePair {
     }
 
     /// 由小端 limbs 构造（trim 后选 mode）。
+    ///
+    /// Heap 幅度经线程默认登记 heap 分配（convenience）。生产路径请用 [`Self::from_limbs_in`]。
     pub(crate) fn from_limbs(limbs: &[u64]) -> Self {
-        let el = effective_len(limbs);
-        match el {
-            0 => Self::zero(),
-            1 => {
-                let limb = limbs[0];
-                if limb == 0 {
-                    Self::zero()
-                }
-                else {
-                    Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } }
-                }
-            }
-            2 => {
-                let lo = limbs[0];
-                let hi = limbs[1];
-                debug_assert!(hi != 0);
-                Self { meta: encode_limb2_meta(false), magnitude: Magnitude { limb2: [lo, hi] } }
-            }
-            _ => {
-                debug_assert!(limbs[el - 1] != 0);
-                let buf = OwnedLimbBuffer::alloc_copy(&limbs[..el], el);
-                let payload = buf.into_payload();
-                Self { meta: encode_heap_meta(el, false), magnitude: Magnitude { heap: payload } }
-            }
-        }
+        Self::from_limbs_in(&GcHeap::shared_default(), limbs).unwrap_or_else(|e| panic!("gc numeric alloc failed: {e}"))
     }
 
     /// 由小端 limbs 构造，分配到指定 heap。
@@ -343,7 +321,7 @@ impl Clone for MagnitudePair {
                     (core::slice::from_raw_parts(heap.ptr.as_ptr(), len), heap.capacity, heap_id_for_limbs(heap.ptr))
                 };
                 let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(len))
-                    .unwrap_or_else(|_| OwnedLimbBuffer::alloc_copy(src, capacity.max(len)));
+                    .unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"));
                 let payload = buf.into_payload();
                 Self { meta: self.meta, magnitude: Magnitude { heap: payload } }
             }
