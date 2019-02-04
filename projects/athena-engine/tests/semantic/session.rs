@@ -3,6 +3,7 @@
 use athena_engine::{
     AssumptionScope, AssumptionScopeTable, ExprBindingTable, Predicate, ResultIdTable, Session, SymbolId, TermId, ValueIdTable,
 };
+use athena_gc::{EmptyObjectGraph, GcMode, RootKind};
 
 #[test]
 fn session_owns_sem0_sem1_tables() {
@@ -11,6 +12,21 @@ fn session_owns_sem0_sem1_tables() {
     assert!(session.values.is_empty());
     assert!(session.results.is_empty());
     assert!(session.assumption_scopes.is_empty());
+}
+
+#[test]
+fn session_heap_roots_keep_object_across_collect() {
+    let session = Session::new();
+    session.heap().borrow().gc().set_base_mode(GcMode::Deferred);
+    let obj = session.heap().borrow_mut().allocate_object(8).expect("obj");
+    session.heap().borrow_mut().object_payload_mut(obj).expect("w")[0] = 9;
+    let token = session.register_root(obj, RootKind::Session);
+    let report = session.collect().expect("collect");
+    assert_eq!(report.objects_swept, 0);
+    assert_eq!(session.heap().borrow().object_payload(obj).expect("ro")[0], 9);
+    assert!(session.unregister_root(token));
+    let report = session.heap().borrow_mut().collect_traced(&EmptyObjectGraph).expect("collect2");
+    assert!(report.objects_swept >= 1);
 }
 
 #[test]

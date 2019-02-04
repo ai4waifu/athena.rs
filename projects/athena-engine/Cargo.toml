@@ -14,6 +14,7 @@ jit = ["dep:athena-jit"]
 
 [dependencies]
 athena-types = { workspace = true }
+athena-gc = { workspace = true }
 athena-numeric = { workspace = true }
 athena-ir = { workspace = true }
 athena-rewriter = { workspace = true }
