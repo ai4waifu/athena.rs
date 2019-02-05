@@ -5,6 +5,7 @@ use std::process::ExitCode;
 use athena_benchmark::{
     fixture::{BenchGroup, RunConfig},
     groups::default_suite,
+    report::ReportTier,
     run_suite,
 };
 use clap::Parser;
@@ -24,6 +25,10 @@ struct Args {
     #[arg(long, default_value_t = 25)]
     samples: usize,
 
+    /// 报告分层：kernel / arena / end_to_end（默认 end_to_end）
+    #[arg(long, default_value = "end_to_end")]
+    tier: String,
+
     /// 输出机器可读 JSON 报告
     #[arg(long)]
     json: bool,
@@ -42,7 +47,17 @@ fn main() -> ExitCode {
         }
     }
 
-    let config = RunConfig { groups, warmup: args.warmup, samples: args.samples };
+    let report_tier = match args.tier.as_str() {
+        "kernel" => ReportTier::Kernel,
+        "arena" => ReportTier::Arena,
+        "end_to_end" | "e2e" => ReportTier::EndToEnd,
+        other => {
+            eprintln!("unknown tier `{other}` (expected kernel|arena|end_to_end)");
+            return ExitCode::from(2);
+        }
+    };
+
+    let config = RunConfig { groups, warmup: args.warmup, samples: args.samples, report_tier };
 
     let suite = default_suite();
     match run_suite(&suite, &config) {
@@ -71,10 +86,13 @@ fn main() -> ExitCode {
                     }
                     else {
                         println!(
-                            "  OK    {:<32}  p50={}ns  p95={}ns  {}",
+                            "  OK    {:<32}  tier={}  gc={}  p50={}ns  arena={}  scratch={}  {}",
                             f.id,
+                            f.report_tier.map(|t| t.as_str()).unwrap_or("?"),
+                            f.gc_mode.as_deref().unwrap_or("?"),
                             f.p50_ns.unwrap_or(0),
-                            f.p95_ns.unwrap_or(0),
+                            f.peak_arena_bytes.unwrap_or(0),
+                            f.peak_scratch_bytes.unwrap_or(0),
                             f.validation.notes
                         );
                     }

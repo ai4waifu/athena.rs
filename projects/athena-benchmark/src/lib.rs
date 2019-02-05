@@ -13,7 +13,7 @@ pub mod validate;
 
 pub use env::BenchEnv;
 pub use fixture::{BenchGroup, Fixture, FixtureMeta, RunConfig, Suite, SuiteError};
-pub use report::{FixtureReport, Report};
+pub use report::{FixtureReport, Report, ReportTier};
 pub use timing::{TimingStats, measure};
 pub use validate::{DeterminacyKind, ExactnessKind, ValidationSummary};
 

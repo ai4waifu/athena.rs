@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::{env::BenchEnv, report::FixtureReport, timing::measure, validate::ValidationSummary};
+use crate::{env::BenchEnv, report::{FixtureReport, ReportTier}, timing::measure, validate::ValidationSummary};
 
 /// 基准分组标签。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -97,11 +97,13 @@ pub struct RunConfig {
     pub warmup: usize,
     /// 采样次数。
     pub samples: usize,
+    /// 报告分层（决定建议 `GcMode` 与强制内存字段语义）。
+    pub report_tier: ReportTier,
 }
 
 impl Default for RunConfig {
     fn default() -> Self {
-        Self { groups: Vec::new(), warmup: 3, samples: 25 }
+        Self { groups: Vec::new(), warmup: 3, samples: 25, report_tier: ReportTier::EndToEnd }
     }
 }
 
@@ -158,6 +160,7 @@ impl Default for Suite {
 /// 执行单个 fixture → [`FixtureReport`]。
 pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -> Result<FixtureReport, SuiteError> {
     let meta = fixture.meta();
+    let tier = config.report_tier;
     if let Some(reason) = fixture.skip_reason() {
         return Ok(FixtureReport {
             id: meta.id.to_string(),
@@ -171,6 +174,11 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
             p95_ns: None,
             alloc_bytes: None,
             peak_rss_bytes: None,
+            report_tier: Some(tier),
+            gc_mode: Some(tier.suggested_gc_mode().to_string()),
+            peak_arena_bytes: None,
+            peak_scratch_bytes: None,
+            gc_time_ns: None,
             validation: ValidationSummary::passed(
                 crate::validate::ExactnessKind::Unspecified,
                 crate::validate::DeterminacyKind::Unspecified,
@@ -186,6 +194,7 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
     }
 
     let stats = measure(config.warmup, config.samples, || fixture.run_once());
+    let gc_stats = sample_gc_stats(tier);
 
     Ok(FixtureReport {
         id: meta.id.to_string(),
@@ -199,9 +208,49 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         p95_ns: Some(stats.p95_ns),
         alloc_bytes: None,
         peak_rss_bytes: peak_rss_bytes(),
+        report_tier: Some(tier),
+        gc_mode: Some(gc_stats.gc_mode),
+        peak_arena_bytes: Some(gc_stats.peak_arena_bytes),
+        peak_scratch_bytes: Some(gc_stats.peak_scratch_bytes),
+        gc_time_ns: Some(gc_stats.gc_time_ns),
         validation,
         fallback_reason: None,
     })
+}
+
+struct GcSample {
+    gc_mode: String,
+    peak_arena_bytes: u64,
+    peak_scratch_bytes: u64,
+    gc_time_ns: u64,
+}
+
+fn sample_gc_stats(tier: ReportTier) -> GcSample {
+    use athena_gc::{GcHeap, GcMode, HeapBudget};
+    use athena_numeric::{ExecutionBudget, NumericContext, natural::Natural};
+
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let mode = match tier {
+        ReportTier::Kernel => GcMode::Disabled,
+        ReportTier::Arena => GcMode::Deferred,
+        ReportTier::EndToEnd => GcMode::Auto,
+    };
+    heap.borrow().gc().set_base_mode(mode);
+    let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone());
+    // 轻量分配以填充 arena/scratch 峰值字段（不冒充端到端吞吐）。
+    let _ = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]);
+    let _ = heap.borrow_mut().collect();
+    let stats = heap.borrow().stats();
+    GcSample {
+        gc_mode: match heap.borrow().effective_mode() {
+            GcMode::Auto => "auto".into(),
+            GcMode::Deferred => "deferred".into(),
+            GcMode::Disabled => "disabled".into(),
+        },
+        peak_arena_bytes: stats.peak_arena_bytes as u64,
+        peak_scratch_bytes: stats.peak_scratch_bytes as u64,
+        gc_time_ns: stats.gc_time_ns,
+    }
 }
 
 fn peak_rss_bytes() -> Option<u64> {
