@@ -19,11 +19,6 @@ pub(crate) struct OwnedLimbBuffer {
 }
 
 impl OwnedLimbBuffer {
-    /// 在线程默认 heap 上分配。
-    pub(crate) fn alloc_uninit(capacity: usize) -> Self {
-        Self::alloc_uninit_in(&GcHeap::shared_default(), capacity).unwrap_or_else(|e| panic!("gc numeric alloc failed: {e}"))
-    }
-
     /// 在指定 heap 上分配。
     pub(crate) fn alloc_uninit_in(heap: &Rc<RefCell<GcHeap>>, capacity: usize) -> athena_gc::Result<Self> {
         assert!(capacity > 0, "OwnedLimbBuffer capacity must be > 0");
@@ -38,11 +33,6 @@ impl OwnedLimbBuffer {
             let block = heap.allocate_numeric_block(capacity)?;
             Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
         })
-    }
-
-    /// 分配并拷贝 `src`（默认 heap）。
-    pub(crate) fn alloc_copy(src: &[u64], capacity: usize) -> Self {
-        Self::alloc_copy_in(&GcHeap::shared_default(), src, capacity).unwrap_or_else(|e| panic!("gc numeric alloc failed: {e}"))
     }
 
     /// 在指定 heap 上分配并拷贝。
