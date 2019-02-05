@@ -2,7 +2,7 @@
 #![allow(unsafe_code)]
 
 use core::{cell::Cell, ptr::NonNull};
-use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Instant};
 
 use crate::{
     budget::HeapBudget,
@@ -21,6 +21,8 @@ use crate::{
 
 /// 默认 segment 容量。
 const DEFAULT_SEGMENT_BYTES: usize = 256 * 1024;
+/// `AllocationHeader::pin_state` 哨兵：block 已 release，禁止再解析为存活分配。
+const FREED_PIN_SENTINEL: u16 = u16::MAX;
 
 struct SegmentStorage {
     meta: SegmentMeta,
@@ -42,6 +44,8 @@ pub struct GcHeap {
     stats: HeapStats,
     objects: Vec<Option<ObjectSlot>>,
     free_objects: Vec<u32>,
+    /// GC-owned numeric payloads（不经 Rust `Drop` 释放；由 tracing sweep）。
+    traced_numeric: HashSet<usize>,
     /// 仅 `shared` 构造时由 Drop 注销。
     registered: bool,
 }
@@ -63,6 +67,7 @@ impl GcHeap {
             stats: HeapStats::default(),
             objects: Vec::new(),
             free_objects: Vec::new(),
+            traced_numeric: HashSet::new(),
             registered: false,
         }
     }
@@ -168,7 +173,7 @@ impl GcHeap {
         }
     }
 
-    /// 分配 numeric limb block。
+    /// 分配 numeric limb block（Rust `Drop` / `release_numeric_block` 负责释放）。
     pub fn allocate_numeric_block(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
         if capacity_limbs == 0 {
             return Err(GcError::InvalidCapacity);
@@ -177,6 +182,46 @@ impl GcHeap {
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
         let (seg_id, limbs) = self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX)?;
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
+    }
+
+    /// 分配 GC-owned numeric block（须经 root / Trace 保活；由 tracing sweep 回收）。
+    pub fn allocate_traced_numeric(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
+        let block = self.allocate_numeric_block(capacity_limbs)?;
+        self.traced_numeric.insert(block.ptr.as_ptr() as usize);
+        Ok(block)
+    }
+
+    /// 将已初始化 limb 提升到长期 numeric segment（scratch → heap promote）。
+    pub fn promote_limbs(&mut self, limbs: &[u64]) -> Result<NumericBlock> {
+        let capacity = limbs.len().max(1);
+        let block = self.allocate_traced_numeric(capacity)?;
+        // SAFETY: 新 block 可写 capacity 个 limb。
+        unsafe {
+            if limbs.is_empty() {
+                block.ptr.write(0);
+            }
+            else {
+                core::ptr::copy_nonoverlapping(limbs.as_ptr(), block.ptr.as_ptr(), limbs.len());
+            }
+        }
+        Ok(block)
+    }
+
+    /// 从 GC scratch 已初始化字节区提升为 limb block（`byte_len` 须为 8 的倍数）。
+    pub fn promote_scratch_bytes(&mut self, start: usize, byte_len: usize) -> Result<NumericBlock> {
+        if !byte_len.is_multiple_of(8) {
+            return Err(GcError::InvalidCapacity);
+        }
+        let bytes = self.scratch.view_bytes(start, byte_len)?;
+        let limbs_len = byte_len / 8;
+        if limbs_len == 0 {
+            return self.promote_limbs(&[]);
+        }
+        let mut tmp = Vec::with_capacity(limbs_len);
+        for chunk in bytes.chunks_exact(8) {
+            tmp.push(u64::from_le_bytes(chunk.try_into().expect("8 bytes")));
+        }
+        self.promote_limbs(&tmp)
     }
 
     /// 分配 object 槽 + payload，返回 [`GcObjectId`]。
@@ -245,13 +290,13 @@ impl GcHeap {
 
     /// Limb 可写视图。
     pub fn numeric_limbs_mut(&mut self, block: &NumericBlock) -> Result<&mut [u64]> {
-        self.segment_ref(block.segment_id).ok_or(GcError::UnknownAllocation)?;
+        let _ = self.header_for_limbs(block.ptr)?;
         Ok(unsafe { core::slice::from_raw_parts_mut(block.ptr.as_ptr(), block.capacity) })
     }
 
     /// Limb 只读视图。
     pub fn numeric_limbs(&self, block: &NumericBlock) -> Result<&[u64]> {
-        self.segment_ref(block.segment_id).ok_or(GcError::UnknownAllocation)?;
+        let _ = self.header_for_limbs(block.ptr)?;
         Ok(unsafe { core::slice::from_raw_parts(block.ptr.as_ptr(), block.capacity) })
     }
 
@@ -260,6 +305,9 @@ impl GcHeap {
         let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         let hdr = unsafe { &*header };
         if hdr.heap_id != self.id {
+            return Err(GcError::UnknownAllocation);
+        }
+        if hdr.pin_state == FREED_PIN_SENTINEL {
             return Err(GcError::UnknownAllocation);
         }
         self.segment_ref(hdr.segment_id).ok_or(GcError::UnknownAllocation)?;
@@ -293,12 +341,14 @@ impl GcHeap {
 
     /// 显式释放 numeric block（Rust Drop 路径）。
     pub fn release_numeric_block(&mut self, block: NumericBlock) -> Result<()> {
+        self.traced_numeric.remove(&(block.ptr.as_ptr() as usize));
         self.release_payload(block.ptr.cast(), BlockKind::Numeric)
     }
 
     /// 经 registry 释放（`OwnedLimbBuffer::Drop`）。
     pub fn release_numeric_limbs_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
         registry::with_heap(heap_id, |heap| {
+            heap.traced_numeric.remove(&(limbs.as_ptr() as usize));
             let _ = heap.release_payload(limbs.cast(), BlockKind::Numeric);
         })
     }
@@ -308,26 +358,32 @@ impl GcHeap {
         self.collect_traced(&crate::trace::EmptyObjectGraph)
     }
 
-    /// Tracing collect：roots → ObjectGraph → mark → sweep 未标记 object → reclaim 空 segment。
+    /// Tracing collect：roots → ObjectGraph → mark → sweep object/numeric → reclaim 空 segment。
     pub fn collect_traced(&mut self, graph: &dyn ObjectGraph) -> Result<CollectReport> {
         let started = Instant::now();
         let mode = self.controller.effective_mode();
         let mut reclaimed = 0u64;
         let mut objects_swept = 0u64;
+        let mut numeric_swept = 0u64;
 
         if !matches!(mode, GcMode::Disabled) {
             self.clear_marks();
             {
                 let roots: Vec<_> = self.roots.iter().collect();
+                let numeric_roots: Vec<_> = self.roots.iter_numeric().collect();
                 let mut tracer = MarkingTracer { heap: self, gray: Vec::new() };
                 for root in roots {
                     tracer.mark_object(root.object);
+                }
+                for root in numeric_roots {
+                    tracer.mark_allocation(root.payload.as_ptr());
                 }
                 while let Some(id) = tracer.gray.pop() {
                     graph.trace_object(id, &mut tracer);
                 }
             }
             objects_swept = self.sweep_unmarked_objects();
+            numeric_swept = self.sweep_unmarked_traced_numeric();
             let ids: Vec<SegmentId> = self.segments.iter().filter_map(|s| s.as_ref().map(|x| x.meta.id)).collect();
             for id in ids {
                 if self.try_reclaim_segment(id) {
@@ -347,8 +403,11 @@ impl GcHeap {
             mode,
             segments_reclaimed: reclaimed,
             objects_swept,
+            numeric_blocks_swept: numeric_swept,
             resident_bytes: self.resident_bytes,
             gc_time_ns: elapsed,
+            peak_arena_bytes: self.stats.peak_arena_bytes,
+            peak_scratch_bytes: self.stats.peak_scratch_bytes,
         })
     }
 
@@ -400,8 +459,8 @@ impl GcHeap {
 
     fn release_payload(&mut self, payload: NonNull<u8>, expected: BlockKind) -> Result<()> {
         let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
-        let (seg_id, kind) = unsafe { ((*header).segment_id, (*header).block_kind) };
-        if kind != expected {
+        let (seg_id, kind, pin) = unsafe { ((*header).segment_id, (*header).block_kind, (*header).pin_state) };
+        if kind != expected || pin == FREED_PIN_SENTINEL {
             return Err(GcError::UnknownAllocation);
         }
         let Some(seg) = self.segment_mut(seg_id)
@@ -413,6 +472,8 @@ impl GcHeap {
         }
         unsafe {
             (*header).mark_state = MarkState::White;
+            // 保留 byte_len 供 segment 遍历；用 pin 哨兵标记已释放。
+            (*header).pin_state = FREED_PIN_SENTINEL;
         }
         if matches!(self.controller.effective_mode(), GcMode::Auto) {
             self.try_reclaim_segment(seg_id);
@@ -453,6 +514,37 @@ impl GcHeap {
                 let generation = slot.generation.wrapping_add(1).max(1);
                 self.objects[index] = Some(ObjectSlot::vacant(generation));
                 self.free_objects.push(index as u32);
+                swept = swept.saturating_add(1);
+            }
+        }
+        swept
+    }
+
+    /// 回收未标记的 GC-owned numeric block（Rust-owned 不在 `traced_numeric` 内）。
+    fn sweep_unmarked_traced_numeric(&mut self) -> u64 {
+        let candidates: Vec<usize> = self.traced_numeric.iter().copied().collect();
+        let mut swept = 0u64;
+        for addr in candidates {
+            let Some(ptr) = NonNull::new(addr as *mut u8)
+            else {
+                continue;
+            };
+            let header = unsafe { ptr.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
+            let (kind, mark, pin) = unsafe { ((*header).block_kind, (*header).mark_state, (*header).pin_state) };
+            if kind != BlockKind::Numeric || mark != MarkState::White || pin > 0 {
+                continue;
+            }
+            if !self.traced_numeric.remove(&addr) {
+                continue;
+            }
+            let capacity = unsafe { (*header).byte_len as usize / core::mem::size_of::<u64>() };
+            let block = NumericBlock {
+                ptr: ptr.cast(),
+                capacity: capacity.max(1),
+                segment_id: unsafe { (*header).segment_id },
+                heap_id: self.id,
+            };
+            if self.release_numeric_block(block).is_ok() {
                 swept = swept.saturating_add(1);
             }
         }
@@ -622,10 +714,16 @@ pub struct CollectReport {
     pub segments_reclaimed: u64,
     /// Sweep 掉的 object 数。
     pub objects_swept: u64,
+    /// Sweep 掉的 GC-owned numeric block 数。
+    pub numeric_blocks_swept: u64,
     /// Resident。
     pub resident_bytes: usize,
     /// 耗时 ns。
     pub gc_time_ns: u64,
+    /// 峰值 arena（报告用）。
+    pub peak_arena_bytes: usize,
+    /// 峰值 scratch（报告用）。
+    pub peak_scratch_bytes: usize,
 }
 
 fn align_up(value: usize, align: usize) -> usize {

@@ -115,4 +115,13 @@ impl ScratchArena {
         // SAFETY: 已全部写 0；对齐满足 u64。
         Ok(unsafe { core::slice::from_raw_parts_mut(slot.as_mut_ptr().cast::<u64>(), limbs) })
     }
+
+    /// 只读查看当前 scratch 中已初始化的一段（调用方保证范围在 cursor 内）。
+    pub fn view_bytes(&self, start: usize, len: usize) -> Result<&[u8]> {
+        let end = start.checked_add(len).ok_or(GcError::InvalidCapacity)?;
+        if end > self.cursor {
+            return Err(GcError::ScratchUnderrun { need: len, remaining: self.cursor.saturating_sub(start) });
+        }
+        Ok(&self.buf[start..end])
+    }
 }
