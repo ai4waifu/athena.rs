@@ -58,9 +58,9 @@ pub struct AlgorithmCapability {
     pub schoolbook: bool,
     /// Karatsuba 乘。
     pub karatsuba: bool,
-    /// Toom 乘（预留）。
+    /// Toom 宽乘（三路分块路径已启用）。
     pub toom: bool,
-    /// Burnikel–Ziegler 除法（预留）。
+    /// Burnikel–Ziegler 除法。
     pub bz_division: bool,
     /// Half-GCD（预留）。
     pub half_gcd: bool,
@@ -70,24 +70,17 @@ pub struct AlgorithmCapability {
 
 impl Default for AlgorithmCapability {
     fn default() -> Self {
-        Self {
-            schoolbook: true,
-            karatsuba: true,
-            toom: false,
-            bz_division: false,
-            half_gcd: false,
-            montgomery: true,
-        }
+        Self::DEFAULT
     }
 }
 
 impl AlgorithmCapability {
-    /// 默认 pure-Rust 算法面。
+    /// 默认 pure-Rust 算法面（含 Toom-3 / BZ 门控路径）。
     pub const DEFAULT: Self = Self {
         schoolbook: true,
         karatsuba: true,
-        toom: false,
-        bz_division: false,
+        toom: true,
+        bz_division: true,
         half_gcd: false,
         montgomery: true,
     };

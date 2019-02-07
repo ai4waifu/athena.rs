@@ -7,6 +7,7 @@ use crate::{
     kernel::{
         buffer::{LimbBuffer, ScratchWorkspace},
         pure_rust::limb_kernel::{self, LimbKernel, PureRustLimbKernel},
+        token::ExecutionToken,
     },
     policy::execution_budget::ExecutionBudget,
 };
@@ -20,6 +21,8 @@ type Add1Op = fn(u64, u64) -> (u64, u64);
 type Mul1x1Op = fn(u64, u64) -> u128;
 
 /// 已绑定的 limb 内核表（无所有权、无分配、无 GC）。
+///
+/// 公开入口一律要求 [`ExecutionToken`]：证明 pin / 容量 / 本次禁止 GC。
 #[derive(Clone, Copy)]
 pub struct KernelTable {
     id: &'static str,
@@ -98,6 +101,7 @@ impl KernelTable {
     /// `add_into`。
     pub fn add_into(
         &self,
+        _token: ExecutionToken<'_>,
         a: &[u64],
         b: &[u64],
         out: &mut LimbBuffer,
@@ -110,6 +114,7 @@ impl KernelTable {
     /// `sub_into`。
     pub fn sub_into(
         &self,
+        _token: ExecutionToken<'_>,
         a: &[u64],
         b: &[u64],
         out: &mut LimbBuffer,
@@ -122,6 +127,7 @@ impl KernelTable {
     /// `mul_into`。
     pub fn mul_into(
         &self,
+        _token: ExecutionToken<'_>,
         a: &[u64],
         b: &[u64],
         out: &mut LimbBuffer,
@@ -134,6 +140,7 @@ impl KernelTable {
     /// `mul_1_into`。
     pub fn mul_1_into(
         &self,
+        _token: ExecutionToken<'_>,
         a: &[u64],
         limb: u64,
         out: &mut LimbBuffer,
@@ -146,6 +153,7 @@ impl KernelTable {
     /// `sqr_into`。
     pub fn sqr_into(
         &self,
+        _token: ExecutionToken<'_>,
         a: &[u64],
         out: &mut LimbBuffer,
         scratch: &mut ScratchWorkspace,
@@ -157,6 +165,7 @@ impl KernelTable {
     /// `div_rem_into`。
     pub fn div_rem_into(
         &self,
+        _token: ExecutionToken<'_>,
         u: &[u64],
         v: &[u64],
         q_out: &mut LimbBuffer,
@@ -168,12 +177,12 @@ impl KernelTable {
     }
 
     /// 单 limb 加法。
-    pub fn add_1(&self, a: u64, b: u64) -> (u64, u64) {
+    pub fn add_1(&self, _token: ExecutionToken<'_>, a: u64, b: u64) -> (u64, u64) {
         (self.add_1)(a, b)
     }
 
     /// 单 limb 乘法 → u128。
-    pub fn mul_1x1(&self, a: u64, b: u64) -> u128 {
+    pub fn mul_1x1(&self, _token: ExecutionToken<'_>, a: u64, b: u64) -> u128 {
         (self.mul_1x1)(a, b)
     }
 }

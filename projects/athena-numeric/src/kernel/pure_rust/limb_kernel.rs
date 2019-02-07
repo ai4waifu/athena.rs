@@ -33,8 +33,10 @@ pub(crate) fn with_kernel_scratch<R>(
     })
 }
 
-/// Karatsuba 乘法阈值（每操作数 limb 数）。
-pub(crate) use crate::algorithm::{MUL_KARATSUBA_THRESHOLD, karatsuba_scratch_limbs};
+/// Karatsuba / Toom 乘法阈值（每操作数 limb 数）。
+pub(crate) use crate::algorithm::{
+    MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, karatsuba_scratch_limbs, toom3_scratch_limbs,
+};
 
 /// 全宽单 limb 乘积：`(hi, lo) = a * b`。
 #[inline]
@@ -481,6 +483,159 @@ fn mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
     add_assign_shifted(out, z2, 2 * m);
 }
 
+/// Toom 宽度路径：三路切分 + 分块乘积累加（无符号、无 `Vec`）。
+///
+/// 子块乘积走 `mul_rec`（Karatsuba/schoolbook）。完整五点 Bodrato 插值后续替换，
+/// 本路径保证与 schoolbook 位级一致。
+fn toom3_mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
+    let la = effective_len(a);
+    let lb = effective_len(b);
+    let need = (la + lb).max(1);
+    debug_assert!(out.len() >= need);
+    out.fill(0);
+    if is_zero(a) || is_zero(b) {
+        return;
+    }
+    let n = la.max(lb);
+    if n < MUL_TOOM_THRESHOLD {
+        mul_rec(a, b, out, scratch);
+        return;
+    }
+    let m = (n + 2) / 3;
+    let (a0, a1, a2) = split_three(a, m);
+    let (b0, b1, b2) = split_three(b, m);
+    let prod_len = 2 * m + 2;
+    debug_assert!(scratch.len() >= prod_len, "toom3 scratch underrun");
+    let (prod, rest) = scratch.split_at_mut(prod_len);
+
+    // (a0+a1 B+a2 B^2)(b0+b1 B+b2 B^2) 的九项，按 B 幂累加。
+    for (ai, bi, shift) in [
+        (a0, b0, 0usize),
+        (a0, b1, m),
+        (a1, b0, m),
+        (a0, b2, 2 * m),
+        (a1, b1, 2 * m),
+        (a2, b0, 2 * m),
+        (a1, b2, 3 * m),
+        (a2, b1, 3 * m),
+        (a2, b2, 4 * m),
+    ] {
+        if is_zero(ai) || is_zero(bi) {
+            continue;
+        }
+        prod.fill(0);
+        mul_rec(ai, bi, prod, rest);
+        add_assign_shifted(out, prod, shift);
+    }
+}
+
+fn split_three(v: &[u64], m: usize) -> (&[u64], &[u64], &[u64]) {
+    static ZERO: [u64; 1] = [0];
+    let el = effective_len(v);
+    if el == 0 {
+        return (&ZERO, &ZERO, &ZERO);
+    }
+    let p0 = if m >= el { &v[..el] } else { &v[..m] };
+    let p1 = if m >= el {
+        &ZERO[..]
+    }
+    else if 2 * m >= el {
+        &v[m..el]
+    }
+    else {
+        &v[m..2 * m]
+    };
+    let p2 = if 2 * m >= el { &ZERO[..] } else { &v[2 * m..el] };
+    let p0 = if effective_len(p0) == 0 { &ZERO[..] } else { p0 };
+    let p1 = if p1.is_empty() || effective_len(p1) == 0 {
+        &ZERO[..]
+    }
+    else {
+        p1
+    };
+    let p2 = if p2.is_empty() || effective_len(p2) == 0 {
+        &ZERO[..]
+    }
+    else {
+        p2
+    };
+    (p0, p1, p2)
+}
+
+/// Burnikel–Ziegler：大被除数按除数宽度切块递归；小情况回退 Knuth。
+fn div_rem_bz_into(
+    u: &[u64],
+    v: &[u64],
+    q_out: &mut LimbBuffer,
+    r_out: &mut LimbBuffer,
+    scratch: &mut ScratchWorkspace,
+    budget: &ExecutionBudget,
+) -> Result<()> {
+    let u_el = effective_len(u);
+    let v_el = effective_len(v);
+    if u_el < 2 * v_el {
+        return div_rem_knuth_into(u, v, q_out, r_out, scratch, budget);
+    }
+    let n = v_el;
+    let u_lo = &u[..n.min(u_el)];
+    let u_hi = if u_el > n { &u[n..u_el] } else { &[0u64][..] };
+
+    let mut q_hi = LimbBuffer::zero();
+    let mut r_hi = LimbBuffer::zero();
+    div_rem_bz_into(u_hi, v, &mut q_hi, &mut r_hi, scratch, budget)?;
+
+    let mut mid = LimbBuffer::zero();
+    {
+        let need = r_hi.as_canonical().len() + n + 1;
+        budget.check_limbs(need)?;
+        let storage = mid.storage_mut(need, budget)?;
+        storage.fill(0);
+        let rh = r_hi.as_canonical();
+        storage[n..n + rh.len()].copy_from_slice(rh);
+        let lo_n = effective_len(u_lo);
+        let mut carry = 0u64;
+        for i in 0..lo_n {
+            let (sum, c) = adc(storage[i], u_lo[i], carry);
+            storage[i] = sum;
+            carry = c;
+        }
+        let mut i = lo_n;
+        while carry > 0 && i < storage.len() {
+            let (sum, c) = adc(storage[i], 0, carry);
+            storage[i] = sum;
+            carry = c;
+            i += 1;
+        }
+        mid.trim_canonical();
+    }
+    let mut q_lo = LimbBuffer::zero();
+    div_rem_knuth_into(mid.as_canonical(), v, &mut q_lo, r_out, scratch, budget)?;
+
+    let qh = q_hi.as_canonical();
+    let ql = q_lo.as_canonical();
+    let need = qh.len() + n + ql.len() + 1;
+    budget.check_limbs(need)?;
+    let storage = q_out.storage_mut(need, budget)?;
+    storage.fill(0);
+    storage[..ql.len()].copy_from_slice(ql);
+    let mut carry = 0u64;
+    for i in 0..qh.len() {
+        let idx = i + n;
+        let (sum, c) = adc(storage[idx], qh[i], carry);
+        storage[idx] = sum;
+        carry = c;
+    }
+    let mut idx = qh.len() + n;
+    while carry > 0 && idx < storage.len() {
+        let (sum, c) = adc(storage[idx], 0, carry);
+        storage[idx] = sum;
+        carry = c;
+        idx += 1;
+    }
+    q_out.trim_canonical();
+    Ok(())
+}
+
 /// 就地 `r += a * n`（单 limb `n`）。
 pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     if n == 0 || is_zero(a) {
@@ -685,6 +840,7 @@ fn div_rem_knuth_into(
 
 // ——— 薄包装（内部 convenience / 旧调用方；默认 unlimited）———
 
+/// 便利：分配新 `Vec` 的加法（**非热路径**；值层请用 `*_into` / executor）。
 pub(crate) fn add_n_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::with_capacity(a.len().max(b.len()) + 1, budget)?;
@@ -1312,6 +1468,18 @@ impl LimbKernel for PureRustLimbKernel {
                 out.trim_canonical();
                 Ok(())
             }
+            MulStrategy::Toom3 => {
+                let scratch_need = toom3_scratch_limbs(la.max(lb));
+                budget.check_limbs(scratch_need.max(la + lb))?;
+                scratch.ensure(scratch_need, budget)?;
+                let out_len = la + lb;
+                let storage = out.storage_mut(out_len, budget)?;
+                storage.fill(0);
+                let scratch_slice = scratch.as_mut_slice();
+                toom3_mul_rec(a, b, storage, scratch_slice);
+                out.trim_canonical();
+                Ok(())
+            }
         }
     }
 
@@ -1374,6 +1542,11 @@ impl LimbKernel for PureRustLimbKernel {
         if v_el == 1 {
             return div_rem_1_into(u, v[0], q_out, r_out, budget);
         }
-        div_rem_knuth_into(u, v, q_out, r_out, scratch, budget)
+        use crate::algorithm::{DivStrategy, select_div_strategy};
+        use crate::dispatch::AlgorithmCapability;
+        match select_div_strategy(u_el, v_el, AlgorithmCapability::DEFAULT) {
+            DivStrategy::Knuth => div_rem_knuth_into(u, v, q_out, r_out, scratch, budget),
+            DivStrategy::BurnikelZiegler => div_rem_bz_into(u, v, q_out, r_out, scratch, budget),
+        }
     }
 }

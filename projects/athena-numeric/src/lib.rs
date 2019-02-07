@@ -56,7 +56,7 @@ pub use crate::{
         text as wire_text, wire as number_wire,
         wire::{from_wire as number_from_wire, to_wire as number_to_wire},
     },
-    kernel::{KernelTable, PureRustBackend, ScratchWorkspace},
+    kernel::{ExecutionToken, KernelTable, PureRustBackend, ScratchWorkspace},
     policy::{CancellationToken, ExecutionBudget, NumericContext, execution_budget},
     representation::{
         decimal,

@@ -2,7 +2,7 @@
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{
-    CapabilityBundle, ExecutionBudget, KernelTable, MachineCapability, NumericContext, natural::Natural,
+    CapabilityBundle, ExecutionBudget, ExecutionToken, KernelTable, MachineCapability, NumericContext, natural::Natural,
 };
 
 #[test]
@@ -64,15 +64,18 @@ fn pure_and_bound_tables_agree_on_add_mul() {
     }
 
     // 单 limb 原语直接对照表条目。
+    let tok = ExecutionToken::unverified_for_tests();
     for &(a, b) in &[(1u64, 2), (u64::MAX, 1), (u64::MAX, u64::MAX)] {
-        assert_eq!(pure.add_1(a, b), bound.add_1(a, b));
-        assert_eq!(pure.mul_1x1(a, b), bound.mul_1x1(a, b));
+        assert_eq!(pure.add_1(tok, a, b), bound.add_1(tok, a, b));
+        assert_eq!(pure.mul_1x1(tok, a, b), bound.mul_1x1(tok, a, b));
     }
 }
 
 #[test]
-fn algorithm_planner_picks_karatsuba_above_threshold() {
-    use athena_numeric::algorithm::{AlgorithmPlanner, MulStrategy, MUL_KARATSUBA_THRESHOLD};
+fn algorithm_planner_picks_karatsuba_and_toom_by_width() {
+    use athena_numeric::algorithm::{
+        AlgorithmPlanner, DivStrategy, MulStrategy, MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, DIV_BZ_THRESHOLD,
+    };
 
     let planner = AlgorithmPlanner::new(CapabilityBundle::pure_rust_default());
     assert_eq!(planner.plan_mul(1, 1), MulStrategy::Schoolbook);
@@ -80,4 +83,30 @@ fn algorithm_planner_picks_karatsuba_above_threshold() {
         planner.plan_mul(MUL_KARATSUBA_THRESHOLD, MUL_KARATSUBA_THRESHOLD),
         MulStrategy::Karatsuba
     );
+    assert_eq!(planner.plan_mul(MUL_TOOM_THRESHOLD, MUL_TOOM_THRESHOLD), MulStrategy::Toom3);
+    assert_eq!(planner.plan_div(8, 4), DivStrategy::Knuth);
+    assert_eq!(
+        planner.plan_div(DIV_BZ_THRESHOLD.max(128), 32),
+        DivStrategy::BurnikelZiegler
+    );
+}
+
+#[test]
+fn toom_width_mul_matches_schoolbook() {
+    let ctx = NumericContext::unlimited();
+    // 略高于 Toom 阈值：强制走三路分块路径。
+    let limbs_a: Vec<u64> = (1u64..=100).collect();
+    let limbs_b: Vec<u64> = (3u64..=102).collect();
+    let a = Natural::from_limbs_in(&ctx, limbs_a).expect("a");
+    let b = Natural::from_limbs_in(&ctx, limbs_b).expect("b");
+    let prod = a.try_mul(&b, &ctx).expect("mul");
+
+    // 对照：强制仅 schoolbook（关闭 karatsuba/toom）。
+    let mut caps = CapabilityBundle::pure_rust_default();
+    caps.algorithm.karatsuba = false;
+    caps.algorithm.toom = false;
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx_sb = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps);
+    let prod_sb = a.try_mul(&b, &ctx_sb).expect("schoolbook");
+    assert_eq!(prod.as_limbs(), prod_sb.as_limbs());
 }
