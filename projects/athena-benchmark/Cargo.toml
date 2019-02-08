@@ -29,6 +29,7 @@ compare-bigint = ["compare-num-bigint", "compare-ibig", "compare-malachite"]
 
 [dependencies]
 athena-numeric = { workspace = true }
+athena-gc = { workspace = true }
 athena-ir = { workspace = true }
 athena-rewriter = { workspace = true }
 athena-engine = { workspace = true }
