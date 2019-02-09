@@ -9,6 +9,7 @@ use crate::{integer::Sign, natural::Natural, storage::MagnitudePair};
 
 /// 精确二进制有理：`sign · significand · 2^exponent`（非零时尾数为奇）。
 #[derive(Clone)]
+#[repr(C)]
 pub struct Dyadic {
     significand: MagnitudePair,
     exponent: i64,
@@ -138,12 +139,7 @@ impl Dyadic {
 
     /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
-        if self.is_zero() {
-            0
-        }
-        else {
-            Natural::from_pair(self.significand.clone_clear_sign()).bits()
-        }
+        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.clone_clear_sign()).bits() }
     }
 
     /// 去掉末尾二进制零并规范零的符号。
