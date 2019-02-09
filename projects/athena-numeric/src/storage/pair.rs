@@ -173,6 +173,23 @@ impl MagnitudePair {
         unsafe { self.magnitude.limb1 == 0 }
     }
 
+    /// `meta` 负号位是否置位（含 semantic zero；外层自行解释）。
+    #[inline]
+    pub(crate) fn sign_bit(&self) -> bool {
+        is_negative(self.meta)
+    }
+
+    /// 设置 `meta` 负号位（零幅度亦可保留 `-0`）。
+    #[inline]
+    pub(crate) fn set_sign_bit(&mut self, negative: bool) {
+        if negative {
+            self.meta |= META_SIGN_BIT;
+        }
+        else {
+            self.meta &= !META_SIGN_BIT;
+        }
+    }
+
     /// `meta` 负号位（semantic zero 时忽略，恒返回 false）。
     #[inline]
     pub(crate) fn is_negative(&self) -> bool {

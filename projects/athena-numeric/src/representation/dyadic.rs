@@ -1,26 +1,68 @@
 //! 精确二元有理：`sign × significand × 2^exponent`，非零时尾数规范为奇数。
+//!
+//! 布局：`significand_meta + Magnitude` + `exponent`（LP64 上 32 bytes）。
+//! `Sign` 仅为语义 API，经 `meta` 编解码；禁止嵌套 `Natural` 字段。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{integer::Sign, natural::Natural};
+use crate::{integer::Sign, natural::Natural, storage::MagnitudePair};
 
 /// 精确二进制有理：`sign · significand · 2^exponent`（非零时尾数为奇）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Dyadic {
-    sign: Sign,
-    significand: Natural,
+    significand: MagnitudePair,
     exponent: i64,
 }
 
+#[cfg(target_pointer_width = "64")]
+const _: () = {
+    assert!(core::mem::size_of::<Dyadic>() == 32);
+    assert!(core::mem::align_of::<Dyadic>() == 8);
+};
+
+impl core::fmt::Debug for Dyadic {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Dyadic")
+            .field("sign", &self.sign())
+            .field("significand", &self.significand())
+            .field("exponent", &self.exponent)
+            .finish()
+    }
+}
+
+impl PartialEq for Dyadic {
+    fn eq(&self, other: &Self) -> bool {
+        self.sign() == other.sign()
+            && self.significand.as_limbs() == other.significand.as_limbs()
+            && self.exponent == other.exponent
+    }
+}
+
+impl Eq for Dyadic {}
+
 impl Dyadic {
+    fn from_parts(significand: MagnitudePair, exponent: i64) -> Self {
+        Self { significand, exponent }
+    }
+
+    /// 由符号 / 幅度 / 指数组装（不规范化）。
+    fn from_sign_mag(sign: Sign, mag: Natural, exponent: i64) -> Self {
+        let mut significand = mag.into_pair();
+        match sign {
+            Sign::Negative => significand.set_sign_bit(true),
+            Sign::Positive | Sign::Zero => significand.set_sign_bit(false),
+        }
+        Self::from_parts(significand, exponent)
+    }
+
     /// 规范零（`+0`）。
     pub fn zero() -> Self {
-        Self { sign: Sign::Zero, significand: Natural::zero(), exponent: 0 }
+        Self::from_parts(MagnitudePair::zero(), 0)
     }
 
     /// 构造并规范化；规范化后拒绝非法形状。
     pub fn try_new(sign: Sign, significand: Natural, exponent: i64) -> Result<Self> {
-        let mut v = Self { sign, significand, exponent };
+        let mut v = Self::from_sign_mag(sign, significand, exponent);
         v.normalize();
         v.validate()?;
         Ok(v)
@@ -37,11 +79,11 @@ impl Dyadic {
         let frac = bits & 0x000f_ffff_ffff_ffff;
 
         if exp_field == 0 && frac == 0 {
-            return Ok(Self {
-                sign: if negative { Sign::Negative } else { Sign::Zero },
-                significand: Natural::zero(),
-                exponent: 0,
-            });
+            let mut v = Self::zero();
+            if negative {
+                v.significand.set_sign_bit(true);
+            }
+            return Ok(v);
         }
 
         let (sign, significand, exponent) = if exp_field == 0 {
@@ -55,20 +97,28 @@ impl Dyadic {
             )
         };
 
-        let mut v = Self { sign, significand, exponent };
+        let mut v = Self::from_sign_mag(sign, significand, exponent);
         v.normalize();
         debug_assert!(v.validate().is_ok());
         Ok(v)
     }
 
-    /// 符号。
+    /// 符号（零可保留 IEEE `-0`：`Sign::Negative`）。
     pub fn sign(&self) -> Sign {
-        self.sign
+        if self.significand.is_zero() {
+            if self.significand.sign_bit() { Sign::Negative } else { Sign::Zero }
+        }
+        else if self.significand.is_negative() {
+            Sign::Negative
+        }
+        else {
+            Sign::Positive
+        }
     }
 
-    /// 无符号尾数幅度。
-    pub fn significand(&self) -> &Natural {
-        &self.significand
+    /// 无符号尾数幅度（克隆；不解释 `meta` sign）。
+    pub fn significand(&self) -> Natural {
+        Natural::from_pair(self.significand.clone_clear_sign())
     }
 
     /// 二进制指数。
@@ -83,32 +133,37 @@ impl Dyadic {
 
     /// 是否恰为 `+1`。
     pub fn is_one(&self) -> bool {
-        self.sign == Sign::Positive && self.significand.is_one() && self.exponent == 0
+        self.sign() == Sign::Positive && self.significand.as_limbs() == [1] && self.exponent == 0
     }
 
     /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
-        self.significand.bits()
+        if self.is_zero() {
+            0
+        }
+        else {
+            Natural::from_pair(self.significand.clone_clear_sign()).bits()
+        }
     }
 
     /// 去掉末尾二进制零并规范零的符号。
     pub fn normalize(&mut self) {
         if self.significand.is_zero() {
-            if self.sign == Sign::Negative {
-                self.exponent = 0;
-                return;
-            }
-            self.sign = Sign::Zero;
+            // 保留 `-0` 的 sign 位；指数归零。
             self.exponent = 0;
+            if !self.significand.sign_bit() {
+                self.significand = MagnitudePair::zero();
+            }
             return;
         }
-        while !self.significand.is_odd() {
-            self.significand.div2();
+        let negative = self.significand.is_negative();
+        let mut mag = Natural::from_pair(self.significand.clone_clear_sign());
+        while !mag.is_odd() {
+            mag.div2();
             self.exponent += 1;
         }
-        if self.sign == Sign::Zero {
-            self.sign = Sign::Positive;
-        }
+        self.significand = mag.into_pair();
+        self.significand.set_sign_bit(negative);
     }
 
     /// 校验规范不变量。
@@ -117,15 +172,14 @@ impl Dyadic {
             if self.exponent != 0 {
                 return Err(invalid("zero_shape"));
             }
-            if !matches!(self.sign, Sign::Zero | Sign::Negative) {
-                return Err(invalid("zero_sign"));
-            }
+            // `meta` sign：清零 → `+0`；置位 → IEEE `-0`。
             return Ok(());
         }
-        if self.sign != Sign::Positive && self.sign != Sign::Negative {
+        if self.sign() != Sign::Positive && self.sign() != Sign::Negative {
             return Err(invalid("nonzero_sign"));
         }
-        if !self.significand.is_odd() {
+        let mag = Natural::from_pair(self.significand.clone_clear_sign());
+        if !mag.is_odd() {
             return Err(invalid("not_normalized"));
         }
         Ok(())
@@ -133,12 +187,12 @@ impl Dyadic {
 
     /// 可精确表示时导出为 `f64`（不舍入）。
     pub fn to_f64_exact(&self) -> Option<f64> {
-        ieee::encode_finite(self.sign, &self.significand, self.exponent)
+        ieee::encode_finite(self.sign(), &self.significand(), self.exponent)
     }
 
     /// 舍入到最近 IEEE binary64（平局取偶）。
     pub fn to_f64_round_nearest_even(&self) -> Option<f64> {
-        ieee::round_to_binary64(self.sign, &self.significand, self.exponent)
+        ieee::round_to_binary64(self.sign(), &self.significand(), self.exponent)
     }
 }
 

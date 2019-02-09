@@ -89,7 +89,7 @@ impl Decimal {
     }
 
     /// 无符号尾数幅度。
-    pub fn significand(&self) -> &Natural {
+    pub fn significand(&self) -> Natural {
         self.dyadic.significand()
     }
 
