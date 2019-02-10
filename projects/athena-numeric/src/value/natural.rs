@@ -211,7 +211,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().add_into(self.as_limbs(), &[rhs], out, scratch, budget)
+                ctx.kernels().add_into(ctx.kernel_token(), self.as_limbs(), &[rhs], out, scratch, budget)
             }),
         }
     }
@@ -243,7 +243,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().mul_1_into(self.as_limbs(), rhs, out, scratch, budget)
+                ctx.kernels().mul_1_into(ctx.kernel_token(), self.as_limbs(), rhs, out, scratch, budget)
             }),
         }
     }
@@ -302,7 +302,7 @@ impl Natural {
                 Ok(Self::from_fixed(&limbs[..len]))
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().sqr_into(self.as_limbs(), out, scratch, budget)
+                ctx.kernels().sqr_into(ctx.kernel_token(), self.as_limbs(), out, scratch, budget)
             }),
         }
     }
@@ -342,7 +342,15 @@ impl Natural {
                 let mut q = LimbBuffer::zero();
                 let mut r = LimbBuffer::zero();
                 ctx.with_scratch_frame(|scratch, budget| {
-                    ctx.kernels().div_rem_into(self.as_limbs(), rhs.as_limbs(), &mut q, &mut r, scratch, budget)
+                    ctx.kernels().div_rem_into(
+                        ctx.kernel_token(),
+                        self.as_limbs(),
+                        rhs.as_limbs(),
+                        &mut q,
+                        &mut r,
+                        scratch,
+                        budget,
+                    )
                 })?;
                 Ok((Self::from_limb_slice_in(ctx, q.as_canonical())?, Self::from_limb_slice_in(ctx, r.as_canonical())?))
             }

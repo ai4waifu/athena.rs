@@ -7,7 +7,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     dispatch::{CapabilityBundle, MachineCapability, NumericBackend, NumericBackendLimits},
-    kernel::{KernelTable, PureRustBackend, ScratchWorkspace},
+    kernel::{ExecutionToken, KernelTable, PureRustBackend, ScratchWorkspace, token::KernelPreconditions},
     policy::cancel::CancellationToken,
 };
 
@@ -216,6 +216,15 @@ impl NumericContext {
     /// 已绑定的 machine kernel 表。
     pub fn kernels(&self) -> KernelTable {
         self.kernels
+    }
+
+    /// 发一次 machine-kernel [`ExecutionToken`]（证明本次调用不触发 GC / 扩容）。
+    ///
+    /// Executor / value 层在已做预算检查后调用；kernel 不得持有完整 context。
+    #[inline]
+    pub fn kernel_token(&self) -> ExecutionToken<'_> {
+        let _ = self;
+        ExecutionToken::issue(KernelPreconditions { out_capacity: 1, out_need: 1 })
     }
 
     /// 绑定外部取消令牌（Session 级共享）。

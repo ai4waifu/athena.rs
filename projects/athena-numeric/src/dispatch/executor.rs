@@ -29,7 +29,7 @@ impl NumericExecutor {
                 let a = lhs.limb1().expect("Limb1");
                 let b = rhs.limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
-                let (lo, carry) = kernels.add_1(a, b);
+                let (lo, carry) = kernels.add_1(ctx.kernel_token(), a, b);
                 Ok(if carry == 0 {
                     Natural::from_u64(lo)
                 }
@@ -59,7 +59,7 @@ impl NumericExecutor {
                 Ok(Natural::from_fixed_limbs(&limbs[..len]))
             }
             _ => Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                kernels.add_into(lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+                kernels.add_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
             }),
         }
     }
@@ -77,7 +77,7 @@ impl NumericExecutor {
                 let a = lhs.limb1().expect("Limb1");
                 let b = rhs.limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
-                Ok(Natural::from_u128_mag(kernels.mul_1x1(a, b)))
+                Ok(Natural::from_u128_mag(kernels.mul_1x1(ctx.kernel_token(), a, b)))
             }
             (Mode::Limb1, Mode::Limb2) => {
                 let a = lhs.limb1().expect("Limb1");
@@ -101,7 +101,7 @@ impl NumericExecutor {
                 Ok(Natural::from_fixed_limbs(&limbs[..len]))
             }
             _ => Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                kernels.mul_into(lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+                kernels.mul_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
             }),
         }
     }
@@ -138,7 +138,7 @@ impl NumericExecutor {
                 Ok(Natural::from_fixed_limbs(&limbs[..len]))
             }
             _ => Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                kernels.sub_into(lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+                kernels.sub_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
             }),
         }
     }
