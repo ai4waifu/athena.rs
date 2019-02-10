@@ -3,11 +3,13 @@
 //! [`Decimal`] 存储**已舍入**的浮点载荷：尾数宽度不得超过 [`Self::precision_bits`]。
 //! 无精度合同时的精确二元有理数请用 [`Dyadic`]。
 //!
+//! 布局：自有 `significand_meta + Magnitude` + `exponent` + `precision_bits`
+//!（禁止 `Decimal → Dyadic → Natural` 套娃）。
 //! 舍入在 [`Natural`] limb 上完成（guard / round / sticky），**不得**经 IEEE binary64 中转。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{dyadic::Dyadic, integer::Sign, natural::Natural, rounding::RoundingPolicy};
+use crate::{dyadic::Dyadic, integer::Sign, natural::Natural, rounding::RoundingPolicy, storage::MagnitudePair};
 
 /// 允许的最小工作精度（至少一个尾数位）。
 pub const MIN_PRECISION_BITS: u32 = 1;
@@ -28,19 +30,64 @@ pub enum RoundingStatus {
     Inexact,
 }
 
-/// 有限精度二进制浮点（`Dyadic` 载荷 + 声明精度）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 有限精度二进制浮点（自有 significand Magnitude + 声明精度）。
+#[derive(Clone)]
+#[repr(C)]
 pub struct Decimal {
-    dyadic: Dyadic,
+    significand: MagnitudePair,
+    exponent: i64,
     precision_bits: u32,
 }
 
+#[cfg(target_pointer_width = "64")]
+const _: () = {
+    assert!(core::mem::size_of::<Decimal>() == 40);
+    assert!(core::mem::align_of::<Decimal>() == 8);
+};
+
+impl core::fmt::Debug for Decimal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Decimal")
+            .field("sign", &self.sign())
+            .field("significand", &self.significand())
+            .field("exponent", &self.exponent)
+            .field("precision_bits", &self.precision_bits)
+            .finish()
+    }
+}
+
+impl PartialEq for Decimal {
+    fn eq(&self, other: &Self) -> bool {
+        self.sign() == other.sign()
+            && self.significand.as_limbs() == other.significand.as_limbs()
+            && self.exponent == other.exponent
+            && self.precision_bits == other.precision_bits
+    }
+}
+
+impl Eq for Decimal {}
+
 impl Decimal {
+    fn from_parts(significand: MagnitudePair, exponent: i64, precision_bits: u32) -> Self {
+        Self { significand, exponent, precision_bits }
+    }
+
+    fn from_dyadic_parts(dyadic: Dyadic, precision_bits: u32) -> Self {
+        // 从语义 API 视图拆回扁平字段（`dyadic()` 的逆）。
+        let sign = dyadic.sign();
+        let mut significand = dyadic.significand().into_pair();
+        match sign {
+            Sign::Negative => significand.set_sign_bit(true),
+            Sign::Positive | Sign::Zero => significand.set_sign_bit(false),
+        }
+        Self::from_parts(significand, dyadic.exponent(), precision_bits)
+    }
+
     /// 最小工作精度下的规范零（`+0`）。
     ///
     /// 须保留调用方工作精度时优先用 [`Self::zero_with_precision`]。
     pub fn zero() -> Self {
-        Self { dyadic: Dyadic::zero(), precision_bits: MIN_PRECISION_BITS }
+        Self::from_parts(MagnitudePair::zero(), 0, MIN_PRECISION_BITS)
     }
 
     /// 指定工作精度（`≥ 1`）下的规范零（`+0`）。
@@ -48,7 +95,7 @@ impl Decimal {
         if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
-        Ok(Self { dyadic: Dyadic::zero(), precision_bits })
+        Ok(Self::from_parts(MagnitudePair::zero(), 0, precision_bits))
     }
 
     /// 当尾数落入 `precision_bits` 时包装精确 [`Dyadic`]。
@@ -63,7 +110,7 @@ impl Decimal {
                 return Err(precision_exceeds(bits, precision_bits));
             }
         }
-        Ok(Self { dyadic, precision_bits })
+        Ok(Self::from_dyadic_parts(dyadic, precision_bits))
     }
 
     /// 由原始部件构造（精确二元有理须落入精度）。
@@ -78,24 +125,32 @@ impl Decimal {
         Self::try_from_dyadic(dyadic, IEEE754_BINARY64_PRECISION)
     }
 
-    /// 精确二元有理载荷。
-    pub fn dyadic(&self) -> &Dyadic {
-        &self.dyadic
+    /// 精确二元有理载荷视图（按需组装，非存储字段）。
+    pub fn dyadic(&self) -> Dyadic {
+        Dyadic::try_new(self.sign(), self.significand(), self.exponent).expect("Decimal invariant implies valid Dyadic")
     }
 
     /// 符号。
     pub fn sign(&self) -> Sign {
-        self.dyadic.sign()
+        if self.significand.is_zero() {
+            if self.significand.sign_bit() { Sign::Negative } else { Sign::Zero }
+        }
+        else if self.significand.is_negative() {
+            Sign::Negative
+        }
+        else {
+            Sign::Positive
+        }
     }
 
     /// 无符号尾数幅度。
     pub fn significand(&self) -> Natural {
-        self.dyadic.significand()
+        Natural::from_pair(self.significand.clone_clear_sign())
     }
 
     /// 二进制指数。
     pub fn exponent(&self) -> i64 {
-        self.dyadic.exponent()
+        self.exponent
     }
 
     /// 声明的工作精度（位）。
@@ -105,17 +160,19 @@ impl Decimal {
 
     /// 是否恰为零。
     pub fn is_zero(&self) -> bool {
-        self.dyadic.is_zero()
+        self.significand.is_zero()
     }
 
     /// 是否恰为 `+1`。
     pub fn is_one(&self) -> bool {
-        self.dyadic.is_one()
+        self.sign() == Sign::Positive && self.significand.as_limbs() == [1] && self.exponent == 0
     }
 
     /// 去掉精确载荷末尾的二进制零。
     pub fn normalize(&mut self) {
-        self.dyadic.normalize();
+        let mut d = self.dyadic();
+        d.normalize();
+        *self = Self::from_dyadic_parts(d, self.precision_bits);
         if let Err(e) = self.validate() {
             panic!("Decimal invariant broken after normalize: {:?}", e);
         }
@@ -126,21 +183,30 @@ impl Decimal {
         if self.precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
-        self.dyadic.validate()?;
-        if !self.dyadic.is_zero() && self.dyadic.significand_bits() > u64::from(self.precision_bits) {
-            return Err(precision_exceeds(self.dyadic.significand_bits(), self.precision_bits));
+        self.dyadic().validate()?;
+        if !self.is_zero() && self.significand_bits() > u64::from(self.precision_bits) {
+            return Err(precision_exceeds(self.significand_bits(), self.precision_bits));
         }
         Ok(())
     }
 
+    fn significand_bits(&self) -> u64 {
+        if self.is_zero() {
+            0
+        }
+        else {
+            self.significand().bits()
+        }
+    }
+
     /// 载荷可精确表示时导出为 `f64`。
     pub fn to_f64_exact(&self) -> Option<f64> {
-        self.dyadic.to_f64_exact()
+        self.dyadic().to_f64_exact()
     }
 
     /// 舍入到最近 IEEE binary64（平局取偶）。
     pub fn to_f64_round_nearest_even(&self) -> Option<f64> {
-        self.dyadic.to_f64_round_nearest_even()
+        self.dyadic().to_f64_round_nearest_even()
     }
 
     /// 舍入到最近偶后的有损 `f64`。
@@ -158,21 +224,24 @@ impl Decimal {
         if precision_bits < MIN_PRECISION_BITS {
             return Err(invalid("precision_zero"));
         }
-        if self.dyadic.is_zero() {
-            return Ok((Self { dyadic: Dyadic::zero(), precision_bits }, RoundingStatus::Exact));
+        if self.is_zero() {
+            return Ok((Self::from_parts(MagnitudePair::zero(), 0, precision_bits), RoundingStatus::Exact));
         }
-        let bits = self.dyadic.significand_bits();
+        let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
-            return Ok((Self { dyadic: self.dyadic.clone(), precision_bits }, RoundingStatus::Exact));
+            return Ok((
+                Self::from_parts(self.significand.clone(), self.exponent, precision_bits),
+                RoundingStatus::Exact,
+            ));
         }
 
         let discard = bits - u64::from(precision_bits);
-        let sig = self.dyadic.significand();
+        let sig = self.significand();
         let mut truncated = sig.shr_bits(discard);
         let round_bit = discard > 0 && sig.bit(discard - 1);
         let sticky = discard > 1 && sig.any_bits_below(discard - 1);
         let lsb = truncated.bit(0);
-        let positive = self.dyadic.sign() != Sign::Negative;
+        let positive = self.sign() != Sign::Negative;
 
         let round_up = match mode {
             RoundingPolicy::NearestEven => round_bit && (sticky || lsb),
@@ -211,22 +280,18 @@ impl Decimal {
             if truncated.bits() > u64::from(precision_bits) {
                 truncated = truncated.shr_bits(1);
                 let exp = self
-                    .dyadic
-                    .exponent()
+                    .exponent
                     .checked_add(discard as i64)
                     .and_then(|e| e.checked_add(1))
                     .ok_or_else(|| invalid("exponent_overflow"))?;
-                let dyadic = Dyadic::try_new(self.dyadic.sign(), truncated, exp)?;
+                let dyadic = Dyadic::try_new(self.sign(), truncated, exp)?;
                 let value = Self::try_from_dyadic(dyadic, precision_bits)?;
                 return Ok((value, status));
             }
         }
 
-        // 负值朝 ±∞：绝对值意义上幅度增大已是 RoundedUp。
-        // 有符号定向模式下，对负值朝 +∞ 截断时重映射状态：
-        if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky) {
-            // 负 + TowardPosInf 朝零截断 → 幅度下降 → RoundedDown
-            // 负 + TowardNegInf 远离零舍入 → 幅度上升 → RoundedUp
+        if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky)
+        {
             status = match mode {
                 RoundingPolicy::TowardPosInf => RoundingStatus::RoundedDown,
                 RoundingPolicy::TowardNegInf => {
@@ -241,8 +306,8 @@ impl Decimal {
             };
         }
 
-        let exp = self.dyadic.exponent().checked_add(discard as i64).ok_or_else(|| invalid("exponent_overflow"))?;
-        let dyadic = Dyadic::try_new(self.dyadic.sign(), truncated, exp)?;
+        let exp = self.exponent.checked_add(discard as i64).ok_or_else(|| invalid("exponent_overflow"))?;
+        let dyadic = Dyadic::try_new(self.sign(), truncated, exp)?;
         let value = Self::try_from_dyadic(dyadic, precision_bits)?;
         Ok((value, status))
     }
