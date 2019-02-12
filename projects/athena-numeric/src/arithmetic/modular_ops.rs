@@ -50,7 +50,7 @@ impl ModulusContext {
             let r = barrett_mod_natural(&aa_mag, &bb_mag, &mag, &bp.mu, bp.k);
             return Integer::from_positive_natural(r);
         }
-        aa.mul(&bb).rem_euclid(m).expect("modulus")
+        aa.mul(&bb).rem_euclid(&m).expect("modulus")
     }
 
     /// 模幂（优先 Montgomery 预计算常量）。
@@ -99,7 +99,7 @@ pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: 
         prefix.push(acc.clone());
     }
 
-    let mut inv_acc = extended_gcd_inverse(&acc, m)?;
+    let mut inv_acc = extended_gcd_inverse(&acc, &m)?;
     let mut out: Vec<ModularValue> = Vec::with_capacity(residues.len());
     for i in (0..residues.len()).rev() {
         let ri = ctx.modulus.reduce(&residues[i]);

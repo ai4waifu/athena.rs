@@ -1,13 +1,36 @@
 //! 模数与模整数（numeric 层；公共面为 [`Integer`]，不暴露 `num_bigint`）。
+//!
+//! 布局：`residue` / 嵌入 `modulus` 均为自有 `meta + Magnitude`（sign 忽略；恒非负）。
+//! 禁止再套一层完整 [`Integer`] 存储字段。
 
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
-use crate::{integer::Integer, modulus_context::ModulusTable};
+use crate::{integer::Integer, modulus_context::ModulusTable, storage::MagnitudePair};
 
 /// 正整数模数（`m > 1`）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct Modulus {
-    value: Integer,
+    value: MagnitudePair,
+}
+
+impl core::fmt::Debug for Modulus {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Modulus").field("value", &self.value()).finish()
+    }
+}
+
+impl PartialEq for Modulus {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.as_limbs() == other.value.as_limbs()
+    }
+}
+
+impl Eq for Modulus {}
+
+impl core::hash::Hash for Modulus {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.value.as_limbs().hash(state);
+    }
 }
 
 impl Modulus {
@@ -17,17 +40,17 @@ impl Modulus {
         if !value.is_positive() || value.is_one() {
             return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid).detail("value", value.to_decimal_string()));
         }
-        Ok(Self { value })
+        Ok(Self { value: value.into_pair().with_negative(false) })
     }
 
     /// 模数值（始终 `> 1`）。
-    pub fn value(&self) -> &Integer {
-        &self.value
+    pub fn value(&self) -> Integer {
+        Integer::from_pair(self.value.clone())
     }
 
     /// 将整数规范到 `[0, m)`。
     pub fn reduce(&self, n: &Integer) -> Integer {
-        n.rem_euclid(&self.value).expect("modulus > 1")
+        n.rem_euclid(&self.value()).expect("modulus > 1")
     }
 }
 
@@ -41,29 +64,46 @@ pub enum ModulusBinding {
 }
 
 /// 绑定模数的剩余类代表。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ModularValue {
-    /// 规范剩余 `[0, modulus)`。
-    residue: Integer,
+    /// 规范剩余 `[0, modulus)`（unsigned Magnitude）。
+    residue: MagnitudePair,
     /// 模数绑定。
     binding: ModulusBinding,
 }
+
+impl core::fmt::Debug for ModularValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ModularValue").field("residue", &self.residue()).field("binding", &self.binding).finish()
+    }
+}
+
+impl PartialEq for ModularValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.residue.as_limbs() == other.residue.as_limbs() && self.binding == other.binding
+    }
+}
+
+impl Eq for ModularValue {}
 
 impl ModularValue {
     /// 在给定模数下构造（自动化约，嵌入模数）。
     pub fn new(residue: impl Into<Integer>, modulus: Modulus) -> Self {
         let residue = modulus.reduce(&residue.into());
-        Self { residue, binding: ModulusBinding::Embedded(modulus) }
+        Self { residue: residue.into_pair().with_negative(false), binding: ModulusBinding::Embedded(modulus) }
     }
 
     /// 用已 intern 的 [`ModulusId`] 构造（剩余须已约化或由 caller 保证）。
     pub fn new_interned(residue: Integer, modulus_id: ModulusId) -> Self {
-        Self { residue, binding: ModulusBinding::Interned(modulus_id) }
+        Self {
+            residue: residue.into_pair().with_negative(false),
+            binding: ModulusBinding::Interned(modulus_id),
+        }
     }
 
     /// 剩余。
-    pub fn residue(&self) -> &Integer {
-        &self.residue
+    pub fn residue(&self) -> Integer {
+        Integer::from_pair(self.residue.clone())
     }
 
     /// 嵌入模数（仅 `Embedded` 绑定）。
@@ -106,7 +146,12 @@ impl ModularValue {
     pub fn same_modulus_with_table(&self, other: &Self, table: &ModulusTable) -> Result<()> {
         let l = self.resolve_modulus(table)?;
         let r = other.resolve_modulus(table)?;
-        if l == r { Ok(()) } else { Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop")) }
+        if l == r {
+            Ok(())
+        }
+        else {
+            Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop"))
+        }
     }
 }
 
@@ -130,7 +175,7 @@ impl PrimeModulus {
     }
 
     /// 素数 `p`。
-    pub fn value(&self) -> &Integer {
+    pub fn value(&self) -> Integer {
         self.inner.value()
     }
 }
@@ -153,7 +198,7 @@ impl ProbablePrimeModulus {
     }
 
     /// 模数值。
-    pub fn value(&self) -> &Integer {
+    pub fn value(&self) -> Integer {
         self.inner.value()
     }
 }
