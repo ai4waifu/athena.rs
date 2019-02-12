@@ -49,12 +49,14 @@ pub fn karatsuba_scratch_limbs(n_limbs: usize) -> usize {
     level.saturating_add(karatsuba_scratch_limbs(m + 1))
 }
 
-/// Toom 宽度路径 scratch 上界（单块乘积区 + 子 `mul_rec`）。
+/// Toom-3 scratch 上界（五点求值/插值 + 子 `mul_rec`）。
 pub fn toom3_scratch_limbs(n_limbs: usize) -> usize {
     if n_limbs < MUL_TOOM_THRESHOLD {
         return karatsuba_scratch_limbs(n_limbs);
     }
     let m = (n_limbs + 2) / 3;
-    let prod = 2 * m + 2;
-    prod.saturating_add(karatsuba_scratch_limbs(m + 1))
+    let eval = m + 2;
+    let prod = 2 * eval;
+    let level = 5 * prod + 11 * eval + 4 * prod;
+    level.saturating_add(karatsuba_scratch_limbs(eval))
 }
