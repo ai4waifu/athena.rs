@@ -19,13 +19,7 @@ pub struct MachineCapability {
 
 impl MachineCapability {
     /// 纯 Rust 语义基线（无 ISA 特化）。
-    pub const PURE_RUST: Self = Self {
-        adx: false,
-        bmi2: false,
-        avx2: false,
-        aarch64_carry: false,
-        wasm_simd: false,
-    };
+    pub const PURE_RUST: Self = Self { adx: false, bmi2: false, avx2: false, aarch64_carry: false, wasm_simd: false };
 
     /// 本构建目标上可声明的 ISA 能力（编译期静态，非热路径 detect）。
     pub fn detect_host() -> Self {
@@ -76,14 +70,8 @@ impl Default for AlgorithmCapability {
 
 impl AlgorithmCapability {
     /// 默认 pure-Rust 算法面（含 Toom-3 / BZ 门控路径）。
-    pub const DEFAULT: Self = Self {
-        schoolbook: true,
-        karatsuba: true,
-        toom: true,
-        bz_division: true,
-        half_gcd: false,
-        montgomery: true,
-    };
+    pub const DEFAULT: Self =
+        Self { schoolbook: true, karatsuba: true, toom: true, bz_division: true, half_gcd: false, montgomery: true };
 }
 
 /// 资源能力（预算 / scratch / 目标复用）。
@@ -99,11 +87,7 @@ pub struct ResourceCapability {
 
 impl Default for ResourceCapability {
     fn default() -> Self {
-        Self {
-            limits: NumericBackendLimits::default(),
-            can_reuse_destination: true,
-            constant_time: false,
-        }
+        Self { limits: NumericBackendLimits::default(), can_reuse_destination: true, constant_time: false }
     }
 }
 

@@ -11,7 +11,7 @@ struct JitAvailabilityFixture;
 
 impl Fixture for JitAvailabilityFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "jit.availability", group: BenchGroup::Jit, scale: "n/a", domain: "jit" }
+        FixtureMeta::basic("jit.availability", BenchGroup::Jit, "n/a", "jit")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

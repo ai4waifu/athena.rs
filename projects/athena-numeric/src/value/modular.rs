@@ -95,10 +95,7 @@ impl ModularValue {
 
     /// 用已 intern 的 [`ModulusId`] 构造（剩余须已约化或由 caller 保证）。
     pub fn new_interned(residue: Integer, modulus_id: ModulusId) -> Self {
-        Self {
-            residue: residue.into_pair().with_negative(false),
-            binding: ModulusBinding::Interned(modulus_id),
-        }
+        Self { residue: residue.into_pair().with_negative(false), binding: ModulusBinding::Interned(modulus_id) }
     }
 
     /// 剩余。
@@ -146,12 +143,7 @@ impl ModularValue {
     pub fn same_modulus_with_table(&self, other: &Self, table: &ModulusTable) -> Result<()> {
         let l = self.resolve_modulus(table)?;
         let r = other.resolve_modulus(table)?;
-        if l == r {
-            Ok(())
-        }
-        else {
-            Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop"))
-        }
+        if l == r { Ok(()) } else { Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("operation", "modular_binop")) }
     }
 }
 

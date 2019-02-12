@@ -11,7 +11,7 @@ struct EvalPowerFixture;
 
 impl Fixture for EvalPowerFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "engine.eval_power", group: BenchGroup::Engine, scale: "small_term", domain: "machine_real" }
+        FixtureMeta::basic("engine.eval_power", BenchGroup::Engine, "small_term", "machine_real")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

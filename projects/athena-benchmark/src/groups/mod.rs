@@ -1,19 +1,23 @@
-//! 分组 fixture 注册。
+//! Group fixture registration.
 
+mod bigint;
 mod domains;
 mod engine;
 mod infra;
 mod ir;
 mod jit;
 mod numeric;
+mod path;
 mod rewriter;
 
 use crate::fixture::Suite;
 
-/// 构建默认 suite（含各分组种子 / 占位 fixture）。
+/// Build the default suite (seed / placeholder fixtures per group).
 pub fn default_suite() -> Suite {
     let mut suite = Suite::new();
     numeric::register(&mut suite);
+    bigint::register(&mut suite);
+    path::register(&mut suite);
     ir::register(&mut suite);
     rewriter::register(&mut suite);
     engine::register(&mut suite);

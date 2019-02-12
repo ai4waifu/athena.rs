@@ -4,7 +4,7 @@
 //! 无精度合同时的精确二元有理数请用 [`Dyadic`]。
 //!
 //! 布局：自有 `significand_meta + Magnitude` + `exponent` + `precision_bits`
-//!（禁止 `Decimal → Dyadic → Natural` 套娃）。
+//! （禁止 `Decimal → Dyadic → Natural` 套娃）。
 //! 舍入在 [`Natural`] limb 上完成（guard / round / sticky），**不得**经 IEEE binary64 中转。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
@@ -191,12 +191,7 @@ impl Decimal {
     }
 
     fn significand_bits(&self) -> u64 {
-        if self.is_zero() {
-            0
-        }
-        else {
-            self.significand().bits()
-        }
+        if self.is_zero() { 0 } else { self.significand().bits() }
     }
 
     /// 载荷可精确表示时导出为 `f64`。
@@ -229,10 +224,7 @@ impl Decimal {
         }
         let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
-            return Ok((
-                Self::from_parts(self.significand.clone(), self.exponent, precision_bits),
-                RoundingStatus::Exact,
-            ));
+            return Ok((Self::from_parts(self.significand.clone(), self.exponent, precision_bits), RoundingStatus::Exact));
         }
 
         let discard = bits - u64::from(precision_bits);
@@ -290,8 +282,7 @@ impl Decimal {
             }
         }
 
-        if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky)
-        {
+        if matches!(mode, RoundingPolicy::TowardPosInf | RoundingPolicy::TowardNegInf) && !positive && (round_bit || sticky) {
             status = match mode {
                 RoundingPolicy::TowardPosInf => RoundingStatus::RoundedDown,
                 RoundingPolicy::TowardNegInf => {

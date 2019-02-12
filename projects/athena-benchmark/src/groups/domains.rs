@@ -14,7 +14,7 @@ struct Sample1dFixture;
 
 impl Fixture for Sample1dFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "domains.sample_1d_square", group: BenchGroup::Domains, scale: "samples_17", domain: "sampled_curve" }
+        FixtureMeta::basic("domains.sample_1d_square", BenchGroup::Domains, "samples_17", "sampled_curve")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -40,12 +40,7 @@ struct PolynomialMulParityFixture;
 
 impl Fixture for PolynomialMulParityFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta {
-            id: "domains.polynomial_mul_parity",
-            group: BenchGroup::Domains,
-            scale: "univariate_z",
-            domain: "polynomial",
-        }
+        FixtureMeta::basic("domains.polynomial_mul_parity", BenchGroup::Domains, "univariate_z", "polynomial")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

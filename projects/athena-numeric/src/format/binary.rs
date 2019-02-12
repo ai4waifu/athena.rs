@@ -137,9 +137,7 @@ pub(crate) fn encode_real_payload(r: &Real) -> Result<(u8, Vec<u8>), Diagnostic>
         }
         Real::Decimal(d) => {
             d.validate().map_err(|_| {
-                crate::format::validation::reject_non_canonical(
-                    crate::format::validation::WireReject::RealDecimalNotNormalized,
-                )
+                crate::format::validation::reject_non_canonical(crate::format::validation::WireReject::RealDecimalNotNormalized)
             })?;
             let sign = match d.sign() {
                 Sign::Zero => 0u8,
@@ -202,9 +200,8 @@ pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diag
                     return Err(reject_non_canonical(WireReject::SignUnknown));
                 }
                 let sign = if sign == 2 { Sign::Negative } else { Sign::Zero };
-                let dyadic = Dyadic::try_new(sign, Natural::zero(), 0).map_err(|_| {
-                    reject_non_canonical(WireReject::RealDecimalNotNormalized)
-                })?;
+                let dyadic = Dyadic::try_new(sign, Natural::zero(), 0)
+                    .map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
                 return Decimal::try_from_dyadic(dyadic, precision_bits)
                     .map(Real::Decimal)
                     .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
@@ -220,9 +217,8 @@ pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diag
                 return Err(reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
             }
             let sign = if sign == 2 { Sign::Negative } else { Sign::Positive };
-            let dyadic = Dyadic::try_new(sign, mag, exp).map_err(|_| {
-                reject_non_canonical(WireReject::RealDecimalNotNormalized)
-            })?;
+            let dyadic =
+                Dyadic::try_new(sign, mag, exp).map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
             Decimal::try_from_dyadic(dyadic, precision_bits)
                 .map(Real::Decimal)
                 .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds))

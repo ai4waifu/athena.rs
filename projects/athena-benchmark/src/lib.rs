@@ -1,9 +1,10 @@
 //! Athena 内核基准框架：确定性 fixture、校验与机器可读报告。
 //!
-//! 外部软件对照不属于本 crate。默认 pure-Rust eager；`jit` feature 仅占位。
+//! bigint 对照与 Criterion 共用 [`bigint`] 运行器；报告由本 crate 直接生成 JSON / Markdown。
 
 #![deny(missing_docs)]
 
+pub mod bigint;
 pub mod env;
 pub mod fixture;
 pub mod groups;

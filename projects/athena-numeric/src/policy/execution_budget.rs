@@ -157,9 +157,8 @@ impl NumericContext {
     /// 来自 [`crate::kernel::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
     pub fn pure_rust_default() -> Self {
         let mut caps = CapabilityBundle::pure_rust_default();
-        caps.resource = crate::dispatch::ResourceCapability::from_limits(
-            NumericBackend::contract(&PureRustBackend::default()).limits,
-        );
+        caps.resource =
+            crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PureRustBackend::default()).limits);
         Self::assemble(
             ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
             GcHeap::shared_default(),
