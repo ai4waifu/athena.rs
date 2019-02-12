@@ -1,4 +1,4 @@
-//! 数值序列化 wire（Integer / Rational · 冻结 binary `ANV1`）。
+//! 数值序列化 wire（Integer / Rational / Real · 冻结 binary `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
@@ -6,8 +6,8 @@ use crate::{
     number::NumericValue,
     precision::PrecisionInfo,
     wire_binary::{
-        WireBlobParts, decode_blob, decode_integer_payload, decode_rational_payload, encode_blob, encode_integer_payload,
-        encode_rational_payload,
+        WireBlobParts, decode_blob, decode_integer_payload, decode_rational_payload, decode_real_payload, encode_blob,
+        encode_integer_payload, encode_rational_payload, encode_real_payload,
     },
 };
 
@@ -34,7 +34,7 @@ impl NumericValueWire {
         SerializationVersion::CURRENT
     }
 
-    /// 编码 [`NumericValue`]（当前覆盖 Integer / Rational）。
+    /// 编码 [`NumericValue`]（覆盖 Integer / Rational / Real）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
         match value {
             NumericValue::Integer(n) => {
@@ -52,6 +52,17 @@ impl NumericValueWire {
                 let (sign, payload) = encode_rational_payload(r);
                 Ok(Self {
                     kind: NumericKind::Rational,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
+            NumericValue::Real(r) => {
+                let (sign, payload) = encode_real_payload(r)?;
+                Ok(Self {
+                    kind: NumericKind::Real,
                     domain_payload: Vec::new(),
                     payload,
                     sign,
@@ -86,6 +97,10 @@ impl NumericValueWire {
             NumericKind::Rational => {
                 let r = decode_rational_payload(self.sign, &self.payload)?;
                 Ok(NumericValue::rational(r))
+            }
+            NumericKind::Real => {
+                let r = decode_real_payload(self.sign, &self.payload)?;
+                Ok(NumericValue::real(r))
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "numeric")

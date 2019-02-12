@@ -86,6 +86,11 @@ impl NumericValue {
         if r.is_integer() { Self::integer(r.numerator()) } else { Self::rational(r) }
     }
 
+    /// 实数（[`Real::Machine`] 或 [`Real::Decimal`]）。
+    pub fn real(r: Real) -> Self {
+        Self::Real(r)
+    }
+
     /// 机器实数。
     pub fn machine_real(x: f64) -> Self {
         Self::Real(Real::machine(x))
