@@ -33,12 +33,7 @@ pub fn select_mul_strategy(a_limbs: usize, b_limbs: usize, caps: AlgorithmCapabi
     if n >= MUL_KARATSUBA_THRESHOLD && caps.karatsuba {
         return MulStrategy::Karatsuba;
     }
-    if caps.schoolbook {
-        MulStrategy::Schoolbook
-    }
-    else {
-        MulStrategy::Schoolbook
-    }
+    if caps.schoolbook { MulStrategy::Schoolbook } else { MulStrategy::Schoolbook }
 }
 
 /// Karatsuba 递归所需 scratch limb 总数（逐层顺序复用 `rest`）。

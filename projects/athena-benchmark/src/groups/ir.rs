@@ -13,7 +13,7 @@ struct ArenaHashFixture;
 
 impl Fixture for ArenaHashFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "ir.arena_canonical_hash", group: BenchGroup::Ir, scale: "small_app_tree", domain: "core_ir" }
+        FixtureMeta::basic("ir.arena_canonical_hash", BenchGroup::Ir, "small_app_tree", "core_ir")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

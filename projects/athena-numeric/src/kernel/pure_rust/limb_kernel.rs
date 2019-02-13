@@ -34,9 +34,7 @@ pub(crate) fn with_kernel_scratch<R>(
 }
 
 /// Karatsuba / Toom 乘法阈值（每操作数 limb 数）。
-pub(crate) use crate::algorithm::{
-    MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, karatsuba_scratch_limbs, toom3_scratch_limbs,
-};
+pub(crate) use crate::algorithm::{MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, karatsuba_scratch_limbs, toom3_scratch_limbs};
 
 /// 全宽单 limb 乘积：`(hi, lo) = a * b`。
 #[inline]
@@ -547,18 +545,8 @@ fn split_three(v: &[u64], m: usize) -> (&[u64], &[u64], &[u64]) {
     };
     let p2 = if 2 * m >= el { &ZERO[..] } else { &v[2 * m..el] };
     let p0 = if effective_len(p0) == 0 { &ZERO[..] } else { p0 };
-    let p1 = if p1.is_empty() || effective_len(p1) == 0 {
-        &ZERO[..]
-    }
-    else {
-        p1
-    };
-    let p2 = if p2.is_empty() || effective_len(p2) == 0 {
-        &ZERO[..]
-    }
-    else {
-        p2
-    };
+    let p1 = if p1.is_empty() || effective_len(p1) == 0 { &ZERO[..] } else { p1 };
+    let p2 = if p2.is_empty() || effective_len(p2) == 0 { &ZERO[..] } else { p2 };
     (p0, p1, p2)
 }
 
@@ -1438,8 +1426,10 @@ impl LimbKernel for PureRustLimbKernel {
         scratch: &mut ScratchWorkspace,
         budget: &ExecutionBudget,
     ) -> Result<()> {
-        use crate::algorithm::{MulStrategy, select_mul_strategy};
-        use crate::dispatch::AlgorithmCapability;
+        use crate::{
+            algorithm::{MulStrategy, select_mul_strategy},
+            dispatch::AlgorithmCapability,
+        };
 
         if is_zero(a) || is_zero(b) {
             return out.set_zero(budget);
@@ -1542,8 +1532,10 @@ impl LimbKernel for PureRustLimbKernel {
         if v_el == 1 {
             return div_rem_1_into(u, v[0], q_out, r_out, budget);
         }
-        use crate::algorithm::{DivStrategy, select_div_strategy};
-        use crate::dispatch::AlgorithmCapability;
+        use crate::{
+            algorithm::{DivStrategy, select_div_strategy},
+            dispatch::AlgorithmCapability,
+        };
         match select_div_strategy(u_el, v_el, AlgorithmCapability::DEFAULT) {
             DivStrategy::Knuth => div_rem_knuth_into(u, v, q_out, r_out, scratch, budget),
             DivStrategy::BurnikelZiegler => div_rem_bz_into(u, v, q_out, r_out, scratch, budget),

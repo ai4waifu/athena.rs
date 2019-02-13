@@ -14,7 +14,7 @@ struct SimplifyStubFixture;
 
 impl Fixture for SimplifyStubFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "rewriter.simplify_noop", group: BenchGroup::Rewriter, scale: "single_atom", domain: "core_ir" }
+        FixtureMeta::basic("rewriter.simplify_noop", BenchGroup::Rewriter, "single_atom", "core_ir")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

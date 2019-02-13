@@ -2,12 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{
-    algorithm::AlgorithmPlanner,
-    policy::NumericContext,
-    storage::Mode,
-    value::natural::Natural,
-};
+use crate::{algorithm::AlgorithmPlanner, policy::NumericContext, storage::Mode, value::natural::Natural};
 
 /// 数值执行器（持有 planner 视图；kernel 来自 context）。
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,12 +25,7 @@ impl NumericExecutor {
                 let b = rhs.limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
                 let (lo, carry) = kernels.add_1(ctx.kernel_token(), a, b);
-                Ok(if carry == 0 {
-                    Natural::from_u64(lo)
-                }
-                else {
-                    Natural::from_limb2([lo, 1])
-                })
+                Ok(if carry == 0 { Natural::from_u64(lo) } else { Natural::from_limb2([lo, 1]) })
             }
             (Mode::Limb1, Mode::Limb2) => {
                 let a = lhs.limb1().expect("Limb1");

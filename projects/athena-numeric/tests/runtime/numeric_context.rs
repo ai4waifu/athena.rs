@@ -1,9 +1,7 @@
 //! N3 `NumericContext`：cancel 与统一 allocator / scratch 钩子。
 
 use athena_gc::HeapBudget;
-use athena_numeric::{
-    CancellationToken, ExecutionBudget, NumericContext, natural::Natural,
-};
+use athena_numeric::{CancellationToken, ExecutionBudget, NumericContext, natural::Natural};
 use athena_types::DiagnosticCode;
 
 #[test]

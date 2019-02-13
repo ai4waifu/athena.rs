@@ -6,9 +6,7 @@
 mod capability;
 mod executor;
 
-pub use capability::{
-    AlgorithmCapability, CapabilityBundle, MachineCapability, ResourceCapability,
-};
+pub use capability::{AlgorithmCapability, CapabilityBundle, MachineCapability, ResourceCapability};
 pub use executor::NumericExecutor;
 
 use crate::representation::{domain::NumericDomain, precision::PrecisionKind};

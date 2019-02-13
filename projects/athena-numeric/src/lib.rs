@@ -46,9 +46,8 @@ pub use crate::{
         CertificateMethod, NumericBinding, NumericCertificate, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord,
     },
     dispatch::{
-        AlgorithmCapability, CapabilityBundle, MachineCapability, NumericBackend, NumericBackendContract,
-        NumericBackendLimits, NumericCapability, NumericExecutor, NumericOperation, NumericResultMode,
-        ResourceCapability,
+        AlgorithmCapability, CapabilityBundle, MachineCapability, NumericBackend, NumericBackendContract, NumericBackendLimits,
+        NumericCapability, NumericExecutor, NumericOperation, NumericResultMode, ResourceCapability,
     },
     format::{
         binary as wire_binary, serialization,

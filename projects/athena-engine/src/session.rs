@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
-use athena_gc::{CollectReport, GcHeap, GcObjectId, HeapBudget, RootKind, RootToken, Result as GcResult};
+use athena_gc::{CollectReport, GcHeap, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
 
 use crate::{
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},

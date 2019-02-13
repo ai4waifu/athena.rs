@@ -40,14 +40,7 @@ fn pure_and_bound_tables_agree_on_add_mul() {
         },
     );
 
-    let samples: &[&[u64]] = &[
-        &[1],
-        &[u64::MAX],
-        &[1, 2],
-        &[u64::MAX, u64::MAX],
-        &[1, 2, 3, 4],
-        &[u64::MAX, 1, 2, 3],
-    ];
+    let samples: &[&[u64]] = &[&[1], &[u64::MAX], &[1, 2], &[u64::MAX, u64::MAX], &[1, 2, 3, 4], &[u64::MAX, 1, 2, 3]];
 
     for a in samples {
         for b in samples {
@@ -74,21 +67,15 @@ fn pure_and_bound_tables_agree_on_add_mul() {
 #[test]
 fn algorithm_planner_picks_karatsuba_and_toom_by_width() {
     use athena_numeric::algorithm::{
-        AlgorithmPlanner, DivStrategy, MulStrategy, MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, DIV_BZ_THRESHOLD,
+        AlgorithmPlanner, DIV_BZ_THRESHOLD, DivStrategy, MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, MulStrategy,
     };
 
     let planner = AlgorithmPlanner::new(CapabilityBundle::pure_rust_default());
     assert_eq!(planner.plan_mul(1, 1), MulStrategy::Schoolbook);
-    assert_eq!(
-        planner.plan_mul(MUL_KARATSUBA_THRESHOLD, MUL_KARATSUBA_THRESHOLD),
-        MulStrategy::Karatsuba
-    );
+    assert_eq!(planner.plan_mul(MUL_KARATSUBA_THRESHOLD, MUL_KARATSUBA_THRESHOLD), MulStrategy::Karatsuba);
     assert_eq!(planner.plan_mul(MUL_TOOM_THRESHOLD, MUL_TOOM_THRESHOLD), MulStrategy::Toom3);
     assert_eq!(planner.plan_div(8, 4), DivStrategy::Knuth);
-    assert_eq!(
-        planner.plan_div(DIV_BZ_THRESHOLD.max(128), 32),
-        DivStrategy::BurnikelZiegler
-    );
+    assert_eq!(planner.plan_div(DIV_BZ_THRESHOLD.max(128), 32), DivStrategy::BurnikelZiegler);
 }
 
 #[test]

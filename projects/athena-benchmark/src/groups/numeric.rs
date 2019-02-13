@@ -11,7 +11,7 @@ struct IntegerGcdFixture;
 
 impl Fixture for IntegerGcdFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "numeric.integer_gcd", group: BenchGroup::Numeric, scale: "i64_pair", domain: "exact_integer" }
+        FixtureMeta::basic("numeric.integer_gcd", BenchGroup::Numeric, "i64_pair", "exact_integer")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -31,12 +31,7 @@ struct RationalNormalizeFixture;
 
 impl Fixture for RationalNormalizeFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta {
-            id: "numeric.rational_normalize",
-            group: BenchGroup::Numeric,
-            scale: "small_rational",
-            domain: "exact_rational",
-        }
+        FixtureMeta::basic("numeric.rational_normalize", BenchGroup::Numeric, "small_rational", "exact_rational")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

@@ -13,7 +13,7 @@ struct NdarrayBudgetFixture;
 
 impl Fixture for NdarrayBudgetFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "infra.ndarray_chunk_budget", group: BenchGroup::Infra, scale: "len_10_budget_24", domain: "ndarray" }
+        FixtureMeta::basic("infra.ndarray_chunk_budget", BenchGroup::Infra, "len_10_budget_24", "ndarray")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -36,7 +36,7 @@ struct GraphCsrFixture;
 
 impl Fixture for GraphCsrFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "infra.graph_csr_stream", group: BenchGroup::Infra, scale: "3_nodes_5_edges", domain: "graph" }
+        FixtureMeta::basic("infra.graph_csr_stream", BenchGroup::Infra, "3_nodes_5_edges", "graph")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
@@ -68,7 +68,7 @@ struct TableLazyFixture;
 
 impl Fixture for TableLazyFixture {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta { id: "infra.table_lazy_meta", group: BenchGroup::Infra, scale: "schema_2_cols", domain: "table" }
+        FixtureMeta::basic("infra.table_lazy_meta", BenchGroup::Infra, "schema_2_cols", "table")
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {

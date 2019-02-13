@@ -15,8 +15,7 @@ use crate::{
 type BinOp = fn(&[u64], &[u64], &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
 type Mul1Op = fn(&[u64], u64, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
 type SqrOp = fn(&[u64], &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
-type DivOp =
-    fn(&[u64], &[u64], &mut LimbBuffer, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
+type DivOp = fn(&[u64], &[u64], &mut LimbBuffer, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
 type Add1Op = fn(u64, u64) -> (u64, u64);
 type Mul1x1Op = fn(u64, u64) -> u128;
 

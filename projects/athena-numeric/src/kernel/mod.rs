@@ -20,8 +20,8 @@ pub(crate) mod token;
 #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
 pub(crate) mod x86_64;
 
-pub(crate) use buffer::{LimbBuffer, kernel_err};
 pub use buffer::ScratchWorkspace;
+pub(crate) use buffer::{LimbBuffer, kernel_err};
 pub(crate) use pure_rust::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES;
 pub use pure_rust::PureRustBackend;
 pub use table::KernelTable;

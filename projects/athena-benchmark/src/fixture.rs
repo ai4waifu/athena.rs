@@ -2,13 +2,23 @@
 
 use std::fmt;
 
-use crate::{env::BenchEnv, report::{FixtureReport, ReportTier}, timing::measure, validate::ValidationSummary};
+use crate::{
+    bigint::{BenchLayer, ContextPolicy},
+    env::BenchEnv,
+    report::{FixtureReport, ReportTier},
+    timing::measure,
+    validate::ValidationSummary,
+};
 
 /// 基准分组标签。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BenchGroup {
     /// ExactInteger / ExactRational / promotion / 机器实数等。
     Numeric,
+    /// 统一 bigint 对照矩阵（Athena layers + optional peers）。
+    Bigint,
+    /// 路径拆分 microbench（kernel / alloc / clone / publish）。
+    Path,
     /// TermArena / hash / verify。
     Ir,
     /// 匹配与规范化。
@@ -28,6 +38,8 @@ impl BenchGroup {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Numeric => "numeric",
+            Self::Bigint => "bigint",
+            Self::Path => "path",
             Self::Ir => "ir",
             Self::Rewriter => "rewriter",
             Self::Engine => "engine",
@@ -41,6 +53,8 @@ impl BenchGroup {
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "numeric" => Some(Self::Numeric),
+            "bigint" => Some(Self::Bigint),
+            "path" => Some(Self::Path),
             "ir" => Some(Self::Ir),
             "rewriter" => Some(Self::Rewriter),
             "engine" => Some(Self::Engine),
@@ -69,10 +83,40 @@ pub struct FixtureMeta {
     pub scale: &'static str,
     /// 域标签。
     pub domain: &'static str,
+    /// 测量层（bigint 矩阵）。
+    pub layer: Option<BenchLayer>,
+    /// Context 策略（bigint 矩阵）。
+    pub context_policy: Option<ContextPolicy>,
+    /// 实现名（athena / num / …）。
+    pub implementation: Option<&'static str>,
+    /// 操作名（add / mul / …）。
+    pub operation: Option<&'static str>,
+    /// 位宽。
+    pub bits: Option<u32>,
+    /// 本次有效 `GcMode` 名。
+    pub gc_mode: Option<&'static str>,
+}
+
+impl FixtureMeta {
+    /// 非 bigint 种子 fixture 的简写构造。
+    pub fn basic(id: &'static str, group: BenchGroup, scale: &'static str, domain: &'static str) -> Self {
+        Self {
+            id,
+            group,
+            scale,
+            domain,
+            layer: None,
+            context_policy: None,
+            implementation: None,
+            operation: None,
+            bits: None,
+            gc_mode: None,
+        }
+    }
 }
 
 /// 单个确定性基准。
-pub trait Fixture: Send + Sync {
+pub trait Fixture: Send {
     /// 元数据。
     fn meta(&self) -> FixtureMeta;
 
@@ -160,32 +204,9 @@ impl Default for Suite {
 /// 执行单个 fixture → [`FixtureReport`]。
 pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -> Result<FixtureReport, SuiteError> {
     let meta = fixture.meta();
-    let tier = config.report_tier;
+    let tier = tier_for_meta(&meta, config.report_tier);
     if let Some(reason) = fixture.skip_reason() {
-        return Ok(FixtureReport {
-            id: meta.id.to_string(),
-            group: meta.group.as_str().to_string(),
-            scale: meta.scale.to_string(),
-            domain: meta.domain.to_string(),
-            warmup: config.warmup,
-            samples: config.samples,
-            skipped: true,
-            p50_ns: None,
-            p95_ns: None,
-            alloc_bytes: None,
-            peak_rss_bytes: None,
-            report_tier: Some(tier),
-            gc_mode: Some(tier.suggested_gc_mode().to_string()),
-            peak_arena_bytes: None,
-            peak_scratch_bytes: None,
-            gc_time_ns: None,
-            validation: ValidationSummary::passed(
-                crate::validate::ExactnessKind::Unspecified,
-                crate::validate::DeterminacyKind::Unspecified,
-                "skipped",
-            ),
-            fallback_reason: Some(reason.to_string()),
-        });
+        return Ok(base_report(&meta, config, tier, true, None, None, None, reason));
     }
 
     let validation = fixture.validate().map_err(|reason| SuiteError::Validation { id: meta.id.to_string(), reason })?;
@@ -209,13 +230,70 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         alloc_bytes: None,
         peak_rss_bytes: peak_rss_bytes(),
         report_tier: Some(tier),
-        gc_mode: Some(gc_stats.gc_mode),
+        layer: meta.layer,
+        context_policy: meta.context_policy,
+        implementation: meta.implementation.map(str::to_string),
+        operation: meta.operation.map(str::to_string),
+        bits: meta.bits,
+        gc_mode: Some(meta.gc_mode.unwrap_or(gc_stats.gc_mode.as_str()).to_string()),
         peak_arena_bytes: Some(gc_stats.peak_arena_bytes),
         peak_scratch_bytes: Some(gc_stats.peak_scratch_bytes),
         gc_time_ns: Some(gc_stats.gc_time_ns),
         validation,
         fallback_reason: None,
     })
+}
+
+fn tier_for_meta(meta: &FixtureMeta, fallback: ReportTier) -> ReportTier {
+    match meta.layer {
+        Some(BenchLayer::Kernel) => ReportTier::Kernel,
+        Some(BenchLayer::Numeric) => ReportTier::Arena,
+        Some(BenchLayer::E2e) => ReportTier::EndToEnd,
+        Some(BenchLayer::Peer) | None => fallback,
+    }
+}
+
+fn base_report(
+    meta: &FixtureMeta,
+    config: &RunConfig,
+    tier: ReportTier,
+    skipped: bool,
+    p50_ns: Option<u64>,
+    p95_ns: Option<u64>,
+    validation: Option<ValidationSummary>,
+    reason: &str,
+) -> FixtureReport {
+    FixtureReport {
+        id: meta.id.to_string(),
+        group: meta.group.as_str().to_string(),
+        scale: meta.scale.to_string(),
+        domain: meta.domain.to_string(),
+        warmup: config.warmup,
+        samples: config.samples,
+        skipped,
+        p50_ns,
+        p95_ns,
+        alloc_bytes: None,
+        peak_rss_bytes: None,
+        report_tier: Some(tier),
+        layer: meta.layer,
+        context_policy: meta.context_policy,
+        implementation: meta.implementation.map(str::to_string),
+        operation: meta.operation.map(str::to_string),
+        bits: meta.bits,
+        gc_mode: Some(meta.gc_mode.unwrap_or(tier.suggested_gc_mode()).to_string()),
+        peak_arena_bytes: None,
+        peak_scratch_bytes: None,
+        gc_time_ns: None,
+        validation: validation.unwrap_or_else(|| {
+            ValidationSummary::passed(
+                crate::validate::ExactnessKind::Unspecified,
+                crate::validate::DeterminacyKind::Unspecified,
+                "skipped",
+            )
+        }),
+        fallback_reason: Some(reason.to_string()),
+    }
 }
 
 struct GcSample {
@@ -254,19 +332,7 @@ fn sample_gc_stats(tier: ReportTier) -> GcSample {
 }
 
 fn peak_rss_bytes() -> Option<u64> {
-    #[cfg(target_os = "windows")]
-    {
-        // 尽力通过 PowerShell 读取；失败则返回 null（不挡 CI）。
-        let out = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-Command", "(Get-Process -Id $PID).WorkingSet64"])
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        s.parse().ok()
-    }
+    // 权威内存字段是 arena / scratch（GcHeap stats）。进程 RSS 可选，不用外部脚本探测。
     #[cfg(target_os = "linux")]
     {
         let status = std::fs::read_to_string("/proc/self/status").ok()?;
@@ -278,7 +344,7 @@ fn peak_rss_bytes() -> Option<u64> {
         }
         None
     }
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    #[cfg(not(target_os = "linux"))]
     {
         None
     }
