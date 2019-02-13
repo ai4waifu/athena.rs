@@ -3,10 +3,13 @@
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
 use crate::{
-    integer::Integer,
+    decimal::Decimal,
+    dyadic::Dyadic,
+    integer::{Integer, Sign},
     natural::Natural,
     precision::{PrecisionInfo, PrecisionKind},
     rational::Rational,
+    real::Real,
 };
 
 /// 数值二进制 wire v1 的魔数。
@@ -113,6 +116,119 @@ pub(crate) fn decode_rational_payload(sign: u8, payload: &[u8]) -> Result<Ration
     let numer = Integer::from_wire_parts(sign, numer_mag)?;
     let denom = Integer::from_wire_parts(1, denom_mag)?;
     Rational::try_from_canonical_wire(numer, denom)
+}
+
+const REAL_SUBTYPE_MACHINE: u8 = 0;
+const REAL_SUBTYPE_DECIMAL: u8 = 1;
+
+/// 编码 [`Real`]：`subtype` + 载荷；header `sign` 对 Machine 为 0，对 Decimal 为尾数符号。
+pub(crate) fn encode_real_payload(r: &Real) -> Result<(u8, Vec<u8>), Diagnostic> {
+    match r {
+        Real::Machine(x) => {
+            if x.is_nan() {
+                return Err(crate::format::validation::reject_non_canonical(
+                    crate::format::validation::WireReject::RealMachineNan,
+                ));
+            }
+            let mut payload = Vec::with_capacity(1 + 8);
+            payload.push(REAL_SUBTYPE_MACHINE);
+            payload.extend_from_slice(&x.to_bits().to_le_bytes());
+            Ok((0, payload))
+        }
+        Real::Decimal(d) => {
+            d.validate().map_err(|_| {
+                crate::format::validation::reject_non_canonical(
+                    crate::format::validation::WireReject::RealDecimalNotNormalized,
+                )
+            })?;
+            let sign = match d.sign() {
+                Sign::Zero => 0u8,
+                Sign::Positive => 1,
+                Sign::Negative => 2,
+            };
+            let mut payload = Vec::with_capacity(1 + 4 + 8 + 8 + 4);
+            payload.push(REAL_SUBTYPE_DECIMAL);
+            payload.extend_from_slice(&d.significand().wire_encode_magnitude());
+            payload.extend_from_slice(&d.exponent().to_le_bytes());
+            payload.extend_from_slice(&d.precision_bits().to_le_bytes());
+            Ok((sign, payload))
+        }
+    }
+}
+
+/// 解码 Real 载荷（拒绝 NaN / 非法 subtype / 非规范 Decimal）。
+pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if payload.is_empty() {
+        return Err(reject_non_canonical(WireReject::RealUnknownSubtype));
+    }
+    match payload[0] {
+        REAL_SUBTYPE_MACHINE => {
+            if payload.len() != 1 + 8 {
+                return Err(reject_non_canonical(WireReject::RealMachineLen));
+            }
+            if sign != 0 {
+                return Err(reject_non_canonical(WireReject::SignUnknown));
+            }
+            let bits = u64::from_le_bytes(payload[1..9].try_into().unwrap());
+            let x = f64::from_bits(bits);
+            if x.is_nan() {
+                return Err(reject_non_canonical(WireReject::RealMachineNan));
+            }
+            Ok(Real::Machine(x))
+        }
+        REAL_SUBTYPE_DECIMAL => {
+            let (mag, rest) = Natural::wire_take_magnitude(&payload[1..])?;
+            if rest.len() < 12 {
+                return Err(reject_non_canonical(WireReject::RealDecimalTrailing));
+            }
+            let exp = i64::from_le_bytes(rest[..8].try_into().unwrap());
+            let precision_bits = u32::from_le_bytes(rest[8..12].try_into().unwrap());
+            if !rest[12..].is_empty() {
+                return Err(reject_non_canonical(WireReject::RealDecimalTrailing));
+            }
+            if precision_bits < crate::decimal::MIN_PRECISION_BITS {
+                return Err(reject_non_canonical(WireReject::RealDecimalPrecisionZero));
+            }
+            if mag.is_zero() {
+                if exp != 0 {
+                    return Err(reject_non_canonical(WireReject::RealDecimalZeroExp));
+                }
+                // IEEE `-0`：允许 sign=2 + 零幅度。
+                if sign == 1 {
+                    return Err(reject_non_canonical(WireReject::SignPosZeroMag));
+                }
+                if sign > 2 {
+                    return Err(reject_non_canonical(WireReject::SignUnknown));
+                }
+                let sign = if sign == 2 { Sign::Negative } else { Sign::Zero };
+                let dyadic = Dyadic::try_new(sign, Natural::zero(), 0).map_err(|_| {
+                    reject_non_canonical(WireReject::RealDecimalNotNormalized)
+                })?;
+                return Decimal::try_from_dyadic(dyadic, precision_bits)
+                    .map(Real::Decimal)
+                    .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
+            }
+            if sign != 1 && sign != 2 {
+                return Err(reject_non_canonical(WireReject::SignUnknown));
+            }
+            if !mag.is_odd() {
+                return Err(reject_non_canonical(WireReject::RealDecimalNotNormalized));
+            }
+            let bits = mag.bits();
+            if bits > u64::from(precision_bits) {
+                return Err(reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
+            }
+            let sign = if sign == 2 { Sign::Negative } else { Sign::Positive };
+            let dyadic = Dyadic::try_new(sign, mag, exp).map_err(|_| {
+                reject_non_canonical(WireReject::RealDecimalNotNormalized)
+            })?;
+            Decimal::try_from_dyadic(dyadic, precision_bits)
+                .map(Real::Decimal)
+                .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds))
+        }
+        _ => Err(reject_non_canonical(WireReject::RealUnknownSubtype)),
+    }
 }
 
 /// 将头 + 域 + 载荷展平为单一字节块。

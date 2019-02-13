@@ -163,3 +163,138 @@ fn accept_canonical_half_rational() {
     let back = wire.decode().unwrap();
     assert_eq!(back, NumericValue::rational(Rational::new(Integer::from_i64(1), Integer::from_i64(2))));
 }
+
+fn real_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Real,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::machine(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn real_decimal_wire(sign: u8, payload: Vec<u8>, precision_bits: u32) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Real,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::arbitrary(precision_bits),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+#[test]
+fn binary_real_machine_roundtrip() {
+    for x in [0.0, -0.0, 1.5, -2.25, f64::INFINITY, f64::NEG_INFINITY, f64::MIN_POSITIVE] {
+        let v = NumericValue::machine(x);
+        let wire = NumericValueWire::encode(&v).unwrap();
+        let back = wire.decode().unwrap();
+        match (v, back) {
+            (NumericValue::Real(athena_numeric::Real::Machine(a)), NumericValue::Real(athena_numeric::Real::Machine(b))) => {
+                assert_eq!(a.to_bits(), b.to_bits(), "bits for {x}");
+            }
+            _ => panic!("expected machine real"),
+        }
+    }
+}
+
+#[test]
+fn binary_real_decimal_roundtrip() {
+    let d = athena_numeric::Decimal::from_f64(1.25).unwrap();
+    let v = NumericValue::decimal(d);
+    let wire = NumericValueWire::encode(&v).unwrap();
+    let back = wire.decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn reject_real_machine_nan() {
+    let mut payload = vec![0u8];
+    payload.extend_from_slice(&f64::NAN.to_bits().to_le_bytes());
+    let err = real_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_machine_nan"));
+}
+
+#[test]
+fn reject_encode_real_machine_nan() {
+    let err = NumericValueWire::encode(&NumericValue::machine(f64::NAN)).unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_machine_nan"));
+}
+
+#[test]
+fn reject_real_machine_len() {
+    let err = real_wire(0, vec![0, 1, 2, 3]).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_machine_len"));
+}
+
+#[test]
+fn reject_real_unknown_subtype() {
+    let err = real_wire(0, vec![9]).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_unknown_subtype"));
+}
+
+#[test]
+fn reject_real_decimal_precision_zero() {
+    let mut payload = vec![1u8];
+    payload.extend(mag_bytes(1, &[1]));
+    payload.extend_from_slice(&0i64.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    let err = real_decimal_wire(1, payload, 0).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_decimal_precision_zero"));
+}
+
+#[test]
+fn reject_real_decimal_not_normalized() {
+    let mut payload = vec![1u8];
+    payload.extend(mag_bytes(1, &[12])); // even significand
+    payload.extend_from_slice(&0i64.to_le_bytes());
+    payload.extend_from_slice(&53u32.to_le_bytes());
+    let err = real_decimal_wire(1, payload, 53).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_decimal_not_normalized"));
+}
+
+#[test]
+fn reject_real_decimal_precision_exceeds() {
+    let mut payload = vec![1u8];
+    payload.extend(mag_bytes(1, &[0xFFFF_FFFF_FFFF_FFFF])); // 64 bits
+    payload.extend_from_slice(&0i64.to_le_bytes());
+    payload.extend_from_slice(&8u32.to_le_bytes());
+    let err = real_decimal_wire(1, payload, 8).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_decimal_precision_exceeds"));
+}
+
+#[test]
+fn reject_real_decimal_trailing() {
+    let mut payload = vec![1u8];
+    payload.extend(mag_bytes(1, &[1]));
+    payload.extend_from_slice(&0i64.to_le_bytes());
+    payload.extend_from_slice(&53u32.to_le_bytes());
+    payload.push(0xAB);
+    let err = real_decimal_wire(1, payload, 53).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_decimal_trailing"));
+}
+
+/// 轻量 fuzz：随机改写 Real Machine blob 字节，合法则 round-trip，非法则带 reason。
+#[test]
+fn fuzz_real_machine_blob_mutations() {
+    let base = NumericValueWire::encode(&NumericValue::machine(std::f64::consts::PI)).unwrap().to_bytes().unwrap();
+    for i in 0..base.len() {
+        for delta in [1u8, 0x7f, 0xff] {
+            let mut mut_bytes = base.clone();
+            mut_bytes[i] = mut_bytes[i].wrapping_add(delta);
+            match NumericValueWire::from_bytes(&mut_bytes).and_then(|w| w.decode()) {
+                Ok(v) => {
+                    let again = NumericValueWire::encode(&v).unwrap().to_bytes().unwrap();
+                    let back = NumericValueWire::from_bytes(&again).unwrap().decode().unwrap();
+                    assert_eq!(back, v);
+                }
+                Err(e) => {
+                    assert!(e.details.get("reason").is_some() || e.details.get("operation").is_some());
+                }
+            }
+        }
+    }
+}

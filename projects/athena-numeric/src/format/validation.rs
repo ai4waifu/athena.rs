@@ -27,6 +27,22 @@ pub enum WireReject {
     RationalZeroDenomNotOne,
     /// 有理载荷尾随字节。
     RationalTrailing,
+    /// Real 未知 subtype。
+    RealUnknownSubtype,
+    /// Real Machine 载荷长度非法（须恰好 8 字节 IEEE bits）。
+    RealMachineLen,
+    /// Real Machine 为 NaN（未定义特殊值）。
+    RealMachineNan,
+    /// Real Decimal 精度为 0。
+    RealDecimalPrecisionZero,
+    /// Real Decimal 尾数宽于声明精度。
+    RealDecimalPrecisionExceeds,
+    /// Real Decimal 尾数未规范（非零且偶）。
+    RealDecimalNotNormalized,
+    /// Real Decimal 载荷尾随字节。
+    RealDecimalTrailing,
+    /// Real 零指数非 0。
+    RealDecimalZeroExp,
 }
 
 impl WireReject {
@@ -44,6 +60,14 @@ impl WireReject {
             Self::RationalUnreduced => "rational_unreduced",
             Self::RationalZeroDenomNotOne => "rational_zero_denom_not_one",
             Self::RationalTrailing => "rational_trailing",
+            Self::RealUnknownSubtype => "real_unknown_subtype",
+            Self::RealMachineLen => "real_machine_len",
+            Self::RealMachineNan => "real_machine_nan",
+            Self::RealDecimalPrecisionZero => "real_decimal_precision_zero",
+            Self::RealDecimalPrecisionExceeds => "real_decimal_precision_exceeds",
+            Self::RealDecimalNotNormalized => "real_decimal_not_normalized",
+            Self::RealDecimalTrailing => "real_decimal_trailing",
+            Self::RealDecimalZeroExp => "real_decimal_zero_exp",
         }
     }
 }
