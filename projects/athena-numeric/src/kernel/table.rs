@@ -84,7 +84,7 @@ impl KernelTable {
     pub fn bind(machine: MachineCapability) -> Self {
         #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
         {
-            if machine.adx {
+            if machine.adx || machine.bmi2 {
                 return crate::kernel::x86_64::kernel_table();
             }
         }
