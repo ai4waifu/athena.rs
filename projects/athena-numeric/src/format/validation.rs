@@ -43,6 +43,22 @@ pub enum WireReject {
     RealDecimalTrailing,
     /// Real 零指数非 0。
     RealDecimalZeroExp,
+    /// Interval 未知 subtype。
+    IntervalUnknownSubtype,
+    /// Interval 未知 decoration。
+    IntervalUnknownDecoration,
+    /// Interval Bounded 尾随字节或截断。
+    IntervalTrailing,
+    /// Interval Bounded 端点非法（NaN / 倒置）。
+    IntervalBadBounds,
+    /// Modular 仅支持嵌入模数（拒绝 intern id）。
+    ModularInterned,
+    /// Modular 模数非法（`≤ 1`）。
+    ModularBadModulus,
+    /// Modular 剩余未约化（`residue ≥ modulus`）。
+    ModularResidueUnreduced,
+    /// Modular 载荷尾随字节。
+    ModularTrailing,
 }
 
 impl WireReject {
@@ -68,6 +84,14 @@ impl WireReject {
             Self::RealDecimalNotNormalized => "real_decimal_not_normalized",
             Self::RealDecimalTrailing => "real_decimal_trailing",
             Self::RealDecimalZeroExp => "real_decimal_zero_exp",
+            Self::IntervalUnknownSubtype => "interval_unknown_subtype",
+            Self::IntervalUnknownDecoration => "interval_unknown_decoration",
+            Self::IntervalTrailing => "interval_trailing",
+            Self::IntervalBadBounds => "interval_bad_bounds",
+            Self::ModularInterned => "modular_interned",
+            Self::ModularBadModulus => "modular_bad_modulus",
+            Self::ModularResidueUnreduced => "modular_residue_unreduced",
+            Self::ModularTrailing => "modular_trailing",
         }
     }
 }

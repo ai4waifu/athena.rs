@@ -6,6 +6,8 @@ use crate::{
     decimal::Decimal,
     dyadic::Dyadic,
     integer::{Integer, Sign},
+    interval::{Interval, IntervalDecoration},
+    modular::{ModularValue, Modulus},
     natural::Natural,
     precision::{PrecisionInfo, PrecisionKind},
     rational::Rational,
@@ -225,6 +227,157 @@ pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diag
         }
         _ => Err(reject_non_canonical(WireReject::RealUnknownSubtype)),
     }
+}
+
+const INTERVAL_EMPTY: u8 = 0;
+const INTERVAL_ENTIRE: u8 = 1;
+const INTERVAL_BOUNDED: u8 = 2;
+
+fn decoration_to_tag(d: IntervalDecoration) -> u8 {
+    match d {
+        IntervalDecoration::Certain => 0,
+        IntervalDecoration::Defined => 1,
+        IntervalDecoration::Trivial => 2,
+        IntervalDecoration::Ill => 3,
+    }
+}
+
+fn decoration_from_tag(tag: u8) -> Option<IntervalDecoration> {
+    match tag {
+        0 => Some(IntervalDecoration::Certain),
+        1 => Some(IntervalDecoration::Defined),
+        2 => Some(IntervalDecoration::Trivial),
+        3 => Some(IntervalDecoration::Ill),
+        _ => None,
+    }
+}
+
+fn encode_nested_real(r: &Real) -> Result<Vec<u8>, Diagnostic> {
+    let (sign, payload) = encode_real_payload(r)?;
+    let mut out = Vec::with_capacity(1 + payload.len());
+    out.push(sign);
+    out.extend_from_slice(&payload);
+    Ok(out)
+}
+
+fn decode_nested_real(bytes: &[u8]) -> Result<(Real, &[u8]), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if bytes.is_empty() {
+        return Err(reject_non_canonical(WireReject::IntervalTrailing));
+    }
+    let sign = bytes[0];
+    let rest = &bytes[1..];
+    // Real payload is self-describing by subtype length for Machine; Decimal needs take_magnitude.
+    if rest.is_empty() {
+        return Err(reject_non_canonical(WireReject::IntervalTrailing));
+    }
+    match rest[0] {
+        REAL_SUBTYPE_MACHINE => {
+            if rest.len() < 1 + 8 {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            let r = decode_real_payload(sign, &rest[..1 + 8])?;
+            Ok((r, &rest[1 + 8..]))
+        }
+        REAL_SUBTYPE_DECIMAL => {
+            let (_mag, after_mag) = Natural::wire_take_magnitude(&rest[1..])?;
+            if after_mag.len() < 12 {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            let mag_bytes = rest[1..].len() - after_mag.len();
+            let used = 1 + mag_bytes + 12;
+            let chunk = &rest[..used];
+            let r = decode_real_payload(sign, chunk)?;
+            Ok((r, &rest[used..]))
+        }
+        _ => Err(reject_non_canonical(WireReject::RealUnknownSubtype)),
+    }
+}
+
+/// 编码 [`Interval`]（header `sign` 恒 0）。
+pub(crate) fn encode_interval_payload(i: &Interval) -> Result<(u8, Vec<u8>), Diagnostic> {
+    match i {
+        Interval::Empty => Ok((0, vec![INTERVAL_EMPTY])),
+        Interval::Entire { decoration } => Ok((0, vec![INTERVAL_ENTIRE, decoration_to_tag(*decoration)])),
+        Interval::Bounded { lower, upper, decoration } => {
+            let mut payload = vec![INTERVAL_BOUNDED, decoration_to_tag(*decoration)];
+            payload.extend(encode_nested_real(lower)?);
+            payload.extend(encode_nested_real(upper)?);
+            Ok((0, payload))
+        }
+    }
+}
+
+/// 解码 Interval 载荷。
+pub(crate) fn decode_interval_payload(sign: u8, payload: &[u8]) -> Result<Interval, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if sign != 0 {
+        return Err(reject_non_canonical(WireReject::SignUnknown));
+    }
+    if payload.is_empty() {
+        return Err(reject_non_canonical(WireReject::IntervalUnknownSubtype));
+    }
+    match payload[0] {
+        INTERVAL_EMPTY => {
+            if payload.len() != 1 {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            Ok(Interval::empty())
+        }
+        INTERVAL_ENTIRE => {
+            if payload.len() != 2 {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            let decoration = decoration_from_tag(payload[1])
+                .ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            Ok(Interval::entire_with(decoration))
+        }
+        INTERVAL_BOUNDED => {
+            if payload.len() < 2 {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            let decoration = decoration_from_tag(payload[1])
+                .ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            let (lower, rest) = decode_nested_real(&payload[2..])?;
+            let (upper, tail) = decode_nested_real(rest)?;
+            if !tail.is_empty() {
+                return Err(reject_non_canonical(WireReject::IntervalTrailing));
+            }
+            Interval::try_bounded(lower, upper, decoration)
+                .map_err(|_| reject_non_canonical(WireReject::IntervalBadBounds))
+        }
+        _ => Err(reject_non_canonical(WireReject::IntervalUnknownSubtype)),
+    }
+}
+
+/// 编码嵌入模数的 [`ModularValue`]（header `sign` = 剩余符号）。
+pub(crate) fn encode_modular_payload(v: &ModularValue) -> Result<(u8, Vec<u8>), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    let modulus = v.modulus().ok_or_else(|| reject_non_canonical(WireReject::ModularInterned))?;
+    let residue = v.residue();
+    let (sign, mut payload) = encode_integer_payload(&residue);
+    payload.extend(modulus.value().wire_magnitude_bytes());
+    Ok((sign, payload))
+}
+
+/// 解码 Modular 载荷（仅嵌入模数）。
+pub(crate) fn decode_modular_payload(sign: u8, payload: &[u8]) -> Result<ModularValue, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    let (res_mag, rest) = Natural::wire_take_magnitude(payload)?;
+    let (mod_mag, tail) = Natural::wire_take_magnitude(rest)?;
+    if !tail.is_empty() {
+        return Err(reject_non_canonical(WireReject::ModularTrailing));
+    }
+    let residue = Integer::from_wire_parts(sign, res_mag)?;
+    if mod_mag.is_zero() || mod_mag.is_one() {
+        return Err(reject_non_canonical(WireReject::ModularBadModulus));
+    }
+    let mod_int = Integer::from_wire_parts(1, mod_mag)?;
+    let modulus = Modulus::new(mod_int.clone()).map_err(|_| reject_non_canonical(WireReject::ModularBadModulus))?;
+    if residue.is_negative() || residue >= mod_int {
+        return Err(reject_non_canonical(WireReject::ModularResidueUnreduced));
+    }
+    Ok(ModularValue::new(residue, modulus))
 }
 
 /// 将头 + 域 + 载荷展平为单一字节块。
