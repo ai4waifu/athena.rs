@@ -27,7 +27,7 @@ fn capability_bundle_selects_kernel_at_context_creation() {
 #[test]
 fn pure_and_bound_tables_agree_on_add_mul() {
     let pure = KernelTable::pure_rust();
-    let bound = KernelTable::bind(MachineCapability { adx: true, ..MachineCapability::PURE_RUST });
+    let bound = KernelTable::bind(MachineCapability { adx: true, bmi2: true, ..MachineCapability::PURE_RUST });
 
     let heap = GcHeap::new_shared(HeapBudget::default());
     let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_pure_rust_kernels();
@@ -35,7 +35,7 @@ fn pure_and_bound_tables_agree_on_add_mul() {
         ExecutionBudget::unlimited(),
         heap,
         CapabilityBundle {
-            machine: MachineCapability { adx: true, ..MachineCapability::PURE_RUST },
+            machine: MachineCapability { adx: true, bmi2: true, ..MachineCapability::PURE_RUST },
             ..CapabilityBundle::pure_rust_default()
         },
     );
@@ -53,10 +53,19 @@ fn pure_and_bound_tables_agree_on_add_mul() {
             let prod_p = na.try_mul(&nb, &ctx_pure).expect("mul pure");
             let prod_i = na.try_mul(&nb, &ctx_isa).expect("mul isa");
             assert_eq!(prod_p.as_limbs(), prod_i.as_limbs(), "mul parity {a:?} * {b:?}");
+
+            if na >= nb {
+                let sub_p = na.try_sub(&nb, &ctx_pure).expect("sub pure");
+                let sub_i = na.try_sub(&nb, &ctx_isa).expect("sub isa");
+                assert_eq!(sub_p.as_limbs(), sub_i.as_limbs(), "sub parity {a:?} - {b:?}");
+            }
+
+            let mul1_p = na.try_mul_u64(7, &ctx_pure).expect("mul1 pure");
+            let mul1_i = na.try_mul_u64(7, &ctx_isa).expect("mul1 isa");
+            assert_eq!(mul1_p.as_limbs(), mul1_i.as_limbs(), "mul_1 parity {a:?} * 7");
         }
     }
 
-    // 单 limb 原语直接对照表条目。
     let tok = ExecutionToken::unverified_for_tests();
     for &(a, b) in &[(1u64, 2), (u64::MAX, 1), (u64::MAX, u64::MAX)] {
         assert_eq!(pure.add_1(tok, a, b), bound.add_1(tok, a, b));

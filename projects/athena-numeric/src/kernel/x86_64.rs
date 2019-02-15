@@ -1,4 +1,4 @@
-//! x86_64 machine kernel（ADX/SBB 进位链；乘除复用 pure Rust 以保 parity 基线）。
+//! x86_64 machine kernel（ADX/SBB 进位链 · BMI2 `mulx` 单 limb 乘；大乘除复用 pure Rust 保 parity）。
 #![allow(unsafe_code)]
 
 use athena_types::Result;
@@ -12,18 +12,18 @@ use crate::{
     policy::execution_budget::ExecutionBudget,
 };
 
-/// 绑定 x86_64 表。
+/// 绑定 x86_64 表（ADX add/sub + BMI2/`mulx` 友好的 `mul_1`）。
 pub fn kernel_table() -> KernelTable {
     KernelTable::from_parts(
         "x86_64_adx",
         add_into_adx,
         sub_into_sbb,
         <PureRustLimbKernel as LimbKernel>::mul_into,
-        <PureRustLimbKernel as LimbKernel>::mul_1_into,
+        mul_1_into_isa,
         <PureRustLimbKernel as LimbKernel>::sqr_into,
         <PureRustLimbKernel as LimbKernel>::div_rem_into,
         add_1,
-        limb_kernel::mul_1x1,
+        mul_1x1_isa,
     )
 }
 
@@ -31,7 +31,6 @@ pub fn kernel_table() -> KernelTable {
 fn add_1(a: u64, b: u64) -> (u64, u64) {
     #[cfg(target_feature = "adx")]
     {
-        // SAFETY: ADX intrinsic。
         unsafe {
             let mut out = 0u64;
             let c = core::arch::x86_64::_addcarry_u64(0, a, b, &mut out);
@@ -42,6 +41,22 @@ fn add_1(a: u64, b: u64) -> (u64, u64) {
     {
         let (sum, carry) = a.overflowing_add(b);
         (sum, u64::from(carry))
+    }
+}
+
+#[inline]
+fn mul_1x1_isa(a: u64, b: u64) -> u128 {
+    #[cfg(target_feature = "bmi2")]
+    {
+        unsafe {
+            let mut hi = 0u64;
+            let lo = core::arch::x86_64::_mulx_u64(a, b, &mut hi);
+            (u128::from(hi) << 64) | u128::from(lo)
+        }
+    }
+    #[cfg(not(target_feature = "bmi2"))]
+    {
+        limb_kernel::mul_1x1(a, b)
     }
 }
 
@@ -96,6 +111,36 @@ fn sub_into_sbb(
     debug_assert_eq!(borrow, 0, "natural sub underflow");
     out.trim_canonical();
     Ok(())
+}
+
+fn mul_1_into_isa(
+    a: &[u64],
+    limb: u64,
+    out: &mut LimbBuffer,
+    _scratch: &mut ScratchWorkspace,
+    budget: &ExecutionBudget,
+) -> Result<()> {
+    let la = limb_kernel::effective_len(a);
+    budget.check_limbs(la + 1)?;
+    if limb == 0 || la == 0 || is_zero_prefix(a, la) {
+        return out.set_zero(budget);
+    }
+    let storage = out.storage_mut(la + 1, budget)?;
+    storage.fill(0);
+    let mut carry = 0u64;
+    for i in 0..la {
+        let prod = mul_1x1_isa(a[i], limb) + u128::from(carry);
+        storage[i] = prod as u64;
+        carry = (prod >> 64) as u64;
+    }
+    storage[la] = carry;
+    out.trim_canonical();
+    Ok(())
+}
+
+#[inline]
+fn is_zero_prefix(a: &[u64], la: usize) -> bool {
+    a.iter().take(la).all(|&x| x == 0)
 }
 
 #[inline]
