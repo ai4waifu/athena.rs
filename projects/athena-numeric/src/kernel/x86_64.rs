@@ -1,4 +1,4 @@
-//! x86_64 machine kernel（ADX/SBB 进位链 · BMI2 `mulx` 单 limb 乘；大乘除复用 pure Rust 保 parity）。
+//! x86_64 machine kernel（ADX/SBB 进位链 · BMI2 `mulx` 单 limb 乘；大乘除复用 portable 保 parity）。
 #![allow(unsafe_code)]
 
 use athena_types::Result;
@@ -6,7 +6,7 @@ use athena_types::Result;
 use crate::{
     kernel::{
         buffer::{LimbBuffer, ScratchWorkspace},
-        pure_rust::limb_kernel::{self, LimbKernel, PureRustLimbKernel},
+        portable::{self, LimbKernel, PortableLimbKernel},
         table::KernelTable,
     },
     policy::execution_budget::ExecutionBudget,
@@ -18,10 +18,10 @@ pub fn kernel_table() -> KernelTable {
         "x86_64_adx",
         add_into_adx,
         sub_into_sbb,
-        <PureRustLimbKernel as LimbKernel>::mul_into,
+        <PortableLimbKernel as LimbKernel>::mul_into,
         mul_1_into_isa,
-        <PureRustLimbKernel as LimbKernel>::sqr_into,
-        <PureRustLimbKernel as LimbKernel>::div_rem_into,
+        <PortableLimbKernel as LimbKernel>::sqr_into,
+        <PortableLimbKernel as LimbKernel>::div_rem_into,
         add_1,
         mul_1x1_isa,
     )
@@ -56,7 +56,7 @@ fn mul_1x1_isa(a: u64, b: u64) -> u128 {
     }
     #[cfg(not(target_feature = "bmi2"))]
     {
-        limb_kernel::mul_1x1(a, b)
+        portable::mul_1x1(a, b)
     }
 }
 
@@ -67,8 +67,8 @@ fn add_into_adx(
     _scratch: &mut ScratchWorkspace,
     budget: &ExecutionBudget,
 ) -> Result<()> {
-    let la = limb_kernel::effective_len(a);
-    let lb = limb_kernel::effective_len(b);
+    let la = portable::effective_len(a);
+    let lb = portable::effective_len(b);
     budget.check_add(la, lb)?;
     let n = la.max(lb);
     let storage = out.storage_mut(n + 1, budget)?;
@@ -93,10 +93,10 @@ fn sub_into_sbb(
     _scratch: &mut ScratchWorkspace,
     budget: &ExecutionBudget,
 ) -> Result<()> {
-    let la = limb_kernel::effective_len(a);
-    let lb = limb_kernel::effective_len(b);
+    let la = portable::effective_len(a);
+    let lb = portable::effective_len(b);
     budget.check_limbs(la.max(lb))?;
-    debug_assert!(limb_kernel::cmp_slice(a, b) != core::cmp::Ordering::Less);
+    debug_assert!(portable::cmp_slice(a, b) != core::cmp::Ordering::Less);
     let n = la.max(lb);
     let storage = out.storage_mut(n, budget)?;
     storage.fill(0);
@@ -120,7 +120,7 @@ fn mul_1_into_isa(
     _scratch: &mut ScratchWorkspace,
     budget: &ExecutionBudget,
 ) -> Result<()> {
-    let la = limb_kernel::effective_len(a);
+    let la = portable::effective_len(a);
     budget.check_limbs(la + 1)?;
     if limb == 0 || la == 0 || is_zero_prefix(a, la) {
         return out.set_zero(budget);

@@ -6,7 +6,7 @@ use crate::{
     dispatch::MachineCapability,
     kernel::{
         buffer::{LimbBuffer, ScratchWorkspace},
-        pure_rust::limb_kernel::{self, LimbKernel, PureRustLimbKernel},
+        portable::{self, LimbKernel, PortableLimbKernel},
         token::ExecutionToken,
     },
     policy::execution_budget::ExecutionBudget,
@@ -54,14 +54,14 @@ impl KernelTable {
     pub fn pure_rust() -> Self {
         Self {
             id: "pure_rust",
-            add_into: <PureRustLimbKernel as LimbKernel>::add_into,
-            sub_into: <PureRustLimbKernel as LimbKernel>::sub_into,
-            mul_into: <PureRustLimbKernel as LimbKernel>::mul_into,
-            mul_1_into: <PureRustLimbKernel as LimbKernel>::mul_1_into,
-            sqr_into: <PureRustLimbKernel as LimbKernel>::sqr_into,
-            div_rem_into: <PureRustLimbKernel as LimbKernel>::div_rem_into,
-            add_1: limb_kernel::add_1,
-            mul_1x1: limb_kernel::mul_1x1,
+            add_into: <PortableLimbKernel as LimbKernel>::add_into,
+            sub_into: <PortableLimbKernel as LimbKernel>::sub_into,
+            mul_into: <PortableLimbKernel as LimbKernel>::mul_into,
+            mul_1_into: <PortableLimbKernel as LimbKernel>::mul_1_into,
+            sqr_into: <PortableLimbKernel as LimbKernel>::sqr_into,
+            div_rem_into: <PortableLimbKernel as LimbKernel>::div_rem_into,
+            add_1: portable::add_1,
+            mul_1x1: portable::mul_1x1,
         }
     }
 

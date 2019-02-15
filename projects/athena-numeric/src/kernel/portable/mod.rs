@@ -1,9 +1,9 @@
 //! Portable (ISA-agnostic) limb kernel.
 //!
-//! Split by algorithm family. External path `kernel::pure_rust::limb_kernel`
-//! re-exports this module for compatibility during Living 17 migration.
+//! Split by algorithm family. Default machine-kernel path for `limb` and
+//! `KernelTable::pure_rust` binding.
 
-#![allow(unused_imports)] // facade re-exports consumed via `limb` / `pure_rust::limb_kernel`
+#![allow(unused_imports)] // module facade re-exports for `kernel::limb`
 
 mod scratch_tls;
 mod primitive;
@@ -44,4 +44,4 @@ pub(crate) use montgomery::{
     montgomery_precompute, mul_mod_montgomery_precomputed,
 };
 pub(crate) use shift::shr_natural;
-pub(crate) use glue::{LimbKernel, PureRustLimbKernel};
+pub(crate) use glue::{LimbKernel, PortableLimbKernel};

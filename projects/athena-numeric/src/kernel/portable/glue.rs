@@ -64,9 +64,9 @@ pub(crate) trait LimbKernel {
     ) -> Result<()>;
 }
 
-pub(crate) struct PureRustLimbKernel;
+pub(crate) struct PortableLimbKernel;
 
-impl LimbKernel for PureRustLimbKernel {
+impl LimbKernel for PortableLimbKernel {
     fn add_into(
         a: &[u64],
         b: &[u64],
