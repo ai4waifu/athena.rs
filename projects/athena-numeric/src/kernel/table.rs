@@ -50,10 +50,10 @@ impl PartialEq for KernelTable {
 impl Eq for KernelTable {}
 
 impl KernelTable {
-    /// 纯 Rust 语义基线表。
-    pub fn pure_rust() -> Self {
+    /// portable 语义基线表。
+    pub fn portable() -> Self {
         Self {
-            id: "pure_rust",
+            id: "portable",
             add_into: <PortableLimbKernel as LimbKernel>::add_into,
             sub_into: <PortableLimbKernel as LimbKernel>::sub_into,
             mul_into: <PortableLimbKernel as LimbKernel>::mul_into,
@@ -89,7 +89,7 @@ impl KernelTable {
             }
         }
         let _ = machine;
-        Self::pure_rust()
+        Self::portable()
     }
 
     /// 稳定 id。
@@ -188,6 +188,6 @@ impl KernelTable {
 
 impl Default for KernelTable {
     fn default() -> Self {
-        Self::pure_rust()
+        Self::portable()
     }
 }

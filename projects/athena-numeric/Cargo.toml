@@ -8,8 +8,8 @@ description = "Athena numeric tower — values, domains, precision, promotion, c
 publish = false
 
 [features]
-default = ["pure-rust"]
-pure-rust = []
+default = ["portable"]
+portable = []
 native-accelerated = []
 mkl = ["native-accelerated"]
 blas = ["native-accelerated"]

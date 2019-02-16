@@ -8,8 +8,8 @@ description = "Athena CAS public Rust facade — stable entry over athena-engine
 publish = false
 
 [features]
-default = ["pure-rust"]
-pure-rust = ["athena-engine/pure-rust"]
+default = ["portable"]
+portable = ["athena-engine/portable"]
 
 [dependencies]
 athena-engine = { workspace = true }

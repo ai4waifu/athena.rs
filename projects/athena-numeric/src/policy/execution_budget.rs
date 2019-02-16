@@ -6,10 +6,11 @@ use athena_gc::{GcHeap, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    dispatch::{CapabilityBundle, MachineCapability, NumericBackend, NumericBackendLimits},
-    kernel::{ExecutionToken, KernelTable, PureRustBackend, ScratchWorkspace, token::KernelPreconditions},
+    dispatch::{CapabilityBundle, MachineCapability, NumericBackend, NumericBackendLimits, PortableBackend},
+    kernel::{ExecutionToken, KernelTable, ScratchWorkspace, token::KernelPreconditions},
     policy::cancel::CancellationToken,
 };
+
 
 /// 由 backend 上限或 Session 策略接入的执行预算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,40 +155,40 @@ impl NumericContext {
         }
     }
 
-    /// 来自 [`crate::kernel::PureRustBackend`] 的纯 Rust 默认上限（线程默认 heap）。
-    pub fn pure_rust_default() -> Self {
-        let mut caps = CapabilityBundle::pure_rust_default();
+    /// 来自 [`crate::dispatch::PortableBackend`] 的纯 Rust 默认上限（线程默认 heap）。
+    pub fn portable_default() -> Self {
+        let mut caps = CapabilityBundle::portable_default();
         caps.resource =
-            crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PureRustBackend::default()).limits);
+            crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PortableBackend::default()).limits);
         Self::assemble(
-            ExecutionBudget::from_limits(&NumericBackend::contract(&PureRustBackend::default()).limits),
+            ExecutionBudget::from_limits(&NumericBackend::contract(&PortableBackend::default()).limits),
             GcHeap::shared_default(),
             caps,
         )
     }
 
-    /// 由显式 backend / Session 上限构造（线程默认 heap · pure Rust kernel）。
+    /// 由显式 backend / Session 上限构造（线程默认 heap · portable kernel）。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
-        let mut caps = CapabilityBundle::pure_rust_default();
+        let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::from_limits(*limits);
         Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default(), caps)
     }
 
     /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
     pub fn unlimited() -> Self {
-        let mut caps = CapabilityBundle::pure_rust_default();
+        let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::unlimited();
         Self::assemble(ExecutionBudget::unlimited(), GcHeap::shared_default(), caps)
     }
 
-    /// Session / 测试：显式绑定 heap（pure Rust kernel）。
+    /// Session / 测试：显式绑定 heap（portable kernel）。
     pub fn with_heap(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
-        Self::assemble(budget, heap, CapabilityBundle::pure_rust_default())
+        Self::assemble(budget, heap, CapabilityBundle::portable_default())
     }
 
     /// 新建隔离 heap（不与线程默认共享）。
     pub fn with_new_heap(budget: ExecutionBudget, heap_budget: HeapBudget) -> Self {
-        Self::assemble(budget, GcHeap::new_shared(heap_budget), CapabilityBundle::pure_rust_default())
+        Self::assemble(budget, GcHeap::new_shared(heap_budget), CapabilityBundle::portable_default())
     }
 
     /// 显式能力束 + heap（绑定对应 `KernelTable`）。
@@ -200,10 +201,10 @@ impl NumericContext {
         Self::assemble(budget, heap, caps)
     }
 
-    /// 强制使用 pure Rust `KernelTable`（parity / 差分）。
-    pub fn with_pure_rust_kernels(mut self) -> Self {
-        self.capabilities.machine = MachineCapability::PURE_RUST;
-        self.kernels = KernelTable::pure_rust();
+    /// 强制使用 portable `KernelTable`（parity / 差分）。
+    pub fn with_portable_kernels(mut self) -> Self {
+        self.capabilities.machine = MachineCapability::PORTABLE;
+        self.kernels = KernelTable::portable();
         self
     }
 

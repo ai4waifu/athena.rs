@@ -6,8 +6,8 @@
 //! ```text
 //! storage    — Magnitude / meta / views
 //! algorithm  — 数学策略（`AlgorithmPlanner`）
-//! kernel     — pure_rust / x86_64 `KernelTable`（context 级绑定）
-//! dispatch   — 能力三分 · `NumericExecutor` 宽度分派
+//! kernel     — portable / x86_64 `KernelTable`（context 级绑定）
+//! dispatch   — 能力三分 · `NumericExecutor` · `PortableBackend`
 //! foreign    — oracle / native-accelerated（不进默认路径）
 //! ```
 #![deny(missing_docs)]
@@ -47,7 +47,7 @@ pub use crate::{
     },
     dispatch::{
         AlgorithmCapability, CapabilityBundle, MachineCapability, NumericBackend, NumericBackendContract, NumericBackendLimits,
-        NumericCapability, NumericExecutor, NumericOperation, NumericResultMode, ResourceCapability,
+        NumericCapability, NumericExecutor, NumericOperation, NumericResultMode, PortableBackend, ResourceCapability,
     },
     format::{
         binary as wire_binary, serialization,
@@ -55,7 +55,7 @@ pub use crate::{
         text as wire_text, wire as number_wire,
         wire::{from_wire as number_from_wire, to_wire as number_to_wire},
     },
-    kernel::{ExecutionToken, KernelTable, PureRustBackend, ScratchWorkspace},
+    kernel::{ExecutionToken, KernelTable, ScratchWorkspace},
     policy::{CancellationToken, ExecutionBudget, NumericContext, execution_budget},
     representation::{
         decimal,
@@ -92,15 +92,3 @@ pub use crate::{
         real::Real,
     },
 };
-
-/// 兼容旧路径名：宿主门面 + 默认 kernel 提供者。
-///
-/// 新代码请用 [`crate::dispatch`] 与 [`crate::kernel::PureRustBackend`]。
-pub mod backend {
-    pub use crate::{dispatch::*, kernel::PureRustBackend};
-}
-
-/// 兼容旧别名 `backends`。
-pub mod backends {
-    pub use crate::backend::*;
-}

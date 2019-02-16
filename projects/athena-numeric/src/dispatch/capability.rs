@@ -18,13 +18,13 @@ pub struct MachineCapability {
 }
 
 impl MachineCapability {
-    /// 纯 Rust 语义基线（无 ISA 特化）。
-    pub const PURE_RUST: Self = Self { adx: false, bmi2: false, avx2: false, aarch64_carry: false, wasm_simd: false };
+    /// portable 语义基线（无 ISA 特化）。
+    pub const PORTABLE: Self = Self { adx: false, bmi2: false, avx2: false, aarch64_carry: false, wasm_simd: false };
 
     /// 本构建目标上可声明的 ISA 能力（编译期静态，非热路径 detect）。
     pub fn detect_host() -> Self {
         #[allow(unused_mut)]
-        let mut m = Self::PURE_RUST;
+        let mut m = Self::PORTABLE;
         #[cfg(all(target_arch = "x86_64", target_feature = "adx"))]
         {
             m.adx = true;
@@ -124,10 +124,10 @@ pub struct CapabilityBundle {
 }
 
 impl CapabilityBundle {
-    /// Pure Rust 默认束。
-    pub fn pure_rust_default() -> Self {
+    /// portable 默认束。
+    pub fn portable_default() -> Self {
         Self {
-            machine: MachineCapability::PURE_RUST,
+            machine: MachineCapability::PORTABLE,
             algorithm: AlgorithmCapability::DEFAULT,
             resource: ResourceCapability::from_limits(NumericBackendLimits::default()),
         }

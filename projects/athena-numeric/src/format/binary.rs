@@ -469,7 +469,7 @@ pub fn decode_blob(bytes: &[u8]) -> Result<WireBlobParts, Diagnostic> {
 }
 
 fn check_payload_limit(len: usize, op: &str) -> Result<(), Diagnostic> {
-    if len as u32 > crate::kernel::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+    if len as u32 > crate::dispatch::PORTABLE_WIRE_PAYLOAD_LIMIT_BYTES {
         return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
             .detail("domain", "numeric")
             .detail("operation", op));

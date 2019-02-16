@@ -8,8 +8,8 @@ description = "Athena CAS execution engine — Session, eval, rewrite orchestrat
 publish = false
 
 [features]
-default = ["pure-rust"]
-pure-rust = []
+default = ["portable"]
+portable = []
 jit = ["dep:athena-jit"]
 
 [dependencies]

@@ -47,7 +47,7 @@ pub use athena_engine::{
     PolynomialFactorization, PolynomialFactorizationCompleteness, PolynomialFingerprint, PolynomialId, PolynomialMGraphStore,
     PolynomialRepr, PolynomialReprBody, PolynomialRequest, PolynomialResult, PolynomialValue, PolynomialWitness, Precision,
     Predicate, PresentationId, Primality, PrimeCertificate, PrimeIterator, PrimeModulus, ProbablePrimeEvidence,
-    ProbablePrimeModulus, ProblemClass, ProblemId, ProofRef, ProofRequirement, PropertyState, PureRustBackend,
+    ProbablePrimeModulus, ProblemClass, ProblemId, ProofRef, ProofRequirement, PropertyState, PortableBackend,
     QuantifiedConstraint, Quantifier, RationalReconstruction, RationalReconstructionFailure, RealNumber, ReflectionResult,
     Reflector, RegionOfConvergence, RelationalOperators, Remainder, ReprTarget, RepresentationId, ResidualCertificate, Residue,
     Result, ResultId, ResultIdTable, ResumeToken, RewriteOptions, RewriteResult, RewriteWitness, Rewriter, RingCharacteristic,

@@ -182,9 +182,9 @@ impl Natural {
         false
     }
 
-    /// 加小整数（默认 [`NumericContext::pure_rust_default`]）。
+    /// 加小整数（默认 [`NumericContext::portable_default`]）。
     pub fn add_u64(&self, rhs: u64) -> Self {
-        self.try_add_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_add_u64(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 加小整数（服从 `ctx` 预算）。
@@ -216,9 +216,9 @@ impl Natural {
         }
     }
 
-    /// 乘小整数（默认 [`NumericContext::pure_rust_default`]）。
+    /// 乘小整数（默认 [`NumericContext::portable_default`]）。
     pub fn mul_u64(&self, rhs: u64) -> Self {
-        self.try_mul_u64(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_mul_u64(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 乘小整数（服从 `ctx` 预算）。
@@ -248,9 +248,9 @@ impl Natural {
         }
     }
 
-    /// 加法（默认 [`NumericContext::pure_rust_default`]）。
+    /// 加法（默认 [`NumericContext::portable_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
@@ -260,7 +260,7 @@ impl Natural {
 
     /// 减法（要求 `self >= rhs`；默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
-        self.try_sub(rhs, &NumericContext::pure_rust_default()).expect("natural sub precondition or unbounded default")
+        self.try_sub(rhs, &NumericContext::portable_default()).expect("natural sub precondition or unbounded default")
     }
 
     /// 减法（`self >= rhs`；服从 `ctx` 预算）。
@@ -268,9 +268,9 @@ impl Natural {
         crate::dispatch::NumericExecutor::sub_natural(self, rhs, ctx)
     }
 
-    /// 乘法（默认 [`NumericContext::pure_rust_default`]）。
+    /// 乘法（默认 [`NumericContext::portable_default`]）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
@@ -278,9 +278,9 @@ impl Natural {
         crate::dispatch::NumericExecutor::mul_natural(self, rhs, ctx)
     }
 
-    /// 平方（默认 [`NumericContext::pure_rust_default`]）。
+    /// 平方（默认 [`NumericContext::portable_default`]）。
     pub fn sqr(&self) -> Self {
-        self.try_sqr(&NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_sqr(&NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 平方（服从 `ctx` 预算）。
@@ -309,7 +309,7 @@ impl Natural {
 
     /// 除法与余数（`rhs > 0`；默认上下文）。
     pub fn div_rem(&self, rhs: &Self) -> (Self, Self) {
-        self.try_div_rem(rhs, &NumericContext::pure_rust_default()).expect("div_rem divisor non-zero and unbounded default")
+        self.try_div_rem(rhs, &NumericContext::portable_default()).expect("div_rem divisor non-zero and unbounded default")
     }
 
     /// 除法与余数（服从 `ctx` 预算；除数为零返回诊断）。
@@ -359,7 +359,7 @@ impl Natural {
 
     /// 模幂（`modulus > 0`；默认上下文）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Self {
-        self.try_mod_pow(exp, modulus, &NumericContext::pure_rust_default())
+        self.try_mod_pow(exp, modulus, &NumericContext::portable_default())
             .expect("mod_pow modulus non-zero and unbounded default")
     }
 
@@ -447,9 +447,9 @@ impl Natural {
         }
     }
 
-    /// 非负最大公约数（默认 [`NumericContext::pure_rust_default`]）。
+    /// 非负最大公约数（默认 [`NumericContext::portable_default`]）。
     pub fn gcd(&self, other: &Self) -> Self {
-        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_gcd(other, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 非负最大公约数（服从 `ctx` 预算；结果 limb ≤ `min(self, other)`）。

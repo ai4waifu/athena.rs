@@ -1,19 +1,15 @@
-//! 默认 portable machine kernel 的宿主合同门面（WASM 安全、确定性、语义基线）。
+//! 默认 portable 宿主合同（WASM 安全、确定性、语义基线）。
 //!
-//! limb 算法实现在 [`crate::kernel::portable`]。本模块只广告
-//! [`PureRustBackend`] capability / wire 上限（Living 17 步骤 4 再改名）。
+//! 与 [`crate::kernel::portable`] 算法实现正交：本模块只广告 capability / wire 上限。
 
-use crate::{
-    dispatch::{
-        NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
-    },
-    domain::NumericDomain,
-    precision::PrecisionKind,
+use super::{
+    NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
 };
+use crate::{domain::NumericDomain, precision::PrecisionKind};
 
-const PURE_RUST_WIRE_PAYLOAD_LIMIT: u32 = 1 << 20;
+const PORTABLE_WIRE_PAYLOAD_LIMIT: u32 = 1 << 20;
 
-const PURE_RUST_CAPS: &[NumericCapability] = &[
+const PORTABLE_CAPS: &[NumericCapability] = &[
     NumericCapability::ExactInteger,
     NumericCapability::ExactRational,
     NumericCapability::MachineReal,
@@ -25,32 +21,32 @@ const PURE_RUST_CAPS: &[NumericCapability] = &[
     NumericCapability::Deterministic,
 ];
 
-const PURE_RUST_CONTRACT: NumericBackendContract = NumericBackendContract {
-    id: "pure-rust",
+const PORTABLE_CONTRACT: NumericBackendContract = NumericBackendContract {
+    id: "portable",
     wasm_safe: true,
     native_only: false,
     jit_eligible: true,
     deterministic: true,
     default_radix: 10,
-    capabilities: PURE_RUST_CAPS,
+    capabilities: PORTABLE_CAPS,
     limits: NumericBackendLimits {
         max_limbs: None,
         max_significand_bits: Some(53),
-        max_wire_payload_bytes: Some(PURE_RUST_WIRE_PAYLOAD_LIMIT),
+        max_wire_payload_bytes: Some(PORTABLE_WIRE_PAYLOAD_LIMIT),
         max_pow_exp: Some(crate::value::integer::Integer::MAX_POW_EXP),
     },
 };
 
 /// 解码与序列化守卫用的 wire 载荷字节上限。
-pub(crate) const PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES: u32 = PURE_RUST_WIRE_PAYLOAD_LIMIT;
+pub(crate) const PORTABLE_WIRE_PAYLOAD_LIMIT_BYTES: u32 = PORTABLE_WIRE_PAYLOAD_LIMIT;
 
-/// 默认纯 Rust machine-kernel 提供者（宿主合同门面）。
+/// 默认 portable 宿主合同（非 machine kernel）。
 #[derive(Debug, Clone, Copy, Default)]
-pub struct PureRustBackend;
+pub struct PortableBackend;
 
-impl NumericBackend for PureRustBackend {
+impl NumericBackend for PortableBackend {
     fn contract(&self) -> &'static NumericBackendContract {
-        &PURE_RUST_CONTRACT
+        &PORTABLE_CONTRACT
     }
 
     fn supports_domain(&self, domain: &NumericDomain) -> bool {
