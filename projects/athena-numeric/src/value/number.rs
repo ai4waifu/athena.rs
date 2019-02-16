@@ -58,7 +58,9 @@ impl NumericValue {
             Self::Real(Real::Machine(_)) => true,
             Self::Real(Real::Decimal(b)) => b.validate().is_ok(),
             Self::Complex(_) => true,
-            Self::Modular(_) | Self::FiniteField(_) | Self::Interval(_) | Self::Algebraic(_) => false,
+            Self::Interval(_) => true,
+            Self::Modular(v) => v.modulus().is_some(),
+            Self::FiniteField(_) | Self::Algebraic(_) => false,
             Self::PAdic(v) => v.validate().is_ok(),
         };
         if ok {
@@ -89,6 +91,16 @@ impl NumericValue {
     /// 实数（[`Real::Machine`] 或 [`Real::Decimal`]）。
     pub fn real(r: Real) -> Self {
         Self::Real(r)
+    }
+
+    /// 区间。
+    pub fn interval(i: Interval) -> Self {
+        Self::Interval(i)
+    }
+
+    /// 模整数（须嵌入模数方可经 ANV1 往返）。
+    pub fn modular(m: ModularValue) -> Self {
+        Self::Modular(m)
     }
 
     /// 机器实数。

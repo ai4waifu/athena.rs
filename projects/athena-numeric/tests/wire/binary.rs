@@ -1,6 +1,8 @@
-//! 二进制 wire 往返与 ANV1 Int/Rat reject 矩阵。
+//! 二进制 wire 往返与 ANV1 Int/Rat/Real/Interval/Modular reject 矩阵。
 
-use athena_numeric::{Integer, NumericValue, NumericValueWire, Rational};
+use athena_numeric::{
+    Integer, Interval, IntervalDecoration, ModularValue, Modulus, NumericValue, NumericValueWire, Rational, Real,
+};
 use athena_types::NumericKind;
 use std::str::FromStr;
 
@@ -297,4 +299,93 @@ fn fuzz_real_machine_blob_mutations() {
             }
         }
     }
+}
+
+fn interval_wire(payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Interval,
+        domain_payload: Vec::new(),
+        payload,
+        sign: 0,
+        precision: athena_numeric::PrecisionInfo::exact(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn modular_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Modular,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::exact(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+#[test]
+fn binary_interval_roundtrip_variants() {
+    let empty = NumericValue::interval(Interval::empty());
+    let entire = NumericValue::interval(Interval::entire_with(IntervalDecoration::Defined));
+    let bounded = NumericValue::interval(
+        Interval::try_bounded(Real::machine(-1.0), Real::machine(2.5), IntervalDecoration::Certain).unwrap(),
+    );
+    for v in [empty, entire, bounded] {
+        let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+        assert_eq!(back, v);
+    }
+}
+
+#[test]
+fn binary_modular_roundtrip() {
+    let m = Modulus::new(Integer::from_i64(7)).unwrap();
+    let v = NumericValue::modular(ModularValue::new(Integer::from_i64(10), m));
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn reject_interval_unknown_subtype() {
+    let err = interval_wire(vec![9]).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("interval_unknown_subtype"));
+}
+
+#[test]
+fn reject_interval_bad_bounds() {
+    // Bounded + Certain + nested Machine lower=2.0 + upper=1.0
+    let mut payload = vec![2u8, 0];
+    // nested real: sign + subtype machine + bits
+    payload.push(0);
+    payload.push(0);
+    payload.extend_from_slice(&2.0f64.to_bits().to_le_bytes());
+    payload.push(0);
+    payload.push(0);
+    payload.extend_from_slice(&1.0f64.to_bits().to_le_bytes());
+    let err = interval_wire(payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("interval_bad_bounds"));
+}
+
+#[test]
+fn reject_modular_bad_modulus() {
+    let mut payload = mag_bytes(1, &[1]);
+    payload.extend(mag_bytes(1, &[1])); // modulus = 1
+    let err = modular_wire(1, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("modular_bad_modulus"));
+}
+
+#[test]
+fn reject_modular_residue_unreduced() {
+    let mut payload = mag_bytes(1, &[9]);
+    payload.extend(mag_bytes(1, &[7]));
+    let err = modular_wire(1, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("modular_residue_unreduced"));
+}
+
+#[test]
+fn reject_modular_trailing() {
+    let mut payload = mag_bytes(1, &[3]);
+    payload.extend(mag_bytes(1, &[7]));
+    payload.push(0xAB);
+    let err = modular_wire(1, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("modular_trailing"));
 }
