@@ -1,4 +1,38 @@
-//! Lehmer-accelerated Euclidean GCD (falls back to binary GCD).
+//! # Purpose
+//! Lehmer-accelerated Euclidean GCD with binary-GCD fallback.
+//!
+//! # Mathematical model
+//! Euclidean algorithm preserves $\gcd(a,b)$. Lehmer simulates several quotient
+//! steps using only leading limbs, accumulating a unimodular $2 \times 2$ matrix
+//! applied as signed linear combinations to the full operands.
+//!
+//! # Derivation
+//! Leading-limb bounds certify that a block of quotients matches the true
+//! Euclidean quotients; applying the matrix is then an exact multi-limb update.
+//! If certification fails, fall through to inary_gcd.
+//!
+//! # Algorithm steps
+//! 1. Normalize; swap so $a \ge b$.
+//! 2. While both widths $\ge$ LEHMER_THRESHOLD, try lehmer_step.
+//! 3. Finish with inary_gcd.
+//!
+//! # Preconditions
+//! - Canonical non-negative limb magnitudes (Vec convenience path today).
+//!
+//! # Postconditions
+//! - Returns $\gcd(a,b)$ as a canonical limb vector.
+//!
+//! # Complexity
+//! Similar to Euclidean with fewer full-precision divisions when Lehmer succeeds.
+//!
+//! # Crossover
+//! Small operands skip Lehmer and go straight to binary GCD.
+//!
+//! # Failure modes
+//! lehmer_step returns alse on unstable leading quotients (not an error).
+//!
+//! # Tests
+//! 	ests/exact/limb_kernel.rs, 	ests/exact/algorithms.rs.
 
 use std::cmp::Ordering;
 

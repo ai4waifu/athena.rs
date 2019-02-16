@@ -1,4 +1,39 @@
-//! Knuth Algorithm D multi-limb division.
+//! # Purpose
+//! Knuth Algorithm D: normalized multi-limb division with quotient correction.
+//!
+//! # Mathematical model
+//! For $u = q v + r$ with $0 \le r < v$, after left-shifting so $v$ has top
+//! bit 1, each quotient digit estimated from the top two limbs of the working
+//! dividend differs from the true digit by a small, correctable amount.
+//!
+//! # Derivation
+//! Normalization maximizes the leading divisor limb. The estimate
+//! $\hat q = \lfloor u_{j+n:j+n-1} / v_{n-1} \rfloor$ (capped) is refined by the
+//! $v_{n-2}$ test, then by multiply-subtract; a borrow forces dd-back.
+//!
+//! # Algorithm steps
+//! 1. Compute shift = leading zeros of top divisor limb; shift $u,v$ into scratch.
+//! 2. For $j = m..0$: estimate $\hat q$, correct, submul, optional add-back.
+//! 3. Write quotient; right-shift remainder by the normalization amount.
+//!
+//! # Preconditions
+//! - effective_len(v) >= 2 (single-limb uses div_single).
+//! - Scratch capacity div_scratch_limbs; budget checked by caller/glue.
+//!
+//! # Postconditions
+//! - $u = q v + r$, $0 \le r < v$ (canonical limbs).
+//!
+//! # Complexity
+//! $\Theta((m+1) n)$ digit steps for $m+1$ quotient limbs and $n$-limb divisor.
+//!
+//! # Crossover
+//! Planner default for multi-limb division; BZ only when dividend much wider.
+//!
+//! # Failure modes
+//! Division by zero rejected in glue. Budget / capacity errors returned as Result.
+//!
+//! # Tests
+//! 	ests/exact/algorithms.rs, natural div_rem identity suites.
 
 use athena_types::Result;
 

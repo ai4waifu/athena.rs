@@ -1,4 +1,37 @@
-//! Binary (Stein) GCD.
+//! # Purpose
+//! Binary (Stein) GCD without division.
+//!
+//! # Mathematical model
+//! $\gcd(2a,2b)=2\gcd(a,b)$, $\gcd(2a,b)=\gcd(a,b)$ for odd $b$, and
+//! $\gcd(a,b)=\gcd(|a-b|,\min(a,b))$ for odd positives.
+//!
+//! # Derivation
+//! Factor out shared powers of two, then subtract odd values and strip new factors
+//! of two until equality; restore the common shift.
+//!
+//! # Algorithm steps
+//! 1. Handle zeros; record $\min(v_2(a),v_2(b))$.
+//! 2. Make both odd; loop subtract / swap / shift until equal.
+//! 3. Left-shift by the saved common valuation.
+//!
+//! # Preconditions
+//! - Canonical non-negative magnitudes.
+//!
+//! # Postconditions
+//! - Canonical $\gcd$.
+//!
+//! # Complexity
+//! Bit complexity favorable when operands share small factors of two; can lag
+//! Lehmer on wide random odds.
+//!
+//! # Crossover
+//! Used as the terminal path of gcd and for smaller widths.
+//!
+//! # Failure modes
+//! None beyond empty/zero handling.
+//!
+//! # Tests
+//! Euclidean reference suites in 	ests/exact/ and 	ests/runtime/differential_pure.rs.
 
 use std::cmp::Ordering;
 

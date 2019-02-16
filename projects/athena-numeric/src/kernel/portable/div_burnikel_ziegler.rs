@@ -1,4 +1,36 @@
-//! Burnikel–Ziegler division (block recursion; falls back to Knuth).
+//! # Purpose
+//! Burnikel–Ziegler block division: recurse on high half, then one Knuth step.
+//!
+//! # Mathematical model
+//! Write $u = u_1 \beta^n + u_0$ with $n = |v|$. Divide $u_1$ by $v$ to get
+//! $(q_1, r_1)$, form $u' = r_1 \beta^n + u_0$, then divide $u'$ by $v$ for
+//! $(q_0, r)$. The full quotient is $q_1 \beta^n + q_0$.
+//!
+//! # Derivation
+//! Follows the schoolbook identity for base-$\beta^n$ digits of the dividend
+//! when the dividend has at least two divisor-sized blocks.
+//!
+//! # Algorithm steps
+//! 1. If $|u| < 2|v|$, fall back to Knuth.
+//! 2. Recurse on high block; assemble mid value; Knuth-divide mid; merge quotients.
+//!
+//! # Preconditions
+//! - Multi-limb divisor; scratch shared with Knuth leaves.
+//!
+//! # Postconditions
+//! - Same as Knuth: $u = q v + r$, $0 \le r < v$.
+//!
+//! # Complexity
+//! Improves constants when $|u| \gg |v|$ by reducing Knuth digit loops on the high part.
+//!
+//! # Crossover
+//! DIV_BZ_THRESHOLD and capability z_division in AlgorithmPlanner.
+//!
+//! # Failure modes
+//! Same budget / div-zero paths as Knuth via shared helpers.
+//!
+//! # Tests
+//! 	ests/exact/algorithms.rs (BZ vs Knuth capability gate).
 
 use athena_types::Result;
 

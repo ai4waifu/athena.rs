@@ -1,4 +1,38 @@
-//! Schoolbook multiplication and single-limb fused mul-add/sub.
+//! # Purpose
+//! Schoolbook (basecase) multiplication and fused single-limb mul-add/sub.
+//!
+//! # Mathematical model
+//! For little-endian limb vectors of radix $\beta=2^{64}$, the product is the
+//! double loop $c_{i+j} += a_i b_j$ with carry propagation via mac.
+//!
+//! # Derivation
+//! Direct expansion of ($\sum a_i \beta^i$)($\sum b_j \beta^j$). Squaring
+//! reuses $a_i a_j$ for $i \neq j$ (add twice) and $a_i^2$ on the diagonal.
+//!
+//! # Algorithm steps
+//! 1. Zero out[0..la+lb].
+//! 2. For each $a_i$, accumulate $a_i \cdot b$ into out[i..].
+//! 3. Square path: nested $i \le j$ with double-add off-diagonal.
+//!
+//! # Preconditions
+//! - out.len() >= la + lb (or 2*la for square).
+//! - Operands are canonical magnitudes (no required leading-zero free beyond effective_len).
+//! - No aliasing between out and inputs for schoolbook mul.
+//!
+//! # Postconditions
+//! - out holds the product; high limbs may be zero until caller trims.
+//!
+//! # Complexity
+//! Time $\Theta(la \cdot lb)$. Space $O(1)$ beyond out.
+//!
+//! # Crossover
+//! Default path below Karatsuba/Toom thresholds (AlgorithmPlanner).
+//!
+//! # Failure modes
+//! Undersized out is a debug assertion. Budget checks happen in glue, not here.
+//!
+//! # Tests
+//! 	ests/exact/limbs.rs, 	ests/exact/algorithms.rs, 	ests/runtime/kernel_parity.rs.
 
 use super::primitive::{effective_len, is_zero, mac, mul_wide, sbb};
 

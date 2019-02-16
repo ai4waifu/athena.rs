@@ -1,4 +1,39 @@
-//! Montgomery reduction, multiplication, and modular exponentiation.
+//! # Purpose
+//! Montgomery reduction (REDC), Montgomery multiplication, and modular exponentiation
+//! for odd moduli.
+//!
+//! # Mathematical model
+//! With $R = \beta^k > m$ and $m' \equiv -m^{-1} \pmod{\beta}$, REDC maps
+//! $t$ to $t R^{-1} \bmod m$ using only shifts and multiply-adds. Working in
+//! Montgomery form $\tilde a = a R \bmod m$ turns modular mul into REDC of a product.
+//!
+//! # Derivation
+//! Choosing each $u_i = t_i m' \bmod \beta$ clears limb $i$ of $t + u_i m$.
+//! After $k$ steps, a conditional subtract yields a residue $< m$.
+//!
+//! # Algorithm steps
+//! 1. montgomery_nprime / montgomery_precompute (R^2 \bmod m).
+//! 2. Convert in via mul by $R^2$ then REDC; multiply with REDC; convert out.
+//! 3. mod_pow_montgomery_*: square-and-multiply in Montgomery domain.
+//!
+//! # Preconditions
+//! - Odd modulus; width $\ge$ MONTGOMERY_THRESHOLD.
+//! - Even moduli must not use this path (mod_pow_montgomery_eligible).
+//!
+//! # Postconditions
+//! - Results are canonical residues in $[0,m)$.
+//!
+//! # Complexity
+//! Exponentiation $O(\log e)$ Montgomery muls; each REDC is $O(k^2)$ limb work.
+//!
+//! # Crossover
+//! Used when modulus is odd and wide enough; small/even moduli use generic paths.
+//!
+//! # Failure modes
+//! Even $m$ has no inverse of $R$; eligible gate must hold.
+//!
+//! # Tests
+//! Modular / mod_pow suites under 	ests/exact/ and differential pure tests.
 
 use std::cmp::Ordering;
 
