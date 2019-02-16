@@ -2,7 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{algorithm::AlgorithmPlanner, policy::NumericContext, storage::Mode, value::natural::Natural};
+use crate::{policy::NumericContext, storage::Mode, value::natural::Natural};
 
 /// 数值执行器（持有 planner 视图；kernel 来自 context）。
 #[derive(Debug, Clone, Copy, Default)]
@@ -61,7 +61,7 @@ impl NumericExecutor {
             return Ok(Natural::zero());
         }
         let kernels = ctx.kernels();
-        let _plan = AlgorithmPlanner::new(ctx.capabilities()).plan_mul(lhs.limb_len(), rhs.limb_len());
+        let plan = ctx.planner().plan_mul(lhs.limb_len(), rhs.limb_len());
         match (lhs.mode(), rhs.mode()) {
             (Mode::Limb1, Mode::Limb1) => {
                 let a = lhs.limb1().expect("Limb1");
@@ -91,7 +91,7 @@ impl NumericExecutor {
                 Ok(Natural::from_fixed_limbs(&limbs[..len]))
             }
             _ => Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                kernels.mul_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+                kernels.mul_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), plan, out, scratch, budget)
             }),
         }
     }

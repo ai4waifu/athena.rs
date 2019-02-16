@@ -213,6 +213,11 @@ impl NumericContext {
         self.capabilities
     }
 
+    /// Context 级算法规划器（唯一策略源）。
+    pub fn planner(&self) -> crate::algorithm::AlgorithmPlanner {
+        crate::algorithm::AlgorithmPlanner::new(self.capabilities)
+    }
+
     /// 已绑定的 machine kernel 表。
     pub fn kernels(&self) -> KernelTable {
         self.kernels
