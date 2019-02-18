@@ -1,9 +1,61 @@
 //! 精确整数（自有 `meta + Magnitude`；`Sign` 仅为语义 API）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
-use std::str::FromStr;
+use std::{cmp::Ordering, str::FromStr};
 
-use crate::{execution_budget::NumericContext, natural::Natural, storage::MagnitudePair};
+use crate::{
+    dispatch::NumericExecutor, execution_budget::NumericContext, kernel::limb as limb_kernel, natural::Natural,
+    storage::MagnitudePair,
+};
+
+/// 只读幅度视图：借用 limb + 符号（Living 18）。
+///
+/// 生命周期不得长过借出的 [`Integer`]。算术热路径应经本视图进入算法，
+/// 禁止为读取符号 / 绝对值而 owning clone Heap magnitude。
+#[derive(Debug, Clone, Copy)]
+pub struct MagnitudeView<'a> {
+    limbs: &'a [u64],
+    negative: bool,
+}
+
+impl<'a> MagnitudeView<'a> {
+    /// 由已存在的 limb 切片与符号构造。
+    #[inline]
+    pub fn from_parts(limbs: &'a [u64], negative: bool) -> Self {
+        let zero = limbs.is_empty() || limb_kernel::is_zero(limbs);
+        Self { limbs, negative: negative && !zero }
+    }
+
+    /// 小端 limb（生命周期绑在借出方）。
+    #[inline]
+    pub fn limbs(self) -> &'a [u64] {
+        self.limbs
+    }
+
+    /// 是否为负（零恒为 false）。
+    #[inline]
+    pub fn is_negative(self) -> bool {
+        self.negative && !self.is_zero()
+    }
+
+    /// 是否为零（`[0]` 与空切片）。
+    #[inline]
+    pub fn is_zero(self) -> bool {
+        self.limbs.is_empty() || limb_kernel::is_zero(self.limbs)
+    }
+
+    /// 符号。
+    #[inline]
+    pub fn sign(self) -> Sign {
+        if self.is_zero() {
+            Sign::Zero
+        } else if self.negative {
+            Sign::Negative
+        } else {
+            Sign::Positive
+        }
+    }
+}
 
 /// 符号（语义 API；不作为 [`Integer`] 存储字段）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -21,6 +73,17 @@ pub enum Sign {
 /// 布局：`meta`（mode+sign+heap_len）+ `union Magnitude`，LP64 上 24 bytes。
 /// 经私有 [`MagnitudePair`] 做 Drop/Clone；无独立 `Sign` 字段、不嵌套 `Natural`。
 /// 排序必须是数学序：负数额值反序、正数额值正序。禁止 derive `Ord`。
+///
+/// # Clone
+///
+/// Derived `Clone` is an **owning** clone. Heap magnitudes allocate on the owner
+/// GC heap. Arithmetic hot paths should use [`Self::magnitude_view`] /
+/// [`Self::try_add_view`] instead of cloning inputs.
+///
+/// # Clone
+///
+/// Owning clone：Heap 幅度会在 owner heap 上再分配。分配失败时 **panic**（已知债务；
+/// 算术热路径应经 [`MagnitudeView`] 借用，结果经 context 发布）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Integer {
     inner: MagnitudePair,
@@ -69,9 +132,29 @@ impl Integer {
         self.inner
     }
 
-    /// 无符号幅度（克隆；供模运算等）。
+    /// 无符号幅度（**owning** clone；仅供确需 `Natural` 所有权的路径）。
+    ///
+    /// `Mode::Heap` 下会在 owner heap 上分配并复制。算术热路径请用
+    /// [`Self::magnitude_view`] / [`Self::as_limbs`]。
     fn abs_natural(&self) -> Natural {
         Natural::from_pair(self.inner.clone_clear_sign())
+    }
+
+    /// 借用小端幅度 limb（生命周期绑在 `&self`）。
+    #[inline]
+    pub fn as_limbs(&self) -> &[u64] {
+        self.inner.as_limbs()
+    }
+
+    /// 只读幅度视图（不 clone）。
+    #[inline]
+    pub fn magnitude_view(&self) -> MagnitudeView<'_> {
+        MagnitudeView::from_parts(self.as_limbs(), self.inner.is_negative())
+    }
+
+    /// 将借用幅度按符号发布到 `ctx` heap（结果 owning）。
+    fn publish_signed(ctx: &NumericContext, limbs: &[u64], negative: bool) -> Result<Self> {
+        Ok(Self::from_mag_sign(Natural::from_limb_slice_in(ctx, limbs)?, negative))
     }
 
     /// 由已解码 `i64` 构造。
@@ -171,13 +254,16 @@ impl Integer {
 
     /// 非负最大公约数（服从 `ctx` 预算）。
     pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
+        Self::try_gcd_view(self.magnitude_view(), other.magnitude_view(), ctx)
+    }
+
+    /// 借用视图最大公约数；结果发布到 `ctx`。
+    pub fn try_gcd_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        let a = self.abs_natural();
-        let b = other.abs_natural();
-        if a.is_zero() && b.is_zero() {
+        if lhs.is_zero() && rhs.is_zero() {
             return Ok(Self::zero());
         }
-        let g = Natural::try_gcd(&a, &b, ctx)?;
+        let g = Natural::try_gcd_limbs(lhs.limbs(), rhs.limbs(), ctx)?;
         Ok(Self::from_positive_natural(g))
     }
 
@@ -188,24 +274,31 @@ impl Integer {
 
     /// 加法（服从 `ctx` 预算）。
     pub fn try_add(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        Self::try_add_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
+    }
+
+    /// 借用视图加法；结果发布到 `ctx`（Living 18）。
+    pub fn try_add_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(match (self.sign(), rhs.sign()) {
-            (Sign::Zero, _) => rhs.clone(),
-            (_, Sign::Zero) => self.clone(),
+        Ok(match (lhs.sign(), rhs.sign()) {
+            (Sign::Zero, _) => Self::publish_signed(ctx, rhs.limbs(), rhs.is_negative())?,
+            (_, Sign::Zero) => Self::publish_signed(ctx, lhs.limbs(), lhs.is_negative())?,
             (Sign::Positive, Sign::Positive) => {
-                Self::from_positive_natural(self.abs_natural().try_add(&rhs.abs_natural(), ctx)?)
+                Self::from_positive_natural(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?)
             }
-            (Sign::Negative, Sign::Negative) => Self::from_mag_sign(self.abs_natural().try_add(&rhs.abs_natural(), ctx)?, true),
+            (Sign::Negative, Sign::Negative) => {
+                Self::from_mag_sign(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?, true)
+            }
             (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
-                let sa = self.abs_natural();
-                let sb = rhs.abs_natural();
-                if sa >= sb {
-                    let mag = sa.try_sub(&sb, ctx)?;
-                    Self::from_mag_sign(mag, self.is_negative())
-                }
-                else {
-                    let mag = sb.try_sub(&sa, ctx)?;
-                    Self::from_mag_sign(mag, rhs.is_negative())
+                match limb_kernel::cmp_slice(lhs.limbs(), rhs.limbs()) {
+                    Ordering::Greater | Ordering::Equal => {
+                        let mag = NumericExecutor::sub_limbs(lhs.limbs(), rhs.limbs(), ctx)?;
+                        Self::from_mag_sign(mag, lhs.is_negative())
+                    }
+                    Ordering::Less => {
+                        let mag = NumericExecutor::sub_limbs(rhs.limbs(), lhs.limbs(), ctx)?;
+                        Self::from_mag_sign(mag, rhs.is_negative())
+                    }
                 }
             }
         })
@@ -213,12 +306,18 @@ impl Integer {
 
     /// 减法（默认上下文）。
     pub fn sub(&self, rhs: &Self) -> Self {
-        self.add(&rhs.neg())
+        self.try_sub(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
-    /// 减法（服从 `ctx` 预算）。
+    /// 减法（服从 `ctx` 预算；不经 owning `neg`）。
     pub fn try_sub(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
-        self.try_add(&rhs.neg(), ctx)
+        Self::try_sub_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
+    }
+
+    /// 借用视图减法；结果发布到 `ctx`。
+    pub fn try_sub_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
+        let rhs_neg = MagnitudeView::from_parts(rhs.limbs(), !rhs.is_negative());
+        Self::try_add_view(lhs, rhs_neg, ctx)
     }
 
     /// 乘法（默认上下文）。
@@ -228,12 +327,17 @@ impl Integer {
 
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        Self::try_mul_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
+    }
+
+    /// 借用视图乘法；结果发布到 `ctx`。
+    pub fn try_mul_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        if self.is_zero() || rhs.is_zero() {
+        if lhs.is_zero() || rhs.is_zero() {
             return Ok(Self::zero());
         }
-        let negative = self.is_negative() != rhs.is_negative();
-        Ok(Self::from_mag_sign(self.abs_natural().try_mul(&rhs.abs_natural(), ctx)?, negative))
+        let negative = lhs.is_negative() != rhs.is_negative();
+        Ok(Self::from_mag_sign(NumericExecutor::mul_limbs(lhs.limbs(), rhs.limbs(), ctx)?, negative))
     }
 
     /// 向零整除：商向零，余数与被除数同号（默认上下文）。
@@ -243,13 +347,22 @@ impl Integer {
 
     /// 向零整除（服从 `ctx` 预算）。
     pub fn try_div_rem_trunc(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
+        Self::try_div_rem_trunc_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
+    }
+
+    /// 借用视图向零整除；结果发布到 `ctx`。
+    pub fn try_div_rem_trunc_view(
+        lhs: MagnitudeView<'_>,
+        rhs: MagnitudeView<'_>,
+        ctx: &NumericContext,
+    ) -> Result<(Self, Self)> {
         ctx.check_entry()?;
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_trunc"));
         }
-        let (q_mag, r_mag) = self.abs_natural().try_div_rem(&rhs.abs_natural(), ctx)?;
-        let q_neg = self.is_negative() != rhs.is_negative();
-        let r_neg = self.is_negative();
+        let (q_mag, r_mag) = Natural::try_div_rem_limbs(lhs.limbs(), rhs.limbs(), ctx)?;
+        let q_neg = lhs.is_negative() != rhs.is_negative();
+        let r_neg = lhs.is_negative();
         Ok((Self::from_mag_sign(q_mag, q_neg), Self::from_mag_sign(r_mag, r_neg)))
     }
 
@@ -276,7 +389,7 @@ impl Integer {
             }
         }
         debug_assert!(!r.is_negative());
-        debug_assert!(r.abs_natural() < rhs.abs_natural() || r.is_zero());
+        debug_assert!(limb_kernel::cmp_slice(r.as_limbs(), rhs.as_limbs()).is_lt() || r.is_zero());
         Ok((q, r))
     }
 
@@ -318,13 +431,18 @@ impl Integer {
                 .detail("reason", "negative_exponent_requires_modular_inverse"));
         }
         let base = self.try_div_rem_euclid(modulus, ctx)?.1;
-        let result_mag = base.abs_natural().try_mod_pow(&exp.abs_natural(), &modulus.abs_natural(), ctx)?;
+        let result_mag = Natural::try_mod_pow_limbs(base.as_limbs(), exp.as_limbs(), modulus.as_limbs(), ctx)?;
         Ok(Self::from_positive_natural(result_mag))
     }
 
     /// 绝对值的二进制位宽（`0` → `0`）。
     pub fn bits(&self) -> u64 {
-        self.abs_natural().bits()
+        if self.is_zero() {
+            return 0;
+        }
+        let limbs = self.as_limbs();
+        let top = limbs.len() - 1;
+        (top as u64) * 64 + (64 - limbs[top].leading_zeros() as u64)
     }
 
     /// 可无损落入 `i64` 时返回（含 `i64::MIN` 与零）。
@@ -332,7 +450,7 @@ impl Integer {
         if self.is_zero() {
             return Some(0);
         }
-        let u = self.abs_natural().to_u128()?;
+        let u = limbs_to_u128(self.as_limbs())?;
         let wide = match self.sign() {
             Sign::Zero => 0_i128,
             Sign::Positive => i128::try_from(u).ok()?,
@@ -352,7 +470,7 @@ impl Integer {
             return Some(0);
         }
         match self.sign() {
-            Sign::Positive => self.abs_natural().to_u64(),
+            Sign::Positive => limbs_to_u64(self.as_limbs()),
             Sign::Negative | Sign::Zero => None,
         }
     }
@@ -363,7 +481,7 @@ impl Integer {
             return Some(0);
         }
         match self.sign() {
-            Sign::Positive => self.abs_natural().to_u128(),
+            Sign::Positive => limbs_to_u128(self.as_limbs()),
             Sign::Negative | Sign::Zero => None,
         }
     }
@@ -376,7 +494,7 @@ impl Integer {
         if self.is_zero() {
             return Some(0.0);
         }
-        let u = self.abs_natural().to_u128()?;
+        let u = limbs_to_u128(self.as_limbs())?;
         if u > Self::F64_EXACT_ABS_MAX {
             return None;
         }
@@ -411,12 +529,22 @@ impl Integer {
 
     /// 是否为 2 的幂（正整数）。
     pub fn is_power_of_two(&self) -> bool {
-        self.is_positive() && self.abs_natural().is_power_of_two()
+        if !self.is_positive() {
+            return false;
+        }
+        let mut ones = 0u32;
+        for &limb in self.as_limbs() {
+            ones += limb.count_ones();
+            if ones > 1 {
+                return false;
+            }
+        }
+        ones == 1
     }
 
     /// 是否为奇数。
     pub fn is_odd(&self) -> bool {
-        !self.is_zero() && self.abs_natural().is_odd()
+        !self.is_zero() && (self.as_limbs()[0] & 1) == 1
     }
 
     /// 非负 `u32` 指数幂（独立实现，不回调 [`pow`]）。
@@ -556,6 +684,25 @@ fn division_by_zero(op: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::NumericDivisionByZero).detail("domain", "numeric").detail("operation", op)
 }
 
+#[inline]
+fn limbs_to_u64(limbs: &[u64]) -> Option<u64> {
+    match limb_kernel::effective_len(limbs) {
+        0 => Some(0),
+        1 => Some(limbs[0]),
+        _ => None,
+    }
+}
+
+#[inline]
+fn limbs_to_u128(limbs: &[u64]) -> Option<u128> {
+    match limb_kernel::effective_len(limbs) {
+        0 => Some(0),
+        1 => Some(limbs[0] as u128),
+        2 => Some(limbs[0] as u128 | ((limbs[1] as u128) << 64)),
+        _ => None,
+    }
+}
+
 fn f64_represents_integer(f: f64, n: &Integer) -> bool {
     if !f.is_finite() {
         return false;
@@ -563,7 +710,7 @@ fn f64_represents_integer(f: f64, n: &Integer) -> bool {
     if n.is_zero() {
         return f == 0.0;
     }
-    let u = match n.abs_natural().to_u128() {
+    let u = match limbs_to_u128(n.as_limbs()) {
         Some(v) => v,
         None => return false,
     };
@@ -621,5 +768,27 @@ impl athena_gc::Trace for Integer {
         if let Some(ptr) = self.inner.heap_ptr() {
             tracer.mark_allocation(ptr.as_ptr().cast());
         }
+    }
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::*;
+
+    #[test]
+    fn div_zero_returns_diagnostic_without_panic() {
+        let err = Integer::from_i64(1).div(&Integer::zero()).unwrap_err();
+        assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_DIVISION_BY_ZERO");
+    }
+
+    #[test]
+    fn try_add_view_matches_try_add_on_wide_magnitudes() {
+        let ctx = NumericContext::portable_default();
+        let a = Integer::from_u64(u64::MAX).try_mul(&Integer::from_u64(u64::MAX), &ctx).unwrap();
+        let b = Integer::from_u64(3).try_mul(&Integer::from_u64(u64::MAX), &ctx).unwrap();
+        let via_ref = a.try_add(&b, &ctx).unwrap();
+        let via_view = Integer::try_add_view(a.magnitude_view(), b.magnitude_view(), &ctx).unwrap();
+        assert_eq!(via_ref, via_view);
+        assert!(via_ref.bits() > 64);
     }
 }

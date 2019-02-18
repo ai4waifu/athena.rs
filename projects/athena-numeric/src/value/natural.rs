@@ -17,6 +17,11 @@ use std::{
 ///
 /// 布局：`meta`（mode+heap_len；sign 位 don't-care）+ `union Magnitude`，LP64 上 24 bytes。
 /// 经私有 [`MagnitudePair`] 做 Drop/Clone；读取时不解释 sign，语义恒为非负。
+///
+/// # Clone
+///
+/// Owning clone：Heap 幅度会在 owner heap 上再分配。分配失败时 **panic**（已知债务；
+/// 算术热路径应借用 limb，结果经 [`NumericContext`] 发布）。
 #[derive(Clone, Default)]
 pub struct Natural {
     inner: MagnitudePair,
@@ -116,7 +121,7 @@ impl Natural {
             limbs[i] = (limb >> 1) | (carry << 63);
             carry = new_carry;
         }
-        *self = Self::from_limbs(limb_kernel::normalize_trim(limbs));
+        *self = Self::from_limbs(limb_kernel::normalize_trim(limbs)).expect("gc numeric alloc");
     }
 
     /// 右移 `n` 位（丢弃低位）。
@@ -144,7 +149,7 @@ impl Natural {
                 out[i] |= src[src_i + 1] << (64 - bit_shift);
             }
         }
-        Self::from_limbs(out)
+        Self::from_limbs(out).expect("gc numeric alloc")
     }
 
     /// 测试第 `index` 位（0 = LSB）。越界为 false。
@@ -208,7 +213,7 @@ impl Natural {
                 let a = self.inner.as_limb2().expect("Limb2");
                 ctx.budget().check_limbs(3)?;
                 let (limbs, len) = limb_kernel::add_1_2(rhs, a);
-                Ok(Self::from_fixed(&limbs[..len]))
+                Self::from_limb_slice_in(ctx, &limbs[..len])
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
                 ctx.kernels().add_into(ctx.kernel_token(), self.as_limbs(), &[rhs], out, scratch, budget)
@@ -240,7 +245,7 @@ impl Natural {
                 let a = self.inner.as_limb2().expect("Limb2");
                 ctx.budget().check_limbs(3)?;
                 let (limbs, len) = limb_kernel::mul_2x1(a, rhs);
-                Ok(Self::from_fixed(&limbs[..len]))
+                Self::from_limb_slice_in(ctx, &limbs[..len])
             }
             Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
                 ctx.kernels().mul_1_into(ctx.kernel_token(), self.as_limbs(), rhs, out, scratch, budget)
@@ -299,7 +304,7 @@ impl Natural {
                 let a = self.inner.as_limb2().expect("Limb2");
                 ctx.budget().check_limbs(4)?;
                 let (limbs, len) = limb_kernel::mul_2(a, a);
-                Ok(Self::from_fixed(&limbs[..len]))
+                Self::from_limb_slice_in(ctx, &limbs[..len])
             }
             Mode::Heap => {
                 let plan = ctx.planner().plan_mul(self.limb_len(), self.limb_len());
@@ -317,39 +322,53 @@ impl Natural {
 
     /// 除法与余数（服从 `ctx` 预算；除数为零返回诊断）。
     pub fn try_div_rem(&self, rhs: &Self, ctx: &NumericContext) -> Result<(Self, Self)> {
+        Self::try_div_rem_limbs(self.as_limbs(), rhs.as_limbs(), ctx)
+    }
+
+    /// 借用 limb 除法与余数；结果发布到 `ctx`。
+    pub fn try_div_rem_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<(Self, Self)> {
+        use crate::storage::LimbWidth;
         ctx.check_entry()?;
-        if rhs.is_zero() {
+        if limb_kernel::is_zero(rhs) || rhs.is_empty() {
             return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
                 .detail("domain", "numeric")
                 .detail("operation", "natural_div_rem"));
         }
-        if self.is_zero() {
+        if limb_kernel::is_zero(lhs) || lhs.is_empty() {
             return Ok((Self::zero(), Self::zero()));
         }
-        match (self.inner.mode(), rhs.inner.mode()) {
-            (Mode::Limb1, Mode::Limb1) => {
-                let a = self.inner.as_limb1().expect("Limb1");
-                let b = rhs.inner.as_limb1().expect("Limb1");
+        match (LimbWidth::classify(lhs), LimbWidth::classify(rhs)) {
+            (LimbWidth::Limb1(a), LimbWidth::Limb1(b)) => {
                 ctx.budget().check_limbs(1)?;
                 let (q, r) = limb_kernel::div_rem_1(a, b);
                 Ok((Self::from_u64(q), Self::from_u64(r)))
             }
-            (Mode::Limb1 | Mode::Limb2, Mode::Limb1 | Mode::Limb2) => {
-                let numer = self.to_u128().expect("Limb1/2 fits u128");
-                let denom = rhs.to_u128().expect("Limb1/2 fits u128");
+            (LimbWidth::Limb1(_) | LimbWidth::Limb2(_), LimbWidth::Limb1(_) | LimbWidth::Limb2(_)) => {
+                let numer = match LimbWidth::classify(lhs) {
+                    LimbWidth::Limb1(a) => a as u128,
+                    LimbWidth::Limb2(a) => a[0] as u128 | ((a[1] as u128) << 64),
+                    _ => unreachable!(),
+                };
+                let denom = match LimbWidth::classify(rhs) {
+                    LimbWidth::Limb1(b) => b as u128,
+                    LimbWidth::Limb2(b) => b[0] as u128 | ((b[1] as u128) << 64),
+                    _ => unreachable!(),
+                };
                 ctx.budget().check_limbs(2)?;
                 let (q, r) = limb_kernel::div_rem_u128(numer, denom);
                 Ok((Self { inner: MagnitudePair::from_u128(q) }, Self { inner: MagnitudePair::from_u128(r) }))
             }
             _ => {
+                let a_len = limb_kernel::effective_len(lhs);
+                let b_len = limb_kernel::effective_len(rhs);
                 let mut q = LimbBuffer::zero();
                 let mut r = LimbBuffer::zero();
-                let plan = ctx.planner().plan_div(self.limb_len(), rhs.limb_len());
+                let plan = ctx.planner().plan_div(a_len, b_len);
                 ctx.with_scratch_frame(|scratch, budget| {
                     ctx.kernels().div_rem_into(
                         ctx.kernel_token(),
-                        self.as_limbs(),
-                        rhs.as_limbs(),
+                        &lhs[..a_len],
+                        &rhs[..b_len],
                         plan,
                         &mut q,
                         &mut r,
@@ -370,31 +389,37 @@ impl Natural {
 
     /// 模幂（服从 `ctx` 预算；奇模数足够宽时走 Montgomery）。
     pub fn try_mod_pow(&self, exp: &Self, modulus: &Self, ctx: &NumericContext) -> Result<Self> {
+        Self::try_mod_pow_limbs(self.as_limbs(), exp.as_limbs(), modulus.as_limbs(), ctx)
+    }
+
+    /// 借用 limb 模幂；结果发布到 `ctx`。
+    pub fn try_mod_pow_limbs(base: &[u64], exp: &[u64], modulus: &[u64], ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        if modulus.is_zero() {
+        if limb_kernel::is_zero(modulus) || modulus.is_empty() {
             return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
                 .detail("domain", "numeric")
                 .detail("operation", "natural_mod_pow")
                 .detail("reason", "modulus_zero"));
         }
-        ctx.budget().check_limbs(modulus.as_limbs().len())?;
-        if modulus.is_one() {
+        let mod_len = limb_kernel::effective_len(modulus);
+        ctx.budget().check_limbs(mod_len)?;
+        if mod_len == 1 && modulus[0] == 1 {
             return Ok(Self::zero());
         }
-        if limb_kernel::mod_pow_montgomery_eligible(modulus.as_limbs()) {
-            return Self::from_limbs_in(
-                ctx,
-                limb_kernel::mod_pow_montgomery(self.as_limbs(), exp.as_limbs(), modulus.as_limbs()),
-            );
+        let modulus = &modulus[..mod_len];
+        if limb_kernel::mod_pow_montgomery_eligible(modulus) {
+            return Self::from_limbs_in(ctx, limb_kernel::mod_pow_montgomery(base, exp, modulus));
         }
         let mut result = Self::one();
-        let mut base = self.try_div_rem(modulus, ctx)?.1;
-        let mut e = exp.clone();
+        let mut base_n = Self::from_limb_slice_in(ctx, base)?;
+        let mut e = Self::from_limb_slice_in(ctx, exp)?;
+        let modulus_n = Self::from_limb_slice_in(ctx, modulus)?;
+        base_n = base_n.try_div_rem(&modulus_n, ctx)?.1;
         while !e.is_zero() {
             if e.is_odd() {
-                result = result.try_mul(&base, ctx)?.try_div_rem(modulus, ctx)?.1;
+                result = result.try_mul(&base_n, ctx)?.try_div_rem(&modulus_n, ctx)?.1;
             }
-            base = base.try_sqr(ctx)?.try_div_rem(modulus, ctx)?.1;
+            base_n = base_n.try_sqr(ctx)?.try_div_rem(&modulus_n, ctx)?.1;
             e.div2();
         }
         Ok(result)
@@ -427,7 +452,7 @@ impl Natural {
             digits.push(b'0' + r.as_limbs()[0] as u8);
         }
         digits.reverse();
-        String::from_utf8(digits).unwrap_or_else(|_| "0".to_string())
+        String::from_utf8(digits).expect("ASCII digit bytes are UTF-8")
     }
 
     /// 可落入 `u64` 时返回（零 → `Some(0)`）。
@@ -459,13 +484,30 @@ impl Natural {
 
     /// 非负最大公约数（服从 `ctx` 预算；结果 limb ≤ `min(self, other)`）。
     pub fn try_gcd(&self, other: &Self, ctx: &NumericContext) -> Result<Self> {
+        Self::try_gcd_limbs(self.as_limbs(), other.as_limbs(), ctx)
+    }
+
+    /// 借用 limb 最大公约数；结果发布到 `ctx`。
+    pub fn try_gcd_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        if self.is_zero() && other.is_zero() {
+        let la = if lhs.is_empty() || limb_kernel::is_zero(lhs) {
+            0
+        } else {
+            limb_kernel::effective_len(lhs)
+        };
+        let lb = if rhs.is_empty() || limb_kernel::is_zero(rhs) {
+            0
+        } else {
+            limb_kernel::effective_len(rhs)
+        };
+        if la == 0 && lb == 0 {
             return Ok(Self::zero());
         }
-        let bound = self.as_limbs().len().min(other.as_limbs().len()).max(1);
+        let bound = la.min(lb).max(1);
         ctx.budget().check_limbs(bound)?;
-        Self::from_limbs_in(ctx, limb_kernel::gcd(self.as_limbs().to_vec(), other.as_limbs().to_vec()))
+        let a = if la == 0 { vec![0] } else { lhs[..la].to_vec() };
+        let b = if lb == 0 { vec![0] } else { rhs[..lb].to_vec() };
+        Self::from_limbs_in(ctx, limb_kernel::gcd(a, b))
     }
 
     /// 借用小端 limb（生命周期绑在 `&self`；禁止跨 move 持有）。
@@ -473,12 +515,12 @@ impl Natural {
         self.inner.as_limbs()
     }
 
-    /// 由小端 limb 构造（已规范化；线程默认 heap）。
-    pub fn from_limbs(limbs: Vec<u64>) -> Self {
-        let n = Self { inner: MagnitudePair::from_limbs(&limbs) };
-        #[cfg(debug_assertions)]
-        n.debug_assert_invariants();
-        n
+    /// 由小端 limb 构造（已规范化；经 [`NumericContext::portable_default`] 发布）。
+    ///
+    /// trim 后 ≤ 2 limb 不分配；更长幅度走 GC，失败返回 Diagnostic。
+    /// 需要绑定 heap / 预算时请用 [`Self::from_limbs_in`]。
+    pub fn from_limbs(limbs: Vec<u64>) -> Result<Self> {
+        Self::from_limb_slice_in(&NumericContext::portable_default(), &limbs)
     }
 
     /// 由小端 limb 构造到 `ctx` 绑定的 heap。
@@ -550,7 +592,7 @@ impl Natural {
         Self { inner: MagnitudePair::from_limb2(limbs) }
     }
 
-    /// 固定宽度结果（executor 入口）。
+    /// 固定宽度结果（executor：有效长度 ≤ 2；更长请用 [`Self::from_limb_slice_in`]）。
     #[inline]
     pub(crate) fn from_fixed_limbs(limbs: &[u64]) -> Self {
         Self::from_fixed(limbs)
@@ -575,10 +617,10 @@ impl Natural {
         self.inner
     }
 
-    /// 固定宽度结果回写（≤4 limbs，不经中间 `Vec`）。
+    /// 固定宽度结果回写（有效长度 ≤ 2，不经堆）。
     #[inline]
     fn from_fixed(limbs: &[u64]) -> Self {
-        let n = Self { inner: MagnitudePair::from_fixed_limbs(limbs) };
+        let n = Self { inner: MagnitudePair::from_inline_limbs(limbs) };
         #[cfg(debug_assertions)]
         n.debug_assert_invariants();
         n
@@ -642,7 +684,7 @@ impl Natural {
             })?));
         }
         assert_canonical_magnitude_limbs(count, &limbs)?;
-        Ok(Self::from_limbs(limbs))
+        Self::from_limbs(limbs)
     }
 
     /// 解码 [`Self::wire_encode_magnitude`] 字节。

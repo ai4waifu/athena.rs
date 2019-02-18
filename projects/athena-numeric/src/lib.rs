@@ -77,7 +77,7 @@ pub use crate::{
         finite_field,
         finite_field::FiniteFieldValue,
         integer,
-        integer::{ExactInteger, Integer, Sign},
+        integer::{ExactInteger, Integer, MagnitudeView, Sign},
         interval,
         interval::{Interval, IntervalDecoration},
         modular,
