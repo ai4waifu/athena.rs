@@ -1,8 +1,11 @@
 //! Context 级绑定的 machine kernel 表（热路径只调已绑定条目）。
+//!
+//! 乘/除策略由 `AlgorithmPlanner` 选定后传入；本表只执行。
 
 use athena_types::Result;
 
 use crate::{
+    algorithm::{DivStrategy, MulStrategy},
     dispatch::MachineCapability,
     kernel::{
         buffer::{LimbBuffer, ScratchWorkspace},
@@ -13,9 +16,11 @@ use crate::{
 };
 
 type BinOp = fn(&[u64], &[u64], &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
+type MulOp = fn(&[u64], &[u64], MulStrategy, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
 type Mul1Op = fn(&[u64], u64, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
-type SqrOp = fn(&[u64], &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
-type DivOp = fn(&[u64], &[u64], &mut LimbBuffer, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
+type SqrOp = fn(&[u64], MulStrategy, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
+type DivOp =
+    fn(&[u64], &[u64], DivStrategy, &mut LimbBuffer, &mut LimbBuffer, &mut ScratchWorkspace, &ExecutionBudget) -> Result<()>;
 type Add1Op = fn(u64, u64) -> (u64, u64);
 type Mul1x1Op = fn(u64, u64) -> u128;
 
@@ -27,7 +32,7 @@ pub struct KernelTable {
     id: &'static str,
     add_into: BinOp,
     sub_into: BinOp,
-    mul_into: BinOp,
+    mul_into: MulOp,
     mul_1_into: Mul1Op,
     sqr_into: SqrOp,
     div_rem_into: DivOp,
@@ -70,7 +75,7 @@ impl KernelTable {
         id: &'static str,
         add_into: BinOp,
         sub_into: BinOp,
-        mul_into: BinOp,
+        mul_into: MulOp,
         mul_1_into: Mul1Op,
         sqr_into: SqrOp,
         div_rem_into: DivOp,
@@ -129,11 +134,12 @@ impl KernelTable {
         _token: ExecutionToken<'_>,
         a: &[u64],
         b: &[u64],
+        strategy: MulStrategy,
         out: &mut LimbBuffer,
         scratch: &mut ScratchWorkspace,
         budget: &ExecutionBudget,
     ) -> Result<()> {
-        (self.mul_into)(a, b, out, scratch, budget)
+        (self.mul_into)(a, b, strategy, out, scratch, budget)
     }
 
     /// `mul_1_into`。
@@ -154,11 +160,12 @@ impl KernelTable {
         &self,
         _token: ExecutionToken<'_>,
         a: &[u64],
+        strategy: MulStrategy,
         out: &mut LimbBuffer,
         scratch: &mut ScratchWorkspace,
         budget: &ExecutionBudget,
     ) -> Result<()> {
-        (self.sqr_into)(a, out, scratch, budget)
+        (self.sqr_into)(a, strategy, out, scratch, budget)
     }
 
     /// `div_rem_into`。
@@ -167,12 +174,13 @@ impl KernelTable {
         _token: ExecutionToken<'_>,
         u: &[u64],
         v: &[u64],
+        strategy: DivStrategy,
         q_out: &mut LimbBuffer,
         r_out: &mut LimbBuffer,
         scratch: &mut ScratchWorkspace,
         budget: &ExecutionBudget,
     ) -> Result<()> {
-        (self.div_rem_into)(u, v, q_out, r_out, scratch, budget)
+        (self.div_rem_into)(u, v, strategy, q_out, r_out, scratch, budget)
     }
 
     /// 单 limb 加法。

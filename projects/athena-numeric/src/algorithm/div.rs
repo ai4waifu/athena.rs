@@ -15,7 +15,7 @@ pub enum DivStrategy {
 }
 
 /// 按操作数宽度与算法能力选择除法策略。
-pub fn select_div_strategy(u_limbs: usize, v_limbs: usize, caps: AlgorithmCapability) -> DivStrategy {
+pub(crate) fn select_div_strategy(u_limbs: usize, v_limbs: usize, caps: AlgorithmCapability) -> DivStrategy {
     if v_limbs == 0 {
         return DivStrategy::Knuth;
     }

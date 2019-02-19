@@ -2,6 +2,8 @@
 
 use athena_types::Result;
 
+use crate::algorithm::AlgorithmPlanner;
+use crate::dispatch::CapabilityBundle;
 use crate::kernel::LimbBuffer;
 use crate::policy::execution_budget::ExecutionBudget;
 
@@ -9,6 +11,10 @@ use super::glue::{LimbKernel, PortableLimbKernel};
 use super::mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, sqr_schoolbook_into};
 use super::primitive::{effective_len, is_zero, normalize_trim};
 use super::scratch_tls::with_kernel_scratch;
+
+fn default_planner() -> AlgorithmPlanner {
+    AlgorithmPlanner::new(CapabilityBundle::portable_default())
+}
 
 /// 便利：分配新 `Vec` 的加法（**非热路径**；值层请用 `*_into` / executor）。
 pub(crate) fn add_n_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
@@ -38,7 +44,8 @@ pub(crate) fn sub_n(a: &[u64], b: &[u64]) -> Vec<u64> {
 pub(crate) fn mul_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::zero();
-        PortableLimbKernel::mul_into(a, b, &mut out, scratch, budget)?;
+        let strategy = default_planner().plan_mul(effective_len(a), effective_len(b));
+        PortableLimbKernel::mul_into(a, b, strategy, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -62,7 +69,9 @@ pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
 pub(crate) fn sqr_budgeted(a: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::zero();
-        PortableLimbKernel::sqr_into(a, &mut out, scratch, budget)?;
+        let n = effective_len(a);
+        let strategy = default_planner().plan_mul(n, n);
+        PortableLimbKernel::sqr_into(a, strategy, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -75,7 +84,8 @@ pub(crate) fn div_rem_budgeted(u: &[u64], v: &[u64], budget: &ExecutionBudget) -
     with_kernel_scratch(budget, |scratch, budget| {
         let mut q = LimbBuffer::zero();
         let mut r = LimbBuffer::zero();
-        PortableLimbKernel::div_rem_into(u, v, &mut q, &mut r, scratch, budget)?;
+        let strategy = default_planner().plan_div(effective_len(u), effective_len(v));
+        PortableLimbKernel::div_rem_into(u, v, strategy, &mut q, &mut r, scratch, budget)?;
         Ok((q.into_canonical_vec(), r.into_canonical_vec()))
     })
 }

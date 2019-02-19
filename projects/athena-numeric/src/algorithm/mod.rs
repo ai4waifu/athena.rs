@@ -4,8 +4,8 @@ mod div;
 mod mul;
 mod planner;
 
-pub use div::{DIV_BZ_THRESHOLD, DivStrategy, select_div_strategy};
-pub use mul::{
-    MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, MulStrategy, karatsuba_scratch_limbs, select_mul_strategy, toom3_scratch_limbs,
-};
+pub use div::{DIV_BZ_THRESHOLD, DivStrategy};
+pub(crate) use div::select_div_strategy;
+pub use mul::{MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, MulStrategy, karatsuba_scratch_limbs, toom3_scratch_limbs};
+pub(crate) use mul::select_mul_strategy;
 pub use planner::AlgorithmPlanner;

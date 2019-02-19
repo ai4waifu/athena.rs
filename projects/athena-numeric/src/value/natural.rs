@@ -301,9 +301,12 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2(a, a);
                 Ok(Self::from_fixed(&limbs[..len]))
             }
-            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().sqr_into(ctx.kernel_token(), self.as_limbs(), out, scratch, budget)
-            }),
+            Mode::Heap => {
+                let plan = ctx.planner().plan_mul(self.limb_len(), self.limb_len());
+                Self::publish_into(ctx, |out, scratch, budget| {
+                    ctx.kernels().sqr_into(ctx.kernel_token(), self.as_limbs(), plan, out, scratch, budget)
+                })
+            }
         }
     }
 
@@ -341,11 +344,13 @@ impl Natural {
             _ => {
                 let mut q = LimbBuffer::zero();
                 let mut r = LimbBuffer::zero();
+                let plan = ctx.planner().plan_div(self.limb_len(), rhs.limb_len());
                 ctx.with_scratch_frame(|scratch, budget| {
                     ctx.kernels().div_rem_into(
                         ctx.kernel_token(),
                         self.as_limbs(),
                         rhs.as_limbs(),
+                        plan,
                         &mut q,
                         &mut r,
                         scratch,

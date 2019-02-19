@@ -22,7 +22,7 @@ pub enum MulStrategy {
 }
 
 /// 按操作数宽度与算法能力选择乘法策略。
-pub fn select_mul_strategy(a_limbs: usize, b_limbs: usize, caps: AlgorithmCapability) -> MulStrategy {
+pub(crate) fn select_mul_strategy(a_limbs: usize, b_limbs: usize, caps: AlgorithmCapability) -> MulStrategy {
     let n = a_limbs.max(b_limbs);
     if a_limbs == 0 || b_limbs == 0 {
         return MulStrategy::Zero;
