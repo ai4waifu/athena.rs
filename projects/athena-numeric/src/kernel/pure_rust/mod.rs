@@ -1,8 +1,7 @@
-//! 默认纯 Rust machine kernel（WASM 安全、确定性、语义基线）。
+//! 默认 portable machine kernel 的宿主合同门面（WASM 安全、确定性、语义基线）。
 //!
-//! 只实现 Athena limb 写入；不拥有 `Magnitude`/arena，不包装 foreign bigint。
-//! [`PureRustBackend`] 的 capability 广告是过渡门面，挂在本模块仅因默认
-//! kernel 与默认资源上限同源；算法策略终局迁 [`crate::algorithm`]。
+//! limb 算法实现在 [`crate::kernel::portable`]。本模块保留
+//! [`PureRustBackend`] 与 `limb_kernel` 路径名以兼容现有调用方。
 
 pub(crate) mod limb_kernel;
 

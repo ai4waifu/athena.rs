@@ -4,7 +4,8 @@
 //! kernel/
 //!   buffer.rs      — LimbBuffer / ScratchWorkspace（调用期缓冲合同）
 //!   limb.rs        — 默认 KernelTable 再导出（value/arithmetic 入口）
-//!   pure_rust/     — 语义基线机器内核
+//!   portable/      — ISA-agnostic 算法实现（语义基线）
+//!   pure_rust/     — 宿主合同门面 + 兼容再导出（→ portable）
 //!   （后续）x86_64 / aarch64 / wasm — ISA KernelTable
 //! ```
 //!
@@ -13,6 +14,7 @@
 
 pub(crate) mod buffer;
 pub(crate) mod limb;
+pub(crate) mod portable;
 pub(crate) mod pure_rust;
 pub(crate) mod table;
 pub(crate) mod token;
