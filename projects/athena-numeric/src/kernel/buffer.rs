@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::policy::execution_budget::ExecutionBudget;
 
-use crate::kernel::pure_rust::limb_kernel::effective_len;
+use crate::kernel::portable::effective_len;
 
 /// 可增长小端 limb 缓冲（工作中存储可含尾随零）。
 #[derive(Debug, Clone, Default)]

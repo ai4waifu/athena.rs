@@ -5,7 +5,7 @@
 //!   buffer.rs      — LimbBuffer / ScratchWorkspace（调用期缓冲合同）
 //!   limb.rs        — 默认 KernelTable 再导出（value/arithmetic 入口）
 //!   portable/      — ISA-agnostic 算法实现（语义基线）
-//!   pure_rust/     — 宿主合同门面 + 兼容再导出（→ portable）
+//!   pure_rust/     — 宿主合同门面（`PureRustBackend`；Living 17 步骤 4 改名）
 //!   （后续）x86_64 / aarch64 / wasm — ISA KernelTable
 //! ```
 //!

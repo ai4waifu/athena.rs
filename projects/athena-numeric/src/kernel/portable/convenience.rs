@@ -5,7 +5,7 @@ use athena_types::Result;
 use crate::kernel::LimbBuffer;
 use crate::policy::execution_budget::ExecutionBudget;
 
-use super::glue::{LimbKernel, PureRustLimbKernel};
+use super::glue::{LimbKernel, PortableLimbKernel};
 use super::mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, sqr_schoolbook_into};
 use super::primitive::{effective_len, is_zero, normalize_trim};
 use super::scratch_tls::with_kernel_scratch;
@@ -14,7 +14,7 @@ use super::scratch_tls::with_kernel_scratch;
 pub(crate) fn add_n_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::with_capacity(a.len().max(b.len()) + 1, budget)?;
-        PureRustLimbKernel::add_into(a, b, &mut out, scratch, budget)?;
+        PortableLimbKernel::add_into(a, b, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -26,7 +26,7 @@ pub(crate) fn add_n(a: &[u64], b: &[u64]) -> Vec<u64> {
 pub(crate) fn sub_n_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::with_capacity(a.len(), budget)?;
-        PureRustLimbKernel::sub_into(a, b, &mut out, scratch, budget)?;
+        PortableLimbKernel::sub_into(a, b, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -38,7 +38,7 @@ pub(crate) fn sub_n(a: &[u64], b: &[u64]) -> Vec<u64> {
 pub(crate) fn mul_budgeted(a: &[u64], b: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::zero();
-        PureRustLimbKernel::mul_into(a, b, &mut out, scratch, budget)?;
+        PortableLimbKernel::mul_into(a, b, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -50,7 +50,7 @@ pub(crate) fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
 pub(crate) fn mul_1_budgeted(a: &[u64], n: u64, budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::zero();
-        PureRustLimbKernel::mul_1_into(a, n, &mut out, scratch, budget)?;
+        PortableLimbKernel::mul_1_into(a, n, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -62,7 +62,7 @@ pub(crate) fn mul_1(a: &[u64], n: u64) -> Vec<u64> {
 pub(crate) fn sqr_budgeted(a: &[u64], budget: &ExecutionBudget) -> Result<Vec<u64>> {
     with_kernel_scratch(budget, |scratch, budget| {
         let mut out = LimbBuffer::zero();
-        PureRustLimbKernel::sqr_into(a, &mut out, scratch, budget)?;
+        PortableLimbKernel::sqr_into(a, &mut out, scratch, budget)?;
         Ok(out.into_canonical_vec())
     })
 }
@@ -75,7 +75,7 @@ pub(crate) fn div_rem_budgeted(u: &[u64], v: &[u64], budget: &ExecutionBudget) -
     with_kernel_scratch(budget, |scratch, budget| {
         let mut q = LimbBuffer::zero();
         let mut r = LimbBuffer::zero();
-        PureRustLimbKernel::div_rem_into(u, v, &mut q, &mut r, scratch, budget)?;
+        PortableLimbKernel::div_rem_into(u, v, &mut q, &mut r, scratch, budget)?;
         Ok((q.into_canonical_vec(), r.into_canonical_vec()))
     })
 }

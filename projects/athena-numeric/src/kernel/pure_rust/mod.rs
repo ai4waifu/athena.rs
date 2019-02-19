@@ -1,9 +1,7 @@
 //! 默认 portable machine kernel 的宿主合同门面（WASM 安全、确定性、语义基线）。
 //!
-//! limb 算法实现在 [`crate::kernel::portable`]。本模块保留
-//! [`PureRustBackend`] 与 `limb_kernel` 路径名以兼容现有调用方。
-
-pub(crate) mod limb_kernel;
+//! limb 算法实现在 [`crate::kernel::portable`]。本模块只广告
+//! [`PureRustBackend`] capability / wire 上限（Living 17 步骤 4 再改名）。
 
 use crate::{
     dispatch::{
