@@ -61,12 +61,7 @@ impl Rational {
 
     /// 分子 / 分母（自动约分；分母为零失败）。
     pub fn try_new(numer: Integer, denom: Integer) -> Result<Self, Diagnostic> {
-        if denom.is_zero() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "rational_new"));
-        }
-        Ok(Self::normalize_pair(numer, denom))
+        Self::normalize_pair(numer, denom)
     }
 
     /// 分子 / 分母（自动约分）。分母为零时 panic — 优先用 [`try_new`]。
@@ -95,9 +90,16 @@ impl Rational {
         Ok(Self::from_parts(numer, denom.magnitude()))
     }
 
-    fn normalize_pair(numer: Integer, denom: Integer) -> Self {
+    /// 约分并规范符号：正分母、既约；零有理为分子零且分母一。
+    ///
+    /// 零分母返回 `DivideByZero`（不静默改写成零）。
+    /// `g = gcd(|numer|, |denom|)` 时 `numer/g` 与 `denom/g` 必为整除，故下方 `expect("gcd")`
+    /// 依赖该数学不变量，而非“按理说不会失败”。
+    fn normalize_pair(numer: Integer, denom: Integer) -> Result<Self, Diagnostic> {
         if denom.is_zero() {
-            return Self::zero();
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
+                .detail("domain", "numeric")
+                .detail("operation", "rational_normalize"));
         }
         let g = numer.abs().gcd(&denom.abs());
         let mut n = if g.is_one() { numer } else { numer.div(&g).expect("gcd") };
@@ -107,15 +109,15 @@ impl Rational {
             d = d.neg();
         }
         if n.is_zero() {
-            return Self::zero();
+            return Ok(Self::zero());
         }
         let denom_nat = if d.is_one() { Natural::one() } else { d.magnitude() };
-        Self::from_parts(n, denom_nat)
+        Ok(Self::from_parts(n, denom_nat))
     }
 
-    /// 显式规范化（正分母、既约）。
+    /// 显式规范化（正分母、既约）。已构造的 `Rational` 分母恒非零。
     pub fn normalize(self) -> Self {
-        Self::normalize_pair(self.numerator(), self.denominator())
+        Self::normalize_pair(self.numerator(), self.denominator()).expect("rational denom non-zero")
     }
 
     /// 零。
@@ -220,7 +222,7 @@ impl Rational {
         }
         let n = self.numerator().try_mul(&d, ctx)?.try_add(&rhs.numerator().try_mul(&b, ctx)?, ctx)?;
         let denom = self.denominator().try_mul(&d, ctx)?;
-        Ok(Self::normalize_pair(n, denom))
+        Self::normalize_pair(n, denom)
     }
 
     /// 减法（默认上下文）。
@@ -242,7 +244,7 @@ impl Rational {
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
         ctx.check_entry()?;
         let (n, d) = cross_cancel_mul_ctx(self.numerator(), self.denominator(), rhs.numerator(), rhs.denominator(), ctx)?;
-        Ok(Self::normalize_pair(n, d))
+        Self::normalize_pair(n, d)
     }
 
     /// 除法（交叉约分后做 `a/b * d/c`；默认上下文）。
@@ -259,7 +261,7 @@ impl Rational {
                 .detail("operation", "rational_div"));
         }
         let (n, d) = cross_cancel_mul_ctx(self.numerator(), self.denominator(), rhs.denominator(), rhs.numerator(), ctx)?;
-        Ok(Self::normalize_pair(n, d))
+        Self::normalize_pair(n, d)
     }
 
     /// 非负整数幂。
@@ -269,7 +271,7 @@ impl Rational {
         }
         let n = self.numerator().pow_u32(exp).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
         let d = self.denominator().pow_u32(exp).map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
-        Ok(Self::normalize_pair(n, d))
+        Self::normalize_pair(n, d)
     }
 
     /// 可完全表示时精确转为 binary64。

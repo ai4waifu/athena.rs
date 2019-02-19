@@ -13,7 +13,7 @@ fn lcg_next(state: &mut u64) -> u64 {
 fn random_natural(state: &mut u64, max_limbs: usize) -> Natural {
     let n = (lcg_next(state) as usize % max_limbs) + 1;
     let limbs: Vec<u64> = (0..n).map(|_| lcg_next(state)).collect();
-    Natural::from_limbs(limbs)
+    Natural::from_limbs(limbs).unwrap()
 }
 
 #[test]

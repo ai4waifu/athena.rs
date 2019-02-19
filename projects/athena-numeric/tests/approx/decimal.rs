@@ -16,7 +16,7 @@ fn f64_exact_roundtrip_normals_and_subnormals() {
 
 #[test]
 fn rejects_payload_wider_than_precision() {
-    let sig = Natural::from_limbs(vec![9007199254740993, 1]);
+    let sig = Natural::from_limbs(vec![9007199254740993, 1]).unwrap();
     let err = Decimal::try_new(Sign::Positive, sig, 0, 53).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_PRECISION_LOSS");
 }
@@ -29,7 +29,7 @@ fn rejects_nan_import() {
 #[test]
 fn limb_round_preserves_wide_precision() {
     // 80 位尾数：跨两 limb 且最高位置位的奇数。
-    let sig = Natural::from_limbs(vec![0xFFFF_FFFF_FFFF_FFFF, 0xFFFF]);
+    let sig = Natural::from_limbs(vec![0xFFFF_FFFF_FFFF_FFFF, 0xFFFF]).unwrap();
     let bf = Decimal::try_new(Sign::Positive, sig, -10, 80).expect("fit");
     assert_eq!(bf.significand().bits(), 80);
     let (rounded, status) = bf.round_to_precision(60).expect("round");

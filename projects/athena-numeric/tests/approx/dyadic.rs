@@ -12,7 +12,7 @@ fn normalize_strips_trailing_zeros() {
 
 #[test]
 fn multi_limb_rounds_to_f64() {
-    let sig = Natural::from_limbs(vec![9007199254740993, 1]);
+    let sig = Natural::from_limbs(vec![9007199254740993, 1]).unwrap();
     let d = Dyadic::try_new(Sign::Positive, sig, 0).unwrap();
     assert!(d.significand_bits() > 53);
     assert!(d.to_f64_round_nearest_even().is_some());

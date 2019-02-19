@@ -169,13 +169,11 @@ impl Decimal {
     }
 
     /// 去掉精确载荷末尾的二进制零。
-    pub fn normalize(&mut self) {
+    pub fn normalize(&mut self) -> Result<()> {
         let mut d = self.dyadic();
         d.normalize();
         *self = Self::from_dyadic_parts(d, self.precision_bits);
-        if let Err(e) = self.validate() {
-            panic!("Decimal invariant broken after normalize: {:?}", e);
-        }
+        self.validate()
     }
 
     /// 校验规范不变量与精度合同。

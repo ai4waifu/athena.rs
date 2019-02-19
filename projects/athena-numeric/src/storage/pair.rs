@@ -69,21 +69,29 @@ impl MagnitudePair {
         }
     }
 
-    /// 由至多 4 个小端 limb 构造（trim 后选 mode；3–4 limb 才进 Heap）。
+    /// 由 trim 后至多 2 个小端 limb 构造（Zero / Limb1 / Limb2，**不经堆**）。
+    ///
+    /// 调用方必须保证 `effective_len(limbs) ≤ 2`。更长幅度只能走 [`Self::from_limbs_in`]。
     #[inline]
-    pub(crate) fn from_fixed_limbs(limbs: &[u64]) -> Self {
-        debug_assert!(limbs.len() <= 4);
-        Self::from_limbs(limbs)
+    pub(crate) fn from_inline_limbs(limbs: &[u64]) -> Self {
+        let el = effective_len(limbs);
+        debug_assert!(el <= 2, "from_inline_limbs requires effective_len ≤ 2");
+        match el {
+            0 => Self::zero(),
+            1 => Self::from_u64(limbs[0]),
+            _ => Self::from_limb2([limbs[0], limbs[1]]),
+        }
     }
 
-    /// 由小端 limbs 构造（trim 后选 mode）。
-    ///
-    /// Heap 幅度经线程默认登记 heap 分配（convenience）。生产路径请用 [`Self::from_limbs_in`]。
-    pub(crate) fn from_limbs(limbs: &[u64]) -> Self {
-        Self::from_limbs_in(&GcHeap::shared_default(), limbs).unwrap_or_else(|e| panic!("gc numeric alloc failed: {e}"))
+    /// 由至多 2 个有效小端 limb 构造（executor 固定宽度 ≤ Limb2 结果）。
+    #[inline]
+    pub(crate) fn from_fixed_limbs(limbs: &[u64]) -> Self {
+        Self::from_inline_limbs(limbs)
     }
 
     /// 由小端 limbs 构造，分配到指定 heap。
+    ///
+    /// trim 后 ≤ 2 limb 不分配；更长幅度是**唯一**可进 Heap 的正式构造路径。
     pub(crate) fn from_limbs_in(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64]) -> athena_gc::Result<Self> {
         let el = effective_len(limbs);
         match el {
@@ -317,6 +325,17 @@ impl Default for MagnitudePair {
     }
 }
 
+/// Owning clone of the physical pair.
+///
+/// Limb1 / Limb2 are infallible copies. **Heap mode allocates** on the owner
+/// heap and copies limbs (GC allocation + memcpy, not algorithm cost). Prefer
+/// borrowed limb views on arithmetic hot paths.
+///
+/// # Panic
+///
+/// Heap clone panics if the owner-heap allocation fails. This is a known
+/// contract debt of public `Natural` / `Integer` `Clone` until arithmetic
+/// ownership uses borrowed views and context-aware publish.
 impl Clone for MagnitudePair {
     fn clone(&self) -> Self {
         match self.mode() {
