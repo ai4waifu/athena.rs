@@ -6,37 +6,37 @@ use athena_numeric::{
 };
 
 #[test]
-fn pure_rust_context_binds_pure_kernel_table() {
-    let ctx = NumericContext::pure_rust_default();
-    assert_eq!(ctx.kernels().id(), "pure_rust");
-    assert_eq!(ctx.capabilities().machine, MachineCapability::PURE_RUST);
+fn portable_context_binds_portable_kernel_table() {
+    let ctx = NumericContext::portable_default();
+    assert_eq!(ctx.kernels().id(), "portable");
+    assert_eq!(ctx.capabilities().machine, MachineCapability::PORTABLE);
 }
 
 #[test]
 fn capability_bundle_selects_kernel_at_context_creation() {
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let mut caps = CapabilityBundle::pure_rust_default();
+    let mut caps = CapabilityBundle::portable_default();
     caps.machine.adx = true;
     let ctx = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps);
     #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
     assert_eq!(ctx.kernels().id(), "x86_64_adx");
     #[cfg(not(all(target_arch = "x86_64", not(target_family = "wasm"))))]
-    assert_eq!(ctx.kernels().id(), "pure_rust");
+    assert_eq!(ctx.kernels().id(), "portable");
 }
 
 #[test]
 fn pure_and_bound_tables_agree_on_add_mul() {
-    let pure = KernelTable::pure_rust();
-    let bound = KernelTable::bind(MachineCapability { adx: true, bmi2: true, ..MachineCapability::PURE_RUST });
+    let pure = KernelTable::portable();
+    let bound = KernelTable::bind(MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE });
 
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_pure_rust_kernels();
+    let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_portable_kernels();
     let ctx_isa = NumericContext::with_capabilities(
         ExecutionBudget::unlimited(),
         heap,
         CapabilityBundle {
-            machine: MachineCapability { adx: true, bmi2: true, ..MachineCapability::PURE_RUST },
-            ..CapabilityBundle::pure_rust_default()
+            machine: MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE },
+            ..CapabilityBundle::portable_default()
         },
     );
 
@@ -79,7 +79,7 @@ fn algorithm_planner_picks_karatsuba_and_toom_by_width() {
         AlgorithmPlanner, DIV_BZ_THRESHOLD, DivStrategy, MUL_KARATSUBA_THRESHOLD, MUL_TOOM_THRESHOLD, MulStrategy,
     };
 
-    let planner = AlgorithmPlanner::new(CapabilityBundle::pure_rust_default());
+    let planner = AlgorithmPlanner::new(CapabilityBundle::portable_default());
     assert_eq!(planner.plan_mul(1, 1), MulStrategy::Schoolbook);
     assert_eq!(planner.plan_mul(MUL_KARATSUBA_THRESHOLD, MUL_KARATSUBA_THRESHOLD), MulStrategy::Karatsuba);
     assert_eq!(planner.plan_mul(MUL_TOOM_THRESHOLD, MUL_TOOM_THRESHOLD), MulStrategy::Toom3);
@@ -98,7 +98,7 @@ fn toom_width_mul_matches_schoolbook() {
     let prod = a.try_mul(&b, &ctx).expect("mul");
 
     // 对照：强制仅 schoolbook（关闭 karatsuba/toom）。
-    let mut caps = CapabilityBundle::pure_rust_default();
+    let mut caps = CapabilityBundle::portable_default();
     caps.algorithm.karatsuba = false;
     caps.algorithm.toom = false;
     let heap = GcHeap::new_shared(HeapBudget::default());

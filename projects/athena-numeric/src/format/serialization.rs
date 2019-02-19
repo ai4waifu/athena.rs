@@ -107,7 +107,7 @@ impl NumericValueWire {
                 .detail("operation", "serialize_version")
                 .arg("version", u64::from(self.version.0)));
         }
-        if self.payload.len() as u32 > crate::kernel::PURE_RUST_WIRE_PAYLOAD_LIMIT_BYTES {
+        if self.payload.len() as u32 > crate::dispatch::PORTABLE_WIRE_PAYLOAD_LIMIT_BYTES {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
                 .detail("domain", "numeric")
                 .detail("operation", "wire_payload_limit"));

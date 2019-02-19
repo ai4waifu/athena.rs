@@ -79,7 +79,7 @@ impl BenchLayer {
 pub enum ContextPolicy {
     /// 迭代外构造一次，热路径 `try_*`。
     Reused,
-    /// 每次公共 API 自行 `pure_rust_default()`。
+    /// 每次公共 API 自行 `portable_default()`。
     PerCall,
 }
 

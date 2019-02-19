@@ -205,7 +205,7 @@ impl Rational {
 
     /// 加法（合并前交叉约去 `gcd(b,d)`；默认上下文）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
@@ -235,7 +235,7 @@ impl Rational {
 
     /// 乘法（乘积前交叉约分；默认上下文）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
@@ -247,7 +247,7 @@ impl Rational {
 
     /// 除法（交叉约分后做 `a/b * d/c`；默认上下文）。
     pub fn try_div(&self, rhs: &Self) -> Result<Self, Diagnostic> {
-        self.try_div_ctx(rhs, &NumericContext::pure_rust_default())
+        self.try_div_ctx(rhs, &NumericContext::portable_default())
     }
 
     /// 除法（服从 `ctx` 预算）。

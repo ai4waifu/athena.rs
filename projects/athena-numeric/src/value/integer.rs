@@ -166,7 +166,7 @@ impl Integer {
 
     /// 非负最大公约数；`gcd(0,0) = 0`（默认上下文）。
     pub fn gcd(&self, other: &Self) -> Self {
-        self.try_gcd(other, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_gcd(other, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 非负最大公约数（服从 `ctx` 预算）。
@@ -181,9 +181,9 @@ impl Integer {
         Ok(Self::from_positive_natural(g))
     }
 
-    /// 加法（默认 [`NumericContext::pure_rust_default`]）。
+    /// 加法（默认 [`NumericContext::portable_default`]）。
     pub fn add(&self, rhs: &Self) -> Self {
-        self.try_add(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_add(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 加法（服从 `ctx` 预算）。
@@ -223,7 +223,7 @@ impl Integer {
 
     /// 乘法（默认上下文）。
     pub fn mul(&self, rhs: &Self) -> Self {
-        self.try_mul(rhs, &NumericContext::pure_rust_default()).expect("pure-rust default max_limbs unbounded")
+        self.try_mul(rhs, &NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
     /// 乘法（服从 `ctx` 预算）。
@@ -238,7 +238,7 @@ impl Integer {
 
     /// 向零整除：商向零，余数与被除数同号（默认上下文）。
     pub fn div_rem_trunc(&self, rhs: &Self) -> Result<(Self, Self)> {
-        self.try_div_rem_trunc(rhs, &NumericContext::pure_rust_default())
+        self.try_div_rem_trunc(rhs, &NumericContext::portable_default())
     }
 
     /// 向零整除（服从 `ctx` 预算）。
@@ -255,7 +255,7 @@ impl Integer {
 
     /// Euclidean 整除：余数满足 `0 <= r < |rhs|`（默认上下文）。
     pub fn div_rem_euclid(&self, rhs: &Self) -> Result<(Self, Self)> {
-        self.try_div_rem_euclid(rhs, &NumericContext::pure_rust_default())
+        self.try_div_rem_euclid(rhs, &NumericContext::portable_default())
     }
 
     /// Euclidean 整除（服从 `ctx` 预算）。
@@ -299,7 +299,7 @@ impl Integer {
     ///
     /// 负指数暂不支持（返回诊断，不静默返零）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Result<Self> {
-        self.try_mod_pow(exp, modulus, &NumericContext::pure_rust_default())
+        self.try_mod_pow(exp, modulus, &NumericContext::portable_default())
     }
 
     /// 模幂（服从 `ctx` 预算）。

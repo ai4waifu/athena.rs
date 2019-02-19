@@ -15,8 +15,8 @@ fn budget_rejects_excessive_limbs() {
 }
 
 #[test]
-fn numeric_context_pure_rust_default_has_wire_limit() {
-    let ctx = NumericContext::pure_rust_default();
+fn numeric_context_portable_default_has_wire_limit() {
+    let ctx = NumericContext::portable_default();
     assert!(ctx.budget().max_wire_payload_bytes().is_some());
 }
 

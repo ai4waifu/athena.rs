@@ -52,7 +52,7 @@ pub use athena_numeric::{
     BarrettParams, ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusBinding,
     ModulusContext, ModulusTable, MontgomeryParams, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
     NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus,
-    PureRustBackend, Rational, number_from_wire,
+    PortableBackend, Rational, number_from_wire,
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{

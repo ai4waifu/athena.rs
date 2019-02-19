@@ -1,7 +1,7 @@
 //! Portable (ISA-agnostic) limb kernel.
 //!
 //! Split by algorithm family. Default machine-kernel path for `limb` and
-//! `KernelTable::pure_rust` binding.
+//! `KernelTable::portable` binding.
 
 #![allow(unused_imports)] // module facade re-exports for `kernel::limb`
 

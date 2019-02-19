@@ -48,7 +48,7 @@ cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint
 覆盖 `add` / `mul` / `div` / `gcd` / `pow`，位宽 `64 / 256 / 1024 / 4096`。报告在 `target/criterion/`（含 HTML）。
 
 Athena 热路径在迭代外复用同一个 `NumericContext`，调用 `try_add` / `try_mul` / …，
-**不**把每次 `Integer::add` 里重建 `pure_rust_default()` 算进算法时间。仍走完整
+**不**把每次 `Integer::add` 里重建 `portable_default()` 算进算法时间。仍走完整
 `Integer` 幅度运算与 heap 发布，不按位宽切换 kernel 快路径。
 
 外部 bigint 依赖仅挂在本 crate 的可选 `compare-*` feature 上， **不得**回流到 `athena-types` / `athena-numeric` /
