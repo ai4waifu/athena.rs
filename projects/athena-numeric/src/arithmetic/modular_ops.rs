@@ -18,7 +18,7 @@ fn power_of_two_natural(bits: u32) -> Natural {
     let bit_in_limb = bits % 64;
     let mut limbs = vec![0u64; limb_idx + 1];
     limbs[limb_idx] = 1u64 << bit_in_limb;
-    Natural::from_limbs(limbs)
+    Natural::from_limbs(limbs).expect("gc numeric alloc")
 }
 
 fn barrett_mod_natural(a: &Natural, b: &Natural, modulus: &Natural, mu: &Natural, k: u32) -> Natural {
@@ -44,7 +44,7 @@ impl ModulusContext {
         if let Some(mp) = &self.montgomery {
             let prod =
                 limb_kernel::mul_mod_montgomery_precomputed(aa_mag.as_limbs(), bb_mag.as_limbs(), mag.as_limbs(), mp.n_prime);
-            return Integer::from_positive_natural(Natural::from_limbs(prod));
+            return Integer::from_positive_natural(Natural::from_limbs(prod).expect("gc numeric alloc"));
         }
         if let Some(bp) = &self.barrett {
             let r = barrett_mod_natural(&aa_mag, &bb_mag, &mag, &bp.mu, bp.k);
@@ -69,7 +69,7 @@ impl ModulusContext {
                 mp.n_prime,
                 mp.r2.as_limbs(),
             );
-            return Integer::from_positive_natural(Natural::from_limbs(out));
+            return Integer::from_positive_natural(Natural::from_limbs(out).expect("gc numeric alloc"));
         }
         Integer::from_positive_natural(base_mag.mod_pow(&exp_mag, &mag))
     }

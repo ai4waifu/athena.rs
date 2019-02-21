@@ -28,8 +28,8 @@ fn try_mul_respects_context_max_limbs() {
         max_wire_payload_bytes: None,
         max_pow_exp: None,
     });
-    let a = Natural::from_limbs(vec![u64::MAX, u64::MAX]);
-    let b = Natural::from_limbs(vec![u64::MAX, u64::MAX]);
+    let a = Natural::from_limbs(vec![u64::MAX, u64::MAX]).unwrap();
+    let b = Natural::from_limbs(vec![u64::MAX, u64::MAX]).unwrap();
     let err = a.try_mul(&b, &ctx).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_RESOURCE_LIMIT");
 }

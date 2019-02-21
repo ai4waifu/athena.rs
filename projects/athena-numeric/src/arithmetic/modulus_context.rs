@@ -32,7 +32,7 @@ fn power_of_two_natural(bits: u32) -> Natural {
     let bit_in_limb = bits % 64;
     let mut limbs = vec![0u64; limb_idx + 1];
     limbs[limb_idx] = 1u64 << bit_in_limb;
-    Natural::from_limbs(limbs)
+    Natural::from_limbs(limbs).expect("gc numeric alloc")
 }
 
 pub(crate) fn montgomery_for_modulus(modulus: &Modulus) -> Option<MontgomeryParams> {
@@ -44,7 +44,10 @@ pub(crate) fn montgomery_for_modulus(modulus: &Modulus) -> Option<MontgomeryPara
         return None;
     }
     let (n_prime, r2_limbs) = limb_kernel::montgomery_precompute(mag.as_limbs());
-    Some(MontgomeryParams { n_prime, r2: Natural::from_limbs(r2_limbs) })
+    Some(MontgomeryParams {
+        n_prime,
+        r2: Natural::from_limbs(r2_limbs).expect("gc numeric alloc"),
+    })
 }
 
 pub(crate) fn barrett_for_modulus(modulus: &Modulus) -> BarrettParams {

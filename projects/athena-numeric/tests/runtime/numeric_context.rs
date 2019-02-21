@@ -75,8 +75,8 @@ fn with_gc_scratch_rewinds_to_entry_mark() {
 #[test]
 fn heap_try_mul_respects_cancel_at_entry() {
     let limbs = vec![u64::MAX; 8];
-    let a = Natural::from_limbs(limbs.clone());
-    let b = Natural::from_limbs(limbs);
+    let a = Natural::from_limbs(limbs.clone()).unwrap();
+    let b = Natural::from_limbs(limbs).unwrap();
     let ctx = NumericContext::unlimited();
     ctx.cancel();
     let err = a.try_mul(&b, &ctx).unwrap_err();
