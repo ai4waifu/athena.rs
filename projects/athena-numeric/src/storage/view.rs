@@ -1,6 +1,6 @@
 //! 一次分派后的 limb 视图（不拥有所有权）。
 
-/// 只读 kernel 视图：`ptr + len`。
+/// 只读 kernel 视图：ptr + len。
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct LimbView<'a> {
     limbs: &'a [u64],
@@ -48,5 +48,35 @@ impl<'a> MutableLimbView<'a> {
     #[inline]
     pub(crate) fn as_mut_slice(self) -> &'a mut [u64] {
         self.limbs
+    }
+}
+
+/// 宽度分类（由 limb 切片导出，等价于 mode 分派）。
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum LimbWidth<'a> {
+    /// 逻辑零。
+    Zero,
+    /// 单 limb。
+    Limb1(u64),
+    /// 双 limb（高位非零）。
+    Limb2([u64; 2]),
+    /// ≥3 limb（借自调用方）。
+    Wide(&'a [u64]),
+}
+
+impl<'a> LimbWidth<'a> {
+    /// 由小端 limbs 分类（自动 trim 尾随零；`[0]` → Zero）。
+    #[inline]
+    pub(crate) fn classify(limbs: &'a [u64]) -> Self {
+        if limbs.is_empty() || crate::kernel::limb::is_zero(limbs) {
+            return Self::Zero;
+        }
+        let n = crate::kernel::limb::effective_len(limbs);
+        match n {
+            0 => Self::Zero,
+            1 => Self::Limb1(limbs[0]),
+            2 => Self::Limb2([limbs[0], limbs[1]]),
+            _ => Self::Wide(&limbs[..n]),
+        }
     }
 }
