@@ -1,4 +1,48 @@
-//! Toom-3 (Bodrato) five-point multiplication.
+//! # Purpose
+//! Toom-3 (Bodrato) multiplication via five-point evaluation / interpolation.
+//!
+//! # Mathematical model
+//! View each operand as a degree-2 polynomial over radix $X=\beta^m$:
+//! $A(X)=a_0+a_1 X+a_2 X^2$. The product $C(X)=A(X)B(X)$ has degree 4, so
+//! five independent evaluations determine it uniquely.
+//!
+//! # Derivation
+//! Evaluation points $0,1,-1,2,\infty$:
+//! - $0$ → lowest block $a_0 b_0$
+//! - $\infty$ → leading blocks $a_2 b_2$ (homogeneous highest coefficient)
+//! - $1$ and $-1$ separate even/odd combinations cheaply
+//! - $2$ adds a third nonzero finite point without needing large multipliers
+//!
+//! Bodrato interpolation recovers coefficients using exact divisions by 2 and 3
+//! (limb shifts / exact divexact). A nonzero remainder means the evaluation
+//! arithmetic or scratch layout is wrong — not a recoverable runtime error.
+//!
+//! # Algorithm steps
+//! 1. If width < MUL_TOOM_THRESHOLD, fall back to Karatsuba (mul_rec).
+//! 2. split_three into $a_0,a_1,a_2$ / $b_0,b_1,b_2$.
+//! 3. Evaluate both operands at the five points (signed handling at $-1$).
+//! 4. Five recursive products via mul_rec.
+//! 5. 	oom_interpolate_bodrato → recompose into out at shifts $0..4m$.
+//!
+//! # Preconditions
+//! - out.len() >= la+lb; scratch sized by 	oom3_scratch_limbs.
+//! - Planner should reject tiny / badly unbalanced pairs.
+//!
+//! # Postconditions
+//! - out equals $a \cdot b$ as integers.
+//!
+//! # Complexity
+//! $\Theta(n^{\log_3 5})$ for balanced large $n$, with large constant factors.
+//!
+//! # Crossover
+//! MUL_TOOM_THRESHOLD and capability 	oom gate selection in AlgorithmPlanner.
+//!
+//! # Failure modes
+//! Exact-div asserts on 2/3; scratch underrun; signed $-1$ eval must track sign.
+//!
+//! # Tests
+//! 	ests/exact/algorithms.rs (	oom_matches_schoolbook_capability_gate),
+//! 	ests/runtime/kernel_parity.rs.
 
 use std::cmp::Ordering;
 

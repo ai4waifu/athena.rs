@@ -1,4 +1,40 @@
-//! Karatsuba recursive multiplication.
+//! # Purpose
+//! Karatsuba divide-and-conquer multiplication on limb slices.
+//!
+//! # Mathematical model
+//! Split $A = A_0 + A_1 \beta^m$, $B = B_0 + B_1 \beta^m$. Three products
+//! $Z_0=A_0 B_0$, $Z_2=A_1 B_1$, $Z_1=(A_0+A_1)(B_0+B_1)-Z_0-Z_2$ rebuild
+//! $A B = Z_0 + Z_1 \beta^m + Z_2 \beta^{2m}$.
+//!
+//! # Derivation
+//! From $(A_0+A_1)(B_0+B_1) = A_0 B_0 + A_0 B_1 + A_1 B_0 + A_1 B_1$, subtract
+//! $Z_0$ and $Z_2$ to isolate the cross term with one multiply instead of two.
+//!
+//! # Algorithm steps
+//! 1. If max(la,lb) < MUL_KARATSUBA_THRESHOLD, fall back to schoolbook.
+//! 2. Split at $m = \lceil n/2 \rceil$.
+//! 3. Recurse for $Z_0$, $Z_2$, and the sum-product into scratch layout.
+//! 4. Form $Z_1$ by in-place subtract; recompose with limb shifts.
+//!
+//! # Preconditions
+//! - out.len() >= la+lb; scratch sized by karatsuba_scratch_limbs.
+//! - Caller zeros or accepts that this function clears out.
+//!
+//! # Postconditions
+//! - out is the product (possibly with high zero limbs).
+//!
+//! # Complexity
+//! Recurrence $T(n)=3T(n/2)+O(n)$ → $\Theta(n^{\log_2 3})$ for balanced inputs.
+//!
+//! # Crossover
+//! Planner selects Karatsuba above MUL_KARATSUBA_THRESHOLD and below Toom.
+//! Unbalanced or short inputs lose to schoolbook due to split/recombine overhead.
+//!
+//! # Failure modes
+//! Scratch underrun debug_assert. Recursive leaves must clear temporary out slices.
+//!
+//! # Tests
+//! 	ests/exact/algorithms.rs, 	ests/runtime/kernel_parity.rs.
 
 use crate::algorithm::MUL_KARATSUBA_THRESHOLD;
 
