@@ -113,10 +113,33 @@ impl FixtureMeta {
             gc_mode: None,
         }
     }
+
+    /// Path 分段：强制标注 layer / context / gc（Living `15`/`18`，禁止互冒）。
+    pub fn path(
+        id: &'static str,
+        scale: &'static str,
+        domain: &'static str,
+        layer: BenchLayer,
+        context_policy: ContextPolicy,
+        gc_mode: &'static str,
+    ) -> Self {
+        Self {
+            id,
+            group: BenchGroup::Path,
+            scale,
+            domain,
+            layer: Some(layer),
+            context_policy: Some(context_policy),
+            implementation: Some("athena"),
+            operation: None,
+            bits: if scale == "4_limbs" { Some(256) } else { None },
+            gc_mode: Some(gc_mode),
+        }
+    }
 }
 
-/// 单个确定性基准。
-pub trait Fixture: Send {
+/// 单个确定性基准（单线程 suite；可持有 `Rc` context）。
+pub trait Fixture {
     /// 元数据。
     fn meta(&self) -> FixtureMeta;
 
