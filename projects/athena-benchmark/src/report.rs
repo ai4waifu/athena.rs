@@ -122,8 +122,38 @@ impl Report {
             self.fixtures.len()
         );
 
+        let path_rows: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group == "path").collect();
         let bigint: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group == "bigint").collect();
-        let other: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group != "bigint").collect();
+        let other: Vec<&FixtureReport> =
+            self.fixtures.iter().filter(|f| f.group != "bigint" && f.group != "path").collect();
+
+        if !path_rows.is_empty() {
+            out.push_str("## path segments（Living 18）\n\n");
+            out.push_str("| id | layer | ctx | gc | ns/op | notes |\n|---|---|---|---|---:|---|\n");
+            for f in path_rows {
+                let ns_op = f
+                    .p50_ns
+                    .map(|n| format!("{}", n / u64::from(crate::groups::path::PATH_BATCH.max(1))))
+                    .unwrap_or_else(|| "—".into());
+                let notes = if f.skipped {
+                    f.fallback_reason.as_deref().unwrap_or("skipped")
+                }
+                else {
+                    f.validation.notes.as_str()
+                };
+                let _ = writeln!(
+                    out,
+                    "| `{}` | {} | {} | {} | {} | {} |",
+                    f.id,
+                    f.layer.map(|l| l.as_str()).unwrap_or("-"),
+                    f.context_policy.map(|c| c.as_str()).unwrap_or("-"),
+                    f.gc_mode.as_deref().unwrap_or("?"),
+                    ns_op,
+                    notes
+                );
+            }
+            out.push('\n');
+        }
 
         if !bigint.is_empty() {
             out.push_str("## bigint matrix\n\n");
@@ -132,7 +162,7 @@ impl Report {
 
         if !other.is_empty() {
             out.push_str("## other fixtures\n\n");
-            out.push_str("| id | tier | gc | p50 | notes |\n|---|---|---|---:|---|\n");
+            out.push_str("| id | layer | ctx | gc | p50 | notes |\n|---|---|---|---|---:|---|\n");
             for f in other {
                 let p50 = f.p50_ns.map(format_ns).unwrap_or_else(|| "—".into());
                 let notes = if f.skipped {
@@ -143,9 +173,10 @@ impl Report {
                 };
                 let _ = writeln!(
                     out,
-                    "| `{}` | {} | {} | {} | {} |",
+                    "| `{}` | {} | {} | {} | {} | {} |",
                     f.id,
-                    f.report_tier.map(|t| t.as_str()).unwrap_or("?"),
+                    f.layer.map(|l| l.as_str()).unwrap_or("-"),
+                    f.context_policy.map(|c| c.as_str()).unwrap_or("-"),
                     f.gc_mode.as_deref().unwrap_or("?"),
                     p50,
                     notes
@@ -223,7 +254,7 @@ fn render_bigint_markdown(rows: &[&FixtureReport]) -> String {
 
             if layer == BenchLayer::Numeric {
                 out.push_str("| bits | athena | num | ibig | malachite |\n|-----:|-------:|----:|-----:|----------:|\n");
-                for bit in bits {
+                for &bit in &bits {
                     let ath = find_p50(rows, op, bit, "athena", Some(BenchLayer::Numeric));
                     let num = find_p50(rows, op, bit, "num", Some(BenchLayer::Peer));
                     let ibig = find_p50(rows, op, bit, "ibig", Some(BenchLayer::Peer));
@@ -243,9 +274,9 @@ fn render_bigint_markdown(rows: &[&FixtureReport]) -> String {
                 for bit in &bits {
                     let _ = write!(out, "{bit} | ");
                 }
-                out.push('\n|---|');
+                out.push_str("\n|---|");
                 for _ in &bits {
-                    out.push("---:|");
+                    out.push_str("---:|");
                 }
                 out.push('\n');
                 for lib in ["athena", "num", "ibig", "malachite"] {

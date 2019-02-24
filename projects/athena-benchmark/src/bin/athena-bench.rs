@@ -4,7 +4,7 @@ use std::{path::PathBuf, process::ExitCode};
 
 use athena_benchmark::{
     fixture::{BenchGroup, RunConfig},
-    groups::default_suite,
+    groups::{default_suite, path::PATH_BATCH, suite_with_bigint},
     report::ReportTier,
     run_suite,
 };
@@ -32,6 +32,10 @@ struct Args {
     /// 输出格式：text / json / markdown（可与 `--write` 联用）
     #[arg(long, default_value = "text")]
     format: String,
+
+    /// Path 分段 text 输出按单次 op 归一化时的 batch（须与 `path::PATH_BATCH` 一致）
+    #[arg(long, default_value_t = PATH_BATCH)]
+    path_batch: u32,
 
     /// 写入报告文件（`.json` → JSON，其它 → Markdown）；省略则打印到 stdout
     #[arg(long)]
@@ -67,9 +71,11 @@ fn main() -> ExitCode {
 
     let format = if args.json { "json" } else { args.format.as_str() };
 
-    let config = RunConfig { groups, warmup: args.warmup, samples: args.samples, report_tier };
+    let config = RunConfig { groups: groups.clone(), warmup: args.warmup, samples: args.samples, report_tier };
 
-    let suite = default_suite();
+    let want_bigint = groups.is_empty() || groups.iter().any(|g| *g == BenchGroup::Bigint);
+    let suite = if want_bigint { suite_with_bigint() } else { default_suite() };
+
     match run_suite(&suite, &config) {
         Ok(report) => {
             if let Some(path) = &args.write {
@@ -107,21 +113,36 @@ fn main() -> ExitCode {
                             report.env.threads,
                             report.env.jit_enabled
                         );
+                        let batch = u64::from(args.path_batch.max(1));
                         for f in &report.fixtures {
                             if f.skipped {
-                                println!("  SKIP  {:<40}  ({})", f.id, f.fallback_reason.as_deref().unwrap_or("skipped"));
-                            }
-                            else {
                                 println!(
-                                    "  OK    {:<40}  layer={}  ctx={}  gc={}  p50={}  {}",
+                                    "  SKIP  {:<40}  ({})",
                                     f.id,
-                                    f.layer.map(|l| l.as_str()).unwrap_or("-"),
-                                    f.context_policy.map(|c| c.as_str()).unwrap_or("-"),
-                                    f.gc_mode.as_deref().unwrap_or("?"),
-                                    f.p50_ns.map(|n| n.to_string()).unwrap_or_else(|| "-".into()),
-                                    f.validation.notes
+                                    f.fallback_reason.as_deref().unwrap_or("skipped")
                                 );
+                                continue;
                             }
+                            let p50 = f
+                                .p50_ns
+                                .map(|n| {
+                                    if f.group == "path" {
+                                        format!("{}ns/op", n / batch)
+                                    }
+                                    else {
+                                        format!("{n}ns")
+                                    }
+                                })
+                                .unwrap_or_else(|| "-".into());
+                            println!(
+                                "  OK    {:<40}  layer={}  ctx={}  gc={}  p50={}  {}",
+                                f.id,
+                                f.layer.map(|l| l.as_str()).unwrap_or("-"),
+                                f.context_policy.map(|c| c.as_str()).unwrap_or("-"),
+                                f.gc_mode.as_deref().unwrap_or("?"),
+                                p50,
+                                f.validation.notes
+                            );
                         }
                     }
                 }
