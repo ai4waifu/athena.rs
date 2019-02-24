@@ -27,6 +27,19 @@ impl Default for HeapBudget {
 }
 
 impl HeapBudget {
+    /// Criterion / 长迭代微基准用：仍强制检查，但抬高上限。
+    ///
+    /// bump arena 在 `Disabled` 下不会因 Drop 回退指针；操作数常驻时 ephemeral 结果会打出空洞并推进
+    /// `used`，默认 256 MiB 会在 Criterion 百万次迭代中触顶。微基准不得静默关掉预算，只抬天花板。
+    pub fn for_microbench() -> Self {
+        Self {
+            max_arena_bytes: 16 * 1024 * 1024 * 1024,
+            max_segment_count: 1_048_576,
+            max_limbs: usize::MAX / 16,
+            max_scratch_bytes: 1024 * 1024 * 1024,
+        }
+    }
+
     /// 检查新增 arena 字节后是否超限。
     pub fn check_arena_bytes(&self, current: usize, additional: usize) -> Result<()> {
         let total = current.checked_add(additional).ok_or(GcError::InvalidCapacity)?;

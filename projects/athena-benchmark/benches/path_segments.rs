@@ -32,7 +32,7 @@ fn stack_add4(a: &[u64; 4], b: &[u64; 4]) -> [u64; 5] {
 }
 
 fn make_ctx(mode: GcMode) -> NumericContext {
-    let heap = GcHeap::new_shared(HeapBudget::default());
+    let heap = GcHeap::new_shared(HeapBudget::for_microbench());
     heap.borrow().gc().set_base_mode(mode);
     NumericContext::with_heap(ExecutionBudget::unlimited(), heap)
 }
