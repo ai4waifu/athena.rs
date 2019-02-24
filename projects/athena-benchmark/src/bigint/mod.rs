@@ -1,6 +1,7 @@
 //! 统一 bigint 对照：输入、操作、分层与运行器。
 //!
-//! `athena-bench` 与 Criterion `compare_bigint` 共用本模块；后者只做计时适配。
+//! - `athena-bench`：校验矩阵 + 资源采样（不计时）
+//! - Criterion `compare_bigint`：唯一 ns/op 计时入口
 
 mod case;
 mod operands;
