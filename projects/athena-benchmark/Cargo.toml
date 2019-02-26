@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena kernel benchmarks — deterministic fixtures and machine-readable reports"
+description = "Athena kernel contract fixtures and Criterion performance benches"
 publish = false
 
 [[bin]]
@@ -15,6 +15,10 @@ path = "src/bin/athena-bench.rs"
 name = "compare_bigint"
 harness = false
 required-features = ["compare-bigint"]
+
+[[bench]]
+name = "path_segments"
+harness = false
 
 [features]
 default = []

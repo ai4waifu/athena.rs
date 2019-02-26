@@ -1,29 +1,31 @@
-//! `athena-bench` — Athena 内核基准 CLI（JSON / Markdown 报告由 Rust 直接生成）。
+//! `athena-bench` — Athena 内核合同 / 资源 runner（**不计时**）。
+//!
+//! 性能 ns/op 请用 Criterion：
+//! `cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint`
 
 use std::{path::PathBuf, process::ExitCode};
 
 use athena_benchmark::{
     fixture::{BenchGroup, RunConfig},
-    groups::{default_suite, path::PATH_BATCH, suite_with_bigint},
+    groups::{default_suite, suite_with_bigint},
     report::ReportTier,
     run_suite,
 };
 use clap::Parser;
 
 #[derive(Debug, Parser)]
-#[command(name = "athena-bench", about = "Athena 内核基准（确定性 fixture + 内置报告）")]
+#[command(
+    name = "athena-bench",
+    about = "Athena 合同 / 资源 runner（校验 + GC/arena 采样；ns/op 见 Criterion）"
+)]
 struct Args {
     /// 逗号分隔分组：numeric,bigint,path,ir,rewriter,engine,domains,jit,infra（默认全部）
     #[arg(long, value_delimiter = ',')]
     groups: Vec<String>,
 
-    /// 每个 fixture 的预热次数
+    /// 校验通过后冒烟执行 `run_once` 的次数（不计时）
     #[arg(long, default_value_t = 3)]
-    warmup: usize,
-
-    /// 每个 fixture 的计时采样次数
-    #[arg(long, default_value_t = 25)]
-    samples: usize,
+    smoke_iters: usize,
 
     /// 非 bigint fixture 的默认分层：kernel / arena / end_to_end
     #[arg(long, default_value = "end_to_end")]
@@ -32,10 +34,6 @@ struct Args {
     /// 输出格式：text / json / markdown（可与 `--write` 联用）
     #[arg(long, default_value = "text")]
     format: String,
-
-    /// Path 分段 text 输出按单次 op 归一化时的 batch（须与 `path::PATH_BATCH` 一致）
-    #[arg(long, default_value_t = PATH_BATCH)]
-    path_batch: u32,
 
     /// 写入报告文件（`.json` → JSON，其它 → Markdown）；省略则打印到 stdout
     #[arg(long)]
@@ -71,7 +69,11 @@ fn main() -> ExitCode {
 
     let format = if args.json { "json" } else { args.format.as_str() };
 
-    let config = RunConfig { groups: groups.clone(), warmup: args.warmup, samples: args.samples, report_tier };
+    let config = RunConfig {
+        groups: groups.clone(),
+        smoke_iters: args.smoke_iters,
+        report_tier,
+    };
 
     let want_bigint = groups.is_empty() || groups.iter().any(|g| *g == BenchGroup::Bigint);
     let suite = if want_bigint { suite_with_bigint() } else { default_suite() };
@@ -106,14 +108,14 @@ fn main() -> ExitCode {
                 "text" => {
                     if args.write.is_none() {
                         println!(
-                            "athena-bench  commit={}  rustc={}  target={}  threads={}  jit={}",
+                            "athena-bench (contract)  commit={}  rustc={}  target={}  threads={}  jit={}",
                             report.env.commit.as_deref().unwrap_or("?"),
                             report.env.rustc.as_deref().unwrap_or("?"),
                             report.env.target_triple,
                             report.env.threads,
                             report.env.jit_enabled
                         );
-                        let batch = u64::from(args.path_batch.max(1));
+                        println!("  note: no ns/op here — use Criterion (`cargo bench`) for performance");
                         for f in &report.fixtures {
                             if f.skipped {
                                 println!(
@@ -123,24 +125,15 @@ fn main() -> ExitCode {
                                 );
                                 continue;
                             }
-                            let p50 = f
-                                .p50_ns
-                                .map(|n| {
-                                    if f.group == "path" {
-                                        format!("{}ns/op", n / batch)
-                                    }
-                                    else {
-                                        format!("{n}ns")
-                                    }
-                                })
-                                .unwrap_or_else(|| "-".into());
+                            let status = if f.validation.ok { "OK" } else { "FAIL" };
                             println!(
-                                "  OK    {:<40}  layer={}  ctx={}  gc={}  p50={}  {}",
+                                "  {status:<4}  {:<40}  layer={}  ctx={}  gc={}  arena={}  scratch={}  {}",
                                 f.id,
                                 f.layer.map(|l| l.as_str()).unwrap_or("-"),
                                 f.context_policy.map(|c| c.as_str()).unwrap_or("-"),
                                 f.gc_mode.as_deref().unwrap_or("?"),
-                                p50,
+                                f.peak_arena_bytes.map(|n| n.to_string()).unwrap_or_else(|| "-".into()),
+                                f.peak_scratch_bytes.map(|n| n.to_string()).unwrap_or_else(|| "-".into()),
                                 f.validation.notes
                             );
                         }

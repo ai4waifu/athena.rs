@@ -1,6 +1,7 @@
-//! Criterion adapter：调用 `athena_benchmark::bigint` 统一运行器。
+//! Criterion：bigint 矩阵唯一性能计时入口。
 //!
-//! 输入、操作语义、分层与正确性均在 `src/bigint/`；本文件只做 Criterion 计时包装。
+//! Fixture / layer / context / 正确性在 `athena_benchmark::bigint`；本文件只做 Criterion 包装。
+//! `athena-bench` **不再**测量 ns/op。
 //!
 //! ```sh
 //! cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint
@@ -17,6 +18,10 @@ fn bench_op(c: &mut Criterion, op: BigIntOp) {
     let mut group = c.benchmark_group(format!("bigint_{}", op.as_str()));
     for case in cases_for_op(op) {
         let prepared = prepare(case);
+        // 合同校验在热路径外；失败应使 bench 进程直接退出。
+        if let Err(e) = prepared.validate() {
+            panic!("bigint fixture validation failed for {}: {e}", case.id());
+        }
         group.bench_with_input(BenchmarkId::new(case.criterion_function(), case.bits), &prepared, |bencher, prepared| {
             bencher.iter(|| {
                 prepared.run_once();

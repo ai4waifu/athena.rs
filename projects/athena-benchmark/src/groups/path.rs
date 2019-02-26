@@ -2,6 +2,9 @@
 //!
 //! Uses public Athena APIs plus a local stack limb add as a lower-bound reference.
 //! Does **not** add hooks into `athena-numeric`.
+//!
+//! 每个 `run_once` 只执行 **一次** op。合同 runner（`athena-bench`）只做校验 / 冒烟；
+//! 性能 ns/op 由 Criterion `path_segments` bench 测量。
 
 use std::{hint::black_box, str::FromStr};
 
@@ -17,10 +20,6 @@ use crate::{
 const LIMBS4: [u64; 4] = [0x1111_1111_1111_1111, 0x2222_2222_2222_2222, 0x3333_3333_3333_3333, 0x4444_4444_4444_4444];
 const LIMBS4_B: [u64; 4] =
     [0x5555_5555_5555_5555, 0x6666_6666_6666_6666, 0x7777_7777_7777_7777, 0x0000_0000_0000_0001];
-
-/// 每个 `run_once` 内重复次数，摊薄 `Instant` 底噪（text 报告按此归一化为 ns/op）。
-pub const PATH_BATCH: u32 = 2_000;
-const BATCH: u32 = PATH_BATCH;
 
 fn stack_add4(a: &[u64; 4], b: &[u64; 4]) -> [u64; 5] {
     let mut out = [0u64; 5];
@@ -60,9 +59,7 @@ impl Fixture for StackAdd4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "stack add4 floor"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(stack_add4(&LIMBS4, &LIMBS4_B));
-        }
+        black_box(stack_add4(&LIMBS4, &LIMBS4_B));
     }
 }
 
@@ -83,11 +80,9 @@ impl Fixture for AllocBlock4 {
         ))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            let block = self.bundle.ctx.allocate_numeric_block(4).expect("alloc");
-            black_box(block.capacity);
-            self.bundle.ctx.heap().borrow_mut().release_numeric_block(block).expect("release");
-        }
+        let block = self.bundle.ctx.allocate_numeric_block(4).expect("alloc");
+        black_box(block.capacity);
+        self.bundle.ctx.heap().borrow_mut().release_numeric_block(block).expect("release");
     }
 }
 
@@ -106,9 +101,7 @@ impl Fixture for PublishLimbs4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "from_limbs_in"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(Natural::from_limbs_in(&self.bundle.ctx, LIMBS4.to_vec()).expect("publish"));
-        }
+        black_box(Natural::from_limbs_in(&self.bundle.ctx, LIMBS4.to_vec()).expect("publish"));
     }
 }
 
@@ -127,9 +120,7 @@ impl Fixture for CloneHeapNatural {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Natural clone"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.n.clone());
-        }
+        black_box(self.n.clone());
     }
 }
 
@@ -144,11 +135,9 @@ impl Fixture for ScratchFrameEmpty {
         Ok(ValidationSummary::passed(ExactnessKind::Unspecified, DeterminacyKind::Deterministic, "scratch"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            self.bundle.ctx.with_scratch_frame(|scratch, _| {
-                let _ = scratch.mark();
-            });
-        }
+        self.bundle.ctx.with_scratch_frame(|scratch, _| {
+            let _ = scratch.mark();
+        });
     }
 }
 
@@ -172,9 +161,7 @@ impl Fixture for NaturalTryAdd4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Natural::try_add"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.a.try_add(&self.b, &self.bundle.ctx).expect("add"));
-        }
+        black_box(self.a.try_add(&self.b, &self.bundle.ctx).expect("add"));
     }
 }
 
@@ -192,9 +179,7 @@ impl Fixture for IntegerClone4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Integer clone"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.a.clone());
-        }
+        black_box(self.a.clone());
     }
 }
 
@@ -219,9 +204,7 @@ impl Fixture for IntegerTryAdd4 {
         ))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.a.try_add(&self.b, &self.ctx).expect("add"));
-        }
+        black_box(self.a.try_add(&self.b, &self.ctx).expect("add"));
     }
 }
 
@@ -247,9 +230,7 @@ impl Fixture for IntegerTryAddSession4 {
         ))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.a.try_add(&self.b, &self.bundle.ctx).expect("add"));
-        }
+        black_box(self.a.try_add(&self.b, &self.bundle.ctx).expect("add"));
     }
 }
 
@@ -269,9 +250,7 @@ impl Fixture for IntegerAddE2e4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Integer::add"))
     }
     fn run_once(&self) {
-        for _ in 0..BATCH {
-            black_box(self.a.add(&self.b));
-        }
+        black_box(self.a.add(&self.b));
     }
 }
 

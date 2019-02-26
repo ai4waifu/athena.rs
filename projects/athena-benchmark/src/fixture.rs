@@ -1,4 +1,7 @@
 //! Fixture 合同与 suite 编排。
+//!
+//! **不计时。** 性能 ns/op 唯一入口是 Criterion（`cargo bench`）。
+//! 本模块只做正确性校验、layer/context/gc 元数据与资源采样。
 
 use std::fmt;
 
@@ -6,7 +9,6 @@ use crate::{
     bigint::{BenchLayer, ContextPolicy},
     env::BenchEnv,
     report::{FixtureReport, ReportTier},
-    timing::measure,
     validate::ValidationSummary,
 };
 
@@ -148,29 +150,30 @@ pub trait Fixture {
         None
     }
 
-    /// 计时前正确性校验。
+    /// 正确性校验（合同 runner 与 Criterion 热路径前均可调用）。
     fn validate(&self) -> Result<ValidationSummary, String>;
 
-    /// 热路径主体（单次）。
+    /// 热路径主体（**单次 op**）。
+    ///
+    /// 供 Criterion `b.iter` 与合同 runner 的冒烟调用。
+    /// **禁止**在此内嵌计时或自造 batch 归一化；性能统计只交给 Criterion。
     fn run_once(&self);
 }
 
-/// 运行参数。
+/// 运行参数（合同 / 资源，**不含** ns/op 计时）。
 #[derive(Debug, Clone)]
 pub struct RunConfig {
     /// 要运行的分组；空表示全部。
     pub groups: Vec<BenchGroup>,
-    /// 预热次数。
-    pub warmup: usize,
-    /// 采样次数。
-    pub samples: usize,
+    /// 校验通过后冒烟执行 `run_once` 的次数（不计时，仅触达资源路径）。
+    pub smoke_iters: usize,
     /// 报告分层（决定建议 `GcMode` 与强制内存字段语义）。
     pub report_tier: ReportTier,
 }
 
 impl Default for RunConfig {
     fn default() -> Self {
-        Self { groups: Vec::new(), warmup: 3, samples: 25, report_tier: ReportTier::EndToEnd }
+        Self { groups: Vec::new(), smoke_iters: 3, report_tier: ReportTier::EndToEnd }
     }
 }
 
@@ -224,12 +227,12 @@ impl Default for Suite {
     }
 }
 
-/// 执行单个 fixture → [`FixtureReport`]。
+/// 执行单个 fixture → [`FixtureReport`]（校验 + 资源采样，**无 ns/op**）。
 pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -> Result<FixtureReport, SuiteError> {
     let meta = fixture.meta();
     let tier = tier_for_meta(&meta, config.report_tier);
     if let Some(reason) = fixture.skip_reason() {
-        return Ok(base_report(&meta, config, tier, true, None, None, None, reason));
+        return Ok(base_report(&meta, config, tier, true, None, reason));
     }
 
     let validation = fixture.validate().map_err(|reason| SuiteError::Validation { id: meta.id.to_string(), reason })?;
@@ -237,7 +240,9 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         return Err(SuiteError::Validation { id: meta.id.to_string(), reason: validation.notes.clone() });
     }
 
-    let stats = measure(config.warmup, config.samples, || fixture.run_once());
+    for _ in 0..config.smoke_iters {
+        fixture.run_once();
+    }
     let gc_stats = sample_gc_stats(tier);
 
     Ok(FixtureReport {
@@ -245,11 +250,8 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         group: meta.group.as_str().to_string(),
         scale: meta.scale.to_string(),
         domain: meta.domain.to_string(),
-        warmup: config.warmup,
-        samples: config.samples,
+        smoke_iters: config.smoke_iters,
         skipped: false,
-        p50_ns: Some(stats.p50_ns),
-        p95_ns: Some(stats.p95_ns),
         alloc_bytes: None,
         peak_rss_bytes: peak_rss_bytes(),
         report_tier: Some(tier),
@@ -264,6 +266,7 @@ pub fn run_fixture(fixture: &dyn Fixture, config: &RunConfig, _env: &BenchEnv) -
         gc_time_ns: Some(gc_stats.gc_time_ns),
         validation,
         fallback_reason: None,
+        timing_note: Some("performance timing is Criterion-only (`cargo bench`); athena-bench does not measure ns/op".into()),
     })
 }
 
@@ -281,8 +284,6 @@ fn base_report(
     config: &RunConfig,
     tier: ReportTier,
     skipped: bool,
-    p50_ns: Option<u64>,
-    p95_ns: Option<u64>,
     validation: Option<ValidationSummary>,
     reason: &str,
 ) -> FixtureReport {
@@ -291,11 +292,8 @@ fn base_report(
         group: meta.group.as_str().to_string(),
         scale: meta.scale.to_string(),
         domain: meta.domain.to_string(),
-        warmup: config.warmup,
-        samples: config.samples,
+        smoke_iters: config.smoke_iters,
         skipped,
-        p50_ns,
-        p95_ns,
         alloc_bytes: None,
         peak_rss_bytes: None,
         report_tier: Some(tier),
@@ -316,6 +314,7 @@ fn base_report(
             )
         }),
         fallback_reason: Some(reason.to_string()),
+        timing_note: Some("performance timing is Criterion-only (`cargo bench`); athena-bench does not measure ns/op".into()),
     }
 }
 
