@@ -157,6 +157,13 @@ impl Integer {
         Ok(Self::from_mag_sign(Natural::from_limb_slice_in(ctx, limbs)?, negative))
     }
 
+    /// 在 `ctx` heap 上由小端 limb 构造非负整数（session / numeric 发布）。
+    ///
+    /// 与 [`Natural::from_limbs_in`] 对齐。公共 e2e 无 ctx 入口仍走 [`NumericContext::portable_default`]。
+    pub fn from_limbs_in(ctx: &NumericContext, limbs: impl AsRef<[u64]>) -> Result<Self> {
+        Self::publish_signed(ctx, limbs.as_ref(), false)
+    }
+
     /// 由已解码 `i64` 构造。
     pub fn from_i64(n: i64) -> Self {
         if n == 0 {

@@ -39,6 +39,28 @@ fn heap_natural_allocates_on_ctx_heap_and_traces() {
 }
 
 #[test]
+fn bump_ephemeral_clear_rewinds_without_drop_tax() {
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    heap.borrow_mut().enable_bump_ephemeral(true);
+    let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone());
+    let a = Natural::from_limbs_in(&ctx, vec![1, 2, 3]).expect("a");
+    let b = Natural::from_limbs_in(&ctx, vec![4, 5, 6]).expect("b");
+    let mark = heap.borrow().mark_numeric_bump();
+    let used_before = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    for _ in 0..64 {
+        let _ = a.try_add(&b, &ctx).expect("add");
+    }
+    let used_mid = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    assert!(used_mid > used_before, "ephemeral bump must advance");
+    heap.borrow_mut().clear_numeric_to(mark).expect("clear");
+    let used_after = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    assert_eq!(used_after, used_before, "clear must rewind to mark");
+    // 操作数仍可读
+    assert_eq!(a.as_limbs(), &[1, 2, 3]);
+    assert_eq!(b.as_limbs(), &[4, 5, 6]);
+}
+
+#[test]
 fn isolated_heap_not_shared_default() {
     let heap_a = GcHeap::new_shared(HeapBudget::default());
     let heap_b = GcHeap::new_shared(HeapBudget::default());
@@ -77,4 +99,33 @@ fn mark_state_black_after_mark_limbs() {
     let hdr = heap.header_for_limbs(block.ptr).expect("hdr");
     assert_eq!(hdr.mark_state, MarkState::Black);
     heap.release_numeric_block(block).expect("rel");
+}
+
+#[test]
+fn session_default_is_isolated_deferred_not_shared_auto() {
+    let shared = GcHeap::shared_default();
+    let ctx = NumericContext::session_default();
+    assert_ne!(ctx.heap().borrow().id(), shared.borrow().id());
+    assert_eq!(ctx.heap().borrow().effective_mode(), GcMode::Deferred);
+    assert_eq!(shared.borrow().effective_mode(), GcMode::Auto);
+}
+
+#[test]
+fn session_default_try_add_publishes_on_session_heap() {
+    use athena_numeric::Integer;
+
+    let ctx = NumericContext::session_default();
+    let shared_before = GcHeap::shared_default().borrow().resident_bytes();
+    let limbs = [1u64, 2, 3, 4, 5];
+    let a = Integer::from_limbs_in(&ctx, limbs).expect("a");
+    let b = Integer::from_limbs_in(&ctx, limbs).expect("b");
+    let sum = a.try_add(&b, &ctx).expect("add");
+    assert!(!sum.is_zero());
+
+    let mut cap = CaptureAllocs { marked: Vec::new() };
+    sum.trace(&mut cap);
+    assert!(!cap.marked.is_empty(), "heap result must mark session allocation");
+    assert!(ctx.heap().borrow().resident_bytes() > 0);
+    // Living 18：结果发布在隔离 session 堆，不得污染 shared Auto。
+    assert_eq!(GcHeap::shared_default().borrow().resident_bytes(), shared_before);
 }

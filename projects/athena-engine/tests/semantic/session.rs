@@ -15,9 +15,16 @@ fn session_owns_sem0_sem1_tables() {
 }
 
 #[test]
+fn session_default_heap_is_deferred() {
+    let session = Session::new();
+    assert_eq!(session.heap().borrow().effective_mode(), GcMode::Deferred);
+    assert_eq!(session.numeric_context().heap().borrow().id(), session.heap().borrow().id());
+}
+
+#[test]
 fn session_heap_roots_keep_object_across_collect() {
     let session = Session::new();
-    session.heap().borrow().gc().set_base_mode(GcMode::Deferred);
+    assert_eq!(session.heap().borrow().effective_mode(), GcMode::Deferred);
     let obj = session.heap().borrow_mut().allocate_object(8).expect("obj");
     session.heap().borrow_mut().object_payload_mut(obj).expect("w")[0] = 9;
     let token = session.register_root(obj, RootKind::Session);

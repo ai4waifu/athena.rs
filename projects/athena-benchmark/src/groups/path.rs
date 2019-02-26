@@ -208,29 +208,37 @@ impl Fixture for IntegerTryAdd4 {
     }
 }
 
-/// Session-style Integer add：隔离 heap + `GcMode::Disabled`（Living 18 numeric 层）。
+/// Session-style Integer add：隔离 heap + [`GcMode::Deferred`]（Living 18 numeric 层）。
 struct IntegerTryAddSession4 {
-    bundle: CtxBundle,
+    ctx: NumericContext,
     a: Integer,
     b: Integer,
 }
 impl Fixture for IntegerTryAddSession4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path("path.integer_try_add_session_4", "4_limbs", "integer_session_disabled", BenchLayer::Numeric, ContextPolicy::Reused, "disabled")
+        FixtureMeta::path(
+            "path.integer_try_add_session_4",
+            "4_limbs",
+            "integer_session_deferred",
+            BenchLayer::Numeric,
+            ContextPolicy::Reused,
+            "deferred",
+        )
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
-        let s = self.a.try_add(&self.b, &self.bundle.ctx).map_err(|d| d.code.as_str().to_string())?;
+        assert_eq!(self.ctx.heap().borrow().effective_mode(), GcMode::Deferred);
+        let s = self.a.try_add(&self.b, &self.ctx).map_err(|d| d.code.as_str().to_string())?;
         if s.is_zero() {
             return Err("sum zero".into());
         }
         Ok(ValidationSummary::passed(
             ExactnessKind::Exact,
             DeterminacyKind::Deterministic,
-            &format!("Integer::try_add session Disabled bits={}", self.a.bits()),
+            &format!("Integer::try_add session Deferred bits={}", self.a.bits()),
         ))
     }
     fn run_once(&self) {
-        black_box(self.a.try_add(&self.b, &self.bundle.ctx).expect("add"));
+        black_box(self.a.try_add(&self.b, &self.ctx).expect("add"));
     }
 }
 
@@ -281,10 +289,11 @@ pub(super) fn register(suite: &mut Suite) {
     let b_int = Integer::from_str(&b_dec).expect("b");
     suite.register(Box::new(IntegerClone4 { a: a_int.clone() }));
     suite.register(Box::new(IntegerTryAdd4 { ctx: shared_ctx(), a: a_int.clone(), b: b_int.clone() }));
-    suite.register(Box::new(IntegerTryAddSession4 {
-        bundle: make_ctx(GcMode::Disabled),
-        a: a_int.clone(),
-        b: b_int.clone(),
-    }));
+    {
+        let ctx = NumericContext::session_default();
+        let a = Integer::from_limbs_in(&ctx, LIMBS4).expect("session a");
+        let b = Integer::from_limbs_in(&ctx, LIMBS4_B).expect("session b");
+        suite.register(Box::new(IntegerTryAddSession4 { ctx, a, b }));
+    }
     suite.register(Box::new(IntegerAddE2e4 { a: a_int, b: b_int }));
 }

@@ -17,6 +17,7 @@ mod view;
 
 pub(crate) use gc_err::gc_alloc_error;
 pub(crate) use meta::Mode;
+pub(crate) use owned::OwnedLimbBuffer;
 pub(crate) use pair::MagnitudePair;
 pub(crate) use view::LimbWidth;
 use union::{HeapPayload, Magnitude};

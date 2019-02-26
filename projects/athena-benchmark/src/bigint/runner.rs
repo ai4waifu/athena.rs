@@ -2,8 +2,8 @@
 
 use std::{hint::black_box, str::FromStr};
 
-use athena_gc::{GcDeferGuard, GcHeap, GcMode, GcSuspendGuard, HeapBudget};
-use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural, number_from_wire};
+use athena_gc::HeapBudget;
+use athena_numeric::{Integer, NumericContext, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;
 
 use super::{
@@ -15,8 +15,6 @@ use super::{
 pub struct BigIntPrepared {
     case: BenchCase,
     ctx: Option<NumericContext>,
-    /// 保持 `GcMode` 作用域（kernel suspend / numeric defer）。
-    _gc_guard: Option<GcGuard>,
     athena_int: Option<AthenaIntOps>,
     athena_nat: Option<AthenaNatOps>,
     #[cfg(feature = "compare-num-bigint")]
@@ -26,11 +24,6 @@ pub struct BigIntPrepared {
     #[cfg(feature = "compare-malachite")]
     malachite: Option<MalachiteOps>,
     expected_decimal: String,
-}
-
-enum GcGuard {
-    Suspend(GcSuspendGuard),
-    Defer(GcDeferGuard),
 }
 
 struct AthenaIntOps {
@@ -117,6 +110,32 @@ impl BigIntPrepared {
             }
             #[allow(unreachable_patterns)]
             _ => panic!("implementation disabled at compile time"),
+        }
+    }
+
+    /// Criterion 批跑：session heap 上 bump+clear，避免每 op freelist/TLS Drop 税。
+    ///
+    /// `e2e` / peer 无 session heap 时退化为普通循环（测真实 Drop / 分配）。
+    pub fn run_timed_batch(&self, iters: u64) -> std::time::Duration {
+        use std::time::Instant;
+        if let Some(ctx) = self.ctx.as_ref() {
+            let heap = ctx.heap().clone();
+            debug_assert!(heap.borrow().bump_ephemeral());
+            let mark = heap.borrow().mark_numeric_bump();
+            let start = Instant::now();
+            for _ in 0..iters {
+                self.run_once();
+            }
+            let elapsed = start.elapsed();
+            heap.borrow_mut().clear_numeric_to(mark).expect("bump clear");
+            elapsed
+        }
+        else {
+            let start = Instant::now();
+            for _ in 0..iters {
+                self.run_once();
+            }
+            start.elapsed()
         }
     }
 
@@ -233,22 +252,18 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     };
     let expected_decimal = reference_decimal(case.operation, &a_ref, &b_ref, prod_ref.as_ref(), exp, &ref_ctx);
 
-    let (ctx, gc_guard) = match case.layer {
+    let ctx = match case.layer {
         BenchLayer::Kernel => {
-            let heap = GcHeap::new_shared(HeapBudget::for_microbench());
-            heap.borrow().gc().set_base_mode(GcMode::Auto);
-            let guard = GcGuard::Suspend(heap.borrow().suspend());
-            let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-            (Some(ctx), Some(guard))
+            let ctx = NumericContext::kernel_bench_with_heap_budget(HeapBudget::for_microbench());
+            ctx.heap().borrow_mut().enable_bump_ephemeral(true);
+            Some(ctx)
         }
         BenchLayer::Numeric => {
-            let heap = GcHeap::new_shared(HeapBudget::for_microbench());
-            heap.borrow().gc().set_base_mode(GcMode::Auto);
-            let guard = GcGuard::Defer(heap.borrow().defer());
-            let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-            (Some(ctx), Some(guard))
+            let ctx = NumericContext::session_with_heap_budget(HeapBudget::for_microbench());
+            ctx.heap().borrow_mut().enable_bump_ephemeral(true);
+            Some(ctx)
         }
-        BenchLayer::E2e | BenchLayer::Peer => (None, None),
+        BenchLayer::E2e | BenchLayer::Peer => None,
     };
 
     let athena_int = match case.implementation {
@@ -316,7 +331,6 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     BigIntPrepared {
         case,
         ctx,
-        _gc_guard: gc_guard,
         athena_int,
         athena_nat,
         #[cfg(feature = "compare-num-bigint")]
