@@ -1,6 +1,7 @@
 //! Criterion：Living 18 path 分段（~256-bit）性能计时。
 //!
 //! 与 `athena-bench --groups path` 共享同一操作语义；后者只做合同 / 资源，不计 ns/op。
+//! Session 路径使用 bump+clear，避免每 op Drop 税。
 //!
 //! ```sh
 //! cargo bench -p athena-benchmark --bench path_segments
@@ -8,7 +9,7 @@
 
 #![allow(missing_docs)]
 
-use std::{hint::black_box, str::FromStr};
+use std::{hint::black_box, str::FromStr, time::Instant};
 
 use athena_gc::{GcHeap, GcMode, HeapBudget};
 use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural};
@@ -34,7 +35,22 @@ fn stack_add4(a: &[u64; 4], b: &[u64; 4]) -> [u64; 5] {
 fn make_ctx(mode: GcMode) -> NumericContext {
     let heap = GcHeap::new_shared(HeapBudget::for_microbench());
     heap.borrow().gc().set_base_mode(mode);
+    heap.borrow_mut().enable_bump_ephemeral(true);
     NumericContext::with_heap(ExecutionBudget::unlimited(), heap)
+}
+
+fn bench_with_bump_clear(bencher: &mut criterion::Bencher<'_>, ctx: &NumericContext, mut body: impl FnMut()) {
+    let heap = ctx.heap().clone();
+    bencher.iter_custom(|iters| {
+        let mark = heap.borrow().mark_numeric_bump();
+        let start = Instant::now();
+        for _ in 0..iters {
+            body();
+        }
+        let elapsed = start.elapsed();
+        heap.borrow_mut().clear_numeric_to(mark).expect("bump clear");
+        elapsed
+    });
 }
 
 fn bench_path(c: &mut Criterion) {
@@ -49,7 +65,9 @@ fn bench_path(c: &mut Criterion) {
         let a = Natural::from_limbs_in(&ctx, LIMBS4.to_vec()).expect("a");
         let b = Natural::from_limbs_in(&ctx, LIMBS4_B.to_vec()).expect("b");
         group.bench_function("natural_try_add_disabled", |bencher| {
-            bencher.iter(|| black_box(a.try_add(black_box(&b), black_box(&ctx)).expect("add")));
+            bench_with_bump_clear(bencher, &ctx, || {
+                black_box(a.try_add(black_box(&b), black_box(&ctx)).expect("add"));
+            });
         });
     }
 
@@ -57,14 +75,15 @@ fn bench_path(c: &mut Criterion) {
         let ctx = make_ctx(GcMode::Disabled);
         let a_dec = Natural::from_limbs_in(&ctx, LIMBS4.to_vec()).unwrap().to_decimal_string();
         let b_dec = Natural::from_limbs_in(&ctx, LIMBS4_B.to_vec()).unwrap().to_decimal_string();
-        // Integer 操作数挂在 session Disabled ctx 上构造，避免 e2e shared Auto 混入。
         let a = Integer::from_str(&a_dec).expect("a");
         let b = Integer::from_str(&b_dec).expect("b");
         let session = make_ctx(GcMode::Disabled);
         let a_s = a.try_add(&Integer::zero(), &session).expect("repub a");
         let b_s = b.try_add(&Integer::zero(), &session).expect("repub b");
         group.bench_function("integer_try_add_session_disabled", |bencher| {
-            bencher.iter(|| black_box(a_s.try_add(black_box(&b_s), black_box(&session)).expect("add")));
+            bench_with_bump_clear(bencher, &session, || {
+                black_box(a_s.try_add(black_box(&b_s), black_box(&session)).expect("add"));
+            });
         });
     }
 
@@ -79,9 +98,6 @@ fn bench_path(c: &mut Criterion) {
         });
         group.bench_function("integer_add_e2e", |bencher| {
             bencher.iter(|| black_box(a.add(black_box(&b))));
-        });
-        group.bench_function("integer_clone_shared_auto", |bencher| {
-            bencher.iter(|| black_box(a.clone()));
         });
     }
 

@@ -2,7 +2,8 @@
 
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
-use athena_gc::{CollectReport, GcHeap, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
+use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
+use athena_numeric::{ExecutionBudget, NumericContext};
 
 use crate::{
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
@@ -51,8 +52,13 @@ impl Default for Session {
 }
 
 impl Session {
-    /// 空 session（隔离登记 heap）。
+    /// 空 session（隔离登记 heap · 基准 [`GcMode::Deferred`]）。
+    ///
+    /// Living 18：session 算术经 [`Self::numeric_context`] 发布。宿主可见 e2e 仍用
+    /// `NumericContext::portable_default`（shared Auto）。
     pub fn new() -> Self {
+        let heap = GcHeap::new_shared(HeapBudget::default());
+        heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
             rings: RingTable::default(),
             mgraph: MGraphState::default(),
@@ -60,13 +66,18 @@ impl Session {
             values: ValueIdTable::default(),
             results: ResultIdTable::default(),
             assumption_scopes: AssumptionScopeTable::default(),
-            heap: GcHeap::new_shared(HeapBudget::default()),
+            heap,
         }
     }
 
     /// Session runtime heap。
     pub fn heap(&self) -> &Rc<RefCell<GcHeap>> {
         &self.heap
+    }
+
+    /// 绑定本 session heap 的 numeric 发布上下文（继承 Deferred 基准 mode）。
+    pub fn numeric_context(&self) -> NumericContext {
+        NumericContext::with_heap(ExecutionBudget::unlimited(), self.heap.clone())
     }
 
     /// 登记 object root（通常 [`RootKind::Session`] / [`RootKind::Ir`]）。
