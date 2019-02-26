@@ -235,14 +235,14 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
 
     let (ctx, gc_guard) = match case.layer {
         BenchLayer::Kernel => {
-            let heap = GcHeap::new_shared(HeapBudget::default());
+            let heap = GcHeap::new_shared(HeapBudget::for_microbench());
             heap.borrow().gc().set_base_mode(GcMode::Auto);
             let guard = GcGuard::Suspend(heap.borrow().suspend());
             let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
             (Some(ctx), Some(guard))
         }
         BenchLayer::Numeric => {
-            let heap = GcHeap::new_shared(HeapBudget::default());
+            let heap = GcHeap::new_shared(HeapBudget::for_microbench());
             heap.borrow().gc().set_base_mode(GcMode::Auto);
             let guard = GcGuard::Defer(heap.borrow().defer());
             let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
