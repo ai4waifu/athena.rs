@@ -2,7 +2,7 @@
 
 use crate::dispatch::CapabilityBundle;
 
-use super::{DivStrategy, MulStrategy, select_div_strategy, select_mul_strategy};
+use super::{DivStrategy, GcdStrategy, MulStrategy, select_div_strategy, select_gcd_strategy, select_mul_strategy};
 
 /// 算法规划器（持有冻结的 capability 视图）。
 #[derive(Debug, Clone, Copy)]
@@ -29,5 +29,10 @@ impl AlgorithmPlanner {
     /// 规划除法。
     pub fn plan_div(&self, u_limbs: usize, v_limbs: usize) -> DivStrategy {
         select_div_strategy(u_limbs, v_limbs, self.caps.algorithm)
+    }
+
+    /// 规划 GCD。
+    pub fn plan_gcd(&self, a_limbs: usize, b_limbs: usize) -> GcdStrategy {
+        select_gcd_strategy(a_limbs, b_limbs, self.caps.algorithm)
     }
 }

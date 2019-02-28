@@ -241,6 +241,45 @@ impl NumericExecutor {
     pub fn div_rem_natural(lhs: &Natural, rhs: &Natural, ctx: &NumericContext) -> Result<(Natural, Natural)> {
         Self::div_rem_limbs(lhs.as_limbs(), rhs.as_limbs(), ctx)
     }
+
+    /// 借用 limb GCD；结果发布到 `ctx` heap（策略由 planner 唯一选择）。
+    pub fn gcd_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<Natural> {
+        ctx.check_entry()?;
+        let la = if lhs.is_empty() || limb_kernel::is_zero(lhs) {
+            0
+        }
+        else {
+            limb_kernel::effective_len(lhs)
+        };
+        let lb = if rhs.is_empty() || limb_kernel::is_zero(rhs) {
+            0
+        }
+        else {
+            limb_kernel::effective_len(rhs)
+        };
+        if la == 0 && lb == 0 {
+            return Ok(Natural::zero());
+        }
+        let bound = la.min(lb).max(1);
+        ctx.budget().check_limbs(bound)?;
+        let a = if la == 0 { vec![0] } else { lhs[..la].to_vec() };
+        let b = if lb == 0 { vec![0] } else { rhs[..lb].to_vec() };
+        let plan = ctx.planner().plan_gcd(la, lb);
+        let limbs = match plan {
+            crate::algorithm::GcdStrategy::Binary => limb_kernel::binary_gcd(a, b),
+            crate::algorithm::GcdStrategy::Lehmer => limb_kernel::gcd(a, b),
+            crate::algorithm::GcdStrategy::HalfGcd => {
+                // 能力位未开时 planner 不会选到；回退 Lehmer 保正确性。
+                limb_kernel::gcd(a, b)
+            }
+        };
+        Natural::from_limbs_in(ctx, limbs)
+    }
+
+    /// `Natural` GCD。
+    pub fn gcd_natural(lhs: &Natural, rhs: &Natural, ctx: &NumericContext) -> Result<Natural> {
+        Self::gcd_limbs(lhs.as_limbs(), rhs.as_limbs(), ctx)
+    }
 }
 
 #[inline]
