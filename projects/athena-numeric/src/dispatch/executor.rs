@@ -44,10 +44,8 @@ impl NumericExecutor {
             (la, lb) => {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
-                let kernels = ctx.kernels();
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.add_into(ctx.kernel_token(), a, b, out, scratch, budget)
-                })
+                // 直写 GC：去掉 LimbBuffer 系统 Vec + 二次 memcpy。
+                Natural::publish_add_slices(ctx, a, b)
             }
         }
     }
@@ -80,11 +78,17 @@ impl NumericExecutor {
             (la, lb) => {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
-                let kernels = ctx.kernels();
                 let plan = ctx.planner().plan_mul(a.len(), b.len());
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget)
-                })
+                // 小学乘法直写 GC；Karatsuba/Toom 仍走复用 LimbBuffer 路径。
+                if matches!(plan, crate::algorithm::MulStrategy::Schoolbook) {
+                    Natural::publish_mul_schoolbook_slices(ctx, a, b)
+                }
+                else {
+                    let kernels = ctx.kernels();
+                    Natural::publish_with_kernel(ctx, |out, scratch, budget| {
+                        kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget)
+                    })
+                }
             }
         }
     }
@@ -117,10 +121,7 @@ impl NumericExecutor {
             (la, lb) => {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
-                let kernels = ctx.kernels();
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.sub_into(ctx.kernel_token(), a, b, out, scratch, budget)
-                })
+                Natural::publish_sub_slices(ctx, a, b)
             }
         }
     }
@@ -134,9 +135,9 @@ impl NumericExecutor {
         if rhs.is_zero() {
             return Natural::from_limb_slice_in(ctx, lhs.as_limbs());
         }
-        let kernels = ctx.kernels();
         match (lhs.mode(), rhs.mode()) {
             (Mode::Limb1, Mode::Limb1) => {
+                let kernels = ctx.kernels();
                 let a = lhs.limb1().expect("Limb1");
                 let b = rhs.limb1().expect("Limb1");
                 ctx.budget().check_limbs(2)?;
@@ -164,9 +165,7 @@ impl NumericExecutor {
                 let (limbs, len) = limb_kernel::add_2(a, b);
                 Natural::from_limb_slice_in(ctx, &limbs[..len])
             }
-            _ => Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                kernels.add_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
-            }),
+            _ => Natural::publish_add_slices(ctx, lhs.as_limbs(), rhs.as_limbs()),
         }
     }
 
@@ -178,6 +177,69 @@ impl NumericExecutor {
     /// `Natural` 减法（`lhs >= rhs`）。
     pub fn sub_natural(lhs: &Natural, rhs: &Natural, ctx: &NumericContext) -> Result<Natural> {
         Self::sub_limbs(lhs.as_limbs(), rhs.as_limbs(), ctx)
+    }
+
+    /// 借用 limb 除法与余数；结果发布到 `ctx` heap。
+    pub fn div_rem_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<(Natural, Natural)> {
+        ctx.check_entry()?;
+        if limb_kernel::is_zero(rhs) || rhs.is_empty() {
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_div_rem"));
+        }
+        if limb_kernel::is_zero(lhs) || lhs.is_empty() {
+            return Ok((Natural::zero(), Natural::zero()));
+        }
+        match (LimbWidth::classify(lhs), LimbWidth::classify(rhs)) {
+            (LimbWidth::Limb1(a), LimbWidth::Limb1(b)) => {
+                ctx.budget().check_limbs(1)?;
+                let (q, r) = limb_kernel::div_rem_1(a, b);
+                Ok((Natural::from_u64(q), Natural::from_u64(r)))
+            }
+            (LimbWidth::Limb1(_) | LimbWidth::Limb2(_), LimbWidth::Limb1(_) | LimbWidth::Limb2(_)) => {
+                let numer = match LimbWidth::classify(lhs) {
+                    LimbWidth::Limb1(a) => a as u128,
+                    LimbWidth::Limb2(a) => a[0] as u128 | ((a[1] as u128) << 64),
+                    _ => unreachable!(),
+                };
+                let denom = match LimbWidth::classify(rhs) {
+                    LimbWidth::Limb1(b) => b as u128,
+                    LimbWidth::Limb2(b) => b[0] as u128 | ((b[1] as u128) << 64),
+                    _ => unreachable!(),
+                };
+                ctx.budget().check_limbs(2)?;
+                let (q, r) = limb_kernel::div_rem_u128(numer, denom);
+                Ok((Natural::from_u128_mag(q), Natural::from_u128_mag(r)))
+            }
+            _ => {
+                let a_len = limb_kernel::effective_len(lhs);
+                let b_len = limb_kernel::effective_len(rhs);
+                let mut q = crate::kernel::LimbBuffer::zero();
+                let mut r = crate::kernel::LimbBuffer::zero();
+                let plan = ctx.planner().plan_div(a_len, b_len);
+                ctx.with_scratch_frame(|scratch, budget| {
+                    ctx.kernels().div_rem_into(
+                        ctx.kernel_token(),
+                        &lhs[..a_len],
+                        &rhs[..b_len],
+                        plan,
+                        &mut q,
+                        &mut r,
+                        scratch,
+                        budget,
+                    )
+                })?;
+                Ok((
+                    Natural::from_limb_slice_in(ctx, q.as_canonical())?,
+                    Natural::from_limb_slice_in(ctx, r.as_canonical())?,
+                ))
+            }
+        }
+    }
+
+    /// `Natural` 除法与余数。
+    pub fn div_rem_natural(lhs: &Natural, rhs: &Natural, ctx: &NumericContext) -> Result<(Natural, Natural)> {
+        Self::div_rem_limbs(lhs.as_limbs(), rhs.as_limbs(), ctx)
     }
 }
 

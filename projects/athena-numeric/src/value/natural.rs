@@ -215,9 +215,7 @@ impl Natural {
                 let (limbs, len) = limb_kernel::add_1_2(rhs, a);
                 Self::from_limb_slice_in(ctx, &limbs[..len])
             }
-            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().add_into(ctx.kernel_token(), self.as_limbs(), &[rhs], out, scratch, budget)
-            }),
+            Mode::Heap => Self::publish_add_slices(ctx, self.as_limbs(), &[rhs]),
         }
     }
 
@@ -247,9 +245,7 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2x1(a, rhs);
                 Self::from_limb_slice_in(ctx, &limbs[..len])
             }
-            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
-                ctx.kernels().mul_1_into(ctx.kernel_token(), self.as_limbs(), rhs, out, scratch, budget)
-            }),
+            Mode::Heap => Self::publish_mul_schoolbook_slices(ctx, self.as_limbs(), &[rhs]),
         }
     }
 
@@ -327,58 +323,7 @@ impl Natural {
 
     /// 借用 limb 除法与余数；结果发布到 `ctx`。
     pub fn try_div_rem_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<(Self, Self)> {
-        use crate::storage::LimbWidth;
-        ctx.check_entry()?;
-        if limb_kernel::is_zero(rhs) || rhs.is_empty() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "natural_div_rem"));
-        }
-        if limb_kernel::is_zero(lhs) || lhs.is_empty() {
-            return Ok((Self::zero(), Self::zero()));
-        }
-        match (LimbWidth::classify(lhs), LimbWidth::classify(rhs)) {
-            (LimbWidth::Limb1(a), LimbWidth::Limb1(b)) => {
-                ctx.budget().check_limbs(1)?;
-                let (q, r) = limb_kernel::div_rem_1(a, b);
-                Ok((Self::from_u64(q), Self::from_u64(r)))
-            }
-            (LimbWidth::Limb1(_) | LimbWidth::Limb2(_), LimbWidth::Limb1(_) | LimbWidth::Limb2(_)) => {
-                let numer = match LimbWidth::classify(lhs) {
-                    LimbWidth::Limb1(a) => a as u128,
-                    LimbWidth::Limb2(a) => a[0] as u128 | ((a[1] as u128) << 64),
-                    _ => unreachable!(),
-                };
-                let denom = match LimbWidth::classify(rhs) {
-                    LimbWidth::Limb1(b) => b as u128,
-                    LimbWidth::Limb2(b) => b[0] as u128 | ((b[1] as u128) << 64),
-                    _ => unreachable!(),
-                };
-                ctx.budget().check_limbs(2)?;
-                let (q, r) = limb_kernel::div_rem_u128(numer, denom);
-                Ok((Self { inner: MagnitudePair::from_u128(q) }, Self { inner: MagnitudePair::from_u128(r) }))
-            }
-            _ => {
-                let a_len = limb_kernel::effective_len(lhs);
-                let b_len = limb_kernel::effective_len(rhs);
-                let mut q = LimbBuffer::zero();
-                let mut r = LimbBuffer::zero();
-                let plan = ctx.planner().plan_div(a_len, b_len);
-                ctx.with_scratch_frame(|scratch, budget| {
-                    ctx.kernels().div_rem_into(
-                        ctx.kernel_token(),
-                        &lhs[..a_len],
-                        &rhs[..b_len],
-                        plan,
-                        &mut q,
-                        &mut r,
-                        scratch,
-                        budget,
-                    )
-                })?;
-                Ok((Self::from_limb_slice_in(ctx, q.as_canonical())?, Self::from_limb_slice_in(ctx, r.as_canonical())?))
-            }
-        }
+        crate::dispatch::NumericExecutor::div_rem_limbs(lhs, rhs, ctx)
     }
 
     /// 模幂（`modulus > 0`；默认上下文）。
@@ -547,7 +492,7 @@ impl Natural {
         Self::publish_into(ctx, write)
     }
 
-    /// Kernel `*_into` 后 canonicalize 并发布（值层 executor，非 machine kernel）。
+    /// Kernel `*_into` 后 canonicalize 并发布（复用 `ctx` 输出缓冲，避免每次系统 `Vec`）。
     fn publish_into(
         ctx: &NumericContext,
         write: impl FnOnce(
@@ -557,9 +502,107 @@ impl Natural {
         ) -> Result<()>,
     ) -> Result<Self> {
         ctx.check_entry()?;
-        let mut out = LimbBuffer::zero();
-        ctx.with_scratch_frame(|scratch, budget| write(&mut out, scratch, budget))?;
-        Self::from_limb_slice_in(ctx, out.as_canonical())
+        ctx.with_out_buf(|out| {
+            ctx.with_scratch_frame(|scratch, budget| write(out, scratch, budget))?;
+            Self::from_limb_slice_in(ctx, out.as_canonical())
+        })
+    }
+
+    /// 小端加法直写 GC（`len >= 3`）；≤2 limb 结果仍 inline。
+    pub(crate) fn publish_add_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
+        use crate::kernel::limb::{adc, effective_len};
+        use crate::storage::OwnedLimbBuffer;
+        ctx.check_entry()?;
+        let la = effective_len(a);
+        let lb = effective_len(b);
+        if la == 0 {
+            return Self::from_limb_slice_in(ctx, b);
+        }
+        if lb == 0 {
+            return Self::from_limb_slice_in(ctx, a);
+        }
+        let n = la.max(lb);
+        ctx.budget().check_add(la, lb)?;
+        let capacity = n + 1;
+        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
+        let storage = buf.as_mut_slice(capacity);
+        let mut carry = 0u64;
+        for i in 0..n {
+            let (sum, c) = adc(*a.get(i).unwrap_or(&0), *b.get(i).unwrap_or(&0), carry);
+            storage[i] = sum;
+            carry = c;
+        }
+        storage[n] = carry;
+        let el = if carry != 0 { n + 1 } else { effective_len(&storage[..n]) };
+        Ok(Self::finish_owned_limbs(buf, el))
+    }
+
+    /// 小端减法直写 GC（要求 `a >= b`）。
+    pub(crate) fn publish_sub_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
+        use crate::kernel::limb::{cmp_slice, effective_len, sbb};
+        use crate::storage::OwnedLimbBuffer;
+        use std::cmp::Ordering;
+        ctx.check_entry()?;
+        if cmp_slice(a, b) == Ordering::Less {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_sub")
+                .detail("reason", "underflow"));
+        }
+        let n = effective_len(a);
+        if n == 0 {
+            return Ok(Self::zero());
+        }
+        ctx.budget().check_limbs(n)?;
+        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), n).map_err(gc_alloc_error)?;
+        let storage = buf.as_mut_slice(n);
+        let mut borrow = 0u64;
+        for i in 0..n {
+            let (diff, b_out) = sbb(*a.get(i).unwrap_or(&0), *b.get(i).unwrap_or(&0), borrow);
+            storage[i] = diff;
+            borrow = b_out;
+        }
+        debug_assert_eq!(borrow, 0);
+        let el = effective_len(storage);
+        Ok(Self::finish_owned_limbs(buf, el.max(1)))
+    }
+
+    /// 小学乘法直写 GC。
+    pub(crate) fn publish_mul_schoolbook_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
+        use crate::kernel::limb::effective_len;
+        use crate::kernel::limb::mul_schoolbook_into;
+        use crate::storage::OwnedLimbBuffer;
+        ctx.check_entry()?;
+        let la = effective_len(a);
+        let lb = effective_len(b);
+        if la == 0 || lb == 0 {
+            return Ok(Self::zero());
+        }
+        let capacity = la + lb;
+        ctx.budget().check_limbs(capacity)?;
+        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
+        let storage = buf.as_mut_slice(capacity);
+        storage.fill(0);
+        mul_schoolbook_into(&a[..la], &b[..lb], storage);
+        let el = effective_len(storage);
+        Ok(Self::finish_owned_limbs(buf, el.max(1)))
+    }
+
+    fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Self {
+        match el {
+            0 | 1 => {
+                let limb = if el == 0 { 0 } else { buf.as_slice(1)[0] };
+                drop(buf);
+                Self::from_u64(limb)
+            }
+            2 => {
+                let limbs = buf.as_slice(2);
+                let pair = [limbs[0], limbs[1]];
+                drop(buf);
+                Self::from_limb2(pair)
+            }
+            _ => Self::from_pair(MagnitudePair::from_owned_heap(buf, el)),
+        }
     }
 
     /// 当前 storage mode（供 executor 宽度分派）。
