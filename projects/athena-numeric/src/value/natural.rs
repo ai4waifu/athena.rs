@@ -434,25 +434,7 @@ impl Natural {
 
     /// 借用 limb 最大公约数；结果发布到 `ctx`。
     pub fn try_gcd_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<Self> {
-        ctx.check_entry()?;
-        let la = if lhs.is_empty() || limb_kernel::is_zero(lhs) {
-            0
-        } else {
-            limb_kernel::effective_len(lhs)
-        };
-        let lb = if rhs.is_empty() || limb_kernel::is_zero(rhs) {
-            0
-        } else {
-            limb_kernel::effective_len(rhs)
-        };
-        if la == 0 && lb == 0 {
-            return Ok(Self::zero());
-        }
-        let bound = la.min(lb).max(1);
-        ctx.budget().check_limbs(bound)?;
-        let a = if la == 0 { vec![0] } else { lhs[..la].to_vec() };
-        let b = if lb == 0 { vec![0] } else { rhs[..lb].to_vec() };
-        Self::from_limbs_in(ctx, limb_kernel::gcd(a, b))
+        crate::dispatch::NumericExecutor::gcd_limbs(lhs, rhs, ctx)
     }
 
     /// 借用小端 limb（生命周期绑在 `&self`；禁止跨 move 持有）。
