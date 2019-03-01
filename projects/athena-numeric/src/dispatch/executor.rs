@@ -44,8 +44,10 @@ impl NumericExecutor {
             (la, lb) => {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
-                // 直写 GC：去掉 LimbBuffer 系统 Vec + 二次 memcpy。
-                Natural::publish_add_slices(ctx, a, b)
+                let kernels = ctx.kernels();
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
+                    kernels.add_into(ctx.kernel_token(), a, b, out, scratch, budget)
+                })
             }
         }
     }
@@ -79,16 +81,10 @@ impl NumericExecutor {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
                 let plan = ctx.planner().plan_mul(a.len(), b.len());
-                // 小学乘法直写 GC；Karatsuba/Toom 仍走复用 LimbBuffer 路径。
-                if matches!(plan, crate::algorithm::MulStrategy::Schoolbook) {
-                    Natural::publish_mul_schoolbook_slices(ctx, a, b)
-                }
-                else {
-                    let kernels = ctx.kernels();
-                    Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                        kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget)
-                    })
-                }
+                let kernels = ctx.kernels();
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
+                    kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget)
+                })
             }
         }
     }
@@ -121,7 +117,10 @@ impl NumericExecutor {
             (la, lb) => {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
-                Natural::publish_sub_slices(ctx, a, b)
+                let kernels = ctx.kernels();
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
+                    kernels.sub_into(ctx.kernel_token(), a, b, out, scratch, budget)
+                })
             }
         }
     }
@@ -165,7 +164,12 @@ impl NumericExecutor {
                 let (limbs, len) = limb_kernel::add_2(a, b);
                 Natural::from_limb_slice_in(ctx, &limbs[..len])
             }
-            _ => Natural::publish_add_slices(ctx, lhs.as_limbs(), rhs.as_limbs()),
+            _ => {
+                let kernels = ctx.kernels();
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
+                    kernels.add_into(ctx.kernel_token(), lhs.as_limbs(), rhs.as_limbs(), out, scratch, budget)
+                })
+            }
         }
     }
 
