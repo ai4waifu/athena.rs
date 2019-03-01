@@ -59,6 +59,10 @@ pub enum WireReject {
     ModularResidueUnreduced,
     /// Modular 载荷尾随字节。
     ModularTrailing,
+    /// Complex 载荷尾随字节或截断。
+    ComplexTrailing,
+    /// Complex 未知分支码。
+    ComplexUnknownBranch,
 }
 
 impl WireReject {
@@ -92,6 +96,8 @@ impl WireReject {
             Self::ModularBadModulus => "modular_bad_modulus",
             Self::ModularResidueUnreduced => "modular_residue_unreduced",
             Self::ModularTrailing => "modular_trailing",
+            Self::ComplexTrailing => "complex_trailing",
+            Self::ComplexUnknownBranch => "complex_unknown_branch",
         }
     }
 }

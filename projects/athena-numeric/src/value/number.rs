@@ -93,6 +93,11 @@ impl NumericValue {
         Self::Real(r)
     }
 
+    /// 复数。
+    pub fn complex(z: Complex) -> Self {
+        Self::Complex(z)
+    }
+
     /// 区间。
     pub fn interval(i: Interval) -> Self {
         Self::Interval(i)
