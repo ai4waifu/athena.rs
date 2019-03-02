@@ -19,6 +19,7 @@ mod glue;
 mod convenience;
 mod gcd_binary;
 mod gcd_lehmer;
+mod gcd_half;
 mod montgomery;
 
 pub(crate) use scratch_tls::with_kernel_scratch;
@@ -32,6 +33,7 @@ pub(crate) use primitive::{
     sub_2, sub_2_1,
 };
 pub(crate) use mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, submul_1_inplace};
+pub(crate) use slice_ops::{add_slices_into, sub_slices_into};
 pub(crate) use convenience::{
     add_n, add_n_budgeted, addmul_1, div_rem, div_rem_budgeted, karatsuba_mul, mul, mul_1,
     mul_1_budgeted, mul_budgeted, mul_schoolbook, sqr, sqr_budgeted, sqr_schoolbook, sub_n,
@@ -39,6 +41,7 @@ pub(crate) use convenience::{
 };
 pub(crate) use gcd_lehmer::gcd;
 pub(crate) use gcd_binary::binary_gcd;
+pub(crate) use gcd_half::half_gcd;
 pub(crate) use montgomery::{
     div2_mod, mod_pow_montgomery, mod_pow_montgomery_eligible, mod_pow_montgomery_precomputed,
     montgomery_precompute, mul_mod_montgomery_precomputed,

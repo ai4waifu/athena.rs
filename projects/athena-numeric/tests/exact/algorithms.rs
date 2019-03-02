@@ -102,6 +102,49 @@ fn gcd_lehmer_path_matches_binary_reference_on_wide_odds() {
 }
 
 #[test]
+fn half_gcd_capability_matches_lehmer_baseline_on_wide_odds() {
+    use athena_gc::{GcHeap, HeapBudget};
+    use athena_numeric::algorithm::{GCD_HALF_THRESHOLD, GcdStrategy};
+
+    let a = limbs_repeating("1357913579", 40);
+    let b = limbs_repeating("2468024681", 36);
+    assert!(a.as_limbs().len() >= GCD_HALF_THRESHOLD);
+    assert!(b.as_limbs().len() >= GCD_HALF_THRESHOLD);
+
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let mut caps_h = CapabilityBundle::portable_default();
+    caps_h.algorithm.half_gcd = true;
+    let mut caps_l = CapabilityBundle::portable_default();
+    caps_l.algorithm.half_gcd = false;
+
+    assert_eq!(
+        athena_numeric::algorithm::AlgorithmPlanner::new(caps_h).plan_gcd(a.as_limbs().len(), b.as_limbs().len()),
+        GcdStrategy::HalfGcd
+    );
+    assert_eq!(
+        athena_numeric::algorithm::AlgorithmPlanner::new(caps_l).plan_gcd(a.as_limbs().len(), b.as_limbs().len()),
+        GcdStrategy::Lehmer
+    );
+
+    let ctx_h = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), caps_h);
+    let ctx_l = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps_l);
+    let g_h = a.try_gcd(&b, &ctx_h).expect("half");
+    let g_l = a.try_gcd(&b, &ctx_l).expect("lehmer");
+    assert_eq!(g_h.as_limbs(), g_l.as_limbs());
+}
+
+#[test]
+fn half_gcd_planner_threshold_boundary() {
+    use athena_numeric::algorithm::{GCD_HALF_THRESHOLD, GcdStrategy, AlgorithmPlanner};
+
+    let mut caps = CapabilityBundle::portable_default();
+    caps.algorithm.half_gcd = true;
+    let p = AlgorithmPlanner::new(caps);
+    assert_eq!(p.plan_gcd(GCD_HALF_THRESHOLD - 1, GCD_HALF_THRESHOLD - 1), GcdStrategy::Lehmer);
+    assert_eq!(p.plan_gcd(GCD_HALF_THRESHOLD, GCD_HALF_THRESHOLD), GcdStrategy::HalfGcd);
+}
+
+#[test]
 fn montgomery_mod_pow_matches_binary_mul_chain_on_odd_modulus() {
     let base = Natural::from_u64(3);
     let exp = Natural::from_u64(97);
