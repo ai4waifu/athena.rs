@@ -1,7 +1,8 @@
-//! 二进制 wire 往返与 ANV1 Int/Rat/Real/Interval/Modular reject 矩阵。
+//! 二进制 wire 往返与 ANV1 Int/Rat/Real/Complex/Interval/Modular reject 矩阵。
 
 use athena_numeric::{
-    Integer, Interval, IntervalDecoration, ModularValue, Modulus, NumericValue, NumericValueWire, Rational, Real,
+    BranchPolicy, Complex, Integer, Interval, IntervalDecoration, ModularValue, Modulus, NumericValue, NumericValueWire,
+    Rational, Real,
 };
 use athena_types::NumericKind;
 use std::str::FromStr;
@@ -310,6 +311,79 @@ fn interval_wire(payload: Vec<u8>) -> NumericValueWire {
         precision: athena_numeric::PrecisionInfo::exact(),
         version: NumericValueWire::current_version(),
     }
+}
+
+fn complex_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Complex,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::exact(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn nested_machine_real(x: f64) -> Vec<u8> {
+    let mut out = vec![0u8, 0]; // Machine nested：header sign 恒 0 + subtype machine
+    out.extend_from_slice(&x.to_bits().to_le_bytes());
+    out
+}
+
+#[test]
+fn binary_complex_machine_roundtrip() {
+    let z = Complex {
+        re: Real::machine(1.25),
+        im: Real::machine(-2.5),
+        branch: BranchPolicy::Principal,
+    };
+    let v = NumericValue::complex(z);
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+
+    let z2 = Complex {
+        re: Real::machine(0.0),
+        im: Real::machine(1.0),
+        branch: BranchPolicy::RealOnly,
+    };
+    let v2 = NumericValue::complex(z2);
+    let back2 = NumericValueWire::encode(&v2).unwrap().decode().unwrap();
+    assert_eq!(back2, v2);
+}
+
+#[test]
+fn reject_complex_unknown_branch() {
+    let mut payload = vec![9u8];
+    payload.extend(nested_machine_real(1.0));
+    payload.extend(nested_machine_real(2.0));
+    let err = complex_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("complex_unknown_branch"));
+}
+
+#[test]
+fn reject_complex_trailing() {
+    let mut payload = vec![0u8];
+    payload.extend(nested_machine_real(1.0));
+    payload.extend(nested_machine_real(2.0));
+    payload.push(0xAB);
+    let err = complex_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("complex_trailing"));
+}
+
+#[test]
+fn reject_complex_sign_nonzero() {
+    let mut payload = vec![0u8];
+    payload.extend(nested_machine_real(1.0));
+    payload.extend(nested_machine_real(0.0));
+    let err = complex_wire(1, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("sign_unknown"));
+}
+
+#[test]
+fn reject_complex_truncated_nested() {
+    let payload = vec![0u8, 0, 0]; // branch + incomplete nested real
+    let err = complex_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("complex_trailing"));
 }
 
 fn modular_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {

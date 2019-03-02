@@ -3,6 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
 use crate::{
+    complex::{BranchPolicy, Complex},
     decimal::Decimal,
     dyadic::Dyadic,
     integer::{Integer, Sign},
@@ -378,6 +379,58 @@ pub(crate) fn decode_modular_payload(sign: u8, payload: &[u8]) -> Result<Modular
         return Err(reject_non_canonical(WireReject::ModularResidueUnreduced));
     }
     Ok(ModularValue::new(residue, modulus))
+}
+
+fn branch_to_tag(branch: BranchPolicy) -> u8 {
+    match branch {
+        BranchPolicy::Principal => 0,
+        BranchPolicy::RealOnly => 1,
+    }
+}
+
+fn branch_from_tag(tag: u8) -> Option<BranchPolicy> {
+    match tag {
+        0 => Some(BranchPolicy::Principal),
+        1 => Some(BranchPolicy::RealOnly),
+        _ => None,
+    }
+}
+
+fn map_nested_real_truncation(err: Diagnostic) -> Diagnostic {
+    use athena_types::DiagnosticValue;
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    match err.details.get("reason") {
+        Some(DiagnosticValue::Text(s)) if s == "interval_trailing" => {
+            reject_non_canonical(WireReject::ComplexTrailing)
+        }
+        _ => err,
+    }
+}
+
+/// 编码 [`Complex`]（header `sign` 恒 0；载荷 = branch + nested re + nested im）。
+pub(crate) fn encode_complex_payload(z: &Complex) -> Result<(u8, Vec<u8>), Diagnostic> {
+    let mut payload = vec![branch_to_tag(z.branch)];
+    payload.extend(encode_nested_real(&z.re)?);
+    payload.extend(encode_nested_real(&z.im)?);
+    Ok((0, payload))
+}
+
+/// 解码 Complex 载荷。
+pub(crate) fn decode_complex_payload(sign: u8, payload: &[u8]) -> Result<Complex, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if sign != 0 {
+        return Err(reject_non_canonical(WireReject::SignUnknown));
+    }
+    if payload.is_empty() {
+        return Err(reject_non_canonical(WireReject::ComplexTrailing));
+    }
+    let branch = branch_from_tag(payload[0]).ok_or_else(|| reject_non_canonical(WireReject::ComplexUnknownBranch))?;
+    let (re, rest) = decode_nested_real(&payload[1..]).map_err(map_nested_real_truncation)?;
+    let (im, tail) = decode_nested_real(rest).map_err(map_nested_real_truncation)?;
+    if !tail.is_empty() {
+        return Err(reject_non_canonical(WireReject::ComplexTrailing));
+    }
+    Ok(Complex { re, im, branch })
 }
 
 /// 将头 + 域 + 载荷展平为单一字节块。

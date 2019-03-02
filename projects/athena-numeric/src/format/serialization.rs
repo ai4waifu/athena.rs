@@ -1,4 +1,4 @@
-//! 数值序列化 wire（Integer / Rational / Real / Interval / Modular · 冻结 binary `ANV1`）。
+//! 数值序列化 wire（Integer / Rational / Real / Complex / Interval / Modular · 冻结 binary `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
@@ -6,9 +6,10 @@ use crate::{
     number::NumericValue,
     precision::PrecisionInfo,
     wire_binary::{
-        WireBlobParts, decode_blob, decode_integer_payload, decode_interval_payload, decode_modular_payload,
-        decode_rational_payload, decode_real_payload, encode_blob, encode_integer_payload, encode_interval_payload,
-        encode_modular_payload, encode_rational_payload, encode_real_payload,
+        WireBlobParts, decode_blob, decode_complex_payload, decode_integer_payload, decode_interval_payload,
+        decode_modular_payload, decode_rational_payload, decode_real_payload, encode_blob, encode_complex_payload,
+        encode_integer_payload, encode_interval_payload, encode_modular_payload, encode_rational_payload,
+        encode_real_payload,
     },
 };
 
@@ -35,7 +36,7 @@ impl NumericValueWire {
         SerializationVersion::CURRENT
     }
 
-    /// 编码 [`NumericValue`]（覆盖 Integer / Rational / Real / Interval / Modular）。
+    /// 编码 [`NumericValue`]（覆盖 Integer / Rational / Real / Complex / Interval / Modular）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
         match value {
             NumericValue::Integer(n) => {
@@ -64,6 +65,17 @@ impl NumericValueWire {
                 let (sign, payload) = encode_real_payload(r)?;
                 Ok(Self {
                     kind: NumericKind::Real,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
+            NumericValue::Complex(z) => {
+                let (sign, payload) = encode_complex_payload(z)?;
+                Ok(Self {
+                    kind: NumericKind::Complex,
                     domain_payload: Vec::new(),
                     payload,
                     sign,
@@ -124,6 +136,10 @@ impl NumericValueWire {
             NumericKind::Real => {
                 let r = decode_real_payload(self.sign, &self.payload)?;
                 Ok(NumericValue::real(r))
+            }
+            NumericKind::Complex => {
+                let z = decode_complex_payload(self.sign, &self.payload)?;
+                Ok(NumericValue::complex(z))
             }
             NumericKind::Interval => {
                 let i = decode_interval_payload(self.sign, &self.payload)?;
