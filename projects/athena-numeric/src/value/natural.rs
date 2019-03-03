@@ -215,7 +215,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::add_1_2(rhs, a);
                 Self::from_limb_slice_in(ctx, &limbs[..len])
             }
-            Mode::Heap => Self::publish_add_slices(ctx, self.as_limbs(), &[rhs]),
+            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
+                ctx.kernels().add_into(ctx.kernel_token(), self.as_limbs(), &[rhs], out, scratch, budget)
+            }),
         }
     }
 
@@ -245,7 +247,9 @@ impl Natural {
                 let (limbs, len) = limb_kernel::mul_2x1(a, rhs);
                 Self::from_limb_slice_in(ctx, &limbs[..len])
             }
-            Mode::Heap => Self::publish_mul_schoolbook_slices(ctx, self.as_limbs(), &[rhs]),
+            Mode::Heap => Self::publish_into(ctx, |out, scratch, budget| {
+                ctx.kernels().mul_1_into(ctx.kernel_token(), self.as_limbs(), rhs, out, scratch, budget)
+            }),
         }
     }
 
@@ -488,103 +492,6 @@ impl Natural {
             ctx.with_scratch_frame(|scratch, budget| write(out, scratch, budget))?;
             Self::from_limb_slice_in(ctx, out.as_canonical())
         })
-    }
-
-    /// 小端加法直写 GC（`len >= 3`）；≤2 limb 结果仍 inline。
-    pub(crate) fn publish_add_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
-        use crate::kernel::limb::{adc, effective_len};
-        use crate::storage::OwnedLimbBuffer;
-        ctx.check_entry()?;
-        let la = effective_len(a);
-        let lb = effective_len(b);
-        if la == 0 {
-            return Self::from_limb_slice_in(ctx, b);
-        }
-        if lb == 0 {
-            return Self::from_limb_slice_in(ctx, a);
-        }
-        let n = la.max(lb);
-        ctx.budget().check_add(la, lb)?;
-        let capacity = n + 1;
-        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
-        let storage = buf.as_mut_slice(capacity);
-        let mut carry = 0u64;
-        for i in 0..n {
-            let (sum, c) = adc(*a.get(i).unwrap_or(&0), *b.get(i).unwrap_or(&0), carry);
-            storage[i] = sum;
-            carry = c;
-        }
-        storage[n] = carry;
-        let el = if carry != 0 { n + 1 } else { effective_len(&storage[..n]) };
-        Ok(Self::finish_owned_limbs(buf, el))
-    }
-
-    /// 小端减法直写 GC（要求 `a >= b`）。
-    pub(crate) fn publish_sub_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
-        use crate::kernel::limb::{cmp_slice, effective_len, sbb};
-        use crate::storage::OwnedLimbBuffer;
-        use std::cmp::Ordering;
-        ctx.check_entry()?;
-        if cmp_slice(a, b) == Ordering::Less {
-            return Err(Diagnostic::new(DiagnosticCode::DomainError)
-                .detail("domain", "numeric")
-                .detail("operation", "natural_sub")
-                .detail("reason", "underflow"));
-        }
-        let n = effective_len(a);
-        if n == 0 {
-            return Ok(Self::zero());
-        }
-        ctx.budget().check_limbs(n)?;
-        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), n).map_err(gc_alloc_error)?;
-        let storage = buf.as_mut_slice(n);
-        let mut borrow = 0u64;
-        for i in 0..n {
-            let (diff, b_out) = sbb(*a.get(i).unwrap_or(&0), *b.get(i).unwrap_or(&0), borrow);
-            storage[i] = diff;
-            borrow = b_out;
-        }
-        debug_assert_eq!(borrow, 0);
-        let el = effective_len(storage);
-        Ok(Self::finish_owned_limbs(buf, el.max(1)))
-    }
-
-    /// 小学乘法直写 GC。
-    pub(crate) fn publish_mul_schoolbook_slices(ctx: &NumericContext, a: &[u64], b: &[u64]) -> Result<Self> {
-        use crate::kernel::limb::effective_len;
-        use crate::kernel::limb::mul_schoolbook_into;
-        use crate::storage::OwnedLimbBuffer;
-        ctx.check_entry()?;
-        let la = effective_len(a);
-        let lb = effective_len(b);
-        if la == 0 || lb == 0 {
-            return Ok(Self::zero());
-        }
-        let capacity = la + lb;
-        ctx.budget().check_limbs(capacity)?;
-        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
-        let storage = buf.as_mut_slice(capacity);
-        storage.fill(0);
-        mul_schoolbook_into(&a[..la], &b[..lb], storage);
-        let el = effective_len(storage);
-        Ok(Self::finish_owned_limbs(buf, el.max(1)))
-    }
-
-    fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Self {
-        match el {
-            0 | 1 => {
-                let limb = if el == 0 { 0 } else { buf.as_slice(1)[0] };
-                drop(buf);
-                Self::from_u64(limb)
-            }
-            2 => {
-                let limbs = buf.as_slice(2);
-                let pair = [limbs[0], limbs[1]];
-                drop(buf);
-                Self::from_limb2(pair)
-            }
-            _ => Self::from_pair(MagnitudePair::from_owned_heap(buf, el)),
-        }
     }
 
     /// 当前 storage mode（供 executor 宽度分派）。
