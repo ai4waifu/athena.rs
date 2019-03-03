@@ -272,10 +272,7 @@ impl NumericExecutor {
         let limbs = match plan {
             crate::algorithm::GcdStrategy::Binary => limb_kernel::binary_gcd(a, b),
             crate::algorithm::GcdStrategy::Lehmer => limb_kernel::gcd(a, b),
-            crate::algorithm::GcdStrategy::HalfGcd => {
-                // 能力位未开时 planner 不会选到；回退 Lehmer 保正确性。
-                limb_kernel::gcd(a, b)
-            }
+            crate::algorithm::GcdStrategy::HalfGcd => limb_kernel::half_gcd(a, b),
         };
         Natural::from_limbs_in(ctx, limbs)
     }
