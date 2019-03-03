@@ -478,7 +478,10 @@ impl Natural {
         Self::publish_into(ctx, write)
     }
 
-    /// Kernel `*_into` 后 canonicalize 并发布（复用 `ctx` 输出缓冲，避免每次系统 `Vec`）。
+    /// Kernel `*_into` 后 canonicalize 并发布。
+    ///
+    /// Living 17 步骤 6：当 [`NumericContext::can_reuse_destination`] 为真时复用 context
+    /// 输出 `LimbBuffer` 容量；否则使用临时缓冲。Heap 结果经 GC `OwnedLimbBuffer` 接管。
     fn publish_into(
         ctx: &NumericContext,
         write: impl FnOnce(
@@ -488,10 +491,33 @@ impl Natural {
         ) -> Result<()>,
     ) -> Result<Self> {
         ctx.check_entry()?;
-        ctx.with_out_buf(|out| {
-            ctx.with_scratch_frame(|scratch, budget| write(out, scratch, budget))?;
+        if ctx.can_reuse_destination() {
+            ctx.with_out_buf(|out| {
+                ctx.with_scratch_frame(|scratch, budget| write(out, scratch, budget))?;
+                Self::publish_from_out_buf(ctx, out)
+            })
+        }
+        else {
+            let mut out = LimbBuffer::zero();
+            ctx.with_scratch_frame(|scratch, budget| write(&mut out, scratch, budget))?;
             Self::from_limb_slice_in(ctx, out.as_canonical())
-        })
+        }
+    }
+
+    /// 将输出缓冲规范 limb 发布到 `ctx` heap，并保留缓冲容量供下次复用。
+    fn publish_from_out_buf(ctx: &NumericContext, out: &mut LimbBuffer) -> Result<Self> {
+        use crate::storage::OwnedLimbBuffer;
+        let el = out.canonical_len();
+        if el <= 2 {
+            let n = Self::from_limb_slice_in(ctx, out.as_canonical())?;
+            let _ = out.set_zero(ctx.budget());
+            return Ok(n);
+        }
+        let limbs = out.as_canonical();
+        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), el).map_err(gc_alloc_error)?;
+        buf.as_mut_slice(el).copy_from_slice(limbs);
+        let _ = out.set_zero(ctx.budget());
+        Ok(Self::from_pair(MagnitudePair::from_owned_heap(buf, el)))
     }
 
     /// 当前 storage mode（供 executor 宽度分派）。

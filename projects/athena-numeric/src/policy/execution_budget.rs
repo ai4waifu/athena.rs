@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use athena_gc::{GcHeap, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
+use athena_gc::{GcHeap, GcMode, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
@@ -125,6 +125,10 @@ pub struct NumericContext {
     cancel: CancellationToken,
     /// 值层 / kernel 共用的 limb scratch（非 GC tracing）。
     scratch: Rc<RefCell<ScratchWorkspace>>,
+    /// 热路径复用的输出 `LimbBuffer`（避免每次 `publish` 系统堆 `Vec`）。
+    out_buf: Rc<RefCell<crate::kernel::LimbBuffer>>,
+    /// 第二输出缓冲（`div_rem` 余数等）。
+    out_buf2: Rc<RefCell<crate::kernel::LimbBuffer>>,
     /// Context 创建时冻结的能力束。
     capabilities: CapabilityBundle,
     /// Context 创建时绑定的 machine kernel 表。
@@ -150,12 +154,16 @@ impl NumericContext {
             heap,
             cancel: CancellationToken::new(),
             scratch: Rc::new(RefCell::new(ScratchWorkspace::default())),
+            out_buf: Rc::new(RefCell::new(crate::kernel::LimbBuffer::zero())),
+            out_buf2: Rc::new(RefCell::new(crate::kernel::LimbBuffer::zero())),
             capabilities,
             kernels,
         }
     }
 
-    /// 来自 [`crate::dispatch::PortableBackend`] 的纯 Rust 默认上限（线程默认 heap）。
+    /// Public e2e convenience：[`GcHeap::shared_default`] + Auto + portable 上限。
+    ///
+    /// Living 18：宿主可见长期值路径。复用 session 算术请用 [`Self::session_default`]。
     pub fn portable_default() -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource =
@@ -167,26 +175,60 @@ impl NumericContext {
         )
     }
 
-    /// 由显式 backend / Session 上限构造（线程默认 heap · portable kernel）。
+    /// 由显式 backend 上限构造（线程默认 heap · Auto · portable kernel）。
+    ///
+    /// 与 [`Self::portable_default`] 同属 e2e / shared heap 语义。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::from_limits(*limits);
         Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default(), caps)
     }
 
-    /// 无限制预算（仅测试与内部 convenience；公共 Session 路径勿用）。
+    /// 无限制预算 + 线程默认 heap（Auto）。仅测试 / 公共 e2e convenience。
+    ///
+    /// Session / numeric 层请用 [`Self::session_default`]。
     pub fn unlimited() -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::unlimited();
         Self::assemble(ExecutionBudget::unlimited(), GcHeap::shared_default(), caps)
     }
 
-    /// Session / 测试：显式绑定 heap（portable kernel）。
+    /// Session / numeric 层默认：隔离 heap + [`GcMode::Deferred`] + 无 limb 上限。
+    ///
+    /// Living 18 复用 context 算术发布目标。不等于 [`Self::portable_default`]（shared Auto）。
+    pub fn session_default() -> Self {
+        Self::session_with_heap_budget(HeapBudget::default())
+    }
+
+    /// 同 [`Self::session_default`]，可指定 heap 预算（Criterion 用 [`HeapBudget::for_microbench`]）。
+    pub fn session_with_heap_budget(heap_budget: HeapBudget) -> Self {
+        let heap = GcHeap::new_shared(heap_budget);
+        heap.borrow().gc().set_base_mode(GcMode::Deferred);
+        let mut caps = CapabilityBundle::portable_default();
+        caps.resource = crate::dispatch::ResourceCapability::unlimited();
+        Self::assemble(ExecutionBudget::unlimited(), heap, caps)
+    }
+
+    /// Kernel 微基准：隔离 heap + [`GcMode::Disabled`]（[`HeapBudget::for_microbench`]）。
+    pub fn kernel_bench_context() -> Self {
+        Self::kernel_bench_with_heap_budget(HeapBudget::for_microbench())
+    }
+
+    /// 同 [`Self::kernel_bench_context`]，可指定 heap 预算。
+    pub fn kernel_bench_with_heap_budget(heap_budget: HeapBudget) -> Self {
+        let heap = GcHeap::new_shared(heap_budget);
+        heap.borrow().gc().set_base_mode(GcMode::Disabled);
+        let mut caps = CapabilityBundle::portable_default();
+        caps.resource = crate::dispatch::ResourceCapability::unlimited();
+        Self::assemble(ExecutionBudget::unlimited(), heap, caps)
+    }
+
+    /// 显式绑定已有 heap（portable kernel）。调用方负责 `GcMode`。
     pub fn with_heap(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>) -> Self {
         Self::assemble(budget, heap, CapabilityBundle::portable_default())
     }
 
-    /// 新建隔离 heap（不与线程默认共享）。
+    /// 新建隔离 heap（基准 mode 仍为 Auto，除非调用方再改）。
     pub fn with_new_heap(budget: ExecutionBudget, heap_budget: HeapBudget) -> Self {
         Self::assemble(budget, GcHeap::new_shared(heap_budget), CapabilityBundle::portable_default())
     }
@@ -279,12 +321,30 @@ impl NumericContext {
         f(&mut scratch)
     }
 
-    /// 在预算下执行并在结束后 `clear` scratch。
+    /// 在预算下执行并在结束后重置 scratch 游标。
     pub fn with_scratch_frame<R>(&self, f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R) -> R {
         let mut scratch = self.scratch.borrow_mut();
         let result = f(&mut scratch, &self.budget);
         scratch.clear();
         result
+    }
+
+    /// 是否允许复用 context 级输出 `LimbBuffer`（Living 17 destination reuse）。
+    #[inline]
+    pub fn can_reuse_destination(&self) -> bool {
+        self.capabilities.resource.can_reuse_destination
+    }
+
+    /// 借用可复用输出缓冲（热路径 publish）。
+    pub(crate) fn with_out_buf<R>(&self, f: impl FnOnce(&mut crate::kernel::LimbBuffer) -> R) -> R {
+        let mut out = self.out_buf.borrow_mut();
+        f(&mut out)
+    }
+
+    /// 借用第二输出缓冲（与 [`Self::with_out_buf`] 可嵌套）。
+    pub(crate) fn with_out_buf2<R>(&self, f: impl FnOnce(&mut crate::kernel::LimbBuffer) -> R) -> R {
+        let mut out = self.out_buf2.borrow_mut();
+        f(&mut out)
     }
 
     /// GC heap 上的 byte scratch 水位。

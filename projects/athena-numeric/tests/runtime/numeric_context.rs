@@ -82,3 +82,43 @@ fn heap_try_mul_respects_cancel_at_entry() {
     let err = a.try_mul(&b, &ctx).unwrap_err();
     assert_eq!(err.code, DiagnosticCode::NumericCancelled);
 }
+
+#[test]
+fn can_reuse_destination_false_matches_default_results() {
+    use athena_gc::{GcHeap, HeapBudget};
+    use athena_numeric::CapabilityBundle;
+
+    let limbs = vec![u64::MAX; 6];
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let a = Natural::from_limbs_in(
+        &NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()),
+        limbs.clone(),
+    )
+    .unwrap();
+    let b = Natural::from_limbs_in(
+        &NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()),
+        limbs,
+    )
+    .unwrap();
+
+    let ctx_reuse = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone());
+    assert!(ctx_reuse.can_reuse_destination());
+
+    let mut caps = CapabilityBundle::portable_default();
+    caps.resource.can_reuse_destination = false;
+    let ctx_fresh = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps);
+    assert!(!ctx_fresh.can_reuse_destination());
+
+    let sum_r = a.try_add(&b, &ctx_reuse).expect("reuse add");
+    let sum_f = a.try_add(&b, &ctx_fresh).expect("fresh add");
+    assert_eq!(sum_r.as_limbs(), sum_f.as_limbs());
+
+    let prod_r = a.try_mul(&b, &ctx_reuse).expect("reuse mul");
+    let prod_f = a.try_mul(&b, &ctx_fresh).expect("fresh mul");
+    assert_eq!(prod_r.as_limbs(), prod_f.as_limbs());
+
+    let (q_r, r_r) = prod_r.try_div_rem(&a, &ctx_reuse).expect("reuse div");
+    let (q_f, r_f) = prod_f.try_div_rem(&a, &ctx_fresh).expect("fresh div");
+    assert_eq!(q_r.as_limbs(), q_f.as_limbs());
+    assert_eq!(r_r.as_limbs(), r_f.as_limbs());
+}
