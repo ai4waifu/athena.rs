@@ -218,25 +218,50 @@ impl NumericExecutor {
             _ => {
                 let a_len = limb_kernel::effective_len(lhs);
                 let b_len = limb_kernel::effective_len(rhs);
-                let mut q = crate::kernel::LimbBuffer::zero();
-                let mut r = crate::kernel::LimbBuffer::zero();
                 let plan = ctx.planner().plan_div(a_len, b_len);
-                ctx.with_scratch_frame(|scratch, budget| {
-                    ctx.kernels().div_rem_into(
-                        ctx.kernel_token(),
-                        &lhs[..a_len],
-                        &rhs[..b_len],
-                        plan,
-                        &mut q,
-                        &mut r,
-                        scratch,
-                        budget,
-                    )
-                })?;
-                Ok((
-                    Natural::from_limb_slice_in(ctx, q.as_canonical())?,
-                    Natural::from_limb_slice_in(ctx, r.as_canonical())?,
-                ))
+                if ctx.can_reuse_destination() {
+                    ctx.with_out_buf(|q| {
+                        ctx.with_out_buf2(|r| {
+                            ctx.with_scratch_frame(|scratch, budget| {
+                                ctx.kernels().div_rem_into(
+                                    ctx.kernel_token(),
+                                    &lhs[..a_len],
+                                    &rhs[..b_len],
+                                    plan,
+                                    q,
+                                    r,
+                                    scratch,
+                                    budget,
+                                )
+                            })?;
+                            let quot = Natural::from_limb_slice_in(ctx, q.as_canonical())?;
+                            let rem = Natural::from_limb_slice_in(ctx, r.as_canonical())?;
+                            let _ = q.set_zero(ctx.budget());
+                            let _ = r.set_zero(ctx.budget());
+                            Ok((quot, rem))
+                        })
+                    })
+                }
+                else {
+                    let mut q = crate::kernel::LimbBuffer::zero();
+                    let mut r = crate::kernel::LimbBuffer::zero();
+                    ctx.with_scratch_frame(|scratch, budget| {
+                        ctx.kernels().div_rem_into(
+                            ctx.kernel_token(),
+                            &lhs[..a_len],
+                            &rhs[..b_len],
+                            plan,
+                            &mut q,
+                            &mut r,
+                            scratch,
+                            budget,
+                        )
+                    })?;
+                    Ok((
+                        Natural::from_limb_slice_in(ctx, q.as_canonical())?,
+                        Natural::from_limb_slice_in(ctx, r.as_canonical())?,
+                    ))
+                }
             }
         }
     }
