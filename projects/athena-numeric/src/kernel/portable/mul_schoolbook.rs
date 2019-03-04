@@ -32,7 +32,7 @@
 //! Undersized out is a debug assertion. Budget checks happen in glue, not here.
 //!
 //! # Tests
-//! 	ests/exact/limbs.rs, 	ests/exact/algorithms.rs, 	ests/runtime/kernel_parity.rs.
+//! tests/exact/limbs.rs, tests/exact/algorithms.rs, tests/runtime/kernel_parity.rs.
 
 use super::primitive::{effective_len, is_zero, mac, mul_wide, sbb};
 
@@ -125,6 +125,17 @@ fn add_wide_to_slice(out: &mut [u64], idx: usize, wide: u128) {
 
 /// 就地 `r += a * n`（单 limb `n`）。
 pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
+    #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
+    {
+        return crate::kernel::x86_64::addmul_1_inplace_isa(r, a, n);
+    }
+    #[cfg(not(all(target_arch = "x86_64", not(target_family = "wasm"))))]
+    {
+        addmul_1_inplace_soft(r, a, n)
+    }
+}
+
+fn addmul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     if n == 0 || is_zero(a) {
         return 0;
     }
@@ -152,6 +163,17 @@ pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
 
 /// 从 `r` 减去 `a * n`；发生借位（下溢）时返回 `true`。融合路径，不分配。
 pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
+    #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
+    {
+        return crate::kernel::x86_64::submul_1_inplace_isa(r, a, n);
+    }
+    #[cfg(not(all(target_arch = "x86_64", not(target_family = "wasm"))))]
+    {
+        submul_1_inplace_soft(r, a, n)
+    }
+}
+
+fn submul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> bool {
     if n == 0 || is_zero(a) {
         return false;
     }

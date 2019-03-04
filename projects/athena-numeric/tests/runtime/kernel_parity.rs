@@ -88,6 +88,46 @@ fn algorithm_planner_picks_karatsuba_and_toom_by_width() {
 }
 
 #[test]
+fn schoolbook_width_mul_div_parity_pure_vs_isa() {
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_portable_kernels();
+    let ctx_isa = NumericContext::with_capabilities(
+        ExecutionBudget::unlimited(),
+        heap,
+        CapabilityBundle {
+            machine: MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE },
+            ..CapabilityBundle::portable_default()
+        },
+    );
+
+    // Below Karatsuba threshold：强制 schoolbook 叶（ISA mulx 环 vs portable）。
+    let mut caps_sb = CapabilityBundle::portable_default();
+    caps_sb.algorithm.karatsuba = false;
+    caps_sb.algorithm.toom = false;
+    let heap2 = GcHeap::new_shared(HeapBudget::default());
+    let ctx_sb_pure =
+        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap2.clone(), caps_sb).with_portable_kernels();
+    let mut caps_sb_isa = caps_sb;
+    caps_sb_isa.machine = MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE };
+    let ctx_sb_isa = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap2, caps_sb_isa);
+
+    let wide_a: Vec<u64> = (1u64..=24).collect();
+    let wide_b: Vec<u64> = (2u64..=25).collect();
+    let a = Natural::from_limbs_in(&ctx_pure, wide_a).expect("a");
+    let b = Natural::from_limbs_in(&ctx_pure, wide_b).expect("b");
+
+    let prod_p = a.try_mul(&b, &ctx_sb_pure).expect("mul pure sb");
+    let prod_i = a.try_mul(&b, &ctx_sb_isa).expect("mul isa sb");
+    assert_eq!(prod_p.as_limbs(), prod_i.as_limbs());
+
+    let (q_p, r_p) = prod_p.try_div_rem(&a, &ctx_pure).expect("div pure");
+    let (q_i, r_i) = prod_p.try_div_rem(&a, &ctx_isa).expect("div isa");
+    assert_eq!(q_p.as_limbs(), q_i.as_limbs());
+    assert_eq!(r_p.as_limbs(), r_i.as_limbs());
+    assert_eq!(q_p.as_limbs(), b.as_limbs());
+}
+
+#[test]
 fn toom_width_mul_matches_schoolbook() {
     let ctx = NumericContext::unlimited();
     // 略高于 Toom 阈值：强制走三路分块路径。
