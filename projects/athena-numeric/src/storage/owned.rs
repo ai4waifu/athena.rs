@@ -99,6 +99,12 @@ impl OwnedLimbBuffer {
     pub(crate) fn heap_id(&self) -> HeapId {
         self.heap_id
     }
+
+    /// 分配容量（limb 数）。
+    #[inline]
+    pub(crate) fn capacity(&self) -> usize {
+        self.capacity
+    }
 }
 
 impl Drop for OwnedLimbBuffer {
