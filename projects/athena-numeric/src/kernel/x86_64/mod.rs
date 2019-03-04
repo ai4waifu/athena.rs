@@ -1,5 +1,9 @@
-//! x86_64 machine kernel（ADX/SBB · BMI2 `mulx` schoolbook / `mul_1` / addmul·submul 叶；
-//! Karatsuba/Toom/宽除法仍复用 portable 保 parity）。
+//! x86_64 machine kernel（ADX/SBB · BMI2 `mulx` schoolbook / `mul_1` / addmul·submul 叶）。
+//!
+//! - 宽 `mul_into`：Schoolbook 走 `mulx`；Karatsuba/Toom 委托 portable（其叶经
+//!   `mul_schoolbook_into` → `mul_schoolbook_mulx` 仍吃 ISA）。
+//! - `div_rem_into`：整表绑定 portable（Knuth/BZ）。除法内 `addmul_1`/`submul_1`
+//!   叶在本架构上已走 ISA。不在此移植完整 Knuth/BZ 到手写汇编。
 #![allow(unsafe_code)]
 
 use athena_types::Result;
@@ -187,7 +191,8 @@ fn sqr_into_isa(
     }
 }
 
-fn mul_schoolbook_mulx(a: &[u64], b: &[u64], out: &mut [u64]) {
+/// BMI2 `mulx` schoolbook（供 portable Karatsuba/Toom 叶与 `KernelTable` 共用）。
+pub(crate) fn mul_schoolbook_mulx(a: &[u64], b: &[u64], out: &mut [u64]) {
     let la = portable::effective_len(a);
     let lb = portable::effective_len(b);
     let need = la + lb;

@@ -37,7 +37,23 @@
 use super::primitive::{effective_len, is_zero, mac, mul_wide, sbb};
 
 /// 小学乘法写入 `out`（长度至少 `la + lb`）。
+///
+/// 在 x86_64 上走 `mulx` 叶（与 `KernelTable` schoolbook 同实现），
+/// 使 Karatsuba/Toom 递归叶也吃到 ISA，而非仅软 `mac`。
 pub(crate) fn mul_schoolbook_into(a: &[u64], b: &[u64], out: &mut [u64]) {
+    #[cfg(all(target_arch = "x86_64", not(target_family = "wasm")))]
+    {
+        crate::kernel::x86_64::mul_schoolbook_mulx(a, b, out);
+        return;
+    }
+    #[cfg(not(all(target_arch = "x86_64", not(target_family = "wasm"))))]
+    {
+        mul_schoolbook_into_soft(a, b, out);
+    }
+}
+
+/// Soft schoolbook（无 ISA）；`PortableLimbKernel` schoolbook 槽位用此保 parity 基线。
+pub(crate) fn mul_schoolbook_into_soft(a: &[u64], b: &[u64], out: &mut [u64]) {
     let la = effective_len(a);
     let lb = effective_len(b);
     let need = la + lb;

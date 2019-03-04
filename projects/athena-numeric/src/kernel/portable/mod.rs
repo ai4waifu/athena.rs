@@ -32,7 +32,7 @@ pub(crate) use primitive::{
     is_zero, limbs2_to_u128, mac, mul_1x1, mul_2, mul_2x1, mul_wide, normalize_trim, sbb, sub_1,
     sub_2, sub_2_1,
 };
-pub(crate) use mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, submul_1_inplace};
+pub(crate) use mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, mul_schoolbook_into_soft, submul_1_inplace};
 pub(crate) use slice_ops::{add_slices_into, sub_slices_into};
 pub(crate) use convenience::{
     add_n, add_n_budgeted, addmul_1, div_rem, div_rem_budgeted, karatsuba_mul, mul, mul_1,

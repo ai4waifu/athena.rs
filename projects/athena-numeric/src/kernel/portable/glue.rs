@@ -13,7 +13,7 @@ use super::div_burnikel_ziegler::div_rem_bz_into;
 use super::div_knuth::div_rem_knuth_into;
 use super::div_single::div_rem_1_into;
 use super::mul_karatsuba::mul_rec;
-use super::mul_schoolbook::{mul_1_into_slice, mul_schoolbook_into, sqr_schoolbook_into};
+use super::mul_schoolbook::{mul_1_into_slice, mul_schoolbook_into_soft, sqr_schoolbook_into};
 use super::mul_toom3::toom3_mul_rec;
 use super::primitive::{adc, cmp_slice, effective_len, is_zero, sbb};
 
@@ -141,7 +141,7 @@ impl LimbKernel for PortableLimbKernel {
             MulStrategy::Schoolbook => {
                 let storage = out.storage_mut(la + lb, budget)?;
                 storage.fill(0);
-                mul_schoolbook_into(a, b, storage);
+                mul_schoolbook_into_soft(a, b, storage);
                 out.trim_canonical();
                 Ok(())
             }
