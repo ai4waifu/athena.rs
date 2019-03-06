@@ -114,10 +114,18 @@ impl MagnitudePair {
             _ => {
                 debug_assert!(limbs[el - 1] != 0);
                 let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
-                let payload = buf.into_payload();
-                Ok(Self { meta: encode_heap_meta(el, false), magnitude: Magnitude { heap: payload } })
+                Ok(Self::from_owned_heap(buf, el))
             }
         }
+    }
+
+    /// 接管已写好的 heap 缓冲（`len >= 3`，且 `len <= capacity`）。
+    pub(crate) fn from_owned_heap(buf: OwnedLimbBuffer, len: usize) -> Self {
+        debug_assert!(len >= 3);
+        debug_assert!(len <= buf.capacity());
+        debug_assert_ne!(buf.as_slice(len)[len - 1], 0);
+        let payload = buf.into_payload();
+        Self { meta: encode_heap_meta(len, false), magnitude: Magnitude { heap: payload } }
     }
 
     /// Heap limb 指针（仅 Heap mode）。
@@ -125,6 +133,18 @@ impl MagnitudePair {
         if matches!(self.mode(), Mode::Heap) {
             // SAFETY: Heap active。
             Some(unsafe { self.magnitude.heap.ptr })
+        }
+        else {
+            None
+        }
+    }
+
+    /// Heap 分配容量（limb 槽位数）；非 Heap 返回 `None`。
+    #[inline]
+    pub(crate) fn heap_capacity(&self) -> Option<usize> {
+        if matches!(self.mode(), Mode::Heap) {
+            // SAFETY: Heap active。
+            Some(unsafe { self.magnitude.heap.capacity })
         }
         else {
             None

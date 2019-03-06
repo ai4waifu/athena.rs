@@ -284,6 +284,44 @@ impl Integer {
         Self::try_add_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
     }
 
+    /// 消费 `self` 的加法：同号时经 [`Natural::try_add_owned`] 就地复用幅度缓冲；异号走减幅度。
+    ///
+    /// 不经 [`Self::abs_natural`] 热路径；`rhs` 幅度仅在需要时做 clear-sign clone 以进入 `Natural` API。
+    pub fn try_add_owned(self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        if rhs.is_zero() {
+            return Ok(self);
+        }
+        if self.is_zero() {
+            return Ok(rhs.clone());
+        }
+
+        let lhs_neg = self.is_negative();
+        let rhs_neg = rhs.is_negative();
+        if lhs_neg == rhs_neg {
+            let mag = Natural::from_pair(self.into_pair().with_negative(false));
+            let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+            return Ok(Self::from_mag_sign(mag.try_add_owned(&rhs_mag, ctx)?, lhs_neg));
+        }
+
+        // Opposite signs: |a| - |b| with sign of the larger magnitude.
+        let cmp = limb_kernel::cmp_slice(self.as_limbs(), rhs.as_limbs());
+        match cmp {
+            Ordering::Equal => Ok(Self::zero()),
+            Ordering::Greater => {
+                let mag = Natural::from_pair(self.into_pair().with_negative(false));
+                let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+                Ok(Self::from_mag_sign(mag.try_sub_owned(&rhs_mag, ctx)?, lhs_neg))
+            }
+            Ordering::Less => {
+                // Result takes rhs sign; cannot steal self as destination (smaller).
+                let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+                let lhs_mag = Natural::from_pair(self.into_pair().with_negative(false));
+                Ok(Self::from_mag_sign(rhs_mag.try_sub_owned(&lhs_mag, ctx)?, rhs_neg))
+            }
+        }
+    }
+
     /// 借用视图加法；结果发布到 `ctx`（Living 18）。
     pub fn try_add_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
@@ -335,6 +373,29 @@ impl Integer {
     /// 乘法（服从 `ctx` 预算）。
     pub fn try_mul(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
         Self::try_mul_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
+    }
+
+    /// 消费 `self` 的乘法：经 [`Natural::try_mul_owned`]（Schoolbook + 余量容量时 steal）。
+    pub fn try_mul_owned(self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        if self.is_zero() || rhs.is_zero() {
+            return Ok(Self::zero());
+        }
+        let neg = self.is_negative() != rhs.is_negative();
+        let mag = Natural::from_pair(self.into_pair().with_negative(false));
+        let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+        Ok(Self::from_mag_sign(mag.try_mul_owned(&rhs_mag, ctx)?, neg))
+    }
+
+    /// 消费 `self` 的 `× u64`：经 [`Natural::try_mul_u64_owned`] 就地复用幅度。
+    pub fn try_mul_u64_owned(self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        if self.is_zero() || rhs == 0 {
+            return Ok(Self::zero());
+        }
+        let neg = self.is_negative();
+        let mag = Natural::from_pair(self.into_pair().with_negative(false));
+        Ok(Self::from_mag_sign(mag.try_mul_u64_owned(rhs, ctx)?, neg))
     }
 
     /// 借用视图乘法；结果发布到 `ctx`。
@@ -797,5 +858,41 @@ mod ownership_tests {
         let via_view = Integer::try_add_view(a.magnitude_view(), b.magnitude_view(), &ctx).unwrap();
         assert_eq!(via_ref, via_view);
         assert!(via_ref.bits() > 64);
+    }
+
+    #[test]
+    fn try_add_owned_same_sign_reuses_heap() {
+        use athena_gc::{GcHeap, HeapBudget};
+        use crate::policy::execution_budget::ExecutionBudget;
+
+        let heap = GcHeap::new_shared(HeapBudget::default());
+        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
+        let mag = Natural::from_limbs_with_capacity_in(&ctx, &[1, 2, 3, 4], 8).expect("mag");
+        let a = Integer::from_mag_sign(mag, true);
+        let ptr_before = a.inner.heap_ptr();
+        let b = Integer::from_mag_sign(Natural::from_limbs_in(&ctx, vec![5, 6, 7]).expect("b"), true);
+        let expected = a.try_add(&b, &ctx).expect("ref");
+        let sum = a.try_add_owned(&b, &ctx).expect("owned");
+        assert_eq!(sum, expected);
+        assert!(sum.is_negative());
+        assert_eq!(sum.inner.heap_ptr(), ptr_before);
+    }
+
+    #[test]
+    fn try_mul_u64_owned_preserves_sign_and_reuses_heap() {
+        use athena_gc::{GcHeap, HeapBudget};
+        use crate::policy::execution_budget::ExecutionBudget;
+
+        let heap = GcHeap::new_shared(HeapBudget::default());
+        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
+        let mag = Natural::from_limbs_with_capacity_in(&ctx, &[3, 4, 5], 6).expect("mag");
+        let a = Integer::from_mag_sign(mag, true);
+        let ptr_before = a.inner.heap_ptr();
+        let expected = a.try_mul(&Integer::from_i64(-7), &ctx).expect("ref");
+        // (-mag) * 7 = -7*mag；与 try_mul(-7) 同幅异号于 *(-7)=+。
+        let prod = a.try_mul_u64_owned(7, &ctx).expect("owned");
+        assert_eq!(prod.abs(), expected.abs());
+        assert!(prod.is_negative());
+        assert_eq!(prod.inner.heap_ptr(), ptr_before);
     }
 }
