@@ -128,6 +128,29 @@ fn schoolbook_width_mul_div_parity_pure_vs_isa() {
 }
 
 #[test]
+fn karatsuba_width_mul_portable_matches_isa_bound_context() {
+    // Above Karatsuba threshold: portable leaf vs ISA-bound context (mulx schoolbook leaves).
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_portable_kernels();
+    let ctx_isa = NumericContext::with_capabilities(
+        ExecutionBudget::unlimited(),
+        heap,
+        CapabilityBundle {
+            machine: MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE },
+            ..CapabilityBundle::portable_default()
+        },
+    );
+
+    let wide_a: Vec<u64> = (1u64..=48).collect();
+    let wide_b: Vec<u64> = (2u64..=49).collect();
+    let a = Natural::from_limbs_in(&ctx_pure, wide_a).expect("a");
+    let b = Natural::from_limbs_in(&ctx_pure, wide_b).expect("b");
+    let prod_p = a.try_mul(&b, &ctx_pure).expect("mul pure");
+    let prod_i = a.try_mul(&b, &ctx_isa).expect("mul isa");
+    assert_eq!(prod_p.as_limbs(), prod_i.as_limbs());
+}
+
+#[test]
 fn toom_width_mul_matches_schoolbook() {
     let ctx = NumericContext::unlimited();
     // 略高于 Toom 阈值：强制走三路分块路径。
