@@ -1,4 +1,5 @@
-//! x86_64 machine kernel（ADX/SBB 进位链 · BMI2 `mulx` 单 limb 乘；大乘除复用 portable 保 parity）。
+//! x86_64 machine kernel（ADX/SBB · BMI2 `mulx` schoolbook / `mul_1` / addmul·submul 叶；
+//! Karatsuba/Toom/宽除法仍复用 portable 保 parity）。
 #![allow(unsafe_code)]
 
 use athena_types::Result;
@@ -12,15 +13,15 @@ use crate::{
     policy::execution_budget::ExecutionBudget,
 };
 
-/// 绑定 x86_64 表（ADX add/sub + BMI2/`mulx` 友好的 `mul_1`）。
+/// 绑定 x86_64 表（ADX add/sub · BMI2 schoolbook mul/`mul_1`；Karatsuba/Toom/除法仍 portable）。
 pub fn kernel_table() -> KernelTable {
     KernelTable::from_parts(
         "x86_64_adx",
         add_into_adx,
         sub_into_sbb,
-        <PortableLimbKernel as LimbKernel>::mul_into,
+        mul_into_isa,
         mul_1_into_isa,
-        <PortableLimbKernel as LimbKernel>::sqr_into,
+        sqr_into_isa,
         <PortableLimbKernel as LimbKernel>::div_rem_into,
         add_1,
         mul_1x1_isa,
@@ -136,6 +137,132 @@ fn mul_1_into_isa(
     storage[la] = carry;
     out.trim_canonical();
     Ok(())
+}
+
+/// Schoolbook `mul_into`：叶乘用 BMI2 `mulx` 环；Karatsuba/Toom 仍委托 portable。
+fn mul_into_isa(
+    a: &[u64],
+    b: &[u64],
+    strategy: crate::algorithm::MulStrategy,
+    out: &mut LimbBuffer,
+    scratch: &mut ScratchWorkspace,
+    budget: &ExecutionBudget,
+) -> Result<()> {
+    use crate::algorithm::MulStrategy;
+    match strategy {
+        MulStrategy::Zero => out.set_zero(budget),
+        MulStrategy::Schoolbook => {
+            let la = portable::effective_len(a);
+            let lb = portable::effective_len(b);
+            budget.check_mul(la, lb)?;
+            let need = la + lb;
+            let storage = out.storage_mut(need.max(1), budget)?;
+            mul_schoolbook_mulx(a, b, storage);
+            out.trim_canonical();
+            Ok(())
+        }
+        MulStrategy::Karatsuba | MulStrategy::Toom3 => {
+            <PortableLimbKernel as LimbKernel>::mul_into(a, b, strategy, out, scratch, budget)
+        }
+    }
+}
+
+fn sqr_into_isa(
+    a: &[u64],
+    strategy: crate::algorithm::MulStrategy,
+    out: &mut LimbBuffer,
+    scratch: &mut ScratchWorkspace,
+    budget: &ExecutionBudget,
+) -> Result<()> {
+    use crate::algorithm::MulStrategy;
+    match strategy {
+        MulStrategy::Zero => out.set_zero(budget),
+        MulStrategy::Schoolbook => {
+            // Square via mul(a,a) mulx schoolbook（与 portable sqr 语义一致）。
+            mul_into_isa(a, a, MulStrategy::Schoolbook, out, scratch, budget)
+        }
+        MulStrategy::Karatsuba | MulStrategy::Toom3 => {
+            <PortableLimbKernel as LimbKernel>::sqr_into(a, strategy, out, scratch, budget)
+        }
+    }
+}
+
+fn mul_schoolbook_mulx(a: &[u64], b: &[u64], out: &mut [u64]) {
+    let la = portable::effective_len(a);
+    let lb = portable::effective_len(b);
+    let need = la + lb;
+    debug_assert!(out.len() >= need.max(1));
+    out[..need.max(1)].fill(0);
+    if la == 0 || lb == 0 || is_zero_prefix(a, la) || is_zero_prefix(b, lb) {
+        return;
+    }
+    for i in 0..la {
+        let mut carry = 0u64;
+        for j in 0..lb {
+            let idx = i + j;
+            let prod = mul_1x1_isa(a[i], b[j]) + u128::from(out[idx]) + u128::from(carry);
+            out[idx] = prod as u64;
+            carry = (prod >> 64) as u64;
+        }
+        let mut k = i + lb;
+        while carry > 0 && k < out.len() {
+            let sum = u128::from(out[k]) + u128::from(carry);
+            out[k] = sum as u64;
+            carry = (sum >> 64) as u64;
+            k += 1;
+        }
+    }
+}
+
+/// 就地 `r += a * n`（BMI2 `mulx` + 进位链；无 feature 时软实现）。
+pub(crate) fn addmul_1_inplace_isa(r: &mut [u64], a: &[u64], n: u64) -> u64 {
+    if n == 0 || is_zero_prefix(a, portable::effective_len(a)) {
+        return 0;
+    }
+    let la = portable::effective_len(a);
+    let mut carry = 0u64;
+    for i in 0..la {
+        let ri = r.get(i).copied().unwrap_or(0);
+        let prod = mul_1x1_isa(a[i], n) + u128::from(ri) + u128::from(carry);
+        if i < r.len() {
+            r[i] = prod as u64;
+        }
+        carry = (prod >> 64) as u64;
+    }
+    let mut idx = la;
+    while carry > 0 {
+        if idx >= r.len() {
+            break;
+        }
+        let sum = u128::from(r[idx]) + u128::from(carry);
+        r[idx] = sum as u64;
+        carry = (sum >> 64) as u64;
+        idx += 1;
+    }
+    carry
+}
+
+/// 就地 `r -= a * n`；下溢返回 `true`。
+pub(crate) fn submul_1_inplace_isa(r: &mut [u64], a: &[u64], n: u64) -> bool {
+    if n == 0 || is_zero_prefix(a, portable::effective_len(a)) {
+        return false;
+    }
+    let la = portable::effective_len(a);
+    let mut borrow = 0u8;
+    let mut carry_hi = 0u64;
+    for i in 0..r.len() {
+        let av = if i < la { a[i] } else { 0 };
+        let prod = mul_1x1_isa(av, n) + u128::from(carry_hi);
+        let plo = prod as u64;
+        carry_hi = (prod >> 64) as u64;
+        let (diff, br) = sbb_chain(borrow, r[i], plo);
+        r[i] = diff;
+        borrow = br;
+        if i >= la && carry_hi == 0 && borrow == 0 {
+            break;
+        }
+    }
+    borrow != 0 || carry_hi != 0
 }
 
 #[inline]
