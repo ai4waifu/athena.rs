@@ -1,4 +1,4 @@
-//! 数值序列化 wire（Integer / Rational / Real / Complex / Interval / Modular · 冻结 binary `ANV1`）。
+//! 数值序列化 wire（Integer / Rational / Real / Complex / Interval / Algebraic / FiniteField / Modular / PAdic · 冻结 binary `ANV1`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
@@ -6,9 +6,10 @@ use crate::{
     number::NumericValue,
     precision::PrecisionInfo,
     wire_binary::{
-        WireBlobParts, decode_blob, decode_complex_payload, decode_integer_payload, decode_interval_payload,
-        decode_modular_payload, decode_rational_payload, decode_real_payload, encode_blob, encode_complex_payload,
-        encode_integer_payload, encode_interval_payload, encode_modular_payload, encode_rational_payload,
+        WireBlobParts, decode_algebraic_payload, decode_blob, decode_complex_payload, decode_finite_field_payload,
+        decode_integer_payload, decode_interval_payload, decode_modular_payload, decode_padic_payload, decode_rational_payload,
+        decode_real_payload, encode_algebraic_payload, encode_blob, encode_complex_payload, encode_finite_field_payload,
+        encode_integer_payload, encode_interval_payload, encode_modular_payload, encode_padic_payload, encode_rational_payload,
         encode_real_payload,
     },
 };
@@ -36,7 +37,7 @@ impl NumericValueWire {
         SerializationVersion::CURRENT
     }
 
-    /// 编码 [`NumericValue`]（覆盖 Integer / Rational / Real / Complex / Interval / Modular）。
+    /// 编码 [`NumericValue`]（Integer / Rational / Real / Complex / Interval / Algebraic / FiniteField / Modular / PAdic）。
     pub fn encode(value: &NumericValue) -> Result<Self, Diagnostic> {
         match value {
             NumericValue::Integer(n) => {
@@ -105,9 +106,39 @@ impl NumericValueWire {
                     version: Self::current_version(),
                 })
             }
-            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("domain", "numeric")
-                .detail("operation", "serialize")),
+            NumericValue::Algebraic(a) => {
+                let (sign, payload) = encode_algebraic_payload(a)?;
+                Ok(Self {
+                    kind: NumericKind::Algebraic,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
+            NumericValue::FiniteField(v) => {
+                let (sign, payload) = encode_finite_field_payload(v)?;
+                Ok(Self {
+                    kind: NumericKind::FiniteField,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
+            NumericValue::PAdic(v) => {
+                let (sign, payload) = encode_padic_payload(v)?;
+                Ok(Self {
+                    kind: NumericKind::PAdic,
+                    domain_payload: Vec::new(),
+                    payload,
+                    sign,
+                    precision: value.precision(),
+                    version: Self::current_version(),
+                })
+            }
         }
     }
 
@@ -149,9 +180,18 @@ impl NumericValueWire {
                 let m = decode_modular_payload(self.sign, &self.payload)?;
                 Ok(NumericValue::modular(m))
             }
-            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("domain", "numeric")
-                .detail("operation", "deserialize_kind")),
+            NumericKind::Algebraic => {
+                let a = decode_algebraic_payload(self.sign, &self.payload)?;
+                Ok(NumericValue::algebraic(a))
+            }
+            NumericKind::FiniteField => {
+                let v = decode_finite_field_payload(self.sign, &self.payload)?;
+                Ok(NumericValue::finite_field(v))
+            }
+            NumericKind::PAdic => {
+                let v = decode_padic_payload(self.sign, &self.payload)?;
+                Ok(NumericValue::padic(v))
+            }
         }
     }
 

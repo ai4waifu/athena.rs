@@ -1,10 +1,10 @@
-//! 二进制 wire 往返与 ANV1 Int/Rat/Real/Complex/Interval/Modular reject 矩阵。
+//! 二进制 wire 往返与 ANV1 Int/Rat/Real/Complex/Interval/Algebraic/FiniteField/Modular/PAdic reject 矩阵。
 
 use athena_numeric::{
-    BranchPolicy, Complex, Integer, Interval, IntervalDecoration, ModularValue, Modulus, NumericValue, NumericValueWire,
-    Rational, Real,
+    AlgebraicNumber, AlgebraicRepresentation, BranchPolicy, Complex, FiniteFieldValue, Integer, Interval, IntervalDecoration,
+    ModularValue, Modulus, NumericValue, NumericValueWire, PAdicValue, PolynomialFingerprint, Rational, Real,
 };
-use athena_types::NumericKind;
+use athena_types::{FieldId, NumericKind};
 use std::str::FromStr;
 
 fn mag_bytes(count: u32, limbs: &[u64]) -> Vec<u8> {
@@ -332,20 +332,12 @@ fn nested_machine_real(x: f64) -> Vec<u8> {
 
 #[test]
 fn binary_complex_machine_roundtrip() {
-    let z = Complex {
-        re: Real::machine(1.25),
-        im: Real::machine(-2.5),
-        branch: BranchPolicy::Principal,
-    };
+    let z = Complex { re: Real::machine(1.25), im: Real::machine(-2.5), branch: BranchPolicy::Principal };
     let v = NumericValue::complex(z);
     let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
     assert_eq!(back, v);
 
-    let z2 = Complex {
-        re: Real::machine(0.0),
-        im: Real::machine(1.0),
-        branch: BranchPolicy::RealOnly,
-    };
+    let z2 = Complex { re: Real::machine(0.0), im: Real::machine(1.0), branch: BranchPolicy::RealOnly };
     let v2 = NumericValue::complex(z2);
     let back2 = NumericValueWire::encode(&v2).unwrap().decode().unwrap();
     assert_eq!(back2, v2);
@@ -462,4 +454,185 @@ fn reject_modular_trailing() {
     payload.push(0xAB);
     let err = modular_wire(1, payload).decode().unwrap_err();
     assert_eq!(reason_of(&err), Some("modular_trailing"));
+}
+
+fn algebraic_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::Algebraic,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::exact(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn finite_field_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::FiniteField,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::exact(),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn padic_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
+    NumericValueWire {
+        kind: NumericKind::PAdic,
+        domain_payload: Vec::new(),
+        payload,
+        sign,
+        precision: athena_numeric::PrecisionInfo::arbitrary(32),
+        version: NumericValueWire::current_version(),
+    }
+}
+
+fn signed_int_bytes(sign: u8, mag: Vec<u8>) -> Vec<u8> {
+    let mut out = vec![sign];
+    out.extend(mag);
+    out
+}
+
+#[test]
+fn binary_algebraic_minpoly_roundtrip() {
+    let iv = Interval::try_bounded(Real::machine(1.4), Real::machine(1.5), IntervalDecoration::Certain).unwrap();
+    let a = AlgebraicNumber::try_new(
+        PolynomialFingerprint(7),
+        iv,
+        AlgebraicRepresentation::MinimalPolynomial { polynomial: PolynomialFingerprint(7), root_index: 0 },
+    )
+    .unwrap();
+    let v = NumericValue::algebraic(a);
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn binary_algebraic_placeholder_roundtrip() {
+    let a = AlgebraicNumber::placeholder(Interval::try_point(Real::machine(0.0)).unwrap()).unwrap();
+    let v = NumericValue::algebraic(a);
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn reject_algebraic_unknown_subtype() {
+    let mut payload = vec![9u8];
+    payload.extend_from_slice(&0u64.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.push(0); // empty interval
+    let err = algebraic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("algebraic_unknown_subtype"));
+}
+
+#[test]
+fn reject_algebraic_placeholder_nonzero_fingerprint() {
+    let mut payload = vec![0u8];
+    payload.extend_from_slice(&1u64.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.push(0);
+    let err = algebraic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("algebraic_placeholder"));
+}
+
+#[test]
+fn reject_algebraic_empty_interval() {
+    let mut payload = vec![1u8];
+    payload.extend_from_slice(&3u64.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.push(0); // Interval::Empty
+    let err = algebraic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("algebraic_inconsistent"));
+}
+
+#[test]
+fn binary_finite_field_roundtrip() {
+    let v = NumericValue::finite_field(
+        FiniteFieldValue::try_new(FieldId(4), vec![Integer::from_i64(1), Integer::from_i64(-2)]).unwrap(),
+    );
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn reject_finite_field_empty() {
+    let mut payload = 4u32.to_le_bytes().to_vec();
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    let err = finite_field_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("finite_field_empty"));
+}
+
+#[test]
+fn reject_finite_field_trailing() {
+    let mut payload = 4u32.to_le_bytes().to_vec();
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend(signed_int_bytes(1, mag_bytes(1, &[1])));
+    payload.push(0xAB);
+    let err = finite_field_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("finite_field_trailing"));
+}
+
+#[test]
+fn binary_padic_roundtrip() {
+    let v = NumericValue::padic(PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap());
+    let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
+    assert_eq!(back, v);
+}
+
+#[test]
+fn reject_padic_unnormalized_trailing_digit() {
+    let mut payload = mag_bytes(1, &[5]);
+    payload.extend_from_slice(&3u32.to_le_bytes());
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_unnormalized"));
+}
+
+#[test]
+fn reject_padic_bad_prime() {
+    let mut payload = mag_bytes(1, &[4]);
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_bad_prime"));
+}
+
+#[test]
+fn reject_padic_precision_zero() {
+    let mut payload = mag_bytes(1, &[5]);
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_precision_zero"));
+}
+
+#[test]
+fn fuzz_padic_blob_mutations() {
+    let base = NumericValueWire::encode(&NumericValue::padic(
+        PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap(),
+    ))
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    for i in 0..base.len() {
+        for delta in [1u8, 0x7f, 0xff] {
+            let mut mut_bytes = base.clone();
+            mut_bytes[i] = mut_bytes[i].wrapping_add(delta);
+            match NumericValueWire::from_bytes(&mut_bytes).and_then(|w| w.decode()) {
+                Ok(v) => {
+                    let again = NumericValueWire::encode(&v).unwrap().to_bytes().unwrap();
+                    let back = NumericValueWire::from_bytes(&again).unwrap().decode().unwrap();
+                    assert_eq!(back, v);
+                }
+                Err(e) => {
+                    assert!(e.details.get("reason").is_some() || e.details.get("operation").is_some());
+                }
+            }
+        }
+    }
 }
