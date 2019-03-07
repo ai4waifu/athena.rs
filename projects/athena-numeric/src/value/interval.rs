@@ -253,6 +253,27 @@ impl Interval {
         }
     }
 
+    /// 取负：`[-upper, -lower]`（定向舍入）。
+    pub fn neg(&self) -> Result<Self> {
+        match self {
+            Self::Empty => Ok(Self::Empty),
+            Self::Entire { decoration } => Ok(Self::Entire { decoration: *decoration }),
+            Self::Bounded { lower, upper, decoration } => {
+                let lo = Real::machine(f64_sub_down(0.0, endpoint_f64(upper, "interval_neg")?));
+                let hi = Real::machine(f64_sub_up(0.0, endpoint_f64(lower, "interval_neg")?));
+                Self::try_bounded(lo, hi, *decoration)
+            }
+        }
+    }
+
+    /// 是否为点区间 `[x, x]`。
+    pub fn is_point(&self) -> bool {
+        match self {
+            Self::Bounded { lower, upper, .. } => lower == upper,
+            Self::Empty | Self::Entire { .. } => false,
+        }
+    }
+
     /// `x` 是否落在区间内（仅机器端点）。
     pub fn contains_f64(&self, x: f64) -> Result<bool> {
         if x.is_nan() {

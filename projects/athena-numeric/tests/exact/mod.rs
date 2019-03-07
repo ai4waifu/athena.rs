@@ -1,4 +1,6 @@
+mod algebraic;
 mod algorithms;
+mod finite_field;
 mod gc_heap;
 mod integer;
 mod kernel_number;

@@ -1,3 +1,4 @@
+mod complex;
 mod decimal;
 mod dyadic;
 mod f64_contract;

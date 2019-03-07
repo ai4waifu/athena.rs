@@ -1,5 +1,7 @@
 //! 代数数骨架。
 
+use athena_types::{Diagnostic, DiagnosticCode, Result};
+
 use crate::{interval::Interval, polynomial_fingerprint::PolynomialFingerprint};
 
 /// 代数数表示策略。
@@ -17,6 +19,11 @@ pub enum AlgebraicRepresentation {
 }
 
 /// 代数数。
+///
+/// 不变量：
+/// - [`AlgebraicRepresentation::Placeholder`] 要求指纹为 [`PolynomialFingerprint::PLACEHOLDER`]。
+/// - [`AlgebraicRepresentation::MinimalPolynomial`] 的指纹必须与 [`Self::minimal_polynomial`] 一致。
+/// - 隔离区间不得为空。
 #[derive(Debug, Clone, PartialEq)]
 pub struct AlgebraicNumber {
     /// 极小多项式指纹。
@@ -25,4 +32,46 @@ pub struct AlgebraicNumber {
     pub isolating_interval: Interval,
     /// 表示。
     pub representation: AlgebraicRepresentation,
+}
+
+impl AlgebraicNumber {
+    /// 校验并构造。
+    pub fn try_new(
+        minimal_polynomial: PolynomialFingerprint,
+        isolating_interval: Interval,
+        representation: AlgebraicRepresentation,
+    ) -> Result<Self> {
+        let v = Self { minimal_polynomial, isolating_interval, representation };
+        v.validate()?;
+        Ok(v)
+    }
+
+    /// 占位代数数（测试 / 未求值路径）。
+    pub fn placeholder(isolating_interval: Interval) -> Result<Self> {
+        Self::try_new(PolynomialFingerprint::PLACEHOLDER, isolating_interval, AlgebraicRepresentation::Placeholder)
+    }
+
+    /// 不变量校验。
+    pub fn validate(&self) -> Result<()> {
+        if self.isolating_interval.is_empty() {
+            return Err(invalid("algebraic_empty_interval"));
+        }
+        match &self.representation {
+            AlgebraicRepresentation::Placeholder => {
+                if self.minimal_polynomial != PolynomialFingerprint::PLACEHOLDER {
+                    return Err(invalid("algebraic_placeholder_fingerprint"));
+                }
+            }
+            AlgebraicRepresentation::MinimalPolynomial { polynomial, .. } => {
+                if *polynomial != self.minimal_polynomial {
+                    return Err(invalid("algebraic_fingerprint_mismatch"));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn invalid(operation: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", operation)
 }

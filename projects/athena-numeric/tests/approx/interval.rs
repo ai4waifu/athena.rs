@@ -52,6 +52,17 @@ fn mul_widens_product() {
 }
 
 #[test]
+fn neg_swaps_and_flips_bounds() {
+    let iv = Interval::try_bounded(Real::machine(-1.0), Real::machine(2.5), IntervalDecoration::Certain).unwrap();
+    let n = iv.neg().unwrap();
+    let (lo, hi) = n.as_f64_bounds().unwrap();
+    assert_eq!(lo, -2.5);
+    assert_eq!(hi, 1.0);
+    assert!(!iv.is_point());
+    assert!(Interval::try_point(Real::machine(3.0)).unwrap().is_point());
+}
+
+#[test]
 fn div_by_interval_containing_zero_is_error() {
     let a = Interval::try_bounded(Real::machine(1.0), Real::machine(2.0), IntervalDecoration::Trivial).unwrap();
     let b = Interval::try_bounded(Real::machine(-1.0), Real::machine(1.0), IntervalDecoration::Trivial).unwrap();
