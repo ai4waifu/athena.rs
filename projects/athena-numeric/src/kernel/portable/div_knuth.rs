@@ -9,7 +9,7 @@
 //! # Derivation
 //! Normalization maximizes the leading divisor limb. The estimate
 //! $\hat q = \lfloor u_{j+n:j+n-1} / v_{n-1} \rfloor$ (capped) is refined by the
-//! $v_{n-2}$ test, then by multiply-subtract; a borrow forces dd-back.
+//! $v_{n-2}$ test, then by multiply-subtract; a borrow forces add-back.
 //!
 //! # Algorithm steps
 //! 1. Compute shift = leading zeros of top divisor limb; shift $u,v$ into scratch.
@@ -33,24 +33,24 @@
 //! Division by zero rejected in glue. Budget / capacity errors returned as Result.
 //!
 //! # Tests
-//! 	ests/exact/algorithms.rs, natural div_rem identity suites.
+//! tests/exact/algorithms.rs, natural div_rem identity suites.
 
 use athena_types::Result;
 
 use crate::kernel::{LimbBuffer, ScratchWorkspace};
 use crate::policy::execution_budget::ExecutionBudget;
 
-use super::mul_schoolbook::{addmul_1_inplace, submul_1_inplace};
+use super::mul_schoolbook::{addmul_1_inplace_soft, submul_1_inplace_soft};
 use super::primitive::{effective_len, is_zero};
 use super::slice_ops::trim_slice_len;
 
 /// Knuth 除法 scratch：归一化 u、v、商，以及可选余数右移缓冲。
-fn div_scratch_limbs(u_limbs: usize, v_limbs: usize) -> usize {
+pub(crate) fn div_scratch_limbs(u_limbs: usize, v_limbs: usize) -> usize {
     let m = u_limbs.saturating_sub(v_limbs);
     (m + v_limbs + 1) + v_limbs + (m + 1) + v_limbs
 }
 
-fn shl_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
+pub(crate) fn shl_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
     let el = effective_len(v);
     out.fill(0);
     if bits == 0 || is_zero(v) {
@@ -75,7 +75,7 @@ fn shl_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
     }
 }
 
-fn shr_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
+pub(crate) fn shr_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
     let el = effective_len(v);
     out.fill(0);
     if bits == 0 || is_zero(v) {
@@ -166,10 +166,10 @@ pub(super) fn div_rem_knuth_into(
             }
         }
 
-        let borrow = submul_1_inplace(&mut u_work[j..j + n + 1], v_work, qhat);
+        let borrow = submul_1_inplace_soft(&mut u_work[j..j + n + 1], v_work, qhat);
         if borrow {
             qhat = qhat.wrapping_sub(1);
-            let _ = addmul_1_inplace(&mut u_work[j..j + n + 1], v_work, 1);
+            let _ = addmul_1_inplace_soft(&mut u_work[j..j + n + 1], v_work, 1);
         }
         q_work[j] = qhat;
     }

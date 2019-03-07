@@ -2,8 +2,9 @@
 //!
 //! - 宽 `mul_into`：Schoolbook 走 `mulx`；Karatsuba/Toom 委托 portable（其叶经
 //!   `mul_schoolbook_into` → `mul_schoolbook_mulx` 仍吃 ISA）。
-//! - `div_rem_into`：整表绑定 portable（Knuth/BZ）。除法内 `addmul_1`/`submul_1`
-//!   叶在本架构上已走 ISA。不在此移植完整 Knuth/BZ 到手写汇编。
+//! - `div_rem_into`：Knuth / Burnikel–Ziegler 在本模块执行（`mulx` addmul·submul 叶 +
+//!   ADX 进位链组装 BZ mid/商）。单 limb 仍委派 portable。Portable Knuth 用 soft
+//!   addmul/submul 作 parity 基线。
 #![allow(unsafe_code)]
 
 use athena_types::Result;
@@ -17,7 +18,9 @@ use crate::{
     policy::execution_budget::ExecutionBudget,
 };
 
-/// 绑定 x86_64 表（ADX add/sub · BMI2 schoolbook mul/`mul_1`；Karatsuba/Toom/除法仍 portable）。
+mod div;
+
+/// 绑定 x86_64 表（ADX add/sub · BMI2 schoolbook mul/`mul_1` · ISA Knuth/BZ）。
 pub fn kernel_table() -> KernelTable {
     KernelTable::from_parts(
         "x86_64_adx",
@@ -26,7 +29,7 @@ pub fn kernel_table() -> KernelTable {
         mul_into_isa,
         mul_1_into_isa,
         sqr_into_isa,
-        <PortableLimbKernel as LimbKernel>::div_rem_into,
+        div::div_rem_into_isa,
         add_1,
         mul_1x1_isa,
     )
@@ -276,7 +279,7 @@ fn is_zero_prefix(a: &[u64], la: usize) -> bool {
 }
 
 #[inline]
-fn adc_chain(carry_in: u8, a: u64, b: u64) -> (u64, u8) {
+pub(super) fn adc_chain(carry_in: u8, a: u64, b: u64) -> (u64, u8) {
     #[cfg(target_feature = "adx")]
     {
         unsafe {
@@ -294,7 +297,7 @@ fn adc_chain(carry_in: u8, a: u64, b: u64) -> (u64, u8) {
 }
 
 #[inline]
-fn sbb_chain(borrow_in: u8, a: u64, b: u64) -> (u64, u8) {
+pub(super) fn sbb_chain(borrow_in: u8, a: u64, b: u64) -> (u64, u8) {
     #[cfg(target_feature = "adx")]
     {
         unsafe {
