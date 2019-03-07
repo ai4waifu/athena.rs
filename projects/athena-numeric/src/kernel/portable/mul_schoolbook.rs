@@ -151,7 +151,8 @@ pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     }
 }
 
-fn addmul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> u64 {
+/// Soft `addmul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
+pub(crate) fn addmul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     if n == 0 || is_zero(a) {
         return 0;
     }
@@ -189,7 +190,8 @@ pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
     }
 }
 
-fn submul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> bool {
+/// Soft `submul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
+pub(crate) fn submul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> bool {
     if n == 0 || is_zero(a) {
         return false;
     }
