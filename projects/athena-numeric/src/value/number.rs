@@ -57,10 +57,11 @@ impl NumericValue {
             Self::Integer(_) | Self::Rational(_) => true,
             Self::Real(Real::Machine(_)) => true,
             Self::Real(Real::Decimal(b)) => b.validate().is_ok(),
-            Self::Complex(_) => true,
+            Self::Complex(z) => z.validate().is_ok(),
             Self::Interval(_) => true,
             Self::Modular(v) => v.modulus().is_some(),
-            Self::FiniteField(_) | Self::Algebraic(_) => false,
+            Self::FiniteField(v) => v.validate().is_ok(),
+            Self::Algebraic(a) => a.validate().is_ok(),
             Self::PAdic(v) => v.validate().is_ok(),
         };
         if ok {
@@ -106,6 +107,21 @@ impl NumericValue {
     /// 模整数（须嵌入模数方可经 ANV1 往返）。
     pub fn modular(m: ModularValue) -> Self {
         Self::Modular(m)
+    }
+
+    /// 代数数。
+    pub fn algebraic(a: AlgebraicNumber) -> Self {
+        Self::Algebraic(a)
+    }
+
+    /// 有限域元素。
+    pub fn finite_field(v: FiniteFieldValue) -> Self {
+        Self::FiniteField(v)
+    }
+
+    /// p-adic 截断值。
+    pub fn padic(v: PAdicValue) -> Self {
+        Self::PAdic(v)
     }
 
     /// 机器实数。
@@ -256,6 +272,46 @@ impl NumericValue {
                 }
             }
             other => format!("{other:?}"),
+        }
+    }
+
+    /// 代数数视图。
+    pub fn as_algebraic(&self) -> Option<&AlgebraicNumber> {
+        match self {
+            Self::Algebraic(a) => Some(a),
+            _ => None,
+        }
+    }
+
+    /// 有限域元素视图。
+    pub fn as_finite_field(&self) -> Option<&FiniteFieldValue> {
+        match self {
+            Self::FiniteField(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// p-adic 视图。
+    pub fn as_padic(&self) -> Option<&PAdicValue> {
+        match self {
+            Self::PAdic(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// 复数视图。
+    pub fn as_complex(&self) -> Option<&Complex> {
+        match self {
+            Self::Complex(z) => Some(z),
+            _ => None,
+        }
+    }
+
+    /// 区间视图。
+    pub fn as_interval(&self) -> Option<&Interval> {
+        match self {
+            Self::Interval(i) => Some(i),
+            _ => None,
         }
     }
 

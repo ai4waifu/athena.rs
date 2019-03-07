@@ -38,6 +38,11 @@ impl Real {
         }
     }
 
+    /// 是否为 IEEE NaN（仅 [`Self::Machine`]）。
+    pub fn is_nan(&self) -> bool {
+        matches!(self, Self::Machine(x) if x.is_nan())
+    }
+
     /// 已是任意精度时视为 [`Decimal`]。
     pub fn as_decimal(&self) -> Option<&Decimal> {
         match self {

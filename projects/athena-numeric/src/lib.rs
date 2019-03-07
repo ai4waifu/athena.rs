@@ -71,7 +71,7 @@ pub use crate::{
     },
     value::{
         algebraic,
-        algebraic::AlgebraicNumber,
+        algebraic::{AlgebraicNumber, AlgebraicRepresentation},
         complex,
         complex::{BranchPolicy, Complex},
         finite_field,
