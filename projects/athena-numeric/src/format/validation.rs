@@ -63,6 +63,30 @@ pub enum WireReject {
     ComplexTrailing,
     /// Complex 未知分支码。
     ComplexUnknownBranch,
+    /// Algebraic 未知 subtype。
+    AlgebraicUnknownSubtype,
+    /// Algebraic 载荷截断或尾随。
+    AlgebraicTrailing,
+    /// Algebraic 占位与非零指纹 / 根下标冲突。
+    AlgebraicPlaceholder,
+    /// Algebraic 指纹与表示不一致或隔离区间为空。
+    AlgebraicInconsistent,
+    /// FiniteField 系数为空。
+    FiniteFieldEmpty,
+    /// FiniteField 载荷截断或尾随。
+    FiniteFieldTrailing,
+    /// PAdic 素数非法。
+    PAdicBadPrime,
+    /// PAdic 精度为 0。
+    PAdicPrecisionZero,
+    /// PAdic 位数超过精度。
+    PAdicDigitsLen,
+    /// PAdic digit 超出 `p`。
+    PAdicDigitRange,
+    /// PAdic 高位 digit 为 0（未规范化）。
+    PAdicUnnormalized,
+    /// PAdic 载荷截断或尾随。
+    PAdicTrailing,
 }
 
 impl WireReject {
@@ -98,6 +122,18 @@ impl WireReject {
             Self::ModularTrailing => "modular_trailing",
             Self::ComplexTrailing => "complex_trailing",
             Self::ComplexUnknownBranch => "complex_unknown_branch",
+            Self::AlgebraicUnknownSubtype => "algebraic_unknown_subtype",
+            Self::AlgebraicTrailing => "algebraic_trailing",
+            Self::AlgebraicPlaceholder => "algebraic_placeholder",
+            Self::AlgebraicInconsistent => "algebraic_inconsistent",
+            Self::FiniteFieldEmpty => "finite_field_empty",
+            Self::FiniteFieldTrailing => "finite_field_trailing",
+            Self::PAdicBadPrime => "padic_bad_prime",
+            Self::PAdicPrecisionZero => "padic_precision_zero",
+            Self::PAdicDigitsLen => "padic_digits_len",
+            Self::PAdicDigitRange => "padic_digit_range",
+            Self::PAdicUnnormalized => "padic_unnormalized",
+            Self::PAdicTrailing => "padic_trailing",
         }
     }
 }

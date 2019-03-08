@@ -3,13 +3,17 @@
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
 use crate::{
+    algebraic::{AlgebraicNumber, AlgebraicRepresentation},
     complex::{BranchPolicy, Complex},
     decimal::Decimal,
     dyadic::Dyadic,
+    finite_field::FiniteFieldValue,
     integer::{Integer, Sign},
     interval::{Interval, IntervalDecoration},
     modular::{ModularValue, Modulus},
     natural::Natural,
+    p_adic::PAdicValue,
+    polynomial_fingerprint::PolynomialFingerprint,
     precision::{PrecisionInfo, PrecisionKind},
     rational::Rational,
     real::Real,
@@ -329,23 +333,22 @@ pub(crate) fn decode_interval_payload(sign: u8, payload: &[u8]) -> Result<Interv
             if payload.len() != 2 {
                 return Err(reject_non_canonical(WireReject::IntervalTrailing));
             }
-            let decoration = decoration_from_tag(payload[1])
-                .ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            let decoration =
+                decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
             Ok(Interval::entire_with(decoration))
         }
         INTERVAL_BOUNDED => {
             if payload.len() < 2 {
                 return Err(reject_non_canonical(WireReject::IntervalTrailing));
             }
-            let decoration = decoration_from_tag(payload[1])
-                .ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            let decoration =
+                decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
             let (lower, rest) = decode_nested_real(&payload[2..])?;
             let (upper, tail) = decode_nested_real(rest)?;
             if !tail.is_empty() {
                 return Err(reject_non_canonical(WireReject::IntervalTrailing));
             }
-            Interval::try_bounded(lower, upper, decoration)
-                .map_err(|_| reject_non_canonical(WireReject::IntervalBadBounds))
+            Interval::try_bounded(lower, upper, decoration).map_err(|_| reject_non_canonical(WireReject::IntervalBadBounds))
         }
         _ => Err(reject_non_canonical(WireReject::IntervalUnknownSubtype)),
     }
@@ -397,12 +400,10 @@ fn branch_from_tag(tag: u8) -> Option<BranchPolicy> {
 }
 
 fn map_nested_real_truncation(err: Diagnostic) -> Diagnostic {
-    use athena_types::DiagnosticValue;
     use crate::format::validation::{WireReject, reject_non_canonical};
+    use athena_types::DiagnosticValue;
     match err.details.get("reason") {
-        Some(DiagnosticValue::Text(s)) if s == "interval_trailing" => {
-            reject_non_canonical(WireReject::ComplexTrailing)
-        }
+        Some(DiagnosticValue::Text(s)) if s == "interval_trailing" => reject_non_canonical(WireReject::ComplexTrailing),
         _ => err,
     }
 }
@@ -430,7 +431,191 @@ pub(crate) fn decode_complex_payload(sign: u8, payload: &[u8]) -> Result<Complex
     if !tail.is_empty() {
         return Err(reject_non_canonical(WireReject::ComplexTrailing));
     }
-    Ok(Complex { re, im, branch })
+    Complex::try_new(re, im, branch).map_err(|_| reject_non_canonical(WireReject::RealMachineNan))
+}
+
+const ALG_PLACEHOLDER: u8 = 0;
+const ALG_MINPOLY: u8 = 1;
+
+/// 编码 [`AlgebraicNumber`]（header `sign` 恒 0）。
+///
+/// 载荷：`tag` + 指纹 `u64` + `root_index` `u32` + interval payload。
+pub(crate) fn encode_algebraic_payload(a: &AlgebraicNumber) -> Result<(u8, Vec<u8>), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    a.validate().map_err(|_| reject_non_canonical(WireReject::AlgebraicInconsistent))?;
+    let (tag, fingerprint, root_index) = match &a.representation {
+        AlgebraicRepresentation::Placeholder => (ALG_PLACEHOLDER, 0u64, 0u32),
+        AlgebraicRepresentation::MinimalPolynomial { polynomial, root_index } => (ALG_MINPOLY, polynomial.0, *root_index),
+    };
+    let mut payload = Vec::with_capacity(1 + 8 + 4);
+    payload.push(tag);
+    payload.extend_from_slice(&fingerprint.to_le_bytes());
+    payload.extend_from_slice(&root_index.to_le_bytes());
+    let (_, interval_payload) = encode_interval_payload(&a.isolating_interval)?;
+    payload.extend(interval_payload);
+    Ok((0, payload))
+}
+
+/// 解码 Algebraic 载荷。
+pub(crate) fn decode_algebraic_payload(sign: u8, payload: &[u8]) -> Result<AlgebraicNumber, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if sign != 0 {
+        return Err(reject_non_canonical(WireReject::SignUnknown));
+    }
+    if payload.len() < 1 + 8 + 4 {
+        return Err(reject_non_canonical(WireReject::AlgebraicTrailing));
+    }
+    let tag = payload[0];
+    let fingerprint = u64::from_le_bytes(payload[1..9].try_into().unwrap());
+    let root_index = u32::from_le_bytes(payload[9..13].try_into().unwrap());
+    let interval = decode_interval_payload(0, &payload[13..])
+        .map_err(|err| map_interval_truncation(err, WireReject::AlgebraicTrailing))?;
+    match tag {
+        ALG_PLACEHOLDER => {
+            if fingerprint != 0 || root_index != 0 {
+                return Err(reject_non_canonical(WireReject::AlgebraicPlaceholder));
+            }
+            AlgebraicNumber::placeholder(interval).map_err(|_| reject_non_canonical(WireReject::AlgebraicInconsistent))
+        }
+        ALG_MINPOLY => AlgebraicNumber::try_new(
+            PolynomialFingerprint(fingerprint),
+            interval,
+            AlgebraicRepresentation::MinimalPolynomial { polynomial: PolynomialFingerprint(fingerprint), root_index },
+        )
+        .map_err(|_| reject_non_canonical(WireReject::AlgebraicInconsistent)),
+        _ => Err(reject_non_canonical(WireReject::AlgebraicUnknownSubtype)),
+    }
+}
+
+fn map_interval_truncation(err: Diagnostic, trailing: crate::format::validation::WireReject) -> Diagnostic {
+    use crate::format::validation::reject_non_canonical;
+    use athena_types::DiagnosticValue;
+    match err.details.get("reason") {
+        Some(DiagnosticValue::Text(s)) if s == "interval_trailing" => reject_non_canonical(trailing),
+        _ => err,
+    }
+}
+
+fn encode_signed_integer(n: &Integer) -> Vec<u8> {
+    let mut out = vec![n.wire_sign_code()];
+    out.extend(n.wire_magnitude_bytes());
+    out
+}
+
+fn take_signed_integer(bytes: &[u8]) -> Result<(Integer, &[u8]), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if bytes.is_empty() {
+        return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
+    }
+    let sign = bytes[0];
+    let (mag, rest) = Natural::wire_take_magnitude(&bytes[1..])?;
+    Ok((Integer::from_wire_parts(sign, mag)?, rest))
+}
+
+/// 编码 [`FiniteFieldValue`]（header `sign` 恒 0）。
+///
+/// 载荷：`FieldId` `u32` + 系数个数 `u32` + 逐项 `(sign, magnitude)`。
+/// [`FieldId`] 为 Session-local 句柄。
+pub(crate) fn encode_finite_field_payload(v: &FiniteFieldValue) -> Result<(u8, Vec<u8>), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    v.validate().map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))?;
+    let mut payload = Vec::new();
+    payload.extend_from_slice(&v.field.0.to_le_bytes());
+    payload.extend_from_slice(&(v.coefficients.len() as u32).to_le_bytes());
+    for c in &v.coefficients {
+        payload.extend(encode_signed_integer(c));
+    }
+    Ok((0, payload))
+}
+
+/// 解码 FiniteField 载荷。
+pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<FiniteFieldValue, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    use athena_types::FieldId;
+    if sign != 0 {
+        return Err(reject_non_canonical(WireReject::SignUnknown));
+    }
+    if payload.len() < 8 {
+        return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
+    }
+    let field = FieldId(u32::from_le_bytes(payload[0..4].try_into().unwrap()));
+    let count = u32::from_le_bytes(payload[4..8].try_into().unwrap()) as usize;
+    if count == 0 {
+        return Err(reject_non_canonical(WireReject::FiniteFieldEmpty));
+    }
+    let mut rest = &payload[8..];
+    let mut coefficients = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (c, tail) = take_signed_integer(rest)?;
+        coefficients.push(c);
+        rest = tail;
+    }
+    if !rest.is_empty() {
+        return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
+    }
+    FiniteFieldValue::try_new(field, coefficients).map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))
+}
+
+/// 编码 [`PAdicValue`]（header `sign` 恒 0）。
+///
+/// 载荷：prime magnitude + `precision` `u32` + digit 个数 `u32` + 小端 `u32` digits。
+pub(crate) fn encode_padic_payload(v: &PAdicValue) -> Result<(u8, Vec<u8>), Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    v.validate().map_err(|err| map_padic_validate(err))?;
+    if v.digits.last() == Some(&0) {
+        return Err(reject_non_canonical(WireReject::PAdicUnnormalized));
+    }
+    let mut payload = v.prime.wire_magnitude_bytes();
+    payload.extend_from_slice(&v.precision.to_le_bytes());
+    payload.extend_from_slice(&(v.digits.len() as u32).to_le_bytes());
+    for &d in &v.digits {
+        payload.extend_from_slice(&d.to_le_bytes());
+    }
+    Ok((0, payload))
+}
+
+/// 解码 PAdic 载荷（拒绝未规范化 trailing-zero digits）。
+pub(crate) fn decode_padic_payload(sign: u8, payload: &[u8]) -> Result<PAdicValue, Diagnostic> {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    if sign != 0 {
+        return Err(reject_non_canonical(WireReject::SignUnknown));
+    }
+    let (prime_mag, rest) = Natural::wire_take_magnitude(payload)?;
+    if rest.len() < 8 {
+        return Err(reject_non_canonical(WireReject::PAdicTrailing));
+    }
+    if prime_mag.is_zero() {
+        return Err(reject_non_canonical(WireReject::PAdicBadPrime));
+    }
+    let prime = Integer::from_wire_parts(1, prime_mag)?;
+    let precision = u32::from_le_bytes(rest[0..4].try_into().unwrap());
+    let digit_count = u32::from_le_bytes(rest[4..8].try_into().unwrap()) as usize;
+    let digit_bytes = &rest[8..];
+    let need = digit_count.checked_mul(4).ok_or_else(|| reject_non_canonical(WireReject::PAdicTrailing))?;
+    if digit_bytes.len() != need {
+        return Err(reject_non_canonical(WireReject::PAdicTrailing));
+    }
+    let mut digits = Vec::with_capacity(digit_count);
+    for i in 0..digit_count {
+        let off = i * 4;
+        digits.push(u32::from_le_bytes(digit_bytes[off..off + 4].try_into().unwrap()));
+    }
+    if digits.last() == Some(&0) {
+        return Err(reject_non_canonical(WireReject::PAdicUnnormalized));
+    }
+    PAdicValue::try_new(prime, precision, digits).map_err(map_padic_validate)
+}
+
+fn map_padic_validate(err: Diagnostic) -> Diagnostic {
+    use crate::format::validation::{WireReject, reject_non_canonical};
+    use athena_types::DiagnosticValue;
+    match err.details.get("operation") {
+        Some(DiagnosticValue::Text(s)) if s == "padic_precision_zero" => reject_non_canonical(WireReject::PAdicPrecisionZero),
+        Some(DiagnosticValue::Text(s)) if s == "padic_digits_len" => reject_non_canonical(WireReject::PAdicDigitsLen),
+        Some(DiagnosticValue::Text(s)) if s == "padic_digit_range" => reject_non_canonical(WireReject::PAdicDigitRange),
+        Some(DiagnosticValue::Text(s)) if s.starts_with("padic_prime") => reject_non_canonical(WireReject::PAdicBadPrime),
+        _ => err,
+    }
 }
 
 /// 将头 + 域 + 载荷展平为单一字节块。
