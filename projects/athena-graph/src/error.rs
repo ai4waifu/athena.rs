@@ -2,7 +2,7 @@
 
 use athena_ndarray::ArrayError;
 
-use crate::capability::GraphAlgorithmRequirements;
+use crate::storage::GraphAlgorithmRequirements;
 
 /// 图错误。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +62,20 @@ pub enum GraphError {
     CycleDetected,
     /// 无向图不支持拓扑排序。
     UndirectedTopo,
+    /// 引用所属图与当前图不一致。
+    WrongGraph {
+        /// 引用上的图身份。
+        expected: crate::GraphId,
+        /// 当前图身份。
+        actual: crate::GraphId,
+    },
+    /// 引用绑定的 revision 已过期。
+    StaleRef {
+        /// 引用上的修订。
+        expected: crate::GraphRevision,
+        /// 当前修订。
+        actual: crate::GraphRevision,
+    },
 }
 
 impl From<ArrayError> for GraphError {

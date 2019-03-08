@@ -1,6 +1,7 @@
-//! 内存图算法合同测试。
+//! 内存图 L0 原语合同测试（经 `primitives`，非领域 claim）。
 
-use athena_graph::{Graph, GraphDirection, NodeId, bfs_order, connected_components, topological_sort};
+use athena_graph::{Graph, GraphDirection, bfs_order};
+use athena_graph::primitives::{connected_components, topological_sort};
 
 #[test]
 fn bfs_visits_reachable_nodes() {

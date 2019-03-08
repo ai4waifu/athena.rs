@@ -1,6 +1,6 @@
 //! 图结构语义、快照与内容指纹。
 
-use crate::{
+use super::{
     direction::GraphDirection,
     id::{GraphId, GraphRevision, RepresentationId},
 };

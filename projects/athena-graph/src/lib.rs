@@ -1,43 +1,33 @@
-//! 普通离散图结构与大图算法基座。
+//! 普通离散图结构基座（身份 · 存储 · 视图 · L0 原语）。
 //!
 //! **不是** M-Graph：不含等价类、witness、hyper-edge、closure 或 solver frontier。
 //! CSR / CSC / 工作区复用 [`athena_ndarray`] 的 storage 与 memory budget 合同。
+//!
+//! 四层目录：[`identity`] · [`storage`] · [`views`] · [`primitives`]。
+//! 图论数学结论在 `athena-engine::graph_theory`。
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
-mod algo;
-mod capability;
-mod conversion;
-mod csc;
-mod csr;
-mod derived_csc;
-mod direction;
-mod error;
-mod frontier;
-mod graph;
-mod id;
-mod property;
-mod semantics;
-mod view;
+pub mod identity;
+pub mod primitives;
+pub mod storage;
+pub mod views;
 
-pub use algo::{UnionFind, bfs_order, connected_components, strongly_connected_components, topological_sort};
-pub use capability::{GraphAlgorithmRequirements, GraphCapabilities};
-pub use conversion::{csr_to_csc, edge_list_to_csr, graph_edge_list, graph_to_csr};
-pub use csc::CscGraph;
-pub use csr::CsrGraph;
-pub use derived_csc::DerivedCsc;
-pub use direction::GraphDirection;
+mod error;
+
 pub use error::GraphError;
-pub use frontier::{
-    CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, deterministic_bfs,
+pub use identity::{
+    EdgeId, EdgeRef, Graph, GraphBuilder, GraphDirection, GraphFingerprint, GraphId, GraphRevision, GraphSemantics,
+    GraphSnapshot, GraphStorageMetadata, GraphView, ImmutableGraph, MultiplicityPolicy, NodeId, NodeRef, RepresentationId,
+    SelfLoopDegree, ViewFingerprint, ViewMapping, ViewTransform,
+};
+pub use primitives::{
+    CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, UnionFind, bfs_order, deterministic_bfs,
     resume_deterministic_bfs, sort_neighbors_deterministic,
 };
-pub use graph::{Graph, GraphBuilder, GraphView, ImmutableGraph};
-pub use id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId};
-pub use property::{PropertyCell, PropertyColumn, PropertyStore, WeightColumn, WeightDomainTag};
-pub use semantics::{
-    GraphFingerprint, GraphSemantics, GraphSnapshot, GraphStorageMetadata, MultiplicityPolicy, SelfLoopDegree, ViewFingerprint,
-    ViewMapping, ViewTransform,
+pub use storage::{
+    CscGraph, CsrGraph, DerivedCsc, GraphAlgorithmRequirements, GraphCapabilities, PropertyCell, PropertyColumn, PropertyStore,
+    WeightColumn, WeightDomainTag, csr_to_csc, edge_list_to_csr, graph_edge_list, graph_to_csr,
 };
-pub use view::{EdgeFilteredView, InducedSubgraphView, ReversedGraphView};
+pub use views::{EdgeFilteredView, InducedSubgraphView, ReversedGraphView};

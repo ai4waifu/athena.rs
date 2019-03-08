@@ -5,12 +5,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use crate::{
-    direction::GraphDirection,
-    graph::{Graph, GraphView},
-    id::{EdgeId, GraphId, GraphRevision, NodeId},
-    semantics::{ViewMapping, ViewTransform},
-};
+use crate::{EdgeId, Graph, GraphDirection, GraphId, GraphRevision, GraphView, NodeId, ViewMapping, ViewTransform};
 
 fn hash_nodes(nodes: &HashSet<u64>) -> u64 {
     let mut hasher = DefaultHasher::new();

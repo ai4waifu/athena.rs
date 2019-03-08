@@ -37,7 +37,7 @@ impl RepresentationId {
 ///
 /// 图生命周期：
 /// - `add_node` / `add_edge` 各递增 1
-/// - [`crate::Graph::transaction`] 内多次 mutation 在提交时只递增 1
+/// - [`super::Graph::transaction`] 内多次 mutation 在提交时只递增 1
 /// - 视图创建不递增底图 revision
 /// - 溢出时 saturating（`u64::MAX` 后保持）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Default)]
@@ -50,42 +50,46 @@ impl GraphRevision {
     }
 }
 
-/// 存储 wire 节点身份（`u64` newtype）；仅在单图内有意义。
+/// 存储 wire 节点身份（`u64` newtype）；仅在单图某一 revision 内有意义。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NodeId(pub u64);
 
-/// 存储 wire 边身份（`u64` newtype）；仅在单图内有意义。
+/// 存储 wire 边身份（`u64` newtype）；仅在单图某一 revision 内有意义。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EdgeId(pub u64);
 
-/// 跨图 / 跨对象节点引用（绑定 [`GraphId`]）。
+/// 跨对象节点引用（绑定 [`GraphId`] + [`GraphRevision`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct NodeRef {
     /// 所属逻辑图。
     pub graph_id: GraphId,
+    /// 绑定的结构修订。
+    pub revision: GraphRevision,
     /// 图内节点 id。
     pub node: NodeId,
 }
 
-/// 跨图 / 跨对象边引用（绑定 [`GraphId`]）。
+/// 跨对象边引用（绑定 [`GraphId`] + [`GraphRevision`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct EdgeRef {
     /// 所属逻辑图。
     pub graph_id: GraphId,
+    /// 绑定的结构修订。
+    pub revision: GraphRevision,
     /// 图内边 id。
     pub edge: EdgeId,
 }
 
 impl NodeRef {
     /// 构造引用。
-    pub const fn new(graph_id: GraphId, node: NodeId) -> Self {
-        Self { graph_id, node }
+    pub const fn new(graph_id: GraphId, revision: GraphRevision, node: NodeId) -> Self {
+        Self { graph_id, revision, node }
     }
 }
 
 impl EdgeRef {
     /// 构造引用。
-    pub const fn new(graph_id: GraphId, edge: EdgeId) -> Self {
-        Self { graph_id, edge }
+    pub const fn new(graph_id: GraphId, revision: GraphRevision, edge: EdgeId) -> Self {
+        Self { graph_id, revision, edge }
     }
 }

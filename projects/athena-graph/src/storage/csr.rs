@@ -1,43 +1,44 @@
-//! 存储后端 CSC（按需构建，不默认与 CSR 双物化）。
+//! 存储后端 CSR。
 
 use athena_ndarray::{ArrayError, ArrayStorage, ChunkedArray};
 
-use crate::{capability::GraphCapabilities, error::GraphError, semantics::GraphStorageMetadata};
+use crate::{GraphCapabilities, GraphStorageMetadata, error::GraphError};
 
-/// 存储后端有向 CSC 图（列指针 + 行索引）。
+/// 存储后端有向 CSR 图。
 #[derive(Debug)]
-pub struct CscGraph<O, I> {
+pub struct CsrGraph<O, I> {
     nodes: u64,
     edges: u64,
-    column_offsets: ChunkedArray<u64, O>,
-    row_indices: ChunkedArray<u64, I>,
+    offsets: ChunkedArray<u64, O>,
+    indices: ChunkedArray<u64, I>,
     metadata: Option<GraphStorageMetadata>,
 }
 
-impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
-    /// 创建并全量校验 CSC invariants（含 offsets 单调）。
-    pub fn new(
-        nodes: u64,
-        column_offsets: ChunkedArray<u64, O>,
-        row_indices: ChunkedArray<u64, I>,
-    ) -> Result<Self, GraphError> {
-        Self::new_with_metadata(nodes, column_offsets, row_indices, None)
+impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
+    /// 创建并全量校验 CSR invariants（含 offsets 单调）。
+    pub fn new(nodes: u64, offsets: ChunkedArray<u64, O>, indices: ChunkedArray<u64, I>) -> Result<Self, GraphError> {
+        Self::new_with_metadata(nodes, offsets, indices, None)
     }
 
     /// 创建并附带存储元数据。
     pub fn new_with_metadata(
         nodes: u64,
-        column_offsets: ChunkedArray<u64, O>,
-        row_indices: ChunkedArray<u64, I>,
+        offsets: ChunkedArray<u64, O>,
+        indices: ChunkedArray<u64, I>,
         metadata: Option<GraphStorageMetadata>,
     ) -> Result<Self, GraphError> {
         let required = nodes.checked_add(1).ok_or(GraphError::NodeOverflow)?;
-        if column_offsets.shape().element_count() != required {
+        if offsets.shape().element_count() != required {
             return Err(GraphError::OffsetLength);
         }
-        let edges = row_indices.shape().element_count();
-        validate_column_offsets_monotonic(&column_offsets, nodes, edges)?;
-        Ok(Self { nodes, edges, column_offsets, row_indices, metadata })
+        let edges = indices.shape().element_count();
+        validate_offsets_monotonic(&offsets, nodes, edges)?;
+        if let Some(meta) = &metadata {
+            if meta.sorted_adjacency {
+                validate_sorted_adjacency(&offsets, &indices, nodes)?;
+            }
+        }
+        Ok(Self { nodes, edges, offsets, indices, metadata })
     }
 
     /// 绑定 / 替换元数据。
@@ -60,16 +61,16 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
         self.edges
     }
 
-    /// 按 row_indices memory budget 分块访问入邻接。
-    pub fn for_each_in_neighbor_chunk(&self, column: u64, mut visit: impl FnMut(&[u64])) -> Result<(), GraphError> {
-        if column >= self.nodes {
+    /// 按 indices memory budget 分块访问出邻接。
+    pub fn for_each_neighbor_chunk(&self, node: u64, mut visit: impl FnMut(&[u64])) -> Result<(), GraphError> {
+        if node >= self.nodes {
             return Err(GraphError::InvalidNode);
         }
-        let bounds = self.column_offsets.read_range(column, 2)?;
+        let bounds = self.offsets.read_range(node, 2)?;
         if bounds[0] > bounds[1] || bounds[1] > self.edges {
             return Err(GraphError::Boundary);
         }
-        let max = self.row_indices.memory_budget().bytes() / std::mem::size_of::<u64>();
+        let max = self.indices.memory_budget().bytes() / std::mem::size_of::<u64>();
         if max == 0 {
             return Err(GraphError::Array(ArrayError::BudgetTooSmall { element_size: std::mem::size_of::<u64>() }));
         }
@@ -77,8 +78,8 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
         while offset < bounds[1] {
             let remaining = bounds[1] - offset;
             let len = usize::try_from(remaining.min(max as u64)).unwrap_or(max);
-            let chunk = self.row_indices.read_range(offset, len)?;
-            if chunk.iter().any(|&row| row >= self.nodes) {
+            let chunk = self.indices.read_range(offset, len)?;
+            if chunk.iter().any(|&target| target >= self.nodes) {
                 return Err(GraphError::InvalidTarget);
             }
             visit(&chunk);
@@ -89,10 +90,11 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
 
     /// capability 报告。
     pub fn capabilities(&self) -> GraphCapabilities {
+        let sorted = self.metadata.as_ref().map(|m| m.sorted_adjacency).unwrap_or(true);
         GraphCapabilities {
             in_memory: false,
-            sorted_adjacency: true,
-            reverse_adjacency: true,
+            sorted_adjacency: sorted,
+            reverse_adjacency: false,
             random_access: true,
             chunked_sequential: true,
             external_workspace: true,
@@ -106,7 +108,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
     }
 }
 
-fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(
+fn validate_offsets_monotonic<O: ArrayStorage<u64>>(
     offsets: &ChunkedArray<u64, O>,
     nodes: u64,
     edges: u64,
@@ -116,6 +118,7 @@ fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(
         return Err(GraphError::Boundary);
     }
     let mut prev = 0u64;
+    // 逐段读取，避免一次性要求 offsets 全进内存。
     let mut i = 0u64;
     while i <= nodes {
         let cur = offsets.read_range(i, 1)?[0];
@@ -127,6 +130,32 @@ fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(
     }
     if prev != edges {
         return Err(GraphError::Boundary);
+    }
+    Ok(())
+}
+
+fn validate_sorted_adjacency<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
+    offsets: &ChunkedArray<u64, O>,
+    indices: &ChunkedArray<u64, I>,
+    nodes: u64,
+) -> Result<(), GraphError> {
+    for node in 0..nodes {
+        let bounds = offsets.read_range(node, 2)?;
+        let start = bounds[0];
+        let end = bounds[1];
+        if start == end {
+            continue;
+        }
+        let mut prev = indices.read_range(start, 1)?[0];
+        let mut off = start + 1;
+        while off < end {
+            let cur = indices.read_range(off, 1)?[0];
+            if cur < prev {
+                return Err(GraphError::AdjacencyUnsorted { node, offset: off });
+            }
+            prev = cur;
+            off += 1;
+        }
     }
     Ok(())
 }
