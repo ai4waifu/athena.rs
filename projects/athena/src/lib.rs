@@ -28,7 +28,7 @@ pub use athena_engine::{
     FieldPresentationId, FieldRequest, FieldResult, FieldTable, FormId, FunctionDefinition, GaloisComputation,
     GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, Gradient, GraphAssumptions, GraphCertificate, GraphHandle,
     GraphId, GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState,
-    GraphProvenance, GraphRevision, GraphSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue,
+    GraphProvenance, GraphRevision, GraphDomainSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue,
     GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate, GroebnerComputation, GroebnerFrontier,
     GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Group, GroupDescriptor, GroupDomainValue, GroupElement,
     GroupElementId, GroupElementRepr, GroupFingerprint, GroupId, GroupKind, GroupPresentationId, GroupPropertyFacts,
