@@ -1,23 +1,12 @@
-//! 内存图算法：BFS、拓扑排序、连通分量、SCC、union-find。
+//! 分量扫描原语（供 `graph_theory` 包装证书；不是已证领域 API）。
 
 use std::collections::VecDeque;
 
 use crate::{Graph, GraphDirection, GraphError, NodeId};
 
-/// 确定性 BFS 访问顺序（有向图沿出边；无向图沿邻接）。
+/// DAG 拓扑排序原语；存在环时返回 [`GraphError::CycleDetected`]。
 ///
-/// 扩展序：邻接目标按 [`NodeId`] 升序入队（与边插入顺序无关）。完整可取消/可恢复 API 见
-/// [`crate::deterministic_bfs`]。
-pub fn bfs_order<N, E>(graph: &Graph<N, E>, start: NodeId) -> Result<Vec<NodeId>, GraphError> {
-    match crate::deterministic_bfs(graph, start, None)? {
-        crate::DeterministicBfsOutcome::Complete(order) => Ok(order),
-        crate::DeterministicBfsOutcome::Cancelled { .. } => {
-            unreachable!("cancel is None")
-        }
-    }
-}
-
-/// DAG 拓扑排序；存在环时返回 [`GraphError::CycleDetected`]。
+/// 领域完成态须经 `athena-engine::graph_theory` 的 `GraphPropertyState` 包装。
 pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphError> {
     if graph.direction() != GraphDirection::Directed {
         return Err(GraphError::UndirectedTopo);
@@ -41,12 +30,16 @@ pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphE
             }
         }
     }
-    if order.len() != n { Err(GraphError::CycleDetected) } else { Ok(order) }
+    if order.len() != n {
+        Err(GraphError::CycleDetected)
+    } else {
+        Ok(order)
+    }
 }
 
-/// 弱连通分量（有向图按底层无向邻接解释；无向图按邻接）。
+/// 弱连通分量标签扫描（有向图按底层无向邻接解释）。
 ///
-/// 返回每个节点的分量标签，标签为该分量中最小 `NodeId`。
+/// 返回每个节点的分量标签，标签为该分量中最小 `NodeId`。领域结论须经 engine 包装。
 pub fn connected_components<N, E>(graph: &Graph<N, E>) -> Vec<NodeId> {
     let n = graph.node_count() as usize;
     let mut labels = (0..n).map(|i| NodeId(i as u64)).collect::<Vec<_>>();
@@ -83,9 +76,9 @@ pub fn connected_components<N, E>(graph: &Graph<N, E>) -> Vec<NodeId> {
     labels
 }
 
-/// 强连通分量（仅有向图；无向图返回 [`GraphError::UndirectedTopo`]）。
+/// 强连通分量标签扫描（Kosaraju；仅有向图）。
 ///
-/// 返回每个节点的 SCC 标签，标签为该分量中最小 `NodeId`（Kosaraju）。
+/// 领域结论须经 engine 包装证书。
 pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphError> {
     if graph.direction() != GraphDirection::Directed {
         return Err(GraphError::UndirectedTopo);
@@ -112,8 +105,7 @@ pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<No
                     seen[i] = true;
                     stack.push((next, 0));
                 }
-            }
-            else {
+            } else {
                 order.push(node);
             }
         }
@@ -140,53 +132,4 @@ pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<No
         }
     }
     Ok(labels)
-}
-
-/// 并查集（结构原语）。
-#[derive(Debug, Clone)]
-pub struct UnionFind {
-    parent: Vec<usize>,
-    rank: Vec<u8>,
-}
-
-impl UnionFind {
-    /// 创建 `size` 个独立集合 `{0..size}`。
-    pub fn new(size: usize) -> Self {
-        Self { parent: (0..size).collect(), rank: vec![0; size] }
-    }
-
-    /// 查找代表元（路径压缩）。
-    pub fn find(&mut self, x: usize) -> usize {
-        if self.parent[x] != x {
-            self.parent[x] = self.find(self.parent[x]);
-        }
-        self.parent[x]
-    }
-
-    /// 合并集合；返回是否实际合并。
-    pub fn union(&mut self, a: usize, b: usize) -> bool {
-        let mut ra = self.find(a);
-        let mut rb = self.find(b);
-        if ra == rb {
-            return false;
-        }
-        if self.rank[ra] < self.rank[rb] {
-            std::mem::swap(&mut ra, &mut rb);
-        }
-        self.parent[rb] = ra;
-        if self.rank[ra] == self.rank[rb] {
-            self.rank[ra] = self.rank[ra].saturating_add(1);
-        }
-        true
-    }
-
-    /// 当前集合个数。
-    pub fn set_count(&mut self) -> usize {
-        let n = self.parent.len();
-        let mut roots = vec![false; n];
-        for i in 0..n {
-            roots[self.find(i)] = true;
-        }
-        roots.iter().filter(|&&b| b).count()
-    }
 }

@@ -2,8 +2,9 @@
 
 use athena_graph::{
     EdgeFilteredView, Graph, GraphAlgorithmRequirements, GraphDirection, GraphRevision, InducedSubgraphView, ReversedGraphView,
-    UnionFind, connected_components, csr_to_csc, edge_list_to_csr, graph_to_csr, strongly_connected_components,
+    csr_to_csc, edge_list_to_csr, graph_to_csr,
 };
+use athena_graph::primitives::{UnionFind, connected_components, strongly_connected_components};
 use athena_ndarray::MemoryBudget;
 
 #[test]

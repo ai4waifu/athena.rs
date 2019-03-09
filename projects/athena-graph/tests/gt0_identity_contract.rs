@@ -41,12 +41,26 @@ fn builder_finish_yields_immutable_snapshot() {
 }
 
 #[test]
-fn node_ref_carries_graph_namespace() {
+fn node_ref_carries_graph_and_revision() {
     let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
     let n = g.add_node(());
     let r = g.node_ref(n);
     assert_eq!(r.graph_id, g.id());
+    assert_eq!(r.revision, g.revision());
     assert_eq!(r.node, n);
+    assert_eq!(g.resolve_node_ref(r).unwrap(), n);
+}
+
+#[test]
+fn node_ref_stale_after_mutation() {
+    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
+    let n = g.add_node(());
+    let stale = g.node_ref(n);
+    let _ = g.add_node(());
+    assert!(matches!(
+        g.resolve_node_ref(stale),
+        Err(athena_graph::GraphError::StaleRef { .. })
+    ));
 }
 
 #[test]

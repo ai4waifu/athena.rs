@@ -1,7 +1,9 @@
 //! 内存邻接图、Builder、不可变图与 capability。
 
 use crate::{
-    capability::{GraphAlgorithmRequirements, GraphCapabilities},
+    GraphAlgorithmRequirements, GraphCapabilities, GraphError,
+};
+use super::{
     direction::GraphDirection,
     id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId},
     semantics::{GraphFingerprint, GraphSemantics, GraphSnapshot},
@@ -105,14 +107,42 @@ impl<N, E> Graph<N, E> {
         }
     }
 
-    /// 绑定 [`NodeRef`]。
+    /// 绑定当前 revision 的 [`NodeRef`]。
     pub const fn node_ref(&self, node: NodeId) -> NodeRef {
-        NodeRef::new(self.id, node)
+        NodeRef::new(self.id, self.revision, node)
     }
 
-    /// 绑定 [`EdgeRef`]。
+    /// 绑定当前 revision 的 [`EdgeRef`]。
     pub const fn edge_ref(&self, edge: EdgeId) -> EdgeRef {
-        EdgeRef::new(self.id, edge)
+        EdgeRef::new(self.id, self.revision, edge)
+    }
+
+    /// 校验 [`NodeRef`] 并返回 local [`NodeId`]。
+    pub fn resolve_node_ref(&self, node_ref: NodeRef) -> Result<NodeId, GraphError> {
+        if node_ref.graph_id != self.id {
+            return Err(GraphError::WrongGraph { expected: node_ref.graph_id, actual: self.id });
+        }
+        if node_ref.revision != self.revision {
+            return Err(GraphError::StaleRef { expected: node_ref.revision, actual: self.revision });
+        }
+        if node_ref.node.0 >= self.node_count() {
+            return Err(GraphError::InvalidNode);
+        }
+        Ok(node_ref.node)
+    }
+
+    /// 校验 [`EdgeRef`] 并返回 local [`EdgeId`]。
+    pub fn resolve_edge_ref(&self, edge_ref: EdgeRef) -> Result<EdgeId, GraphError> {
+        if edge_ref.graph_id != self.id {
+            return Err(GraphError::WrongGraph { expected: edge_ref.graph_id, actual: self.id });
+        }
+        if edge_ref.revision != self.revision {
+            return Err(GraphError::StaleRef { expected: edge_ref.revision, actual: self.revision });
+        }
+        if edge_ref.edge.0 >= self.edge_count() {
+            return Err(GraphError::InvalidNode);
+        }
+        Ok(edge_ref.edge)
     }
 
     fn bump_revision(&mut self) {
