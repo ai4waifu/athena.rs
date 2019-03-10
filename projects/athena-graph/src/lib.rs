@@ -20,7 +20,7 @@ pub use error::GraphError;
 pub use identity::{
     EdgeId, EdgeRef, Graph, GraphBuilder, GraphDirection, GraphFingerprint, GraphId, GraphRevision, GraphSemantics,
     GraphSnapshot, GraphStorageMetadata, GraphView, ImmutableGraph, MultiplicityPolicy, NodeId, NodeRef, RepresentationId,
-    SelfLoopDegree, ViewFingerprint, ViewMapping, ViewTransform,
+    SelfLoopDegree, SourceEdgeRef, SourceNodeRef, ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };
 pub use primitives::{
     CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, UnionFind, bfs_order, deterministic_bfs,
