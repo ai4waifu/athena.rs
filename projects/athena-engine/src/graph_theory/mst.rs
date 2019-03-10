@@ -1,6 +1,6 @@
 //! 最小生成森林（Kruskal）。
 
-use athena_graph::UnionFind;
+use athena_graph::primitives::UnionFind;
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{

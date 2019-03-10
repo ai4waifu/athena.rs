@@ -34,9 +34,11 @@ pub enum WeightDomain {
     NonNegativeInteger,
 }
 
-/// 图语义（结构合同 + 权重域）。
+/// 图论领域语义（结构合同 + 权重域）。
+///
+/// 结构部分经 [`Self::to_structural`] 投影为 `athena_graph::GraphSemantics`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GraphSemantics {
+pub struct GraphDomainSemantics {
     /// 有向 / 无向。
     pub direction: GraphDirection,
     /// 是否允许自环。
@@ -47,7 +49,7 @@ pub struct GraphSemantics {
     pub weight_domain: WeightDomain,
 }
 
-impl Default for GraphSemantics {
+impl Default for GraphDomainSemantics {
     fn default() -> Self {
         Self {
             direction: GraphDirection::Directed,
@@ -58,7 +60,7 @@ impl Default for GraphSemantics {
     }
 }
 
-impl GraphSemantics {
+impl GraphDomainSemantics {
     /// 便捷构造（简单图默认）。
     pub const fn new(direction: GraphDirection, weight_domain: WeightDomain) -> Self {
         Self { direction, allows_self_loops: false, allows_parallel_edges: false, weight_domain }
@@ -104,7 +106,7 @@ pub enum GraphProvenance {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryGraph {
     /// 语义。
-    pub semantics: GraphSemantics,
+    pub semantics: GraphDomainSemantics,
     /// 边 `(source, target, weight)`；无权时 weight 忽略（算法按 1 计）。
     pub edges: Vec<(GraphNodeId, GraphNodeId, u64)>,
 }
@@ -139,7 +141,7 @@ pub struct GraphObject {
     /// 算法可绑定的不可变观测。
     pub snapshot: GraphSnapshot,
     /// 语义（含权重域）。
-    pub semantics: GraphSemantics,
+    pub semantics: GraphDomainSemantics,
     /// 表示。
     pub presentation: GraphPresentation,
     /// 假设。
@@ -164,7 +166,7 @@ impl GraphObject {
     /// 从边列表构造（节点 id 须从 0 连续或稀疏，由 `node_count` 指定上界）。
     ///
     /// 经 [`GraphBuilder`] 物化以得到真实 revision，并写入 [`GraphSnapshot`]。
-    pub fn from_edges(handle: GraphHandle, semantics: GraphSemantics, edges: Vec<(GraphNodeId, GraphNodeId, u64)>) -> Self {
+    pub fn from_edges(handle: GraphHandle, semantics: GraphDomainSemantics, edges: Vec<(GraphNodeId, GraphNodeId, u64)>) -> Self {
         let memory = MemoryGraph { semantics, edges };
         let frozen = {
             let mut builder = GraphBuilder::with_id(handle.graph_id(), semantics.to_structural());

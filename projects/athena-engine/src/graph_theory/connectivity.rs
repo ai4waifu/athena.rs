@@ -1,6 +1,6 @@
 //! 连通分量与强连通分量（调 `athena-graph`）。
 
-use athena_graph::{connected_components, strongly_connected_components};
+use athena_graph::primitives::{connected_components, strongly_connected_components};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{

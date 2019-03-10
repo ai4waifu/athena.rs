@@ -90,7 +90,7 @@ pub use galois::{
 pub use graph_theory::{
     BipartiteResult, CertificateStrength, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphId,
     GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance,
-    GraphRevision, GraphSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MemoryGraph,
+    GraphRevision, GraphDomainSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MemoryGraph,
     MinimumSpanningForestResult, RepresentationId, ShortestPathResult, SpanningEdge, StronglyConnectedComponentsResult,
     WeightDomain, execute_graph_theory, operation_name,
 };

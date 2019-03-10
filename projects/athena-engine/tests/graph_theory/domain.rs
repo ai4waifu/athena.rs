@@ -2,7 +2,7 @@
 
 use athena_engine::{
     BipartiteResult, ConnectedComponentsResult, DomainRequest, DomainResult, GraphCertificate, GraphHandle, GraphObject,
-    GraphPropertyState, GraphSemantics, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
+    GraphPropertyState, GraphDomainSemantics, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
     ShortestPathResult, StronglyConnectedComponentsResult, WeightDomain, execute_domain, execute_graph_theory,
 };
 use athena_graph::{GraphDirection, NodeId as GraphNodeId};
@@ -12,7 +12,7 @@ fn sample_graph() -> GraphObject {
         vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(3), GraphNodeId(4), 1)];
     GraphObject::from_edges(
         GraphHandle { id: 1, node_count: 5 },
-        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
         edges,
     )
 }
@@ -36,7 +36,7 @@ fn connected_components_via_domain_request() {
 fn strongly_connected_components_cycle() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 10, node_count: 3 },
-        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(0), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::StronglyConnectedComponents { graph });
@@ -66,7 +66,7 @@ fn strongly_connected_components_rejects_undirected() {
 fn bipartite_true_with_coloring_certificate() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 11, node_count: 4 },
-        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(3), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::Bipartite { graph });
@@ -87,7 +87,7 @@ fn bipartite_true_with_coloring_certificate() {
 fn bipartite_false_with_odd_cycle_certificate() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 12, node_count: 3 },
-        GraphSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(0), 1)],
     );
     let result = execute_graph_theory(GraphTheoryRequest::Bipartite { graph });
@@ -109,7 +109,7 @@ fn bipartite_false_with_odd_cycle_certificate() {
 
 #[test]
 fn minimum_spanning_forest_weighted() {
-    let mut semantics = GraphSemantics::new(GraphDirection::Undirected, WeightDomain::NonNegativeInteger);
+    let mut semantics = GraphDomainSemantics::new(GraphDirection::Undirected, WeightDomain::NonNegativeInteger);
     semantics.allows_self_loops = true;
     let graph = GraphObject::from_edges(
         GraphHandle { id: 13, node_count: 4 },
@@ -145,7 +145,7 @@ fn shortest_path_unweighted() {
     let edges = vec![(GraphNodeId(0), GraphNodeId(1), 0), (GraphNodeId(1), GraphNodeId(2), 0)];
     let graph = GraphObject::from_edges(
         GraphHandle { id: 2, node_count: 3 },
-        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         edges,
     );
     let result =
@@ -166,7 +166,7 @@ fn shortest_path_unweighted() {
 fn shortest_path_weighted() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 3, node_count: 3 },
-        GraphSemantics::new(GraphDirection::Directed, WeightDomain::NonNegativeInteger),
+        GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::NonNegativeInteger),
         vec![(GraphNodeId(0), GraphNodeId(1), 5), (GraphNodeId(0), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(1), 1)],
     );
     let result =
@@ -194,7 +194,7 @@ fn session_execute_graph_theory() {
 fn shortest_path_unreachable() {
     let graph = GraphObject::from_edges(
         GraphHandle { id: 4, node_count: 2 },
-        GraphSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
+        GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1)],
     );
     let result =
