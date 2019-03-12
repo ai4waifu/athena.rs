@@ -4,7 +4,7 @@
 //! TLS 析构顺序不定：所有入口用 `try_with`，线程退出时静默跳过（允许泄漏）。
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     rc::{Rc, Weak},
 };
 
@@ -14,9 +14,15 @@ use crate::{
     ids::HeapId,
 };
 
+struct RegistrySlot {
+    heap: Weak<RefCell<GcHeap>>,
+    /// 与 [`GcHeap`] 共享：`Drop` 遇 `HeapBusy` 时可无借 heap 地计数。
+    drop_busy_leaks: Rc<Cell<u64>>,
+}
+
 #[derive(Default)]
 struct Registry {
-    slots: Vec<Option<Weak<RefCell<GcHeap>>>>,
+    slots: Vec<Option<RegistrySlot>>,
     free: Vec<u32>,
 }
 
@@ -25,7 +31,7 @@ thread_local! {
 }
 
 /// 登记共享 heap，返回稳定 [`HeapId`]。
-pub fn register(heap: &Rc<RefCell<GcHeap>>) -> HeapId {
+pub fn register(heap: &Rc<RefCell<GcHeap>>, drop_busy_leaks: Rc<Cell<u64>>) -> HeapId {
     REGISTRY
         .try_with(|reg| {
             let mut reg = reg.borrow_mut();
@@ -37,7 +43,7 @@ pub fn register(heap: &Rc<RefCell<GcHeap>>) -> HeapId {
                 reg.slots.push(None);
                 i
             };
-            reg.slots[index as usize] = Some(Rc::downgrade(heap));
+            reg.slots[index as usize] = Some(RegistrySlot { heap: Rc::downgrade(heap), drop_busy_leaks });
             HeapId(index)
         })
         .expect("register heap while TLS alive")
@@ -62,11 +68,21 @@ pub fn with_heap<R>(id: HeapId, f: impl FnOnce(&mut GcHeap) -> R) -> Result<R> {
             let reg = reg.borrow();
             reg.slots
                 .get(id.0 as usize)
-                .and_then(|s| s.clone())
+                .and_then(|s| s.as_ref())
                 .ok_or(GcError::UnknownAllocation)
-                .and_then(|w| w.upgrade().ok_or(GcError::UnknownAllocation))
+                .and_then(|s| s.heap.upgrade().ok_or(GcError::UnknownAllocation))
         })
         .map_err(|_| GcError::RegistryUnavailable)??;
     let mut borrow = rc.try_borrow_mut().map_err(|_| GcError::HeapBusy)?;
     Ok(f(&mut borrow))
+}
+
+/// `Drop` 遇 `HeapBusy`：不借 `RefCell`，经共享计数器记一次泄漏。
+pub fn record_drop_busy_leak(id: HeapId) {
+    let _ = REGISTRY.try_with(|reg| {
+        let reg = reg.borrow();
+        if let Some(Some(slot)) = reg.slots.get(id.0 as usize) {
+            slot.drop_busy_leaks.set(slot.drop_busy_leaks.get().saturating_add(1));
+        }
+    });
 }

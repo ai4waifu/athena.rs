@@ -14,6 +14,22 @@ pub enum BlockKind {
     Cache = 3,
 }
 
+/// Numeric block 生命周期（与 [`BlockKind::Numeric`] 一起解释。Object 为 [`Self::Unspecified`]）。
+///
+/// `RustOwned` 与 `GcOwned` 互斥：同一 pointer 不得既由 Rust `Drop` 释放又被 tracing sweep。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+pub enum NumericOwnership {
+    /// 非 numeric，或尚未标记。
+    #[default]
+    Unspecified = 0,
+    /// 仅 Rust `Drop` / `release_numeric_block` 释放。sweep 必须跳过。
+    RustOwned = 1,
+    /// Session / 长期值：仅 [`crate::NumericRoot`] / Trace 保活。
+    /// `Drop` / `release_numeric_block` 不得 free；无 root 且未标记时由 sweep 回收。
+    GcOwned = 2,
+}
+
 /// Mark 位。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
@@ -45,6 +61,8 @@ pub struct AllocationHeader {
     pub pin_state: u16,
     /// 关联 `GcObjectId.index`（Object block；Numeric 为 `u32::MAX`）。
     pub object_index: u32,
+    /// Numeric 生命周期。Object 为 [`NumericOwnership::Unspecified`]。
+    pub numeric_ownership: NumericOwnership,
 }
 
 impl AllocationHeader {

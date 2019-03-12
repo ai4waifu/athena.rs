@@ -119,6 +119,25 @@ impl RootRegistry {
         false
     }
 
+    /// 按 payload 撤掉一条 numeric root（值对象 24B 布局无法内嵌 [`RootToken`] 时的 Drop 路径）。
+    ///
+    /// 同一 payload 可有多条 root（共享 `Clone`）。每次 Drop 撤一条。
+    pub fn unregister_one_numeric_for_payload(&mut self, payload: NonNull<u8>) -> bool {
+        for (i, slot) in self.numeric_roots.iter_mut().enumerate() {
+            if slot.as_ref().is_some_and(|r| r.payload == payload) {
+                *slot = None;
+                self.numeric_free.push(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 指定 payload 上当前 numeric root 条数。
+    pub fn numeric_root_count_for_payload(&self, payload: NonNull<u8>) -> usize {
+        self.numeric_roots.iter().filter(|s| s.as_ref().is_some_and(|r| r.payload == payload)).count()
+    }
+
     /// 迭代当前 object roots。
     pub fn iter(&self) -> impl Iterator<Item = GcRoot> + '_ {
         self.roots.iter().filter_map(|s| *s)

@@ -5,6 +5,7 @@
 
 #![deny(missing_docs)]
 
+mod batch;
 mod budget;
 mod error;
 mod header;
@@ -19,10 +20,11 @@ mod segment;
 mod stats;
 mod trace;
 
+pub use batch::{AllocationAccounting, NumericBatch};
 pub use budget::HeapBudget;
 pub use error::{GcError, Result};
-pub use header::{AllocationHeader, BlockKind, MarkState};
-pub use heap::{CollectReport, GcHeap, NumericBlock};
+pub use header::{AllocationHeader, BlockKind, MarkState, NumericOwnership};
+pub use heap::{CollectReport, GcHeap, NumericBlock, NumericBumpMark};
 pub use ids::{GcObjectId, HeapId, RootToken, SegmentId};
 pub use mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcPressure, GcSuspendGuard};
 pub use object::ObjectBlock;
@@ -36,6 +38,7 @@ pub use trace::{EmptyObjectGraph, ObjectGraph, Trace, Tracer};
 pub type ArenaHeap = GcHeap;
 
 pub use heap::heap_id_for_limbs;
+pub use registry::record_drop_busy_leak;
 
 /// 经 registry 借用已登记 heap（闭包可失败；供 numeric Clone / 分配）。
 pub fn with_registered_heap<R>(id: HeapId, f: impl FnOnce(&mut GcHeap) -> Result<R>) -> Result<R> {
