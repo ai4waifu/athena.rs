@@ -79,7 +79,7 @@ fn reversed_view_swaps_direction() {
     let b = g.add_node(());
     g.add_edge(a, b, ());
     let rev = ReversedGraphView::new(&g).unwrap();
-    let preds: Vec<_> = rev.neighbors(b).collect();
+    let preds: Vec<_> = rev.neighbors(b).unwrap().collect();
     assert_eq!(preds, vec![a]);
 }
 
@@ -92,10 +92,10 @@ fn induced_subgraph_keeps_internal_edges_only() {
     g.add_edge(a, b, ());
     g.add_edge(b, c, ());
     let sub = InducedSubgraphView::new(&g, [a, b]);
-    assert_eq!(sub.node_count(), 2);
-    let n: Vec<_> = sub.neighbors(a).collect();
+    assert_eq!(sub.node_count().unwrap(), 2);
+    let n: Vec<_> = sub.neighbors(a).unwrap().collect();
     assert_eq!(n, vec![b]);
-    assert!(sub.neighbors(b).next().is_none());
+    assert!(sub.neighbors(b).unwrap().next().is_none());
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn edge_filtered_view_drops_edges() {
     g.add_edge(a, b, ());
     g.add_edge(a, c, ());
     let view = EdgeFilteredView::from_view(g.view(), |_, target, _| target.0 == b.0);
-    let n: Vec<_> = view.neighbors(a).collect();
+    let n: Vec<_> = view.neighbors(a).unwrap().collect();
     assert_eq!(n, vec![b]);
 }
 

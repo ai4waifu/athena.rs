@@ -93,3 +93,43 @@ impl EdgeRef {
         Self { graph_id, revision, edge }
     }
 }
+
+use super::semantics::ViewFingerprint;
+
+/// 底图节点引用（长期身份；禁止用裸 [`NodeId`] 跨视图保存）。
+pub type SourceNodeRef = NodeRef;
+
+/// 底图边引用。
+pub type SourceEdgeRef = EdgeRef;
+
+/// 视图空间节点引用（绑 [`ViewFingerprint`]）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ViewNodeRef {
+    /// 视图指纹（含底图 id / revision / 变换）。
+    pub view: ViewFingerprint,
+    /// 视图内 local 节点 id（诱导/过滤当前与 base local id 同形）。
+    pub node: NodeId,
+}
+
+/// 视图空间边引用。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ViewEdgeRef {
+    /// 视图指纹。
+    pub view: ViewFingerprint,
+    /// 视图内 local 边 id。
+    pub edge: EdgeId,
+}
+
+impl ViewNodeRef {
+    /// 构造。
+    pub const fn new(view: ViewFingerprint, node: NodeId) -> Self {
+        Self { view, node }
+    }
+}
+
+impl ViewEdgeRef {
+    /// 构造。
+    pub const fn new(view: ViewFingerprint, edge: EdgeId) -> Self {
+        Self { view, edge }
+    }
+}

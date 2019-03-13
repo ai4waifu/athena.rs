@@ -80,8 +80,31 @@ fn reversed_view_mapping_is_identity_on_base_ids() {
     assert_eq!(rev.mapping().transform, ViewTransform::Reversed);
     assert_eq!(rev.base_graph_id(), g.id());
     assert_eq!(rev.base_revision(), g.revision());
-    assert_eq!(rev.map_node_to_base(a), Some(a));
-    assert_eq!(rev.map_edge_to_base(e), Some(e));
+    assert_eq!(rev.map_node_to_base(a).unwrap(), Some(a));
+    assert_eq!(rev.map_edge_to_base(e).unwrap(), Some(e));
+    let vn = rev.view_node_ref(a).unwrap();
+    assert_eq!(rev.map_view_node_to_source(vn).unwrap().node, a);
+}
+
+#[test]
+fn view_stale_after_base_mutation() {
+    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
+    let a = g.add_node(());
+    let b = g.add_node(());
+    g.add_edge(a, b, ());
+    let rev = ReversedGraphView::new(&g).unwrap();
+    let mapping = rev.mapping().clone();
+    let vn = rev.view_node_ref(a).unwrap();
+    let expected_rev = mapping.base_revision;
+    drop(rev);
+    let _ = g.add_node(());
+    assert!(matches!(
+        mapping.ensure_fresh(g.id(), g.revision()),
+        Err(athena_graph::GraphError::StaleView { expected, actual }) if expected == expected_rev && actual == g.revision()
+    ));
+    let rev2 = ReversedGraphView::new(&g).unwrap();
+    assert!(rev2.ensure_fresh().is_ok());
+    assert!(matches!(rev2.map_view_node_to_source(vn), Err(athena_graph::GraphError::WrongView { .. })));
 }
 
 #[test]
@@ -93,11 +116,14 @@ fn induced_view_maps_only_kept_nodes_and_internal_edges() {
     let e_ab = g.add_edge(a, b, ()).unwrap();
     let e_bc = g.add_edge(b, c, ()).unwrap();
     let induced = InducedSubgraphView::new(&g, [a, b]);
-    assert_eq!(induced.map_node_to_base(a), Some(a));
-    assert_eq!(induced.map_node_to_base(c), None);
-    assert_eq!(induced.map_edge_to_base(e_ab), Some(e_ab));
-    assert_eq!(induced.map_edge_to_base(e_bc), None);
+    assert_eq!(induced.map_node_to_base(a).unwrap(), Some(a));
+    assert_eq!(induced.map_node_to_base(c).unwrap(), None);
+    assert_eq!(induced.map_edge_to_base(e_ab).unwrap(), Some(e_ab));
+    assert_eq!(induced.map_edge_to_base(e_bc).unwrap(), None);
     assert_eq!(induced.mapping().transform, ViewTransform::Induced);
+    let vn = induced.view_node_ref(a).unwrap();
+    assert_eq!(induced.map_view_node_to_source(vn).unwrap().node, a);
+    assert!(induced.view_node_ref(c).is_err());
 }
 
 #[test]

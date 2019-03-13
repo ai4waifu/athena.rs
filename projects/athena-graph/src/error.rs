@@ -76,6 +76,20 @@ pub enum GraphError {
         /// 当前修订。
         actual: crate::GraphRevision,
     },
+    /// 视图绑定的底图 revision 已过期（或底图身份不一致时先报 [`Self::WrongGraph`]）。
+    StaleView {
+        /// 视图创建时的底图修订。
+        expected: crate::GraphRevision,
+        /// 当前底图修订。
+        actual: crate::GraphRevision,
+    },
+    /// [`crate::ViewNodeRef`] / [`crate::ViewEdgeRef`] 与当前视图指纹不一致。
+    WrongView {
+        /// 引用上的视图指纹。
+        expected: crate::ViewFingerprint,
+        /// 当前视图指纹。
+        actual: crate::ViewFingerprint,
+    },
 }
 
 impl From<ArrayError> for GraphError {

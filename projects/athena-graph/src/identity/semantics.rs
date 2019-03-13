@@ -166,6 +166,17 @@ impl ViewMapping {
             transform,
         }
     }
+
+    /// 校验底图身份与 revision 仍匹配；过期返回 [`crate::GraphError::StaleView`]。
+    pub fn ensure_fresh(&self, graph_id: GraphId, revision: GraphRevision) -> Result<(), crate::GraphError> {
+        if self.base_graph_id != graph_id {
+            return Err(crate::GraphError::WrongGraph { expected: self.base_graph_id, actual: graph_id });
+        }
+        if self.base_revision != revision {
+            return Err(crate::GraphError::StaleView { expected: self.base_revision, actual: revision });
+        }
+        Ok(())
+    }
 }
 
 /// CSR/CSC 等存储元数据（使表示可回溯到逻辑图状态）。
