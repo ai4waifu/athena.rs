@@ -36,11 +36,17 @@ pub(crate) enum Mode {
 /// 从 meta 取出 mode。
 #[inline]
 pub(crate) fn mode_of(meta: usize) -> Mode {
+    try_mode_of(meta).unwrap_or_else(|_| panic!("reserved magnitude mode"))
+}
+
+/// 校验 mode 位（`MODE_RESERVED` 拒绝，不得当 zero）。
+#[inline]
+pub(crate) fn try_mode_of(meta: usize) -> Result<Mode, ()> {
     match meta & MODE_MASK {
-        MODE_LIMB1 => Mode::Limb1,
-        MODE_LIMB2 => Mode::Limb2,
-        MODE_HEAP => Mode::Heap,
-        MODE_RESERVED => panic!("reserved magnitude mode"),
+        MODE_LIMB1 => Ok(Mode::Limb1),
+        MODE_LIMB2 => Ok(Mode::Limb2),
+        MODE_HEAP => Ok(Mode::Heap),
+        MODE_RESERVED => Err(()),
         _ => unreachable!("mode bits only use 2 bits"),
     }
 }

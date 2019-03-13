@@ -19,8 +19,8 @@ pub(crate) use gc_err::gc_alloc_error;
 pub(crate) use meta::Mode;
 pub(crate) use owned::OwnedLimbBuffer;
 pub(crate) use pair::MagnitudePair;
-pub(crate) use view::LimbWidth;
 use union::{HeapPayload, Magnitude};
+pub(crate) use view::{CheckedMagnitudeView, LimbWidth, decode_magnitude};
 
 #[cfg(target_pointer_width = "64")]
 const _: () = {

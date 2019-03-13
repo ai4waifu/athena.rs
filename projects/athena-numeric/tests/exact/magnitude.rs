@@ -50,6 +50,15 @@ fn modes_upgrade_downgrade() {
 }
 
 #[test]
+fn as_limbs_uses_checked_decode_for_heap() {
+    // Heap values must round-trip through decode_magnitude (capacity clamp, no panic).
+    let n = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
+    assert_eq!(n.as_limbs(), &[1, 2, 3, 4]);
+    let m = n.clone();
+    assert_eq!(m.as_limbs(), n.as_limbs());
+}
+
+#[test]
 fn clone_drop_heap() {
     let a = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
     let b = a.clone();
