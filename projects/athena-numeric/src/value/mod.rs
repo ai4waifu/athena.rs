@@ -2,6 +2,7 @@
 
 pub mod algebraic;
 pub mod complex;
+pub mod ephemeral;
 pub mod finite_field;
 pub mod integer;
 pub mod interval;

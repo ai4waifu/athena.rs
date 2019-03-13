@@ -5,7 +5,7 @@ use std::{cmp::Ordering, str::FromStr};
 
 use crate::{
     dispatch::NumericExecutor, execution_budget::NumericContext, kernel::limb as limb_kernel, natural::Natural,
-    storage::MagnitudePair,
+    storage::{MagnitudePair, gc_alloc_error},
 };
 
 /// 只读幅度视图：借用 limb + 符号（Living 18）。
@@ -49,9 +49,11 @@ impl<'a> MagnitudeView<'a> {
     pub fn sign(self) -> Sign {
         if self.is_zero() {
             Sign::Zero
-        } else if self.negative {
+        }
+        else if self.negative {
             Sign::Negative
-        } else {
+        }
+        else {
             Sign::Positive
         }
     }
@@ -150,6 +152,12 @@ impl Integer {
     #[inline]
     pub fn magnitude_view(&self) -> MagnitudeView<'_> {
         MagnitudeView::from_parts(self.as_limbs(), self.inner.is_negative())
+    }
+
+    /// 可失败 owning 复制（Heap 经 owner heap 分配；服从 `ctx` 入口预算）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
     }
 
     /// 将借用幅度按符号发布到 `ctx` heap（结果 owning）。
@@ -862,8 +870,8 @@ mod ownership_tests {
 
     #[test]
     fn try_add_owned_same_sign_reuses_heap() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -880,8 +888,8 @@ mod ownership_tests {
 
     #[test]
     fn try_mul_u64_owned_preserves_sign_and_reuses_heap() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);

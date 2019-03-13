@@ -20,8 +20,9 @@ use std::{
 ///
 /// # Clone
 ///
-/// Owning clone：Heap 幅度会在 owner heap 上再分配。分配失败时 **panic**（已知债务；
-/// 算术热路径应借用 limb，结果经 [`NumericContext`] 发布）。
+/// Limb1 / Limb2 栈拷贝。Heap `GcOwned`（Session 发布）经 `NumericRoot` 共享，不分配 limb。
+/// Heap `RustOwned` 会同堆再分配；失败时 **panic**（债）。算术热路径应借用 limb，
+/// owning 复制用 [`Self::try_clone_in`]。
 #[derive(Clone, Default)]
 pub struct Natural {
     inner: MagnitudePair,
@@ -280,8 +281,7 @@ impl Natural {
         let need = la.max(lb) + 1;
         ctx.budget().check_limbs(need)?;
 
-        let can_steal =
-            matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
+        let can_steal = matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
         if !can_steal {
             return self.try_add(rhs, ctx);
         }
@@ -341,8 +341,7 @@ impl Natural {
         let need = la + 1;
         ctx.budget().check_limbs(need)?;
 
-        let can_steal =
-            matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
+        let can_steal = matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
         if !can_steal {
             return self.try_mul_u64(rhs, ctx);
         }
@@ -394,8 +393,7 @@ impl Natural {
         let need = la.max(lb);
         ctx.budget().check_limbs(need)?;
 
-        let can_steal =
-            matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
+        let can_steal = matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
         if !can_steal {
             return self.try_sub(rhs, ctx);
         }
@@ -418,8 +416,7 @@ impl Natural {
             let storage = buf.as_mut_slice(n.max(1));
             let mut borrow = 0u64;
             for i in 0..n {
-                let (diff, b_out) =
-                    limb_kernel::sbb(storage[i], *rb.get(i).unwrap_or(&0), borrow);
+                let (diff, b_out) = limb_kernel::sbb(storage[i], *rb.get(i).unwrap_or(&0), borrow);
                 storage[i] = diff;
                 borrow = b_out;
             }
@@ -461,9 +458,8 @@ impl Natural {
 
         let plan = ctx.planner().plan_mul(la, lb);
         let schoolbook = matches!(plan, crate::algorithm::MulStrategy::Schoolbook);
-        let can_steal = schoolbook
-            && matches!(self.inner.mode(), Mode::Heap)
-            && self.inner.heap_capacity().is_some_and(|c| c >= need);
+        let can_steal =
+            schoolbook && matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
         if !can_steal {
             return self.try_mul(rhs, ctx);
         }
@@ -658,6 +654,12 @@ impl Natural {
         self.inner.as_limbs()
     }
 
+    /// 可失败 owning 复制（Heap 经 owner heap 分配；服从 `ctx` 入口预算）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
+    }
+
     /// 由小端 limb 构造（已规范化；经 [`NumericContext::portable_default`] 发布）。
     ///
     /// trim 后 ≤ 2 limb 不分配；更长幅度走 GC，失败返回 Diagnostic。
@@ -674,25 +676,31 @@ impl Natural {
     /// 由 limb 切片发布到 `ctx` heap（无额外 `Vec`）。
     pub(crate) fn from_limb_slice_in(ctx: &NumericContext, limbs: &[u64]) -> Result<Self> {
         ctx.check_entry()?;
-        let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_error)?;
+        let inner = MagnitudePair::from_limbs_in_with(ctx.heap(), limbs, ctx.publishes_gc_owned()).map_err(gc_alloc_error)?;
         Ok(Self::from_pair(inner))
     }
 
     /// 以显式 heap 容量发布（`capacity >= effective_len`）。供 `*_owned` 复用与测试构造余量缓冲。
-    pub(crate) fn from_limbs_with_capacity_in(
-        ctx: &NumericContext,
-        limbs: &[u64],
-        capacity: usize,
-    ) -> Result<Self> {
+    pub(crate) fn from_limbs_with_capacity_in(ctx: &NumericContext, limbs: &[u64], capacity: usize) -> Result<Self> {
         use crate::storage::OwnedLimbBuffer;
         ctx.check_entry()?;
         let el = limb_kernel::effective_len(limbs);
         if el <= 2 {
             return Self::from_limb_slice_in(ctx, limbs);
         }
-        assert!(capacity >= el, "capacity must cover effective limb length");
+        if capacity < el {
+            return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
+                .detail("domain", "numeric")
+                .detail("operation", "natural_capacity_too_small"));
+        }
         ctx.budget().check_limbs(capacity)?;
-        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
+        let mut buf = if ctx.publishes_gc_owned() {
+            OwnedLimbBuffer::alloc_uninit_gc_owned_in(ctx.heap(), capacity)
+        }
+        else {
+            OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity)
+        }
+        .map_err(gc_alloc_error)?;
         buf.as_mut_slice(el).copy_from_slice(&limbs[..el]);
         Ok(Self::finish_owned_limbs(buf, el))
     }
@@ -762,7 +770,13 @@ impl Natural {
             return Ok(n);
         }
         let limbs = out.as_canonical();
-        let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), el).map_err(gc_alloc_error)?;
+        let mut buf = if ctx.publishes_gc_owned() {
+            OwnedLimbBuffer::alloc_uninit_gc_owned_in(ctx.heap(), el)
+        }
+        else {
+            OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), el)
+        }
+        .map_err(gc_alloc_error)?;
         buf.as_mut_slice(el).copy_from_slice(limbs);
         let _ = out.set_zero(ctx.budget());
         Ok(Self::from_pair(MagnitudePair::from_owned_heap(buf, el)))
@@ -1004,8 +1018,8 @@ mod tests {
 
     #[test]
     fn try_add_owned_reuses_heap_buffer_when_capacity_allows() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1021,8 +1035,8 @@ mod tests {
 
     #[test]
     fn try_add_owned_matches_try_add_without_spare_capacity() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1036,8 +1050,8 @@ mod tests {
 
     #[test]
     fn try_mul_u64_owned_reuses_heap_when_capacity_allows() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1051,8 +1065,8 @@ mod tests {
 
     #[test]
     fn try_add_owned_self_add_aliases_safely() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1064,8 +1078,8 @@ mod tests {
 
     #[test]
     fn try_sub_owned_reuses_heap_when_capacity_allows() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1080,8 +1094,8 @@ mod tests {
 
     #[test]
     fn try_mul_owned_reuses_heap_on_schoolbook_with_spare_capacity() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
@@ -1097,8 +1111,8 @@ mod tests {
 
     #[test]
     fn try_mul_owned_falls_back_without_spare_capacity() {
-        use athena_gc::{GcHeap, HeapBudget};
         use crate::policy::execution_budget::ExecutionBudget;
+        use athena_gc::{GcHeap, HeapBudget};
 
         let heap = GcHeap::new_shared(HeapBudget::default());
         let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
