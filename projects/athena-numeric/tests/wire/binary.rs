@@ -550,7 +550,12 @@ fn reject_algebraic_empty_interval() {
 #[test]
 fn binary_finite_field_roundtrip() {
     let v = NumericValue::finite_field(
-        FiniteFieldValue::try_new(FieldId(4), vec![Integer::from_i64(1), Integer::from_i64(-2)]).unwrap(),
+        FiniteFieldValue::try_new(
+            FieldId(4),
+            athena_types::FieldPresentationId(2),
+            vec![Integer::from_i64(1), Integer::from_i64(-2)],
+        )
+        .unwrap(),
     );
     let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
     assert_eq!(back, v);
@@ -559,6 +564,7 @@ fn binary_finite_field_roundtrip() {
 #[test]
 fn reject_finite_field_empty() {
     let mut payload = 4u32.to_le_bytes().to_vec();
+    payload.extend_from_slice(&2u32.to_le_bytes());
     payload.extend_from_slice(&0u32.to_le_bytes());
     let err = finite_field_wire(0, payload).decode().unwrap_err();
     assert_eq!(reason_of(&err), Some("finite_field_empty"));
@@ -567,6 +573,7 @@ fn reject_finite_field_empty() {
 #[test]
 fn reject_finite_field_trailing() {
     let mut payload = 4u32.to_le_bytes().to_vec();
+    payload.extend_from_slice(&2u32.to_le_bytes());
     payload.extend_from_slice(&1u32.to_le_bytes());
     payload.extend(signed_int_bytes(1, mag_bytes(1, &[1])));
     payload.push(0xAB);

@@ -514,15 +514,16 @@ fn take_signed_integer(bytes: &[u8]) -> Result<(Integer, &[u8]), Diagnostic> {
 
 /// 编码 [`FiniteFieldValue`]（header `sign` 恒 0）。
 ///
-/// 载荷：`FieldId` `u32` + 系数个数 `u32` + 逐项 `(sign, magnitude)`。
-/// [`FieldId`] 为 Session-local 句柄。
+/// 载荷：`FieldId` `u32` + `FieldPresentationId` `u32` + 系数个数 `u32` + 逐项 `(sign, magnitude)`。
+/// 二者均为 Session-local 句柄。
 pub(crate) fn encode_finite_field_payload(v: &FiniteFieldValue) -> Result<(u8, Vec<u8>), Diagnostic> {
     use crate::format::validation::{WireReject, reject_non_canonical};
     v.validate().map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))?;
     let mut payload = Vec::new();
-    payload.extend_from_slice(&v.field.0.to_le_bytes());
-    payload.extend_from_slice(&(v.coefficients.len() as u32).to_le_bytes());
-    for c in &v.coefficients {
+    payload.extend_from_slice(&v.field().0.to_le_bytes());
+    payload.extend_from_slice(&v.presentation().0.to_le_bytes());
+    payload.extend_from_slice(&(v.coefficients().len() as u32).to_le_bytes());
+    for c in v.coefficients() {
         payload.extend(encode_signed_integer(c));
     }
     Ok((0, payload))
@@ -531,19 +532,20 @@ pub(crate) fn encode_finite_field_payload(v: &FiniteFieldValue) -> Result<(u8, V
 /// 解码 FiniteField 载荷。
 pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<FiniteFieldValue, Diagnostic> {
     use crate::format::validation::{WireReject, reject_non_canonical};
-    use athena_types::FieldId;
+    use athena_types::{FieldId, FieldPresentationId};
     if sign != 0 {
         return Err(reject_non_canonical(WireReject::SignUnknown));
     }
-    if payload.len() < 8 {
+    if payload.len() < 12 {
         return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
     }
     let field = FieldId(u32::from_le_bytes(payload[0..4].try_into().unwrap()));
-    let count = u32::from_le_bytes(payload[4..8].try_into().unwrap()) as usize;
+    let presentation = FieldPresentationId(u32::from_le_bytes(payload[4..8].try_into().unwrap()));
+    let count = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
     if count == 0 {
         return Err(reject_non_canonical(WireReject::FiniteFieldEmpty));
     }
-    let mut rest = &payload[8..];
+    let mut rest = &payload[12..];
     let mut coefficients = Vec::with_capacity(count);
     for _ in 0..count {
         let (c, tail) = take_signed_integer(rest)?;
@@ -553,7 +555,8 @@ pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<Fi
     if !rest.is_empty() {
         return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
     }
-    FiniteFieldValue::try_new(field, coefficients).map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))
+    FiniteFieldValue::try_new(field, presentation, coefficients)
+        .map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))
 }
 
 /// 编码 [`PAdicValue`]（header `sign` 恒 0）。
