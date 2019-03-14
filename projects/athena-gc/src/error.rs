@@ -55,6 +55,8 @@ pub enum GcError {
     HeapBusy,
     /// 线程本地 registry 已销毁（线程退出路径）。
     RegistryUnavailable,
+    /// Rust-owned 与 GC-owned 生命周期混用（拒绝 free，避免 double-free）。
+    LifecycleMismatch,
 }
 
 impl fmt::Display for GcError {
@@ -82,6 +84,7 @@ impl fmt::Display for GcError {
             Self::UnknownAllocation => write!(f, "unknown allocation"),
             Self::HeapBusy => write!(f, "heap busy"),
             Self::RegistryUnavailable => write!(f, "gc registry unavailable"),
+            Self::LifecycleMismatch => write!(f, "numeric ownership lifecycle mismatch"),
         }
     }
 }

@@ -17,6 +17,10 @@ pub struct HeapStats {
     pub segments_reclaimed: u64,
     /// `collect` 累计调用次数。
     pub collect_count: u64,
-    /// `collect` 累计耗时（纳秒，粗计）。
+    /// 累计 `collect` 耗时（纳秒，粗计）。
     pub gc_time_ns: u64,
+    /// `Drop` 遇 `HeapBusy` 而泄漏的次数。
+    pub drop_busy_leaks: u64,
+    /// Rust Drop / `release_numeric_block` 作用在 `GcOwned`（或反向）的次数。
+    pub lifecycle_mismatch: u64,
 }

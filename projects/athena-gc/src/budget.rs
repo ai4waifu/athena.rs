@@ -29,8 +29,8 @@ impl Default for HeapBudget {
 impl HeapBudget {
     /// Criterion / 长迭代微基准用：仍强制检查，但抬高上限。
     ///
-    /// bump arena 在 `Disabled` 下不会因 Drop 回退指针；操作数常驻时 ephemeral 结果会打出空洞并推进
-    /// `used`，默认 256 MiB 会在 Criterion 百万次迭代中触顶。微基准不得静默关掉预算，只抬天花板。
+    /// 微基准应开 `GcHeap::enable_bump_ephemeral(true)`，并在每批迭代后 `clear_numeric_to(mark)`。
+    /// 仅抬预算而不 rewind 时，结果空洞仍会推进 bump。不得静默关掉预算。
     pub fn for_microbench() -> Self {
         Self {
             max_arena_bytes: 16 * 1024 * 1024 * 1024,

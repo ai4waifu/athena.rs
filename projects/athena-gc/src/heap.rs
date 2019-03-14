@@ -1,22 +1,26 @@
 //! `GcHeap`：segmented non-moving bump 堆 + object arena + tracing collect。
 #![allow(unsafe_code)]
 
-use core::{cell::Cell, ptr::NonNull};
+use core::{
+    cell::Cell,
+    ptr::NonNull,
+};
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Instant};
 
 use crate::{
     budget::HeapBudget,
     error::{GcError, Result},
-    header::{AllocationHeader, BlockKind, MarkState},
-    ids::{GcObjectId, HeapId, SegmentId},
+    header::{AllocationHeader, BlockKind, MarkState, NumericOwnership},
+    ids::{GcObjectId, HeapId, RootToken, SegmentId},
     mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcSuspendGuard},
     object::{ObjectBlock, ObjectSlot, resolve_slot},
     registry,
-    root::RootRegistry,
+    root::{RootKind, RootRegistry},
     scratch::ScratchArena,
     segment::{SegmentKind, SegmentMeta},
     stats::HeapStats,
     trace::{ObjectGraph, Tracer},
+    batch::AllocationAccounting,
 };
 
 /// 默认 segment 容量。
@@ -27,6 +31,13 @@ const FREED_PIN_SENTINEL: u16 = u16::MAX;
 struct SegmentStorage {
     meta: SegmentMeta,
     bytes: Vec<u8>,
+}
+
+/// Numeric bump 水位（微基准 `bump_ephemeral`：`clear_numeric_to` 整段 rewind）。
+#[derive(Debug, Clone)]
+pub struct NumericBumpMark {
+    /// `(segment_slot, used, live_count)`，仅 Numeric 段。
+    segments: Vec<(usize, usize, u32)>,
 }
 
 /// CAS runtime heap。
@@ -42,10 +53,20 @@ pub struct GcHeap {
     roots: RootRegistry,
     scratch: ScratchArena,
     stats: HeapStats,
+    /// `Drop` 遇 `HeapBusy` 的泄漏计数（与 registry 共享，可不借 `RefCell` 递增）。
+    drop_busy_leaks: Rc<Cell<u64>>,
     objects: Vec<Option<ObjectSlot>>,
     free_objects: Vec<u32>,
     /// GC-owned numeric payloads（不经 Rust `Drop` 释放；由 tracing sweep）。
     traced_numeric: HashSet<usize>,
+    /// 微基准：Drop 不回收，由 [`Self::clear_numeric_to`] rewind bump。
+    bump_ephemeral: bool,
+    /// 分配记账策略（[`AllocationAccounting::Batched`] 仅由 [`Self::begin_numeric_batch`] 设置）。
+    accounting: AllocationAccounting,
+    /// Batched 模式下累计字节（header+payload）。
+    batch_bytes: usize,
+    /// Batched 模式下累计分配次数。
+    batch_allocs: u64,
     /// 仅 `shared` 构造时由 Drop 注销。
     registered: bool,
 }
@@ -65,9 +86,14 @@ impl GcHeap {
             roots: RootRegistry::new(),
             scratch: ScratchArena::new(),
             stats: HeapStats::default(),
+            drop_busy_leaks: Rc::new(Cell::new(0)),
             objects: Vec::new(),
             free_objects: Vec::new(),
             traced_numeric: HashSet::new(),
+            bump_ephemeral: false,
+            accounting: AllocationAccounting::Full,
+            batch_bytes: 0,
+            batch_allocs: 0,
             registered: false,
         }
     }
@@ -75,7 +101,8 @@ impl GcHeap {
     /// 共享堆（登记 `HeapId`，供 numeric Drop 回找）。
     pub fn new_shared(budget: HeapBudget) -> Rc<RefCell<Self>> {
         let rc = Rc::new(RefCell::new(Self::new_inner(budget)));
-        let id = registry::register(&rc);
+        let leaks = rc.borrow().drop_busy_leaks.clone();
+        let id = registry::register(&rc, leaks);
         rc.borrow_mut().id = id;
         rc.borrow_mut().registered = true;
         rc
@@ -138,6 +165,7 @@ impl GcHeap {
     pub fn stats(&self) -> HeapStats {
         let mut s = self.stats;
         s.peak_scratch_bytes = s.peak_scratch_bytes.max(self.scratch.peak_bytes());
+        s.drop_busy_leaks = self.drop_busy_leaks.get();
         s
     }
 
@@ -180,15 +208,59 @@ impl GcHeap {
         }
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) = self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX)?;
+        let (seg_id, limbs) =
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::RustOwned)?;
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
     /// 分配 GC-owned numeric block（须经 root / Trace 保活；由 tracing sweep 回收）。
+    ///
+    /// 与 [`Self::allocate_numeric_block`] 互斥：本路径写入 [`NumericOwnership::GcOwned`]，
+    /// Rust `Drop` / [`Self::release_numeric_block`] 不得 free。
     pub fn allocate_traced_numeric(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
-        let block = self.allocate_numeric_block(capacity_limbs)?;
-        self.traced_numeric.insert(block.ptr.as_ptr() as usize);
-        Ok(block)
+        if capacity_limbs == 0 {
+            return Err(GcError::InvalidCapacity);
+        }
+        self.budget.check_limbs(capacity_limbs)?;
+        let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
+        let (seg_id, limbs) =
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::GcOwned)?;
+        self.traced_numeric.insert(limbs.as_ptr() as usize);
+        Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
+    }
+
+    /// 为 GC-owned limbs 登记一条 [`NumericRoot`]（值对象持有 / 共享 `Clone`）。
+    pub fn register_numeric_root(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
+        let ownership = self.numeric_ownership(limbs)?;
+        if ownership != NumericOwnership::GcOwned {
+            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
+            return Err(GcError::LifecycleMismatch);
+        }
+        Ok(self.roots.register_numeric(limbs.cast(), kind))
+    }
+
+    /// 撤掉一条指向该 payload 的 [`NumericRoot`]（Living `19`：Drop 只撤 root，不 free）。
+    pub fn unregister_one_numeric_root(&mut self, limbs: NonNull<u64>) -> Result<()> {
+        let ownership = self.numeric_ownership(limbs)?;
+        if ownership != NumericOwnership::GcOwned {
+            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
+            return Err(GcError::LifecycleMismatch);
+        }
+        if !self.roots.unregister_one_numeric_for_payload(limbs.cast()) {
+            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
+            return Err(GcError::LifecycleMismatch);
+        }
+        Ok(())
+    }
+
+    /// 经 registry 登记 numeric root。
+    pub fn register_numeric_root_registered(heap_id: HeapId, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
+        registry::with_heap(heap_id, |heap| heap.register_numeric_root(limbs, kind))?
+    }
+
+    /// 经 registry 撤一条 numeric root。
+    pub fn unregister_one_numeric_root_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
+        registry::with_heap(heap_id, |heap| heap.unregister_one_numeric_root(limbs))?
     }
 
     /// 将已初始化 limb 提升到长期 numeric segment（scratch → heap promote）。
@@ -239,7 +311,13 @@ impl GcHeap {
         };
         let generation =
             self.objects.get(index as usize).and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1))).unwrap_or(1);
-        let (seg_id, ptr) = self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index)?;
+        let (seg_id, ptr) = self.allocate_payload(
+            SegmentKind::LongLivedObject,
+            BlockKind::Object,
+            payload_bytes,
+            index,
+            NumericOwnership::Unspecified,
+        )?;
         self.objects[index as usize] = Some(ObjectSlot {
             generation,
             mark: Cell::new(MarkState::White),
@@ -319,6 +397,16 @@ impl GcHeap {
         self.header_for_payload(limbs.cast())
     }
 
+    fn header_mut_for_limbs(&mut self, limbs: NonNull<u64>) -> Result<&mut AllocationHeader> {
+        let header = unsafe { limbs.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
+        let hdr = unsafe { &mut *header };
+        if hdr.pin_state == FREED_PIN_SENTINEL {
+            return Err(GcError::UnknownAllocation);
+        }
+        self.segment_ref(hdr.segment_id).ok_or(GcError::UnknownAllocation)?;
+        Ok(hdr)
+    }
+
     /// 标记 allocation 可达。
     pub fn mark_payload(&mut self, payload: NonNull<u8>) -> Result<()> {
         let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
@@ -339,18 +427,186 @@ impl GcHeap {
         self.mark_payload(limbs.cast())
     }
 
-    /// 显式释放 numeric block（Rust Drop 路径）。
+    /// 显式释放 numeric block（仅 [`NumericOwnership::RustOwned`]）。
     pub fn release_numeric_block(&mut self, block: NumericBlock) -> Result<()> {
-        self.traced_numeric.remove(&(block.ptr.as_ptr() as usize));
-        self.release_payload(block.ptr.cast(), BlockKind::Numeric)
+        let ownership = self.numeric_ownership(block.ptr)?;
+        if ownership != NumericOwnership::RustOwned {
+            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
+            return Err(GcError::LifecycleMismatch);
+        }
+        self.release_or_pool_numeric(block.ptr.cast())
     }
 
     /// 经 registry 释放（`OwnedLimbBuffer::Drop`）。
+    ///
+    /// - [`NumericOwnership::RustOwned`]：`release_or_pool_numeric`
+    /// - [`NumericOwnership::GcOwned`]：撤一条 [`NumericRoot`]（不 free）
     pub fn release_numeric_limbs_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
-        registry::with_heap(heap_id, |heap| {
-            heap.traced_numeric.remove(&(limbs.as_ptr() as usize));
-            let _ = heap.release_payload(limbs.cast(), BlockKind::Numeric);
-        })
+        registry::with_heap(heap_id, |heap| match heap.numeric_ownership(limbs) {
+            Ok(NumericOwnership::RustOwned) => heap.release_or_pool_numeric(limbs.cast()),
+            Ok(NumericOwnership::GcOwned) => heap.unregister_one_numeric_root(limbs),
+            Ok(NumericOwnership::Unspecified) => {
+                heap.stats.lifecycle_mismatch = heap.stats.lifecycle_mismatch.saturating_add(1);
+                Err(GcError::LifecycleMismatch)
+            }
+            Err(e) => Err(e),
+        })?
+    }
+
+    /// 读取 numeric header 的生命周期标记。
+    pub fn numeric_ownership(&self, limbs: NonNull<u64>) -> Result<NumericOwnership> {
+        Ok(self.header_for_limbs(limbs)?.numeric_ownership)
+    }
+
+    /// 经 registry 读取生命周期标记。
+    pub fn numeric_ownership_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<NumericOwnership> {
+        registry::with_heap(heap_id, |heap| heap.numeric_ownership(limbs))?
+    }
+
+    /// GC-owned 持有者计数（`pin_state`；`0` / 哨兵表示不可用）。
+    pub fn numeric_pin_state(&self, limbs: NonNull<u64>) -> Result<u16> {
+        Ok(self.header_for_limbs(limbs)?.pin_state)
+    }
+
+    /// 经 registry 读取 `pin_state`。
+    pub fn numeric_pin_state_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<u16> {
+        registry::with_heap(heap_id, |heap| heap.numeric_pin_state(limbs))?
+    }
+
+    /// 微基准 bump+clear：开启后 Rust-owned numeric `Drop` 为空操作，须配合 [`Self::clear_numeric_to`]。
+    ///
+    /// 优先使用 [`Self::begin_numeric_batch`]（含 Batched 记账）。生产 CAS 路径禁止开启。
+    pub fn enable_bump_ephemeral(&mut self, on: bool) {
+        self.bump_ephemeral = on;
+    }
+
+    pub(crate) fn set_bump_ephemeral(&mut self, on: bool) {
+        self.bump_ephemeral = on;
+    }
+
+    /// 是否处于微基准 bump+clear 模式。
+    #[inline]
+    pub fn bump_ephemeral(&self) -> bool {
+        self.bump_ephemeral
+    }
+
+    /// 当前分配记账策略。
+    #[inline]
+    pub fn accounting(&self) -> AllocationAccounting {
+        self.accounting
+    }
+
+    pub(crate) fn set_accounting(&mut self, accounting: AllocationAccounting) {
+        self.accounting = accounting;
+    }
+
+    pub(crate) fn reset_batch_counters(&mut self) {
+        self.batch_bytes = 0;
+        self.batch_allocs = 0;
+    }
+
+    pub(crate) fn take_batch_bytes(&mut self) -> usize {
+        core::mem::take(&mut self.batch_bytes)
+    }
+
+    pub(crate) fn take_batch_allocs(&mut self) -> u64 {
+        core::mem::take(&mut self.batch_allocs)
+    }
+
+    pub(crate) fn flush_batch_accounting(&mut self, bytes: usize, count: u64) {
+        if bytes == 0 && count == 0 {
+            return;
+        }
+        self.controller.record_allocation(bytes);
+        self.stats.allocation_count = self.stats.allocation_count.saturating_add(count);
+        self.stats.total_arena_bytes_allocated = self.stats.total_arena_bytes_allocated.saturating_add(bytes);
+    }
+
+    /// 开始 numeric batch lease（单次 `&mut`、Batched 记账、批末 rewind）。
+    pub fn begin_numeric_batch(&mut self) -> Result<crate::batch::NumericBatch<'_>> {
+        crate::batch::begin_numeric_batch(self)
+    }
+
+    /// 在闭包内跑完整个 batch（自动 `finish`）。
+    pub fn with_numeric_batch<R>(&mut self, f: impl FnOnce(&mut crate::batch::NumericBatch<'_>) -> R) -> Result<R> {
+        let mut batch = self.begin_numeric_batch()?;
+        let out = f(&mut batch);
+        batch.finish()?;
+        Ok(out)
+    }
+
+    /// Criterion：临时切换记账策略（须成对恢复；优先用 batch lease）。
+    pub fn with_accounting<R>(&mut self, accounting: AllocationAccounting, f: impl FnOnce(&mut Self) -> R) -> R {
+        let prev = self.accounting;
+        self.accounting = accounting;
+        let out = f(self);
+        self.accounting = prev;
+        out
+    }
+
+    /// Criterion raw bump：只推进 cursor，不写 header、不增 live_count、不记账。
+    ///
+    /// 仅 [`AllocationAccounting::Off`] + `bump_ephemeral`。结果不可当作 numeric block。
+    pub fn bench_bump_raw_bytes(&mut self, bytes: usize) -> Result<NonNull<u8>> {
+        if !self.bump_ephemeral || !matches!(self.accounting, AllocationAccounting::Off) {
+            return Err(GcError::InvalidCapacity);
+        }
+        let need = bytes.max(1);
+        let (seg_index, offset) = self.bump_allocate(SegmentKind::Numeric, need)?;
+        let seg = self.segments[seg_index].as_mut().expect("segment");
+        Ok(unsafe { NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset)) })
+    }
+
+    /// 记录当前 Numeric bump 水位（操作数构造完成之后、热路径之前调用）。
+    pub fn mark_numeric_bump(&self) -> NumericBumpMark {
+        let mut segments = Vec::new();
+        for (i, slot) in self.segments.iter().enumerate() {
+            if let Some(seg) = slot {
+                if seg.meta.kind == SegmentKind::Numeric {
+                    segments.push((i, seg.meta.used, seg.meta.live_count));
+                }
+            }
+        }
+        NumericBumpMark { segments }
+    }
+
+    /// 将 Numeric bump rewind 到 `mark`（仅 `bump_ephemeral`）。
+    ///
+    /// 失效 mark 之后分配的全部 Rust-owned numeric 指针。不缩容 segment 容量。
+    pub fn clear_numeric_to(&mut self, mark: NumericBumpMark) -> Result<()> {
+        if !self.bump_ephemeral {
+            return Err(GcError::InvalidCapacity);
+        }
+        let mut kept = HashSet::with_capacity(mark.segments.len());
+        for (i, used, live) in mark.segments {
+            kept.insert(i);
+            let Some(Some(seg)) = self.segments.get_mut(i)
+            else {
+                continue;
+            };
+            if seg.meta.kind != SegmentKind::Numeric {
+                continue;
+            }
+            debug_assert!(used <= seg.meta.used);
+            debug_assert!(live <= seg.meta.live_count);
+            seg.meta.used = used;
+            seg.meta.live_count = live;
+        }
+        for (i, slot) in self.segments.iter_mut().enumerate() {
+            if kept.contains(&i) {
+                continue;
+            }
+            let Some(seg) = slot.as_mut()
+            else {
+                continue;
+            };
+            if seg.meta.kind != SegmentKind::Numeric {
+                continue;
+            }
+            seg.meta.used = 0;
+            seg.meta.live_count = 0;
+        }
+        Ok(())
     }
 
     /// 无 tracing 的 collect（只回收空 segment）。
@@ -427,6 +683,7 @@ impl GcHeap {
         block_kind: BlockKind,
         payload_bytes: usize,
         object_index: u32,
+        numeric_ownership: NumericOwnership,
     ) -> Result<(SegmentId, NonNull<u8>)> {
         let total = AllocationHeader::size().checked_add(payload_bytes).ok_or(GcError::InvalidCapacity)?;
         let (seg_index, offset) = self.bump_allocate(kind, total)?;
@@ -443,16 +700,26 @@ impl GcHeap {
                 mark_state: MarkState::White,
                 pin_state: 0,
                 object_index,
+                numeric_ownership,
             });
         }
         let payload = unsafe { NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset + AllocationHeader::size())) };
         seg.meta.live_count = seg.meta.live_count.saturating_add(1);
-        self.touch(seg_index);
-        self.controller.record_allocation(total);
-        self.stats.allocation_count = self.stats.allocation_count.saturating_add(1);
-        self.stats.total_arena_bytes_allocated = self.stats.total_arena_bytes_allocated.saturating_add(total);
-        if self.controller.should_collect_after_alloc() {
-            let _ = self.collect();
+        match self.accounting {
+            AllocationAccounting::Full => {
+                self.touch(seg_index);
+                self.controller.record_allocation(total);
+                self.stats.allocation_count = self.stats.allocation_count.saturating_add(1);
+                self.stats.total_arena_bytes_allocated = self.stats.total_arena_bytes_allocated.saturating_add(total);
+                if self.controller.should_collect_after_alloc() {
+                    let _ = self.collect();
+                }
+            }
+            AllocationAccounting::Batched => {
+                self.batch_bytes = self.batch_bytes.saturating_add(total);
+                self.batch_allocs = self.batch_allocs.saturating_add(1);
+            }
+            AllocationAccounting::Off => {}
         }
         Ok((seg_id, payload))
     }
@@ -479,6 +746,15 @@ impl GcHeap {
             self.try_reclaim_segment(seg_id);
         }
         Ok(())
+    }
+
+    /// Rust-owned numeric：ephemeral 下 Drop 为空；否则真正 release（可 reclaim）。
+    fn release_or_pool_numeric(&mut self, payload: NonNull<u8>) -> Result<()> {
+        if self.bump_ephemeral {
+            // 空洞保留到 `clear_numeric_to`；避免每 op TLS registry 税。
+            return Ok(());
+        }
+        self.release_payload(payload, BlockKind::Numeric)
     }
 
     fn clear_marks(&mut self) {
@@ -534,17 +810,14 @@ impl GcHeap {
             if kind != BlockKind::Numeric || mark != MarkState::White || pin > 0 {
                 continue;
             }
+            let ownership = unsafe { (*header).numeric_ownership };
+            if ownership != NumericOwnership::GcOwned {
+                continue;
+            }
             if !self.traced_numeric.remove(&addr) {
                 continue;
             }
-            let capacity = unsafe { (*header).byte_len as usize / core::mem::size_of::<u64>() };
-            let block = NumericBlock {
-                ptr: ptr.cast(),
-                capacity: capacity.max(1),
-                segment_id: unsafe { (*header).segment_id },
-                heap_id: self.id,
-            };
-            if self.release_numeric_block(block).is_ok() {
+            if self.release_payload(ptr.cast(), BlockKind::Numeric).is_ok() {
                 swept = swept.saturating_add(1);
             }
         }
