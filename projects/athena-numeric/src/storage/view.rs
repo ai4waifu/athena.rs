@@ -1,4 +1,12 @@
-//! 一次分派后的 limb 视图（不拥有所有权）。
+//! 一次分派后的 limb 视图与 checked magnitude 解码（不拥有所有权）。
+#![allow(unsafe_code)]
+
+use athena_types::{Diagnostic, DiagnosticCode};
+
+use super::{
+    meta::{Mode, heap_len, try_mode_of},
+    union::Magnitude,
+};
 
 /// 只读 kernel 视图：ptr + len。
 #[derive(Debug, Clone, Copy)]
@@ -49,6 +57,77 @@ impl<'a> MutableLimbView<'a> {
     pub(crate) fn as_mut_slice(self) -> &'a mut [u64] {
         self.limbs
     }
+}
+
+/// 已校验的 magnitude 视图（Living `19` checked decoder）。
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CheckedMagnitudeView<'a> {
+    mode: Mode,
+    limbs: &'a [u64],
+}
+
+impl<'a> CheckedMagnitudeView<'a> {
+    /// Mode。
+    #[inline]
+    pub(crate) fn mode(self) -> Mode {
+        self.mode
+    }
+
+    /// 只读 limbs。
+    #[inline]
+    pub(crate) fn limbs(self) -> &'a [u64] {
+        self.limbs
+    }
+
+    /// Kernel 视图。
+    #[inline]
+    pub(crate) fn as_limb_view(self) -> LimbView<'a> {
+        LimbView::from_slice(self.limbs)
+    }
+}
+
+/// 集中解码 `meta + Magnitude`（拒绝 reserved mode、非法 Limb2/Heap 形状）。
+pub(crate) fn decode_magnitude<'a>(meta: usize, magnitude: &'a Magnitude) -> Result<CheckedMagnitudeView<'a>, Diagnostic> {
+    let mode = try_mode_of(meta).map_err(|_| decode_err("magnitude_reserved_mode"))?;
+    match mode {
+        Mode::Limb1 => {
+            // SAFETY: mode 已校验为 Limb1，limb1 为 active field。
+            let limbs = unsafe { core::slice::from_ref(&magnitude.limb1) };
+            Ok(CheckedMagnitudeView { mode, limbs })
+        }
+        Mode::Limb2 => {
+            // SAFETY: mode Limb2。
+            let limbs = unsafe { &magnitude.limb2 };
+            if limbs[1] == 0 {
+                return Err(decode_err("magnitude_limb2_high_zero"));
+            }
+            Ok(CheckedMagnitudeView { mode, limbs })
+        }
+        Mode::Heap => {
+            let len = heap_len(meta);
+            if len < 3 {
+                return Err(decode_err("magnitude_heap_len"));
+            }
+            // SAFETY: mode Heap。
+            let heap = unsafe { magnitude.heap };
+            if heap.capacity < len {
+                return Err(decode_err("magnitude_heap_capacity"));
+            }
+            let n = len.min(heap.capacity);
+            // SAFETY: n <= capacity。
+            let limbs = unsafe { core::slice::from_raw_parts(heap.ptr.as_ptr(), n) };
+            if limbs[n - 1] == 0 {
+                return Err(decode_err("magnitude_heap_trailing_zero"));
+            }
+            Ok(CheckedMagnitudeView { mode, limbs })
+        }
+    }
+}
+
+fn decode_err(operation: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
+        .detail("domain", "numeric")
+        .detail("operation", operation)
 }
 
 /// 宽度分类（由 limb 切片导出，等价于 mode 分派）。

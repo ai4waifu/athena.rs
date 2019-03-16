@@ -15,10 +15,10 @@ use athena_gc::{GcHeap, heap_id_for_limbs};
 use super::{
     meta::{
         META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, is_negative,
-        mode_of,
+        mode_of, try_mode_of,
     },
     owned::OwnedLimbBuffer,
-    union::Magnitude,
+    union::{HeapPayload, Magnitude},
     view::LimbView,
 };
 
@@ -93,6 +93,15 @@ impl MagnitudePair {
     ///
     /// trim 后 ≤ 2 limb 不分配；更长幅度是**唯一**可进 Heap 的正式构造路径。
     pub(crate) fn from_limbs_in(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64]) -> athena_gc::Result<Self> {
+        Self::from_limbs_in_with(heap, limbs, false)
+    }
+
+    /// 同 [`Self::from_limbs_in`]；`gc_owned` 时经 traced numeric 分配。
+    pub(crate) fn from_limbs_in_with(
+        heap: &Rc<RefCell<GcHeap>>,
+        limbs: &[u64],
+        gc_owned: bool,
+    ) -> athena_gc::Result<Self> {
         let el = effective_len(limbs);
         match el {
             0 => Ok(Self::zero()),
@@ -113,7 +122,12 @@ impl MagnitudePair {
             }
             _ => {
                 debug_assert!(limbs[el - 1] != 0);
-                let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
+                let buf = if gc_owned {
+                    OwnedLimbBuffer::alloc_copy_gc_owned_in(heap, &limbs[..el], el)?
+                }
+                else {
+                    OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?
+                };
                 Ok(Self::from_owned_heap(buf, el))
             }
         }
@@ -248,24 +262,66 @@ impl MagnitudePair {
     }
 
     /// 一次分派后的只读 limb 视图（零 → `[0]`）。
+    ///
+    /// Living `19`：经 [`decode_magnitude`]；损坏 / reserved meta 回退为 `[0]`，禁止越界 `from_raw_parts`。
     #[inline]
     pub(crate) fn as_limbs(&self) -> &[u64] {
-        match self.mode() {
+        match self.try_as_limbs() {
+            Ok(limbs) => limbs,
+            Err(_) => {
+                static ZERO: [u64; 1] = [0];
+                &ZERO
+            }
+        }
+    }
+
+    /// Checked limb 视图（Living `19` `decode_magnitude`）。
+    #[inline]
+    pub(crate) fn try_as_limbs(&self) -> Result<&[u64], athena_types::Diagnostic> {
+        Ok(super::decode_magnitude(self.meta, &self.magnitude)?.limbs())
+    }
+
+    /// 可失败 owning 复制。
+    ///
+    /// - Limb1 / Limb2：栈拷贝。
+    /// - Heap `GcOwned`：再登记一条 [`athena_gc::NumericRoot`]（无 limb 分配）。
+    /// - Heap `RustOwned`：同堆 `alloc_copy`（唯一允许的隐式分配 owning 复制入口；公共路径应优先 [`Self::try_clone`] + context）。
+    pub(crate) fn try_clone(&self) -> athena_gc::Result<Self> {
+        match try_mode_of(self.meta).map_err(|_| athena_gc::GcError::UnknownAllocation)? {
             Mode::Limb1 => {
-                // SAFETY: Limb1 mode → limb1 为 active field。
-                unsafe { core::slice::from_ref(&self.magnitude.limb1) }
+                // SAFETY: Limb1 active。
+                let limb = unsafe { self.magnitude.limb1 };
+                Ok(Self { meta: self.meta, magnitude: Magnitude { limb1: limb } })
             }
             Mode::Limb2 => {
-                // SAFETY: Limb2 mode → limb2 为 active field。
-                unsafe { &self.magnitude.limb2 }
+                // SAFETY: Limb2 active。
+                let limbs = unsafe { self.magnitude.limb2 };
+                Ok(Self { meta: self.meta, magnitude: Magnitude { limb2: limbs } })
             }
             Mode::Heap => {
                 let len = heap_len(self.meta);
-                // SAFETY: Heap mode → heap 为 active；前 len 个 limb 已初始化。
-                unsafe {
+                // SAFETY: Heap active。
+                let (ptr, capacity, heap_id) = unsafe {
                     let heap = self.magnitude.heap;
-                    debug_assert!(len <= heap.capacity);
-                    core::slice::from_raw_parts(heap.ptr.as_ptr(), len)
+                    (heap.ptr, heap.capacity, heap_id_for_limbs(heap.ptr))
+                };
+                let n = len.min(capacity);
+                match GcHeap::numeric_ownership_registered(heap_id, ptr) {
+                    Ok(athena_gc::NumericOwnership::GcOwned) => {
+                        // Living `19`：共享 Clone 再登记一条 NumericRoot，不拷贝 limb。
+                        let _ = GcHeap::register_numeric_root_registered(heap_id, ptr, athena_gc::RootKind::Numeric)?;
+                        Ok(Self {
+                            meta: self.meta,
+                            magnitude: Magnitude { heap: HeapPayload { ptr, capacity } },
+                        })
+                    }
+                    _ => {
+                        // SAFETY: n <= capacity。
+                        let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
+                        let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
+                        let payload = buf.into_payload();
+                        Ok(Self { meta: self.meta, magnitude: Magnitude { heap: payload } })
+                    }
                 }
             }
         }
@@ -275,6 +331,12 @@ impl MagnitudePair {
     #[inline]
     pub(crate) fn as_view(&self) -> LimbView<'_> {
         LimbView::from_slice(self.as_limbs())
+    }
+
+    /// Checked kernel 视图。
+    #[inline]
+    pub(crate) fn try_as_view(&self) -> Result<LimbView<'_>, athena_types::Diagnostic> {
+        Ok(LimbView::from_slice(self.try_as_limbs()?))
     }
 
     /// 拆成扁平字段（调用方接管 Drop 责任）。
@@ -347,53 +409,29 @@ impl Default for MagnitudePair {
 
 /// Owning clone of the physical pair.
 ///
-/// Limb1 / Limb2 are infallible copies. **Heap mode allocates** on the owner
-/// heap and copies limbs (GC allocation + memcpy, not algorithm cost). Prefer
-/// borrowed limb views on arithmetic hot paths.
+/// Limb1 / Limb2 are infallible copies. Heap `GcOwned` shares via [`NumericRoot`]（无 limb 分配）。
+/// Heap `RustOwned` allocates on the owner heap（Living `19`：应优先 `try_clone` / `try_clone_in`）。
 ///
 /// # Panic
 ///
-/// Heap clone panics if the owner-heap allocation fails. This is a known
-/// contract debt of public `Natural` / `Integer` `Clone` until arithmetic
-/// ownership uses borrowed views and context-aware publish.
+/// Heap `RustOwned` clone panics if allocation fails. Session `GcOwned` 路径不分配 limb，不因此 panic。
 impl Clone for MagnitudePair {
     fn clone(&self) -> Self {
-        match self.mode() {
-            Mode::Limb1 => {
-                // SAFETY: Limb1 active。
-                let limb = unsafe { self.magnitude.limb1 };
-                Self { meta: self.meta, magnitude: Magnitude { limb1: limb } }
-            }
-            Mode::Limb2 => {
-                // SAFETY: Limb2 active。
-                let limbs = unsafe { self.magnitude.limb2 };
-                Self { meta: self.meta, magnitude: Magnitude { limb2: limbs } }
-            }
-            Mode::Heap => {
-                let len = heap_len(self.meta);
-                // SAFETY: Heap active。
-                let (src, capacity, heap_id) = unsafe {
-                    let heap = self.magnitude.heap;
-                    (core::slice::from_raw_parts(heap.ptr.as_ptr(), len), heap.capacity, heap_id_for_limbs(heap.ptr))
-                };
-                let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(len))
-                    .unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"));
-                let payload = buf.into_payload();
-                Self { meta: self.meta, magnitude: Magnitude { heap: payload } }
-            }
-        }
+        self.try_clone().unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"))
     }
 }
 
 impl Drop for MagnitudePair {
     fn drop(&mut self) {
-        if matches!(self.mode(), Mode::Heap) {
-            // SAFETY: Heap mode → heap active。
-            let payload = unsafe { self.magnitude.heap };
-            self.meta = encode_zero_meta();
-            self.magnitude = Magnitude { limb1: 0 };
-            OwnedLimbBuffer::dealloc_heap(payload);
-        }
+        let Ok(Mode::Heap) = try_mode_of(self.meta)
+        else {
+            return;
+        };
+        // SAFETY: Heap mode → heap active。
+        let payload = unsafe { self.magnitude.heap };
+        self.meta = encode_zero_meta();
+        self.magnitude = Magnitude { limb1: 0 };
+        OwnedLimbBuffer::dealloc_heap(payload);
     }
 }
 
