@@ -2,11 +2,11 @@
 
 use athena_ndarray::{ArrayStorage, ChunkedArray, InMemoryStorage, LogicalShape, MemoryBudget};
 
-use crate::{CscGraph, CsrGraph, EdgeId, Graph, GraphDirection, GraphError, NodeId};
+use crate::{CscGraph, CsrGraph, EdgeId, MutableGraph, GraphDirection, GraphError, NodeId};
 
 /// 内存邻接表 → CSR（出邻接按目标升序）。
 pub fn graph_to_csr<N, E>(
-    graph: &Graph<N, E>,
+    graph: &MutableGraph<N, E>,
     budget: MemoryBudget,
 ) -> Result<CsrGraph<InMemoryStorage<u64>, InMemoryStorage<u64>>, GraphError> {
     if graph.direction() != GraphDirection::Directed {
@@ -120,7 +120,7 @@ pub fn csr_to_csc<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
     CscGraph::new_with_metadata(nodes, column_offsets_arr, row_indices_arr, metadata)
 }
 
-/// 从 [`Graph`] 导出边列表 `(source, target, edge_id)`。
-pub fn graph_edge_list<N, E>(graph: &Graph<N, E>) -> Vec<(NodeId, NodeId, EdgeId)> {
+/// 从 [`MutableGraph`] 导出边列表 `(source, target, edge_id)`。
+pub fn graph_edge_list<N, E>(graph: &MutableGraph<N, E>) -> Vec<(NodeId, NodeId, EdgeId)> {
     graph.edges().collect()
 }

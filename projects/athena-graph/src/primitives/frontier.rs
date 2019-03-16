@@ -106,7 +106,7 @@ pub enum DeterministicBfsOutcome {
 }
 
 fn run_deterministic_bfs_loop<N, E>(
-    graph: &crate::Graph<N, E>,
+    graph: &crate::MutableGraph<N, E>,
     discovered: &mut [bool],
     visited: &mut Vec<NodeId>,
     frontier: &mut DeterministicFrontier,
@@ -137,7 +137,7 @@ fn run_deterministic_bfs_loop<N, E>(
 
 /// 在内存图上执行确定性 BFS（邻接按 `NodeId` 升序扩展）。
 pub fn deterministic_bfs<N, E>(
-    graph: &crate::Graph<N, E>,
+    graph: &crate::MutableGraph<N, E>,
     start: NodeId,
     cancel: Option<&CancelFlag>,
 ) -> Result<DeterministicBfsOutcome, GraphError> {
@@ -155,7 +155,7 @@ pub fn deterministic_bfs<N, E>(
 
 /// 从检查点恢复确定性 BFS。
 pub fn resume_deterministic_bfs<N, E>(
-    graph: &crate::Graph<N, E>,
+    graph: &crate::MutableGraph<N, E>,
     checkpoint: FrontierCheckpoint,
     cancel: Option<&CancelFlag>,
 ) -> Result<DeterministicBfsOutcome, GraphError> {

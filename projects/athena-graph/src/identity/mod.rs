@@ -6,7 +6,7 @@ mod id;
 mod semantics;
 
 pub use direction::GraphDirection;
-pub use graph::{Graph, GraphBuilder, GraphView, ImmutableGraph};
+pub use graph::{MutableGraph, GraphBuilder, GraphView, ImmutableGraph};
 pub use id::{
     EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId, SourceEdgeRef, SourceNodeRef, ViewEdgeRef,
     ViewNodeRef,

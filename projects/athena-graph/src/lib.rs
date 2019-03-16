@@ -18,7 +18,7 @@ mod error;
 
 pub use error::GraphError;
 pub use identity::{
-    EdgeId, EdgeRef, Graph, GraphBuilder, GraphDirection, GraphFingerprint, GraphId, GraphRevision, GraphSemantics,
+    EdgeId, EdgeRef, MutableGraph, GraphBuilder, GraphDirection, GraphFingerprint, GraphId, GraphRevision, GraphSemantics,
     GraphSnapshot, GraphStorageMetadata, GraphView, ImmutableGraph, MultiplicityPolicy, NodeId, NodeRef, RepresentationId,
     SelfLoopDegree, SourceEdgeRef, SourceNodeRef, ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };

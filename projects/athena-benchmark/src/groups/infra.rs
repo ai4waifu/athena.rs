@@ -1,6 +1,6 @@
 //! `infra` 分组：ndarray / graph / table 合同 smoke fixture。
 
-use athena_graph::{CsrGraph, Graph, GraphDirection, bfs_order};
+use athena_graph::{CsrGraph, GraphBuilder, GraphDirection, bfs_order};
 use athena_ndarray::{LogicalShape, MemoryBudget, array1d};
 use athena_table::{Field, LogicalType, Schema, Table, TableExpr, column_from_store};
 
@@ -48,10 +48,11 @@ impl Fixture for GraphCsrFixture {
         if chunks.len() != 3 {
             return Err(format!("expected 3 neighbor chunks, got {}", chunks.len()));
         }
-        let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-        let a = g.add_node(());
-        let b = g.add_node(());
-        g.add_edge(a, b, ());
+        let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+        let a = b.add_node(());
+        let bb = b.add_node(());
+        b.add_edge(a, bb, ());
+        let g = b.finish();
         let order = bfs_order(&g, a).map_err(|e| format!("{e:?}"))?;
         if order.len() != 2 {
             return Err("bfs order length".into());

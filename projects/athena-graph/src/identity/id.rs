@@ -37,7 +37,7 @@ impl RepresentationId {
 ///
 /// 图生命周期：
 /// - `add_node` / `add_edge` 各递增 1
-/// - [`super::Graph::transaction`] 内多次 mutation 在提交时只递增 1
+/// - [`super::MutableGraph::transaction`] 内多次 mutation 在提交时只递增 1
 /// - 视图创建不递增底图 revision
 /// - 溢出时 saturating（`u64::MAX` 后保持）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Default)]
