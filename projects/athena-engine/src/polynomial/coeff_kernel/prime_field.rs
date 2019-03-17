@@ -85,7 +85,7 @@ impl FpBigKernel {
     }
 
     /// 特征素数。
-    pub fn characteristic(&self) -> &Integer {
+    pub fn characteristic(&self) -> Integer {
         self.modulus.value()
     }
 
