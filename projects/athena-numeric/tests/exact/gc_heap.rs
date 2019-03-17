@@ -46,18 +46,52 @@ fn bump_ephemeral_clear_rewinds_without_drop_tax() {
     let a = Natural::from_limbs_in(&ctx, vec![1, 2, 3]).expect("a");
     let b = Natural::from_limbs_in(&ctx, vec![4, 5, 6]).expect("b");
     let mark = heap.borrow().mark_numeric_bump();
-    let used_before = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_before =
+        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     for _ in 0..64 {
         let _ = a.try_add(&b, &ctx).expect("add");
     }
-    let used_mid = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_mid =
+        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     assert!(used_mid > used_before, "ephemeral bump must advance");
     heap.borrow_mut().clear_numeric_to(mark).expect("clear");
-    let used_after = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_after =
+        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     assert_eq!(used_after, used_before, "clear must rewind to mark");
     // 操作数仍可读
     assert_eq!(a.as_limbs(), &[1, 2, 3]);
     assert_eq!(b.as_limbs(), &[4, 5, 6]);
+}
+
+#[test]
+fn ephemeral_natural_batch_lease_and_promote() {
+    use athena_numeric::EphemeralNatural;
+
+    let batch_heap = GcHeap::new_shared(HeapBudget::default());
+    let persist_heap = GcHeap::new_shared(HeapBudget::default());
+    let persist_ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), persist_heap.clone());
+    let mut h = batch_heap.borrow_mut();
+    let used0: usize = h.segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum();
+    let mut promoted = None;
+    h.with_numeric_batch(|batch| {
+        for _ in 0..16 {
+            let block = batch.allocate_limbs(4).expect("alloc");
+            let _ = block;
+        }
+        let n = EphemeralNatural::try_add(&[1, 2, 3, 4], &[5, 6, 7, 8], batch).expect("add");
+        assert!(!n.is_zero());
+        // promote 必须写到另一持久 heap；同 heap 会在 finish rewind 时被清掉。
+        promoted = Some(n.promote(&persist_ctx).expect("promote"));
+        drop(n);
+    })
+    .expect("batch");
+    let used1: usize = h.segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum();
+    assert_eq!(used1, used0, "batch rewind restores bump");
+    assert_eq!(h.accounting(), athena_gc::AllocationAccounting::Full);
+    assert!(!h.bump_ephemeral());
+    let p = promoted.expect("promoted");
+    assert_eq!(p.as_limbs(), &[6, 8, 10, 12]);
+    assert!(persist_heap.borrow().resident_bytes() > 0);
 }
 
 #[test]
@@ -128,4 +162,39 @@ fn session_default_try_add_publishes_on_session_heap() {
     assert!(ctx.heap().borrow().resident_bytes() > 0);
     // Living 18：结果发布在隔离 session 堆，不得污染 shared Auto。
     assert_eq!(GcHeap::shared_default().borrow().resident_bytes(), shared_before);
+}
+
+#[test]
+fn session_default_publishes_gc_owned_heap() {
+    use athena_gc::NumericOwnership;
+    use athena_numeric::natural::Natural;
+
+    let ctx = NumericContext::session_default();
+    assert!(ctx.publishes_gc_owned());
+    let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
+    let ptr = n.as_limbs().as_ptr();
+    let nn = core::ptr::NonNull::new(ptr as *mut u64).expect("non-null limbs");
+    let ownership = ctx.heap().borrow().numeric_ownership(nn).expect("ownership");
+    assert_eq!(ownership, NumericOwnership::GcOwned);
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 1);
+}
+
+#[test]
+fn session_gc_owned_clone_retains_without_alloc_panic() {
+    use athena_numeric::natural::Natural;
+
+    let ctx = NumericContext::session_default();
+    let n = Natural::from_limbs_in(&ctx, vec![9, 8, 7, 6]).expect("n");
+    let cloned = n.try_clone_in(&ctx).expect("clone");
+    assert_eq!(n.as_limbs(), cloned.as_limbs());
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 2);
+    // Second clone via Clone trait must also succeed (NumericRoot path, no limb alloc).
+    let _shared = n.clone();
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 3);
+}
+
+#[test]
+fn portable_default_does_not_publish_gc_owned() {
+    let ctx = NumericContext::portable_default();
+    assert!(!ctx.publishes_gc_owned());
 }
