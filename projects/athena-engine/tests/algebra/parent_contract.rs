@@ -56,6 +56,6 @@ fn galois_request_polynomial_vs_extension_split() {
 
 #[test]
 fn finite_field_value_has_no_term_id() {
-    let v = FiniteFieldValue { field: FieldId(0), coefficients: vec![Integer::from_i64(1)] };
-    assert_eq!(v.coefficients.len(), 1);
+    let v = FiniteFieldValue::try_new(FieldId(0), athena_types::FieldPresentationId(0), vec![Integer::from_i64(1)]).unwrap();
+    assert_eq!(v.coefficients().len(), 1);
 }

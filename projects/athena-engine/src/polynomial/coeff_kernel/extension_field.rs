@@ -67,10 +67,10 @@ impl FpExtCoeffKernel {
         self.div(Number::integer(Integer::one()), a)
     }
 
-    fn extract_coords(&self, coeff: &Number) -> Result<Vec<Integer>> {
+fn extract_coords(&self, coeff: &Number) -> Result<Vec<Integer>> {
         match coeff {
-            NumericValue::FiniteField(ff) if ff.field == self.field => {
-                canonical_coords(ff.coefficients.clone(), self.spec.degree, &self.modulus)
+            NumericValue::FiniteField(ff) if ff.field() == self.field => {
+                canonical_coords(ff.coefficients().to_vec(), self.spec.degree, &self.modulus)
             }
             NumericValue::Integer(n) => canonical_coords(vec![self.modulus.reduce(n)], self.spec.degree, &self.modulus),
             _ => Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
@@ -80,6 +80,9 @@ impl FpExtCoeffKernel {
     }
 
     fn pack_coords(&self, coords: Vec<Integer>) -> Number {
-        Number::FiniteField(FiniteFieldValue { field: self.field, coefficients: coords })
+        Number::FiniteField(
+            FiniteFieldValue::try_new(self.field, athena_types::FieldPresentationId(0), coords)
+                .expect("coords non-empty from kernel"),
+        )
     }
 }
