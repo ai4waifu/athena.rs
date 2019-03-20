@@ -133,6 +133,9 @@ impl ScratchWorkspace {
     }
 
     /// 确保竞技场至少 `limbs` 项，并重置 bump 游标。
+    ///
+    /// Karatsuba / Toom / Knuth 经 `as_mut_slice()` 使用前缀，必须在此清零该前缀
+    /// （不再依赖 `clear()` 整片 `fill(0)`）。
     pub fn ensure(&mut self, limbs: usize, budget: &ExecutionBudget) -> Result<()> {
         budget.check_limbs(limbs.max(1))?;
         if self.arena.capacity() < limbs {
@@ -140,6 +143,9 @@ impl ScratchWorkspace {
         }
         if self.arena.len() < limbs {
             self.arena.resize(limbs, 0);
+        }
+        else {
+            self.arena[..limbs].fill(0);
         }
         self.cursor = 0;
         Ok(())
@@ -174,9 +180,10 @@ impl ScratchWorkspace {
         &mut self.arena
     }
 
-    /// 在顶层运算之间清空逻辑内容（保留容量，重置游标）。
+    /// 在顶层运算之间重置 bump 游标（保留容量，不清零整片）。
+    ///
+    /// 槽位在 [`Self::alloc`] 时已 `fill(0)`；此处再整片清零会把微基准打到 µs 级。
     pub fn clear(&mut self) {
-        self.arena.fill(0);
         self.cursor = 0;
     }
 }
