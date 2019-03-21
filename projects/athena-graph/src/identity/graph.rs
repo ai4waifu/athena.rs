@@ -9,9 +9,12 @@ use super::{
     semantics::{GraphFingerprint, GraphSemantics, GraphSnapshot},
 };
 
-/// 小图内存邻接表（便利实现，不是规模上限）。
+/// 构造期可变邻接表（便利实现，不是规模上限）。
+///
+/// 公开稳定路径：[`GraphBuilder`] → [`ImmutableGraph`]。本类型的构造函数为 `pub(crate)`，
+/// 外部 crate 只能经 builder 的 [`GraphBuilder::graph_mut`] 在构造期写入。
 #[derive(Debug, Clone)]
-pub struct Graph<N, E> {
+pub struct MutableGraph<N, E> {
     id: GraphId,
     semantics: GraphSemantics,
     revision: GraphRevision,
@@ -25,25 +28,19 @@ pub struct Graph<N, E> {
     txn_dirty: bool,
 }
 
-impl<N, E> Default for Graph<N, E> {
-    fn default() -> Self {
-        Self::new(GraphDirection::Directed)
-    }
-}
-
-impl<N, E> Graph<N, E> {
+impl<N, E> MutableGraph<N, E> {
     /// 创建空图（分配新 [`GraphId`]，默认简单图语义）。
-    pub fn new(direction: GraphDirection) -> Self {
+    pub(crate) fn new(direction: GraphDirection) -> Self {
         Self::with_semantics(GraphSemantics::from_direction(direction))
     }
 
     /// 以给定语义创建空图（分配新 [`GraphId`]）。
-    pub fn with_semantics(semantics: GraphSemantics) -> Self {
+    pub(crate) fn with_semantics(semantics: GraphSemantics) -> Self {
         Self::with_id(GraphId::allocate(), semantics)
     }
 
     /// 以指定 [`GraphId`] 与语义创建空图。
-    pub fn with_id(id: GraphId, semantics: GraphSemantics) -> Self {
+    pub(crate) fn with_id(id: GraphId, semantics: GraphSemantics) -> Self {
         Self {
             id,
             semantics,
@@ -304,21 +301,26 @@ impl<N, E> Graph<N, E> {
     }
 }
 
-/// 可变构造器 → [`ImmutableGraph`]。
+/// 可变构造器 → [`ImmutableGraph`]（公开稳定构造路径）。
 #[derive(Debug)]
 pub struct GraphBuilder<N, E> {
-    graph: Graph<N, E>,
+    graph: MutableGraph<N, E>,
 }
 
 impl<N, E> GraphBuilder<N, E> {
     /// 新构造器（分配 `GraphId`）。
     pub fn new(semantics: GraphSemantics) -> Self {
-        Self { graph: Graph::with_semantics(semantics) }
+        Self { graph: MutableGraph::with_semantics(semantics) }
+    }
+
+    /// 由方向构造（默认简单图语义）。
+    pub fn from_direction(direction: GraphDirection) -> Self {
+        Self::new(GraphSemantics::from_direction(direction))
     }
 
     /// 指定 `GraphId` 的构造器。
     pub fn with_id(id: GraphId, semantics: GraphSemantics) -> Self {
-        Self { graph: Graph::with_id(id, semantics) }
+        Self { graph: MutableGraph::with_id(id, semantics) }
     }
 
     /// 添加节点。
@@ -331,9 +333,19 @@ impl<N, E> GraphBuilder<N, E> {
         self.graph.add_edge(source, target, value)
     }
 
-    /// 底层可变图（构造期）。
-    pub fn graph_mut(&mut self) -> &mut Graph<N, E> {
+    /// 构造期事务（多次 mutation 提交时 revision +1）。
+    pub fn transaction<R>(&mut self, f: impl FnOnce(&mut MutableGraph<N, E>) -> R) -> R {
+        self.graph.transaction(f)
+    }
+
+    /// 底层可变图（仅构造期）。
+    pub fn graph_mut(&mut self) -> &mut MutableGraph<N, E> {
         &mut self.graph
+    }
+
+    /// 只读窥视构造中的图。
+    pub fn graph(&self) -> &MutableGraph<N, E> {
+        &self.graph
     }
 
     /// 完成构造，得到不可变图。
@@ -342,10 +354,12 @@ impl<N, E> GraphBuilder<N, E> {
     }
 }
 
-/// 构造完成后的不可变图；算法应绑定其 [`GraphSnapshot`]。
+/// 稳定只读图（算法与视图的主路径）。
+///
+/// 通过 [`Deref`](std::ops::Deref) 暴露 [`MutableGraph`] 的只读 API；不可再 mutation。
 #[derive(Debug, Clone)]
 pub struct ImmutableGraph<N, E> {
-    inner: Graph<N, E>,
+    inner: MutableGraph<N, E>,
 }
 
 impl<N, E> ImmutableGraph<N, E> {
@@ -354,8 +368,8 @@ impl<N, E> ImmutableGraph<N, E> {
         self.inner.snapshot()
     }
 
-    /// 只读底层图。
-    pub fn graph(&self) -> &Graph<N, E> {
+    /// 只读底层存储（与 [`Deref`](std::ops::Deref) 相同）。
+    pub fn as_graph(&self) -> &MutableGraph<N, E> {
         &self.inner
     }
 
@@ -368,22 +382,75 @@ impl<N, E> ImmutableGraph<N, E> {
     pub const fn revision(&self) -> GraphRevision {
         self.inner.revision()
     }
+
+    /// 结构语义。
+    pub const fn semantics(&self) -> GraphSemantics {
+        self.inner.semantics()
+    }
+
+    /// 方向。
+    pub const fn direction(&self) -> GraphDirection {
+        self.inner.direction()
+    }
+
+    /// 绑定 [`NodeRef`]。
+    pub const fn node_ref(&self, node: NodeId) -> NodeRef {
+        self.inner.node_ref(node)
+    }
+
+    /// 绑定 [`EdgeRef`]。
+    pub const fn edge_ref(&self, edge: EdgeId) -> EdgeRef {
+        self.inner.edge_ref(edge)
+    }
+
+    /// 校验 [`NodeRef`]。
+    pub fn resolve_node_ref(&self, node_ref: NodeRef) -> Result<NodeId, GraphError> {
+        self.inner.resolve_node_ref(node_ref)
+    }
+
+    /// 校验 [`EdgeRef`]。
+    pub fn resolve_edge_ref(&self, edge_ref: EdgeRef) -> Result<EdgeId, GraphError> {
+        self.inner.resolve_edge_ref(edge_ref)
+    }
+
+    /// 只读图视图。
+    pub fn view(&self) -> GraphView<'_, N, E> {
+        self.inner.view()
+    }
+
+    /// capability 报告。
+    pub fn capabilities(&self) -> GraphCapabilities {
+        self.inner.capabilities()
+    }
+
+    /// 校验算法需求。
+    pub fn ensure_capabilities(&self, req: GraphAlgorithmRequirements) -> Result<(), GraphError> {
+        self.inner.ensure_capabilities(req)
+    }
+}
+
+impl<N, E> std::ops::Deref for ImmutableGraph<N, E> {
+    type Target = MutableGraph<N, E>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 /// 只读图视图（不拥有存储）。
 #[derive(Debug, Clone, Copy)]
 pub struct GraphView<'a, N, E> {
-    graph: &'a Graph<N, E>,
+    graph: &'a MutableGraph<N, E>,
 }
 
 impl<'a, N, E> GraphView<'a, N, E> {
     /// 底层图引用（不消费视图）。
-    pub const fn graph_ref(&self) -> &'a Graph<N, E> {
+    pub const fn graph_ref(&self) -> &'a MutableGraph<N, E> {
         self.graph
     }
 
     /// 底层图（消费视图）。
-    pub const fn graph(self) -> &'a Graph<N, E> {
+    pub const fn graph(self) -> &'a MutableGraph<N, E> {
         self.graph
     }
 

@@ -1,15 +1,21 @@
 //! 图身份 / snapshot / view mapping / CSR 单调校验合同。
 
 use athena_graph::{
-    CsrGraph, Graph, GraphBuilder, GraphDirection, GraphId, GraphRevision, GraphSemantics, InducedSubgraphView,
-    ReversedGraphView, ViewTransform,
+    CsrGraph, GraphBuilder, GraphDirection, GraphId, GraphRevision, GraphSemantics, ImmutableGraph, InducedSubgraphView,
+    MutableGraph, ReversedGraphView, ViewTransform, graph_to_csr,
 };
 use athena_ndarray::{ChunkedArray, InMemoryStorage, LogicalShape, MemoryBudget};
 
+fn build(direction: GraphDirection, f: impl FnOnce(&mut MutableGraph<(), ()>)) -> ImmutableGraph<(), ()> {
+    let mut b = GraphBuilder::<(), ()>::from_direction(direction);
+    f(b.graph_mut());
+    b.finish()
+}
+
 #[test]
 fn distinct_graphs_share_revision_zero_but_not_id() {
-    let a = Graph::<(), ()>::new(GraphDirection::Directed);
-    let b = Graph::<(), ()>::new(GraphDirection::Directed);
+    let a = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish();
+    let b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish();
     assert_eq!(a.revision(), GraphRevision(0));
     assert_eq!(b.revision(), GraphRevision(0));
     assert_ne!(a.id(), b.id());
@@ -17,12 +23,13 @@ fn distinct_graphs_share_revision_zero_but_not_id() {
 
 #[test]
 fn transaction_bumps_revision_once() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    g.transaction(|g| {
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    b.transaction(|g| {
         let a = g.add_node(());
         let b = g.add_node(());
         g.add_edge(a, b, ());
     });
+    let g = b.finish();
     assert_eq!(g.revision(), GraphRevision(1));
 }
 
@@ -37,13 +44,15 @@ fn builder_finish_yields_immutable_snapshot() {
     let snap = frozen.snapshot();
     assert_eq!(snap.graph_id, GraphId::from_raw(42));
     assert_eq!(snap.revision, frozen.revision());
-    assert_eq!(frozen.graph().node_ref(a).graph_id, GraphId::from_raw(42));
+    assert_eq!(frozen.node_ref(a).graph_id, GraphId::from_raw(42));
 }
 
 #[test]
 fn node_ref_carries_graph_and_revision() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let n = g.add_node(());
+    let g = build(GraphDirection::Directed, |g| {
+        let _ = g.add_node(());
+    });
+    let n = athena_graph::NodeId(0);
     let r = g.node_ref(n);
     assert_eq!(r.graph_id, g.id());
     assert_eq!(r.revision, g.revision());
@@ -53,29 +62,30 @@ fn node_ref_carries_graph_and_revision() {
 
 #[test]
 fn node_ref_stale_after_mutation() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let n = g.add_node(());
-    let stale = g.node_ref(n);
-    let _ = g.add_node(());
-    assert!(matches!(
-        g.resolve_node_ref(stale),
-        Err(athena_graph::GraphError::StaleRef { .. })
-    ));
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let n = b.add_node(());
+    let stale = b.graph().node_ref(n);
+    let _ = b.add_node(());
+    let g = b.finish();
+    assert!(matches!(g.resolve_node_ref(stale), Err(athena_graph::GraphError::StaleRef { .. })));
 }
 
 #[test]
 fn self_loop_rejected_when_disallowed() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let a = g.add_node(());
-    assert!(g.add_edge(a, a, ()).is_none());
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let a = b.add_node(());
+    assert!(b.add_edge(a, a, ()).is_none());
 }
 
 #[test]
 fn reversed_view_mapping_is_identity_on_base_ids() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let a = g.add_node(());
-    let b = g.add_node(());
-    let e = g.add_edge(a, b, ()).unwrap();
+    let g = build(GraphDirection::Directed, |g| {
+        let a = g.add_node(());
+        let b = g.add_node(());
+        g.add_edge(a, b, ());
+    });
+    let a = athena_graph::NodeId(0);
+    let e = athena_graph::EdgeId(0);
     let rev = ReversedGraphView::new(&g).unwrap();
     assert_eq!(rev.mapping().transform, ViewTransform::Reversed);
     assert_eq!(rev.base_graph_id(), g.id());
@@ -88,16 +98,21 @@ fn reversed_view_mapping_is_identity_on_base_ids() {
 
 #[test]
 fn view_stale_after_base_mutation() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let a = g.add_node(());
-    let b = g.add_node(());
-    g.add_edge(a, b, ());
-    let rev = ReversedGraphView::new(&g).unwrap();
-    let mapping = rev.mapping().clone();
-    let vn = rev.view_node_ref(a).unwrap();
-    let expected_rev = mapping.base_revision;
-    drop(rev);
-    let _ = g.add_node(());
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let a = b.add_node(());
+    let bb = b.add_node(());
+    b.add_edge(a, bb, ());
+    let mapping;
+    let vn;
+    let expected_rev;
+    {
+        let rev = ReversedGraphView::new(b.graph()).unwrap();
+        mapping = rev.mapping().clone();
+        vn = rev.view_node_ref(a).unwrap();
+        expected_rev = mapping.base_revision;
+    }
+    let _ = b.add_node(());
+    let g = b.finish();
     assert!(matches!(
         mapping.ensure_fresh(g.id(), g.revision()),
         Err(athena_graph::GraphError::StaleView { expected, actual }) if expected == expected_rev && actual == g.revision()
@@ -109,12 +124,18 @@ fn view_stale_after_base_mutation() {
 
 #[test]
 fn induced_view_maps_only_kept_nodes_and_internal_edges() {
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let a = g.add_node(());
-    let b = g.add_node(());
-    let c = g.add_node(());
-    let e_ab = g.add_edge(a, b, ()).unwrap();
-    let e_bc = g.add_edge(b, c, ()).unwrap();
+    let g = build(GraphDirection::Directed, |g| {
+        let a = g.add_node(());
+        let b = g.add_node(());
+        let c = g.add_node(());
+        g.add_edge(a, b, ());
+        g.add_edge(b, c, ());
+    });
+    let a = athena_graph::NodeId(0);
+    let b = athena_graph::NodeId(1);
+    let c = athena_graph::NodeId(2);
+    let e_ab = athena_graph::EdgeId(0);
+    let e_bc = athena_graph::EdgeId(1);
     let induced = InducedSubgraphView::new(&g, [a, b]);
     assert_eq!(induced.map_node_to_base(a).unwrap(), Some(a));
     assert_eq!(induced.map_node_to_base(c).unwrap(), None);
@@ -129,7 +150,6 @@ fn induced_view_maps_only_kept_nodes_and_internal_edges() {
 #[test]
 fn csr_rejects_non_monotonic_offsets() {
     let budget = MemoryBudget::new(4096).unwrap();
-    // [0, 5, 3, 10]：首尾若单独看可能“碰巧”，但中间非单调。
     let offsets =
         ChunkedArray::new(LogicalShape::new([4]).unwrap(), InMemoryStorage::from_vec(vec![0, 5, 3, 10]), budget).unwrap();
     let indices = ChunkedArray::new(LogicalShape::new([10]).unwrap(), InMemoryStorage::from_vec(vec![0; 10]), budget).unwrap();
@@ -139,11 +159,11 @@ fn csr_rejects_non_monotonic_offsets() {
 
 #[test]
 fn graph_to_csr_binds_storage_metadata() {
-    use athena_graph::graph_to_csr;
-    let mut g = Graph::<(), ()>::new(GraphDirection::Directed);
-    let a = g.add_node(());
-    let b = g.add_node(());
-    g.add_edge(a, b, ());
+    let g = build(GraphDirection::Directed, |g| {
+        let a = g.add_node(());
+        let b = g.add_node(());
+        g.add_edge(a, b, ());
+    });
     let budget = MemoryBudget::new(4096).unwrap();
     let csr = graph_to_csr(&g, budget).unwrap();
     let meta = csr.metadata().expect("metadata");

@@ -117,11 +117,11 @@ impl MemoryGraph {
         self.edges.iter().flat_map(|(s, t, _)| [s.0, t.0]).max().map(|m| m + 1).unwrap_or(0)
     }
 
-    /// 物化为 [`athena_graph::Graph`]（保留句柄对应的 [`GraphId`]）。
-    pub fn to_athena_graph(&self, graph_id: GraphId, node_count: u64) -> athena_graph::Graph<(), u64> {
+    /// 物化为 [`athena_graph::ImmutableGraph`]（保留句柄对应的 [`GraphId`]）。
+    pub fn to_athena_graph(&self, graph_id: GraphId, node_count: u64) -> athena_graph::ImmutableGraph<(), u64> {
         let n = node_count.max(self.node_count());
-        let mut g = athena_graph::Graph::with_id(graph_id, self.semantics.to_structural());
-        g.transaction(|g| {
+        let mut builder = GraphBuilder::with_id(graph_id, self.semantics.to_structural());
+        builder.transaction(|g| {
             for _ in 0..n {
                 g.add_node(());
             }
@@ -129,7 +129,7 @@ impl MemoryGraph {
                 let _ = g.add_edge(*s, *t, *w);
             }
         });
-        g
+        builder.finish()
     }
 }
 
@@ -158,8 +158,8 @@ impl GraphObject {
         self.handle.node_count.max(self.memory.node_count())
     }
 
-    /// 物化为 [`athena_graph::Graph`]。
-    pub fn to_athena_graph(&self) -> athena_graph::Graph<(), u64> {
+    /// 物化为 [`athena_graph::ImmutableGraph`]。
+    pub fn to_athena_graph(&self) -> athena_graph::ImmutableGraph<(), u64> {
         self.memory.to_athena_graph(self.snapshot.graph_id, self.handle.node_count)
     }
 

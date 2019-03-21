@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    EdgeId, Graph, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, NodeId, SourceEdgeRef, SourceNodeRef,
+    EdgeId, MutableGraph, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, NodeId, SourceEdgeRef, SourceNodeRef,
     ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };
 
@@ -28,13 +28,13 @@ fn ensure_view_ref(fingerprint: ViewFingerprint, view_ref: ViewFingerprint) -> R
 /// 有向图反向视图（沿原图入边前进）。
 #[derive(Debug, Clone)]
 pub struct ReversedGraphView<'a, N, E> {
-    graph: &'a Graph<N, E>,
+    graph: &'a MutableGraph<N, E>,
     mapping: ViewMapping,
 }
 
 impl<'a, N, E> ReversedGraphView<'a, N, E> {
     /// 包装有向图。
-    pub fn new(graph: &'a Graph<N, E>) -> Option<Self> {
+    pub fn new(graph: &'a MutableGraph<N, E>) -> Option<Self> {
         if graph.direction() != GraphDirection::Directed {
             return None;
         }
@@ -134,14 +134,14 @@ impl<'a, N, E> ReversedGraphView<'a, N, E> {
 /// 诱导子图视图（仅保留给定节点及其内部边）。
 #[derive(Debug, Clone)]
 pub struct InducedSubgraphView<'a, N, E> {
-    graph: &'a Graph<N, E>,
+    graph: &'a MutableGraph<N, E>,
     nodes: HashSet<u64>,
     mapping: ViewMapping,
 }
 
 impl<'a, N, E> InducedSubgraphView<'a, N, E> {
     /// 构造诱导子图；空集表示空图投影。节点 id 仍为 base local id。
-    pub fn new(graph: &'a Graph<N, E>, keep: impl IntoIterator<Item = NodeId>) -> Self {
+    pub fn new(graph: &'a MutableGraph<N, E>, keep: impl IntoIterator<Item = NodeId>) -> Self {
         let nodes: HashSet<u64> = keep.into_iter().map(|n| n.0).collect();
         let transform_hash = hash_nodes(&nodes);
         let mapping = ViewMapping::new(graph.id(), graph.revision(), ViewTransform::Induced, transform_hash);
@@ -243,7 +243,7 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
 /// 边过滤视图（保留满足谓词的边）。
 #[derive(Debug, Clone)]
 pub struct EdgeFilteredView<'a, N, E, F> {
-    graph: &'a Graph<N, E>,
+    graph: &'a MutableGraph<N, E>,
     predicate: F,
     mapping: ViewMapping,
 }
@@ -253,7 +253,7 @@ where
     F: Copy + Fn(NodeId, NodeId, EdgeId) -> bool,
 {
     /// 包装图引用与边谓词。
-    pub fn new(graph: &'a Graph<N, E>, predicate: F) -> Self {
+    pub fn new(graph: &'a MutableGraph<N, E>, predicate: F) -> Self {
         let mapping = ViewMapping::new(graph.id(), graph.revision(), ViewTransform::EdgeFiltered, 0);
         Self { graph, predicate, mapping }
     }

@@ -2,12 +2,12 @@
 
 use std::collections::VecDeque;
 
-use crate::{Graph, GraphDirection, GraphError, NodeId};
+use crate::{MutableGraph, GraphDirection, GraphError, NodeId};
 
 /// DAG 拓扑排序原语；存在环时返回 [`GraphError::CycleDetected`]。
 ///
 /// 领域完成态须经 `athena-engine::graph_theory` 的 `GraphPropertyState` 包装。
-pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphError> {
+pub fn topological_sort<N, E>(graph: &MutableGraph<N, E>) -> Result<Vec<NodeId>, GraphError> {
     if graph.direction() != GraphDirection::Directed {
         return Err(GraphError::UndirectedTopo);
     }
@@ -40,7 +40,7 @@ pub fn topological_sort<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphE
 /// 弱连通分量标签扫描（有向图按底层无向邻接解释）。
 ///
 /// 返回每个节点的分量标签，标签为该分量中最小 `NodeId`。领域结论须经 engine 包装。
-pub fn connected_components<N, E>(graph: &Graph<N, E>) -> Vec<NodeId> {
+pub fn connected_components<N, E>(graph: &MutableGraph<N, E>) -> Vec<NodeId> {
     let n = graph.node_count() as usize;
     let mut labels = (0..n).map(|i| NodeId(i as u64)).collect::<Vec<_>>();
     let mut adj = vec![Vec::new(); n];
@@ -79,7 +79,7 @@ pub fn connected_components<N, E>(graph: &Graph<N, E>) -> Vec<NodeId> {
 /// 强连通分量标签扫描（Kosaraju；仅有向图）。
 ///
 /// 领域结论须经 engine 包装证书。
-pub fn strongly_connected_components<N, E>(graph: &Graph<N, E>) -> Result<Vec<NodeId>, GraphError> {
+pub fn strongly_connected_components<N, E>(graph: &MutableGraph<N, E>) -> Result<Vec<NodeId>, GraphError> {
     if graph.direction() != GraphDirection::Directed {
         return Err(GraphError::UndirectedTopo);
     }
