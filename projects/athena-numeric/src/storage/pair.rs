@@ -239,11 +239,19 @@ impl MagnitudePair {
     }
 
     /// 清除 sign 位的克隆（供 `Natural` / 幅度运算）。
+    ///
+    /// Heap `RustOwned` 分配失败时 panic。有 context 的热路径用 [`Self::try_clone_clear_sign`]。
     #[inline]
     pub(crate) fn clone_clear_sign(&self) -> Self {
-        let mut out = self.clone();
+        self.try_clone_clear_sign().unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"))
+    }
+
+    /// 可失败清除 sign 位的 owning 复制（Living `19`）。
+    #[inline]
+    pub(crate) fn try_clone_clear_sign(&self) -> athena_gc::Result<Self> {
+        let mut out = self.try_clone()?;
         out.meta &= !META_SIGN_BIT;
-        out
+        Ok(out)
     }
 
     /// 设置符号；零保持 `Limb1(0)`（sign 可保留 don't-care，此处归零仅为便利）。

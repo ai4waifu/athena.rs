@@ -301,14 +301,14 @@ impl Integer {
             return Ok(self);
         }
         if self.is_zero() {
-            return Ok(rhs.clone());
+            return rhs.try_clone_in(ctx);
         }
 
         let lhs_neg = self.is_negative();
         let rhs_neg = rhs.is_negative();
         if lhs_neg == rhs_neg {
             let mag = Natural::from_pair(self.into_pair().with_negative(false));
-            let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+            let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
             return Ok(Self::from_mag_sign(mag.try_add_owned(&rhs_mag, ctx)?, lhs_neg));
         }
 
@@ -318,12 +318,12 @@ impl Integer {
             Ordering::Equal => Ok(Self::zero()),
             Ordering::Greater => {
                 let mag = Natural::from_pair(self.into_pair().with_negative(false));
-                let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+                let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
                 Ok(Self::from_mag_sign(mag.try_sub_owned(&rhs_mag, ctx)?, lhs_neg))
             }
             Ordering::Less => {
                 // Result takes rhs sign; cannot steal self as destination (smaller).
-                let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+                let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
                 let lhs_mag = Natural::from_pair(self.into_pair().with_negative(false));
                 Ok(Self::from_mag_sign(rhs_mag.try_sub_owned(&lhs_mag, ctx)?, rhs_neg))
             }
@@ -391,7 +391,7 @@ impl Integer {
         }
         let neg = self.is_negative() != rhs.is_negative();
         let mag = Natural::from_pair(self.into_pair().with_negative(false));
-        let rhs_mag = Natural::from_pair(rhs.inner.clone_clear_sign());
+        let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
         Ok(Self::from_mag_sign(mag.try_mul_owned(&rhs_mag, ctx)?, neg))
     }
 
