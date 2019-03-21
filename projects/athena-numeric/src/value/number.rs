@@ -168,7 +168,7 @@ impl NumericValue {
                 Some(m) => NumericDomain::Modular { modulus: m.clone() },
                 None => NumericDomain::Integer,
             },
-            Self::FiniteField(v) => NumericDomain::FiniteField { field: v.field },
+            Self::FiniteField(v) => NumericDomain::FiniteField { field: v.field() },
             Self::PAdic(v) => NumericDomain::PAdic { prime: v.prime.clone(), precision: v.precision },
         }
     }

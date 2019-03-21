@@ -120,7 +120,7 @@ fn encode_coefficient_domain(domain: &CoefficientDomain, fields: &FieldTable, ou
         }
         CoefficientDomain::ModularInteger { modulus } => {
             out.push(2);
-            append_integer_wire_infallible(out, modulus.value());
+            append_integer_wire_infallible(out, &modulus.value());
         }
         CoefficientDomain::FiniteField { field } => {
             out.push(3);

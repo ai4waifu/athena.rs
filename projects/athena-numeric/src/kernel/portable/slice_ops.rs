@@ -28,7 +28,7 @@ pub(super) fn split_lo_hi(v: &[u64], mid: usize) -> (&[u64], &[u64]) {
     (lo, hi)
 }
 
-pub(super) fn add_slices_into(a: &[u64], b: &[u64], out: &mut [u64]) {
+pub(crate) fn add_slices_into(a: &[u64], b: &[u64], out: &mut [u64]) {
     let n = effective_len(a).max(effective_len(b));
     debug_assert!(out.len() >= n + 1);
     out.fill(0);
@@ -41,7 +41,7 @@ pub(super) fn add_slices_into(a: &[u64], b: &[u64], out: &mut [u64]) {
     out[n] = carry;
 }
 
-pub(super) fn sub_slices_into(a: &[u64], b: &[u64], out: &mut [u64]) {
+pub(crate) fn sub_slices_into(a: &[u64], b: &[u64], out: &mut [u64]) {
     debug_assert!(cmp_slice(a, b) != Ordering::Less);
     let n = effective_len(a);
     debug_assert!(out.len() >= n);
