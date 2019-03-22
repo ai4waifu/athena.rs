@@ -197,7 +197,7 @@ impl Natural {
     pub fn try_add_u64(&self, rhs: u64, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         if rhs == 0 {
-            return Ok(self.clone());
+            return self.try_clone_in(ctx);
         }
         match self.inner.mode() {
             Mode::Limb1 if self.is_zero() => {
@@ -234,7 +234,7 @@ impl Natural {
             return Ok(Self::zero());
         }
         if rhs == 1 {
-            return Ok(self.clone());
+            return self.try_clone_in(ctx);
         }
         match self.inner.mode() {
             Mode::Limb1 => {
@@ -273,7 +273,7 @@ impl Natural {
             return Ok(self);
         }
         if self.is_zero() {
-            return Ok(rhs.clone());
+            return rhs.try_clone_in(ctx);
         }
 
         let la = self.limb_len();
@@ -448,7 +448,7 @@ impl Natural {
             return Ok(self);
         }
         if self.is_one() {
-            return Ok(rhs.clone());
+            return rhs.try_clone_in(ctx);
         }
 
         let la = self.limb_len();
