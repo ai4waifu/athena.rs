@@ -4,7 +4,7 @@ use core::cell::Cell;
 
 use crate::ids::SegmentId;
 
-/// Segment 用途分区。
+/// Segment 用途分区（typed allocation domain，非独立 GC）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SegmentKind {
     /// 短命对象。
@@ -13,6 +13,10 @@ pub enum SegmentKind {
     LongLivedObject,
     /// 数值 limb。
     Numeric,
+    /// 图索引（CSR/CSC offsets · adjacency 等）。
+    GraphIndex,
+    /// 图属性 / 权重列。
+    GraphProperty,
     /// 缓存区。
     Cache,
 }

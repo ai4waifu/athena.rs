@@ -14,7 +14,7 @@ pub struct SegmentId {
 }
 
 /// 图 / 值对象句柄（图层引用；kernel 不用此查 limb）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct GcObjectId {
     /// 对象表下标。
     pub index: u32,

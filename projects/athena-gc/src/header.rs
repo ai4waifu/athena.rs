@@ -12,6 +12,10 @@ pub enum BlockKind {
     Object = 2,
     /// 缓存持有区（占位）。
     Cache = 3,
+    /// 图索引 payload（offsets / adjacency 等）。
+    GraphIndex = 4,
+    /// 图属性 / 权重列 payload。
+    GraphProperty = 5,
 }
 
 /// Numeric block 生命周期（与 [`BlockKind::Numeric`] 一起解释。Object 为 [`Self::Unspecified`]）。

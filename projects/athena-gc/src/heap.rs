@@ -978,6 +978,55 @@ pub struct NumericBlock {
     pub heap_id: HeapId,
 }
 
+/// 图索引 / 属性域 payload（typed segment，非独立 allocator）。
+#[derive(Debug, Clone, Copy)]
+pub struct GraphDomainBlock {
+    /// Payload 起点。
+    pub ptr: NonNull<u8>,
+    /// 字节长度。
+    pub byte_len: usize,
+    /// Segment。
+    pub segment_id: SegmentId,
+    /// Owner heap。
+    pub heap_id: HeapId,
+    /// 所属 typed domain。
+    pub kind: SegmentKind,
+}
+
+impl GcHeap {
+    /// 在 [`SegmentKind::GraphIndex`] 域分配 payload。
+    pub fn allocate_graph_index(&mut self, payload_bytes: usize) -> Result<GraphDomainBlock> {
+        self.allocate_graph_domain(SegmentKind::GraphIndex, BlockKind::GraphIndex, payload_bytes)
+    }
+
+    /// 在 [`SegmentKind::GraphProperty`] 域分配 payload。
+    pub fn allocate_graph_property(&mut self, payload_bytes: usize) -> Result<GraphDomainBlock> {
+        self.allocate_graph_domain(SegmentKind::GraphProperty, BlockKind::GraphProperty, payload_bytes)
+    }
+
+    fn allocate_graph_domain(
+        &mut self,
+        kind: SegmentKind,
+        block_kind: BlockKind,
+        payload_bytes: usize,
+    ) -> Result<GraphDomainBlock> {
+        if payload_bytes == 0 {
+            return Err(GcError::InvalidCapacity);
+        }
+        let (segment_id, ptr) =
+            self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, NumericOwnership::Unspecified)?;
+        Ok(GraphDomainBlock {
+            ptr,
+            byte_len: payload_bytes,
+            segment_id,
+            heap_id: self.id,
+            kind,
+        })
+    }
+}
+
+unsafe impl Send for GraphDomainBlock {}
+
 /// Collect 报告。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CollectReport {

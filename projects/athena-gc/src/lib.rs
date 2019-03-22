@@ -24,7 +24,7 @@ pub use batch::{AllocationAccounting, NumericBatch};
 pub use budget::HeapBudget;
 pub use error::{GcError, Result};
 pub use header::{AllocationHeader, BlockKind, MarkState, NumericOwnership};
-pub use heap::{CollectReport, GcHeap, NumericBlock, NumericBumpMark};
+pub use heap::{CollectReport, GcHeap, GraphDomainBlock, NumericBlock, NumericBumpMark};
 pub use ids::{GcObjectId, HeapId, RootToken, SegmentId};
 pub use mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcPressure, GcSuspendGuard};
 pub use object::ObjectBlock;
