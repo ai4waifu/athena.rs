@@ -8,6 +8,7 @@ description = "Ordinary discrete graphs and out-of-core algorithms for Athena"
 publish = false
 
 [dependencies]
+athena-gc = { workspace = true }
 athena-ndarray = { workspace = true }
 
 [lints.rust]
