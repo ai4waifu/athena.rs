@@ -1,13 +1,11 @@
 //! `GcHeap`：segmented non-moving bump 堆 + object arena + tracing collect。
 #![allow(unsafe_code)]
 
-use core::{
-    cell::Cell,
-    ptr::NonNull,
-};
+use core::{cell::Cell, ptr::NonNull};
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Instant};
 
 use crate::{
+    batch::AllocationAccounting,
     budget::HeapBudget,
     error::{GcError, Result},
     header::{AllocationHeader, BlockKind, MarkState, NumericOwnership},
@@ -20,7 +18,6 @@ use crate::{
     segment::{SegmentKind, SegmentMeta},
     stats::HeapStats,
     trace::{ObjectGraph, Tracer},
-    batch::AllocationAccounting,
 };
 
 /// 默认 segment 容量。
@@ -208,8 +205,13 @@ impl GcHeap {
         }
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) =
-            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::RustOwned)?;
+        let (seg_id, limbs) = self.allocate_payload(
+            SegmentKind::Numeric,
+            BlockKind::Numeric,
+            payload_bytes,
+            u32::MAX,
+            NumericOwnership::RustOwned,
+        )?;
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
@@ -223,8 +225,13 @@ impl GcHeap {
         }
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) =
-            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::GcOwned)?;
+        let (seg_id, limbs) = self.allocate_payload(
+            SegmentKind::Numeric,
+            BlockKind::Numeric,
+            payload_bytes,
+            u32::MAX,
+            NumericOwnership::GcOwned,
+        )?;
         self.traced_numeric.insert(limbs.as_ptr() as usize);
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
@@ -261,6 +268,36 @@ impl GcHeap {
     /// 经 registry 撤一条 numeric root。
     pub fn unregister_one_numeric_root_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
         registry::with_heap(heap_id, |heap| heap.unregister_one_numeric_root(limbs))?
+    }
+
+    /// 将已存在的 [`NumericOwnership::RustOwned`] block 就地提升为 [`NumericOwnership::GcOwned`]。
+    ///
+    /// Living `19`：共享 `Clone` 不再 `alloc_copy` limb。提升后为原持有者登记一条 [`NumericRoot`]，
+    /// 后续 `Drop` 只撤 root。`bump_ephemeral` 下拒绝提升（仍由 bump rewind 回收）。
+    pub fn adopt_rust_owned_as_gc_owned(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
+        if self.bump_ephemeral {
+            return Err(GcError::LifecycleMismatch);
+        }
+        let ownership = self.numeric_ownership(limbs)?;
+        if ownership != NumericOwnership::RustOwned {
+            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
+            return Err(GcError::LifecycleMismatch);
+        }
+        {
+            let hdr = self.header_mut_for_limbs(limbs)?;
+            hdr.numeric_ownership = NumericOwnership::GcOwned;
+        }
+        self.traced_numeric.insert(limbs.as_ptr() as usize);
+        Ok(self.roots.register_numeric(limbs.cast(), kind))
+    }
+
+    /// 经 registry 提升 Rust-owned → Gc-owned 并登记原持有者 root。
+    pub fn adopt_rust_owned_as_gc_owned_registered(
+        heap_id: HeapId,
+        limbs: NonNull<u64>,
+        kind: RootKind,
+    ) -> Result<RootToken> {
+        registry::with_heap(heap_id, |heap| heap.adopt_rust_owned_as_gc_owned(limbs, kind))?
     }
 
     /// 将已初始化 limb 提升到长期 numeric segment（scratch → heap promote）。
@@ -993,6 +1030,49 @@ pub struct GraphDomainBlock {
     pub kind: SegmentKind,
 }
 
+impl GraphDomainBlock {
+    /// 读取 `u64` 区间（不借 [`GcHeap`]，避免 `RefCell` 重入）。
+    ///
+    /// 调用方须保证 block 仍被 root / pin 保活。
+    pub fn read_u64s(&self, offset_elems: usize, len: usize) -> Result<Vec<u64>> {
+        if !matches!(self.kind, SegmentKind::GraphIndex | SegmentKind::GraphProperty) {
+            return Err(GcError::InvalidCapacity);
+        }
+        let byte_off = offset_elems.checked_mul(8).ok_or(GcError::InvalidCapacity)?;
+        let byte_len = len.checked_mul(8).ok_or(GcError::InvalidCapacity)?;
+        let end = byte_off.checked_add(byte_len).ok_or(GcError::InvalidCapacity)?;
+        if end > self.byte_len {
+            return Err(GcError::InvalidCapacity);
+        }
+        let mut out = vec![0u64; len];
+        // SAFETY: 调用方保证 payload 在 root/pin 下仍有效；bounds 已校验。
+        unsafe {
+            let src = self.ptr.as_ptr().add(byte_off).cast::<u64>();
+            core::ptr::copy_nonoverlapping(src, out.as_mut_ptr(), len);
+        }
+        Ok(out)
+    }
+
+    /// 写入 `u64` 区间（不借 [`GcHeap`]）。
+    pub fn write_u64s(&self, offset_elems: usize, values: &[u64]) -> Result<()> {
+        if !matches!(self.kind, SegmentKind::GraphIndex | SegmentKind::GraphProperty) {
+            return Err(GcError::InvalidCapacity);
+        }
+        let byte_off = offset_elems.checked_mul(8).ok_or(GcError::InvalidCapacity)?;
+        let byte_len = values.len().checked_mul(8).ok_or(GcError::InvalidCapacity)?;
+        let end = byte_off.checked_add(byte_len).ok_or(GcError::InvalidCapacity)?;
+        if end > self.byte_len {
+            return Err(GcError::InvalidCapacity);
+        }
+        // SAFETY: 写路径仅在分配后或 pin 保护下使用；bounds 已校验。
+        unsafe {
+            let dst = self.ptr.as_ptr().add(byte_off).cast::<u64>();
+            core::ptr::copy_nonoverlapping(values.as_ptr(), dst, values.len());
+        }
+        Ok(())
+    }
+}
+
 impl GcHeap {
     /// 在 [`SegmentKind::GraphIndex`] 域分配 payload。
     pub fn allocate_graph_index(&mut self, payload_bytes: usize) -> Result<GraphDomainBlock> {
@@ -1002,6 +1082,48 @@ impl GcHeap {
     /// 在 [`SegmentKind::GraphProperty`] 域分配 payload。
     pub fn allocate_graph_property(&mut self, payload_bytes: usize) -> Result<GraphDomainBlock> {
         self.allocate_graph_domain(SegmentKind::GraphProperty, BlockKind::GraphProperty, payload_bytes)
+    }
+
+    /// 分配 GraphIndex 域并写入 `u64` 序列（空切片仍分配最小 8 字节槽）。
+    pub fn allocate_graph_index_u64s(&mut self, values: &[u64]) -> Result<GraphDomainBlock> {
+        let bytes = values.len().saturating_mul(8).max(8);
+        let block = self.allocate_graph_index(bytes)?;
+        if !values.is_empty() {
+            self.write_graph_domain_u64s(&block, 0, values)?;
+        }
+        Ok(block)
+    }
+
+    /// 分配 GraphProperty 域并写入 `u64` 序列。
+    pub fn allocate_graph_property_u64s(&mut self, values: &[u64]) -> Result<GraphDomainBlock> {
+        let bytes = values.len().saturating_mul(8).max(8);
+        let block = self.allocate_graph_property(bytes)?;
+        if !values.is_empty() {
+            self.write_graph_domain_u64s(&block, 0, values)?;
+        }
+        Ok(block)
+    }
+
+    /// 从 GraphIndex / GraphProperty block 读取 `u64` 区间（按元素下标）。
+    pub fn read_graph_domain_u64s(
+        &self,
+        block: &GraphDomainBlock,
+        offset_elems: usize,
+        len: usize,
+    ) -> Result<Vec<u64>> {
+        self.ensure_graph_domain_block(block)?;
+        block.read_u64s(offset_elems, len)
+    }
+
+    /// 向 GraphIndex / GraphProperty block 写入 `u64` 区间。
+    pub fn write_graph_domain_u64s(
+        &mut self,
+        block: &GraphDomainBlock,
+        offset_elems: usize,
+        values: &[u64],
+    ) -> Result<()> {
+        self.ensure_graph_domain_block(block)?;
+        block.write_u64s(offset_elems, values)
     }
 
     fn allocate_graph_domain(
@@ -1022,6 +1144,16 @@ impl GcHeap {
             heap_id: self.id,
             kind,
         })
+    }
+
+    fn ensure_graph_domain_block(&self, block: &GraphDomainBlock) -> Result<()> {
+        if block.heap_id != self.id {
+            return Err(GcError::WrongHeap);
+        }
+        if !matches!(block.kind, SegmentKind::GraphIndex | SegmentKind::GraphProperty) {
+            return Err(GcError::InvalidCapacity);
+        }
+        Ok(())
     }
 }
 
