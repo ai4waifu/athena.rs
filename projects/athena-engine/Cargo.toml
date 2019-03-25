@@ -20,6 +20,7 @@ athena-ir = { workspace = true }
 athena-rewriter = { workspace = true }
 athena-jit = { workspace = true, optional = true }
 athena-graph = { workspace = true }
+athena-ndarray = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

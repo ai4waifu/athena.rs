@@ -1,4 +1,4 @@
-//! 数论域 gate：gcd / 素性 / 分解 / 模运算。
+﻿//! 鏁拌鍩?gate锛歡cd / 绱犳€?/ 鍒嗚В / 妯¤繍绠椼€?
 
 use athena_engine::{
     AthenaEngine, DiagnosticCode, DomainRequest, DomainResult, FactorLimits, FactorizationCompleteness, Integer, Modulus,
@@ -92,7 +92,7 @@ fn modular_inverse_and_pow() {
     );
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => {
-            assert_eq!(v.residue(), &Integer::from_i64(6)); // 3*6=18≡1
+            assert_eq!(v.residue(), Integer::from_i64(6)); // 3*6=18鈮?
             assert!(v.modulus_id().is_some());
             assert!(v.modulus().is_none());
         }
@@ -105,7 +105,7 @@ fn modular_inverse_and_pow() {
         modulus: m,
     })));
     match out {
-        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), &Integer::from_i64(5)),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), Integer::from_i64(5)),
         other => panic!("pow: {other:?}"),
     }
 }

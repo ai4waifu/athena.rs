@@ -51,8 +51,8 @@ pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, can
 pub use athena_numeric::{
     BarrettParams, ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusBinding,
     ModulusContext, ModulusTable, MontgomeryParams, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
-    NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PrimeModulus, ProbablePrimeModulus,
-    PortableBackend, Rational, number_from_wire,
+    NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue, PortableBackend, PrimeModulus,
+    ProbablePrimeModulus, Rational, number_from_wire,
 };
 pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
@@ -88,11 +88,12 @@ pub use galois::{
     execute_galois, execute_galois_with_tables,
 };
 pub use graph_theory::{
-    BipartiteResult, CertificateStrength, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphHandle, GraphId,
-    GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult, GraphPropertyState, GraphProvenance,
-    GraphRevision, GraphDomainSemantics, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MemoryGraph,
-    MinimumSpanningForestResult, RepresentationId, ShortestPathResult, SpanningEdge, StronglyConnectedComponentsResult,
-    WeightDomain, execute_graph_theory, operation_name,
+    BipartiteResult, CertificateStrength, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphDomainSemantics,
+    GraphHandle, GraphId, GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult,
+    GraphPropertyState, GraphProvenance, GraphRevision, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue,
+    GraphResidencyController, MemoryGraph, MinimumSpanningForestResult, RepresentationId, ShortestPathResult, SpanningEdge,
+    StronglyConnectedComponentsResult, WeightDomain, bind_algorithm_checkpoint, execute_graph_theory, operation_name,
+    resume_from_algorithm_checkpoint,
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult,
