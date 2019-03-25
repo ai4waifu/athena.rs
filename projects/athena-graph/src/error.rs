@@ -90,6 +90,47 @@ pub enum GraphError {
         /// 当前视图指纹。
         actual: crate::ViewFingerprint,
     },
+    /// 未知 chunk。
+    UnknownChunk {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+    },
+    /// 重复登记同一 chunk。
+    DuplicateChunk {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+    },
+    /// Chunk 语义不可达（≠ 未驻留）。
+    ChunkUnreachable {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+    },
+    /// Chunk 当前无 resident / mapped 地址。
+    ChunkNotResident {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+        /// 当前驻留态。
+        residency: crate::lifecycle::ChunkResidency,
+    },
+    /// Chunk 仍被 [`crate::lifecycle::ResidentPinGuard`] 持有。
+    ChunkPinned {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+    },
+    /// 需要先持有 [`crate::lifecycle::ChunkLeaseGuard`]。
+    ChunkLeaseRequired {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+    },
+    /// 非法驻留状态转移。
+    InvalidResidencyTransition {
+        /// Chunk 身份。
+        chunk: crate::lifecycle::GraphChunkId,
+        /// 当前状态。
+        from: crate::lifecycle::ChunkResidency,
+        /// 目标状态。
+        to: crate::lifecycle::ChunkResidency,
+    },
 }
 
 impl From<ArrayError> for GraphError {

@@ -2,14 +2,16 @@
 //!
 //! **不是** M-Graph：不含等价类、witness、hyper-edge、closure 或 solver frontier。
 //! CSR / CSC / 工作区复用 [`athena_ndarray`] 的 storage 与 memory budget 合同。
+//! 生命周期与 `athena-gc` 共用 runtime heap（见 [`lifecycle`]）。
 //!
-//! 四层目录：[`identity`] · [`storage`] · [`views`] · [`primitives`]。
+//! 分层：[`identity`] · [`storage`] · [`views`] · [`primitives`] · [`lifecycle`]。
 //! 图论数学结论在 `athena-engine::graph_theory`。
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
 pub mod identity;
+pub mod lifecycle;
 pub mod primitives;
 pub mod storage;
 pub mod views;
@@ -21,6 +23,11 @@ pub use identity::{
     EdgeId, EdgeRef, MutableGraph, GraphBuilder, GraphDirection, GraphFingerprint, GraphId, GraphRevision, GraphSemantics,
     GraphSnapshot, GraphStorageMetadata, GraphView, ImmutableGraph, MultiplicityPolicy, NodeId, NodeRef, RepresentationId,
     SelfLoopDegree, SourceEdgeRef, SourceNodeRef, ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
+};
+pub use lifecycle::{
+    ChunkLeaseGuard, ChunkMeta, ChunkRegistry, ChunkResidency, ChunkSet, GcRootToken, GraphAlgorithmCheckpoint, GraphChunkId,
+    GraphChunkRecord, GraphRevisionId, GraphRevisionRecord, GraphSnapshotId, GraphSnapshotRecord, GraphViewId, GraphViewRecord,
+    GraphWorkspaceId, GraphWorkspaceRecord, RecordingTracer, ResidentPinGuard, SpillObjectId,
 };
 pub use primitives::{
     CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, UnionFind, bfs_order, deterministic_bfs,
