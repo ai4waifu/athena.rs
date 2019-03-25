@@ -2,8 +2,10 @@
 
 use crate::{FrontierCheckpoint, GraphId, GraphRevision};
 
-use super::chunk::ChunkSet;
-use super::ids::{GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphWorkspaceId};
+use super::{
+    chunk::ChunkSet,
+    ids::{GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphWorkspaceId},
+};
 
 /// 图算法可恢复检查点（frontier 形状在 graph，策略在 engine）。
 ///
@@ -41,15 +43,7 @@ impl GraphAlgorithmCheckpoint {
         for id in chunk_ids {
             chunks.push(id);
         }
-        Self {
-            snapshot_id,
-            graph_id,
-            revision,
-            revision_id,
-            chunks,
-            workspace_id,
-            frontier,
-        }
+        Self { snapshot_id, graph_id, revision, revision_id, chunks, workspace_id, frontier }
     }
 
     /// Chunk identity 指纹（resume 前须与当前 snapshot 对齐）。

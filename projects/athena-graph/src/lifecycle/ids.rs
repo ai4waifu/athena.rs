@@ -8,10 +8,7 @@ static NEXT_LIFECYCLE_INDEX: AtomicU32 = AtomicU32::new(1);
 
 /// 分配引导用 lifecycle 对象身份（带 generation，可后续绑定真实 heap slot）。
 pub fn allocate_lifecycle_object_id() -> GcObjectId {
-    GcObjectId {
-        index: NEXT_LIFECYCLE_INDEX.fetch_add(1, Ordering::Relaxed),
-        generation: 1,
-    }
+    GcObjectId { index: NEXT_LIFECYCLE_INDEX.fetch_add(1, Ordering::Relaxed), generation: 1 }
 }
 
 macro_rules! lifecycle_id {

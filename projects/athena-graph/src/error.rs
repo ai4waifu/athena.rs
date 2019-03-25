@@ -131,6 +131,16 @@ pub enum GraphError {
         /// 目标状态。
         to: crate::lifecycle::ChunkResidency,
     },
+    /// Checkpoint 的 snapshot / revision / chunk identity 与当前发布不一致。
+    CheckpointIdentityMismatch,
+    /// 下层 `athena-gc` 错误。
+    Gc(athena_gc::GcError),
+}
+
+impl From<athena_gc::GcError> for GraphError {
+    fn from(value: athena_gc::GcError) -> Self {
+        Self::Gc(value)
+    }
 }
 
 impl From<ArrayError> for GraphError {
