@@ -27,6 +27,8 @@ pub enum RootKind {
     UserRetain,
     /// Session 持有的 numeric limb block。
     Numeric,
+    /// 图 snapshot / revision / chunk / index·property payload。
+    Graph,
 }
 
 /// 已登记 object root。

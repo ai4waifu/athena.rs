@@ -57,6 +57,8 @@ pub enum GcError {
     RegistryUnavailable,
     /// Rust-owned 与 GC-owned 生命周期混用（拒绝 free，避免 double-free）。
     LifecycleMismatch,
+    /// Graph domain block 不属于当前 heap。
+    WrongHeap,
 }
 
 impl fmt::Display for GcError {
@@ -85,6 +87,7 @@ impl fmt::Display for GcError {
             Self::HeapBusy => write!(f, "heap busy"),
             Self::RegistryUnavailable => write!(f, "gc registry unavailable"),
             Self::LifecycleMismatch => write!(f, "numeric ownership lifecycle mismatch"),
+            Self::WrongHeap => write!(f, "graph domain block belongs to a different heap"),
         }
     }
 }
