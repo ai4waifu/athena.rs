@@ -1,13 +1,11 @@
 //! 内存邻接图、Builder、不可变图与 capability。
 
-use crate::{
-    GraphAlgorithmRequirements, GraphCapabilities, GraphError,
-};
 use super::{
     direction::GraphDirection,
     id::{EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId},
     semantics::{GraphFingerprint, GraphSemantics, GraphSnapshot},
 };
+use crate::{GraphAlgorithmRequirements, GraphCapabilities, GraphError};
 
 /// 构造期可变邻接表（便利实现，不是规模上限）。
 ///
@@ -348,9 +346,27 @@ impl<N, E> GraphBuilder<N, E> {
         &self.graph
     }
 
-    /// 完成构造，得到不可变图。
+    /// 完成构造，得到不可变图（不登记 GC）。
     pub fn finish(self) -> ImmutableGraph<N, E> {
-        ImmutableGraph { inner: self.graph }
+        ImmutableGraph::from_mutable(self.graph)
+    }
+
+    /// 完成构造并在 [`GcHeap`](athena_gc::GcHeap) 上发布 snapshot 根与空 [`ChunkSet`](crate::ChunkSet)。
+    pub fn finish_on_heap(
+        self,
+        heap: &mut athena_gc::GcHeap,
+    ) -> Result<crate::lifecycle::PublishedImmutableGraph<N, E>, GraphError> {
+        crate::lifecycle::finish_on_heap(self.graph, heap)
+    }
+
+    /// 完成构造：发布 snapshot 根，并将 CSR offsets/indices 写入 GraphIndex segment。
+    pub fn finish_csr_on_heap(
+        self,
+        heap: &mut athena_gc::GcHeap,
+        registry: &mut crate::lifecycle::ChunkRegistry,
+        budget: athena_ndarray::MemoryBudget,
+    ) -> Result<(crate::lifecycle::PublishedImmutableGraph<N, E>, crate::CsrOnHeap), GraphError> {
+        crate::storage::finish_csr_on_heap(self.graph, heap, registry, budget)
     }
 }
 
@@ -363,6 +379,11 @@ pub struct ImmutableGraph<N, E> {
 }
 
 impl<N, E> ImmutableGraph<N, E> {
+    /// 由构造完成的可变图封存（crate 内 / lifecycle 发布路径）。
+    pub(crate) fn from_mutable(inner: MutableGraph<N, E>) -> Self {
+        Self { inner }
+    }
+
     /// 快照。
     pub fn snapshot(&self) -> GraphSnapshot {
         self.inner.snapshot()

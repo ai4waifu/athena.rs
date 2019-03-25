@@ -4,8 +4,10 @@ use athena_gc::{GcObjectId, Trace, Tracer};
 
 use crate::{GraphId, GraphRevision, GraphSnapshot, ViewFingerprint};
 
-use super::chunk::ChunkSet;
-use super::ids::{GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphViewId, GraphWorkspaceId, SpillObjectId};
+use super::{
+    chunk::ChunkSet,
+    ids::{GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphViewId, GraphWorkspaceId, SpillObjectId},
+};
 
 /// 测试 / 诊断用 Tracer：记录 `mark_object` 调用。
 #[derive(Debug, Default, Clone)]
@@ -128,5 +130,71 @@ impl Trace for GraphWorkspaceRecord {
         tracer.mark_object(self.snapshot_id.as_object());
         tracer.mark_object(self.revision_id.as_object());
         self.chunks.trace(tracer);
+    }
+}
+
+/// 供 [`athena_gc::GcHeap::collect_traced`] 使用的图对象出边表。
+#[derive(Debug, Default, Clone)]
+pub struct GraphTraceIndex {
+    snapshots: std::collections::HashMap<GcObjectId, GraphSnapshotRecord>,
+    revisions: std::collections::HashMap<GcObjectId, GraphRevisionRecord>,
+    chunks: std::collections::HashMap<GcObjectId, GraphChunkRecord>,
+    views: std::collections::HashMap<GcObjectId, GraphViewRecord>,
+    workspaces: std::collections::HashMap<GcObjectId, GraphWorkspaceRecord>,
+}
+
+impl GraphTraceIndex {
+    /// 空表。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 登记 snapshot。
+    pub fn insert_snapshot(&mut self, record: GraphSnapshotRecord) {
+        self.snapshots.insert(record.id.as_object(), record);
+    }
+
+    /// 登记 revision。
+    pub fn insert_revision(&mut self, record: GraphRevisionRecord) {
+        self.revisions.insert(record.id.as_object(), record);
+    }
+
+    /// 登记 chunk。
+    pub fn insert_chunk(&mut self, record: GraphChunkRecord) {
+        self.chunks.insert(record.id.as_object(), record);
+    }
+
+    /// 登记 view。
+    pub fn insert_view(&mut self, record: GraphViewRecord) {
+        self.views.insert(record.id.as_object(), record);
+    }
+
+    /// 登记 workspace。
+    pub fn insert_workspace(&mut self, record: GraphWorkspaceRecord) {
+        self.workspaces.insert(record.id.as_object(), record);
+    }
+}
+
+impl athena_gc::ObjectGraph for GraphTraceIndex {
+    fn trace_object(&self, id: GcObjectId, tracer: &mut dyn Tracer) {
+        if let Some(record) = self.snapshots.get(&id) {
+            record.trace(tracer);
+            return;
+        }
+        if let Some(record) = self.revisions.get(&id) {
+            record.trace(tracer);
+            return;
+        }
+        if let Some(record) = self.chunks.get(&id) {
+            record.trace(tracer);
+            return;
+        }
+        if let Some(record) = self.views.get(&id) {
+            record.trace(tracer);
+            return;
+        }
+        if let Some(record) = self.workspaces.get(&id) {
+            record.trace(tracer);
+        }
     }
 }

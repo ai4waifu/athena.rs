@@ -27,10 +27,7 @@ fn reachability_is_not_residency() {
     assert!(reg.get(id).unwrap().semantic_reachable);
 
     let lease = reg.acquire_lease(id).unwrap();
-    assert!(matches!(
-        reg.pin_resident(&lease),
-        Err(GraphError::ChunkNotResident { .. })
-    ));
+    assert!(matches!(reg.pin_resident(&lease), Err(GraphError::ChunkNotResident { .. })));
     reg.release_lease(lease);
 
     reg.materialize(id).unwrap();
@@ -107,12 +104,7 @@ fn snapshot_and_revision_trace_edges() {
     chunks.push(chunk);
     let snap = GraphSnapshotRecord {
         id: snapshot_id,
-        snapshot: GraphSnapshot::new(
-            GraphId::allocate(),
-            GraphRevision(1),
-            Default::default(),
-            RepresentationId::CSR,
-        ),
+        snapshot: GraphSnapshot::new(GraphId::allocate(), GraphRevision(1), Default::default(), RepresentationId::CSR),
         revision_id,
         chunks: chunks.clone(),
         view_id: None,
@@ -146,11 +138,7 @@ fn checkpoint_binds_revision_and_chunks() {
         revision_id,
         [c0, c1],
         workspace_id,
-        FrontierCheckpoint {
-            queue: vec![],
-            discovered: vec![],
-            visited_prefix: vec![],
-        },
+        FrontierCheckpoint { queue: vec![], discovered: vec![], visited_prefix: vec![] },
     );
     assert_eq!(cp.snapshot_id, snapshot_id);
     assert_eq!(cp.revision_id, revision_id);
@@ -168,4 +156,97 @@ fn typed_graph_segments_via_athena_gc() {
     assert_eq!(prop.kind, SegmentKind::GraphProperty);
     assert!(h.segments().any(|s| s.kind == SegmentKind::GraphIndex));
     assert!(h.segments().any(|s| s.kind == SegmentKind::GraphProperty));
+}
+
+#[test]
+fn heap_bound_chunk_id_stale_after_release() {
+    use athena_graph::allocate_chunk_id;
+    let heap = GcHeap::new(HeapBudget::default());
+    let mut h = heap.borrow_mut();
+    let id = allocate_chunk_id(&mut h).unwrap();
+    assert!(h.object_payload(id.as_object()).is_ok());
+    h.release_object(id.as_object()).unwrap();
+    assert!(matches!(
+        h.object_payload(id.as_object()),
+        Err(athena_gc::GcError::StaleObject { .. })
+    ));
+}
+
+#[test]
+fn finish_csr_on_heap_wires_snapshot_and_index_chunks() {
+    use athena_graph::{GraphBuilder, GraphDirection, graph_to_csr_on_heap};
+    use athena_ndarray::MemoryBudget;
+
+    let heap = GcHeap::new(HeapBudget::default());
+    let mut h = heap.borrow_mut();
+    let mut registry = ChunkRegistry::new();
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let n0 = b.add_node(());
+    let n1 = b.add_node(());
+    let n2 = b.add_node(());
+    b.add_edge(n0, n1, ());
+    b.add_edge(n1, n2, ());
+    let budget = MemoryBudget::new(64 * 1024).unwrap();
+    let (published, csr) = b.finish_csr_on_heap(&mut h, &mut registry, budget).unwrap();
+    assert_eq!(published.chunks().chunks.len(), 2);
+    assert_eq!(published.publication.chunk_roots.len(), 2);
+    assert!(h.object_payload(published.snapshot_id().as_object()).is_ok());
+    assert!(h.object_payload(published.publication.revision_id.as_object()).is_ok());
+    let mut neighbors = Vec::new();
+    csr.csr.for_each_neighbor_chunk(0, |chunk| neighbors.extend_from_slice(chunk)).unwrap();
+    assert_eq!(neighbors, vec![1]);
+
+    // graph_to_csr_on_heap 独立路径与 finish 对齐 chunk 数。
+    let mut b2 = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let a = b2.add_node(());
+    let c = b2.add_node(());
+    b2.add_edge(a, c, ());
+    let extra = graph_to_csr_on_heap(b2.graph(), &mut h, &mut registry, budget).unwrap();
+    assert_eq!(extra.chunks.chunks.len(), 2);
+}
+
+#[test]
+fn gc_dense_property_column_on_graph_property_segment() {
+    use athena_graph::GcDenseU64Column;
+    let heap = GcHeap::new(HeapBudget::default());
+    let mut h = heap.borrow_mut();
+    let mut registry = ChunkRegistry::new();
+    let col = GcDenseU64Column::allocate(&mut h, &mut registry, &[7, 8, 9]).unwrap();
+    assert_eq!(col.len(), 3);
+    assert_eq!(col.read_range(0, 3).unwrap(), vec![7, 8, 9]);
+    assert!(h.segments().any(|s| s.kind == SegmentKind::GraphProperty));
+}
+
+#[test]
+fn shared_chunks_survive_dropping_one_snapshot_root() {
+    use athena_gc::RootKind;
+    use athena_graph::{GraphBuilder, GraphDirection, publication_attach_chunks};
+    use athena_ndarray::MemoryBudget;
+
+    let heap = GcHeap::new(HeapBudget::default());
+    let mut h = heap.borrow_mut();
+    let mut registry = ChunkRegistry::new();
+    let mut b = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed);
+    let n0 = b.add_node(());
+    let n1 = b.add_node(());
+    b.add_edge(n0, n1, ());
+    let budget = MemoryBudget::new(64 * 1024).unwrap();
+    let (first, csr) = b.finish_csr_on_heap(&mut h, &mut registry, budget).unwrap();
+    for id in &csr.chunks.chunks {
+        registry.share(*id).unwrap();
+    }
+    let mut second = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish_on_heap(&mut h).unwrap();
+    publication_attach_chunks(&mut h, &mut second.publication, csr.chunks.clone());
+
+    for token in first.publication.chunk_roots.iter().copied() {
+        assert!(h.roots_mut().unregister(token));
+    }
+    assert!(h.roots_mut().unregister(first.publication.snapshot_root));
+    assert!(h.roots_mut().unregister(first.publication.revision_root));
+
+    let index = second.publication.trace_index();
+    h.collect_traced(&index).unwrap();
+    assert!(h.object_payload(second.snapshot_id().as_object()).is_ok());
+    assert!(h.object_payload(csr.chunks.chunks[0].as_object()).is_ok());
+    let _ = RootKind::Graph;
 }

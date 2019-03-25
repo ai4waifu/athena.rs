@@ -2,8 +2,10 @@
 
 use athena_gc::{GcObjectId, Trace, Tracer};
 
-use super::ids::{GraphChunkId, SpillObjectId};
-use super::residency::ChunkResidency;
+use super::{
+    ids::{GraphChunkId, SpillObjectId},
+    residency::ChunkResidency,
+};
 
 /// Chunk 元数据（可达性 · 驻留 · lease/pin · COW 共享计数）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +67,7 @@ impl ChunkSet {
 
     /// 带 Trace 身份的集合。
     pub fn with_object(object: GcObjectId, chunks: Vec<GraphChunkId>) -> Self {
-        Self {
-            object: Some(object),
-            chunks,
-        }
+        Self { object: Some(object), chunks }
     }
 
     /// 追加 chunk id（调用方负责 registry.share）。

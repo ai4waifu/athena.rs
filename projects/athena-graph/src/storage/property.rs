@@ -74,6 +74,47 @@ impl<T> PropertyColumn<T> {
     }
 }
 
+/// 稠密 `u64` 属性/权重列，payload 在 GraphProperty segment。
+#[derive(Debug)]
+pub struct GcDenseU64Column {
+    storage: crate::storage::gc_payload::GcPayloadStorage,
+}
+
+impl GcDenseU64Column {
+    /// 在 heap 上分配 GraphProperty 列，并登记 chunk。
+    pub fn allocate(
+        heap: &mut athena_gc::GcHeap,
+        registry: &mut crate::lifecycle::ChunkRegistry,
+        values: &[u64],
+    ) -> Result<Self, GraphError> {
+        let chunk_id = crate::lifecycle::allocate_chunk_id(heap)?;
+        registry.register_resident(chunk_id)?;
+        let storage = crate::storage::gc_payload::GcPayloadStorage::allocate_property(heap, values, chunk_id)?;
+        Ok(Self { storage })
+    }
+
+    /// Chunk 身份。
+    pub const fn chunk_id(&self) -> crate::lifecycle::GraphChunkId {
+        self.storage.chunk_id()
+    }
+
+    /// 列长。
+    pub fn len(&self) -> u64 {
+        self.storage.element_count()
+    }
+
+    /// 是否空列。
+    pub fn is_empty(&self) -> bool {
+        self.storage.element_count() == 0
+    }
+
+    /// 读取区间。
+    pub fn read_range(&self, offset: u64, len: usize) -> Result<Vec<u64>, athena_ndarray::ArrayError> {
+        use athena_ndarray::ArrayStorage;
+        self.storage.read_range(offset, len)
+    }
+}
+
 /// 权重存储域标签（结构层；数学问题合同仍在 `graph_theory`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WeightDomainTag {

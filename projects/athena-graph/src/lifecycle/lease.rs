@@ -7,9 +7,11 @@ use std::collections::HashMap;
 
 use crate::GraphError;
 
-use super::chunk::ChunkMeta;
-use super::ids::{GraphChunkId, SpillObjectId};
-use super::residency::ChunkResidency;
+use super::{
+    chunk::ChunkMeta,
+    ids::{GraphChunkId, SpillObjectId},
+    residency::ChunkResidency,
+};
 
 /// Living 合同名：语义对象不被 tracing 回收。实现即 [`athena_gc::RootToken`]。
 pub type GcRootToken = athena_gc::RootToken;
@@ -59,10 +61,7 @@ impl ChunkRegistry {
         let remove = {
             let meta = self.chunks.get_mut(&id).ok_or(GraphError::UnknownChunk { chunk: id })?;
             meta.share_count = meta.share_count.saturating_sub(1);
-            meta.share_count == 0
-                && !meta.semantic_reachable
-                && meta.lease_count == 0
-                && meta.pin_count == 0
+            meta.share_count == 0 && !meta.semantic_reachable && meta.lease_count == 0 && meta.pin_count == 0
         };
         if remove {
             self.chunks.remove(&id);
@@ -97,10 +96,7 @@ impl ChunkRegistry {
         if meta.pin_count > 0 {
             return Err(GraphError::ChunkPinned { chunk: id });
         }
-        if !matches!(
-            meta.residency,
-            ChunkResidency::Resident | ChunkResidency::Evictable | ChunkResidency::Mapped
-        ) {
+        if !matches!(meta.residency, ChunkResidency::Resident | ChunkResidency::Evictable | ChunkResidency::Mapped) {
             return Err(GraphError::InvalidResidencyTransition {
                 chunk: id,
                 from: meta.residency,
@@ -175,10 +171,7 @@ impl ChunkRegistry {
             return Err(GraphError::ChunkLeaseRequired { chunk: id });
         }
         if !meta.residency.has_address() {
-            return Err(GraphError::ChunkNotResident {
-                chunk: id,
-                residency: meta.residency,
-            });
+            return Err(GraphError::ChunkNotResident { chunk: id, residency: meta.residency });
         }
         meta.pin_count = meta.pin_count.saturating_add(1);
         Ok(ResidentPinGuard { chunk_id: id })
