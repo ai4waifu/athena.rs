@@ -1,5 +1,8 @@
 //! 逻辑数组与有界分块访问。
 
+use std::cell::RefCell;
+
+use crate::budget::{BudgetLedger, ChunkGuard};
 use crate::{ArrayError, ArrayStorage, ChunkPlan, InMemoryStorage, LogicalShape, MemoryBudget};
 
 /// 由分块存储承载的逻辑数组（不要求整表驻留 RAM）。
@@ -8,6 +11,7 @@ pub struct ChunkedArray<T, S> {
     shape: LogicalShape,
     store: S,
     budget: MemoryBudget,
+    ledger: RefCell<BudgetLedger>,
     marker: std::marker::PhantomData<T>,
 }
 
@@ -25,7 +29,10 @@ impl<'a, T> ArrayView<'a, T> {
     /// 创建视图；长度必须匹配 shape。
     pub fn new(shape: &'a LogicalShape, data: &'a [T]) -> Result<Self, ArrayError> {
         if data.len() as u64 != shape.element_count() {
-            return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: data.len() as u64 });
+            return Err(ArrayError::LengthMismatch {
+                expected: shape.element_count(),
+                actual: data.len() as u64,
+            });
         }
         Ok(Self { shape, data })
     }
@@ -45,9 +52,18 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
     /// 绑定 shape 与 storage，不物化全量数据。
     pub fn new(shape: LogicalShape, store: S, budget: MemoryBudget) -> Result<Self, ArrayError> {
         if shape.element_count() != store.len() {
-            return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: store.len() });
+            return Err(ArrayError::LengthMismatch {
+                expected: shape.element_count(),
+                actual: store.len(),
+            });
         }
-        Ok(Self { shape, store, budget, marker: std::marker::PhantomData })
+        Ok(Self {
+            shape,
+            store,
+            budget,
+            ledger: RefCell::new(BudgetLedger::new()),
+            marker: std::marker::PhantomData,
+        })
     }
 
     /// Shape。
@@ -60,30 +76,75 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
         self.budget
     }
 
+    /// 预算账本快照。
+    pub fn ledger_snapshot(&self) -> BudgetLedger {
+        *self.ledger.borrow()
+    }
+
     /// 针对全数组生成分块计划。
     pub fn chunk_plan(&self) -> Result<ChunkPlan, ArrayError> {
         let max = self.max_elements()?;
         ChunkPlan::new(0, self.shape.element_count(), max)
     }
 
-    /// 在预算内读取区间。
+    /// 在预算内读取区间（[`ChunkGuard`] 占用 resident + open_chunks）。
     pub fn read_range(&self, offset: u64, len: usize) -> Result<Vec<T>, ArrayError> {
         self.check(offset, len)?;
+        let elem_size = std::mem::size_of::<T>();
+        let mut ledger = self.ledger.borrow_mut();
+        let _guard = ChunkGuard::acquire(&mut ledger, self.budget, elem_size, len)?;
         self.store.read_range(offset, len).map_err(|_| ArrayError::Store)
     }
 
-    /// 按有界 chunk 顺序访问全部元素。
+    /// 按有界 chunk 顺序访问全部元素（禁止一次整表加载）。
     pub fn for_each_chunk(&self, mut visit: impl FnMut(u64, &[T])) -> Result<(), ArrayError> {
         let plan = self.chunk_plan()?;
         let mut offset = plan.start;
         while offset < plan.end {
             let remaining = plan.end - offset;
             let len = usize::try_from(remaining.min(plan.max_elements as u64)).unwrap_or(plan.max_elements);
-            let chunk = self.store.read_range(offset, len).map_err(|_| ArrayError::Store)?;
+            let chunk = self.read_range(offset, len)?;
             visit(offset, &chunk);
             offset = offset.checked_add(len as u64).ok_or(ArrayError::RangeOverflow)?;
         }
         Ok(())
+    }
+
+    /// 尝试占用 scratch（不计入数组身份存活）。
+    pub fn acquire_scratch(&self, bytes: usize) -> Result<(), ArrayError> {
+        self.ledger.borrow_mut().acquire_scratch(self.budget, bytes)
+    }
+
+    /// 归还 scratch。
+    pub fn release_scratch(&self, bytes: usize) {
+        self.ledger.borrow_mut().release_scratch(bytes);
+    }
+
+    /// 尝试占用 spill 额度。
+    pub fn acquire_spill(&self, bytes: usize) -> Result<(), ArrayError> {
+        self.ledger.borrow_mut().acquire_spill(self.budget, bytes)
+    }
+
+    /// 归还 spill 额度。
+    pub fn release_spill(&self, bytes: usize) {
+        self.ledger.borrow_mut().release_spill(bytes);
+    }
+
+    /// 仅当全表字节 ≤ 驻留预算时允许连续视图；否则 [`ArrayError::FullMaterializeForbidden`]。
+    pub fn try_full_view<'a, U>(
+        budget: MemoryBudget,
+        shape: &'a LogicalShape,
+        data: &'a [U],
+    ) -> Result<ArrayView<'a, U>, ArrayError> {
+        let view = ArrayView::new(shape, data)?;
+        let bytes = (shape.element_count() as usize).saturating_mul(std::mem::size_of::<U>());
+        if bytes > budget.bytes() {
+            return Err(ArrayError::FullMaterializeForbidden {
+                elements: shape.element_count(),
+                resident_limit: budget.bytes(),
+            });
+        }
+        Ok(view)
     }
 
     fn max_elements(&self) -> Result<usize, ArrayError> {
@@ -92,17 +153,28 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
             return Ok(usize::MAX);
         }
         let max = self.budget.bytes() / size;
-        if max == 0 { Err(ArrayError::BudgetTooSmall { element_size: size }) } else { Ok(max) }
+        if max == 0 {
+            Err(ArrayError::BudgetTooSmall { element_size: size })
+        } else {
+            Ok(max)
+        }
     }
 
     fn check(&self, offset: u64, len: usize) -> Result<(), ArrayError> {
         let max = self.max_elements()?;
         if len > max {
-            return Err(ArrayError::BudgetExceeded { requested: len, max });
+            return Err(ArrayError::BudgetExceeded {
+                requested: len,
+                max,
+            });
         }
         let len64 = u64::try_from(len).map_err(|_| ArrayError::RangeOverflow)?;
         let end = offset.checked_add(len64).ok_or(ArrayError::RangeOverflow)?;
-        if end > self.shape.element_count() { Err(ArrayError::OutOfBounds) } else { Ok(()) }
+        if end > self.shape.element_count() {
+            Err(ArrayError::OutOfBounds)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -110,6 +182,13 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
 pub fn array1d<T: Clone>(data: Vec<T>, budget: MemoryBudget) -> Result<ChunkedArray<T, InMemoryStorage<T>>, ArrayError> {
     let len = data.len() as u64;
     let shape = LogicalShape::new([len])?;
+    let bytes = data.len().saturating_mul(std::mem::size_of::<T>());
+    if bytes > budget.bytes() {
+        return Err(ArrayError::FullMaterializeForbidden {
+            elements: len,
+            resident_limit: budget.bytes(),
+        });
+    }
     let store = InMemoryStorage::from_vec(data);
     ChunkedArray::new(shape, store, budget)
 }
