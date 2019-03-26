@@ -10,11 +10,13 @@
 mod array;
 mod budget;
 mod error;
+mod layout;
 mod shape;
 mod storage;
 
 pub use array::{Array, ArrayView, ChunkedArray, array1d};
 pub use budget::{BudgetLedger, ChunkGuard};
 pub use error::ArrayError;
+pub use layout::{permute_axes, ArrayLayout, ArrayOrder, ArrayViewSpec, BroadcastSpec};
 pub use shape::{Axis, ChunkPlan, LogicalShape, MemoryBudget};
 pub use storage::{ArrayStorage, ChunkStore, InMemoryStorage, StorageCapabilities, StoreCapabilities};
