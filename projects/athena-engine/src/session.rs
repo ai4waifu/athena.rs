@@ -105,6 +105,30 @@ impl Session {
         self.heap.borrow_mut().collect()
     }
 
+    /// Tracing collect（注入图 [`athena_gc::ObjectGraph`]）。
+    pub fn collect_traced(&self, graph: &dyn athena_gc::ObjectGraph) -> GcResult<CollectReport> {
+        self.heap.borrow_mut().collect_traced(graph)
+    }
+
+    /// 在 session heap 上 `finish()`：分配真实 object id 并挂图根。
+    pub fn finish_graph_on_heap<N, E>(
+        &self,
+        builder: athena_graph::GraphBuilder<N, E>,
+    ) -> core::result::Result<athena_graph::PublishedImmutableGraph<N, E>, athena_graph::GraphError> {
+        builder.finish_on_heap(&mut self.heap.borrow_mut())
+    }
+
+    /// 在 session heap 上发布 immutable snapshot，并将 CSR 写入 GraphIndex segment。
+    pub fn finish_csr_on_heap<N, E>(
+        &self,
+        builder: athena_graph::GraphBuilder<N, E>,
+        registry: &mut athena_graph::ChunkRegistry,
+        budget: athena_ndarray::MemoryBudget,
+    ) -> core::result::Result<(athena_graph::PublishedImmutableGraph<N, E>, athena_graph::CsrOnHeap), athena_graph::GraphError>
+    {
+        builder.finish_csr_on_heap(&mut self.heap.borrow_mut(), registry, budget)
+    }
+
     /// 在 session 环表上下文中执行多项式域请求。
     pub fn execute_polynomial(&self, request: PolynomialRequest) -> PolynomialResult {
         execute_polynomial_with_rings(request, &self.rings)
