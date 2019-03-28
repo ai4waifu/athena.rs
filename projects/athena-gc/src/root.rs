@@ -29,6 +29,8 @@ pub enum RootKind {
     Numeric,
     /// 图 snapshot / revision / chunk / index·property payload。
     Graph,
+    /// 数组 snapshot / revision / chunk payload。
+    Array,
 }
 
 /// 已登记 object root。

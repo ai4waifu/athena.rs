@@ -78,4 +78,12 @@ pub enum ArrayError {
         /// 当前修订。
         actual: u64,
     },
+    /// 下层 `athena-gc` 错误。
+    Gc(athena_gc::GcError),
+}
+
+impl From<athena_gc::GcError> for ArrayError {
+    fn from(value: athena_gc::GcError) -> Self {
+        Self::Gc(value)
+    }
 }
