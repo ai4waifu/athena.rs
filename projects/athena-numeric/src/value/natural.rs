@@ -598,15 +598,37 @@ impl Natural {
     }
 
     /// 十进制字符串（无符号）。
+    ///
+    /// Living `19`：只借用 limb 并在本地 `Vec` 上辗转相除，**不** `Clone` / 不登记 root / 不走 GC 分配。
     pub fn to_decimal_string(&self) -> String {
-        if self.is_zero() {
+        Self::decimal_from_limbs(self.as_limbs())
+    }
+
+    /// 由小端 limb 生成无符号十进制（观察者路径；无 owning 数值复制）。
+    pub(crate) fn decimal_from_limbs(limbs: &[u64]) -> String {
+        if limbs.is_empty() || limb_kernel::is_zero(limbs) {
             return "0".to_string();
         }
-        let (mut q, mut r) = self.clone().div_rem(&Self::from_u64(10));
-        let mut digits = vec![b'0' + r.as_limbs()[0] as u8];
-        while !q.is_zero() {
-            (q, r) = q.div_rem(&Self::from_u64(10));
-            digits.push(b'0' + r.as_limbs()[0] as u8);
+        let mut buf: Vec<u64> = limbs.to_vec();
+        let mut digits = Vec::new();
+        // `limb_kernel::is_zero` 对空切片为 false；除尽后须保留 `[0]` 或显式判空，避免死循环。
+        loop {
+            if buf.is_empty() || limb_kernel::is_zero(&buf) {
+                break;
+            }
+            let mut rem = 0u128;
+            for limb in buf.iter_mut().rev() {
+                let cur = (rem << 64) | u128::from(*limb);
+                *limb = (cur / 10) as u64;
+                rem = cur % 10;
+            }
+            digits.push(b'0' + rem as u8);
+            while buf.len() > 1 && buf.last() == Some(&0) {
+                buf.pop();
+            }
+        }
+        if digits.is_empty() {
+            return "0".to_string();
         }
         digits.reverse();
         String::from_utf8(digits).expect("ASCII digit bytes are UTF-8")
