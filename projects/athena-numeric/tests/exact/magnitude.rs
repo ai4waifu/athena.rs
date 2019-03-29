@@ -64,11 +64,11 @@ fn clone_drop_heap() {
     let b = a.clone();
     assert_eq!(a, b);
     assert_eq!(a.as_limbs(), &[1, 2, 3, 4]);
+    assert_ne!(a.as_limbs().as_ptr(), b.as_limbs().as_ptr(), "Heap Clone is deep copy");
     drop(a);
-    assert_eq!(b.to_decimal_string(), {
-        // 1 + 2*2^64 + 3*2^128 + 4*2^192 — 只校验 round-trip 等式
-        b.clone().to_decimal_string()
-    });
+    assert_eq!(b.as_limbs(), &[1, 2, 3, 4]);
+    let s = b.to_decimal_string();
+    assert!(!s.is_empty() && s.chars().all(|c| c.is_ascii_digit()));
 }
 
 #[test]

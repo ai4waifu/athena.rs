@@ -270,36 +270,6 @@ impl GcHeap {
         registry::with_heap(heap_id, |heap| heap.unregister_one_numeric_root(limbs))?
     }
 
-    /// 将已存在的 [`NumericOwnership::RustOwned`] block 就地提升为 [`NumericOwnership::GcOwned`]。
-    ///
-    /// Living `19`：共享 `Clone` 不再 `alloc_copy` limb。提升后为原持有者登记一条 [`NumericRoot`]，
-    /// 后续 `Drop` 只撤 root。`bump_ephemeral` 下拒绝提升（仍由 bump rewind 回收）。
-    pub fn adopt_rust_owned_as_gc_owned(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
-        if self.bump_ephemeral {
-            return Err(GcError::LifecycleMismatch);
-        }
-        let ownership = self.numeric_ownership(limbs)?;
-        if ownership != NumericOwnership::RustOwned {
-            self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
-            return Err(GcError::LifecycleMismatch);
-        }
-        {
-            let hdr = self.header_mut_for_limbs(limbs)?;
-            hdr.numeric_ownership = NumericOwnership::GcOwned;
-        }
-        self.traced_numeric.insert(limbs.as_ptr() as usize);
-        Ok(self.roots.register_numeric(limbs.cast(), kind))
-    }
-
-    /// 经 registry 提升 Rust-owned → Gc-owned 并登记原持有者 root。
-    pub fn adopt_rust_owned_as_gc_owned_registered(
-        heap_id: HeapId,
-        limbs: NonNull<u64>,
-        kind: RootKind,
-    ) -> Result<RootToken> {
-        registry::with_heap(heap_id, |heap| heap.adopt_rust_owned_as_gc_owned(limbs, kind))?
-    }
-
     /// 将已初始化 limb 提升到长期 numeric segment（scratch → heap promote）。
     pub fn promote_limbs(&mut self, limbs: &[u64]) -> Result<NumericBlock> {
         let capacity = limbs.len().max(1);
@@ -1105,23 +1075,13 @@ impl GcHeap {
     }
 
     /// 从 GraphIndex / GraphProperty block 读取 `u64` 区间（按元素下标）。
-    pub fn read_graph_domain_u64s(
-        &self,
-        block: &GraphDomainBlock,
-        offset_elems: usize,
-        len: usize,
-    ) -> Result<Vec<u64>> {
+    pub fn read_graph_domain_u64s(&self, block: &GraphDomainBlock, offset_elems: usize, len: usize) -> Result<Vec<u64>> {
         self.ensure_graph_domain_block(block)?;
         block.read_u64s(offset_elems, len)
     }
 
     /// 向 GraphIndex / GraphProperty block 写入 `u64` 区间。
-    pub fn write_graph_domain_u64s(
-        &mut self,
-        block: &GraphDomainBlock,
-        offset_elems: usize,
-        values: &[u64],
-    ) -> Result<()> {
+    pub fn write_graph_domain_u64s(&mut self, block: &GraphDomainBlock, offset_elems: usize, values: &[u64]) -> Result<()> {
         self.ensure_graph_domain_block(block)?;
         block.write_u64s(offset_elems, values)
     }
@@ -1137,13 +1097,7 @@ impl GcHeap {
         }
         let (segment_id, ptr) =
             self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, NumericOwnership::Unspecified)?;
-        Ok(GraphDomainBlock {
-            ptr,
-            byte_len: payload_bytes,
-            segment_id,
-            heap_id: self.id,
-            kind,
-        })
+        Ok(GraphDomainBlock { ptr, byte_len: payload_bytes, segment_id, heap_id: self.id, kind })
     }
 
     fn ensure_graph_domain_block(&self, block: &GraphDomainBlock) -> Result<()> {
