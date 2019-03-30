@@ -97,11 +97,7 @@ impl MagnitudePair {
     }
 
     /// 同 [`Self::from_limbs_in`]；`gc_owned` 时经 traced numeric 分配。
-    pub(crate) fn from_limbs_in_with(
-        heap: &Rc<RefCell<GcHeap>>,
-        limbs: &[u64],
-        gc_owned: bool,
-    ) -> athena_gc::Result<Self> {
+    pub(crate) fn from_limbs_in_with(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64], gc_owned: bool) -> athena_gc::Result<Self> {
         let el = effective_len(limbs);
         match el {
             0 => Ok(Self::zero()),
@@ -289,11 +285,12 @@ impl MagnitudePair {
         Ok(super::decode_magnitude(self.meta, &self.magnitude)?.limbs())
     }
 
-    /// 可失败 owning 复制。
+    /// 可失败 owning 深复制（Living `19`）。
     ///
-    /// - Limb1 / Limb2：栈拷贝。
-    /// - Heap `GcOwned`：再登记一条 [`athena_gc::NumericRoot`]（无 limb 分配）。
-    /// - Heap `RustOwned`：同堆 `alloc_copy`（唯一允许的隐式分配 owning 复制入口；公共路径应优先 [`Self::try_clone`] + context）。
+    /// - Limb1 / Limb2：栈拷贝（无分配、无 root）。
+    /// - Heap：同堆 `alloc_copy`（**不** adopt、**不** share root）。
+    ///
+    /// 共享请走显式 `share` / Session root API；禁止经本函数改变 ownership class。
     pub(crate) fn try_clone(&self) -> athena_gc::Result<Self> {
         match try_mode_of(self.meta).map_err(|_| athena_gc::GcError::UnknownAllocation)? {
             Mode::Limb1 => {
@@ -314,23 +311,11 @@ impl MagnitudePair {
                     (heap.ptr, heap.capacity, heap_id_for_limbs(heap.ptr))
                 };
                 let n = len.min(capacity);
-                match GcHeap::numeric_ownership_registered(heap_id, ptr) {
-                    Ok(athena_gc::NumericOwnership::GcOwned) => {
-                        // Living `19`：共享 Clone 再登记一条 NumericRoot，不拷贝 limb。
-                        let _ = GcHeap::register_numeric_root_registered(heap_id, ptr, athena_gc::RootKind::Numeric)?;
-                        Ok(Self {
-                            meta: self.meta,
-                            magnitude: Magnitude { heap: HeapPayload { ptr, capacity } },
-                        })
-                    }
-                    _ => {
-                        // SAFETY: n <= capacity。
-                        let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
-                        let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
-                        let payload = buf.into_payload();
-                        Ok(Self { meta: self.meta, magnitude: Magnitude { heap: payload } })
-                    }
-                }
+                // SAFETY: n <= capacity。
+                let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
+                let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
+                let payload = buf.into_payload();
+                Ok(Self { meta: self.meta, magnitude: Magnitude { heap: payload } })
             }
         }
     }
@@ -365,16 +350,24 @@ impl MagnitudePair {
         tagged
     }
 
-    /// Steal heap buffer；非 Heap 返回 `None`。Heap 时 self 变为 Zero。
+    /// Steal heap buffer；仅独占 [`NumericOwnership::RustOwned`] 时成功。
+    ///
+    /// Living `19`：`GcOwned` / 未知 ownership 禁止 steal（可能被 root 别名）。
     pub(crate) fn steal_heap(&mut self) -> Option<OwnedLimbBuffer> {
         if !matches!(self.mode(), Mode::Heap) {
             return None;
         }
         // SAFETY: Heap mode → heap active。
         let payload = unsafe { self.magnitude.heap };
-        self.meta = encode_zero_meta();
-        self.magnitude = Magnitude { limb1: 0 };
-        Some(OwnedLimbBuffer::from_payload(payload))
+        let heap_id = heap_id_for_limbs(payload.ptr);
+        match GcHeap::numeric_ownership_registered(heap_id, payload.ptr) {
+            Ok(athena_gc::NumericOwnership::RustOwned) => {
+                self.meta = encode_zero_meta();
+                self.magnitude = Magnitude { limb1: 0 };
+                Some(OwnedLimbBuffer::from_payload(payload))
+            }
+            _ => None,
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -417,12 +410,12 @@ impl Default for MagnitudePair {
 
 /// Owning clone of the physical pair.
 ///
-/// Limb1 / Limb2 are infallible copies. Heap `GcOwned` shares via [`NumericRoot`]（无 limb 分配）。
-/// Heap `RustOwned` allocates on the owner heap（Living `19`：应优先 `try_clone` / `try_clone_in`）。
+/// Limb1 / Limb2 are infallible stack copies. Heap 经同堆 `alloc_copy` 深复制（Living `19`：
+/// **不** adopt、**不** share root）。共享须走显式 API。
 ///
 /// # Panic
 ///
-/// Heap `RustOwned` clone panics if allocation fails. Session `GcOwned` 路径不分配 limb，不因此 panic。
+/// Heap 深复制分配失败时 panic。公共 / 热路径应优先 [`Self::try_clone`] / `try_clone_in`。
 impl Clone for MagnitudePair {
     fn clone(&self) -> Self {
         self.try_clone().unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"))

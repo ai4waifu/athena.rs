@@ -64,37 +64,6 @@ fn bump_ephemeral_clear_rewinds_without_drop_tax() {
 }
 
 #[test]
-fn ephemeral_natural_batch_lease_and_promote() {
-    use athena_numeric::EphemeralNatural;
-
-    let batch_heap = GcHeap::new_shared(HeapBudget::default());
-    let persist_heap = GcHeap::new_shared(HeapBudget::default());
-    let persist_ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), persist_heap.clone());
-    let mut h = batch_heap.borrow_mut();
-    let used0: usize = h.segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum();
-    let mut promoted = None;
-    h.with_numeric_batch(|batch| {
-        for _ in 0..16 {
-            let block = batch.allocate_limbs(4).expect("alloc");
-            let _ = block;
-        }
-        let n = EphemeralNatural::try_add(&[1, 2, 3, 4], &[5, 6, 7, 8], batch).expect("add");
-        assert!(!n.is_zero());
-        // promote 必须写到另一持久 heap；同 heap 会在 finish rewind 时被清掉。
-        promoted = Some(n.promote(&persist_ctx).expect("promote"));
-        drop(n);
-    })
-    .expect("batch");
-    let used1: usize = h.segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum();
-    assert_eq!(used1, used0, "batch rewind restores bump");
-    assert_eq!(h.accounting(), athena_gc::AllocationAccounting::Full);
-    assert!(!h.bump_ephemeral());
-    let p = promoted.expect("promoted");
-    assert_eq!(p.as_limbs(), &[6, 8, 10, 12]);
-    assert!(persist_heap.borrow().resident_bytes() > 0);
-}
-
-#[test]
 fn isolated_heap_not_shared_default() {
     let heap_a = GcHeap::new_shared(HeapBudget::default());
     let heap_b = GcHeap::new_shared(HeapBudget::default());
@@ -180,17 +149,21 @@ fn session_default_publishes_gc_owned_heap() {
 }
 
 #[test]
-fn session_gc_owned_clone_retains_without_alloc_panic() {
+fn session_gc_owned_try_clone_in_is_deep_copy() {
+    use athena_gc::NumericOwnership;
     use athena_numeric::natural::Natural;
+    use core::ptr::NonNull;
 
     let ctx = NumericContext::session_default();
     let n = Natural::from_limbs_in(&ctx, vec![9, 8, 7, 6]).expect("n");
-    let cloned = n.try_clone_in(&ctx).expect("clone");
+    let roots_before = ctx.heap().borrow().roots().numeric_len();
+    let cloned = n.try_clone_in(&ctx).expect("deep copy");
     assert_eq!(n.as_limbs(), cloned.as_limbs());
-    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 2);
-    // Second clone via Clone trait must also succeed (NumericRoot path, no limb alloc).
-    let _shared = n.clone();
-    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 3);
+    assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "Living 19: try_clone_in must deep-copy Heap");
+    // 深复制经 alloc_copy → RustOwned，不额外登记 root。
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), roots_before);
+    let cptr = NonNull::new(cloned.as_limbs().as_ptr() as *mut u64).expect("ptr");
+    assert_eq!(ctx.heap().borrow().numeric_ownership(cptr).expect("own"), NumericOwnership::RustOwned);
 }
 
 #[test]
