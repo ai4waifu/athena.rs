@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    EdgeId, MutableGraph, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, NodeId, SourceEdgeRef, SourceNodeRef,
+    EdgeId, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, MutableGraph, NodeId, SourceEdgeRef, SourceNodeRef,
     ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };
 
@@ -204,7 +204,8 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
     /// view 边 → base：两端均在保留集内时返回同一 `EdgeId`。
     pub fn map_edge_to_base(&self, edge: EdgeId) -> Result<Option<EdgeId>, GraphError> {
         self.ensure_fresh()?;
-        let Some((s, t)) = self.graph.edge_endpoints(edge) else {
+        let Some((s, t)) = self.graph.edge_endpoints(edge)
+        else {
             return Ok(None);
         };
         Ok((self.contains_unchecked(s) && self.contains_unchecked(t)).then_some(edge))
@@ -319,7 +320,8 @@ where
     /// 仅当谓词接受该边时映回 base。
     pub fn map_edge_to_base(&self, edge: EdgeId) -> Result<Option<EdgeId>, GraphError> {
         self.ensure_fresh()?;
-        let Some((s, t)) = self.graph.edge_endpoints(edge) else {
+        let Some((s, t)) = self.graph.edge_endpoints(edge)
+        else {
             return Ok(None);
         };
         Ok((self.predicate)(s, t, edge).then_some(edge))

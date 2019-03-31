@@ -36,9 +36,11 @@
 
 use std::cmp::Ordering;
 
-use super::convenience::{add_n, mul_1, sub_n};
-use super::gcd_binary::binary_gcd;
-use super::primitive::{cmp_slice, effective_len, is_zero, normalize_trim};
+use super::{
+    convenience::{add_n, mul_1, sub_n},
+    gcd_binary::binary_gcd,
+    primitive::{cmp_slice, effective_len, is_zero, normalize_trim},
+};
 
 const LEHMER_THRESHOLD: usize = 3;
 

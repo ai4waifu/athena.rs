@@ -36,16 +36,9 @@ impl ArrayLayout {
         let mut acc = 1i64;
         for (i, &d) in dims.iter().enumerate().rev() {
             strides[i] = acc;
-            acc = acc
-                .checked_mul(i64::try_from(d).map_err(|_| ArrayError::RangeOverflow)?)
-                .ok_or(ArrayError::RangeOverflow)?;
+            acc = acc.checked_mul(i64::try_from(d).map_err(|_| ArrayError::RangeOverflow)?).ok_or(ArrayError::RangeOverflow)?;
         }
-        Ok(Self {
-            shape,
-            strides,
-            item_size,
-            order: ArrayOrder::RowMajor,
-        })
+        Ok(Self { shape, strides, item_size, order: ArrayOrder::RowMajor })
     }
 
     /// 由 shape 生成紧凑 column-major strides。
@@ -58,16 +51,9 @@ impl ArrayLayout {
         let mut acc = 1i64;
         for (i, &d) in dims.iter().enumerate() {
             strides[i] = acc;
-            acc = acc
-                .checked_mul(i64::try_from(d).map_err(|_| ArrayError::RangeOverflow)?)
-                .ok_or(ArrayError::RangeOverflow)?;
+            acc = acc.checked_mul(i64::try_from(d).map_err(|_| ArrayError::RangeOverflow)?).ok_or(ArrayError::RangeOverflow)?;
         }
-        Ok(Self {
-            shape,
-            strides,
-            item_size,
-            order: ArrayOrder::ColumnMajor,
-        })
+        Ok(Self { shape, strides, item_size, order: ArrayOrder::ColumnMajor })
     }
 
     /// 校验 strides 长度与 shape 秩一致。
@@ -132,21 +118,13 @@ impl ArrayViewSpec {
     /// 恒等视图。
     pub fn identity(layout: &ArrayLayout, source_revision: u64) -> Result<Self, ArrayError> {
         layout.validate()?;
-        Ok(Self {
-            source_revision,
-            shape: layout.shape.clone(),
-            strides: layout.strides.clone(),
-            offset_elems: 0,
-        })
+        Ok(Self { source_revision, shape: layout.shape.clone(), strides: layout.strides.clone(), offset_elems: 0 })
     }
 
     /// 源 revision 变更时失败。
     pub fn ensure_fresh(&self, current_revision: u64) -> Result<(), ArrayError> {
         if self.source_revision != current_revision {
-            return Err(ArrayError::StaleView {
-                expected: self.source_revision,
-                actual: current_revision,
-            });
+            return Err(ArrayError::StaleView { expected: self.source_revision, actual: current_revision });
         }
         Ok(())
     }
@@ -173,38 +151,29 @@ impl BroadcastSpec {
         let mut left_scale = vec![0u64; rank];
         let mut right_scale = vec![0u64; rank];
         for i in 0..rank {
-            let li = if i < rank - ld.len() {
-                1
-            } else {
-                ld[i - (rank - ld.len())]
-            };
-            let ri = if i < rank - rd.len() {
-                1
-            } else {
-                rd[i - (rank - rd.len())]
-            };
+            let li = if i < rank - ld.len() { 1 } else { ld[i - (rank - ld.len())] };
+            let ri = if i < rank - rd.len() { 1 } else { rd[i - (rank - rd.len())] };
             let o = if li == ri {
                 left_scale[i] = 1;
                 right_scale[i] = 1;
                 li
-            } else if li == 1 {
+            }
+            else if li == 1 {
                 left_scale[i] = 0;
                 right_scale[i] = 1;
                 ri
-            } else if ri == 1 {
+            }
+            else if ri == 1 {
                 left_scale[i] = 1;
                 right_scale[i] = 0;
                 li
-            } else {
+            }
+            else {
                 return Err(ArrayError::BroadcastIncompatible);
             };
             out[i] = o;
         }
-        Ok(Self {
-            out_shape: LogicalShape::new(out)?,
-            left_stride_scale: left_scale,
-            right_stride_scale: right_scale,
-        })
+        Ok(Self { out_shape: LogicalShape::new(out)?, left_stride_scale: left_scale, right_stride_scale: right_scale })
     }
 
     /// 流式二元逐元素：按预算分块访问输出平坦下标，禁止整表物化。

@@ -48,10 +48,12 @@ use std::cmp::Ordering;
 
 use crate::algorithm::MUL_TOOM_THRESHOLD;
 
-use super::mul_karatsuba::mul_rec;
-use super::mul_schoolbook::addmul_1_inplace;
-use super::primitive::{adc, cmp_slice, effective_len, is_zero};
-use super::slice_ops::{add_assign_shifted, sub_assign_slices};
+use super::{
+    mul_karatsuba::mul_rec,
+    mul_schoolbook::addmul_1_inplace,
+    primitive::{adc, cmp_slice, effective_len, is_zero},
+    slice_ops::{add_assign_shifted, sub_assign_slices},
+};
 
 /// Toom-3（Bodrato）：五点求值 `0,1,-1,2,∞` + 插值；子乘积走 `mul_rec`（无 `Vec`）。
 /// Toom–3 multiplication by polynomial evaluation and interpolation.

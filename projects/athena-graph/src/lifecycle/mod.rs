@@ -22,7 +22,7 @@ pub use ids::{
 };
 pub use lease::{ChunkLeaseGuard, ChunkRegistry, GcRootToken, ResidentPinGuard};
 pub use publish::{
-    finish_on_heap, publication_attach_chunks, publish_immutable_graph, GraphPublication, PublishedImmutableGraph,
+    GraphPublication, PublishedImmutableGraph, finish_on_heap, publication_attach_chunks, publish_immutable_graph,
 };
 pub use residency::ChunkResidency;
 pub use trace_records::{

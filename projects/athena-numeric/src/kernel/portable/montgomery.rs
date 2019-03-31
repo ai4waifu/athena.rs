@@ -37,9 +37,11 @@
 
 use std::cmp::Ordering;
 
-use super::convenience::{div_rem, mul, sub_n};
-use super::mul_schoolbook::addmul_1_inplace;
-use super::primitive::{cmp_slice, effective_len, is_one, is_zero, normalize_trim};
+use super::{
+    convenience::{div_rem, mul, sub_n},
+    mul_schoolbook::addmul_1_inplace,
+    primitive::{cmp_slice, effective_len, is_one, is_zero, normalize_trim},
+};
 
 const MONTGOMERY_THRESHOLD: usize = 2;
 

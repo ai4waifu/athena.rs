@@ -1,7 +1,9 @@
 //! 内存图 L0 原语合同测试（经 `primitives`，非领域 claim）。
 
-use athena_graph::primitives::{connected_components, topological_sort};
-use athena_graph::{GraphBuilder, GraphDirection, GraphSemantics, ImmutableGraph, bfs_order};
+use athena_graph::{
+    GraphBuilder, GraphDirection, GraphSemantics, ImmutableGraph, bfs_order,
+    primitives::{connected_components, topological_sort},
+};
 
 fn build(direction: GraphDirection, f: impl FnOnce(&mut athena_graph::MutableGraph<(), ()>)) -> ImmutableGraph<(), ()> {
     let mut b = GraphBuilder::<(), ()>::new(GraphSemantics::from_direction(direction));

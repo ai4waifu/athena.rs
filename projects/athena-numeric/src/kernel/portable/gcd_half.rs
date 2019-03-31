@@ -43,9 +43,11 @@
 
 use std::cmp::Ordering;
 
-use super::convenience::{add_n, div_rem, mul_1, sub_n};
-use super::gcd_lehmer::gcd as lehmer_gcd;
-use super::primitive::{cmp_slice, effective_len, is_zero, normalize_trim};
+use super::{
+    convenience::{add_n, div_rem, mul_1, sub_n},
+    gcd_lehmer::gcd as lehmer_gcd,
+    primitive::{cmp_slice, effective_len, is_zero, normalize_trim},
+};
 
 /// Match planner threshold (`GCD_LEHMER_THRESHOLD * 4`).
 const HALF_GCD_THRESHOLD: usize = 12;
@@ -162,10 +164,12 @@ fn hgcd_lehmer_block(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
         return false;
     }
 
-    let Some(na_new) = lincomb_signed(x0, a, x1, b) else {
+    let Some(na_new) = lincomb_signed(x0, a, x1, b)
+    else {
         return false;
     };
-    let Some(nb_new) = lincomb_signed(y0, a, y1, b) else {
+    let Some(nb_new) = lincomb_signed(y0, a, y1, b)
+    else {
         return false;
     };
     if is_zero(&nb_new) {
@@ -188,14 +192,7 @@ fn hgcd_lehmer_block(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
 /// $|c_0|·v_0 \pm |c_1|·v_1$ as a non-negative magnitude (signs choose add/sub).
 fn lincomb_signed(c0: i64, v0: &[u64], c1: i64, v1: &[u64]) -> Option<Vec<u64>> {
     let zero = || vec![0u64];
-    let mag = |c: i64, v: &[u64]| -> Vec<u64> {
-        if c == 0 {
-            zero()
-        }
-        else {
-            mul_1(v, c.unsigned_abs())
-        }
-    };
+    let mag = |c: i64, v: &[u64]| -> Vec<u64> { if c == 0 { zero() } else { mul_1(v, c.unsigned_abs()) } };
     let t0 = mag(c0, v0);
     let t1 = mag(c1, v1);
     let s0 = c0 >= 0;

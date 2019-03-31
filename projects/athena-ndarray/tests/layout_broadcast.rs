@@ -1,8 +1,6 @@
 //! Layout / view / broadcast 合同。
 
-use athena_ndarray::{
-    ArrayError, ArrayLayout, ArrayViewSpec, Axis, BroadcastSpec, LogicalShape, MemoryBudget, permute_axes,
-};
+use athena_ndarray::{ArrayError, ArrayLayout, ArrayViewSpec, Axis, BroadcastSpec, LogicalShape, MemoryBudget, permute_axes};
 
 #[test]
 fn row_major_strides_and_offsets() {
@@ -18,10 +16,7 @@ fn view_stale_on_revision_bump() {
     let layout = ArrayLayout::row_major(shape, 8).unwrap();
     let view = ArrayViewSpec::identity(&layout, 1).unwrap();
     assert!(view.ensure_fresh(1).is_ok());
-    assert!(matches!(
-        view.ensure_fresh(2),
-        Err(ArrayError::StaleView { expected: 1, actual: 2 })
-    ));
+    assert!(matches!(view.ensure_fresh(2), Err(ArrayError::StaleView { expected: 1, actual: 2 })));
 }
 
 #[test]
@@ -40,10 +35,7 @@ fn broadcast_align_and_chunked_eval() {
 fn broadcast_rejects_incompatible() {
     let a = LogicalShape::new([3, 2]).unwrap();
     let b = LogicalShape::new([3, 4]).unwrap();
-    assert!(matches!(
-        BroadcastSpec::align(&a, &b),
-        Err(ArrayError::BroadcastIncompatible)
-    ));
+    assert!(matches!(BroadcastSpec::align(&a, &b), Err(ArrayError::BroadcastIncompatible)));
 }
 
 #[test]

@@ -2,15 +2,16 @@
 
 use athena_types::Result;
 
-use crate::algorithm::AlgorithmPlanner;
-use crate::dispatch::CapabilityBundle;
-use crate::kernel::LimbBuffer;
-use crate::policy::execution_budget::ExecutionBudget;
+use crate::{
+    algorithm::AlgorithmPlanner, dispatch::CapabilityBundle, kernel::LimbBuffer, policy::execution_budget::ExecutionBudget,
+};
 
-use super::glue::{LimbKernel, PortableLimbKernel};
-use super::mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, sqr_schoolbook_into};
-use super::primitive::{effective_len, is_zero, normalize_trim};
-use super::scratch_tls::with_kernel_scratch;
+use super::{
+    glue::{LimbKernel, PortableLimbKernel},
+    mul_schoolbook::{addmul_1_inplace, mul_schoolbook_into, sqr_schoolbook_into},
+    primitive::{effective_len, is_zero, normalize_trim},
+    scratch_tls::with_kernel_scratch,
+};
 
 fn default_planner() -> AlgorithmPlanner {
     AlgorithmPlanner::new(CapabilityBundle::portable_default())

@@ -7,8 +7,6 @@ mod case;
 mod operands;
 mod runner;
 
-pub use case::{
-    BITS, BenchCase, BenchLayer, BigIntOp, ContextPolicy, Implementation, all_cases, cases_for_op,
-};
+pub use case::{BITS, BenchCase, BenchLayer, BigIntOp, ContextPolicy, Implementation, all_cases, cases_for_op};
 pub use operands::{OperandStrings, PowExp, operand_strings, pow_exp};
 pub use runner::{BigIntPrepared, prepare, prepare_all};

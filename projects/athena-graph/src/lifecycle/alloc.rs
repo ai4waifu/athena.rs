@@ -2,9 +2,7 @@
 
 use athena_gc::{GcError, GcHeap, Result as GcResult};
 
-use super::ids::{
-    GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphViewId, GraphWorkspaceId, SpillObjectId,
-};
+use super::ids::{GraphChunkId, GraphRevisionId, GraphSnapshotId, GraphViewId, GraphWorkspaceId, SpillObjectId};
 
 fn alloc_object_id(heap: &mut GcHeap) -> GcResult<athena_gc::GcObjectId> {
     // 8 字节占位 payload：身份槽，领域元数据在 Trace 记录侧。

@@ -2,8 +2,7 @@
 
 use std::cell::RefCell;
 
-use crate::kernel::ScratchWorkspace;
-use crate::policy::execution_budget::ExecutionBudget;
+use crate::{kernel::ScratchWorkspace, policy::execution_budget::ExecutionBudget};
 
 thread_local! {
     static KERNEL_SCRATCH: RefCell<ScratchWorkspace> = RefCell::new(ScratchWorkspace::default());

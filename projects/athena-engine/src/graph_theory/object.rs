@@ -166,7 +166,11 @@ impl GraphObject {
     /// 从边列表构造（节点 id 须从 0 连续或稀疏，由 `node_count` 指定上界）。
     ///
     /// 经 [`GraphBuilder`] 物化以得到真实 revision，并写入 [`GraphSnapshot`]。
-    pub fn from_edges(handle: GraphHandle, semantics: GraphDomainSemantics, edges: Vec<(GraphNodeId, GraphNodeId, u64)>) -> Self {
+    pub fn from_edges(
+        handle: GraphHandle,
+        semantics: GraphDomainSemantics,
+        edges: Vec<(GraphNodeId, GraphNodeId, u64)>,
+    ) -> Self {
         let memory = MemoryGraph { semantics, edges };
         let frozen = {
             let mut builder = GraphBuilder::with_id(handle.graph_id(), semantics.to_structural());

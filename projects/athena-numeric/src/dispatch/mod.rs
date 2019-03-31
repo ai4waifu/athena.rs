@@ -7,8 +7,8 @@ mod backend;
 mod capability;
 mod executor;
 
-pub use backend::PortableBackend;
 pub(crate) use backend::PORTABLE_WIRE_PAYLOAD_LIMIT_BYTES;
+pub use backend::PortableBackend;
 pub use capability::{AlgorithmCapability, CapabilityBundle, MachineCapability, ResourceCapability};
 pub use executor::NumericExecutor;
 

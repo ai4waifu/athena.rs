@@ -3,8 +3,7 @@
 use athena_gc::{GcHeap, GraphDomainBlock, HeapId, RootKind, RootToken, SegmentKind, with_registered_heap};
 use athena_ndarray::{ArrayError, ArrayStorage, StorageCapabilities};
 
-use crate::lifecycle::GraphChunkId;
-use crate::GraphError;
+use crate::{GraphError, lifecycle::GraphChunkId};
 
 fn map_gc_read(err: athena_gc::GcError) -> ArrayError {
     let _ = err;
@@ -26,42 +25,23 @@ pub struct GcPayloadStorage {
 
 impl GcPayloadStorage {
     /// 在 GraphIndex 域分配并拷入 `values`。
-    pub fn allocate_index(
-        heap: &mut GcHeap,
-        values: &[u64],
-        chunk_id: GraphChunkId,
-    ) -> Result<Self, GraphError> {
+    pub fn allocate_index(heap: &mut GcHeap, values: &[u64], chunk_id: GraphChunkId) -> Result<Self, GraphError> {
         Self::allocate(heap, values, chunk_id, SegmentKind::GraphIndex)
     }
 
     /// 在 GraphProperty 域分配并拷入 `values`。
-    pub fn allocate_property(
-        heap: &mut GcHeap,
-        values: &[u64],
-        chunk_id: GraphChunkId,
-    ) -> Result<Self, GraphError> {
+    pub fn allocate_property(heap: &mut GcHeap, values: &[u64], chunk_id: GraphChunkId) -> Result<Self, GraphError> {
         Self::allocate(heap, values, chunk_id, SegmentKind::GraphProperty)
     }
 
-    fn allocate(
-        heap: &mut GcHeap,
-        values: &[u64],
-        chunk_id: GraphChunkId,
-        kind: SegmentKind,
-    ) -> Result<Self, GraphError> {
+    fn allocate(heap: &mut GcHeap, values: &[u64], chunk_id: GraphChunkId, kind: SegmentKind) -> Result<Self, GraphError> {
         let block = match kind {
             SegmentKind::GraphIndex => heap.allocate_graph_index_u64s(values).map_err(GraphError::from)?,
             SegmentKind::GraphProperty => heap.allocate_graph_property_u64s(values).map_err(GraphError::from)?,
             _ => return Err(GraphError::Gc(athena_gc::GcError::InvalidCapacity)),
         };
         let payload_root = heap.roots_mut().register_numeric(block.ptr, RootKind::Graph);
-        Ok(Self {
-            heap_id: heap.id(),
-            block,
-            len: values.len() as u64,
-            payload_root,
-            chunk_id,
-        })
+        Ok(Self { heap_id: heap.id(), block, len: values.len() as u64, payload_root, chunk_id })
     }
 
     /// Lifecycle chunk 身份。
@@ -107,12 +87,7 @@ impl ArrayStorage<u64> for GcPayloadStorage {
     }
 
     fn capabilities(&self) -> StorageCapabilities {
-        StorageCapabilities {
-            writable: true,
-            random_read: true,
-            sequential_read: true,
-            persistent: false,
-        }
+        StorageCapabilities { writable: true, random_read: true, sequential_read: true, persistent: false }
     }
 
     fn read_range(&self, offset: u64, len: usize) -> Result<Vec<u64>, Self::Error> {

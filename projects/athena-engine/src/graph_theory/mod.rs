@@ -13,7 +13,7 @@ mod request;
 mod result;
 
 pub use athena_graph::{GraphId, GraphRevision, GraphSnapshot, RepresentationId};
-pub use lifecycle::{bind_algorithm_checkpoint, resume_from_algorithm_checkpoint, GraphResidencyController};
+pub use lifecycle::{GraphResidencyController, bind_algorithm_checkpoint, resume_from_algorithm_checkpoint};
 pub use object::{
     GraphAssumptions, GraphDomainSemantics, GraphHandle, GraphNodeId, GraphObject, GraphPresentation, GraphProvenance,
     MemoryGraph, WeightDomain,

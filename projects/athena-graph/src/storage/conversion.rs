@@ -3,12 +3,14 @@
 use athena_gc::GcHeap;
 use athena_ndarray::{ArrayStorage, ChunkedArray, InMemoryStorage, LogicalShape, MemoryBudget};
 
-use crate::lifecycle::{
-    allocate_chunk_id, finish_on_heap, publication_attach_chunks, ChunkRegistry, ChunkSet, GraphPublication,
-    PublishedImmutableGraph,
+use crate::{
+    CscGraph, CsrGraph, EdgeId, GraphDirection, GraphError, MutableGraph, NodeId,
+    lifecycle::{
+        ChunkRegistry, ChunkSet, GraphPublication, PublishedImmutableGraph, allocate_chunk_id, finish_on_heap,
+        publication_attach_chunks,
+    },
+    storage::gc_payload::GcPayloadStorage,
 };
-use crate::storage::gc_payload::GcPayloadStorage;
-use crate::{CscGraph, CsrGraph, EdgeId, GraphDirection, GraphError, MutableGraph, NodeId};
 
 /// CSR 物化结果（offsets / indices 在 GraphIndex segment）+ 登记的 [`ChunkSet`]。
 #[derive(Debug)]

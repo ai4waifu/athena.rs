@@ -14,10 +14,7 @@ use athena_benchmark::{
 use clap::Parser;
 
 #[derive(Debug, Parser)]
-#[command(
-    name = "athena-bench",
-    about = "Athena 合同 / 资源 runner（校验 + GC/arena 采样；ns/op 见 Criterion）"
-)]
+#[command(name = "athena-bench", about = "Athena 合同 / 资源 runner（校验 + GC/arena 采样；ns/op 见 Criterion）")]
 struct Args {
     /// 逗号分隔分组：numeric,bigint,path,ir,rewriter,engine,domains,jit,infra（默认全部）
     #[arg(long, value_delimiter = ',')]
@@ -69,11 +66,7 @@ fn main() -> ExitCode {
 
     let format = if args.json { "json" } else { args.format.as_str() };
 
-    let config = RunConfig {
-        groups: groups.clone(),
-        smoke_iters: args.smoke_iters,
-        report_tier,
-    };
+    let config = RunConfig { groups: groups.clone(), smoke_iters: args.smoke_iters, report_tier };
 
     let want_bigint = groups.is_empty() || groups.iter().any(|g| *g == BenchGroup::Bigint);
     let suite = if want_bigint { suite_with_bigint() } else { default_suite() };
@@ -118,11 +111,7 @@ fn main() -> ExitCode {
                         println!("  note: no ns/op here — use Criterion (`cargo bench`) for performance");
                         for f in &report.fixtures {
                             if f.skipped {
-                                println!(
-                                    "  SKIP  {:<40}  ({})",
-                                    f.id,
-                                    f.fallback_reason.as_deref().unwrap_or("skipped")
-                                );
+                                println!("  SKIP  {:<40}  ({})", f.id, f.fallback_reason.as_deref().unwrap_or("skipped"));
                                 continue;
                             }
                             let status = if f.validation.ok { "OK" } else { "FAIL" };

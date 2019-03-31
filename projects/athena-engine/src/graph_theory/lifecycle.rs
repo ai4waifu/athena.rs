@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 
 use athena_gc::GcHeap;
 use athena_graph::{
-    allocate_spill_id, allocate_workspace_id, ChunkRegistry, ChunkResidency, FrontierCheckpoint, GraphAlgorithmCheckpoint,
-    GraphError, GraphPublication, GraphWorkspaceId, SpillObjectId,
+    ChunkRegistry, ChunkResidency, FrontierCheckpoint, GraphAlgorithmCheckpoint, GraphError, GraphPublication,
+    GraphWorkspaceId, SpillObjectId, allocate_spill_id, allocate_workspace_id,
 };
 
 /// 图 chunk 驻留 / spill 策略控制器。
@@ -27,10 +27,7 @@ impl Default for GraphResidencyController {
 impl GraphResidencyController {
     /// 构造；`max_resident_chunks == 0` 视为 1。
     pub fn new(max_resident_chunks: usize) -> Self {
-        Self {
-            max_resident_chunks: max_resident_chunks.max(1),
-            lru: VecDeque::new(),
-        }
+        Self { max_resident_chunks: max_resident_chunks.max(1), lru: VecDeque::new() }
     }
 
     /// 记录一次访问（lease / 算法读路径调用）。
@@ -58,7 +55,8 @@ impl GraphResidencyController {
             if resident <= self.max_resident_chunks {
                 break;
             }
-            let Some(victim) = self.pop_evictable(registry) else {
+            let Some(victim) = self.pop_evictable(registry)
+            else {
                 break;
             };
             if registry.get(victim).map(|m| m.pin_count > 0).unwrap_or(true) {
@@ -80,10 +78,7 @@ impl GraphResidencyController {
         registry: &mut ChunkRegistry,
         chunk: athena_graph::GraphChunkId,
     ) -> Result<(), GraphError> {
-        let residency = registry
-            .get(chunk)
-            .map(|m| m.residency)
-            .ok_or(GraphError::UnknownChunk { chunk })?;
+        let residency = registry.get(chunk).map(|m| m.residency).ok_or(GraphError::UnknownChunk { chunk })?;
         if residency == ChunkResidency::Spilled || residency == ChunkResidency::Evictable {
             registry.materialize(chunk)?;
         }
@@ -106,10 +101,12 @@ impl GraphResidencyController {
     fn pop_evictable(&mut self, registry: &ChunkRegistry) -> Option<athena_graph::GraphChunkId> {
         let mut skipped = VecDeque::new();
         let victim = loop {
-            let Some(id) = self.lru.pop_front() else {
+            let Some(id) = self.lru.pop_front()
+            else {
                 break None;
             };
-            let Some(meta) = registry.get(id) else {
+            let Some(meta) = registry.get(id)
+            else {
                 continue;
             };
             if matches!(meta.residency, ChunkResidency::Resident | ChunkResidency::Mapped) && meta.pin_count == 0 {

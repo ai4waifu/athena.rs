@@ -25,20 +25,20 @@ pub use identity::{
     SelfLoopDegree, SourceEdgeRef, SourceNodeRef, ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };
 pub use lifecycle::{
-    allocate_chunk_id, allocate_revision_id, allocate_snapshot_id, allocate_spill_id, allocate_view_id, allocate_workspace_id,
-    finish_on_heap, publication_attach_chunks, publish_immutable_graph, ChunkLeaseGuard, ChunkMeta, ChunkRegistry,
-    ChunkResidency, ChunkSet, GcRootToken, GraphAlgorithmCheckpoint, GraphChunkId, GraphChunkRecord, GraphPublication,
-    GraphRevisionId, GraphRevisionRecord, GraphSnapshotId, GraphSnapshotRecord, GraphViewId, GraphViewRecord,
-    GraphWorkspaceId, GraphWorkspaceRecord, GraphTraceIndex, PublishedImmutableGraph, RecordingTracer, ResidentPinGuard,
-    SpillObjectId,
+    ChunkLeaseGuard, ChunkMeta, ChunkRegistry, ChunkResidency, ChunkSet, GcRootToken, GraphAlgorithmCheckpoint, GraphChunkId,
+    GraphChunkRecord, GraphPublication, GraphRevisionId, GraphRevisionRecord, GraphSnapshotId, GraphSnapshotRecord,
+    GraphTraceIndex, GraphViewId, GraphViewRecord, GraphWorkspaceId, GraphWorkspaceRecord, PublishedImmutableGraph,
+    RecordingTracer, ResidentPinGuard, SpillObjectId, allocate_chunk_id, allocate_revision_id, allocate_snapshot_id,
+    allocate_spill_id, allocate_view_id, allocate_workspace_id, finish_on_heap, publication_attach_chunks,
+    publish_immutable_graph,
 };
 pub use primitives::{
     CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, UnionFind, bfs_order, deterministic_bfs,
     resume_deterministic_bfs, sort_neighbors_deterministic,
 };
 pub use storage::{
-    attach_csr_chunks, csr_to_csc, edge_list_to_csr, finish_csr_on_heap, graph_edge_list, graph_to_csr, graph_to_csr_on_heap,
-    CscGraph, CsrGraph, CsrOnHeap, DerivedCsc, GcDenseU64Column, GcPayloadStorage, GraphAlgorithmRequirements, GraphCapabilities,
-    PropertyCell, PropertyColumn, PropertyStore, WeightColumn, WeightDomainTag,
+    CscGraph, CsrGraph, CsrOnHeap, DerivedCsc, GcDenseU64Column, GcPayloadStorage, GraphAlgorithmRequirements,
+    GraphCapabilities, PropertyCell, PropertyColumn, PropertyStore, WeightColumn, WeightDomainTag, attach_csr_chunks,
+    csr_to_csc, edge_list_to_csr, finish_csr_on_heap, graph_edge_list, graph_to_csr, graph_to_csr_on_heap,
 };
 pub use views::{EdgeFilteredView, InducedSubgraphView, ReversedGraphView};
