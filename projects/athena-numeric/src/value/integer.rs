@@ -4,7 +4,10 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use std::{cmp::Ordering, str::FromStr};
 
 use crate::{
-    dispatch::NumericExecutor, execution_budget::NumericContext, kernel::limb as limb_kernel, natural::Natural,
+    dispatch::NumericExecutor,
+    execution_budget::NumericContext,
+    kernel::limb as limb_kernel,
+    natural::Natural,
     storage::{MagnitudePair, gc_alloc_error},
 };
 
@@ -595,11 +598,13 @@ impl Integer {
     }
 
     /// 十进制调试字符串（非本地化用户文案）。
+    ///
+    /// Living `19`：只借 `as_limbs()`，不经 [`Self::abs_natural`] / `Clone`。
     pub fn to_decimal_string(&self) -> String {
         match self.sign() {
             Sign::Zero => "0".to_string(),
-            Sign::Positive => self.abs_natural().to_decimal_string(),
-            Sign::Negative => format!("-{}", self.abs_natural().to_decimal_string()),
+            Sign::Positive => Natural::decimal_from_limbs(self.as_limbs()),
+            Sign::Negative => format!("-{}", Natural::decimal_from_limbs(self.as_limbs())),
         }
     }
 
