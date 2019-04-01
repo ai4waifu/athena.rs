@@ -13,7 +13,7 @@ fn linear_unique_class() {
     let out = solve_linear_congruence(&3.into(), &4.into(), &m);
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass { residue }) } => {
-            assert_eq!(residue.residue(), &Integer::from_i64(3));
+            assert_eq!(residue.residue(), Integer::from_i64(3));
             assert_eq!(residue.modulus(), Some(&m));
         }
         other => panic!("unique: {other:?}"),
@@ -36,7 +36,7 @@ fn linear_multiple_classes() {
                 }),
         } => {
             assert_eq!(base_residue, Integer::from_i64(2));
-            assert_eq!(reduced_modulus.value(), &Integer::from_i64(3));
+            assert_eq!(reduced_modulus.value(), Integer::from_i64(3));
             assert_eq!(ambient_modulus, m);
             assert_eq!(multiplicity, Integer::from_i64(2));
         }
@@ -64,8 +64,8 @@ fn crt_coprime() {
     let m5 = Modulus::new(5).unwrap();
     match chinese_remainder_pair(&2.into(), &m3, &3.into(), &m5).unwrap() {
         CrtResult::Consistent { solution, modulus_lcm } => {
-            assert_eq!(solution.residue(), &Integer::from_i64(8));
-            assert_eq!(modulus_lcm.value(), &Integer::from_i64(15));
+            assert_eq!(solution.residue(), Integer::from_i64(8));
+            assert_eq!(modulus_lcm.value(), Integer::from_i64(15));
         }
         other => panic!("{other:?}"),
     }
@@ -78,7 +78,7 @@ fn crt_non_coprime_consistent() {
     let m6 = Modulus::new(6).unwrap();
     match chinese_remainder_pair(&2.into(), &m4, &6.into(), &m6).unwrap() {
         CrtResult::Consistent { solution, modulus_lcm } => {
-            assert_eq!(modulus_lcm.value(), &Integer::from_i64(12));
+            assert_eq!(modulus_lcm.value(), Integer::from_i64(12));
             assert_eq!(solution.residue().rem(&Integer::from_i64(4)).expect("rem"), Integer::from_i64(2));
             assert_eq!(solution.residue().rem(&Integer::from_i64(6)).expect("rem"), Integer::from_i64(0)); // 6 mod 6 = 0, wait 6≡0
         }
@@ -105,8 +105,8 @@ fn crt_multi_via_request() {
     );
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }) } => {
-            assert_eq!(modulus_lcm.value(), &Integer::from_i64(105));
-            assert_eq!(solution.residue(), &Integer::from_i64(23)); // classic
+            assert_eq!(modulus_lcm.value(), Integer::from_i64(105));
+            assert_eq!(solution.residue(), Integer::from_i64(23)); // classic
         }
         other => panic!("{other:?}"),
     }

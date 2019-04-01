@@ -15,7 +15,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
     let nv = n.value();
     let a_red = m.reduce(a);
     let b_red = n.reduce(b);
-    let eg = extended_gcd(mv, nv);
+    let eg = extended_gcd(&mv, &nv);
     let g = eg.g;
     let diff = a_red.sub(&b_red);
     let mut diff_mod_g = diff.rem(&g).expect("rem");
@@ -42,7 +42,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
         t = t.add(&n_g);
     }
     let x = a_red.add(&mv.mul(&t));
-    let l = lcm(mv, nv);
+    let l = lcm(&mv, &nv);
     let modulus_lcm = Modulus::new(l)?;
     Ok(CrtResult::Consistent { solution: ModularValue::new(x, modulus_lcm.clone()), modulus_lcm })
 }

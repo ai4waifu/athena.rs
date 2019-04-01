@@ -14,7 +14,7 @@ pub fn rational_reconstruction(
     max_denominator: Option<&Integer>,
 ) -> RationalReconstruction {
     let m = modulus.value();
-    if !(m > &Integer::one()) {
+    if !(m > Integer::one()) {
         return RationalReconstruction::NotFound { reason: RationalReconstructionFailure::InvalidBounds };
     }
 

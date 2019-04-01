@@ -12,7 +12,7 @@ pub fn mod_inverse(a: &Integer, modulus: &Modulus) -> Result<ModularValue> {
     if aa.is_zero() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).detail("residue", "0"));
     }
-    let eg = extended_gcd(&aa, m);
+    let eg = extended_gcd(&aa, &m);
     if !eg.g.is_one() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing)
             .arg("gcd", eg.g.to_decimal_string())
@@ -29,7 +29,7 @@ pub fn mod_inverse_with_table(a: &Integer, modulus: &Modulus, table: &mut Modulu
     if aa.is_zero() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).detail("residue", "0"));
     }
-    let eg = extended_gcd(&aa, modulus.value());
+    let eg = extended_gcd(&aa, &modulus.value());
     if !eg.g.is_one() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).arg("gcd", eg.g.to_decimal_string()));
     }
@@ -41,11 +41,13 @@ pub fn mod_pow(base: &Integer, exp: &Integer, modulus: &Modulus) -> Result<Modul
     if exp.is_negative() {
         let inv = mod_inverse(base, modulus)?;
         let pos = exp.neg();
-        let r = inv.residue().mod_pow(&pos, modulus.value()).expect("mod_pow");
+        let mv = modulus.value();
+        let r = inv.residue().mod_pow(&pos, &mv).expect("mod_pow");
         return Ok(ModularValue::new(r, modulus.clone()));
     }
     let b = modulus.reduce(base);
-    let r = b.mod_pow(exp, modulus.value()).expect("mod_pow");
+    let mv = modulus.value();
+    let r = b.mod_pow(exp, &mv).expect("mod_pow");
     Ok(ModularValue::new(r, modulus.clone()))
 }
 
@@ -55,7 +57,8 @@ pub fn mod_pow_with_table(base: &Integer, exp: &Integer, modulus: &Modulus, tabl
     if exp.is_negative() {
         let inv = mod_inverse_with_table(base, modulus, table)?;
         let pos = exp.neg();
-        let r = table.get(id).expect("just interned").mod_pow(inv.residue(), &pos);
+        let base_res = inv.residue();
+        let r = table.get(id).expect("just interned").mod_pow(&base_res, &pos);
         return Ok(ModularValue::new_interned(r, id));
     }
     let r = table.get(id).expect("just interned").mod_pow(base, exp);

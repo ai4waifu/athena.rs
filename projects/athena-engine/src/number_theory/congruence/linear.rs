@@ -12,7 +12,7 @@ use super::super::{
 /// 求解 `a x ≡ b (mod m)`。`m` 须为已验证 [`Modulus`]。
 pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> NumberTheoryResult {
     let m = modulus.value();
-    let eg = extended_gcd(a, m);
+    let eg = extended_gcd(a, &m);
     let g = eg.g;
     let b_mod_g = {
         let mut r = b.rem(&g).expect("rem");

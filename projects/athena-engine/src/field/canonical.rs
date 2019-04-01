@@ -154,7 +154,7 @@ pub fn apply_field_embedding(
             let numer = value.numerator();
             let denom = value.denominator();
             let inv = crate::number_theory::mod_inverse(&denom, &modulus)?;
-            let residue = modulus.reduce(&numer.mul(inv.residue()));
+            let residue = modulus.reduce(&numer.mul(&inv.residue()));
             canonical_prime_residue(table, target, residue)
         }
         _ => Err(field_element_invalid("embedding_source_not_rational")),
