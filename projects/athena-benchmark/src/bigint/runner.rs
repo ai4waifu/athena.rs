@@ -1,9 +1,9 @@
 //! 统一运行器：按 layer / context_policy 执行单次操作。
 
-use std::{hint::black_box, str::FromStr};
+use std::hint::black_box;
 
 use athena_gc::HeapBudget;
-use athena_numeric::{Integer, NumericContext, natural::Natural, number_from_wire};
+use athena_numeric::{EphemeralInteger, EphemeralNatural, Integer, NumericContext, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;
 
 use super::{
@@ -15,6 +15,8 @@ use super::{
 pub struct BigIntPrepared {
     case: BenchCase,
     ctx: Option<NumericContext>,
+    /// Numeric `Add`/`Mul` 校验 promote 目标（与 batch heap **不同**）。
+    persist_ctx: Option<NumericContext>,
     athena_int: Option<AthenaIntOps>,
     athena_nat: Option<AthenaNatOps>,
     #[cfg(feature = "compare-num-bigint")]
@@ -91,7 +93,15 @@ impl BigIntPrepared {
                 BenchLayer::Kernel => {
                     let _ = black_box(self.run_athena_kernel());
                 }
-                BenchLayer::Numeric | BenchLayer::E2e => {
+                BenchLayer::Numeric => match self.case.operation {
+                    BigIntOp::Add | BigIntOp::Mul => {
+                        let _ = black_box(self.run_numeric_ephemeral_promote());
+                    }
+                    _ => {
+                        let _ = black_box(self.run_athena_integer());
+                    }
+                },
+                BenchLayer::E2e => {
                     let _ = black_box(self.run_athena_integer());
                 }
                 BenchLayer::Peer => unreachable!("athena is not peer"),
@@ -113,21 +123,34 @@ impl BigIntPrepared {
         }
     }
 
-    /// Criterion 批跑：session heap 上 bump+clear，避免每 op freelist/TLS Drop 税。
+    /// Criterion 批跑。
     ///
-    /// `e2e` / peer 无 session heap 时退化为普通循环（测真实 Drop / 分配）。
+    /// - **Numeric `Add`/`Mul`**：单个 [`athena_gc::NumericBatch`] + `Ephemeral*`（不 promote）。
+    /// - **Kernel** 与 Numeric 其余 op：热路径内临时 `bump_ephemeral` + mark/clear（操作数在 prepare 时 Full 发布，避免 Drop UAF）。
+    /// - **e2e** / peer：真实 owning / Drop 路径。
     pub fn run_timed_batch(&self, iters: u64) -> std::time::Duration {
         use std::time::Instant;
+        if self.case.implementation == Implementation::Athena
+            && self.case.layer == BenchLayer::Numeric
+            && matches!(self.case.operation, BigIntOp::Add | BigIntOp::Mul)
+        {
+            return self.run_numeric_ephemeral_timed(iters);
+        }
         if let Some(ctx) = self.ctx.as_ref() {
             let heap = ctx.heap().clone();
-            debug_assert!(heap.borrow().bump_ephemeral());
-            let mark = heap.borrow().mark_numeric_bump();
+            let mark = {
+                let mut h = heap.borrow_mut();
+                h.enable_bump_ephemeral(true);
+                h.mark_numeric_bump()
+            };
             let start = Instant::now();
             for _ in 0..iters {
                 self.run_once();
             }
             let elapsed = start.elapsed();
-            heap.borrow_mut().clear_numeric_to(mark).expect("bump clear");
+            let mut h = heap.borrow_mut();
+            h.clear_numeric_to(mark).expect("bump clear");
+            h.enable_bump_ephemeral(false);
             elapsed
         }
         else {
@@ -139,11 +162,82 @@ impl BigIntPrepared {
         }
     }
 
+    /// Numeric `Add`/`Mul`：整批一个 `NumericBatch`，临时结果不 promote。
+    fn run_numeric_ephemeral_timed(&self, iters: u64) -> std::time::Duration {
+        use std::time::Instant;
+        let ops = self.athena_int.as_ref().expect("athena int ops");
+        let a_limbs = ops.a.as_limbs();
+        let b_limbs = ops.b.as_limbs();
+        let a_neg = ops.a.is_negative();
+        let b_neg = ops.b.is_negative();
+        let heap = self.ctx.as_ref().expect("numeric ctx").heap();
+        let mut h = heap.borrow_mut();
+        let start = Instant::now();
+        h.with_numeric_batch(|batch| {
+            for _ in 0..iters {
+                match self.case.operation {
+                    BigIntOp::Add => {
+                        let e = EphemeralInteger::try_add(a_limbs, a_neg, b_limbs, b_neg, batch).expect("ephemeral add");
+                        black_box(e.as_limbs());
+                        drop(e);
+                    }
+                    BigIntOp::Mul => {
+                        let e = EphemeralNatural::try_mul_schoolbook(a_limbs, b_limbs, batch).expect("ephemeral mul");
+                        black_box(e.as_limbs());
+                        drop(e);
+                    }
+                    _ => unreachable!("ephemeral timed only Add/Mul"),
+                }
+            }
+        })
+        .expect("numeric batch");
+        start.elapsed()
+    }
+
+    /// Numeric `Add`/`Mul`：batch 内算完后 promote 到 `persist_ctx`（校验 / 单次路径）。
+    fn run_numeric_ephemeral_promote(&self) -> Integer {
+        let ops = self.athena_int.as_ref().expect("athena int ops");
+        let persist = self.persist_ctx.as_ref().expect("persist ctx");
+        let heap = self.ctx.as_ref().expect("numeric ctx").heap();
+        let mut out: Option<Integer> = None;
+        heap.borrow_mut()
+            .with_numeric_batch(|batch| match self.case.operation {
+                BigIntOp::Add => {
+                    let e = EphemeralInteger::try_add(
+                        ops.a.as_limbs(),
+                        ops.a.is_negative(),
+                        ops.b.as_limbs(),
+                        ops.b.is_negative(),
+                        batch,
+                    )
+                    .expect("ephemeral add");
+                    out = Some(e.promote(persist).expect("promote add"));
+                }
+                BigIntOp::Mul => {
+                    let e =
+                        EphemeralNatural::try_mul_schoolbook(ops.a.as_limbs(), ops.b.as_limbs(), batch).expect("ephemeral mul");
+                    let n = e.promote(persist).expect("promote mul mag");
+                    let mut i = Integer::from_limbs_in(persist, n.as_limbs()).expect("int from limbs");
+                    if ops.a.is_negative() != ops.b.is_negative() && !i.is_zero() {
+                        i = i.neg();
+                    }
+                    out = Some(i);
+                }
+                _ => panic!("ephemeral promote only for Add/Mul"),
+            })
+            .expect("numeric batch promote");
+        out.expect("promoted Integer")
+    }
+
     fn run_once_decimal(&self) -> String {
         match self.case.implementation {
             Implementation::Athena => match self.case.layer {
                 BenchLayer::Kernel => self.run_athena_kernel().to_decimal_string(),
-                BenchLayer::Numeric | BenchLayer::E2e => self.run_athena_integer().to_decimal_string(),
+                BenchLayer::Numeric => match self.case.operation {
+                    BigIntOp::Add | BigIntOp::Mul => self.run_numeric_ephemeral_promote().to_decimal_string(),
+                    _ => self.run_athena_integer().to_decimal_string(),
+                },
+                BenchLayer::E2e => self.run_athena_integer().to_decimal_string(),
                 BenchLayer::Peer => unreachable!(),
             },
             #[cfg(feature = "compare-num-bigint")]
@@ -165,9 +259,7 @@ impl BigIntPrepared {
                 match self.case.operation {
                     BigIntOp::Add => ops.a.try_add(&ops.b, ctx).expect("add"),
                     BigIntOp::Mul => ops.a.try_mul(&ops.b, ctx).expect("mul"),
-                    BigIntOp::Div => {
-                        ops.prod.as_ref().expect("prod").try_div_rem_trunc(&ops.a, ctx).expect("div").0
-                    }
+                    BigIntOp::Div => ops.prod.as_ref().expect("prod").try_div_rem_trunc(&ops.a, ctx).expect("div").0,
                     BigIntOp::Gcd => ops.a.try_gcd(&ops.b, ctx).expect("gcd"),
                     BigIntOp::Pow => pow_u32_reused(&ops.a, ops.exp, ctx),
                 }
@@ -244,51 +336,36 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     let ref_ctx = NumericContext::unlimited();
     let a_ref = integer_from_decimal(&strings.a);
     let b_ref = integer_from_decimal(&strings.b);
-    let prod_ref = if needs_product(case.operation) {
-        Some(a_ref.try_mul(&b_ref, &ref_ctx).expect("ref mul"))
-    }
-    else {
-        None
-    };
+    let prod_ref = if needs_product(case.operation) { Some(a_ref.try_mul(&b_ref, &ref_ctx).expect("ref mul")) } else { None };
     let expected_decimal = reference_decimal(case.operation, &a_ref, &b_ref, prod_ref.as_ref(), exp, &ref_ctx);
 
+    // 操作数 / prod 在 Full 路径发布；`bump_ephemeral` 只在 `run_timed_batch` / `NumericBatch` 热路径打开。
+    // 若 prepare 阶段就开 ephemeral，长期持有的 prod/operand 会在 Drop 时空释放 → 进程退出 UAF。
     let ctx = match case.layer {
-        BenchLayer::Kernel => {
-            let ctx = NumericContext::kernel_bench_with_heap_budget(HeapBudget::for_microbench());
-            ctx.heap().borrow_mut().enable_bump_ephemeral(true);
-            Some(ctx)
-        }
-        BenchLayer::Numeric => {
-            let ctx = NumericContext::session_with_heap_budget(HeapBudget::for_microbench());
-            ctx.heap().borrow_mut().enable_bump_ephemeral(true);
-            Some(ctx)
-        }
+        BenchLayer::Kernel => Some(NumericContext::kernel_bench_with_heap_budget(HeapBudget::for_microbench())),
+        BenchLayer::Numeric => Some(NumericContext::session_with_heap_budget(HeapBudget::for_microbench())),
         BenchLayer::E2e | BenchLayer::Peer => None,
+    };
+
+    let persist_ctx = match case.layer {
+        BenchLayer::Numeric => Some(NumericContext::session_with_heap_budget(HeapBudget::for_microbench())),
+        _ => None,
     };
 
     let athena_int = match case.implementation {
         Implementation::Athena if matches!(case.layer, BenchLayer::Numeric | BenchLayer::E2e) => {
-            Some(AthenaIntOps {
-                a: a_ref.clone(),
-                b: b_ref.clone(),
-                prod: prod_ref.clone(),
-                exp,
-            })
+            Some(AthenaIntOps { a: a_ref.clone(), b: b_ref.clone(), prod: prod_ref.clone(), exp })
         }
         _ => None,
     };
 
     let athena_nat = match (case.implementation, case.layer) {
         (Implementation::Athena, BenchLayer::Kernel) => {
-            let a = Natural::from_str(&strings.a).expect("natural a");
-            let b = Natural::from_str(&strings.b).expect("natural b");
-            let prod = if needs_product(case.operation) {
-                let ctx = ctx.as_ref().expect("kernel ctx");
-                Some(a.try_mul(&b, ctx).expect("nat prod"))
-            }
-            else {
-                None
-            };
+            let ctx = ctx.as_ref().expect("kernel ctx");
+            // 落在 kernel 隔离 heap（Full），避免 `from_str` 污染 `shared_default`。
+            let a = Natural::from_limbs_in(ctx, a_ref.as_limbs().to_vec()).expect("natural a");
+            let b = Natural::from_limbs_in(ctx, b_ref.as_limbs().to_vec()).expect("natural b");
+            let prod = if needs_product(case.operation) { Some(a.try_mul(&b, ctx).expect("nat prod")) } else { None };
             Some(AthenaNatOps { a, b, prod, exp })
         }
         _ => None,
@@ -319,6 +396,7 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
 
     #[cfg(feature = "compare-malachite")]
     let malachite = if case.implementation == Implementation::Malachite {
+        use std::str::FromStr;
         let a = malachite::Integer::from_str(&strings.a).expect("mal a");
         let b = malachite::Integer::from_str(&strings.b).expect("mal b");
         let prod = if needs_product(case.operation) { Some(&a * &b) } else { None };
@@ -331,6 +409,7 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     BigIntPrepared {
         case,
         ctx,
+        persist_ctx,
         athena_int,
         athena_nat,
         #[cfg(feature = "compare-num-bigint")]
@@ -340,6 +419,28 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
         #[cfg(feature = "compare-malachite")]
         malachite,
         expected_decimal,
+    }
+}
+
+impl Drop for BigIntPrepared {
+    fn drop(&mut self) {
+        // 先放下 owning 幅度，再放 heap context，避免 bump/registry 时序踩踏。
+        self.athena_int = None;
+        self.athena_nat = None;
+        #[cfg(feature = "compare-num-bigint")]
+        {
+            self.num = None;
+        }
+        #[cfg(feature = "compare-ibig")]
+        {
+            self.ibig = None;
+        }
+        #[cfg(feature = "compare-malachite")]
+        {
+            self.malachite = None;
+        }
+        self.persist_ctx = None;
+        self.ctx = None;
     }
 }
 
@@ -356,14 +457,7 @@ fn integer_from_decimal(s: &str) -> Integer {
         .clone()
 }
 
-fn reference_decimal(
-    op: BigIntOp,
-    a: &Integer,
-    b: &Integer,
-    prod: Option<&Integer>,
-    exp: u32,
-    ctx: &NumericContext,
-) -> String {
+fn reference_decimal(op: BigIntOp, a: &Integer, b: &Integer, prod: Option<&Integer>, exp: u32, ctx: &NumericContext) -> String {
     let v = match op {
         BigIntOp::Add => a.try_add(b, ctx).expect("ref add"),
         BigIntOp::Mul => a.try_mul(b, ctx).expect("ref mul"),

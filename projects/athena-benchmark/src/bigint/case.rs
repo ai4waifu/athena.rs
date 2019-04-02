@@ -2,8 +2,8 @@
 
 use serde::Serialize;
 
-/// 位宽矩阵。
-pub const BITS: &[u32] = &[64, 256, 1024, 4096];
+/// 位宽矩阵（含大规模点：16384）。
+pub const BITS: &[u32] = &[64, 256, 1024, 4096, 16384];
 
 /// 算术操作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -43,7 +43,7 @@ impl BigIntOp {
 pub enum BenchLayer {
     /// Limb / `Natural`：`GcMode::Disabled`，复用 context。
     Kernel,
-    /// `Integer` + 复用 `NumericContext`：`GcMode::Deferred`。
+    /// `Integer` + 复用 `NumericContext`：`Add`/`Mul` 走 `Ephemeral*` + `NumericBatch`。
     Numeric,
     /// 公共便利入口（每次隐式建 context）：`GcMode::Auto`。
     E2e,
@@ -66,7 +66,7 @@ impl BenchLayer {
     pub fn suggested_gc_mode(self) -> &'static str {
         match self {
             Self::Kernel => "disabled",
-            Self::Numeric => "deferred",
+            Self::Numeric => "batched",
             Self::E2e => "auto",
             Self::Peer => "n/a",
         }
@@ -147,13 +147,7 @@ pub struct BenchCase {
 impl BenchCase {
     /// 稳定 id：`bigint.<op>.<bits>.<impl>.<layer>`。
     pub fn id(self) -> String {
-        format!(
-            "bigint.{}.{}.{}.{}",
-            self.operation.as_str(),
-            self.bits,
-            self.implementation.as_str(),
-            self.layer.as_str()
-        )
+        format!("bigint.{}.{}.{}.{}", self.operation.as_str(), self.bits, self.implementation.as_str(), self.layer.as_str())
     }
 
     /// Criterion `BenchmarkId` 函数名段：`<layer>/<impl>`。
