@@ -22,6 +22,8 @@ jobs:
         run: cargo test --workspace
       - name: Numeric promotion contract
         run: cargo test -p athena-numeric --test main promotion
+      - name: Numeric ephemeral batch contract
+        run: cargo test -p athena-numeric --features ephemeral --test ephemeral_batch
 
   coverage:
     name: Coverage report

@@ -1,5 +1,6 @@
 //! 合同测试：mode / scratch / numeric block / object / tracing。
 
+mod header;
 mod heap_alloc;
 mod mode;
 mod numeric_trace;
