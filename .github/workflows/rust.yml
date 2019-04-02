@@ -19,11 +19,7 @@ jobs:
       - name: Check
         run: cargo check --workspace --all-targets
       - name: Tests
-        run: cargo test --workspace
-      - name: Numeric promotion contract
-        run: cargo test -p athena-numeric --test main promotion
-      - name: Numeric ephemeral batch contract
-        run: cargo test -p athena-numeric --features ephemeral --test ephemeral_batch
+        run: cargo test --workspace --features athena-numeric/ephemeral
 
   coverage:
     name: Coverage report
@@ -41,9 +37,9 @@ jobs:
           tool: cargo-llvm-cov
       - name: Run llvm-cov
         run: |
-          cargo llvm-cov --workspace --lcov --output-path lcov.info
-          cargo llvm-cov --workspace --html --output-dir coverage-html
-          cargo llvm-cov --workspace --summary-only | tee coverage-summary.txt
+          cargo llvm-cov --workspace --features athena-numeric/ephemeral --lcov --output-path lcov.info
+          cargo llvm-cov --workspace --features athena-numeric/ephemeral --html --output-dir coverage-html
+          cargo llvm-cov --workspace --features athena-numeric/ephemeral --summary-only | tee coverage-summary.txt
       - name: Write job summary
         if: always()
         run: |
