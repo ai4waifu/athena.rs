@@ -20,6 +20,10 @@ required-features = ["compare-bigint"]
 name = "path_segments"
 harness = false
 
+[[bench]]
+name = "allocation_modes"
+harness = false
+
 [features]
 default = []
 # Reserved for athena-jit; without a JIT crate the jit group is skipped.
