@@ -44,10 +44,7 @@ pub(crate) fn montgomery_for_modulus(modulus: &Modulus) -> Option<MontgomeryPara
         return None;
     }
     let (n_prime, r2_limbs) = limb_kernel::montgomery_precompute(mag.as_limbs());
-    Some(MontgomeryParams {
-        n_prime,
-        r2: Natural::from_limbs(r2_limbs).expect("gc numeric alloc"),
-    })
+    Some(MontgomeryParams { n_prime, r2: Natural::from_limbs(r2_limbs).expect("gc numeric alloc") })
 }
 
 pub(crate) fn barrett_for_modulus(modulus: &Modulus) -> BarrettParams {

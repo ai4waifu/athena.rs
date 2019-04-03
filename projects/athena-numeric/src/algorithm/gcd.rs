@@ -28,10 +28,5 @@ pub(crate) fn select_gcd_strategy(a_limbs: usize, b_limbs: usize, caps: Algorith
     if caps.half_gcd && n >= GCD_HALF_THRESHOLD {
         return GcdStrategy::HalfGcd;
     }
-    if a_limbs >= GCD_LEHMER_THRESHOLD && b_limbs >= GCD_LEHMER_THRESHOLD {
-        GcdStrategy::Lehmer
-    }
-    else {
-        GcdStrategy::Binary
-    }
+    if a_limbs >= GCD_LEHMER_THRESHOLD && b_limbs >= GCD_LEHMER_THRESHOLD { GcdStrategy::Lehmer } else { GcdStrategy::Binary }
 }

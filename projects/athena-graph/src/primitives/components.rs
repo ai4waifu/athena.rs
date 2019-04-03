@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 
-use crate::{MutableGraph, GraphDirection, GraphError, NodeId};
+use crate::{GraphDirection, GraphError, MutableGraph, NodeId};
 
 /// DAG 拓扑排序原语；存在环时返回 [`GraphError::CycleDetected`]。
 ///
@@ -30,11 +30,7 @@ pub fn topological_sort<N, E>(graph: &MutableGraph<N, E>) -> Result<Vec<NodeId>,
             }
         }
     }
-    if order.len() != n {
-        Err(GraphError::CycleDetected)
-    } else {
-        Ok(order)
-    }
+    if order.len() != n { Err(GraphError::CycleDetected) } else { Ok(order) }
 }
 
 /// 弱连通分量标签扫描（有向图按底层无向邻接解释）。
@@ -105,7 +101,8 @@ pub fn strongly_connected_components<N, E>(graph: &MutableGraph<N, E>) -> Result
                     seen[i] = true;
                     stack.push((next, 0));
                 }
-            } else {
+            }
+            else {
                 order.push(node);
             }
         }

@@ -16,8 +16,7 @@ use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural}
 use criterion::{Criterion, criterion_group, criterion_main};
 
 const LIMBS4: [u64; 4] = [0x1111_1111_1111_1111, 0x2222_2222_2222_2222, 0x3333_3333_3333_3333, 0x4444_4444_4444_4444];
-const LIMBS4_B: [u64; 4] =
-    [0x5555_5555_5555_5555, 0x6666_6666_6666_6666, 0x7777_7777_7777_7777, 0x0000_0000_0000_0001];
+const LIMBS4_B: [u64; 4] = [0x5555_5555_5555_5555, 0x6666_6666_6666_6666, 0x7777_7777_7777_7777, 0x0000_0000_0000_0001];
 
 fn stack_add4(a: &[u64; 4], b: &[u64; 4]) -> [u64; 5] {
     let mut out = [0u64; 5];

@@ -2,8 +2,10 @@
 
 use std::cell::RefCell;
 
-use crate::budget::{BudgetLedger, ChunkGuard};
-use crate::{ArrayError, ArrayStorage, ChunkPlan, InMemoryStorage, LogicalShape, MemoryBudget};
+use crate::{
+    ArrayError, ArrayStorage, ChunkPlan, InMemoryStorage, LogicalShape, MemoryBudget,
+    budget::{BudgetLedger, ChunkGuard},
+};
 
 /// 由分块存储承载的逻辑数组（不要求整表驻留 RAM）。
 #[derive(Debug)]
@@ -29,10 +31,7 @@ impl<'a, T> ArrayView<'a, T> {
     /// 创建视图；长度必须匹配 shape。
     pub fn new(shape: &'a LogicalShape, data: &'a [T]) -> Result<Self, ArrayError> {
         if data.len() as u64 != shape.element_count() {
-            return Err(ArrayError::LengthMismatch {
-                expected: shape.element_count(),
-                actual: data.len() as u64,
-            });
+            return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: data.len() as u64 });
         }
         Ok(Self { shape, data })
     }
@@ -52,18 +51,9 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
     /// 绑定 shape 与 storage，不物化全量数据。
     pub fn new(shape: LogicalShape, store: S, budget: MemoryBudget) -> Result<Self, ArrayError> {
         if shape.element_count() != store.len() {
-            return Err(ArrayError::LengthMismatch {
-                expected: shape.element_count(),
-                actual: store.len(),
-            });
+            return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: store.len() });
         }
-        Ok(Self {
-            shape,
-            store,
-            budget,
-            ledger: RefCell::new(BudgetLedger::new()),
-            marker: std::marker::PhantomData,
-        })
+        Ok(Self { shape, store, budget, ledger: RefCell::new(BudgetLedger::new()), marker: std::marker::PhantomData })
     }
 
     /// Shape。
@@ -153,28 +143,17 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
             return Ok(usize::MAX);
         }
         let max = self.budget.bytes() / size;
-        if max == 0 {
-            Err(ArrayError::BudgetTooSmall { element_size: size })
-        } else {
-            Ok(max)
-        }
+        if max == 0 { Err(ArrayError::BudgetTooSmall { element_size: size }) } else { Ok(max) }
     }
 
     fn check(&self, offset: u64, len: usize) -> Result<(), ArrayError> {
         let max = self.max_elements()?;
         if len > max {
-            return Err(ArrayError::BudgetExceeded {
-                requested: len,
-                max,
-            });
+            return Err(ArrayError::BudgetExceeded { requested: len, max });
         }
         let len64 = u64::try_from(len).map_err(|_| ArrayError::RangeOverflow)?;
         let end = offset.checked_add(len64).ok_or(ArrayError::RangeOverflow)?;
-        if end > self.shape.element_count() {
-            Err(ArrayError::OutOfBounds)
-        } else {
-            Ok(())
-        }
+        if end > self.shape.element_count() { Err(ArrayError::OutOfBounds) } else { Ok(()) }
     }
 }
 
@@ -184,10 +163,7 @@ pub fn array1d<T: Clone>(data: Vec<T>, budget: MemoryBudget) -> Result<ChunkedAr
     let shape = LogicalShape::new([len])?;
     let bytes = data.len().saturating_mul(std::mem::size_of::<T>());
     if bytes > budget.bytes() {
-        return Err(ArrayError::FullMaterializeForbidden {
-            elements: len,
-            resident_limit: budget.bytes(),
-        });
+        return Err(ArrayError::FullMaterializeForbidden { elements: len, resident_limit: budget.bytes() });
     }
     let store = InMemoryStorage::from_vec(data);
     ChunkedArray::new(shape, store, budget)

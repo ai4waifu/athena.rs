@@ -274,18 +274,8 @@ impl NumericExecutor {
     /// 借用 limb GCD；结果发布到 `ctx` heap（策略由 planner 唯一选择）。
     pub fn gcd_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<Natural> {
         ctx.check_entry()?;
-        let la = if lhs.is_empty() || limb_kernel::is_zero(lhs) {
-            0
-        }
-        else {
-            limb_kernel::effective_len(lhs)
-        };
-        let lb = if rhs.is_empty() || limb_kernel::is_zero(rhs) {
-            0
-        }
-        else {
-            limb_kernel::effective_len(rhs)
-        };
+        let la = if lhs.is_empty() || limb_kernel::is_zero(lhs) { 0 } else { limb_kernel::effective_len(lhs) };
+        let lb = if rhs.is_empty() || limb_kernel::is_zero(rhs) { 0 } else { limb_kernel::effective_len(rhs) };
         if la == 0 && lb == 0 {
             return Ok(Natural::zero());
         }

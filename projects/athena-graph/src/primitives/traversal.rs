@@ -1,6 +1,6 @@
 //! 遍历原语：确定性 BFS 访问序。
 
-use crate::{DeterministicBfsOutcome, MutableGraph, GraphError, NodeId, deterministic_bfs};
+use crate::{DeterministicBfsOutcome, GraphError, MutableGraph, NodeId, deterministic_bfs};
 
 /// 确定性 BFS 访问顺序（有向图沿出边；无向图沿邻接）。
 ///

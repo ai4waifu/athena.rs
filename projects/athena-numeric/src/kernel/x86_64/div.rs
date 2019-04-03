@@ -11,9 +11,7 @@ use crate::{
     algorithm::DivStrategy,
     kernel::{
         LimbBuffer, ScratchWorkspace, kernel_err,
-        portable::{
-            self, LimbKernel, PortableLimbKernel, cmp_slice, effective_len, is_zero,
-        },
+        portable::{self, LimbKernel, PortableLimbKernel, cmp_slice, effective_len, is_zero},
     },
     policy::execution_budget::ExecutionBudget,
 };
@@ -47,9 +45,7 @@ pub(super) fn div_rem_into_isa(
     }
     if v_el == 1 {
         // 单 limb 与 portable 同合同；宽路径才吃 ISA addmul/submul。
-        return <PortableLimbKernel as LimbKernel>::div_rem_into(
-            u, v, strategy, q_out, r_out, scratch, budget,
-        );
+        return <PortableLimbKernel as LimbKernel>::div_rem_into(u, v, strategy, q_out, r_out, scratch, budget);
     }
     match strategy {
         DivStrategy::Knuth => div_rem_knuth_isa(u, v, q_out, r_out, scratch, budget),

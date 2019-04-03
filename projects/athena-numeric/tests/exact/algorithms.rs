@@ -44,7 +44,8 @@ fn karatsuba_capability_matches_schoolbook_baseline() {
 #[test]
 fn toom_capability_matches_schoolbook_baseline() {
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let ctx_t = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
+    let ctx_t =
+        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
 
     let mut caps_sb = CapabilityBundle::portable_default();
     caps_sb.algorithm.karatsuba = false;
@@ -65,7 +66,8 @@ fn toom_capability_matches_schoolbook_baseline() {
 #[test]
 fn burnikel_ziegler_capability_matches_knuth_baseline() {
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let ctx_bz = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
+    let ctx_bz =
+        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
 
     let mut caps_kn = CapabilityBundle::portable_default();
     caps_kn.algorithm.bz_division = false;
@@ -135,7 +137,7 @@ fn half_gcd_capability_matches_lehmer_baseline_on_wide_odds() {
 
 #[test]
 fn half_gcd_planner_threshold_boundary() {
-    use athena_numeric::algorithm::{GCD_HALF_THRESHOLD, GcdStrategy, AlgorithmPlanner};
+    use athena_numeric::algorithm::{AlgorithmPlanner, GCD_HALF_THRESHOLD, GcdStrategy};
 
     let mut caps = CapabilityBundle::portable_default();
     caps.algorithm.half_gcd = true;

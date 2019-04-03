@@ -35,9 +35,11 @@
 
 use std::cmp::Ordering;
 
-use super::convenience::sub_n;
-use super::primitive::{cmp_slice, is_one, is_zero, normalize_trim, trailing_zeros};
-use super::shift::{shl_assign, shr_assign, shr_assign_until_odd};
+use super::{
+    convenience::sub_n,
+    primitive::{cmp_slice, is_one, is_zero, normalize_trim, trailing_zeros},
+    shift::{shl_assign, shr_assign, shr_assign_until_odd},
+};
 
 /// Binary GCD (Stein's algorithm).
 ///

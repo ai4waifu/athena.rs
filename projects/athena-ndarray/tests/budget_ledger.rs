@@ -1,7 +1,7 @@
 //! 预算四轴 enforce 与禁止静默整表物化。
 
 use athena_ndarray::{
-    array1d, ArrayError, ArrayStorage, BudgetLedger, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities,
+    ArrayError, ArrayStorage, BudgetLedger, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities, array1d,
 };
 
 #[derive(Debug)]
@@ -15,12 +15,7 @@ impl ArrayStorage<u64> for Store {
     }
 
     fn capabilities(&self) -> StorageCapabilities {
-        StorageCapabilities {
-            writable: true,
-            random_read: true,
-            sequential_read: true,
-            persistent: false,
-        }
+        StorageCapabilities { writable: true, random_read: true, sequential_read: true, persistent: false }
     }
 
     fn read_range(&self, offset: u64, len: usize) -> Result<Vec<u64>, ()> {
@@ -40,10 +35,7 @@ fn open_chunks_axis_is_enforced() {
     let budget = MemoryBudget::detailed(1024, 1024, 1024, 1).unwrap();
     let mut ledger = BudgetLedger::new();
     ledger.open_chunk(budget).unwrap();
-    assert!(matches!(
-        ledger.open_chunk(budget),
-        Err(ArrayError::OpenChunksExceeded { .. })
-    ));
+    assert!(matches!(ledger.open_chunk(budget), Err(ArrayError::OpenChunksExceeded { .. })));
     ledger.close_chunk();
     let shape = LogicalShape::new([8]).unwrap();
     let array = ChunkedArray::new(shape, Store((0..8).collect()), budget).unwrap();
@@ -57,16 +49,10 @@ fn scratch_and_spill_axes_are_enforced() {
     let shape = LogicalShape::new([2]).unwrap();
     let array = ChunkedArray::new(shape, Store(vec![1, 2]), budget).unwrap();
     array.acquire_scratch(16).unwrap();
-    assert!(matches!(
-        array.acquire_scratch(1),
-        Err(ArrayError::ScratchBudgetExceeded { .. })
-    ));
+    assert!(matches!(array.acquire_scratch(1), Err(ArrayError::ScratchBudgetExceeded { .. })));
     array.release_scratch(16);
     array.acquire_spill(32).unwrap();
-    assert!(matches!(
-        array.acquire_spill(1),
-        Err(ArrayError::SpillBudgetExceeded { .. })
-    ));
+    assert!(matches!(array.acquire_spill(1), Err(ArrayError::SpillBudgetExceeded { .. })));
 }
 
 #[test]
@@ -91,9 +77,7 @@ fn for_each_chunk_never_loads_whole_table_at_once() {
     let shape = LogicalShape::new([10]).unwrap();
     let array = ChunkedArray::new(shape, Store((0..10).collect()), budget).unwrap();
     let mut max_chunk = 0;
-    array
-        .for_each_chunk(|_, values| max_chunk = max_chunk.max(values.len()))
-        .unwrap();
+    array.for_each_chunk(|_, values| max_chunk = max_chunk.max(values.len())).unwrap();
     assert!(max_chunk <= 3);
     assert_eq!(array.ledger_snapshot().open_chunks, 0);
     assert_eq!(array.ledger_snapshot().used_resident, 0);

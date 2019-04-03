@@ -37,12 +37,16 @@
 
 use athena_types::Result;
 
-use crate::kernel::{LimbBuffer, ScratchWorkspace};
-use crate::policy::execution_budget::ExecutionBudget;
+use crate::{
+    kernel::{LimbBuffer, ScratchWorkspace},
+    policy::execution_budget::ExecutionBudget,
+};
 
-use super::mul_schoolbook::{addmul_1_inplace_soft, submul_1_inplace_soft};
-use super::primitive::{effective_len, is_zero};
-use super::slice_ops::trim_slice_len;
+use super::{
+    mul_schoolbook::{addmul_1_inplace_soft, submul_1_inplace_soft},
+    primitive::{effective_len, is_zero},
+    slice_ops::trim_slice_len,
+};
 
 /// Knuth 除法 scratch：归一化 u、v、商，以及可选余数右移缓冲。
 pub(crate) fn div_scratch_limbs(u_limbs: usize, v_limbs: usize) -> usize {

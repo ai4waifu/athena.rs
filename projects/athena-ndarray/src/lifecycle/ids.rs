@@ -51,12 +51,7 @@ pub struct ArraySnapshot {
 impl ArraySnapshot {
     /// 构造。
     pub fn new(array_id: ArrayId, revision: ArrayRevision, shape: LogicalShape, layout: ArrayLayout) -> Self {
-        Self {
-            array_id,
-            revision,
-            shape,
-            layout,
-        }
+        Self { array_id, revision, shape, layout }
     }
 }
 

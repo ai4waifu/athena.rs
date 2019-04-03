@@ -76,12 +76,7 @@ impl OwnedLimbBuffer {
         Self::alloc_copy_in_with(heap, src, capacity, true)
     }
 
-    fn alloc_copy_in_with(
-        heap: &Rc<RefCell<GcHeap>>,
-        src: &[u64],
-        capacity: usize,
-        gc_owned: bool,
-    ) -> athena_gc::Result<Self> {
+    fn alloc_copy_in_with(heap: &Rc<RefCell<GcHeap>>, src: &[u64], capacity: usize, gc_owned: bool) -> athena_gc::Result<Self> {
         if capacity == 0 || capacity < src.len() {
             return Err(GcError::InvalidCapacity);
         }

@@ -90,10 +90,10 @@ pub use galois::{
 pub use graph_theory::{
     BipartiteResult, CertificateStrength, ConnectedComponentsResult, GraphAssumptions, GraphCertificate, GraphDomainSemantics,
     GraphHandle, GraphId, GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind, GraphPropertyResult,
-    GraphPropertyState, GraphProvenance, GraphRevision, GraphSnapshot, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue,
-    GraphResidencyController, MemoryGraph, MinimumSpanningForestResult, RepresentationId, ShortestPathResult, SpanningEdge,
-    StronglyConnectedComponentsResult, WeightDomain, bind_algorithm_checkpoint, execute_graph_theory, operation_name,
-    resume_from_algorithm_checkpoint,
+    GraphPropertyState, GraphProvenance, GraphResidencyController, GraphRevision, GraphSnapshot, GraphTheoryRequest,
+    GraphTheoryResult, GraphTheoryValue, MemoryGraph, MinimumSpanningForestResult, RepresentationId, ShortestPathResult,
+    SpanningEdge, StronglyConnectedComponentsResult, WeightDomain, bind_algorithm_checkpoint, execute_graph_theory,
+    operation_name, resume_from_algorithm_checkpoint,
 };
 pub use group::{
     Group, GroupDescriptor, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult,

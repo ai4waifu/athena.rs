@@ -5,17 +5,21 @@
 use athena_types::Result;
 use std::cmp::Ordering;
 
-use crate::algorithm::{DivStrategy, MulStrategy, karatsuba_scratch_limbs, toom3_scratch_limbs};
-use crate::kernel::{LimbBuffer, ScratchWorkspace, kernel_err};
-use crate::policy::execution_budget::ExecutionBudget;
+use crate::{
+    algorithm::{DivStrategy, MulStrategy, karatsuba_scratch_limbs, toom3_scratch_limbs},
+    kernel::{LimbBuffer, ScratchWorkspace, kernel_err},
+    policy::execution_budget::ExecutionBudget,
+};
 
-use super::div_burnikel_ziegler::div_rem_bz_into;
-use super::div_knuth::div_rem_knuth_into;
-use super::div_single::div_rem_1_into;
-use super::mul_karatsuba::mul_rec;
-use super::mul_schoolbook::{mul_1_into_slice, mul_schoolbook_into_soft, sqr_schoolbook_into};
-use super::mul_toom3::toom3_mul_rec;
-use super::primitive::{adc, cmp_slice, effective_len, is_zero, sbb};
+use super::{
+    div_burnikel_ziegler::div_rem_bz_into,
+    div_knuth::div_rem_knuth_into,
+    div_single::div_rem_1_into,
+    mul_karatsuba::mul_rec,
+    mul_schoolbook::{mul_1_into_slice, mul_schoolbook_into_soft, sqr_schoolbook_into},
+    mul_toom3::toom3_mul_rec,
+    primitive::{adc, cmp_slice, effective_len, is_zero, sbb},
+};
 
 /// 私有 limb 执行合同（输出缓冲 + scratch + 预算）。
 pub(crate) trait LimbKernel {

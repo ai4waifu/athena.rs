@@ -2,9 +2,9 @@
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{
-    CapabilityBundle, ExecutionBudget, ExecutionToken, KernelTable, MachineCapability, NumericContext, natural::Natural,
+    CapabilityBundle, ExecutionBudget, ExecutionToken, KernelTable, MachineCapability, NumericContext, algorithm::DivStrategy,
+    natural::Natural,
 };
-use athena_numeric::algorithm::DivStrategy;
 
 #[test]
 fn portable_context_binds_portable_kernel_table() {
@@ -133,9 +133,7 @@ fn knuth_width_div_portable_matches_isa_bound_context() {
     let heap = GcHeap::new_shared(HeapBudget::default());
     let mut caps = CapabilityBundle::portable_default();
     caps.algorithm.bz_division = false;
-    let ctx_pure =
-        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), caps)
-            .with_portable_kernels();
+    let ctx_pure = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), caps).with_portable_kernels();
     let mut caps_isa = caps;
     caps_isa.machine = MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE };
     let ctx_isa = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps_isa);
@@ -145,10 +143,7 @@ fn knuth_width_div_portable_matches_isa_bound_context() {
     let v: Vec<u64> = (3u64..=10).map(|i| i.wrapping_mul(0xbf58_476d_1ce4_e5b9) | 1).collect();
     let nu = Natural::from_limbs_in(&ctx_pure, u).expect("u");
     let nv = Natural::from_limbs_in(&ctx_pure, v).expect("v");
-    assert_eq!(
-        ctx_pure.planner().plan_div(nu.as_limbs().len(), nv.as_limbs().len()),
-        DivStrategy::Knuth
-    );
+    assert_eq!(ctx_pure.planner().plan_div(nu.as_limbs().len(), nv.as_limbs().len()), DivStrategy::Knuth);
     let (q_p, r_p) = nu.try_div_rem(&nv, &ctx_pure).expect("div pure");
     let (q_i, r_i) = nu.try_div_rem(&nv, &ctx_isa).expect("div isa");
     assert_eq!(q_p.as_limbs(), q_i.as_limbs());
@@ -181,10 +176,7 @@ fn bz_width_div_portable_matches_isa_bound_context() {
     let nv = Natural::from_limbs_in(&ctx_pure, v).expect("v");
     assert!(nu.as_limbs().len() >= DIV_BZ_THRESHOLD);
     assert!(nu.as_limbs().len() >= 2 * nv.as_limbs().len());
-    assert_eq!(
-        ctx_pure.planner().plan_div(nu.as_limbs().len(), nv.as_limbs().len()),
-        DivStrategy::BurnikelZiegler
-    );
+    assert_eq!(ctx_pure.planner().plan_div(nu.as_limbs().len(), nv.as_limbs().len()), DivStrategy::BurnikelZiegler);
 
     let (q_p, r_p) = nu.try_div_rem(&nv, &ctx_pure).expect("div pure");
     let (q_i, r_i) = nu.try_div_rem(&nv, &ctx_isa).expect("div isa");

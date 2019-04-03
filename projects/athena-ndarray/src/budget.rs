@@ -18,22 +18,14 @@ pub struct BudgetLedger {
 impl BudgetLedger {
     /// 空账本。
     pub const fn new() -> Self {
-        Self {
-            used_resident: 0,
-            used_scratch: 0,
-            used_spill: 0,
-            open_chunks: 0,
-        }
+        Self { used_resident: 0, used_scratch: 0, used_spill: 0, open_chunks: 0 }
     }
 
     /// 尝试占用驻留字节。
     pub fn acquire_resident(&mut self, budget: MemoryBudget, bytes: usize) -> Result<(), ArrayError> {
         let total = self.used_resident.checked_add(bytes).ok_or(ArrayError::RangeOverflow)?;
         if total > budget.bytes() {
-            return Err(ArrayError::ResidentBudgetExceeded {
-                requested_total: total,
-                limit: budget.bytes(),
-            });
+            return Err(ArrayError::ResidentBudgetExceeded { requested_total: total, limit: budget.bytes() });
         }
         self.used_resident = total;
         Ok(())
@@ -48,10 +40,7 @@ impl BudgetLedger {
     pub fn acquire_scratch(&mut self, budget: MemoryBudget, bytes: usize) -> Result<(), ArrayError> {
         let total = self.used_scratch.checked_add(bytes).ok_or(ArrayError::RangeOverflow)?;
         if total > budget.scratch_bytes() {
-            return Err(ArrayError::ScratchBudgetExceeded {
-                requested_total: total,
-                limit: budget.scratch_bytes(),
-            });
+            return Err(ArrayError::ScratchBudgetExceeded { requested_total: total, limit: budget.scratch_bytes() });
         }
         self.used_scratch = total;
         Ok(())
@@ -66,10 +55,7 @@ impl BudgetLedger {
     pub fn acquire_spill(&mut self, budget: MemoryBudget, bytes: usize) -> Result<(), ArrayError> {
         let total = self.used_spill.checked_add(bytes).ok_or(ArrayError::RangeOverflow)?;
         if total > budget.spill_bytes() {
-            return Err(ArrayError::SpillBudgetExceeded {
-                requested_total: total,
-                limit: budget.spill_bytes(),
-            });
+            return Err(ArrayError::SpillBudgetExceeded { requested_total: total, limit: budget.spill_bytes() });
         }
         self.used_spill = total;
         Ok(())
@@ -84,10 +70,7 @@ impl BudgetLedger {
     pub fn open_chunk(&mut self, budget: MemoryBudget) -> Result<(), ArrayError> {
         let next = self.open_chunks.checked_add(1).ok_or(ArrayError::RangeOverflow)?;
         if next > budget.max_open_chunks() {
-            return Err(ArrayError::OpenChunksExceeded {
-                requested: next,
-                limit: budget.max_open_chunks(),
-            });
+            return Err(ArrayError::OpenChunksExceeded { requested: next, limit: budget.max_open_chunks() });
         }
         self.open_chunks = next;
         Ok(())
@@ -110,10 +93,7 @@ impl BudgetLedger {
         }
         let bytes = element_count.checked_mul(element_size).ok_or(ArrayError::RangeOverflow)?;
         if bytes > budget.bytes() {
-            return Err(ArrayError::BudgetExceeded {
-                requested: element_count,
-                max: budget.bytes() / element_size,
-            });
+            return Err(ArrayError::BudgetExceeded { requested: element_count, max: budget.bytes() / element_size });
         }
         let remaining = budget.bytes().saturating_sub(self.used_resident);
         if bytes > remaining {

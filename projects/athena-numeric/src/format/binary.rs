@@ -555,8 +555,7 @@ pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<Fi
     if !rest.is_empty() {
         return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
     }
-    FiniteFieldValue::try_new(field, presentation, coefficients)
-        .map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))
+    FiniteFieldValue::try_new(field, presentation, coefficients).map_err(|_| reject_non_canonical(WireReject::FiniteFieldEmpty))
 }
 
 /// 编码 [`PAdicValue`]（header `sign` 恒 0）。

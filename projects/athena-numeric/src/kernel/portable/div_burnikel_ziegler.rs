@@ -34,11 +34,15 @@
 
 use athena_types::Result;
 
-use crate::kernel::{LimbBuffer, ScratchWorkspace};
-use crate::policy::execution_budget::ExecutionBudget;
+use crate::{
+    kernel::{LimbBuffer, ScratchWorkspace},
+    policy::execution_budget::ExecutionBudget,
+};
 
-use super::div_knuth::div_rem_knuth_into;
-use super::primitive::{adc, effective_len};
+use super::{
+    div_knuth::div_rem_knuth_into,
+    primitive::{adc, effective_len},
+};
 
 /// Burnikel–Ziegler：大被除数按除数宽度切块递归；小情况回退 Knuth。
 pub(super) fn div_rem_bz_into(

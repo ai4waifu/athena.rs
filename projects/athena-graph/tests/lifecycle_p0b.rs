@@ -166,10 +166,7 @@ fn heap_bound_chunk_id_stale_after_release() {
     let id = allocate_chunk_id(&mut h).unwrap();
     assert!(h.object_payload(id.as_object()).is_ok());
     h.release_object(id.as_object()).unwrap();
-    assert!(matches!(
-        h.object_payload(id.as_object()),
-        Err(athena_gc::GcError::StaleObject { .. })
-    ));
+    assert!(matches!(h.object_payload(id.as_object()), Err(athena_gc::GcError::StaleObject { .. })));
 }
 
 #[test]

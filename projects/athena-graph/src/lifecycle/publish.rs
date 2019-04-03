@@ -4,11 +4,11 @@ use athena_gc::{GcHeap, RootKind, RootToken};
 
 use crate::{GraphError, GraphId, GraphRevision, GraphSnapshot, ImmutableGraph, MutableGraph, RepresentationId};
 
-use super::alloc::{allocate_revision_id, allocate_snapshot_id};
-use super::chunk::ChunkSet;
-use super::ids::{GraphRevisionId, GraphSnapshotId};
-use super::trace_records::{
-    GraphChunkRecord, GraphRevisionRecord, GraphSnapshotRecord, GraphTraceIndex,
+use super::{
+    alloc::{allocate_revision_id, allocate_snapshot_id},
+    chunk::ChunkSet,
+    ids::{GraphRevisionId, GraphSnapshotId},
+    trace_records::{GraphChunkRecord, GraphRevisionRecord, GraphSnapshotRecord, GraphTraceIndex},
 };
 
 /// Session / heap 发布后的图身份与 Trace 记录（不含邻接 payload 本身）。
@@ -85,13 +85,8 @@ pub fn publish_immutable_graph<N, E>(
     let snapshot_id = allocate_snapshot_id(heap)?;
     let wire = GraphSnapshot::new(graph.id(), graph.revision(), graph.semantics(), representation);
     let chunks = ChunkSet::new();
-    let snapshot_record = GraphSnapshotRecord {
-        id: snapshot_id,
-        snapshot: wire,
-        revision_id,
-        chunks: chunks.clone(),
-        view_id: None,
-    };
+    let snapshot_record =
+        GraphSnapshotRecord { id: snapshot_id, snapshot: wire, revision_id, chunks: chunks.clone(), view_id: None };
     let revision_record = GraphRevisionRecord {
         id: revision_id,
         graph_id: graph.id(),
@@ -128,18 +123,12 @@ pub fn publication_attach_chunks(heap: &mut GcHeap, publication: &mut GraphPubli
     publication.chunks = chunks.clone();
     publication.snapshot_record.chunks = chunks.clone();
     publication.revision_record.chunks = chunks.clone();
-    publication.chunk_roots = chunks
-        .chunks
-        .iter()
-        .map(|id| heap.roots_mut().register(id.as_object(), RootKind::Graph))
-        .collect();
+    publication.chunk_roots =
+        chunks.chunks.iter().map(|id| heap.roots_mut().register(id.as_object(), RootKind::Graph)).collect();
 }
 
 /// Builder 完成并在 heap 上发布（邻接表示，空 ChunkSet）。
-pub fn finish_on_heap<N, E>(
-    graph: MutableGraph<N, E>,
-    heap: &mut GcHeap,
-) -> Result<PublishedImmutableGraph<N, E>, GraphError> {
+pub fn finish_on_heap<N, E>(graph: MutableGraph<N, E>, heap: &mut GcHeap) -> Result<PublishedImmutableGraph<N, E>, GraphError> {
     let immutable = ImmutableGraph::from_mutable(graph);
     publish_immutable_graph(immutable, heap, RepresentationId::ADJACENCY_LIST)
 }

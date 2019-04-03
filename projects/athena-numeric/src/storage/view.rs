@@ -125,9 +125,7 @@ pub(crate) fn decode_magnitude<'a>(meta: usize, magnitude: &'a Magnitude) -> Res
 }
 
 fn decode_err(operation: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-        .detail("domain", "numeric")
-        .detail("operation", operation)
+    Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", operation)
 }
 
 /// 宽度分类（由 limb 切片导出，等价于 mode 分派）。

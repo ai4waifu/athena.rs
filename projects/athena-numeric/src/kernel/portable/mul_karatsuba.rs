@@ -38,10 +38,10 @@
 
 use crate::algorithm::MUL_KARATSUBA_THRESHOLD;
 
-use super::mul_schoolbook::mul_schoolbook_into;
-use super::primitive::{effective_len, is_zero};
-use super::slice_ops::{
-    add_assign_shifted, add_slices_into, split_lo_hi, sub_assign_slices, trim_slice_len,
+use super::{
+    mul_schoolbook::mul_schoolbook_into,
+    primitive::{effective_len, is_zero},
+    slice_ops::{add_assign_shifted, add_slices_into, split_lo_hi, sub_assign_slices, trim_slice_len},
 };
 
 /// 递归乘法：`out` 为目标，`scratch` 为剩余工作区（顺序复用）。

@@ -41,11 +41,7 @@ impl FiniteFieldValue {
 
     /// 指定域 / presentation 中的零元。
     pub fn zero(field: FieldId, presentation: FieldPresentationId) -> Self {
-        Self {
-            field,
-            presentation,
-            repr: FiniteFieldRepr::Coefficients(vec![Integer::zero()]),
-        }
+        Self { field, presentation, repr: FiniteFieldRepr::Coefficients(vec![Integer::zero()]) }
     }
 
     /// 抽象域身份。
@@ -73,11 +69,9 @@ impl FiniteFieldValue {
     /// 不变量校验。
     pub fn validate(&self) -> Result<()> {
         match &self.repr {
-            FiniteFieldRepr::Coefficients(c) if c.is_empty() => {
-                Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
-                    .detail("domain", "numeric")
-                    .detail("operation", "finite_field_empty_coefficients"))
-            }
+            FiniteFieldRepr::Coefficients(c) if c.is_empty() => Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
+                .detail("domain", "numeric")
+                .detail("operation", "finite_field_empty_coefficients")),
             FiniteFieldRepr::Coefficients(_) => Ok(()),
         }
     }

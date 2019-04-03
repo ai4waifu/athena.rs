@@ -122,8 +122,7 @@ impl Report {
 
         let path_rows: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group == "path").collect();
         let bigint: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group == "bigint").collect();
-        let other: Vec<&FixtureReport> =
-            self.fixtures.iter().filter(|f| f.group != "bigint" && f.group != "path").collect();
+        let other: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group != "bigint" && f.group != "path").collect();
 
         if !path_rows.is_empty() {
             out.push_str("## path segments（Living 18）\n\n");
@@ -210,14 +209,11 @@ fn render_bigint_validation(rows: &[&FixtureReport]) -> String {
                 .iter()
                 .filter(|r| {
                     r.operation.as_deref() == Some(op.as_str())
-                        && (r.layer == Some(layer)
-                            || (r.layer == Some(BenchLayer::Peer) && layer == BenchLayer::Numeric))
+                        && (r.layer == Some(layer) || (r.layer == Some(BenchLayer::Peer) && layer == BenchLayer::Numeric))
                 })
                 .collect();
-            let athena_rows: Vec<&&&FixtureReport> = section
-                .iter()
-                .filter(|r| r.implementation.as_deref() == Some("athena") && r.layer == Some(layer))
-                .collect();
+            let athena_rows: Vec<&&&FixtureReport> =
+                section.iter().filter(|r| r.implementation.as_deref() == Some("athena") && r.layer == Some(layer)).collect();
             if athena_rows.is_empty() {
                 continue;
             }
@@ -316,12 +312,7 @@ fn status_cell(f: &FixtureReport) -> &'static str {
 }
 
 fn notes_cell(f: &FixtureReport) -> &str {
-    if f.skipped {
-        f.fallback_reason.as_deref().unwrap_or("skipped")
-    }
-    else {
-        f.validation.notes.as_str()
-    }
+    if f.skipped { f.fallback_reason.as_deref().unwrap_or("skipped") } else { f.validation.notes.as_str() }
 }
 
 fn fmt_opt_u64(v: Option<u64>) -> String {
