@@ -13,6 +13,8 @@ portable = []
 native-accelerated = []
 mkl = ["native-accelerated"]
 blas = ["native-accelerated"]
+# Batch-local `EphemeralNatural` / `EphemeralInteger`（Living `19`：非公共数值语义；供 athena-benchmark）。
+ephemeral = []
 
 [dependencies]
 athena-types = { workspace = true }

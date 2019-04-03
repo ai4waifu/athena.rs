@@ -74,8 +74,6 @@ pub use crate::{
         algebraic::{AlgebraicNumber, AlgebraicRepresentation},
         complex,
         complex::{BranchPolicy, Complex},
-        ephemeral,
-        ephemeral::{EphemeralInteger, EphemeralNatural},
         finite_field,
         finite_field::{FiniteFieldRepr, FiniteFieldValue},
         integer,
@@ -94,3 +92,6 @@ pub use crate::{
         real::Real,
     },
 };
+
+#[cfg(feature = "ephemeral")]
+pub use value::ephemeral::{EphemeralInteger, EphemeralNatural};

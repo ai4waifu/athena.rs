@@ -32,7 +32,7 @@ compare-malachite = ["dep:malachite"]
 compare-bigint = ["compare-num-bigint", "compare-ibig", "compare-malachite"]
 
 [dependencies]
-athena-numeric = { workspace = true }
+athena-numeric = { workspace = true, features = ["ephemeral"] }
 athena-gc = { workspace = true }
 athena-ir = { workspace = true }
 athena-rewriter = { workspace = true }
