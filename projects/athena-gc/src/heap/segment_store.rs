@@ -1,4 +1,4 @@
-//! Segment slot / bump / reclaim（不知 root / 数学对象）。
+//! 段槽位 / bump 推进 / 回收（不知根或数学对象）。
 
 use core::cell::Cell;
 
@@ -10,7 +10,7 @@ use crate::{
 
 use super::{allocation::align_up, state::GcHeap};
 
-/// 默认 segment 容量。
+/// 默认段容量。
 pub(super) const DEFAULT_SEGMENT_BYTES: usize = 256 * 1024;
 
 pub(super) struct SegmentStorage {
@@ -19,12 +19,12 @@ pub(super) struct SegmentStorage {
 }
 
 impl GcHeap {
-    /// 存活 segment。
+    /// 存活段数量。
     pub fn segments(&self) -> impl Iterator<Item = &SegmentMeta> {
         self.segments.iter().filter_map(|s| s.as_ref().map(|x| &x.meta))
     }
 
-    /// Resident 字节。
+    /// 驻留字节数。
     pub fn resident_bytes(&self) -> usize {
         self.resident_bytes
     }

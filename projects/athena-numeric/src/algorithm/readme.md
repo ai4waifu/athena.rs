@@ -1,37 +1,26 @@
-# Algorithms and formulas
+# 算法与公式
 
-This is the maintainer's map of the exact arithmetic implementation. It is intentionally close to the Rust code: every
-section names the implementing function, states the representation invariant, derives the transformation, and explains
-the crossover costs. Symbols use Unicode math notation so the source remains readable in rustdoc and ordinary editors.
+本文是精确算术实现的维护者地图，刻意贴近 Rust 源码：每一节点名实现函数、陈述表示不变量、推导变换，并说明 crossover 成本。符号用 Unicode 数学记号，以便在 rustdoc 与普通编辑器中可读。
 
-## Limb representation
+## Limb 表示
 
-A non-negative integer is stored in radix β = 2⁶⁴:
+非负整数按基 β = 2⁶⁴ 存放：
 
 ```text
 x = x₀ + x₁β + ⋯ + xₙ₋₁βⁿ⁻¹,    0 ≤ xᵢ < β.
 ```
 
-Limbs are little-endian. A non-zero value has a non-zero last limb. Zero is represented canonically, never by an empty
-public magnitude. `Integer` adds a sign bit and forbids negative zero. Any algorithm returning limbs must restore this
-canonical form before the value crosses the kernel boundary.
+Limb 为小端。非零值的最高 limb 非零。零有规范表示，公共 magnitude 从不为空切片。`Integer` 另加符号位，并禁止负零。任何返回 limb 的算法在跨越内核边界前必须恢复该规范形。
 
-### Measured cost boundary
+### 实测成本边界
 
-The arithmetic kernel must not be blamed for runtime-lifetime costs. A release build measurement at four limbs found:
-stack addition ≈1 ns, isolated `Natural::try_add` with a disabled heap ≈253 ns, while an
-`Integer` clone on `GcHeap::shared_default()` with automatic collection was ≈4,035 ns. The public `Integer::try_add`/
-`add` path measured ≈4,503/4,669 ns. Therefore a 256-bit plateau in an end-to-end benchmark is a shared-heap and
-clone/publish effect, not a four-limb addition algorithm. Benchmarks must report kernel, reused-context numeric, and e2e
-layers separately.
+不得把运行时生命周期开销算到算术内核头上。四 limb 的 release 实测：栈加法约 1 ns；禁用堆时孤立的 `Natural::try_add` 约 253 ns；而在 `GcHeap::shared_default()` 上带自动回收的 `Integer` 克隆约 4,035 ns。公开的 `Integer::try_add` / `add` 路径约 4,503 / 4,669 ns。因此端到端基准里的 256 位平台期是共享堆与克隆/发布效应，不是四 limb 加法算法。基准须分层报告：内核、复用上下文的数值层、端到端。
 
-`Integer::abs_natural` currently owns a cleared-sign magnitude. For a heap magnitude that ownership step clones the
-allocation. Any optimization must first provide a borrowed magnitude view or a session-owned/deferred result policy;
-changing a multiplication formula cannot remove this cost.
+`Integer::abs_natural` 当前拥有一份清符号后的 magnitude。对堆上 magnitude，这一步会克隆分配。任何优化须先提供借用 magnitude 视图或会话持有/推迟结果策略；改乘法公式消不掉这笔成本。
 
-## Addition and subtraction
+## 加法与减法
 
-For addition, limb i computes
+加法在 limb i 上计算
 
 ```text
 t = aᵢ + bᵢ + carryᵢ
@@ -39,23 +28,21 @@ outᵢ = t mod β
 carryᵢ₊₁ = ⌊t / β⌋.
 ```
 
-`u128` represents t without overflow. Subtraction is the analogous borrow recurrence and requires a ≥ b. Both algorithms
-are Θ (max (m,n)) and need only the output buffer. See `add_slices_into`, `sub_slices_into`, `adc`, and `sbb`.
+用 `u128` 表示 t 以免溢出。减法是对应的借位递推，并要求 a ≥ b。两者均为 Θ(max(m,n))，只需输出缓冲。见 `add_slices_into`、`sub_slices_into`、`adc`、`sbb`。
 
-## Schoolbook multiplication
+## 课本乘法
 
-Expanding positional notation gives
+展开位值记号得
 
 ```text
 (Σ aᵢβⁱ)(Σ bⱼβʲ) = Σᵢ Σⱼ (aᵢbⱼ)βⁱ⁺ʲ.
 ```
 
-Therefore each aᵢbⱼ is accumulated at output position i+j, with carry propagated in radix β. This is Θ (mn), has small
-setup cost, and is the correct choice for short or strongly unbalanced inputs. See `mul_schoolbook_into`.
+因此每个 aᵢbⱼ 累加到输出位置 i+j，并在基 β 上传播进位。复杂度 Θ(mn)，启动成本小，适合短操作数或严重不平衡输入。见 `mul_schoolbook_into`。
 
-## Karatsuba multiplication
+## Karatsuba 乘法
 
-Split both operands at k limbs:
+将两操作数在 k limb 处切开：
 
 ```text
 a = a₀ + a₁βᵏ                  b = b₀ + b₁βᵏ
@@ -64,99 +51,59 @@ z₁ = (a₀+a₁)(b₀+b₁) − z₀ − z₂
 ab = z₀ + z₁βᵏ + z₂β²ᵏ.
 ```
 
-The identity replaces four half-size multiplications by three. Its recurrence T (n)=3T (⌈n/2⌉)+Θ (n) gives Θ (nˡᵒᵍ²³).
-It is slower on small inputs because it additionally allocates scratch, forms two sums, performs two subtractions,
-recursively dispatches three times, and combines shifted results. Those linear costs dominate until a multiplication is
-wide enough. Unbalanced inputs also waste recursive work after zero-padding, so the planner may keep schoolbook
-multiplication. See `mul_rec` and `karatsuba_scratch_limbs`.
+该恒等式用三次半长乘法代替四次。递推 T(n)=3T(⌈n/2⌉)+Θ(n) 给出 Θ(n^{log₂3})。小输入更慢，因为还要分配 scratch、做两次求和、两次减法、三次递归调度与移位合并。这些线性成本在乘法足够宽之前占主导。不平衡输入在零填充后也会浪费递归工作，规划器可能继续用课本乘法。见 `mul_rec` 与 `karatsuba_scratch_limbs`。
 
-Preconditions: scratch must satisfy the planner's bound, output must hold m+n limbs, and the subtraction order above is
-safe because z₁ is exactly the sum of the two non-negative cross products a₀b₁+a₁b₀.
+前置条件：scratch 须满足规划器上界，输出须能容纳 m+n limb，且上述减法顺序安全，因为 z₁ 恰好是两非负交叉积 a₀b₁+a₁b₀ 之和。
 
-## Toom–3 multiplication
+## Toom–3 乘法
 
-Toom–3 treats each operand as a degree-two polynomial in X = βᵏ:
+Toom–3 把每个操作数看作 X = βᵏ 上的二次多项式：
 
 ```text
 A(X)=a₀+a₁X+a₂X²              B(X)=b₀+b₁X+b₂X².
 ```
 
-Their product has degree four, hence five independent values determine it. Evaluate A and B at 0, 1, −1, 2, and ∞,
-multiply pointwise, interpolate the five coefficients, then substitute X=βᵏ. The ∞ value means the leading coefficient:
-A (∞)B (∞)=a₂b₂. Exact divisions by 2 and 3 appear during interpolation because the evaluation matrix has those factors.
-A non-exact division indicates an implementation error, not rounding.
+乘积为四次，故需五个独立值。在 0、1、−1、2、∞ 处求值 A 与 B，点乘，插值五个系数，再代入 X=βᵏ。∞ 处表示首项系数：A(∞)B(∞)=a₂b₂。插值中出现对 2、3 的整除，因求值矩阵含这些因子。非整除表示实现错误，而非舍入。
 
-Five multiplications of about n/3 limbs replace nine block products, giving T (n)=5T (⌈n/3⌉)+Θ (n)=Θ (nˡᵒᵍ³⁵). The
-asymptotic improvement is real, but each call also performs ten evaluations, signed intermediate arithmetic, exact small
-divisions, interpolation, and recomposition. For small inputs these operations cost more than the four schoolbook
-products they save. Unequal block lengths and leading zero blocks amplify that overhead. This is why the planner uses a
-measured crossover rather than selecting Toom–3 merely because both operands are heap values. See `toom3_mul_rec`,
-`split_three`, and
-`toom3_scratch_limbs`.
+约 n/3 limb 的五次乘法代替九次分块积，得 T(n)=5T(⌈n/3⌉)+Θ(n)=Θ(n^{log₃5})。渐近改进真实，但每次调用还有十次求值、带符号中间算术、精确小除法、插值与重组。对小输入这些开销超过省下的四次课本积。块长不等与前导零块会放大开销。因此规划器用实测 crossover，而不是仅因两操作数在堆上就选 Toom–3。见 `toom3_mul_rec`、`split_three`、`toom3_scratch_limbs`。
 
-Boundaries: signed evaluation at −1 must not be stored as an unsigned magnitude, interpolation temporaries need one or
-more guard limbs, and every exact division must check its remainder. Aliasing output with an input is not permitted
-unless a wrapper explicitly copies that input first.
+边界：−1 处的带符号求值不得存为无符号 magnitude；插值临时量需要一或多个保护 limb；每次精确除法须检查余数。输出与输入别名不允许，除非包装层先显式复制该输入。
 
-## Multi-limb division: Knuth Algorithm D
+## 多 limb 除法：Knuth 算法 D
 
-For u ÷ v, first left-shift both numbers so the highest bit of v is set. This makes the leading limb a reliable divisor
-approximation. At position j, estimate q̂ from the leading two limbs of the current dividend and the leading limb of v,
-cap q̂ below β, then test it against the next limb. Subtract q̂v. If subtraction borrows, q̂ was one too large:
-decrement it and add v back. Finally right-shift the remainder by the normalization count.
+对 u ÷ v，先左移两数使 v 的最高位置 1。这样最高 limb 可作为可靠的商近似除数。在位置 j，用当前被除数的前两 limb 与 v 的最高 limb 估计 q̂，将 q̂ 限制在 β 以下，再与下一 limb 校验。减去 q̂v。若减法发生借位，则 q̂ 偏大一：减一并把 v 加回。最后按规范化移位量右移余数。
 
-The correction proof follows from the normalized leading-limb bound: the two-limb estimate can exceed the true quotient
-digit by only a small amount, and the second-limb test reduces this to at most one before subtraction. Postconditions
-are u=qv+r and 0≤r<v. Division by zero is rejected before the kernel. See `div_rem_knuth_into`, `shl_into`, and
-`shr_into`.
+校正证明来自规范化最高 limb 界：两 limb 估计最多略大于真商数字，第二 limb 检验可在减法前把偏差压到至多一。后置条件为 u=qv+r 且 0≤r<v。除零在进内核前拒绝。见 `div_rem_knuth_into`、`shl_into`、`shr_into`。
 
-## GCD and Lehmer acceleration
+## GCD 与 Lehmer 加速
 
-Euclid uses gcd (a,b)=gcd (b,a mod b), because common divisors are unchanged by replacing a with a−qb. Full multi-limb
-division is expensive. Lehmer observes that, while a and b have similar widths, their leading limbs often determine
-several successive Euclidean quotients. It accumulates the corresponding 2×2 integer matrix and applies that matrix once
-to the full operands.
+欧几里得用 gcd(a,b)=gcd(b,a mod b)，因为用 a−qb 替换 a 不改变公约数。完整多 limb 除法昂贵。Lehmer 观察到：当 a、b 宽度相近时，其最高 limb 往往决定若干步欧几里得商。它累积对应的 2×2 整数矩阵，再对该矩阵一次作用于完整操作数。
 
-A candidate matrix is accepted only while its quotient predictions remain stable for the lower and upper leading-limb
-bounds and its signed linear combinations stay representable and non-negative. Otherwise the code falls back to one
-exact Euclidean remainder step. Progress requires the second operand to decrease. See `gcd`, `lehmer_step`, and
-`lincomb_signed`.
+候选矩阵仅在商预测对最高 limb 上下界保持稳定、且带符号线性组合可表示且非负时被接受。否则回退到一次精确欧几里得余数步。进展要求第二操作数减小。见 `gcd`、`lehmer_step`、`lincomb_signed`。
 
-Binary GCD is a separate baseline: remove common powers of two, repeatedly subtract the smaller odd magnitude from the
-larger, remove new powers of two, then restore the common shift. See `binary_gcd`.
+二进制 GCD 是另一基线：去掉公共 2 的幂，反复从较大奇 magnitude 减去较小者，再去掉新的 2 的幂，最后恢复公共移位。见 `binary_gcd`。
 
-## Montgomery modular multiplication
+## Montgomery 模乘
 
-Let m be odd and k its limb width. Choose R=βᵏ, so gcd (R,m)=1, and compute m′ such that mm′≡−1 (mod β). Montgomery
-representation stores x̄=xR mod m. Given T=x̄ȳ, reduction repeatedly chooses uᵢ=Tᵢm′ mod β. Then T+uᵢm has zero limb i,
-so division by β is a limb shift rather than a general division. After k steps the result is congruent to TR⁻¹ mod m and
-lies below 2m; one conditional subtraction produces the canonical residue.
+设 m 为奇数，k 为其 limb 宽。取 R=βᵏ，则 gcd(R,m)=1，并求 m′ 使 mm′≡−1 (mod β)。Montgomery 表示存 x̄=xR mod m。给定 T=x̄ȳ，约化反复取 uᵢ=Tᵢm′ mod β。于是 T+uᵢm 在 limb i 为零，除以 β 变成 limb 移位而非一般除法。k 步后结果同余于 TR⁻¹ mod m 且小于 2m；一次条件减法得到规范剩余。
 
-The method requires odd m. For even m, R has no inverse modulo m, so this representation is invalid and the caller must
-use the ordinary division path. Setup computes R² mod m and m′; it is profitable only when reused across many
-multiplications, as in modular exponentiation. See `montgomery_nprime`,
-`montgomery_redc`, `montgomery_precompute`, and `mul_mod_mont_with`.
+该方法要求 m 为奇。对偶 m，R 在模 m 下无逆，表示无效，调用方须走普通除法。预计算 R² mod m 与 m′；仅在多次乘法复用时合算，如模幂。见 `montgomery_nprime`、`montgomery_redc`、`montgomery_precompute`、`mul_mod_mont_with`。
 
-## Exponentiation
+## 幂运算
 
-Binary exponentiation follows e=Σ eᵢ2ⁱ. Starting with acc=1 and base=a, scan bits from least significant to most
-significant: multiply acc by base when eᵢ=1, square base, then shift e. It needs ⌊log₂e⌋ squarings and popcount (e)
-general multiplications. Modular exponentiation performs the same schedule in Montgomery form so intermediate values
-remain bounded by m.
+二进制幂按 e=Σ eᵢ2ⁱ。从 acc=1、base=a 起，自低位向高位扫描：eᵢ=1 时用 base 乘 acc，再平方 base，然后右移 e。需要 ⌊log₂e⌋ 次平方与 popcount(e) 次一般乘法。模幂在 Montgomery 形式下执行同一日程，使中间值受 m 约束。
 
-## Rational cross-cancellation
+## 有理数交叉约分
 
-For (a/b)(c/d), direct multiplication may create huge intermediates that are immediately cancelled. Compute g₁=gcd
-(|a|,d) and g₂=gcd (|c|,b), then
+对 (a/b)(c/d)，直接相乘可能产生立刻被约掉的巨大中间量。计算 g₁=gcd(|a|,d) 与 g₂=gcd(|c|,b)，则
 
 ```text
 (a/b)(c/d) = ((a/g₁)(c/g₂)) / ((b/g₂)(d/g₁)).
 ```
 
-This is identical because each g divides one numerator and the opposite denominator. It preserves a positive denominator
-and substantially limits intermediate growth. See `cross_cancel_mul_ctx`.
+恒等成立，因为每个 g 整除一个分子与对角分母。保持正分母，并显著限制中间增长。见 `cross_cancel_mul_ctx`。
 
-## References
+## 参考文献
 
 - D. E. Knuth, *The Art of Computer Programming, Volume 2*, §§4.3.1–4.3.3.
 - R. P. Brent and P. Zimmermann, *Modern Computer Arithmetic*, Chapters 1–2.
