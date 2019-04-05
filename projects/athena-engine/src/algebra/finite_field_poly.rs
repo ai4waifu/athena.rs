@@ -119,7 +119,7 @@ fn has_monic_factor_of_degree(f: &[Integer], degree: usize, p: &Modulus) -> Resu
         if divides_monic(f, &coeffs, p)? {
             return Ok(true);
         }
-        if !increment_monic_coeffs(&mut coeffs, degree, prime)? {
+        if !increment_monic_coeffs(&mut coeffs, degree, &prime)? {
             break;
         }
     }
@@ -149,7 +149,7 @@ fn has_root_in_fp(coeffs: &[Integer], p: &Modulus) -> bool {
         if poly_eval(coeffs, &x, p).is_zero() {
             return true;
         }
-        if x.add(&Integer::one()).cmp(prime) != std::cmp::Ordering::Less {
+        if x.add(&Integer::one()).cmp(&prime) != std::cmp::Ordering::Less {
             break;
         }
         x = x.add(&Integer::one());

@@ -56,9 +56,9 @@ fn factor_zero_is_domain_error() {
 fn inverse_and_pow() {
     let m = Modulus::new(7).unwrap();
     let inv = mod_inverse(&3.into(), &m).unwrap();
-    assert_eq!(inv.residue(), &Integer::from_i64(5));
+    assert_eq!(inv.residue(), Integer::from_i64(5));
     let p = mod_pow(&3.into(), &4.into(), &m).unwrap();
-    assert_eq!(p.residue(), &Integer::from_i64(4)); // 81 ≡ 4 (mod 7)
+    assert_eq!(p.residue(), Integer::from_i64(4)); // 81 ≡ 4 (mod 7)
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn prime_modulus_from_proven() {
     let p = primality_test(&97.into(), None);
     assert!(matches!(p, Primality::Prime { .. }));
     let pm = PrimeModulus::assuming_proven(97).expect("prime modulus");
-    assert_eq!(pm.value(), &Integer::from_i64(97));
+    assert_eq!(pm.value(), Integer::from_i64(97));
 }
 
 #[test]
