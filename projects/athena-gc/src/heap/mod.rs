@@ -1,5 +1,13 @@
 //! `GcHeap`：segmented non-moving bump 堆 + object arena + tracing collect。
+//!
+//! Living `23` 批次 2：`state` / `segment_store` / `allocation` 已拆出；其余子系统仍在本文件，后续批次迁出。
 #![allow(unsafe_code)]
+
+mod allocation;
+mod segment_store;
+mod state;
+
+pub use state::GcHeap;
 
 use core::{cell::Cell, ptr::NonNull};
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Instant};
@@ -15,20 +23,12 @@ use crate::{
     registry,
     root::{RootKind, RootRegistry},
     scratch::ScratchArena,
-    segment::{SegmentKind, SegmentMeta},
+    segment::SegmentKind,
     stats::HeapStats,
     trace::{ObjectGraph, Tracer},
 };
 
-/// 默认 segment 容量。
-const DEFAULT_SEGMENT_BYTES: usize = 256 * 1024;
-/// `AllocationHeader::pin_state` 哨兵：block 已 release，禁止再解析为存活分配。
-const FREED_PIN_SENTINEL: u16 = u16::MAX;
-
-struct SegmentStorage {
-    meta: SegmentMeta,
-    bytes: Vec<u8>,
-}
+use allocation::align_up;
 
 /// Numeric bump 水位（微基准 `bump_ephemeral`：`clear_numeric_to` 整段 rewind）。
 #[derive(Debug, Clone)]
@@ -38,35 +38,6 @@ pub struct NumericBumpMark {
 }
 
 /// CAS runtime heap。
-pub struct GcHeap {
-    id: HeapId,
-    budget: HeapBudget,
-    segments: Vec<Option<SegmentStorage>>,
-    free_segment_slots: Vec<usize>,
-    next_generation: u32,
-    access_clock: u64,
-    resident_bytes: usize,
-    controller: Rc<GcController>,
-    roots: RootRegistry,
-    scratch: ScratchArena,
-    stats: HeapStats,
-    /// `Drop` 遇 `HeapBusy` 的泄漏计数（与 registry 共享，可不借 `RefCell` 递增）。
-    drop_busy_leaks: Rc<Cell<u64>>,
-    objects: Vec<Option<ObjectSlot>>,
-    free_objects: Vec<u32>,
-    /// GC-owned numeric payloads（不经 Rust `Drop` 释放；由 tracing sweep）。
-    traced_numeric: HashSet<usize>,
-    /// 微基准：Drop 不回收，由 [`Self::clear_numeric_to`] rewind bump。
-    bump_ephemeral: bool,
-    /// 分配记账策略（[`AllocationAccounting::Batched`] 仅由 [`Self::begin_numeric_batch`] 设置）。
-    accounting: AllocationAccounting,
-    /// Batched 模式下累计字节（header+payload）。
-    batch_bytes: usize,
-    /// Batched 模式下累计分配次数。
-    batch_allocs: u64,
-    /// 仅 `shared` 构造时由 Drop 注销。
-    registered: bool,
-}
 
 impl GcHeap {
     /// 构造未登记的堆（须再包进 `Rc` 并 [`Self::into_shared`]）。
@@ -386,53 +357,12 @@ impl GcHeap {
     }
 
     /// Header（limb 或 object payload 起点）。
-    pub fn header_for_payload(&self, payload: NonNull<u8>) -> Result<&AllocationHeader> {
-        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
-        let hdr = unsafe { &*header };
-        if hdr.heap_id != self.id {
-            return Err(GcError::UnknownAllocation);
-        }
-        if hdr.pin_state == FREED_PIN_SENTINEL {
-            return Err(GcError::UnknownAllocation);
-        }
-        self.segment_ref(hdr.segment_id).ok_or(GcError::UnknownAllocation)?;
-        Ok(hdr)
-    }
 
     /// 兼容旧名。
-    pub fn header_for_limbs(&self, limbs: NonNull<u64>) -> Result<&AllocationHeader> {
-        self.header_for_payload(limbs.cast())
-    }
-
-    fn header_mut_for_limbs(&mut self, limbs: NonNull<u64>) -> Result<&mut AllocationHeader> {
-        let header = unsafe { limbs.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
-        let hdr = unsafe { &mut *header };
-        if hdr.pin_state == FREED_PIN_SENTINEL {
-            return Err(GcError::UnknownAllocation);
-        }
-        self.segment_ref(hdr.segment_id).ok_or(GcError::UnknownAllocation)?;
-        Ok(hdr)
-    }
 
     /// 标记 allocation 可达。
-    pub fn mark_payload(&mut self, payload: NonNull<u8>) -> Result<()> {
-        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
-        unsafe {
-            (*header).mark_state = MarkState::Black;
-            if (*header).block_kind == BlockKind::Object {
-                let idx = (*header).object_index as usize;
-                if let Some(Some(slot)) = self.objects.get(idx) {
-                    slot.mark.set(MarkState::Black);
-                }
-            }
-        }
-        Ok(())
-    }
 
     /// 标记 limbs。
-    pub fn mark_limbs(&mut self, limbs: NonNull<u64>) -> Result<()> {
-        self.mark_payload(limbs.cast())
-    }
 
     /// 显式释放 numeric block（仅 [`NumericOwnership::RustOwned`]）。
     pub fn release_numeric_block(&mut self, block: NumericBlock) -> Result<()> {
@@ -675,85 +605,8 @@ impl GcHeap {
     }
 
     /// 存活 segment。
-    pub fn segments(&self) -> impl Iterator<Item = &SegmentMeta> {
-        self.segments.iter().filter_map(|s| s.as_ref().map(|x| &x.meta))
-    }
 
     /// Resident 字节。
-    pub fn resident_bytes(&self) -> usize {
-        self.resident_bytes
-    }
-
-    fn allocate_payload(
-        &mut self,
-        kind: SegmentKind,
-        block_kind: BlockKind,
-        payload_bytes: usize,
-        object_index: u32,
-        numeric_ownership: NumericOwnership,
-    ) -> Result<(SegmentId, NonNull<u8>)> {
-        let total = AllocationHeader::size().checked_add(payload_bytes).ok_or(GcError::InvalidCapacity)?;
-        let (seg_index, offset) = self.bump_allocate(kind, total)?;
-        let seg = self.segments[seg_index].as_mut().expect("segment");
-        let seg_id = seg.meta.id;
-        let header_ptr = unsafe { seg.bytes.as_mut_ptr().add(offset).cast::<AllocationHeader>() };
-        unsafe {
-            header_ptr.write(AllocationHeader {
-                segment_id: seg_id,
-                heap_id: self.id,
-                block_kind,
-                byte_len: u32::try_from(payload_bytes).map_err(|_| GcError::InvalidCapacity)?,
-                alignment: 8,
-                mark_state: MarkState::White,
-                pin_state: 0,
-                object_index,
-                numeric_ownership,
-            });
-        }
-        let payload = unsafe { NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset + AllocationHeader::size())) };
-        seg.meta.live_count = seg.meta.live_count.saturating_add(1);
-        match self.accounting {
-            AllocationAccounting::Full => {
-                self.touch(seg_index);
-                self.controller.record_allocation(total);
-                self.stats.allocation_count = self.stats.allocation_count.saturating_add(1);
-                self.stats.total_arena_bytes_allocated = self.stats.total_arena_bytes_allocated.saturating_add(total);
-                if self.controller.should_collect_after_alloc() {
-                    let _ = self.collect();
-                }
-            }
-            AllocationAccounting::Batched => {
-                self.batch_bytes = self.batch_bytes.saturating_add(total);
-                self.batch_allocs = self.batch_allocs.saturating_add(1);
-            }
-            AllocationAccounting::Off => {}
-        }
-        Ok((seg_id, payload))
-    }
-
-    fn release_payload(&mut self, payload: NonNull<u8>, expected: BlockKind) -> Result<()> {
-        let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
-        let (seg_id, kind, pin) = unsafe { ((*header).segment_id, (*header).block_kind, (*header).pin_state) };
-        if kind != expected || pin == FREED_PIN_SENTINEL {
-            return Err(GcError::UnknownAllocation);
-        }
-        let Some(seg) = self.segment_mut(seg_id)
-        else {
-            return Err(GcError::UnknownAllocation);
-        };
-        if seg.meta.live_count > 0 {
-            seg.meta.live_count -= 1;
-        }
-        unsafe {
-            (*header).mark_state = MarkState::White;
-            // 保留 byte_len 供 segment 遍历；用 pin 哨兵标记已释放。
-            (*header).pin_state = FREED_PIN_SENTINEL;
-        }
-        if matches!(self.controller.effective_mode(), GcMode::Auto) {
-            self.try_reclaim_segment(seg_id);
-        }
-        Ok(())
-    }
 
     /// Rust-owned numeric：ephemeral 下 Drop 为空；否则真正 release（可 reclaim）。
     fn release_or_pool_numeric(&mut self, payload: NonNull<u8>) -> Result<()> {
@@ -829,103 +682,6 @@ impl GcHeap {
             }
         }
         swept
-    }
-
-    fn bump_allocate(&mut self, kind: SegmentKind, bytes: usize) -> Result<(usize, usize)> {
-        for (index, slot) in self.segments.iter_mut().enumerate() {
-            let Some(seg) = slot.as_mut()
-            else {
-                continue;
-            };
-            if seg.meta.kind != kind {
-                continue;
-            }
-            let aligned_used = align_up(seg.meta.used, 8);
-            if aligned_used.saturating_add(bytes) <= seg.meta.capacity {
-                seg.meta.used = aligned_used + bytes;
-                return Ok((index, aligned_used));
-            }
-        }
-        let capacity = bytes.max(DEFAULT_SEGMENT_BYTES).next_power_of_two();
-        let index = self.alloc_segment(kind, capacity)?;
-        let seg = self.segments[index].as_mut().expect("new segment");
-        seg.meta.used = bytes;
-        Ok((index, 0))
-    }
-
-    fn alloc_segment(&mut self, kind: SegmentKind, capacity: usize) -> Result<usize> {
-        let count = self.segments.iter().filter(|s| s.is_some()).count() + 1;
-        self.budget.check_segment_count(count)?;
-        self.budget.check_arena_bytes(self.resident_bytes, capacity)?;
-        let generation = self.next_generation;
-        self.next_generation = self.next_generation.wrapping_add(1).max(1);
-        let index = if let Some(free) = self.free_segment_slots.pop() {
-            free
-        }
-        else {
-            let i = self.segments.len();
-            self.segments.push(None);
-            i
-        };
-        let id = SegmentId { index: index as u32, generation };
-        self.segments[index] = Some(SegmentStorage {
-            meta: SegmentMeta {
-                id,
-                kind,
-                capacity,
-                used: 0,
-                live_count: 0,
-                pin_count: Cell::new(0),
-                last_access: self.access_clock,
-            },
-            bytes: vec![0u8; capacity],
-        });
-        self.resident_bytes = self.resident_bytes.saturating_add(capacity);
-        self.stats.peak_arena_bytes = self.stats.peak_arena_bytes.max(self.resident_bytes);
-        self.stats.segments_allocated = self.stats.segments_allocated.saturating_add(1);
-        Ok(index)
-    }
-
-    fn try_reclaim_segment(&mut self, id: SegmentId) -> bool {
-        let Some(index) = self.resolve_index(id)
-        else {
-            return false;
-        };
-        let Some(seg) = self.segments[index].as_ref()
-        else {
-            return false;
-        };
-        if !seg.meta.is_reclaimable() {
-            return false;
-        }
-        let capacity = seg.meta.capacity;
-        self.segments[index] = None;
-        self.free_segment_slots.push(index);
-        self.resident_bytes = self.resident_bytes.saturating_sub(capacity);
-        true
-    }
-
-    fn resolve_index(&self, id: SegmentId) -> Option<usize> {
-        let index = id.index as usize;
-        let seg = self.segments.get(index)?.as_ref()?;
-        (seg.meta.id == id).then_some(index)
-    }
-
-    fn segment_ref(&self, id: SegmentId) -> Option<&SegmentStorage> {
-        let index = self.resolve_index(id)?;
-        self.segments[index].as_ref()
-    }
-
-    fn segment_mut(&mut self, id: SegmentId) -> Option<&mut SegmentStorage> {
-        let index = self.resolve_index(id)?;
-        self.segments[index].as_mut()
-    }
-
-    fn touch(&mut self, index: usize) {
-        self.access_clock = self.access_clock.wrapping_add(1);
-        if let Some(seg) = self.segments[index].as_mut() {
-            seg.meta.last_access = self.access_clock;
-        }
     }
 
     fn mark_object_id(&mut self, id: GcObjectId, gray: &mut Vec<GcObjectId>) {
@@ -1132,10 +888,6 @@ pub struct CollectReport {
     pub peak_arena_bytes: usize,
     /// 峰值 scratch（报告用）。
     pub peak_scratch_bytes: usize,
-}
-
-fn align_up(value: usize, align: usize) -> usize {
-    (value + align - 1) & !(align - 1)
 }
 
 /// 由 limb 指针读取 header 中的 [`HeapId`]（不校验 heap 仍存活）。
