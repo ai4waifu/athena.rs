@@ -16,6 +16,11 @@ blas = ["native-accelerated"]
 # Batch-local `EphemeralNatural` / `EphemeralInteger`（Living `19`：非公共数值语义；供 athena-benchmark）。
 ephemeral = []
 
+[[test]]
+name = "ephemeral_batch"
+path = "tests/ephemeral_batch.rs"
+required-features = ["ephemeral"]
+
 [dependencies]
 athena-types = { workspace = true }
 athena-gc = { workspace = true }

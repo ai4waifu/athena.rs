@@ -75,14 +75,3 @@ impl AllocationHeader {
         core::mem::size_of::<Self>()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn header_aligned_8() {
-        assert_eq!(AllocationHeader::size() % 8, 0);
-        assert!(AllocationHeader::size() >= 24);
-    }
-}

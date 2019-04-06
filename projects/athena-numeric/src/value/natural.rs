@@ -702,8 +702,10 @@ impl Natural {
         Ok(Self::from_pair(inner))
     }
 
-    /// 以显式 heap 容量发布（`capacity >= effective_len`）。供 `*_owned` 复用与测试构造余量缓冲。
-    pub(crate) fn from_limbs_with_capacity_in(ctx: &NumericContext, limbs: &[u64], capacity: usize) -> Result<Self> {
+    /// 以显式 heap 容量发布（`capacity >= effective_len`）。
+    ///
+    /// 供 `*_owned` 复用路径预留余量，以及合同测试构造「capacity > len」的 Heap 值。
+    pub fn from_limbs_with_capacity_in(ctx: &NumericContext, limbs: &[u64], capacity: usize) -> Result<Self> {
         use crate::storage::OwnedLimbBuffer;
         ctx.check_entry()?;
         let el = limb_kernel::effective_len(limbs);
@@ -844,6 +846,13 @@ impl Natural {
     #[inline]
     pub(crate) fn from_u128_mag(v: u128) -> Self {
         Self { inner: MagnitudePair::from_u128(v) }
+    }
+
+    /// 仅改写内部符号元数据位（[`Natural`] 相等 / 序语义忽略该位）。
+    ///
+    /// 合同测试用：验证 don't-care 位不进入 `Eq` / `Ord` / `Hash`。
+    pub fn with_dont_care_sign_bit(self, negative: bool) -> Self {
+        Self::from_pair(self.into_pair().with_negative(negative))
     }
 
     /// 由物理 pair 构造（**不**清零 sign don't-care 位）。
@@ -1012,137 +1021,5 @@ impl athena_gc::Trace for Natural {
         if let Some(ptr) = self.inner.heap_ptr() {
             tracer.mark_allocation(ptr.as_ptr().cast());
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::integer::Integer;
-    use std::collections::HashSet;
-
-    #[test]
-    fn natural_sign_bit_is_semantic_dont_care() {
-        let a = Natural::from_u64(42);
-        let b = Natural::from_pair(a.clone().into_pair().with_negative(true));
-        assert_eq!(a, b);
-        assert_eq!(a.cmp(&b), Ordering::Equal);
-
-        let mut set = HashSet::new();
-        set.insert(a);
-        assert!(set.contains(&b));
-    }
-
-    #[test]
-    fn integer_interprets_sign_bit() {
-        assert_ne!(Integer::from_u64(42), Integer::from_i64(-42));
-    }
-
-    #[test]
-    fn try_add_owned_reuses_heap_buffer_when_capacity_allows() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        let a = Natural::from_limbs_with_capacity_in(&ctx, &[1, 2, 3, 4], 8).expect("a");
-        let ptr_before = a.inner.heap_ptr();
-        assert_eq!(a.inner.heap_capacity(), Some(8));
-        let b = Natural::from_limbs_in(&ctx, vec![5, 6, 7]).expect("b");
-        let expected = a.try_add(&b, &ctx).expect("ref");
-        let sum = a.try_add_owned(&b, &ctx).expect("owned");
-        assert_eq!(sum.as_limbs(), expected.as_limbs());
-        assert_eq!(sum.inner.heap_ptr(), ptr_before, "must reuse stolen heap buffer");
-    }
-
-    #[test]
-    fn try_add_owned_matches_try_add_without_spare_capacity() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        // capacity == len：无法容纳进位槽，回退 try_add。
-        let a = Natural::from_limbs_in(&ctx, vec![u64::MAX, u64::MAX, u64::MAX]).expect("a");
-        let b = Natural::from_u64(1);
-        let expected = a.try_add(&b, &ctx).expect("ref");
-        let sum = a.try_add_owned(&b, &ctx).expect("owned");
-        assert_eq!(sum.as_limbs(), expected.as_limbs());
-    }
-
-    #[test]
-    fn try_mul_u64_owned_reuses_heap_when_capacity_allows() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        let a = Natural::from_limbs_with_capacity_in(&ctx, &[3, 4, 5], 6).expect("a");
-        let ptr_before = a.inner.heap_ptr();
-        let expected = a.try_mul_u64(7, &ctx).expect("ref");
-        let prod = a.try_mul_u64_owned(7, &ctx).expect("owned");
-        assert_eq!(prod.as_limbs(), expected.as_limbs());
-        assert_eq!(prod.inner.heap_ptr(), ptr_before);
-    }
-
-    #[test]
-    fn try_add_owned_self_add_aliases_safely() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        let a = Natural::from_limbs_with_capacity_in(&ctx, &[9, 8, 7], 8).expect("a");
-        let expected = a.try_add(&a, &ctx).expect("ref");
-        let sum = a.clone().try_add_owned(&a, &ctx).expect("owned self");
-        assert_eq!(sum.as_limbs(), expected.as_limbs());
-    }
-
-    #[test]
-    fn try_sub_owned_reuses_heap_when_capacity_allows() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        let a = Natural::from_limbs_with_capacity_in(&ctx, &[10, 20, 30, 40], 6).expect("a");
-        let ptr_before = a.inner.heap_ptr();
-        let b = Natural::from_limbs_in(&ctx, vec![1, 2, 3]).expect("b");
-        let expected = a.try_sub(&b, &ctx).expect("ref");
-        let diff = a.try_sub_owned(&b, &ctx).expect("owned");
-        assert_eq!(diff.as_limbs(), expected.as_limbs());
-        assert_eq!(diff.inner.heap_ptr(), ptr_before);
-    }
-
-    #[test]
-    fn try_mul_owned_reuses_heap_on_schoolbook_with_spare_capacity() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        // 3×3 schoolbook need = 6；capacity 8 → steal。
-        let a = Natural::from_limbs_with_capacity_in(&ctx, &[2, 3, 4], 8).expect("a");
-        let ptr_before = a.inner.heap_ptr();
-        let b = Natural::from_limbs_in(&ctx, vec![5, 6, 7]).expect("b");
-        let expected = a.try_mul(&b, &ctx).expect("ref");
-        let prod = a.try_mul_owned(&b, &ctx).expect("owned");
-        assert_eq!(prod.as_limbs(), expected.as_limbs());
-        assert_eq!(prod.inner.heap_ptr(), ptr_before);
-    }
-
-    #[test]
-    fn try_mul_owned_falls_back_without_spare_capacity() {
-        use crate::policy::execution_budget::ExecutionBudget;
-        use athena_gc::{GcHeap, HeapBudget};
-
-        let heap = GcHeap::new_shared(HeapBudget::default());
-        let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-        // capacity == 3 < need 6 → 回退 try_mul。
-        let a = Natural::from_limbs_in(&ctx, vec![2, 3, 4]).expect("a");
-        let b = Natural::from_limbs_in(&ctx, vec![5, 6, 7]).expect("b");
-        let expected = a.try_mul(&b, &ctx).expect("ref");
-        let prod = a.try_mul_owned(&b, &ctx).expect("owned");
-        assert_eq!(prod.as_limbs(), expected.as_limbs());
     }
 }

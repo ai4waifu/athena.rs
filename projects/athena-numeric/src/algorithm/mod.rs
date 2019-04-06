@@ -1,4 +1,4 @@
-//! 算法策略层：选数学路径，不写 ISA、不分配、不读 `Magnitude` union。
+#![doc = include_str!("readme.md")]
 
 mod div;
 mod gcd;
