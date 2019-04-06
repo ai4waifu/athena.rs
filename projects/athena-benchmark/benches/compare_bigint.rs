@@ -3,6 +3,10 @@
 //! Fixture / layer / context / 正确性在 `athena_benchmark::bigint`；本文件只做 Criterion 包装。
 //! `athena-bench` **不再**测量 ns/op。
 //!
+//! Athena kernel：session bump+clear。  
+//! Athena **numeric `Add`/`Mul`**：`Ephemeral*` + `NumericBatch`（不 promote）。  
+//! Athena numeric 其余 op 与 kernel 同 bump+clear；`e2e` / peer 测真实 owning / Drop。
+//!
 //! ```sh
 //! cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint
 //! ```
@@ -23,9 +27,10 @@ fn bench_op(c: &mut Criterion, op: BigIntOp) {
             panic!("bigint fixture validation failed for {}: {e}", case.id());
         }
         group.bench_with_input(BenchmarkId::new(case.criterion_function(), case.bits), &prepared, |bencher, prepared| {
-            bencher.iter(|| {
-                prepared.run_once();
+            bencher.iter_custom(|iters| {
+                let elapsed = prepared.run_timed_batch(iters);
                 black_box(());
+                elapsed
             });
         });
     }
