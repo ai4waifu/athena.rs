@@ -24,13 +24,13 @@
 //! Improves constants when $|u| \gg |v|$ by reducing Knuth digit loops on the high part.
 //!
 //! # Crossover
-//! DIV_BZ_THRESHOLD and capability z_division in AlgorithmPlanner.
+//! DIV_BZ_THRESHOLD and capability `bz_division` in AlgorithmPlanner.
 //!
 //! # Failure modes
 //! Same budget / div-zero paths as Knuth via shared helpers.
 //!
 //! # Tests
-//! 	ests/exact/algorithms.rs (BZ vs Knuth capability gate).
+//! `tests/exact/algorithms.rs` (BZ vs Knuth capability gate).
 
 use athena_types::Result;
 

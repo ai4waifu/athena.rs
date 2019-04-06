@@ -34,7 +34,7 @@
 //! Scratch underrun debug_assert. Recursive leaves must clear temporary out slices.
 //!
 //! # Tests
-//! 	ests/exact/algorithms.rs, 	ests/runtime/kernel_parity.rs.
+//! `tests/exact/algorithms.rs`, `tests/runtime/kernel_parity.rs`.
 
 use crate::algorithm::MUL_KARATSUBA_THRESHOLD;
 
