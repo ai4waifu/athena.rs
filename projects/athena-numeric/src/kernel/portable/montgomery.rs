@@ -33,7 +33,7 @@
 //! Even $m$ has no inverse of $R$; eligible gate must hold.
 //!
 //! # Tests
-//! Modular / mod_pow suites under 	ests/exact/ and differential pure tests.
+//! Modular / mod_pow suites under `tests/exact/` and differential pure tests.
 
 use std::cmp::Ordering;
 

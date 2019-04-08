@@ -9,12 +9,12 @@
 //! # Derivation
 //! Leading-limb bounds certify that a block of quotients matches the true
 //! Euclidean quotients; applying the matrix is then an exact multi-limb update.
-//! If certification fails, fall through to inary_gcd.
+//! If certification fails, fall through to `binary_gcd`.
 //!
 //! # Algorithm steps
 //! 1. Normalize; swap so $a \ge b$.
 //! 2. While both widths $\ge$ LEHMER_THRESHOLD, try lehmer_step.
-//! 3. Finish with inary_gcd.
+//! 3. Finish with `binary_gcd`.
 //!
 //! # Preconditions
 //! - Canonical non-negative limb magnitudes (Vec convenience path today).
@@ -29,10 +29,10 @@
 //! Small operands skip Lehmer and go straight to binary GCD.
 //!
 //! # Failure modes
-//! lehmer_step returns alse on unstable leading quotients (not an error).
+//! lehmer_step returns `false` on unstable leading quotients (not an error).
 //!
 //! # Tests
-//! 	ests/exact/limb_kernel.rs, 	ests/exact/algorithms.rs.
+//! `tests/exact/limb_kernel.rs`, `tests/exact/algorithms.rs`.
 
 use std::cmp::Ordering;
 

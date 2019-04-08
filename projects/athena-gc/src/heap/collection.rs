@@ -196,4 +196,3 @@ impl Tracer for MarkingTracer<'_> {
         }
     }
 }
-

@@ -31,7 +31,7 @@
 //! None beyond empty/zero handling.
 //!
 //! # Tests
-//! Euclidean reference suites in 	ests/exact/ and 	ests/runtime/differential_pure.rs.
+//! Euclidean reference suites in `tests/exact/` and `tests/runtime/differential_pure.rs`.
 
 use std::cmp::Ordering;
 

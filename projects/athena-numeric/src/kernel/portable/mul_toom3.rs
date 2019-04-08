@@ -22,10 +22,10 @@
 //! 2. split_three into $a_0,a_1,a_2$ / $b_0,b_1,b_2$.
 //! 3. Evaluate both operands at the five points (signed handling at $-1$).
 //! 4. Five recursive products via mul_rec.
-//! 5. 	oom_interpolate_bodrato → recompose into out at shifts $0..4m$.
+//! 5. `toom_interpolate_bodrato` → recompose into out at shifts $0..4m$.
 //!
 //! # Preconditions
-//! - out.len() >= la+lb; scratch sized by 	oom3_scratch_limbs.
+//! - out.len() >= la+lb; scratch sized by `toom3_scratch_limbs`.
 //! - Planner should reject tiny / badly unbalanced pairs.
 //!
 //! # Postconditions
@@ -35,14 +35,14 @@
 //! $\Theta(n^{\log_3 5})$ for balanced large $n$, with large constant factors.
 //!
 //! # Crossover
-//! MUL_TOOM_THRESHOLD and capability 	oom gate selection in AlgorithmPlanner.
+//! MUL_TOOM_THRESHOLD and capability `toom` gate selection in AlgorithmPlanner.
 //!
 //! # Failure modes
 //! Exact-div asserts on 2/3; scratch underrun; signed $-1$ eval must track sign.
 //!
 //! # Tests
-//! 	ests/exact/algorithms.rs (	oom_matches_schoolbook_capability_gate),
-//! 	ests/runtime/kernel_parity.rs.
+//! `tests/exact/algorithms.rs` (`toom_matches_schoolbook_capability_gate`),
+//! `tests/runtime/kernel_parity.rs`.
 
 use std::cmp::Ordering;
 
