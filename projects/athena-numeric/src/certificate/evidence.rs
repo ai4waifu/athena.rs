@@ -9,7 +9,7 @@ use crate::{certificate::NumericCertificate, number::NumericValue};
 pub struct NumericEvidenceId(pub u32);
 
 /// 存于 [`NumericEvidenceArena`] 的证据载荷，不嵌入 [`NumericValue`]。
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct NumericEvidenceRecord {
     /// 来源 / 推导标签（结构化 ProofRef 落地前的骨架）。
     pub tags: Vec<String>,
@@ -64,7 +64,7 @@ impl NumericEvidenceArena {
 }
 
 /// 规范值加可选外部证据句柄（数学相等只看值）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct NumericBinding {
     value: NumericValue,
     evidence: Option<NumericEvidenceId>,

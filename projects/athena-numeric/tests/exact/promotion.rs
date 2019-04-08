@@ -1,7 +1,7 @@
 //! Integer↔Rational、Exact↔Machine、Machine↔Arbitrary 的 promotion 合同。
 //! CI 过滤：`cargo test -p athena-numeric --test main promotion`
 
-use athena_numeric::{
+use athena_numeric::{NumericContext, 
     Decimal, DefaultNumericCompare, DefaultPromotion, Integer, NumericCompare, NumericComparison, NumericDomain, NumericValue,
     PrecisionKind, Promotion, PromotionPolicy, Rational, Real,
 };
@@ -60,7 +60,7 @@ fn promotion_common_domain_exact_real_requires_policy() {
 #[test]
 fn promotion_exact_to_machine_requires_policy() {
     let a = NumericValue::integer(Integer::from_i64(7));
-    let err = DefaultPromotion::promote(a.clone(), &NumericDomain::Real, &PromotionPolicy::default()).unwrap_err();
+    let err = DefaultPromotion::promote(a.try_clone_in(&NumericContext::portable_default()).unwrap(), &NumericDomain::Real, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
 
     let policy = PromotionPolicy { allow_exact_to_machine: true, allow_arbitrary_to_machine: false };
@@ -96,7 +96,7 @@ fn promotion_rejects_non_exact_rational_to_machine() {
 #[test]
 fn promotion_real_to_exact_forbidden() {
     let m = NumericValue::machine_real(1.0);
-    let err = DefaultPromotion::promote(m.clone(), &NumericDomain::Integer, &PromotionPolicy::default()).unwrap_err();
+    let err = DefaultPromotion::promote(m.try_clone_in(&NumericContext::portable_default()).unwrap(), &NumericDomain::Integer, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");
     let err = DefaultPromotion::promote(m, &NumericDomain::Rational, &PromotionPolicy::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_NUMERIC_CONVERSION_FORBIDDEN");

@@ -234,12 +234,22 @@ impl MagnitudePair {
         !self.is_zero() && is_negative(self.meta)
     }
 
-    /// 清除 sign 位的克隆（供 `Natural` / 幅度运算）。
-    ///
-    /// Heap `RustOwned` 分配失败时 panic。有 context 的热路径用 [`Self::try_clone_clear_sign`]。
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`：Heap 禁止隐式 Clone）。
     #[inline]
-    pub(crate) fn clone_clear_sign(&self) -> Self {
-        self.try_clone_clear_sign().unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"))
+    pub(crate) fn clone_inline(&self) -> Option<Self> {
+        match try_mode_of(self.meta).ok()? {
+            Mode::Limb1 => {
+                // SAFETY: Limb1 active。
+                let limb = unsafe { self.magnitude.limb1 };
+                Some(Self { meta: self.meta, magnitude: Magnitude { limb1: limb } })
+            }
+            Mode::Limb2 => {
+                // SAFETY: Limb2 active。
+                let limbs = unsafe { self.magnitude.limb2 };
+                Some(Self { meta: self.meta, magnitude: Magnitude { limb2: limbs } })
+            }
+            Mode::Heap => None,
+        }
     }
 
     /// 可失败清除 sign 位的 owning 复制（Living `19`）。
@@ -405,20 +415,6 @@ fn effective_len(limbs: &[u64]) -> usize {
 impl Default for MagnitudePair {
     fn default() -> Self {
         Self::zero()
-    }
-}
-
-/// Owning clone of the physical pair.
-///
-/// Limb1 / Limb2 are infallible stack copies. Heap 经同堆 `alloc_copy` 深复制（Living `19`：
-/// **不** adopt、**不** share root）。共享须走显式 API。
-///
-/// # Panic
-///
-/// Heap 深复制分配失败时 panic。公共 / 热路径应优先 [`Self::try_clone`] / `try_clone_in`。
-impl Clone for MagnitudePair {
-    fn clone(&self) -> Self {
-        self.try_clone().unwrap_or_else(|e| panic!("gc Clone must stay on owner heap: {e}"))
     }
 }
 

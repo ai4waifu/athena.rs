@@ -1,6 +1,6 @@
 //! Magnitude / Nat·Int（`meta + Magnitude`）布局与 canonical 表示测试。
 
-use athena_numeric::{
+use athena_numeric::{NumericContext, 
     integer::{Integer, Sign},
     natural::Natural,
 };
@@ -54,14 +54,14 @@ fn as_limbs_uses_checked_decode_for_heap() {
     // Heap values must round-trip through decode_magnitude (capacity clamp, no panic).
     let n = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
     assert_eq!(n.as_limbs(), &[1, 2, 3, 4]);
-    let m = n.clone();
+    let m = n.try_clone_in(&NumericContext::portable_default()).unwrap();
     assert_eq!(m.as_limbs(), n.as_limbs());
 }
 
 #[test]
 fn clone_drop_heap() {
     let a = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
-    let b = a.clone();
+    let b = a.try_clone_in(&NumericContext::portable_default()).unwrap();
     assert_eq!(a, b);
     assert_eq!(a.as_limbs(), &[1, 2, 3, 4]);
     assert_ne!(a.as_limbs().as_ptr(), b.as_limbs().as_ptr(), "Heap Clone is deep copy");

@@ -8,7 +8,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use crate::{integer::Sign, natural::Natural, storage::MagnitudePair};
 
 /// 精确二进制有理：`sign · significand · 2^exponent`（非零时尾数为奇）。
-#[derive(Clone)]
+// Living 19: no Clone on Heap-capable significand
 #[repr(C)]
 pub struct Dyadic {
     significand: MagnitudePair,
@@ -119,7 +119,7 @@ impl Dyadic {
 
     /// 无符号尾数幅度（克隆；不解释 `meta` sign）。
     pub fn significand(&self) -> Natural {
-        Natural::from_pair(self.significand.clone_clear_sign())
+        Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"))
     }
 
     /// 二进制指数。
@@ -139,7 +139,7 @@ impl Dyadic {
 
     /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
-        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.clone_clear_sign()).bits() }
+        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits() }
     }
 
     /// 去掉末尾二进制零并规范零的符号。
@@ -153,7 +153,7 @@ impl Dyadic {
             return;
         }
         let negative = self.significand.is_negative();
-        let mut mag = Natural::from_pair(self.significand.clone_clear_sign());
+        let mut mag = Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"));
         while !mag.is_odd() {
             mag.div2();
             self.exponent += 1;
@@ -174,7 +174,7 @@ impl Dyadic {
         if self.sign() != Sign::Positive && self.sign() != Sign::Negative {
             return Err(invalid("nonzero_sign"));
         }
-        let mag = Natural::from_pair(self.significand.clone_clear_sign());
+        let mag = Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"));
         if !mag.is_odd() {
             return Err(invalid("not_normalized"));
         }

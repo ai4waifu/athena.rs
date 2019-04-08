@@ -2,12 +2,12 @@
 
 use std::cmp::Ordering;
 
-use athena_numeric::{Integer, NumericValue, Sign, number_from_wire};
+use athena_numeric::{NumericContext, Integer, NumericValue, Sign, number_from_wire};
 use athena_types::wire::{ExactNumber, WireNumber};
 
 fn int_from_wire(s: &str) -> Integer {
     match number_from_wire(&WireNumber::Exact(ExactNumber::Integer(s.to_string()))).unwrap() {
-        NumericValue::Integer(i) => i.clone(),
+        NumericValue::Integer(i) => i.try_clone_in(&NumericContext::portable_default()).unwrap(),
         other => panic!("expected integer, got {other:?}"),
     }
 }

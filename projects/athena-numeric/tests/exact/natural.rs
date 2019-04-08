@@ -1,12 +1,12 @@
 //! `Natural`（无符号大整数）算术与 limb 内核测试。
 
-use athena_numeric::{Integer, NumericValue, natural::Natural, number_from_wire};
+use athena_numeric::{NumericContext, Integer, NumericValue, natural::Natural, number_from_wire};
 use athena_types::wire::{ExactNumber, WireNumber};
 use std::str::FromStr;
 
 fn int_from_wire(s: &str) -> Integer {
     match number_from_wire(&WireNumber::Exact(ExactNumber::Integer(s.to_string()))).unwrap() {
-        NumericValue::Integer(i) => i.clone(),
+        NumericValue::Integer(i) => i.try_clone_in(&NumericContext::portable_default()).unwrap(),
         other => panic!("expected integer, got {other:?}"),
     }
 }

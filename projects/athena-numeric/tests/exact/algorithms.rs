@@ -93,8 +93,8 @@ fn gcd_lehmer_path_matches_binary_reference_on_wide_odds() {
     let g = a.gcd(&b);
 
     // Euclidean reference via repeated rem on Naturals (same public API).
-    let mut x = a.clone();
-    let mut y = b.clone();
+    let mut x = a.try_clone_in(&NumericContext::portable_default()).unwrap();
+    let mut y = b.try_clone_in(&NumericContext::portable_default()).unwrap();
     while !y.is_zero() {
         let (_q, r) = x.div_rem(&y);
         x = y;
@@ -154,8 +154,8 @@ fn montgomery_mod_pow_matches_binary_mul_chain_on_odd_modulus() {
     let via = base.mod_pow(&exp, &modulus);
 
     let mut acc = Natural::from_u64(1);
-    let mut b = base.clone();
-    let mut e = exp.clone();
+    let mut b = base.try_clone_in(&NumericContext::portable_default()).unwrap();
+    let mut e = exp.try_clone_in(&NumericContext::portable_default()).unwrap();
     while !e.is_zero() {
         if e.as_limbs()[0] & 1 == 1 {
             acc = acc.mul(&b).div_rem(&modulus).1;

@@ -3,6 +3,8 @@
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
 use crate::{
+    execution_budget::NumericContext,
+    
     integer::Integer,
     kernel::limb as limb_kernel,
     modular::ModularValue,
@@ -90,20 +92,20 @@ pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: 
     if acc.is_zero() {
         return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).detail("residue", "0"));
     }
-    prefix.push(acc.clone());
+    prefix.push(acc.try_clone_in(&NumericContext::portable_default())?);
     for r in residues.iter().skip(1) {
         acc = ctx.mod_mul(&acc, r);
         if acc.is_zero() {
             return Err(Diagnostic::new(DiagnosticCode::ModularInverseMissing).detail("residue", "0"));
         }
-        prefix.push(acc.clone());
+        prefix.push(acc.try_clone_in(&NumericContext::portable_default())?);
     }
 
     let mut inv_acc = extended_gcd_inverse(&acc, &m)?;
     let mut out: Vec<ModularValue> = Vec::with_capacity(residues.len());
     for i in (0..residues.len()).rev() {
         let ri = ctx.modulus.reduce(&residues[i]);
-        let inv_i = if i == 0 { inv_acc.clone() } else { ctx.mod_mul(&inv_acc, &prefix[i - 1]) };
+        let inv_i = if i == 0 { inv_acc.try_clone_in(&NumericContext::portable_default())? } else { ctx.mod_mul(&inv_acc, &prefix[i - 1]) };
         out.push(ModularValue::new_interned(inv_i, modulus_id));
         if i > 0 {
             inv_acc = ctx.mod_mul(&inv_acc, &ri);

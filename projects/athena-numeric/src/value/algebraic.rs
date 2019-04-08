@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use crate::{interval::Interval, polynomial_fingerprint::PolynomialFingerprint};
 
 /// 代数数表示策略。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AlgebraicRepresentation {
     /// 极小多项式 + 隔离区间。
     MinimalPolynomial {
@@ -24,7 +24,7 @@ pub enum AlgebraicRepresentation {
 /// - [`AlgebraicRepresentation::Placeholder`] 要求指纹为 [`PolynomialFingerprint::PLACEHOLDER`]。
 /// - [`AlgebraicRepresentation::MinimalPolynomial`] 的指纹必须与 [`Self::minimal_polynomial`] 一致。
 /// - 隔离区间不得为空。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct AlgebraicNumber {
     /// 极小多项式指纹。
     pub minimal_polynomial: PolynomialFingerprint,
@@ -35,6 +35,21 @@ pub struct AlgebraicNumber {
 }
 
 impl AlgebraicNumber {
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
+        let representation = match &self.representation {
+            AlgebraicRepresentation::Placeholder => AlgebraicRepresentation::Placeholder,
+            AlgebraicRepresentation::MinimalPolynomial { polynomial, root_index } => {
+                AlgebraicRepresentation::MinimalPolynomial { polynomial: *polynomial, root_index: *root_index }
+            }
+        };
+        Ok(Self {
+            minimal_polynomial: self.minimal_polynomial,
+            isolating_interval: self.isolating_interval.try_clone_in(ctx)?,
+            representation,
+        })
+    }
+
     /// 校验并构造。
     pub fn try_new(
         minimal_polynomial: PolynomialFingerprint,

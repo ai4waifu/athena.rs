@@ -9,7 +9,9 @@ use crate::{
 };
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `19`：**不** derive [`Clone`]。用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
+#[derive(Debug, PartialEq)]
 pub enum NumericValue {
     /// 精确整数 ℤ。
     Integer(Integer),
@@ -165,11 +167,21 @@ impl NumericValue {
             Self::Interval(_) => NumericDomain::Interval,
             Self::Algebraic(_) => NumericDomain::Algebraic,
             Self::Modular(v) => match v.modulus() {
-                Some(m) => NumericDomain::Modular { modulus: m.clone() },
+                Some(m) => NumericDomain::Modular {
+                    modulus: m
+                        .try_clone_in(&crate::policy::execution_budget::NumericContext::portable_default())
+                        .expect("portable default unbounded"),
+                },
                 None => NumericDomain::Integer,
             },
             Self::FiniteField(v) => NumericDomain::FiniteField { field: v.field() },
-            Self::PAdic(v) => NumericDomain::PAdic { prime: v.prime.clone(), precision: v.precision },
+            Self::PAdic(v) => NumericDomain::PAdic {
+                prime: v
+                    .prime
+                    .try_clone_in(&crate::policy::execution_budget::NumericContext::portable_default())
+                    .expect("portable default unbounded"),
+                precision: v.precision,
+            },
         }
     }
 
@@ -338,4 +350,32 @@ impl NumericValue {
             _ => None,
         }
     }
+
+    /// Limb1/Limb2（及机器实数等）可栈拷贝时返回副本。
+    pub fn clone_inline(&self) -> Option<Self> {
+        match self {
+            Self::Integer(n) => Some(Self::Integer(n.clone_inline()?)),
+            Self::Rational(r) => Some(Self::Rational(r.clone_inline()?)),
+            Self::Real(Real::Machine(x)) => Some(Self::Real(Real::Machine(*x))),
+            _ => None,
+        }
+    }
+
+    /// 可失败 owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &crate::policy::execution_budget::NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(match self {
+            Self::Integer(n) => Self::Integer(n.try_clone_in(ctx)?),
+            Self::Rational(r) => Self::Rational(r.try_clone_in(ctx)?),
+            Self::Real(Real::Machine(x)) => Self::Real(Real::Machine(*x)),
+            Self::Real(Real::Decimal(d)) => Self::Real(Real::Decimal(d.try_clone_in(ctx)?)),
+            Self::Complex(z) => Self::Complex(z.try_clone_in(ctx)?),
+            Self::Interval(i) => Self::Interval(i.try_clone_in(ctx)?),
+            Self::Algebraic(a) => Self::Algebraic(a.try_clone_in(ctx)?),
+            Self::Modular(m) => Self::Modular(m.try_clone_in(ctx)?),
+            Self::FiniteField(v) => Self::FiniteField(v.try_clone_in(ctx)?),
+            Self::PAdic(v) => Self::PAdic(v.try_clone_in(ctx)?),
+        })
+    }
 }
+

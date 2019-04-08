@@ -5,6 +5,8 @@ use std::cmp::Ordering;
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
+    execution_budget::NumericContext,
+    
     precision::PrecisionKind,
     real::Real,
     rounding::{f64_add_down, f64_add_up, f64_div_down, f64_div_up, f64_mul_down, f64_mul_up, f64_sub_down, f64_sub_up},
@@ -30,7 +32,7 @@ pub enum IntervalDecoration {
 /// - [`Interval::Empty`] 为规范空集。
 /// - [`Interval::Entire`] 为规范无界全集。
 /// - [`Interval::Bounded`] 要求有限或无穷端点且 `lower ≤ upper`，无 NaN。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Interval {
     /// 空集（规范；勿用倒置边界编码）。
     Empty,
@@ -51,6 +53,19 @@ pub enum Interval {
 }
 
 impl Interval {
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
+        Ok(match self {
+            Self::Empty => Self::Empty,
+            Self::Entire { decoration } => Self::Entire { decoration: *decoration },
+            Self::Bounded { lower, upper, decoration } => Self::Bounded {
+                lower: lower.try_clone_in(ctx)?,
+                upper: upper.try_clone_in(ctx)?,
+                decoration: *decoration,
+            },
+        })
+    }
+
     /// 空区间。
     pub fn empty() -> Self {
         Self::Empty
@@ -71,7 +86,7 @@ impl Interval {
         if !x.is_finite() {
             return Err(invalid("interval_point_non_finite"));
         }
-        Self::try_bounded(x.clone(), x, IntervalDecoration::Certain)
+        Self::try_bounded(x.try_clone_in(&NumericContext::portable_default())?, x, IntervalDecoration::Certain)
     }
 
     /// 带校验的有界区间。
