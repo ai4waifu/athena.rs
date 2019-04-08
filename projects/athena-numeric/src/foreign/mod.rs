@@ -6,5 +6,8 @@
 //! 若外部函数接受 limb 指针且不接管 allocator，应作为可选
 //! [`crate::kernel`] 条目，而不是本模块的 object 路径。
 
+/// 独立 schoolbook mpn 参考（差分 / fuzz；不进生产 `KernelTable`）。
+pub mod mpn_oracle;
+
 #[cfg(feature = "native-accelerated")]
 pub mod native;
