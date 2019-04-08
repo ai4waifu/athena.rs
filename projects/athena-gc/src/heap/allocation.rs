@@ -1,4 +1,4 @@
-//! Header / payload / mark 原语（heap 内主要 unsafe 边界）。
+//! 分配头 / 载荷 / 标记原语（堆内主要 unsafe 边界）。
 #![allow(unsafe_code)]
 
 use core::ptr::NonNull;
@@ -14,7 +14,7 @@ use crate::{
 
 use super::state::GcHeap;
 
-/// `AllocationHeader::pin_state` 哨兵：block 已 release，禁止再解析为存活分配。
+/// `AllocationHeader::pin_state` 哨兵：块已释放，禁止再解析为存活分配。
 pub(super) const FREED_PIN_SENTINEL: u16 = u16::MAX;
 
 pub(super) fn align_up(value: usize, align: usize) -> usize {
@@ -22,7 +22,7 @@ pub(super) fn align_up(value: usize, align: usize) -> usize {
 }
 
 impl GcHeap {
-    /// Header（limb 或 object payload 起点）。
+    /// 分配头（limb 或对象载荷起点）。
     pub fn header_for_payload(&self, payload: NonNull<u8>) -> Result<&AllocationHeader> {
         let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         let hdr = unsafe { &*header };
@@ -41,7 +41,7 @@ impl GcHeap {
         self.header_for_payload(limbs.cast())
     }
 
-    /// 可变 header（供后续 numeric / ownership 路径使用）。
+    /// 可变分配头（供后续数值 / 所有权路径使用）。
     #[allow(dead_code)]
     pub(super) fn header_mut_for_limbs(&mut self, limbs: NonNull<u64>) -> Result<&mut AllocationHeader> {
         let header = unsafe { limbs.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
@@ -53,7 +53,7 @@ impl GcHeap {
         Ok(hdr)
     }
 
-    /// 标记 allocation 可达。
+    /// 标记分配可达。
     pub fn mark_payload(&mut self, payload: NonNull<u8>) -> Result<()> {
         let header = unsafe { payload.as_ptr().sub(AllocationHeader::size()).cast::<AllocationHeader>() };
         unsafe {
@@ -68,7 +68,7 @@ impl GcHeap {
         Ok(())
     }
 
-    /// 标记 limbs。
+    /// 标记 limbs 可达。
     pub fn mark_limbs(&mut self, limbs: NonNull<u64>) -> Result<()> {
         self.mark_payload(limbs.cast())
     }
