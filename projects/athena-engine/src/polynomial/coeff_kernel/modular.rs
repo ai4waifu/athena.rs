@@ -4,7 +4,7 @@ use athena_numeric::{Integer, Modulus, Number, NumericValue};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 模整数环系数算术。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ZnCoeffKernel {
     modulus: Modulus,
 }

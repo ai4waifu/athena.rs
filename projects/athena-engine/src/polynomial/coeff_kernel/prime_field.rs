@@ -2,9 +2,10 @@
 
 use athena_numeric::{Integer, Modulus, Number, NumericValue};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
+use crate::numeric_clone::{clone_integer};
 
 /// 小素数 word 内核（`p` 落入 `u64`；乘积经 `u128` 约化）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FpWordKernel {
     p: u64,
 }
@@ -73,7 +74,7 @@ impl FpWordKernel {
 }
 
 /// 大素数内核（通用 [`Modulus`] 约化）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FpBigKernel {
     modulus: Modulus,
 }
@@ -116,7 +117,7 @@ impl FpBigKernel {
         }
         let bi = extract_integer(&b)?;
         let inv = crate::number_theory::mod_inverse(&bi, &self.modulus)?;
-        self.mul(a, Number::integer(inv.residue().clone()))
+        self.mul(a, Number::integer(clone_integer(&inv.residue())))
     }
 
     /// 乘法逆元。
@@ -139,7 +140,7 @@ pub fn select_fp_kernel(modulus: Modulus) -> Result<FpKernelKind> {
 }
 
 /// 𝔽_p 内核变体（intern 时选定）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum FpKernelKind {
     /// `u64` 字路径。
     Word(FpWordKernel),

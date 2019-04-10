@@ -19,7 +19,7 @@ use athena_numeric::{Integer, ModulusTable};
 ///
 /// 外层确定性必须与内层对象一致：禁止把 `ProbablePrime` / `Partial` /
 /// `ResourceLimited` 包装成数学意义上的 `Exact`。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum NumberTheoryResult {
     /// 数学结论确定（gcd、确定素数/合数、完全确定分解、成功模运算等）。
     Exact {

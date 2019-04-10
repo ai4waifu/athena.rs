@@ -5,7 +5,7 @@ use athena_numeric::{Integer, Modulus};
 use super::factor::FactorLimits;
 
 /// 数论域请求 — 宿主传入已解码整数 / 模数。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum NumberTheoryRequest {
     /// `gcd(a, b)`（非负）。
     Gcd {

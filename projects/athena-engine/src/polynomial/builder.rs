@@ -10,7 +10,7 @@ use super::{
 };
 
 /// 可变构造器（非 canonical；仅 [`Self::build`] 产出规范多项式）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PolynomialBuilder {
     ring: RingId,
     terms: Vec<MonomialTerm>,

@@ -6,7 +6,7 @@ use athena_types::{AlgebraMapId, GroupId, SubgroupId};
 use super::types::{GroupElement, Permutation};
 
 /// 群论域请求（骨架）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum GroupRequest {
     /// 构造循环群。
     Cyclic {

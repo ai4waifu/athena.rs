@@ -28,11 +28,11 @@ const FNV_PRIME: u64 = 0x100000001b3;
 pub type RingHandle = athena_types::RingId;
 
 /// 环数学身份的稳定摘要（由系数域 · 变量 · 单项式序编码；不含 [`RingHandle`]）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RingFingerprint(pub u64);
 
 /// Canonical 多项式内容的稳定摘要（[`RingFingerprint`] + 系数 wire + 指数布局）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PolynomialFingerprint(pub u64);
 
 impl RingFingerprint {

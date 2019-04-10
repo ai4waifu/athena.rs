@@ -5,13 +5,14 @@ use std::sync::Arc;
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
 
+use crate::numeric_clone::{clone_rational};
 use super::{
     parent::{ElementParentKind, MatrixParent},
     shape::{Layout, MatrixShape, StorageOrder},
 };
 
 /// 元素缓冲（精确与机器不得混用同一不透明 `f64` 语义）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum MatrixBuffer {
     /// `ℤ` 稠密缓冲（`Arc` 支持别名 / copy-on-write）。
     Integers(Arc<Vec<Integer>>),
@@ -38,7 +39,7 @@ impl MatrixBuffer {
 }
 
 /// 矩阵值。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct MatrixValue {
     parent: MatrixParent,
     shape: MatrixShape,
@@ -198,8 +199,8 @@ impl MatrixValue {
     pub fn get(&self, row: u64, col: u64) -> Result<MatrixEntry, Diagnostic> {
         let i = self.linear_index(row, col)?;
         Ok(match &self.data {
-            MatrixBuffer::Integers(v) => MatrixEntry::Integer(v[i].clone()),
-            MatrixBuffer::Rationals(v) => MatrixEntry::Rational(v[i].clone()),
+            MatrixBuffer::Integers(v) => MatrixEntry::Integer(clone_rational(&v[i])),
+            MatrixBuffer::Rationals(v) => MatrixEntry::Rational(clone_rational(&v[i])),
             MatrixBuffer::MachineF64(v) => MatrixEntry::MachineF64(v[i]),
         })
     }
@@ -246,7 +247,7 @@ impl MatrixValue {
             shape: self.shape.transpose(),
             layout: self.layout.transposed(),
             offset: self.offset,
-            data: self.data.clone(),
+            data: self.clone_rational(&data),
         }
     }
 
@@ -302,10 +303,10 @@ impl MatrixValue {
                 else {
                     unreachable!();
                 };
-                let rats: Vec<_> = v.iter().map(|x| Rational::from_integer(x.clone())).collect();
+                let rats: Vec<_> = v.iter().map(|x| Rational::from_integer(clone_rational(&x))).collect();
                 Self::from_rationals_row_major(m.shape.rows, m.shape.cols, rats)
             }
-            MatrixBuffer::Rationals(_) => Ok(self.clone()),
+            MatrixBuffer::Rationals(_) => Ok(clone_rational(&self)),
             MatrixBuffer::MachineF64(_) => {
                 Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cannot_promote_machine_to_exact"))
             }
@@ -342,7 +343,7 @@ impl RoundingExact for super::parent::RoundingPolicy {
 }
 
 /// 矩阵元素拷贝。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum MatrixEntry {
     /// 整数。
     Integer(Integer),

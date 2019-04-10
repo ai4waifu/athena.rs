@@ -3,6 +3,7 @@
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
+use crate::numeric_clone::{clone_number, clone_term};
 use crate::{
     eval::evaluate,
     term::{Atom, Term, number_from_term},
@@ -11,7 +12,7 @@ use crate::{
 use super::{request::TransformKind, result::CalculusResult};
 
 /// 收敛域 — 每个变换结果都必须携带。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct RegionOfConvergence {
     /// 已知时的结构化 / 桥接谓词（如 `Greater[Re[s], a]`）。
     pub predicate: Option<Term>,
@@ -53,7 +54,7 @@ impl RegionOfConvergence {
 }
 
 /// 变换结果对象（非裸表达式）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct TransformResult {
     /// 种类。
     pub kind: TransformKind,
@@ -71,7 +72,7 @@ impl TransformResult {
     /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`，供仍需要 Term 的宿主。
     pub fn to_bridge_term(&self) -> Term {
         let mut args = vec![
-            self.expression.clone(),
+            clone_term(&self.expression),
             Term::List(vec![Term::symbol(&self.time_variable), Term::symbol(&self.transform_variable)]),
         ];
         if let Some(roc) = &self.region_of_convergence.predicate {
@@ -112,7 +113,7 @@ pub fn laplace_checked(
                 kind: TransformKind::Laplace,
                 expression: Term::apply(
                     "LaplaceTransform",
-                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
+                    vec![clone_term(&expression), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
@@ -148,7 +149,7 @@ pub fn fourier_checked(
                 kind: TransformKind::Fourier,
                 expression: Term::apply(
                     "FourierTransform",
-                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
+                    vec![clone_term(&expression), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
@@ -184,7 +185,7 @@ pub fn z_checked(
                 kind: TransformKind::Z,
                 expression: Term::apply(
                     "ZTransform",
-                    vec![expression.clone(), Term::symbol(time_variable), Term::symbol(transform_variable)],
+                    vec![clone_term(&expression), Term::symbol(time_variable), Term::symbol(transform_variable)],
                 ),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
@@ -196,7 +197,7 @@ pub fn z_checked(
 }
 
 fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergence)> {
-    if let Some(n) = number_from_term(expr).cloned() {
+    if let Some(n) = number_from_term(expr).map(clone_number) {
         // Laplace：ℒ{c} = c/s，Re(s)>0
         let body =
             evaluate(&Term::apply("Times", vec![Term::number(n), Term::apply("Power", vec![Term::symbol(s), Term::int(-1)])]));
@@ -230,12 +231,12 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                     return Some((body, RegionOfConvergence::re_s_greater(s, roc_bound)));
                 }
                 "Times" if args.len() == 2 => {
-                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                    if let Some(c) = number_from_term(&args[0]).map(clone_number) {
                         let (inner, roc) = laplace_one(&args[1], t, s)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
-                    if let Some(c) = number_from_term(&args[1]).cloned() {
+                    if let Some(c) = number_from_term(&args[1]).map(clone_number) {
                         let (inner, roc) = laplace_one(&args[0], t, s)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
@@ -268,7 +269,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         vec![
                             Term::apply(
                                 "Plus",
-                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
                             ),
                             Term::int(-1),
                         ],
@@ -282,7 +283,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         "Plus",
                         vec![
                             Term::apply("Power", vec![Term::symbol(s), Term::int(2)]),
-                            Term::apply("Power", vec![Term::number(w.clone()), Term::int(2)]),
+                            Term::apply("Power", vec![Term::number(clone_number(&w)), Term::int(2)]),
                         ],
                     ));
                     let body =
@@ -329,12 +330,12 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                     Some((body, RegionOfConvergence::real_line(omega)))
                 }
                 "Times" if args.len() == 2 => {
-                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                    if let Some(c) = number_from_term(&args[0]).map(clone_number) {
                         let (inner, roc) = fourier_one(&args[1], t, omega)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
-                    if let Some(c) = number_from_term(&args[1]).cloned() {
+                    if let Some(c) = number_from_term(&args[1]).map(clone_number) {
                         let (inner, roc) = fourier_one(&args[0], t, omega)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
@@ -354,7 +355,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         let den = evaluate(&Term::apply(
                             "Plus",
                             vec![
-                                Term::apply("Power", vec![Term::number(a.clone()), Term::int(2)]),
+                                Term::apply("Power", vec![Term::number(clone_term(&a)), Term::int(2)]),
                                 Term::apply("Power", vec![Term::symbol(omega), Term::int(2)]),
                             ],
                         ));
@@ -376,7 +377,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                             "Sqrt",
                             vec![Term::apply(
                                 "Times",
-                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(a.clone()), Term::int(-1)])],
+                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(clone_term(&a)), Term::int(-1)])],
                             )],
                         );
                         let exp_arg = evaluate(&Term::apply(
@@ -453,10 +454,10 @@ fn match_neg_coeff_abs_var(term: &Term, var: &str) -> Option<Number> {
     match term {
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             let coeff = if is_abs_of(&args[1], var) {
-                number_from_term(&args[0]).cloned()?
+                number_from_term(&args[0]).map(clone_number)?
             }
             else if is_abs_of(&args[0], var) {
-                number_from_term(&args[1]).cloned()?
+                number_from_term(&args[1]).map(clone_number)?
             }
             else {
                 return None;
@@ -483,10 +484,10 @@ fn match_neg_coeff_square_var(term: &Term, var: &str) -> Option<Number> {
     match term {
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             let coeff = if is_square_of(&args[1], var) {
-                number_from_term(&args[0]).cloned()?
+                number_from_term(&args[0]).map(clone_number)?
             }
             else if is_square_of(&args[0], var) {
-                number_from_term(&args[1]).cloned()?
+                number_from_term(&args[1]).map(clone_number)?
             }
             else {
                 return None;
@@ -513,8 +514,8 @@ fn is_square_of(term: &Term, var: &str) -> bool {
 }
 
 fn evaluate_neg_number(n: &Number) -> Option<Number> {
-    let t = evaluate(&Term::apply("Times", vec![Term::int(-1), Term::number(n.clone())]));
-    number_from_term(&t).cloned()
+    let t = evaluate(&Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&n))]));
+    number_from_term(&t).map(clone_number)
 }
 
 fn number_is_positive(n: &Number) -> bool {
@@ -528,10 +529,10 @@ fn match_coeff_times_var(term: &Term, var: &str) -> Option<Number> {
     match term {
         Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
             if args[1].is_symbol(var) {
-                return number_from_term(&args[0]).cloned();
+                return number_from_term(&args[0]).map(clone_number);
             }
             if args[0].is_symbol(var) {
-                return number_from_term(&args[1]).cloned();
+                return number_from_term(&args[1]).map(clone_number);
             }
             None
         }
@@ -544,14 +545,14 @@ fn roc_half_plane_bound(roc: &RegionOfConvergence) -> Option<Number> {
     // 形态：Greater[Re[s], a]
     match pred {
         Term::Application { head, arguments: args } if head.is_symbol("Greater") && args.len() == 2 => {
-            number_from_term(&args[1]).cloned()
+            number_from_term(&args[1]).map(clone_number)
         }
         _ => None,
     }
 }
 
 fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
-    if let Some(c) = number_from_term(expr).cloned() {
+    if let Some(c) = number_from_term(expr).map(clone_number) {
         // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let body = z_over_z_minus(z, &Number::small_int(1));
         let body = evaluate(&Term::apply("Times", vec![Term::number(c), body]));
@@ -603,25 +604,25 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                     Some((body, roc))
                 }
                 "Times" if args.len() == 2 => {
-                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                    if let Some(c) = number_from_term(&args[0]).map(clone_number) {
                         let (inner, roc) = z_one(&args[1], n, z)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
-                    if let Some(c) = number_from_term(&args[1]).cloned() {
+                    if let Some(c) = number_from_term(&args[1]).map(clone_number) {
                         let (inner, roc) = z_one(&args[0], n, z)?;
                         let body = evaluate(&Term::apply("Times", vec![Term::number(c), inner]));
                         return Some((body, roc));
                     }
                     // Z 变换：n·aⁿ → a·z/(z-a)²
                     if let Some(a) = match_n_times_power(args, n) {
-                        let radius = num_abs(a.clone());
+                        let radius = num_abs(clone_term(&a));
                         let den = evaluate(&Term::apply(
                             "Power",
                             vec![
                                 Term::apply(
                                     "Plus",
-                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
                                 ),
                                 Term::int(2),
                             ],
@@ -639,9 +640,9 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                     None
                 }
                 "Power" if args.len() == 2 && args[1].is_symbol(n) => {
-                    let a = number_from_term(&args[0]).cloned()?;
+                    let a = number_from_term(&args[0]).map(clone_number)?;
                     // Z 变换：aⁿ → z/(z-a)，|z|>|a|
-                    let radius = num_abs(a.clone());
+                    let radius = num_abs(clone_term(&a));
                     Some((z_over_z_minus(z, &a), RegionOfConvergence::abs_z_greater(z, radius)))
                 }
                 _ => None,
@@ -661,7 +662,7 @@ fn z_over_z_minus(z: &str, a: &Number) -> Term {
                 vec![
                     Term::apply(
                         "Plus",
-                        vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(a.clone())])],
+                        vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
                     ),
                     Term::int(-1),
                 ],
@@ -691,7 +692,7 @@ fn match_n_times_power(args: &[Term], n: &str) -> Option<Number> {
 fn match_power_base(term: &Term, n: &str) -> Option<Number> {
     match term {
         Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 && args[1].is_symbol(n) => {
-            number_from_term(&args[0]).cloned()
+            number_from_term(&args[0]).map(clone_number)
         }
         _ => None,
     }
@@ -706,7 +707,7 @@ fn roc_abs_radius(roc: &RegionOfConvergence) -> Option<Number> {
                 && args.len() == 2
                 && matches!(&args[0], Term::Application { head, arguments: inner } if head.is_symbol("Abs") && inner.len() == 1) =>
         {
-            number_from_term(&args[1]).cloned()
+            number_from_term(&args[1]).map(clone_number)
         }
         _ => None,
     }

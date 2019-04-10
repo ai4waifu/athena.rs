@@ -9,7 +9,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{canonical::canonicalize_polynomial, expr::Polynomial, ring_table::RingTable};
 
 /// 多项式因式分解资源合同。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PolynomialFactorLimits {
     /// 允许分解的最大次数（超过则 `ResourceLimited` + `input_rejected`）。
     pub max_degree: u32,
@@ -24,7 +24,7 @@ impl Default for PolynomialFactorLimits {
 }
 
 /// 单个多项式因子的不可约状态。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PolynomialFactorStatus {
     /// 已证明不可约（骨架：仅一次多项式）。
     ProvenIrreducible,
@@ -35,7 +35,7 @@ pub enum PolynomialFactorStatus {
 }
 
 /// 余因子状态。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PolynomialCofactorStatus {
     /// 完全分解，余因子为单位（常数 1，表示已吸收进 `unit`）。
     One,
@@ -46,7 +46,7 @@ pub enum PolynomialCofactorStatus {
 }
 
 /// 多项式因式分解完整性（由组件推导，不单独存矛盾字段）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PolynomialFactorizationCompleteness {
     /// 完全分解为已证明不可约因子。
     Complete,
@@ -59,7 +59,7 @@ pub enum PolynomialFactorizationCompleteness {
 }
 
 /// 单个多项式因子（底 × 指数）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PolynomialFactorComponent {
     /// 因子底（canonical 非单位多项式）。
     pub base: Polynomial,
@@ -70,7 +70,7 @@ pub struct PolynomialFactorComponent {
 }
 
 /// 带完备性分型的多项式因式分解结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PolynomialFactorization {
     /// 所属环。
     pub ring: RingId,

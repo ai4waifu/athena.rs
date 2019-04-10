@@ -6,14 +6,14 @@ use super::certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvide
 
 /// Miller–Rabin 基选择策略。固定基可复现，但**不是**独立随机样本，
 /// 不得按通常随机见证假设计算误判概率上界。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum MillerRabinBaseSelection {
     /// 固定确定性序列（截断自引擎内建小素数表）。
     Fixed,
 }
 
 /// 素性判定结果 — 禁止把 Miller-Rabin probable 写成确定 `true`。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Primality {
     /// 确定素数。
     Prime {
@@ -35,7 +35,7 @@ pub enum Primality {
 }
 
 /// 单个分解因子（底 × 指数）及其素性状态。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FactorComponent {
     /// 底数（`> 1`）。
     pub base: Integer,
@@ -46,7 +46,7 @@ pub struct FactorComponent {
 }
 
 /// 因子底的素性状态。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FactorBaseStatus {
     /// 确定素数底。
     ProvenPrime {
@@ -61,7 +61,7 @@ pub enum FactorBaseStatus {
 }
 
 /// 余因子（cofactor）状态。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CofactorStatus {
     /// 完全分解，余因子为 1。
     One,
@@ -72,7 +72,7 @@ pub enum CofactorStatus {
 }
 
 /// 整数分解完整性（由 [`Factorization::completeness`] 从组件推导）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FactorizationCompleteness {
     /// 完全分解为确定素因子，余因子为 1。
     Complete,
@@ -88,7 +88,7 @@ pub enum FactorizationCompleteness {
 ///
 /// 不变量（非零输入）：`input = unit * Π base^e * cofactor`，`unit ∈ {-1,1}`，
 /// `base > 1`，`e > 0`。`0` 不进入本结构。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Factorization {
     /// 单位（符号：`±1`）。
     pub unit: Integer,
@@ -127,7 +127,7 @@ impl Factorization {
 }
 
 /// extended Euclidean：`s·a + t·b = g`。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExtendedGcd {
     /// `gcd(|a|,|b|)`（非负）。
     pub g: Integer,
@@ -138,7 +138,7 @@ pub struct ExtendedGcd {
 }
 
 /// 数论域值。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum NumberTheoryValue {
     /// 整数标量（gcd / lcm 等）。
     Integer(Integer),
@@ -170,7 +170,7 @@ pub enum NumberTheoryValue {
 }
 
 /// 线性同余 `a x ≡ b (mod m)` 的解结构。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CongruenceSolution {
     /// `g ∤ b`：无解。
     NoSolution {
@@ -198,7 +198,7 @@ pub enum CongruenceSolution {
 }
 
 /// 广义 CRT 结果（允许非互素模数）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CrtResult {
     /// 相容：解模 `lcm(m_i)`。
     Consistent {
@@ -221,7 +221,7 @@ pub enum CrtResult {
 }
 
 /// 有理数重构结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum RationalReconstruction {
     /// 找到满足界条件的既约分数。
     Found {
@@ -236,7 +236,7 @@ pub enum RationalReconstruction {
 }
 
 /// 有理重构失败原因。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RationalReconstructionFailure {
     /// 模数过小或界非法。
     InvalidBounds,

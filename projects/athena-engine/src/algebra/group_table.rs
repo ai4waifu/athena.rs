@@ -7,6 +7,7 @@ use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupId, GroupPrese
 
 use crate::group::{Group, GroupDescriptor, Permutation, Subgroup};
 
+use crate::numeric_clone::{clone_integer};
 use super::{
     bsgs::BsgsChain,
     fingerprint::GroupFingerprint,
@@ -17,7 +18,7 @@ use super::{
 };
 
 /// 置换群 intern 规格。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PermutationGroupSpec {
     /// 作用度数。
     pub degree: u32,
@@ -27,13 +28,13 @@ pub struct PermutationGroupSpec {
     pub bsgs: BsgsChain,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct GroupInternKey {
     degree: u32,
     generators: Vec<Vec<u32>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct SubgroupRecord {
     id: SubgroupId,
     parent: GroupId,
@@ -210,7 +211,7 @@ impl GroupTable {
     /// 群阶（置换群经 BSGS；其他未支持）。
     pub fn order(&self, group: GroupId) -> Result<Integer> {
         let spec = self.permutation_spec(group).ok_or_else(|| unknown_group(group))?;
-        Ok(spec.bsgs.order.clone())
+        Ok(clone_integer(&spec.bsgs.order))
     }
 
     /// 组装群对象。
@@ -220,7 +221,7 @@ impl GroupTable {
             id: group,
             descriptor: GroupDescriptor::Permutation { degree: spec.degree },
             presentation: self.presentation_id(group)?,
-            order: Some(spec.bsgs.order.clone()),
+            order: Some(clone_integer(&spec.bsgs.order)),
         })
     }
 

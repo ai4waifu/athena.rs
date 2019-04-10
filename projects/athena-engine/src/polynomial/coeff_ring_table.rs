@@ -13,14 +13,14 @@ use super::{
 };
 
 /// 系数环 intern 键（有限域仅 `FieldId`）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum CoeffRingInternKey {
     Domain(CoefficientDomain),
     Field(FieldId),
 }
 
 /// 系数环完整描述符（`CoefficientRingId` 的内容）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CoefficientRingDescriptor {
     /// Session 内句柄。
     pub id: CoefficientRingId,

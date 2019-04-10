@@ -6,7 +6,7 @@ use athena_types::AlgebraMapId;
 use super::types::{Group, GroupElement, Subgroup};
 
 /// 群论域返回值。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GroupDomainValue {
     /// 群对象。
     Group(Group),

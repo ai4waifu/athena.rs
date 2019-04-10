@@ -2,9 +2,12 @@
 
 use athena_types::AssumptionSet;
 
-use crate::term::{Atom, Term, number_from_term};
+use crate::{
+    term::{Atom, Term, number_from_term},
+};
 
 use super::request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
+use crate::numeric_clone::{clone_term, clone_terms};
 
 /// 若可识别，将桥接 [`Term`] 应用映射为微积分域请求。
 ///
@@ -38,7 +41,7 @@ fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
         [expr, var] => {
             if let Some(v) = symbol_name(var) {
                 return Some(CalculusRequest::Derivative {
-                    expression: expr.clone(),
+                    expression: clone_term(expr),
                     variable: v,
                     order: DerivativeOrder::First,
                     assumptions: AssumptionSet::empty(),
@@ -50,7 +53,7 @@ fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
                     let n = number_from_term(&items[1]).and_then(|e| e.as_integer_exp())?;
                     let n_u = u32::try_from(n).ok()?;
                     return Some(CalculusRequest::Derivative {
-                        expression: expr.clone(),
+                        expression: clone_term(expr),
                         variable: v,
                         order: if n_u <= 1 { DerivativeOrder::First } else { DerivativeOrder::Repeated(n_u) },
                         assumptions: AssumptionSet::empty(),
@@ -68,7 +71,7 @@ fn lower_integrate(args: &[Term]) -> Option<CalculusRequest> {
         [expr, var] => {
             if let Some(v) = symbol_name(var) {
                 return Some(CalculusRequest::Integral {
-                    expression: expr.clone(),
+                    expression: clone_term(expr),
                     variable: v,
                     assumptions: AssumptionSet::empty(),
                 });
@@ -77,10 +80,10 @@ fn lower_integrate(args: &[Term]) -> Option<CalculusRequest> {
                 if items.len() == 3 {
                     let v = symbol_name(&items[0])?;
                     return Some(CalculusRequest::DefiniteIntegral {
-                        expression: expr.clone(),
+                        expression: clone_term(expr),
                         variable: v,
-                        lower: items[1].clone(),
-                        upper: items[2].clone(),
+                        lower: clone_term(&items[1]),
+                        upper: clone_term(&items[2]),
                         assumptions: AssumptionSet::empty(),
                     });
                 }
@@ -95,7 +98,7 @@ fn lower_limit(args: &[Term]) -> Option<CalculusRequest> {
     let (expr, variable, approach, direction) = match args {
         [expr, spec] => {
             let (v, approach) = parse_limit_spec(spec)?;
-            (expr.clone(), v, approach, LimitDirection::TwoSided)
+            (clone_term(expr), v, approach, LimitDirection::TwoSided)
         }
         [expr, spec, dir] => {
             let (v, approach) = parse_limit_spec(spec)?;
@@ -104,7 +107,7 @@ fn lower_limit(args: &[Term]) -> Option<CalculusRequest> {
                 Some("FromAbove") | Some("Right") => LimitDirection::FromAbove,
                 _ => LimitDirection::TwoSided,
             };
-            (expr.clone(), v, approach, direction)
+            (clone_term(expr), v, approach, direction)
         }
         _ => return None,
     };
@@ -138,7 +141,7 @@ fn approach_from_term(term: &Term) -> LimitApproach {
             return LimitApproach::NegativeInfinity;
         }
     }
-    LimitApproach::Finite(term.clone())
+    LimitApproach::Finite(clone_term(term))
 }
 
 fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
@@ -154,7 +157,7 @@ fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
         return None;
     }
     let variable = symbol_name(&items[0])?;
-    let center = items[1].clone();
+    let center = clone_term(&items[1]);
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
         u32::try_from(n).ok()?
@@ -162,7 +165,7 @@ fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
     else {
         3
     };
-    Some(CalculusRequest::Series { expression: expr.clone(), variable, center, order, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Series { expression: clone_term(expr), variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
@@ -179,7 +182,7 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
         return None;
     }
     let variable = symbol_name(&items[0])?;
-    let center = items[1].clone();
+    let center = clone_term(&items[1]);
     let order = if items.len() >= 3 {
         let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
         u32::try_from(n).ok()?
@@ -187,7 +190,7 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
     else {
         3
     };
-    Some(CalculusRequest::Laurent { expression: expr.clone(), variable, center, order, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Laurent { expression: clone_term(expr), variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
@@ -212,13 +215,13 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
             else {
                 3
             };
-            Some(CalculusRequest::Asymptotic { expression: expr.clone(), variable, order, assumptions: AssumptionSet::empty() })
+            Some(CalculusRequest::Asymptotic { expression: clone_term(expr), variable, order, assumptions: AssumptionSet::empty() })
         }
         [expr, var, order_term] => {
             let variable = symbol_name(var)?;
             let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
             let order = u32::try_from(n).ok()?;
-            Some(CalculusRequest::Asymptotic { expression: expr.clone(), variable, order, assumptions: AssumptionSet::empty() })
+            Some(CalculusRequest::Asymptotic { expression: clone_term(expr), variable, order, assumptions: AssumptionSet::empty() })
         }
         _ => None,
     }
@@ -237,18 +240,18 @@ fn lower_residue(args: &[Term]) -> Option<CalculusRequest> {
             }
             let variable = symbol_name(&items[0])?;
             Some(CalculusRequest::Residue {
-                expression: expr.clone(),
+                expression: clone_term(expr),
                 variable,
-                point: items[1].clone(),
+                point: clone_term(&items[1]),
                 assumptions: AssumptionSet::empty(),
             })
         }
         [expr, var, point] => {
             let variable = symbol_name(var)?;
             Some(CalculusRequest::Residue {
-                expression: expr.clone(),
+                expression: clone_term(expr),
                 variable,
-                point: point.clone(),
+                point: clone_term(point),
                 assumptions: AssumptionSet::empty(),
             })
         }
@@ -264,7 +267,7 @@ fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
     let dependent = symbol_name(dep)?;
     let independent = symbol_name(indep)?;
     Some(CalculusRequest::SolveOde {
-        equation: equation.clone(),
+        equation: clone_term(equation),
         dependent,
         independent,
         initial: None,
@@ -280,7 +283,7 @@ fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Laplace,
-        expression: expression.clone(),
+        expression: clone_term(expression),
         time_variable: symbol_name(time)?,
         transform_variable: symbol_name(transform)?,
         assumptions: AssumptionSet::empty(),
@@ -295,7 +298,7 @@ fn lower_fourier(args: &[Term]) -> Option<CalculusRequest> {
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Fourier,
-        expression: expression.clone(),
+        expression: clone_term(expression),
         time_variable: symbol_name(time)?,
         transform_variable: symbol_name(transform)?,
         assumptions: AssumptionSet::empty(),
@@ -310,7 +313,7 @@ fn lower_z(args: &[Term]) -> Option<CalculusRequest> {
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Z,
-        expression: expression.clone(),
+        expression: clone_term(expression),
         time_variable: symbol_name(time)?,
         transform_variable: symbol_name(transform)?,
         assumptions: AssumptionSet::empty(),
@@ -333,7 +336,7 @@ fn lower_divergence(args: &[Term]) -> Option<CalculusRequest> {
     };
     let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
     Some(CalculusRequest::Divergence {
-        components: components.clone(),
+        components: clone_terms(components),
         variables: variables?,
         assumptions: AssumptionSet::empty(),
     })
@@ -354,7 +357,7 @@ fn lower_curl(args: &[Term]) -> Option<CalculusRequest> {
         return None;
     };
     let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
-    Some(CalculusRequest::Curl { components: components.clone(), variables: variables?, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Curl { components: clone_terms(components), variables: variables?, assumptions: AssumptionSet::empty() })
 }
 
 fn symbol_name(term: &Term) -> Option<String> {

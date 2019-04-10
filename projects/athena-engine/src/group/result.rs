@@ -11,7 +11,7 @@ use super::{
 };
 
 /// 群论域结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GroupResult {
     /// 精确结果。
     Exact {

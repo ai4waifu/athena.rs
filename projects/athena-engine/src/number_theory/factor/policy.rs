@@ -4,7 +4,7 @@ use crate::number_theory::value::FactorComponent;
 use athena_numeric::Integer;
 
 /// 素性 / 证明要求。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum ProofRequirement {
     /// 仅接受确定素因子。
     Proven,
@@ -14,7 +14,7 @@ pub enum ProofRequirement {
 }
 
 /// 允许的分解算法阶段。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FactorAlgorithms {
     /// 试除。
     pub trial: bool,
@@ -47,7 +47,7 @@ impl Default for FactorAlgorithms {
 }
 
 /// 分解策略（证明要求、算法、可复现性）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FactorPolicy {
     /// 因子素性证明要求。
     pub proof_requirement: ProofRequirement,
@@ -79,7 +79,7 @@ impl Default for FactorPolicy {
 /// 分解执行预算。`max_input_bits` 为输入拒绝阈值，**不是**已消耗 wall/CPU。
 ///
 /// 命名避开 `athena_numeric::ExecutionBudget`（数值 limb 预算）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FactorExecutionBudget {
     /// 试除上界（含）。
     pub max_trial: u64,
@@ -98,7 +98,7 @@ impl Default for FactorExecutionBudget {
 }
 
 /// 分解资源合同（策略 + 预算）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FactorLimits {
     /// 策略。
     pub policy: FactorPolicy,
@@ -125,7 +125,7 @@ impl Default for FactorLimits {
 }
 
 /// 可续算分解前沿。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FactorFrontier {
     /// 单位（`±1`）。
     pub unit: Integer,

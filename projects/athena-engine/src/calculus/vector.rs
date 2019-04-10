@@ -4,13 +4,14 @@ use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode};
 
 use crate::{eval::evaluate, term::Term};
 
+use crate::numeric_clone::{clone_term, clone_terms};
 use super::{
     derivative::differentiate_checked,
     result::{CalculusResult, ConditionalResult},
 };
 
 /// 标量场梯度：带有序分量的独立对象。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Gradient {
     /// 源标量表达式。
     pub expression: Term,
@@ -23,12 +24,12 @@ pub struct Gradient {
 impl Gradient {
     /// 桥接列表形态，供仍需要 [`Term`] 列表的宿主。
     pub fn to_list_term(&self) -> Term {
-        Term::List(self.components.clone())
+        Term::List(clone_terms(&self.components))
     }
 }
 
 /// 向量值映射的 Jacobian 矩阵。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Jacobian {
     /// 分量表达式 f₁…fₘ。
     pub expressions: Vec<Term>,
@@ -41,12 +42,12 @@ pub struct Jacobian {
 impl Jacobian {
     /// 嵌套列表项 `{{…},…}` 桥接。
     pub fn to_list_term(&self) -> Term {
-        Term::List(self.rows.iter().map(|r| Term::List(r.clone())).collect())
+        Term::List(self.rows.iter().map(|r| Term::List(clone_terms(r))).collect())
     }
 }
 
 /// 标量场 Hessian 矩阵（二阶偏导）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Hessian {
     /// 源标量表达式。
     pub expression: Term,
@@ -59,7 +60,7 @@ pub struct Hessian {
 impl Hessian {
     /// 嵌套列表项桥接。
     pub fn to_list_term(&self) -> Term {
-        Term::List(self.entries.iter().map(|r| Term::List(r.clone())).collect())
+        Term::List(self.entries.iter().map(|r| Term::List(clone_terms(r))).collect())
     }
 }
 
@@ -67,7 +68,7 @@ impl Hessian {
 pub fn gradient_checked(expression: &Term, variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Gradient> {
     if variables.is_empty() {
         return CalculusResult::Exact {
-            value: Gradient { expression: expression.clone(), variables: Vec::new(), components: Vec::new() },
+            value: Gradient { expression: clone_term(&expression), variables: Vec::new(), components: Vec::new() },
             conditions: Vec::new(),
         };
     }
@@ -80,7 +81,7 @@ pub fn gradient_checked(expression: &Term, variables: &[String], assumptions: &A
         components.push(evaluate(&part.value));
     }
     finish_vector(
-        Gradient { expression: expression.clone(), variables: variables.to_vec(), components },
+        Gradient { expression: clone_term(&expression), variables: variables.to_vec(), components },
         conditions,
         unresolved,
     )
@@ -121,11 +122,11 @@ pub fn hessian_checked(expression: &Term, variables: &[String], assumptions: &As
         }
         entries.push(row);
     }
-    finish_vector(Hessian { expression: expression.clone(), variables: variables.to_vec(), entries }, conditions, unresolved)
+    finish_vector(Hessian { expression: clone_term(&expression), variables: variables.to_vec(), entries }, conditions, unresolved)
 }
 
 /// 向量场散度：带标量值的独立对象。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Divergence {
     /// 向量场分量 F₁…Fₙ。
     pub components: Vec<Term>,
@@ -138,12 +139,12 @@ pub struct Divergence {
 impl Divergence {
     /// 桥接为标量 [`Term`]。
     pub fn to_bridge_term(&self) -> Term {
-        self.value.clone()
+        clone_term(&self.value)
     }
 }
 
 /// 三维向量场旋度：独立对象（引导实现仅 ℝ³）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Curl {
     /// 输入分量 (Fₓ, Fᵧ, F_z)。
     pub components: Vec<Term>,
@@ -156,7 +157,7 @@ pub struct Curl {
 impl Curl {
     /// 桥接列表形态。
     pub fn to_list_term(&self) -> Term {
-        Term::List(self.curl_components.clone())
+        Term::List(clone_terms(&self.curl_components))
     }
 }
 
@@ -241,7 +242,7 @@ pub fn curl_checked(components: &[Term], variables: &[String], assumptions: &Ass
 }
 
 fn sub_terms(a: &Term, b: &Term) -> Term {
-    evaluate(&Term::apply("Plus", vec![a.clone(), Term::apply("Times", vec![Term::int(-1), b.clone()])]))
+    evaluate(&Term::apply("Plus", vec![clone_term(&a), Term::apply("Times", vec![Term::int(-1), clone_term(&b)])]))
 }
 
 fn merge_conditions(

@@ -4,7 +4,7 @@ use athena_numeric::{Number, add as num_add, mul as num_mul, neg as num_neg};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 整数环系数算术。
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct ZCoeffKernel;
 
 impl ZCoeffKernel {

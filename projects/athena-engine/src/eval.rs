@@ -8,6 +8,7 @@ use athena_numeric::{
 };
 use athena_types::Result;
 
+use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 use crate::term::{Atom, Term, number_from_term};
 
 fn map_num<T>(r: Result<T>) -> Result<T> {
@@ -21,10 +22,10 @@ pub fn evaluate(expr: &Term) -> Term {
 
 fn evaluate_depth(expr: &Term, depth: u32) -> Term {
     if depth > 256 {
-        return expr.clone();
+        return clone_term(expr);
     }
     match expr {
-        Term::Atom(_) => expr.clone(),
+        Term::Atom(_) => clone_term(expr),
         Term::List(items) => Term::List(items.iter().map(|i| evaluate_depth(i, depth + 1)).collect()),
         Term::Application { head, arguments: args } => {
             let head_e = evaluate_depth(head, depth + 1);
@@ -38,16 +39,16 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
     let name = match head {
         Term::Atom(Atom::Symbol(s)) => s.as_str(),
         _ => {
-            return Term::Application { head: Box::new(head.clone()), arguments: args };
+            return Term::Application { head: Box::new(clone_term(head)), arguments: args };
         }
     };
 
     match name {
         "Plus" => eval_plus(args),
         "Times" => eval_times(args),
-        "Power" if args.len() == 2 => eval_power(args[0].clone(), args[1].clone()),
-        "Subtract" if args.len() == 2 => eval_plus(vec![args[0].clone(), eval_times(vec![Term::int(-1), args[1].clone()])]),
-        "Divide" if args.len() == 2 => eval_times(vec![args[0].clone(), eval_power(args[1].clone(), Term::int(-1))]),
+        "Power" if args.len() == 2 => eval_power(clone_term(&args[0]), clone_term(&args[1])),
+        "Subtract" if args.len() == 2 => eval_plus(vec![clone_term(&args[0]), eval_times(vec![Term::int(-1), clone_term(&args[1])])]),
+        "Divide" if args.len() == 2 => eval_times(vec![clone_term(&args[0]), eval_power(clone_term(&args[1]), Term::int(-1))]),
         "List" => Term::List(args),
         "Simplify" if args.len() == 1 => eval_simplify(&args[0], depth),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => eval_machine_unary(name, &args[0]),
@@ -66,7 +67,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Not" if args.len() == 1 => eval_logic_not(&args[0]),
         "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth(&args[1], depth + 1),
         "D" | "Integrate" | "Limit" | "Series" | "DSolve" | "LaplaceTransform" => {
-            let term = Term::Application { head: Box::new(head.clone()), arguments: args };
+            let term = Term::Application { head: Box::new(clone_term(head)), arguments: args };
             if let Some(req) = crate::calculus::try_calculus_request(&term) {
                 let result = crate::calculus::execute_calculus(req);
                 return crate::calculus::calculus_result_bridge_term(&result);
@@ -77,7 +78,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Function" => Term::Application { head: Box::new(Term::symbol("Function")), arguments: args },
         "ReplaceAll" if args.len() == 2 => eval_replace_all(&args[0], &args[1], depth),
         "Part" if args.len() == 2 => eval_part(&args[0], &args[1]),
-        "Rule" | "RuleDelayed" if args.len() == 2 => Term::Application { head: Box::new(head.clone()), arguments: args },
+        "Rule" | "RuleDelayed" if args.len() == 2 => Term::Application { head: Box::new(clone_term(head)), arguments: args },
         _ => {
             if let Term::Application { head: fh, arguments: fargs } = head {
                 if fh.is_symbol("Function") && fargs.len() == 1 && args.len() == 1 {
@@ -85,7 +86,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
                     return evaluate_depth(&body, depth + 1);
                 }
             }
-            Term::Application { head: Box::new(head.clone()), arguments: args }
+            Term::Application { head: Box::new(clone_term(head)), arguments: args }
         }
     }
 }
@@ -118,7 +119,7 @@ fn combine_like_plus_terms(terms: Vec<Term>) -> Vec<Term> {
     for t in terms {
         let (coef, kernel) = split_numeric_coeff(t);
         if let Some((_, acc)) = groups.iter_mut().find(|(k, _)| k == &kernel) {
-            *acc = match num_add(acc.clone(), coef) {
+            *acc = match num_add(clone_number(acc), coef) {
                 Ok(v) => v,
                 Err(_) => return groups_to_plus_terms(groups), // 回退：放弃合并
             };
@@ -161,8 +162,8 @@ fn split_numeric_coeff(term: Term) -> (Number, Term) {
             let mut coef = Number::small_int(1);
             let mut rest = Vec::new();
             for a in args {
-                if let Some(n) = number_from_term(&a).cloned() {
-                    coef = num_mul(coef.clone(), n).unwrap_or(coef);
+                if let Some(n) = number_from_term(&a).map(clone_number) {
+                    coef = num_mul(clone_number(&coef), n).unwrap_or(coef);
                 }
                 else {
                     rest.push(a);
@@ -176,7 +177,7 @@ fn split_numeric_coeff(term: Term) -> (Number, Term) {
             (coef, kernel)
         }
         other => {
-            if let Some(n) = number_from_term(&other).cloned() {
+            if let Some(n) = number_from_term(&other).map(clone_number) {
                 (n, Term::int(1))
             }
             else {
@@ -198,9 +199,9 @@ fn flatten_plus(a: Term, flat: &mut Vec<Term>, sum: &mut Option<Number>) {
 }
 
 fn push_plus_term(a: Term, flat: &mut Vec<Term>, sum: &mut Option<Number>) {
-    if let Some(n) = number_from_term(&a).cloned() {
+    if let Some(n) = number_from_term(&a).map(clone_number) {
         *sum = Some(match sum.take() {
-            Some(s) => map_num(num_add(s.clone(), n)).unwrap_or(s),
+            Some(s) => map_num(num_add(clone_number(&s), n)).unwrap_or(s),
             None => n,
         });
     }
@@ -233,7 +234,7 @@ fn eval_times(args: Vec<Term>) -> Term {
             let parts: Vec<Term> = summands
                 .into_iter()
                 .map(|s| {
-                    let mut factors = flat.clone();
+                    let mut factors = clone_terms(&flat);
                     factors.push(s);
                     eval_times(factors)
                 })
@@ -272,16 +273,16 @@ fn combine_like_powers(factors: Vec<Term>) -> Vec<Term> {
     for f in factors {
         let (base, exp) = match &f {
             Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
-                (args[0].clone(), args[1].clone())
+                (clone_term(&args[0]), clone_term(&args[1]))
             }
-            Term::Atom(Atom::Symbol(_)) => (f.clone(), Term::int(1)),
+            Term::Atom(Atom::Symbol(_)) => (clone_term(&f), Term::int(1)),
             _ => {
                 rest.push(f);
                 continue;
             }
         };
         if let Some((_, e)) = out.iter_mut().find(|(b, _)| b == &base) {
-            *e = eval_plus(vec![e.clone(), exp]);
+            *e = eval_plus(vec![clone_term(e), exp]);
         }
         else {
             out.push((base, exp));
@@ -306,13 +307,13 @@ fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {
             }
         }
         other => {
-            if let Some(n) = number_from_term(&other).cloned() {
+            if let Some(n) = number_from_term(&other).map(clone_number) {
                 if n.is_zero() {
                     *prod = Some(Number::small_int(0));
                     return;
                 }
                 *prod = Some(match prod.take() {
-                    Some(p) => map_num(num_mul(p.clone(), n)).unwrap_or(p),
+                    Some(p) => map_num(num_mul(clone_number(&p), n)).unwrap_or(p),
                     None => n,
                 });
             }
@@ -324,7 +325,7 @@ fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {
 }
 
 fn eval_power(base: Term, exp: Term) -> Term {
-    if let Some(e) = number_from_term(&exp).cloned() {
+    if let Some(e) = number_from_term(&exp).map(clone_number) {
         if e.is_zero() {
             return Term::int(1);
         }
@@ -332,7 +333,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
             return base;
         }
         if e.is_neg_one() {
-            if let Some(b) = number_from_term(&base).cloned() {
+            if let Some(b) = number_from_term(&base).map(clone_number) {
                 if let Ok(v) = map_num(num_div(Number::small_int(1), b)) {
                     return Term::number(v);
                 }
@@ -342,10 +343,10 @@ fn eval_power(base: Term, exp: Term) -> Term {
         if let Some(n) = e.as_integer_exp() {
             if let Term::Application { head, arguments: args } = &base {
                 if head.is_symbol("Times") && args.len() >= 2 {
-                    if let Some(c) = number_from_term(&args[0]).cloned() {
+                    if let Some(c) = number_from_term(&args[0]).map(clone_number) {
                         if let Ok(cp) = map_num(num_pow(&c, &e)) {
-                            let rest = if args.len() == 2 { args[1].clone() } else { Term::apply("Times", args[1..].to_vec()) };
-                            return eval_times(vec![Term::number(cp), eval_power(rest, exp.clone())]);
+                            let rest = if args.len() == 2 { clone_term(&args[1]) } else { Term::apply("Times", clone_terms(&args[1..])) };
+                            return eval_times(vec![Term::number(cp), eval_power(rest, clone_term(&exp))]);
                         }
                     }
                 }
@@ -353,9 +354,9 @@ fn eval_power(base: Term, exp: Term) -> Term {
             // (u^a)^b → u^(a*b)（a,b 为数）
             if let Term::Application { head, arguments: args } = &base {
                 if head.is_symbol("Power") && args.len() == 2 {
-                    if let Some(a) = number_from_term(&args[1]).cloned() {
-                        if let Ok(ab) = map_num(num_mul(a, e.clone())) {
-                            return eval_power(args[0].clone(), Term::number(ab));
+                    if let Some(a) = number_from_term(&args[1]).map(clone_number) {
+                        if let Ok(ab) = map_num(num_mul(a, e)) {
+                            return eval_power(clone_term(&args[0]), Term::number(ab));
                         }
                     }
                 }
@@ -363,7 +364,7 @@ fn eval_power(base: Term, exp: Term) -> Term {
             let _ = n;
         }
     }
-    if let (Some(b), Some(e)) = (number_from_term(&base).cloned(), number_from_term(&exp).cloned()) {
+    if let (Some(b), Some(e)) = (number_from_term(&base).map(clone_number), number_from_term(&exp).map(clone_number)) {
         if let Ok(v) = map_num(num_pow(&b, &e)) {
             return Term::number(v);
         }
@@ -382,7 +383,7 @@ fn eval_simplify(expr: &Term, depth: u32) -> Term {
 fn eval_machine_unary(name: &str, arg: &Term) -> Term {
     let Some(x) = number_from_term(arg).and_then(|n| num_to_f64_lossy(&n))
     else {
-        return Term::apply(name, vec![arg.clone()]);
+        return Term::apply(name, vec![clone_term(arg)]);
     };
     let y = match name {
         "Sin" => x.sin(),
@@ -390,34 +391,34 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
         "Tan" => x.tan(),
         "Exp" => x.exp(),
         "Log" => x.ln(),
-        _ => return Term::apply(name, vec![arg.clone()]),
+        _ => return Term::apply(name, vec![clone_term(arg)]),
     };
-    if y.is_finite() { Term::real(y) } else { Term::apply(name, vec![arg.clone()]) }
+    if y.is_finite() { Term::real(y) } else { Term::apply(name, vec![clone_term(arg)]) }
 }
 
 fn eval_sqrt(arg: &Term) -> Term {
-    if let Some(n) = number_from_term(arg).cloned() {
+    if let Some(n) = number_from_term(arg).map(clone_number) {
         if let Ok(Some(v)) = map_num(num_sqrt(&n)) {
             return Term::number(v);
         }
     }
-    Term::apply("Sqrt", vec![arg.clone()])
+    Term::apply("Sqrt", vec![clone_term(arg)])
 }
 
 fn eval_abs(arg: &Term) -> Term {
-    if let Some(n) = number_from_term(arg).cloned() {
+    if let Some(n) = number_from_term(arg).map(clone_number) {
         return Term::number(num_abs(n));
     }
-    Term::apply("Abs", vec![arg.clone()])
+    Term::apply("Abs", vec![clone_term(arg)])
 }
 
 fn eval_factorial(arg: &Term) -> Term {
-    if let Some(n) = number_from_term(arg).cloned() {
+    if let Some(n) = number_from_term(arg).map(clone_number) {
         if let Ok(v) = map_num(num_factorial(&n)) {
             return Term::number(v);
         }
     }
-    Term::apply("Factorial", vec![arg.clone()])
+    Term::apply("Factorial", vec![clone_term(arg)])
 }
 
 fn eval_compare<F>(head: &str, left: &Term, right: &Term, cmp: F) -> Term
@@ -429,27 +430,27 @@ where
             return Term::int(if cmp(ord) { 1 } else { 0 });
         }
     }
-    Term::apply(head, vec![left.clone(), right.clone()])
+    Term::apply(head, vec![clone_term(left), clone_term(right)])
 }
 
 fn eval_logic_and(left: &Term, right: &Term) -> Term {
     match (truthy(left), truthy(right)) {
         (Some(a), Some(b)) => Term::int(if a && b { 1 } else { 0 }),
-        _ => Term::apply("And", vec![left.clone(), right.clone()]),
+        _ => Term::apply("And", vec![clone_term(left), clone_term(right)]),
     }
 }
 
 fn eval_logic_or(left: &Term, right: &Term) -> Term {
     match (truthy(left), truthy(right)) {
         (Some(a), Some(b)) => Term::int(if a || b { 1 } else { 0 }),
-        _ => Term::apply("Or", vec![left.clone(), right.clone()]),
+        _ => Term::apply("Or", vec![clone_term(left), clone_term(right)]),
     }
 }
 
 fn eval_logic_not(arg: &Term) -> Term {
     match truthy(arg) {
         Some(v) => Term::int(if v { 0 } else { 1 }),
-        None => Term::apply("Not", vec![arg.clone()]),
+        None => Term::apply("Not", vec![clone_term(arg)]),
     }
 }
 
@@ -460,7 +461,7 @@ fn truthy(expr: &Term) -> Option<bool> {
 fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {
     let list = match target {
         Term::List(items) => items,
-        other => return Term::apply("Map", vec![func.clone(), other.clone()]),
+        other => return Term::apply("Map", vec![clone_term(func), clone_term(other)]),
     };
     Term::List(
         list.iter()
@@ -474,11 +475,11 @@ fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {
 
 fn map_one(func: &Term, item: &Term) -> Term {
     match func {
-        Term::Atom(Atom::Symbol(name)) => Term::apply(name.clone(), vec![item.clone()]),
+        Term::Atom(Atom::Symbol(name)) => Term::apply(name.clone(), vec![clone_term(item)]),
         Term::Application { head, arguments: args } if head.is_symbol("Function") && args.len() == 1 => {
             substitute_slot(&args[0], item)
         }
-        _ => Term::apply("Map", vec![func.clone(), item.clone()]),
+        _ => Term::apply("Map", vec![clone_term(func), clone_term(item)]),
     }
 }
 
@@ -532,7 +533,7 @@ fn eval_replace_all(expr: &Term, rules: &Term, depth: u32) -> Term {
         Term::List(items) => items.iter().filter_map(rule_pair).collect(),
         other => rule_pair(other).into_iter().collect(),
     };
-    let mut cur = expr.clone();
+    let mut cur = clone_term(expr);
     for (lhs, rhs) in rule_list {
         cur = replace_literal(&cur, &lhs, &rhs);
     }
@@ -544,7 +545,7 @@ fn rule_pair(expr: &Term) -> Option<(Term, Term)> {
         Term::Application { head, arguments: args }
             if args.len() == 2 && (head.is_symbol("Rule") || head.is_symbol("RuleDelayed")) =>
         {
-            Some((args[0].clone(), args[1].clone()))
+            Some((clone_term(&args[0]), clone_term(&args[1])))
         }
         _ => None,
     }
@@ -552,7 +553,7 @@ fn rule_pair(expr: &Term) -> Option<(Term, Term)> {
 
 fn replace_literal(expr: &Term, lhs: &Term, rhs: &Term) -> Term {
     if expr == lhs {
-        return rhs.clone();
+        return clone_term(rhs);
     }
     match expr {
         Term::List(items) => Term::List(items.iter().map(|i| replace_literal(i, lhs, rhs)).collect()),
@@ -560,14 +561,14 @@ fn replace_literal(expr: &Term, lhs: &Term, rhs: &Term) -> Term {
             head: Box::new(replace_literal(head, lhs, rhs)),
             arguments: args.iter().map(|a| replace_literal(a, lhs, rhs)).collect(),
         },
-        other => other.clone(),
+        other => clone_term(other),
     }
 }
 
 fn eval_part(expr: &Term, index: &Term) -> Term {
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
         Some(v) => v,
-        None => return Term::apply("Part", vec![expr.clone(), index.clone()]),
+        None => return Term::apply("Part", vec![clone_term(expr), clone_term(index)]),
     };
     match expr {
         Term::List(items) => {
@@ -578,18 +579,18 @@ fn eval_part(expr: &Term, index: &Term) -> Term {
                 items.len().wrapping_add(idx as usize)
             }
             else {
-                return Term::apply("Part", vec![expr.clone(), index.clone()]);
+                return Term::apply("Part", vec![clone_term(expr), clone_term(index)]);
             };
-            items.get(i).cloned().unwrap_or_else(|| Term::apply("Part", vec![expr.clone(), index.clone()]))
+            items.get(i).map(clone_term).unwrap_or_else(|| Term::apply("Part", vec![clone_term(expr), clone_term(index)]))
         }
-        _ => Term::apply("Part", vec![expr.clone(), index.clone()]),
+        _ => Term::apply("Part", vec![clone_term(expr), clone_term(index)]),
     }
 }
 
 fn substitute_slot(body: &Term, value: &Term) -> Term {
     match body {
-        Term::Atom(Atom::Symbol(s)) if s == "#" || s == "#1" => value.clone(),
-        Term::Atom(_) => body.clone(),
+        Term::Atom(Atom::Symbol(s)) if s == "#" || s == "#1" => clone_term(value),
+        Term::Atom(_) => clone_term(body),
         Term::List(items) => Term::List(items.iter().map(|i| substitute_slot(i, value)).collect()),
         Term::Application { head, arguments: args } => Term::Application {
             head: Box::new(substitute_slot(head, value)),

@@ -2,9 +2,10 @@
 
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
+use crate::numeric_clone::{clone_integer, resize_integers};
 
 /// 不可变 𝔽_{p^n} 多项式基规格（由 [`super::table::FieldTable`] 持有）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FiniteFieldPolySpec {
     /// 扩张 id。
     pub extension: ExtensionId,
@@ -83,7 +84,7 @@ pub fn canonical_coords(mut coords: Vec<Integer>, degree: u32, p: &Modulus) -> R
             .detail("domain", "field")
             .detail("operation", "extension_coord_length"));
     }
-    coords.resize(n, Integer::zero());
+    resize_integers(&mut coords, n, &Integer::zero());
     for c in &mut coords {
         *c = p.reduce(c);
     }
@@ -187,11 +188,11 @@ fn poly_mod(a: &[Integer], modulus: &[Integer], p: &Modulus) -> Vec<Integer> {
     trim_poly(&mut r);
     while r.len() > n {
         let deg = r.len() - 1;
-        let lead = r[deg].clone();
+        let lead = clone_integer(&r[deg]);
         if !lead.is_zero() {
             let shift = deg - n;
             if r.len() < shift + modulus.len() {
-                r.resize(shift + modulus.len(), Integer::zero());
+                resize_integers(&mut r, shift + modulus.len(), &Integer::zero());
             }
             for (i, mi) in modulus.iter().enumerate() {
                 r[shift + i] = p.reduce(&r[shift + i].sub(&p.reduce(&lead.mul(mi))));
@@ -200,7 +201,7 @@ fn poly_mod(a: &[Integer], modulus: &[Integer], p: &Modulus) -> Vec<Integer> {
         r.pop();
         trim_poly(&mut r);
     }
-    r.resize(n, Integer::zero());
+    resize_integers(&mut r, n, &Integer::zero());
     for c in &mut r {
         *c = p.reduce(c);
     }
@@ -211,7 +212,7 @@ fn poly_sub(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
     let len = a.len().max(b.len());
     let mut out = vec![Integer::zero(); len];
     for (i, ai) in a.iter().enumerate() {
-        out[i] = ai.clone();
+        out[i] = clone_integer(&ai);
     }
     for (i, bi) in b.iter().enumerate() {
         out[i] = p.reduce(&out[i].sub(bi));
@@ -277,11 +278,11 @@ fn poly_div_rem(a: &[Integer], b: &[Integer], p: &Modulus) -> Result<(Vec<Intege
         let shift = deg_r - deg_b;
         let scale = p.reduce(&lead.mul(&lc_inv));
         if quotient.len() < shift + 1 {
-            quotient.resize(shift + 1, Integer::zero());
+            resize_integers(&mut quotient, shift + 1, &Integer::zero());
         }
         quotient[shift] = p.reduce(&quotient[shift].add(&scale));
         if remainder.len() < shift + b.len() {
-            remainder.resize(shift + b.len(), Integer::zero());
+            resize_integers(&mut remainder, shift + b.len(), &Integer::zero());
         }
         for (i, bi) in b.iter().enumerate() {
             remainder[shift + i] = p.reduce(&remainder[shift + i].sub(&p.reduce(&scale.mul(bi))));
@@ -311,7 +312,7 @@ fn normalize_monic(v: &mut Vec<Integer>, p: &Modulus) {
         return;
     }
     if let Ok(inv) = crate::number_theory::mod_inverse(&lc, p) {
-        let inv = inv.residue().clone();
+        let inv = clone_integer(&inv.residue());
         for c in v.iter_mut() {
             *c = p.reduce(&c.mul(&inv));
         }

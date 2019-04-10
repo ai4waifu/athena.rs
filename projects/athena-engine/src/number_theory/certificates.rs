@@ -5,7 +5,7 @@ use athena_numeric::Integer;
 use super::value::MillerRabinBaseSelection;
 
 /// 有明确数值上界的确定性素性测试证书。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PrimeCertificate {
     /// 试除确定性路径（含上界）。
     TrialDivision {
@@ -24,7 +24,7 @@ pub enum PrimeCertificate {
 }
 
 /// 强 Miller–Rabin 概率素数证据。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProbablePrimeEvidence {
     /// 实际测试的基（按执行顺序）。
     pub bases: Vec<u32>,
@@ -43,7 +43,7 @@ impl ProbablePrimeEvidence {
 }
 
 /// 合数可验证见证。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CompositeWitness {
     /// 非正或 `1`（非素数定义）。
     NonPositiveOrOne,

@@ -226,7 +226,7 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
 }
 
 /// 自 `start` 起递增枚举素数。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PrimeIterator {
     current: Integer,
 }
