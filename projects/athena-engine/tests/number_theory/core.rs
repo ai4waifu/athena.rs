@@ -1,6 +1,6 @@
 ﻿//! 鏁拌鍩?gate锛歡cd / 绱犳€?/ 鍒嗚В / 妯¤繍绠椼€?
 
-use athena_engine::{
+use athena_engine::{clone_modulus, 
     AthenaEngine, DiagnosticCode, DomainRequest, DomainResult, FactorLimits, FactorizationCompleteness, Integer, Modulus,
     NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality,
 };
@@ -88,7 +88,7 @@ fn modular_inverse_and_pow() {
     let engine = AthenaEngine::new();
     let m = Modulus::new(17).unwrap();
     let out = expect_nt(
-        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 3.into(), modulus: m.clone() })),
+        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 3.into(), modulus: clone_modulus(&m) })),
     );
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => {

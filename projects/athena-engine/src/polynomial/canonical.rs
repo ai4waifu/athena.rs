@@ -11,6 +11,7 @@ use super::{
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
 };
+use crate::numeric_clone::{clone_number};
 
 /// 将任意项列表规范化为 [`CanonicalPolynomial`]（须已注册 [`RingId`]）。
 pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<CanonicalPolynomial> {
@@ -42,7 +43,7 @@ pub(crate) fn canonicalize_terms(
         }
         match acc.get_mut(&exponents) {
             Some(existing) => {
-                *existing = merge_coefficients(existing.clone(), coefficient, coeff_ring.as_ref())?;
+                *existing = merge_coefficients(clone_number(existing), coefficient, coeff_ring.as_ref())?;
             }
             None => {
                 acc.insert(exponents, coefficient);

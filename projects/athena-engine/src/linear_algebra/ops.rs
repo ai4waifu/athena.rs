@@ -9,6 +9,7 @@ use super::{
     shape::MatrixShape,
     value::{MatrixEntry, MatrixValue},
 };
+use crate::numeric_clone::{resize_integers, resize_rationals};
 
 /// 标量索引（返回 1×1 矩阵以保持矩阵对象模型）。
 pub fn index_scalar(matrix: &MatrixValue, row: u64, col: u64) -> Result<MatrixValue, Diagnostic> {
@@ -93,7 +94,7 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
     let out_shape = lhs.shape().matmul(rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::Integers => {
-            let mut data = vec![Integer::zero(); out_shape.element_count()?];
+            let mut data = { let mut __v = Vec::new(); resize_integers(&mut __v, out_shape.element_count()?, &Integer::zero()); __v };
             for i in 0..out_shape.rows {
                 for j in 0..out_shape.cols {
                     let mut acc = Integer::zero();
@@ -114,7 +115,7 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
             MatrixValue::from_integers_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Rationals => {
-            let mut data = vec![Rational::zero(); out_shape.element_count()?];
+            let mut data = { let mut __v = Vec::new(); resize_rationals(&mut __v, out_shape.element_count()?, &Rational::zero()); __v };
             for i in 0..out_shape.rows {
                 for j in 0..out_shape.cols {
                     let mut acc = Rational::zero();

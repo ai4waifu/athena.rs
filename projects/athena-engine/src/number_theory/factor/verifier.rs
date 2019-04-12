@@ -3,6 +3,7 @@
 use athena_numeric::Integer;
 
 use super::super::value::{CofactorStatus, FactorBaseStatus, Factorization, FactorizationCompleteness};
+use crate::numeric_clone::{clone_integer, clone_modulus};
 
 /// 分解验证失败原因。
 #[derive(Debug, PartialEq, Eq)]
@@ -47,7 +48,7 @@ pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), Fa
     let mut prev: Option<&Integer> = None;
     for comp in &f.factors {
         if !(comp.base > Integer::one()) {
-            return Err(FactorizationVerifyError::BaseTooSmall { base: comp.base.clone() });
+            return Err(FactorizationVerifyError::BaseTooSmall { base: clone_integer(&comp.base) });
         }
         if comp.exponent == 0 {
             return Err(FactorizationVerifyError::ExponentZero);
@@ -66,7 +67,7 @@ pub fn verify_factorization(input: &Integer, f: &Factorization) -> Result<(), Fa
     }
 
     if !(f.cofactor >= Integer::one()) {
-        return Err(FactorizationVerifyError::BaseTooSmall { base: f.cofactor.clone() });
+        return Err(FactorizationVerifyError::BaseTooSmall { base: clone_integer(&f.cofactor) });
     }
 
     let reconstructed = product.mul(&f.cofactor);

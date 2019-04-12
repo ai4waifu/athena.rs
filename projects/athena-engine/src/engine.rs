@@ -2,6 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
+use crate::numeric_clone::clone_term;
 use crate::{
     domain::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     term::Term,
@@ -42,7 +43,7 @@ impl AthenaEngine {
 
     /// 经 `Simplify` 头部化简。
     pub fn simplify_term(&self, expr: &Term) -> Term {
-        self.evaluate_term(&Term::apply("Simplify", vec![expr.clone()]))
+        self.evaluate_term(&Term::apply("Simplify", vec![clone_term(expr)]))
     }
 
     /// Arena/`()` 桩求值 — 保留至 IR 路径落地。

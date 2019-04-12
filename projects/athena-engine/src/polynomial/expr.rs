@@ -3,6 +3,8 @@
 use athena_numeric::Number;
 use athena_types::RingId;
 
+use crate::numeric_clone::clone_number;
+
 /// 单项式项：系数 × 指数向量（与环变量表对齐）。
 ///
 /// 字段私有：禁止外部构造出零系数、错误宽度或未校验的项。
@@ -36,6 +38,20 @@ impl MonomialTerm {
     /// 克隆指数向量（避免暴露可变 `&mut Vec`）。
     pub(crate) fn exponents_vec(&self) -> Vec<u32> {
         self.exponents.clone()
+    }
+
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            coefficient: clone_number(&self.coefficient),
+            exponents: self.exponents.clone(),
+        }
+    }
+}
+
+impl Clone for MonomialTerm {
+    fn clone(&self) -> Self {
+        self.owning_copy()
     }
 }
 
@@ -80,5 +96,19 @@ impl CanonicalPolynomial {
     /// 拆出所有权部件（canonicalize 再入、表示转换）。
     pub(crate) fn into_parts(self) -> (RingId, Vec<MonomialTerm>) {
         (self.ring, self.terms)
+    }
+
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            ring: self.ring,
+            terms: self.terms.iter().map(MonomialTerm::owning_copy).collect(),
+        }
+    }
+}
+
+impl Clone for CanonicalPolynomial {
+    fn clone(&self) -> Self {
+        self.owning_copy()
     }
 }

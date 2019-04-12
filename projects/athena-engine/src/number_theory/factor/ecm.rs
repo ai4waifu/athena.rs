@@ -1,6 +1,7 @@
 //! ECM stage 1（Montgomery 曲线，纯 Rust 引导实现）。
 
 use athena_numeric::Integer;
+use crate::numeric_clone::{clone_integer};
 
 /// Stage 1：在若干条 Montgomery 曲线上计算 `[k]P`，用 `gcd(Z, n)` 探测因子。
 pub fn ecm_stage_one(n: &Integer, seed: u64, b1: u32, max_curves: u32) -> Option<Integer> {
@@ -61,8 +62,8 @@ fn nontrivial_gcd(a: &Integer, n: &Integer) -> Option<Integer> {
 fn scalar_mul_montgomery(n: &Integer, a24: &Integer, x: &Integer, z: &Integer, k: &Integer) -> (Integer, Integer) {
     let mut r0x = Integer::one();
     let mut r0z = Integer::zero();
-    let mut r1x = x.clone();
-    let mut r1z = z.clone();
+    let mut r1x = clone_integer(&x);
+    let mut r1z = clone_integer(&z);
 
     let bits = k.bits();
     if bits == 0 {
@@ -91,7 +92,7 @@ fn scalar_mul_montgomery(n: &Integer, a24: &Integer, x: &Integer, z: &Integer, k
 
 fn bit_at(k: &Integer, i: u64) -> bool {
     let two = Integer::from_i64(2);
-    let mut t = k.clone();
+    let mut t = clone_integer(&k);
     for _ in 0..i {
         t = t.div(&two).expect("div");
     }
@@ -137,7 +138,7 @@ fn mod_inv(a: &Integer, n: &Integer) -> Option<Integer> {
     }
     let mut t = Integer::zero();
     let mut newt = Integer::one();
-    let mut r = n.clone();
+    let mut r = clone_integer(&n);
     let mut newr = a.rem(n).expect("rem");
     while !newr.is_zero() {
         let q = r.div(&newr).expect("div");

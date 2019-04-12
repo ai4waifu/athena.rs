@@ -2,7 +2,7 @@
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
-use athena_engine::{
+use athena_engine::{clone_term, 
     AthenaEngine, CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder, DomainRequest, DomainResult, LimitApproach,
     LimitDirection, Remainder, Term, differentiate_checked, integrate_checked, try_calculus_request,
 };
@@ -333,7 +333,7 @@ fn onesided_simple_pole() {
     let engine = AthenaEngine::new();
     let expr = Term::apply("Divide", vec![Term::int(1), Term::symbol("x")]);
     let above = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
-        expression: expr.clone(),
+        expression: clone_term(&expr),
         variable: "x".into(),
         approach: LimitApproach::Finite(Term::int(0)),
         direction: LimitDirection::FromAbove,
@@ -756,7 +756,7 @@ fn fourier_gaussian_and_lowering() {
         "Exp",
         vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![Term::symbol("t"), Term::int(2)])])],
     );
-    let term = Term::apply("FourierTransform", vec![expr.clone(), Term::symbol("t"), Term::symbol("w")]);
+    let term = Term::apply("FourierTransform", vec![clone_term(&expr), Term::symbol("t"), Term::symbol("w")]);
     let req = try_calculus_request(&term).expect("lower Fourier");
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(req)));
     match out {

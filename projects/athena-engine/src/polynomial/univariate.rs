@@ -3,7 +3,7 @@
 use athena_numeric::{Integer, Number, add as num_add, div as num_div, mul as num_mul, neg as num_neg};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use crate::numeric_clone::{clone_integer, clone_number, clone_rational};
+use crate::numeric_clone::{clone_integer, clone_number, clone_numbers, clone_rational, resize_numbers};
 use super::{
     builder::PolynomialBuilder,
     coeff_kernel::CoeffRing,
@@ -92,7 +92,7 @@ fn div_dense_field(
     if degree(&rem) < degree(&b) {
         return Ok((Vec::new(), rem));
     }
-    let mut quot = vec![Number::small_int(0); degree(&rem) - degree(&b) + 1];
+    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero())); __v };
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
         let q_coeff = coeff.div(lc(&rem)?, lc(&b)?)?;
@@ -145,10 +145,10 @@ fn div_dense_rational(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Nu
     if degree(&rem) < degree(&b) {
         return Ok((Vec::new(), rem));
     }
-    let mut quot = vec![Number::small_int(0); degree(&rem) - degree(&b) + 1];
+    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero())); __v };
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
-        let q_coeff = num_div(clone_number(&&rem), lc(&b)?)?;
+        let q_coeff = num_div(lc(&rem)?, lc(&b)?)?;
         quot[d] = num_add(clone_number(&quot[d]), clone_number(&q_coeff))?;
         rem = sub_scaled_monomial_rational(&rem, &b, q_coeff, d)?;
     }
@@ -166,11 +166,11 @@ fn pseudo_divide(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Number>
     }
     let delta = degree(&rem) - degree(&b) + 1;
     let scale = num_pow(lc(&b)?, delta)?;
-    let mut quot = vec![Number::small_int(0); delta];
+    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, delta, &Number::integer(Integer::zero())); __v };
     let mut rem = scale_dense(&rem, clone_number(&scale))?;
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
-        let q_coeff = clone_number(&&rem);
+        let q_coeff = lc(&rem)?;
         quot[d] = num_add(clone_number(&quot[d]), clone_number(&q_coeff))?;
         rem = sub_scaled_monomial_rational(&rem, &b, q_coeff, d)?;
     }
@@ -230,7 +230,15 @@ fn resultant_dense(a: &[Number], b: &[Number], domain: &CoefficientDomain, ring:
         return Ok(num_pow(lc(&b)?, m)?);
     }
     let size = m + n;
-    let mut mat = vec![vec![Number::small_int(0); size]; size];
+    let mut mat = {
+        let mut mat = Vec::with_capacity(size);
+        for _ in 0..size {
+            let mut __v = Vec::new();
+            resize_numbers(&mut __v, size, &Number::integer(Integer::zero()));
+            mat.push(__v);
+        }
+        mat
+    };
     for row in 0..n {
         for (col, c) in a.iter().enumerate() {
             if row + col < size {
@@ -277,10 +285,10 @@ fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain, ring: RingId, rin
         return Ok(Number::small_int(1));
     }
     match domain {
-        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat.to_vec()),
+        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat.iter().map(|row| clone_numbers(row)).collect()),
         CoefficientDomain::FiniteField { .. } => {
             let coeff = rings.coeff_kernel(ring)?;
-            det_field(mat.to_vec(), &coeff)
+            det_field(mat.iter().map(|row| clone_numbers(row)).collect(), &coeff)
         }
         _ => Err(unsupported_domain()),
     }
@@ -399,7 +407,7 @@ fn to_dense(poly: &Polynomial, var: usize, n: usize) -> Result<Vec<Number>> {
         }
         max = max.max(term.exponents()[var] as usize);
     }
-    let mut coeffs = vec![Number::small_int(0); max + 1];
+    let mut coeffs = { let mut __v = Vec::new(); resize_numbers(&mut __v, max + 1, &Number::integer(Integer::zero())); __v };
     for term in poly.terms() {
         let d = term.exponents()[var] as usize;
         coeffs[d] = clone_number(term.coefficient());
@@ -421,7 +429,7 @@ fn from_dense(coeffs: &[Number], var: usize, n: usize, ring: RingId, rings: &Rin
 }
 
 fn trim_dense(v: &[Number]) -> Vec<Number> {
-    let mut out = v.to_vec();
+    let mut out = clone_numbers(v);
     while out.len() > 1 && out.last().is_some_and(|c| c.is_zero()) {
         out.pop();
     }
@@ -443,17 +451,17 @@ fn degree(v: &[Number]) -> usize {
 }
 
 fn lc(v: &[Number]) -> Result<Number> {
-    v.last().cloned().ok_or_else(|| {
+    v.last().map(clone_number).ok_or_else(|| {
         Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "zero_polynomial")
     })
 }
 
 fn sub_scaled_monomial(a: &[Number], b: &[Number], scale: Number, shift: usize, coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
-    let mut out = a.to_vec();
+    let mut out = clone_numbers(a);
     for (i, bc) in b.iter().enumerate() {
         let idx = i + shift;
         if idx >= out.len() {
-            out.resize(idx + 1, Number::small_int(0));
+            resize_numbers(&mut out, idx + 1, &Number::integer(Integer::zero()));
         }
         let sub = coeff.mul(clone_number(&scale), clone_number(&bc))?;
         out[idx] = coeff.sub(clone_number(&out[idx]), sub)?;
@@ -462,11 +470,11 @@ fn sub_scaled_monomial(a: &[Number], b: &[Number], scale: Number, shift: usize, 
 }
 
 fn sub_scaled_monomial_rational(a: &[Number], b: &[Number], scale: Number, shift: usize) -> Result<Vec<Number>> {
-    let mut out = a.to_vec();
+    let mut out = clone_numbers(a);
     for (i, bc) in b.iter().enumerate() {
         let idx = i + shift;
         if idx >= out.len() {
-            out.resize(idx + 1, Number::small_int(0));
+            resize_numbers(&mut out, idx + 1, &Number::integer(Integer::zero()));
         }
         let sub = num_mul(clone_number(&scale), clone_number(&bc))?;
         out[idx] = num_add(clone_number(&out[idx]), num_neg(sub))?;
@@ -514,7 +522,7 @@ fn primitive_part_dense(v: &[Number], content: &Integer) -> Result<Vec<Number>> 
 
 fn monic_dense(v: &[Number], coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
     if is_zero_dense(v) {
-        return Ok(v.to_vec());
+        return Ok(clone_numbers(v));
     }
     let lc_inv = coeff.inv(lc(v)?)?;
     v.iter().map(|c| coeff.mul(clone_number(&c), clone_number(&lc_inv))).collect()
@@ -522,7 +530,7 @@ fn monic_dense(v: &[Number], coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
 
 fn monic_dense_rational(v: &[Number]) -> Result<Vec<Number>> {
     if is_zero_dense(v) {
-        return Ok(v.to_vec());
+        return Ok(clone_numbers(v));
     }
     let inv = num_div(Number::small_int(1), lc(v)?)?;
     scale_dense(v, inv)

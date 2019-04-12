@@ -5,7 +5,7 @@ use std::sync::Arc;
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_rational};
+use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 use super::{
     parent::{ElementParentKind, MatrixParent},
     shape::{Layout, MatrixShape, StorageOrder},
@@ -35,6 +35,15 @@ impl MatrixBuffer {
     /// 是否为空缓冲。
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Owning 复制（`Arc` 别名共享，与原 `Clone` 语义一致）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Integers(v) => Self::Integers(Arc::clone(v)),
+            Self::Rationals(v) => Self::Rationals(Arc::clone(v)),
+            Self::MachineF64(v) => Self::MachineF64(Arc::clone(v)),
+        }
     }
 }
 
@@ -164,8 +173,8 @@ impl MatrixValue {
             StorageOrder::ColumnMajor => Layout::column_major(shape)?,
         };
         let data = match parent.element {
-            ElementParentKind::Integers => MatrixBuffer::Integers(Arc::new(vec![Integer::zero(); n])),
-            ElementParentKind::Rationals => MatrixBuffer::Rationals(Arc::new(vec![Rational::zero(); n])),
+            ElementParentKind::Integers => MatrixBuffer::Integers(Arc::new({ let mut __v = Vec::new(); resize_integers(&mut __v, n, &Integer::zero()); __v })),
+            ElementParentKind::Rationals => MatrixBuffer::Rationals(Arc::new({ let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v })),
             ElementParentKind::MachineReal => MatrixBuffer::MachineF64(Arc::new(vec![0.0; n])),
         };
         Self::parent_matches_buffer(parent, &data)?;
@@ -195,14 +204,43 @@ impl MatrixValue {
         Ok(idx as usize)
     }
 
+    /// Owning 复制（共享 `Arc` 缓冲）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            parent: self.parent,
+            shape: self.shape,
+            layout: self.layout,
+            offset: self.offset,
+            data: self.data.owning_copy(),
+        }
+    }
+
     /// 读取元素（拷贝）。
     pub fn get(&self, row: u64, col: u64) -> Result<MatrixEntry, Diagnostic> {
         let i = self.linear_index(row, col)?;
         Ok(match &self.data {
-            MatrixBuffer::Integers(v) => MatrixEntry::Integer(clone_rational(&v[i])),
+            MatrixBuffer::Integers(v) => MatrixEntry::Integer(clone_integer(&v[i])),
             MatrixBuffer::Rationals(v) => MatrixEntry::Rational(clone_rational(&v[i])),
             MatrixBuffer::MachineF64(v) => MatrixEntry::MachineF64(v[i]),
         })
+    }
+
+    fn ensure_unique_buffer(&mut self) {
+        match &mut self.data {
+            MatrixBuffer::Integers(v) => {
+                if Arc::strong_count(v) > 1 {
+                    *v = Arc::new(clone_integers(v.as_ref()));
+                }
+            }
+            MatrixBuffer::Rationals(v) => {
+                if Arc::strong_count(v) > 1 {
+                    *v = Arc::new(clone_rationals(v.as_ref()));
+                }
+            }
+            MatrixBuffer::MachineF64(v) => {
+                Arc::make_mut(v);
+            }
+        }
     }
 
     /// 写时复制后写入。
@@ -211,32 +249,18 @@ impl MatrixValue {
         self.ensure_unique_buffer();
         match (&mut self.data, value) {
             (MatrixBuffer::Integers(v), MatrixEntry::Integer(x)) => {
-                Arc::make_mut(v)[i] = x;
+                Arc::get_mut(v).expect("unique after ensure")[i] = x;
                 Ok(())
             }
             (MatrixBuffer::Rationals(v), MatrixEntry::Rational(x)) => {
-                Arc::make_mut(v)[i] = x;
+                Arc::get_mut(v).expect("unique after ensure")[i] = x;
                 Ok(())
             }
             (MatrixBuffer::MachineF64(v), MatrixEntry::MachineF64(x)) => {
-                Arc::make_mut(v)[i] = x;
+                Arc::get_mut(v).expect("unique after ensure")[i] = x;
                 Ok(())
             }
             _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "entry_parent_mismatch")),
-        }
-    }
-
-    fn ensure_unique_buffer(&mut self) {
-        match &mut self.data {
-            MatrixBuffer::Integers(v) => {
-                Arc::make_mut(v);
-            }
-            MatrixBuffer::Rationals(v) => {
-                Arc::make_mut(v);
-            }
-            MatrixBuffer::MachineF64(v) => {
-                Arc::make_mut(v);
-            }
         }
     }
 
@@ -247,7 +271,7 @@ impl MatrixValue {
             shape: self.shape.transpose(),
             layout: self.layout.transposed(),
             offset: self.offset,
-            data: self.clone_rational(&data),
+            data: self.data.owning_copy(),
         }
     }
 
@@ -303,10 +327,10 @@ impl MatrixValue {
                 else {
                     unreachable!();
                 };
-                let rats: Vec<_> = v.iter().map(|x| Rational::from_integer(clone_rational(&x))).collect();
+                let rats: Vec<_> = v.iter().map(|x| Rational::from_integer(clone_integer(x))).collect();
                 Self::from_rationals_row_major(m.shape.rows, m.shape.cols, rats)
             }
-            MatrixBuffer::Rationals(_) => Ok(clone_rational(&self)),
+            MatrixBuffer::Rationals(_) => Ok(self.owning_copy()),
             MatrixBuffer::MachineF64(_) => {
                 Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cannot_promote_machine_to_exact"))
             }
@@ -317,7 +341,7 @@ impl MatrixValue {
     pub fn to_rationals_row_major(&self) -> Result<Vec<Rational>, Diagnostic> {
         let m = self.promote_integers_to_rationals()?.materialize_row_major()?;
         match m.data {
-            MatrixBuffer::Rationals(v) => Ok((*v).clone()),
+            MatrixBuffer::Rationals(v) => Ok(clone_rationals(v.as_ref())),
             _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch)),
         }
     }
@@ -370,5 +394,26 @@ impl MatrixEntry {
             ElementParentKind::Rationals => Self::Rational(Rational::zero()),
             ElementParentKind::MachineReal => Self::MachineF64(0.0),
         })
+    }
+
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Integer(x) => Self::Integer(clone_integer(x)),
+            Self::Rational(x) => Self::Rational(clone_rational(x)),
+            Self::MachineF64(x) => Self::MachineF64(*x),
+        }
+    }
+}
+
+impl Clone for MatrixValue {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl Clone for MatrixEntry {
+    fn clone(&self) -> Self {
+        self.owning_copy()
     }
 }

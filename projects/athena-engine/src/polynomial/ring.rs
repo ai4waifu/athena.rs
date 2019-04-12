@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, FieldId, SymbolId};
 
+use crate::numeric_clone::{clone_integer, clone_modulus};
 use crate::algebra::{CoefficientParent, FieldTable};
 
 use super::{fingerprint::RingFingerprint, monomial_layout::MonomialLayout, order::MonomialOrder};
@@ -102,6 +103,42 @@ impl RingDescriptor {
     }
 }
 
+
+impl CoefficientDomain {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Integer => Self::Integer,
+            Self::Rational => Self::Rational,
+            Self::ModularInteger { modulus } => Self::ModularInteger { modulus: clone_modulus(modulus) },
+            Self::FiniteField { field } => Self::FiniteField { field: *field },
+            Self::ApproximateReal => Self::ApproximateReal,
+        }
+    }
+}
+
+impl Clone for CoefficientDomain {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl RingCharacteristic {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Zero => Self::Zero,
+            Self::Positive(n) => Self::Positive(clone_integer(n)),
+        }
+    }
+}
+
+impl Clone for RingCharacteristic {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
 /// 显式除法策略 — `ℤ[x]` 不得无条件域除。
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum DivisionPolicy {
@@ -143,7 +180,7 @@ pub(crate) fn validate_coefficient_domain_public(
 pub(crate) fn characteristic_of(coeff: &CoefficientDomain, fields: &FieldTable) -> Result<RingCharacteristic, Diagnostic> {
     match coeff {
         CoefficientDomain::Integer | CoefficientDomain::Rational => Ok(RingCharacteristic::Zero),
-        CoefficientDomain::ModularInteger { modulus } => Ok(RingCharacteristic::Positive(modulus.value().clone())),
+        CoefficientDomain::ModularInteger { modulus } => Ok(RingCharacteristic::Positive(modulus.value())),
         CoefficientDomain::FiniteField { field } => {
             let p = fields.characteristic(*field).ok_or_else(|| {
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)

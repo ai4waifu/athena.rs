@@ -3,7 +3,7 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_modulus};
+use crate::numeric_clone::{clone_integer, clone_modulus};
 use super::super::{
     gcd::extended_gcd,
     result::NumberTheoryResult,
@@ -55,7 +55,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
         };
     }
 
-    let reduced = match Modulus::new(m_red.clone()) {
+    let reduced = match Modulus::new(clone_integer(&m_red)) {
         Ok(m) => m,
         Err(reason) => {
             // m/g = 1 时：唯一解模 1 无意义，但数学上所有整数同余；用 UniqueClass 于原模。

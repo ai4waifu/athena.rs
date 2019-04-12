@@ -11,6 +11,7 @@ pub use rational::QCoeffKernel;
 use athena_numeric::Modulus;
 use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, Result};
 
+use crate::numeric_clone::clone_modulus;
 use super::{coeff_ring_table::CoeffRingTable, ring::CoefficientDomain};
 use prime_field::{FpKernelKind, select_fp_kernel};
 
@@ -34,7 +35,7 @@ impl SpecializedCoeffKernel {
             CoefficientDomain::Integer => Ok(Self::Integer(ZCoeffKernel)),
             CoefficientDomain::Rational => Ok(Self::Rational(QCoeffKernel)),
             CoefficientDomain::FiniteField { .. } => {
-                let modulus = prime_modulus.cloned().ok_or_else(unsupported_domain)?;
+                let modulus = prime_modulus.map(clone_modulus).ok_or_else(unsupported_domain)?;
                 match select_fp_kernel(modulus)? {
                     FpKernelKind::Word(k) => Ok(Self::FpWord(k)),
                     FpKernelKind::Big(k) => Ok(Self::FpBig(k)),

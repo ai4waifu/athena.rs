@@ -6,6 +6,7 @@
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
+use crate::numeric_clone::clone_number;
 use super::{canonical::canonicalize_polynomial, expr::Polynomial, ring_table::RingTable};
 
 /// 多项式因式分解资源合同。
@@ -88,7 +89,37 @@ pub struct PolynomialFactorization {
     pub resource_exhausted: bool,
 }
 
+impl PolynomialFactorComponent {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            base: self.base.owning_copy(),
+            exponent: self.exponent,
+            status: self.status,
+        }
+    }
+}
+
+impl Clone for PolynomialFactorComponent {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
 impl PolynomialFactorization {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            ring: self.ring,
+            unit: clone_number(&self.unit),
+            factors: self.factors.iter().map(PolynomialFactorComponent::owning_copy).collect(),
+            cofactor: self.cofactor.owning_copy(),
+            cofactor_status: self.cofactor_status,
+            input_rejected: self.input_rejected,
+            resource_exhausted: self.resource_exhausted,
+        }
+    }
+
     /// 由组件推导整体完整性。
     pub fn completeness(&self) -> PolynomialFactorizationCompleteness {
         if self.input_rejected || self.resource_exhausted {
@@ -109,6 +140,12 @@ impl PolynomialFactorization {
     /// 是否可作为 M-Graph exact witness。
     pub fn is_exact_witness(&self) -> bool {
         self.completeness() == PolynomialFactorizationCompleteness::Complete
+    }
+}
+
+impl Clone for PolynomialFactorization {
+    fn clone(&self) -> Self {
+        self.owning_copy()
     }
 }
 
@@ -148,7 +185,7 @@ pub fn factor_univariate(
     }
 
     if deg == 0 {
-        let unit = poly.terms()[0].coefficient.clone();
+        let unit = clone_number(&poly.terms()[0].coefficient);
         return Ok(PolynomialFactorization {
             ring,
             unit,

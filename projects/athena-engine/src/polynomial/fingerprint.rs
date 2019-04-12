@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, Number, serialization::NumericValueWire};
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, Result, SymbolId};
 
+use crate::numeric_clone::{clone_integer};
 use crate::algebra::FieldTable;
 
 use super::{
@@ -162,7 +163,7 @@ fn encode_monomial_order(order: &MonomialOrder, out: &mut Vec<u8>) {
 }
 
 fn append_integer_wire_infallible(out: &mut Vec<u8>, n: &Integer) {
-    if let Ok(wire) = NumericValueWire::encode(&Number::integer(n.clone())) {
+    if let Ok(wire) = NumericValueWire::encode(&Number::integer(clone_integer(n))) {
         out.push(numeric_kind_tag(wire.kind));
         out.push(wire.sign);
         out.extend_from_slice(&(wire.payload.len() as u32).to_le_bytes());

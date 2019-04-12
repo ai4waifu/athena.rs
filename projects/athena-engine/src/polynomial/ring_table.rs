@@ -115,7 +115,7 @@ impl RingTable {
             RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
         let coefficient_ring = self.coeff_rings.intern(domain.clone(), &self.fields)?;
         let coefficients = self.coeff_rings.coefficient_parent(coefficient_ring);
-        let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: clone_integer(&order) };
+        let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }

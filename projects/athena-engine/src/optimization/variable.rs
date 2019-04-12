@@ -34,14 +34,14 @@ pub enum Integrality {
 }
 
 /// 非身份元数据（名称、注释等；不进 fingerprint 主体时可剥离）。
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VariableMetadata {
     /// 展示名（非稳定身份）。
     pub display_name: Option<String>,
 }
 
 /// 决策变量。
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DecisionVariable {
     /// Session-local id。
     pub id: VariableId,

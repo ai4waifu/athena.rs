@@ -2,7 +2,7 @@
 
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
-use crate::numeric_clone::{clone_integer, resize_integers};
+use crate::numeric_clone::{clone_integer, clone_integers, resize_integers};
 
 /// 不可变 𝔽_{p^n} 多项式基规格（由 [`super::table::FieldTable`] 持有）。
 #[derive(Debug, PartialEq, Eq)]
@@ -114,7 +114,7 @@ pub fn inv_coords(a: &[Integer], spec: &FiniteFieldPolySpec, p: &Modulus) -> Res
 
 fn has_monic_factor_of_degree(f: &[Integer], degree: usize, p: &Modulus) -> Result<bool> {
     let prime = p.value();
-    let mut coeffs = vec![Integer::zero(); degree + 1];
+    let mut coeffs = { let mut __v = Vec::new(); resize_integers(&mut __v, degree + 1, &Integer::zero()); __v };
     coeffs[degree] = Integer::one();
     loop {
         if divides_monic(f, &coeffs, p)? {
@@ -172,7 +172,7 @@ fn poly_mul(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
     if a.is_empty() || b.is_empty() {
         return Vec::new();
     }
-    let mut out = vec![Integer::zero(); a.len() + b.len() - 1];
+    let mut out = { let mut __v = Vec::new(); resize_integers(&mut __v, a.len() + b.len() - 1, &Integer::zero()); __v };
     for (i, ai) in a.iter().enumerate() {
         for (j, bj) in b.iter().enumerate() {
             out[i + j] = p.reduce(&out[i + j].add(&p.reduce(&ai.mul(bj))));
@@ -184,7 +184,7 @@ fn poly_mul(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
 
 fn poly_mod(a: &[Integer], modulus: &[Integer], p: &Modulus) -> Vec<Integer> {
     let n = modulus.len() - 1;
-    let mut r = a.to_vec();
+    let mut r = clone_integers(a);
     trim_poly(&mut r);
     while r.len() > n {
         let deg = r.len() - 1;
@@ -210,7 +210,7 @@ fn poly_mod(a: &[Integer], modulus: &[Integer], p: &Modulus) -> Vec<Integer> {
 
 fn poly_sub(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
     let len = a.len().max(b.len());
-    let mut out = vec![Integer::zero(); len];
+    let mut out = { let mut __v = Vec::new(); resize_integers(&mut __v, len, &Integer::zero()); __v };
     for (i, ai) in a.iter().enumerate() {
         out[i] = clone_integer(&ai);
     }
@@ -222,8 +222,8 @@ fn poly_sub(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
 }
 
 fn poly_extended_gcd(a: &[Integer], b: &[Integer], p: &Modulus) -> Result<(Vec<Integer>, Vec<Integer>, Vec<Integer>)> {
-    let mut old_r = a.to_vec();
-    let mut r = b.to_vec();
+    let mut old_r = clone_integers(a);
+    let mut r = clone_integers(b);
     trim_poly(&mut old_r);
     trim_poly(&mut r);
     let mut old_s = vec![Integer::one()];
@@ -253,13 +253,13 @@ fn poly_extended_gcd(a: &[Integer], b: &[Integer], p: &Modulus) -> Result<(Vec<I
 
 fn poly_div_rem(a: &[Integer], b: &[Integer], p: &Modulus) -> Result<(Vec<Integer>, Vec<Integer>)> {
     if b.is_empty() || b.iter().all(|c| c.is_zero()) {
-        return Ok((Vec::new(), a.to_vec()));
+        return Ok((Vec::new(), clone_integers(a)));
     }
     let deg_b = b.len() - 1;
-    let lc = b.last().cloned().unwrap_or_else(Integer::one);
-    let lc_inv = crate::number_theory::mod_inverse(&lc, p)?.residue().clone();
+    let lc = b.last().map(clone_integer).unwrap_or_else(Integer::one);
+    let lc_inv = crate::number_theory::mod_inverse(&lc, p)?.residue();
     let mut quotient = Vec::new();
-    let mut remainder = a.to_vec();
+    let mut remainder = clone_integers(a);
     trim_poly(&mut remainder);
     loop {
         trim_poly(&mut remainder);
@@ -270,7 +270,7 @@ fn poly_div_rem(a: &[Integer], b: &[Integer], p: &Modulus) -> Result<(Vec<Intege
         if deg_r < deg_b {
             break;
         }
-        let lead = remainder[deg_r].clone();
+        let lead = clone_integer(&remainder[deg_r]);
         if lead.is_zero() {
             remainder.pop();
             continue;
@@ -307,7 +307,7 @@ fn normalize_monic(v: &mut Vec<Integer>, p: &Modulus) {
         *v = vec![Integer::zero()];
         return;
     }
-    let lc = v.last().cloned().unwrap();
+    let lc = v.last().map(clone_integer).unwrap();
     if lc.is_one() {
         return;
     }
@@ -324,7 +324,7 @@ pub fn frobenius_coords(coords: &[Integer], spec: &FiniteFieldPolySpec, p: &Modu
     let n = spec.degree as usize;
     let prime = p.value().to_u64().and_then(|v| usize::try_from(v).ok()).unwrap_or(1).max(1);
     let max_deg = (n - 1).saturating_mul(prime) + 1;
-    let mut raised = vec![Integer::zero(); max_deg];
+    let mut raised = { let mut __v = Vec::new(); resize_integers(&mut __v, max_deg, &Integer::zero()); __v };
     for (i, c) in coords.iter().enumerate() {
         let idx = i.saturating_mul(prime);
         if idx < raised.len() {
@@ -336,7 +336,7 @@ pub fn frobenius_coords(coords: &[Integer], spec: &FiniteFieldPolySpec, p: &Modu
 
 /// 迭代 Frobenius σ^k。
 pub fn frobenius_power_coords(coords: &[Integer], power: u32, spec: &FiniteFieldPolySpec, p: &Modulus) -> Vec<Integer> {
-    let mut out = coords.to_vec();
+    let mut out = clone_integers(coords);
     for _ in 0..power {
         out = frobenius_coords(&out, spec, p);
     }

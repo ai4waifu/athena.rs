@@ -1,11 +1,12 @@
 //! 素性 / 分解可验证证据（verifier-friendly；生成器可后续扩展）。
 
 use athena_numeric::Integer;
+use crate::numeric_clone::clone_integer;
 
 use super::value::MillerRabinBaseSelection;
 
 /// 有明确数值上界的确定性素性测试证书。
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrimeCertificate {
     /// 试除确定性路径（含上界）。
     TrialDivision {
@@ -24,7 +25,7 @@ pub enum PrimeCertificate {
 }
 
 /// 强 Miller–Rabin 概率素数证据。
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProbablePrimeEvidence {
     /// 实际测试的基（按执行顺序）。
     pub bases: Vec<u32>,
@@ -59,4 +60,23 @@ pub enum CompositeWitness {
         /// 见证基。
         base: u32,
     },
+}
+
+
+impl CompositeWitness {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::NonPositiveOrOne => Self::NonPositiveOrOne,
+            Self::Even => Self::Even,
+            Self::SmallFactor { divisor } => Self::SmallFactor { divisor: clone_integer(divisor) },
+            Self::MillerRabin { base } => Self::MillerRabin { base: *base },
+        }
+    }
+}
+
+impl Clone for CompositeWitness {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }
