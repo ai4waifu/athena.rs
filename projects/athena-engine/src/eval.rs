@@ -209,6 +209,8 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         })),
         "If" => Some(eval_if(args, depth)),
         "Which" => Some(eval_which(args, depth)),
+        "While" => Some(eval_while(args, depth)),
+        "For" => Some(eval_for(args, depth)),
         _ => None,
     }
 }
@@ -327,6 +329,143 @@ fn term_summary(term: &Term) -> String {
     }
 }
 
+/// `While[cond, body]` — false condition skips body (`while 0` → `Null`).
+fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply("While", clone_terms(args)));
+    }
+    let mut diagnostics = Vec::new();
+    let mut last = Term::symbol("Null");
+    let mut ran = false;
+    for _ in 0..1024u32 {
+        let cond_o = evaluate_depth_outcome(&args[0], depth + 1);
+        diagnostics.extend(cond_o.diagnostics);
+        match as_boolean(&cond_o.term) {
+            Some(false) => {
+                return EvalOutcome {
+                    term: if ran { last } else { Term::symbol("Null") },
+                    kind: EvalKind::Value,
+                    status: ComputationStatus::Exact,
+                    diagnostics,
+                };
+            }
+            Some(true) => {
+                ran = true;
+                let mut body_o = evaluate_depth_outcome(&args[1], depth + 1);
+                diagnostics.append(&mut body_o.diagnostics);
+                last = body_o.term;
+                if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                    return EvalOutcome {
+                        term: last,
+                        kind: EvalKind::Unevaluated,
+                        status: ComputationStatus::Invalid,
+                        diagnostics,
+                    };
+                }
+            }
+            None => {
+                diagnostics.push(non_boolean_condition_diagnostic(&term_summary(&cond_o.term)));
+                let term = Term::apply("While", vec![cond_o.term, clone_term(&args[1])]);
+                return EvalOutcome { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics };
+            }
+        }
+    }
+    let term = Term::apply("While", clone_terms(args));
+    diagnostics.push(unsupported_operation("While"));
+    EvalOutcome { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics }
+}
+
+/// `For[var, iterator, body]` — iterator is a list (often from `Span`).
+fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 3 {
+        return EvalOutcome::unevaluated(Term::apply("For", clone_terms(args)));
+    }
+    let var = match &args[0] {
+        Term::Atom(Atom::Symbol(s)) => s.as_str(),
+        _ => {
+            return EvalOutcome::unevaluated(Term::apply("For", clone_terms(args)));
+        }
+    };
+    let iter_o = evaluate_depth_outcome(&args[1], depth + 1);
+    let mut diagnostics = iter_o.diagnostics;
+    let values = match iter_o.term {
+        Term::List(items) => items,
+        other => {
+            let term = Term::apply("For", vec![clone_term(&args[0]), other, clone_term(&args[2])]);
+            return EvalOutcome::unevaluated(term);
+        }
+    };
+    let mut last = Term::symbol("Null");
+    for value in values {
+        let body = substitute_symbol(&args[2], var, &value);
+        let mut body_o = evaluate_depth_outcome(&body, depth + 1);
+        diagnostics.append(&mut body_o.diagnostics);
+        last = body_o.term;
+        if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+            return EvalOutcome { term: last, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics };
+        }
+    }
+    EvalOutcome { term: last, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+}
+
+fn substitute_symbol(expr: &Term, name: &str, value: &Term) -> Term {
+    match expr {
+        Term::Atom(Atom::Symbol(s)) if s == name => clone_term(value),
+        Term::Atom(_) => clone_term(expr),
+        Term::List(items) => Term::List(items.iter().map(|i| substitute_symbol(i, name, value)).collect()),
+        Term::Application { head, arguments: args } => Term::Application {
+            head: Box::new(substitute_symbol(head, name, value)),
+            arguments: args.iter().map(|a| substitute_symbol(a, name, value)).collect(),
+        },
+    }
+}
+
+fn expand_span_args(args: &[Term]) -> Option<Term> {
+    let ints: Option<Vec<i64>> = args.iter().map(|t| number_from_term(t).and_then(|n| n.as_exact_integer())).collect();
+    let ints = ints?;
+    match ints.as_slice() {
+        [a, b] => {
+            let mut out = Vec::new();
+            if *a <= *b {
+                let mut x = *a;
+                while x <= *b {
+                    out.push(Term::int(x));
+                    x += 1;
+                }
+            }
+            else {
+                let mut x = *a;
+                while x >= *b {
+                    out.push(Term::int(x));
+                    x -= 1;
+                }
+            }
+            Some(Term::List(out))
+        }
+        [a, step, b] => {
+            if *step == 0 {
+                return None;
+            }
+            let mut out = Vec::new();
+            let mut x = *a;
+            if *step > 0 {
+                while x <= *b {
+                    out.push(Term::int(x));
+                    x += *step;
+                }
+            }
+            else {
+                while x >= *b {
+                    out.push(Term::int(x));
+                    x += *step;
+                }
+            }
+            Some(Term::List(out))
+        }
+        _ => None,
+    }
+}
+
 fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcome {
     let name = match head {
         Term::Atom(Atom::Symbol(s)) => s.as_str(),
@@ -345,6 +484,19 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "Divide" if args.len() == 2 => {
             EvalOutcome::value(eval_times(vec![clone_term(&args[0]), eval_power(clone_term(&args[1]), Term::int(-1))]))
         }
+        "DotTimes" if args.len() == 2 => eval_dot_binop("DotTimes", &args[0], &args[1], |a, b| eval_times(vec![a, b])),
+        "DotDivide" if args.len() == 2 => {
+            eval_dot_binop("DotDivide", &args[0], &args[1], |a, b| eval_times(vec![a, eval_power(b, Term::int(-1))]))
+        }
+        "DotPower" if args.len() == 2 => eval_dot_binop("DotPower", &args[0], &args[1], eval_power),
+        "Mldivide" | "DotLeftDivide" => {
+            let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
+            EvalOutcome::invalid(term, unsupported_operation(name))
+        }
+        "Span" if args.len() == 2 || args.len() == 3 => match expand_span_args(&args) {
+            Some(list) => EvalOutcome::value(list),
+            None => EvalOutcome::unevaluated(Term::apply("Span", args)),
+        },
         "List" => EvalOutcome::value(Term::List(args)),
         "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => EvalOutcome::value(eval_machine_unary(name, &args[0])),
@@ -383,7 +535,7 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "CompoundExpression" if !args.is_empty() => evaluate_depth_outcome(args.last().unwrap(), depth + 1),
         "Function" => EvalOutcome::unevaluated(Term::Application { head: Box::new(Term::symbol("Function")), arguments: args }),
         "ReplaceAll" if args.len() == 2 => EvalOutcome::value(eval_replace_all(&args[0], &args[1], depth)),
-        "Part" if args.len() == 2 => eval_part_outcome(&args[0], &args[1]),
+        "Part" if args.len() >= 2 => eval_part_n(&args),
         "Rule" | "RuleDelayed" if args.len() == 2 => {
             EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: args })
         }
@@ -904,7 +1056,63 @@ fn eval_part(expr: &Term, index: &Term) -> Term {
     eval_part_outcome(expr, index).term
 }
 
+fn eval_part_n(args: &[Term]) -> EvalOutcome {
+    let mut cur = clone_term(&args[0]);
+    let mut diagnostics = Vec::new();
+    for index in &args[1..] {
+        let mut o = eval_part_outcome(&cur, index);
+        let errored = o.has_error();
+        diagnostics.append(&mut o.diagnostics);
+        if errored {
+            o.diagnostics = diagnostics;
+            return o;
+        }
+        cur = o.term;
+    }
+    EvalOutcome { term: cur, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+}
+
+fn eval_dot_binop<F>(head: &str, left: &Term, right: &Term, op: F) -> EvalOutcome
+where
+    F: Fn(Term, Term) -> Term,
+{
+    match (left, right) {
+        (Term::List(a), Term::List(b)) if a.len() == b.len() => {
+            let out: Vec<Term> = a.iter().zip(b.iter()).map(|(x, y)| op(clone_term(x), clone_term(y))).collect();
+            EvalOutcome::value(Term::List(out))
+        }
+        (Term::List(a), b) => {
+            let out: Vec<Term> = a.iter().map(|x| op(clone_term(x), clone_term(b))).collect();
+            EvalOutcome::value(Term::List(out))
+        }
+        (a, Term::List(b)) => {
+            let out: Vec<Term> = b.iter().map(|y| op(clone_term(a), clone_term(y))).collect();
+            EvalOutcome::value(Term::List(out))
+        }
+        (a, b) if number_from_term(a).is_some() && number_from_term(b).is_some() => {
+            EvalOutcome::value(op(clone_term(a), clone_term(b)))
+        }
+        _ => EvalOutcome::unevaluated(Term::apply(head, vec![clone_term(left), clone_term(right)])),
+    }
+}
+
 fn eval_part_outcome(expr: &Term, index: &Term) -> EvalOutcome {
+    if let Term::List(indices) = index {
+        let mut out = Vec::with_capacity(indices.len());
+        let mut diagnostics = Vec::new();
+        for idx in indices {
+            let mut o = eval_part_outcome(expr, idx);
+            let errored = o.has_error();
+            diagnostics.append(&mut o.diagnostics);
+            if errored {
+                o.diagnostics = diagnostics;
+                return o;
+            }
+            out.push(o.term);
+        }
+        return EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics };
+    }
+
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
         Some(v) => v,
         None => {
