@@ -117,6 +117,8 @@ pub enum DiagnosticCode {
     UnsupportedOperation,
     /// 非法下标。
     InvalidIndex,
+    /// 条件位置需要 typed Boolean，却收到非布尔值。
+    NonBooleanCondition,
     /// 禁止精度损失时发生精度损失。
     PrecisionLoss,
     /// 赋值错误。
@@ -260,6 +262,7 @@ impl DiagnosticCode {
             Self::UnknownOperator => "ATHENA_UNKNOWN_OPERATOR",
             Self::UnsupportedOperation => "ATHENA_UNSUPPORTED_OPERATION",
             Self::InvalidIndex => "ATHENA_INVALID_INDEX",
+            Self::NonBooleanCondition => "ATHENA_NON_BOOLEAN_CONDITION",
             Self::PrecisionLoss => "ATHENA_PRECISION_LOSS",
             Self::AssignmentError => "ATHENA_ASSIGNMENT_ERROR",
             Self::NonConvergent => "ATHENA_NON_CONVERGENT",

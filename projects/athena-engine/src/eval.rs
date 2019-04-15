@@ -6,7 +6,7 @@ use athena_numeric::{
     Number, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial, mul as num_mul,
     pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
-use athena_types::Result;
+use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, Severity};
 
 use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 use crate::term::{Atom, Term, number_from_term};
@@ -15,79 +15,310 @@ fn map_num<T>(r: Result<T>) -> Result<T> {
     r
 }
 
+/// 求值结果是否声称「已得到正常值」。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvalKind {
+    /// 已归约为正常值（可为符号正规形）。
+    Value,
+    /// 保留未求值形式，不得冒充成功 exact。
+    Unevaluated,
+}
+
+/// 带 [`ComputationStatus`] 与结构化诊断的求值出口。
+#[derive(Debug, PartialEq)]
+pub struct EvalOutcome {
+    /// 结果项（失败时可为原式或保守回显）。
+    pub term: Term,
+    /// 值 / 未求值区分。
+    pub kind: EvalKind,
+    /// 统一计算状态。
+    pub status: ComputationStatus,
+    /// 结构化诊断（可含 `UnsupportedOperation` / `InvalidIndex` 等）。
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl EvalOutcome {
+    /// 精确值出口。
+    pub fn value(term: Term) -> Self {
+        Self {
+            term,
+            kind: EvalKind::Value,
+            status: ComputationStatus::Exact,
+            diagnostics: Vec::new(),
+        }
+    }
+
+    /// 未求值保留。
+    pub fn unevaluated(term: Term) -> Self {
+        Self {
+            term,
+            kind: EvalKind::Unevaluated,
+            status: ComputationStatus::Unknown,
+            diagnostics: Vec::new(),
+        }
+    }
+
+    /// 硬失败：带 Error 诊断，状态为 [`ComputationStatus::Invalid`]。
+    pub fn invalid(term: Term, diagnostic: Diagnostic) -> Self {
+        Self {
+            term,
+            kind: EvalKind::Unevaluated,
+            status: ComputationStatus::Invalid,
+            diagnostics: vec![diagnostic],
+        }
+    }
+
+    /// 是否含 Error 级诊断。
+    pub fn has_error(&self) -> bool {
+        self.diagnostics.iter().any(|d| d.severity == Severity::Error)
+    }
+
+    /// 成功值且无 Error 诊断时返回项，否则返回首个 Error。
+    pub fn into_checked(self) -> Result<Term> {
+        if let Some(err) = self.diagnostics.into_iter().find(|d| d.severity == Severity::Error) {
+            return Err(err);
+        }
+        Ok(self.term)
+    }
+}
+
+/// 构造 `UnsupportedOperation` 诊断。
+pub fn unsupported_operation(operation: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", operation)
+}
+
+/// 构造非法下标诊断。
+pub fn invalid_index_diagnostic(index: i64, length: Option<u64>) -> Diagnostic {
+    let d = Diagnostic::new(DiagnosticCode::InvalidIndex).arg("index", index);
+    match length {
+        Some(len) => d.arg("length", len),
+        None => d,
+    }
+}
+
+/// 构造非布尔条件诊断。
+pub fn non_boolean_condition_diagnostic(got: &str) -> Diagnostic {
+    Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+        .detail("expected", "Boolean")
+        .detail("got", got)
+}
+
+/// 将项解释为 typed Boolean。`True`/`False` 与精确 `1`/`0` 可接受。其它返回 `None`。
+pub fn as_boolean(expr: &Term) -> Option<bool> {
+    match expr {
+        Term::Atom(Atom::Symbol(s)) if s == "True" => Some(true),
+        Term::Atom(Atom::Symbol(s)) if s == "False" => Some(false),
+        other => number_from_term(other).and_then(|n| {
+            if n.is_zero() {
+                Some(false)
+            } else if *n == Number::small_int(1) {
+                Some(true)
+            } else {
+                None
+            }
+        }),
+    }
+}
+
 /// 在内建定义下求值表达式。未知头部保留为 Application。
 pub fn evaluate(expr: &Term) -> Term {
-    evaluate_depth(expr, 0)
+    evaluate_outcome(expr).term
+}
+
+/// 求值并返回状态 / 诊断。公共输入失败不 panic。
+pub fn evaluate_outcome(expr: &Term) -> EvalOutcome {
+    evaluate_depth_outcome(expr, 0)
+}
+
+/// 求值：遇 Error 诊断则 `Err`，否则 `Ok(term)`。
+pub fn evaluate_checked(expr: &Term) -> Result<Term> {
+    evaluate_outcome(expr).into_checked()
 }
 
 fn evaluate_depth(expr: &Term, depth: u32) -> Term {
+    evaluate_depth_outcome(expr, depth).term
+}
+
+fn evaluate_depth_outcome(expr: &Term, depth: u32) -> EvalOutcome {
     if depth > 256 {
-        return clone_term(expr);
+        return EvalOutcome::unevaluated(clone_term(expr));
     }
     match expr {
-        Term::Atom(_) => clone_term(expr),
-        Term::List(items) => Term::List(items.iter().map(|i| evaluate_depth(i, depth + 1)).collect()),
+        Term::Atom(_) => EvalOutcome::value(clone_term(expr)),
+        Term::List(items) => {
+            let mut diagnostics = Vec::new();
+            let mut out = Vec::with_capacity(items.len());
+            let mut all_value = true;
+            for item in items {
+                let o = evaluate_depth_outcome(item, depth + 1);
+                if o.kind != EvalKind::Value {
+                    all_value = false;
+                }
+                diagnostics.extend(o.diagnostics);
+                out.push(o.term);
+            }
+            let term = Term::List(out);
+            if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                EvalOutcome {
+                    term,
+                    kind: EvalKind::Unevaluated,
+                    status: ComputationStatus::Invalid,
+                    diagnostics,
+                }
+            } else if all_value {
+                EvalOutcome {
+                    term,
+                    kind: EvalKind::Value,
+                    status: ComputationStatus::Exact,
+                    diagnostics,
+                }
+            } else {
+                EvalOutcome {
+                    term,
+                    kind: EvalKind::Unevaluated,
+                    status: ComputationStatus::Partial,
+                    diagnostics,
+                }
+            }
+        }
         Term::Application { head, arguments: args } => {
-            let head_e = evaluate_depth(head, depth + 1);
-            let args_e: Vec<Term> = args.iter().map(|a| evaluate_depth(a, depth + 1)).collect();
-            apply_builtin(&head_e, args_e, depth)
+            let head_o = evaluate_depth_outcome(head, depth + 1);
+            let mut diagnostics = head_o.diagnostics;
+            let mut args_e = Vec::with_capacity(args.len());
+            for a in args {
+                let o = evaluate_depth_outcome(a, depth + 1);
+                diagnostics.extend(o.diagnostics);
+                args_e.push(o.term);
+            }
+            let mut out = apply_builtin_outcome(&head_o.term, args_e, depth);
+            if !diagnostics.is_empty() {
+                diagnostics.append(&mut out.diagnostics);
+                out.diagnostics = diagnostics;
+                if out.diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                    out.status = ComputationStatus::Invalid;
+                    out.kind = EvalKind::Unevaluated;
+                }
+            }
+            out
         }
     }
 }
 
 fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
+    apply_builtin_outcome(head, args, depth).term
+}
+
+fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcome {
     let name = match head {
         Term::Atom(Atom::Symbol(s)) => s.as_str(),
         _ => {
-            return Term::Application { head: Box::new(clone_term(head)), arguments: args };
+            return EvalOutcome::unevaluated(Term::Application {
+                head: Box::new(clone_term(head)),
+                arguments: args,
+            });
         }
     };
 
     match name {
-        "Plus" => eval_plus(args),
-        "Times" => eval_times(args),
-        "Power" if args.len() == 2 => eval_power(clone_term(&args[0]), clone_term(&args[1])),
-        "Subtract" if args.len() == 2 => eval_plus(vec![clone_term(&args[0]), eval_times(vec![Term::int(-1), clone_term(&args[1])])]),
-        "Divide" if args.len() == 2 => eval_times(vec![clone_term(&args[0]), eval_power(clone_term(&args[1]), Term::int(-1))]),
-        "List" => Term::List(args),
-        "Simplify" if args.len() == 1 => eval_simplify(&args[0], depth),
-        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => eval_machine_unary(name, &args[0]),
-        "Sqrt" if args.len() == 1 => eval_sqrt(&args[0]),
-        "Abs" if args.len() == 1 => eval_abs(&args[0]),
-        "Factorial" if args.len() == 1 => eval_factorial(&args[0]),
-        "Map" if args.len() == 2 => eval_map(&args[0], &args[1], depth),
-        "Equal" if args.len() == 2 => eval_compare("Equal", &args[0], &args[1], |o| o == Ordering::Equal),
-        "Unequal" if args.len() == 2 => eval_compare("Unequal", &args[0], &args[1], |o| o != Ordering::Equal),
-        "Less" if args.len() == 2 => eval_compare("Less", &args[0], &args[1], |o| o == Ordering::Less),
-        "Greater" if args.len() == 2 => eval_compare("Greater", &args[0], &args[1], |o| o == Ordering::Greater),
-        "LessEqual" if args.len() == 2 => eval_compare("LessEqual", &args[0], &args[1], |o| o != Ordering::Greater),
-        "GreaterEqual" if args.len() == 2 => eval_compare("GreaterEqual", &args[0], &args[1], |o| o != Ordering::Less),
-        "And" if args.len() == 2 => eval_logic_and(&args[0], &args[1]),
-        "Or" if args.len() == 2 => eval_logic_or(&args[0], &args[1]),
-        "Not" if args.len() == 1 => eval_logic_not(&args[0]),
-        "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth(&args[1], depth + 1),
+        "Plus" => EvalOutcome::value(eval_plus(args)),
+        "Times" => EvalOutcome::value(eval_times(args)),
+        "Power" if args.len() == 2 => EvalOutcome::value(eval_power(clone_term(&args[0]), clone_term(&args[1]))),
+        "Subtract" if args.len() == 2 => EvalOutcome::value(eval_plus(vec![
+            clone_term(&args[0]),
+            eval_times(vec![Term::int(-1), clone_term(&args[1])]),
+        ])),
+        "Divide" if args.len() == 2 => EvalOutcome::value(eval_times(vec![
+            clone_term(&args[0]),
+            eval_power(clone_term(&args[1]), Term::int(-1)),
+        ])),
+        "List" => EvalOutcome::value(Term::List(args)),
+        "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
+        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => {
+            EvalOutcome::value(eval_machine_unary(name, &args[0]))
+        }
+        "Sqrt" if args.len() == 1 => EvalOutcome::value(eval_sqrt(&args[0])),
+        "Abs" if args.len() == 1 => EvalOutcome::value(eval_abs(&args[0])),
+        "Factorial" if args.len() == 1 => EvalOutcome::value(eval_factorial(&args[0])),
+        "Map" if args.len() == 2 => EvalOutcome::value(eval_map(&args[0], &args[1], depth)),
+        "Equal" if args.len() == 2 => {
+            wrap_compare(eval_compare("Equal", &args[0], &args[1], |o| o == Ordering::Equal), "Equal")
+        }
+        "Unequal" if args.len() == 2 => {
+            wrap_compare(eval_compare("Unequal", &args[0], &args[1], |o| o != Ordering::Equal), "Unequal")
+        }
+        "Less" if args.len() == 2 => {
+            wrap_compare(eval_compare("Less", &args[0], &args[1], |o| o == Ordering::Less), "Less")
+        }
+        "Greater" if args.len() == 2 => {
+            wrap_compare(eval_compare("Greater", &args[0], &args[1], |o| o == Ordering::Greater), "Greater")
+        }
+        "LessEqual" if args.len() == 2 => {
+            wrap_compare(eval_compare("LessEqual", &args[0], &args[1], |o| o != Ordering::Greater), "LessEqual")
+        }
+        "GreaterEqual" if args.len() == 2 => {
+            wrap_compare(eval_compare("GreaterEqual", &args[0], &args[1], |o| o != Ordering::Less), "GreaterEqual")
+        }
+        "And" if args.len() == 2 => wrap_logic(eval_logic_and(&args[0], &args[1]), "And"),
+        "Or" if args.len() == 2 => wrap_logic(eval_logic_or(&args[0], &args[1]), "Or"),
+        "Not" if args.len() == 1 => wrap_logic(eval_logic_not(&args[0]), "Not"),
+        "Set" | "SetDelayed" if args.len() == 2 => evaluate_depth_outcome(&args[1], depth + 1),
         "D" | "Integrate" | "Limit" | "Series" | "DSolve" | "LaplaceTransform" => {
-            let term = Term::Application { head: Box::new(clone_term(head)), arguments: args };
+            let term = Term::Application {
+                head: Box::new(clone_term(head)),
+                arguments: args,
+            };
             if let Some(req) = crate::calculus::try_calculus_request(&term) {
                 let result = crate::calculus::execute_calculus(req);
-                return crate::calculus::calculus_result_bridge_term(&result);
+                return EvalOutcome::value(crate::calculus::calculus_result_bridge_term(&result));
             }
-            term
+            EvalOutcome::unevaluated(term)
         }
-        "CompoundExpression" if !args.is_empty() => evaluate_depth(args.last().unwrap(), depth + 1),
-        "Function" => Term::Application { head: Box::new(Term::symbol("Function")), arguments: args },
-        "ReplaceAll" if args.len() == 2 => eval_replace_all(&args[0], &args[1], depth),
-        "Part" if args.len() == 2 => eval_part(&args[0], &args[1]),
-        "Rule" | "RuleDelayed" if args.len() == 2 => Term::Application { head: Box::new(clone_term(head)), arguments: args },
+        "CompoundExpression" if !args.is_empty() => evaluate_depth_outcome(args.last().unwrap(), depth + 1),
+        "Function" => EvalOutcome::unevaluated(Term::Application {
+            head: Box::new(Term::symbol("Function")),
+            arguments: args,
+        }),
+        "ReplaceAll" if args.len() == 2 => EvalOutcome::value(eval_replace_all(&args[0], &args[1], depth)),
+        "Part" if args.len() == 2 => eval_part_outcome(&args[0], &args[1]),
+        "Rule" | "RuleDelayed" if args.len() == 2 => EvalOutcome::unevaluated(Term::Application {
+            head: Box::new(clone_term(head)),
+            arguments: args,
+        }),
+        "Import" | "Export" | "Clear" | "Timing" => {
+            let term = Term::Application {
+                head: Box::new(Term::symbol(name)),
+                arguments: args,
+            };
+            EvalOutcome::invalid(term, unsupported_operation(name))
+        }
         _ => {
             if let Term::Application { head: fh, arguments: fargs } = head {
                 if fh.is_symbol("Function") && fargs.len() == 1 && args.len() == 1 {
                     let body = substitute_slot(&fargs[0], &args[0]);
-                    return evaluate_depth(&body, depth + 1);
+                    return evaluate_depth_outcome(&body, depth + 1);
                 }
             }
-            Term::Application { head: Box::new(clone_term(head)), arguments: args }
+            EvalOutcome::unevaluated(Term::Application {
+                head: Box::new(clone_term(head)),
+                arguments: args,
+            })
         }
+    }
+}
+
+fn wrap_compare(term: Term, head: &str) -> EvalOutcome {
+    if matches!(&term, Term::Application { head: h, .. } if h.is_symbol(head)) {
+        EvalOutcome::unevaluated(term)
+    } else {
+        EvalOutcome::value(term)
+    }
+}
+
+fn wrap_logic(term: Term, head: &str) -> EvalOutcome {
+    if matches!(&term, Term::Application { head: h, .. } if h.is_symbol(head)) {
+        EvalOutcome::unevaluated(term)
+    } else {
+        EvalOutcome::value(term)
     }
 }
 
@@ -566,24 +797,44 @@ fn replace_literal(expr: &Term, lhs: &Term, rhs: &Term) -> Term {
 }
 
 fn eval_part(expr: &Term, index: &Term) -> Term {
+    eval_part_outcome(expr, index).term
+}
+
+fn eval_part_outcome(expr: &Term, index: &Term) -> EvalOutcome {
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
         Some(v) => v,
-        None => return Term::apply("Part", vec![clone_term(expr), clone_term(index)]),
+        None => {
+            return EvalOutcome::unevaluated(Term::apply("Part", vec![clone_term(expr), clone_term(index)]));
+        }
     };
     match expr {
         Term::List(items) => {
+            let len = items.len() as u64;
+            if idx == 0 {
+                // Mathematica: Part[list, 0] is the head `List`.
+                return EvalOutcome::value(Term::symbol("List"));
+            }
             let i = if idx > 0 {
                 (idx - 1) as usize
-            }
-            else if idx < 0 {
-                items.len().wrapping_add(idx as usize)
-            }
-            else {
-                return Term::apply("Part", vec![clone_term(expr), clone_term(index)]);
+            } else {
+                // negative: from end
+                let n = items.len() as i64;
+                let pos = n + idx;
+                if pos < 0 || pos as usize >= items.len() {
+                    let term = Term::apply("Part", vec![clone_term(expr), clone_term(index)]);
+                    return EvalOutcome::invalid(term, invalid_index_diagnostic(idx, Some(len)));
+                }
+                pos as usize
             };
-            items.get(i).map(clone_term).unwrap_or_else(|| Term::apply("Part", vec![clone_term(expr), clone_term(index)]))
+            match items.get(i) {
+                Some(item) => EvalOutcome::value(clone_term(item)),
+                None => {
+                    let term = Term::apply("Part", vec![clone_term(expr), clone_term(index)]);
+                    EvalOutcome::invalid(term, invalid_index_diagnostic(idx, Some(len)))
+                }
+            }
         }
-        _ => Term::apply("Part", vec![clone_term(expr), clone_term(index)]),
+        _ => EvalOutcome::unevaluated(Term::apply("Part", vec![clone_term(expr), clone_term(index)])),
     }
 }
 

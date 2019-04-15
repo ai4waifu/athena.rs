@@ -1,6 +1,6 @@
 //! 桥接 `evaluate` 覆盖（集成测试位于 crate 根旁）。
 
-use athena_engine::{Term, evaluate};
+use athena_engine::{Term, evaluate, evaluate_checked};
 
 #[test]
 fn plus_fold() {
@@ -64,4 +64,60 @@ fn truthy_via_and_or() {
     assert_eq!(evaluate(&Term::apply("And", vec![Term::int(1), Term::int(1)])), Term::int(1));
     assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(0)])), Term::int(0));
     assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(1)])), Term::int(1));
+}
+
+#[test]
+fn part_zero_returns_list_head() {
+    let e = evaluate(&Term::apply("Part", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::int(0)]));
+    assert_eq!(e, Term::symbol("List"));
+}
+
+#[test]
+fn part_oob_is_invalid_index() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::{ComputationStatus, DiagnosticCode};
+
+    let o = evaluate_outcome(&Term::apply(
+        "Part",
+        vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::int(9)],
+    ));
+    assert!(o.has_error());
+    assert_eq!(o.kind, EvalKind::Unevaluated);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::InvalidIndex);
+    assert!(evaluate_checked(&Term::apply("Part", vec![Term::List(vec![Term::int(1)]), Term::int(3)])).is_err());
+}
+
+#[test]
+fn unsupported_import_is_not_silent_value() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::{ComputationStatus, DiagnosticCode};
+
+    let o = evaluate_outcome(&Term::apply("Import", vec![Term::Atom(athena_engine::Atom::String("x.csv".into()))]));
+    assert_eq!(o.kind, EvalKind::Unevaluated);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
+}
+
+#[test]
+fn unknown_head_is_unevaluated_not_exact_value() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::ComputationStatus;
+
+    let o = evaluate_outcome(&Term::apply("FooBar", vec![Term::int(1)]));
+    assert_eq!(o.kind, EvalKind::Unevaluated);
+    assert_eq!(o.status, ComputationStatus::Unknown);
+    assert!(!o.has_error());
+}
+
+#[test]
+fn as_boolean_accepts_true_false_and_bits() {
+    use athena_engine::as_boolean;
+
+    assert_eq!(as_boolean(&Term::symbol("True")), Some(true));
+    assert_eq!(as_boolean(&Term::symbol("False")), Some(false));
+    assert_eq!(as_boolean(&Term::int(1)), Some(true));
+    assert_eq!(as_boolean(&Term::int(0)), Some(false));
+    assert_eq!(as_boolean(&Term::int(2)), None);
+    assert_eq!(as_boolean(&Term::symbol("x")), None);
 }
