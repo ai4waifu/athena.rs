@@ -60,10 +60,15 @@ fn map_sin_list() {
 
 #[test]
 fn truthy_via_and_or() {
-    assert_eq!(evaluate(&Term::apply("And", vec![Term::int(0), Term::int(1)])), Term::int(0));
-    assert_eq!(evaluate(&Term::apply("And", vec![Term::int(1), Term::int(1)])), Term::int(1));
-    assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(0)])), Term::int(0));
-    assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(1)])), Term::int(1));
+    assert_eq!(evaluate(&Term::apply("And", vec![Term::int(0), Term::int(1)])), Term::boolean(false));
+    assert_eq!(evaluate(&Term::apply("And", vec![Term::int(1), Term::int(1)])), Term::boolean(true));
+    assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(0)])), Term::boolean(false));
+    assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(1)])), Term::boolean(true));
+    assert_eq!(
+        evaluate(&Term::apply("And", vec![Term::boolean(true), Term::boolean(false)])),
+        Term::boolean(false)
+    );
+    assert_eq!(evaluate(&Term::apply("Not", vec![Term::boolean(true)])), Term::boolean(false));
 }
 
 #[test]
@@ -111,12 +116,15 @@ fn unknown_head_is_unevaluated_not_exact_value() {
 fn as_boolean_accepts_true_false_and_bits() {
     use athena_engine::as_boolean;
 
+    assert_eq!(as_boolean(&Term::boolean(true)), Some(true));
+    assert_eq!(as_boolean(&Term::boolean(false)), Some(false));
     assert_eq!(as_boolean(&Term::symbol("True")), Some(true));
     assert_eq!(as_boolean(&Term::symbol("False")), Some(false));
     assert_eq!(as_boolean(&Term::int(1)), Some(true));
     assert_eq!(as_boolean(&Term::int(0)), Some(false));
     assert_eq!(as_boolean(&Term::int(2)), None);
     assert_eq!(as_boolean(&Term::symbol("x")), None);
+    assert_eq!(as_boolean(&Term::null()), None);
 }
 
 #[test]
@@ -153,12 +161,23 @@ fn if_false_and_null_and_non_boolean() {
         evaluate(&Term::apply("If", vec![Term::symbol("False"), Term::int(7), Term::int(8)])),
         Term::int(8)
     );
-    assert_eq!(evaluate(&Term::apply("If", vec![Term::int(0), Term::int(7)])), Term::symbol("Null"));
+    assert_eq!(evaluate(&Term::apply("If", vec![Term::int(0), Term::int(7)])), Term::null());
 
     let o = evaluate_outcome(&Term::apply("If", vec![Term::symbol("x"), Term::int(1), Term::int(2)]));
     assert_eq!(o.kind, EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Invalid);
     assert_eq!(o.diagnostics[0].code, DiagnosticCode::NonBooleanCondition);
+}
+
+#[test]
+fn symbol_true_false_null_canonicalize_to_typed_atoms() {
+    assert_eq!(evaluate(&Term::symbol("True")), Term::boolean(true));
+    assert_eq!(evaluate(&Term::symbol("False")), Term::boolean(false));
+    assert_eq!(evaluate(&Term::symbol("Null")), Term::null());
+    assert_eq!(
+        evaluate(&Term::apply("Equal", vec![Term::int(1), Term::int(1)])),
+        Term::boolean(true)
+    );
 }
 
 #[test]
@@ -209,7 +228,7 @@ fn part_span_slice() {
 #[test]
 fn while_false_skips_body() {
     let e = evaluate(&Term::apply("While", vec![Term::int(0), Term::int(1)]));
-    assert_eq!(e, Term::symbol("Null"));
+    assert_eq!(e, Term::null());
 }
 
 #[test]

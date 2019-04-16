@@ -88,9 +88,10 @@ pub fn non_boolean_condition_diagnostic(got: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::NonBooleanCondition).detail("expected", "Boolean").detail("got", got)
 }
 
-/// 将项解释为 typed Boolean。`True`/`False` 与精确 `1`/`0` 可接受。其它返回 `None`。
+/// 将项解释为 typed Boolean。优先 [`Atom::Boolean`]；兼容符号 `True`/`False` 与精确 `1`/`0`。其它返回 `None`。
 pub fn as_boolean(expr: &Term) -> Option<bool> {
     match expr {
+        Term::Atom(Atom::Boolean(b)) => Some(*b),
         Term::Atom(Atom::Symbol(s)) if s == "True" => Some(true),
         Term::Atom(Atom::Symbol(s)) if s == "False" => Some(false),
         other => number_from_term(other).and_then(|n| {
@@ -131,6 +132,9 @@ fn evaluate_depth_outcome(expr: &Term, depth: u32) -> EvalOutcome {
         return EvalOutcome::unevaluated(clone_term(expr));
     }
     match expr {
+        Term::Atom(Atom::Symbol(s)) if s == "True" => EvalOutcome::value(Term::boolean(true)),
+        Term::Atom(Atom::Symbol(s)) if s == "False" => EvalOutcome::value(Term::boolean(false)),
+        Term::Atom(Atom::Symbol(s)) if s == "Null" => EvalOutcome::value(Term::null()),
         Term::Atom(_) => EvalOutcome::value(clone_term(expr)),
         Term::List(items) => {
             let mut diagnostics = Vec::new();
@@ -246,7 +250,7 @@ fn eval_if(args: &[Term], depth: u32) -> EvalOutcome {
                 out
             }
             else {
-                EvalOutcome { term: Term::symbol("Null"), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+                EvalOutcome { term: Term::null(), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
             }
         }
         None => {
@@ -306,7 +310,7 @@ fn eval_which(args: &[Term], depth: u32) -> EvalOutcome {
     }
 
     if uneval_pairs.is_empty() {
-        EvalOutcome { term: Term::symbol("Null"), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+        EvalOutcome { term: Term::null(), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
     }
     else {
         let summary = term_summary(&uneval_pairs[0]);
@@ -325,6 +329,9 @@ fn term_summary(term: &Term) -> String {
         Term::Atom(Atom::Symbol(s)) => s.clone(),
         Term::Atom(Atom::String(_)) => "String".into(),
         Term::Atom(Atom::Number(_)) => "Number".into(),
+        Term::Atom(Atom::Boolean(true)) => "True".into(),
+        Term::Atom(Atom::Boolean(false)) => "False".into(),
+        Term::Atom(Atom::Null) => "Null".into(),
         Term::List(_) => "List".into(),
         Term::Application { head, .. } => head.head_name().unwrap_or("Application").to_string(),
     }
@@ -336,7 +343,7 @@ fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
         return EvalOutcome::unevaluated(Term::apply("While", clone_terms(args)));
     }
     let mut diagnostics = Vec::new();
-    let mut last = Term::symbol("Null");
+    let mut last = Term::null();
     let mut ran = false;
     for _ in 0..1024u32 {
         let cond_o = evaluate_depth_outcome(&args[0], depth + 1);
@@ -344,7 +351,7 @@ fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
         match as_boolean(&cond_o.term) {
             Some(false) => {
                 return EvalOutcome {
-                    term: if ran { last } else { Term::symbol("Null") },
+                    term: if ran { last } else { Term::null() },
                     kind: EvalKind::Value,
                     status: ComputationStatus::Exact,
                     diagnostics,
@@ -396,7 +403,7 @@ fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
             return EvalOutcome::unevaluated(term);
         }
     };
-    let mut last = Term::symbol("Null");
+    let mut last = Term::null();
     for value in values {
         let body = substitute_symbol(&args[2], var, &value);
         let mut body_o = evaluate_depth_outcome(&body, depth + 1);
@@ -426,12 +433,12 @@ fn eval_compound(args: &[Term], depth: u32) -> EvalOutcome {
     use std::collections::HashMap;
 
     if args.is_empty() {
-        return EvalOutcome::value(Term::symbol("Null"));
+        return EvalOutcome::value(Term::null());
     }
 
     let mut env: HashMap<String, Term> = HashMap::new();
     let mut diagnostics = Vec::new();
-    let mut last = Term::symbol("Null");
+    let mut last = Term::null();
 
     for arg in args {
         let rewritten = apply_bindings(arg, &env);
@@ -989,35 +996,31 @@ where
 {
     if let (Some(a), Some(b)) = (number_from_term(left), number_from_term(right)) {
         if let Some(ord) = num_compare(a, b) {
-            return Term::int(if cmp(ord) { 1 } else { 0 });
+            return Term::boolean(cmp(ord));
         }
     }
     Term::apply(head, vec![clone_term(left), clone_term(right)])
 }
 
 fn eval_logic_and(left: &Term, right: &Term) -> Term {
-    match (truthy(left), truthy(right)) {
-        (Some(a), Some(b)) => Term::int(if a && b { 1 } else { 0 }),
+    match (as_boolean(left), as_boolean(right)) {
+        (Some(a), Some(b)) => Term::boolean(a && b),
         _ => Term::apply("And", vec![clone_term(left), clone_term(right)]),
     }
 }
 
 fn eval_logic_or(left: &Term, right: &Term) -> Term {
-    match (truthy(left), truthy(right)) {
-        (Some(a), Some(b)) => Term::int(if a || b { 1 } else { 0 }),
+    match (as_boolean(left), as_boolean(right)) {
+        (Some(a), Some(b)) => Term::boolean(a || b),
         _ => Term::apply("Or", vec![clone_term(left), clone_term(right)]),
     }
 }
 
 fn eval_logic_not(arg: &Term) -> Term {
-    match truthy(arg) {
-        Some(v) => Term::int(if v { 0 } else { 1 }),
+    match as_boolean(arg) {
+        Some(v) => Term::boolean(!v),
         None => Term::apply("Not", vec![clone_term(arg)]),
     }
-}
-
-fn truthy(expr: &Term) -> Option<bool> {
-    number_from_term(expr).map(Number::is_truthy)
 }
 
 fn eval_map(func: &Term, target: &Term, depth: u32) -> Term {

@@ -14,7 +14,9 @@ use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 /// 在 `Term` 上做符号求导。
 pub fn differentiate(expr: &Term, var: &str) -> Term {
     match expr {
-        Term::Atom(Atom::Number(_)) | Term::Atom(Atom::String(_)) => Term::int(0),
+        Term::Atom(Atom::Number(_)) | Term::Atom(Atom::String(_)) | Term::Atom(Atom::Boolean(_)) | Term::Atom(Atom::Null) => {
+            Term::int(0)
+        }
         Term::Atom(Atom::Symbol(s)) if s == var => Term::int(1),
         Term::Atom(Atom::Symbol(_)) => Term::int(0),
         Term::List(items) => Term::List(items.iter().map(|i| differentiate(i, var)).collect()),
@@ -133,7 +135,10 @@ pub fn differentiate_checked(expr: &Term, var: &str, assumptions: &AssumptionSet
                 vec![
                     Term::apply(
                         "Power",
-                        vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(inner)])]), Term::int(-1)],
+                        vec![
+                            Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(inner)])]),
+                            Term::int(-1),
+                        ],
                     ),
                     differentiate(inner, var),
                 ],

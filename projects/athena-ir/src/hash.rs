@@ -48,6 +48,13 @@ fn hash_term(arena: &TermArena, id: TermId, h: &mut DefaultHasher, seen: &mut Ve
                 name.hash(h);
             }
         }
+        TermKind::Atom(AtomKind::Boolean(b)) => {
+            "bool".hash(h);
+            b.hash(h);
+        }
+        TermKind::Atom(AtomKind::Null) => {
+            "null".hash(h);
+        }
         TermKind::List(items) => {
             "list".hash(h);
             for c in items {
