@@ -1,4 +1,13 @@
-//! 过渡求值用的运行时表达式树 [`Term`]（非 arena IR）。
+//! Legacy compatibility expression tree [`Term`]（非 arena AthenaIR）。
+//!
+//! # Architecture freeze（Living `25`）
+//!
+//! - [`Term`] is a **short-lived compatibility bridge** for Feature Gap 联调 and old tests.
+//! - **Do not** add new domain APIs, matrix/Solve/calculus semantics, or Session contracts on [`Term`].
+//! - **Do not** use [`Term`] as the long-term GC / N-API identity carrier.
+//! - New code must target AthenaIR identities (`ExprId` / `ValueId` / `ResultId` / `ProofRef`).
+//! - Atom representation fixes (e.g. typed `Boolean` / `Null`) are allowed; expanding heads is not.
+//! - Living `19`: no Rust [`Clone`] on [`Term`] / [`Number`]; use [`Term::try_clone_in`] / `clone_term`.
 
 use std::fmt;
 
@@ -43,8 +52,9 @@ impl Atom {
     }
 }
 
-/// 过渡求值用的运行时表达式树（非方言 AST，非 arena AthenaIR · Living `25`）。
+/// Legacy 过渡求值树（非方言 AST，非 arena AthenaIR）。
 ///
+/// **Living `25`**：compatibility bridge only。禁止新领域 API / 新公共语义返回类型。
 /// Living `19`：不实现 [`Clone`]。结构深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
 pub enum Term {
