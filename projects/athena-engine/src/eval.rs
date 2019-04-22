@@ -216,6 +216,7 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "While" => Some(eval_while(args, depth)),
         "For" => Some(eval_for(args, depth)),
         "CompoundExpression" => Some(eval_compound(args, depth)),
+        "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth)),
         _ => None,
     }
 }
@@ -471,6 +472,56 @@ fn match_set(term: &Term) -> Option<(String, Term)> {
         }
         _ => None,
     }
+}
+
+/// `With` / `Module` / `Block` — local bindings from `{x=1,…}` then evaluate body.
+///
+/// Living 25: still on legacy `Term` bridge for Feature Gap；持久 Session API 另切片。
+/// `Module` 暂与 `With` 同为词法替换（未做唯一化重命名）。
+fn eval_local_scope(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
+    use std::collections::HashMap;
+
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
+    }
+
+    let locals = match &args[0] {
+        Term::List(items) => items.as_slice(),
+        other => {
+            // Single binding without List wrapper is not Mathematica-normal; reject gently.
+            return EvalOutcome::unevaluated(Term::apply(head, vec![clone_term(other), clone_term(&args[1])]));
+        }
+    };
+
+    let mut env: HashMap<String, Term> = HashMap::new();
+    let mut diagnostics = Vec::new();
+    for item in locals {
+        let Some((name, rhs)) = match_set(item) else {
+            return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
+        };
+        let rewritten_rhs = apply_bindings(&rhs, &env);
+        let mut o = evaluate_depth_outcome(&rewritten_rhs, depth + 1);
+        diagnostics.append(&mut o.diagnostics);
+        if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+            return EvalOutcome {
+                term: Term::apply(head, clone_terms(args)),
+                kind: EvalKind::Unevaluated,
+                status: ComputationStatus::Invalid,
+                diagnostics,
+            };
+        }
+        env.insert(name, o.term);
+    }
+
+    let body = apply_bindings(&args[1], &env);
+    let mut out = evaluate_depth_outcome(&body, depth + 1);
+    diagnostics.append(&mut out.diagnostics);
+    out.diagnostics = diagnostics;
+    if out.diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        out.status = ComputationStatus::Invalid;
+        out.kind = EvalKind::Unevaluated;
+    }
+    out
 }
 
 fn apply_bindings(expr: &Term, env: &std::collections::HashMap<String, Term>) -> Term {
@@ -1143,6 +1194,34 @@ fn is_all_symbol(term: &Term) -> bool {
 }
 
 fn eval_part_n(args: &[Term]) -> EvalOutcome {
+    if args.len() < 2 {
+        return EvalOutcome::unevaluated(Term::apply("Part", clone_terms(args)));
+    }
+
+    // `Part[m, All, j, …]` — map remaining indices over each row (MATLAB `A(:,j)`).
+    if is_all_symbol(&args[1]) && args.len() >= 3 {
+        if let Term::List(rows) = &args[0] {
+            let mut diagnostics = Vec::new();
+            let mut out = Vec::with_capacity(rows.len());
+            for row in rows {
+                let mut part_args = Vec::with_capacity(args.len() - 1);
+                part_args.push(clone_term(row));
+                for index in &args[2..] {
+                    part_args.push(clone_term(index));
+                }
+                let mut o = eval_part_n(&part_args);
+                let errored = o.has_error();
+                diagnostics.append(&mut o.diagnostics);
+                if errored {
+                    o.diagnostics = diagnostics;
+                    return o;
+                }
+                out.push(o.term);
+            }
+            return EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics };
+        }
+    }
+
     let mut cur = clone_term(&args[0]);
     let mut diagnostics = Vec::new();
     for index in &args[1..] {
