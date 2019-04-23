@@ -1,6 +1,6 @@
 //! 桥接 `evaluate` 覆盖（集成测试位于 crate 根旁）。
 
-use athena_engine::{Term, evaluate, evaluate_checked};
+use athena_engine::{Atom, Term, evaluate, evaluate_checked};
 
 #[test]
 fn plus_fold() {
@@ -294,6 +294,44 @@ fn part_column_all_then_index() {
     ]);
     let e = evaluate(&Term::apply("Part", vec![matrix, Term::symbol("All"), Term::int(2)]));
     assert_eq!(e, Term::List(vec![Term::int(2), Term::int(4)]));
+}
+
+#[test]
+fn session_set_persists_across_evaluate() {
+    use athena_engine::Session;
+
+    let mut session = Session::new();
+    assert_eq!(
+        session.evaluate(&Term::apply("Set", vec![Term::symbol("x"), Term::int(5)])),
+        Term::int(5)
+    );
+    assert_eq!(
+        session.evaluate(&Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)])),
+        Term::int(6)
+    );
+    session.clear_definitions();
+    let cleared = session.evaluate(&Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]));
+    assert!(
+        matches!(&cleared, Term::Application { head, arguments: args }
+            if head.is_symbol("Plus") && args.iter().any(|a| matches!(a, Term::Atom(Atom::Symbol(s)) if s == "x"))),
+        "expected free x after clear, got {cleared:?}"
+    );
+}
+
+#[test]
+fn session_compound_set_writes_definitions() {
+    use athena_engine::Session;
+
+    let mut session = Session::new();
+    let compound = Term::apply(
+        "CompoundExpression",
+        vec![
+            Term::apply("Set", vec![Term::symbol("y"), Term::int(3)]),
+            Term::apply("Plus", vec![Term::symbol("y"), Term::int(4)]),
+        ],
+    );
+    assert_eq!(session.evaluate(&compound), Term::int(7));
+    assert_eq!(session.evaluate(&Term::symbol("y")), Term::int(3));
 }
 
 #[test]

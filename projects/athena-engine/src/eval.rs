@@ -118,6 +118,37 @@ pub fn evaluate_outcome(expr: &Term) -> EvalOutcome {
     evaluate_depth_outcome(expr, 0)
 }
 
+/// Session 级 Own `Set` 定义表（Living 25：仍为 `Term` 桥，非 AthenaIR 身份）。
+pub type DefinitionMap = std::collections::HashMap<String, Term>;
+
+/// 带持久定义求值：顶层 `Set` / `CompoundExpression` 会回写 `definitions`。
+///
+/// 无状态 [`evaluate`] 不触碰此表。局部 `With`/`Module`/`Block` 仍不泄漏到 `definitions`。
+pub fn evaluate_with_definitions(definitions: &mut DefinitionMap, expr: &Term) -> EvalOutcome {
+    let rewritten = apply_bindings(expr, definitions);
+
+    if let Some((name, rhs)) = match_set(&rewritten) {
+        let o = evaluate_depth_outcome(&rhs, 0);
+        if !o.has_error() {
+            definitions.insert(name, clone_term(&o.term));
+        }
+        return o;
+    }
+
+    if let Term::Application { head, arguments: args } = &rewritten {
+        if head.is_symbol("CompoundExpression") {
+            return eval_compound_into(args, definitions, 0);
+        }
+    }
+
+    evaluate_depth_outcome(&rewritten, 0)
+}
+
+/// [`evaluate_with_definitions`] 的项出口。
+pub fn evaluate_in(definitions: &mut DefinitionMap, expr: &Term) -> Term {
+    evaluate_with_definitions(definitions, expr).term
+}
+
 /// 求值：遇 Error 诊断则 `Err`，否则 `Ok(term)`。
 pub fn evaluate_checked(expr: &Term) -> Result<Term> {
     evaluate_outcome(expr).into_checked()
@@ -433,16 +464,25 @@ fn substitute_symbol(expr: &Term, name: &str, value: &Term) -> Term {
 fn eval_compound(args: &[Term], depth: u32) -> EvalOutcome {
     use std::collections::HashMap;
 
+    let mut env = HashMap::new();
+    eval_compound_into(args, &mut env, depth)
+}
+
+/// Like [`eval_compound`], but reads/writes an existing definition map (Session persistence).
+fn eval_compound_into(
+    args: &[Term],
+    env: &mut std::collections::HashMap<String, Term>,
+    depth: u32,
+) -> EvalOutcome {
     if args.is_empty() {
         return EvalOutcome::value(Term::null());
     }
 
-    let mut env: HashMap<String, Term> = HashMap::new();
     let mut diagnostics = Vec::new();
     let mut last = Term::null();
 
     for arg in args {
-        let rewritten = apply_bindings(arg, &env);
+        let rewritten = apply_bindings(arg, env);
         if let Some((name, rhs)) = match_set(&rewritten) {
             let mut o = evaluate_depth_outcome(&rhs, depth + 1);
             diagnostics.append(&mut o.diagnostics);
