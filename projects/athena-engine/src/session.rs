@@ -17,7 +17,7 @@ use crate::{
 
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
-    /// Own `Set` 符号定义（跨 `evaluate` 持久；Living 25 `Term` 桥）。
+    /// Own / Delayed 符号定义（跨 `evaluate` 持久；Living 25 `Term` 桥）。
     pub definitions: DefinitionMap,
     /// 多项式环 intern 表。
     pub rings: RingTable,

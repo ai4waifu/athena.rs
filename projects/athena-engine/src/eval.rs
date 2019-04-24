@@ -118,27 +118,52 @@ pub fn evaluate_outcome(expr: &Term) -> EvalOutcome {
     evaluate_depth_outcome(expr, 0)
 }
 
-/// Session 级 Own `Set` 定义表（Living 25：仍为 `Term` 桥，非 AthenaIR 身份）。
-pub type DefinitionMap = std::collections::HashMap<String, Term>;
+/// Session 级符号定义（Living 25：仍为 `Term` 桥，非 AthenaIR 身份）。
+#[derive(Debug, PartialEq)]
+pub enum Definition {
+    /// `Set`：赋值时求值，查表直接替换。
+    Own(Term),
+    /// `SetDelayed`：存未求值 RHS，使用时再求值。
+    Delayed(Term),
+}
 
-/// 带持久定义求值：顶层 `Set` / `CompoundExpression` 会回写 `definitions`。
+/// Own / Delayed 符号定义表。
+pub type DefinitionMap = std::collections::HashMap<String, Definition>;
+
+fn definition_term(def: &Definition) -> Term {
+    match def {
+        Definition::Own(t) | Definition::Delayed(t) => clone_term(t),
+    }
+}
+
+/// 带持久定义求值：顶层 `Set` / `SetDelayed` / `CompoundExpression` 会回写 `definitions`。
 ///
 /// 无状态 [`evaluate`] 不触碰此表。局部 `With`/`Module`/`Block` 仍不泄漏到 `definitions`。
 pub fn evaluate_with_definitions(definitions: &mut DefinitionMap, expr: &Term) -> EvalOutcome {
+    // Scoping forms must see outer defs without rewriting localized bodies first.
+    if let Term::Application { head, arguments: args } = expr {
+        if let Term::Atom(Atom::Symbol(name)) = head.as_ref() {
+            match name.as_str() {
+                "With" | "Module" | "Block" => return eval_local_scope(name, args, 0, definitions),
+                "CompoundExpression" => return eval_compound_into(args, definitions, 0),
+                _ => {}
+            }
+        }
+    }
+
     let rewritten = apply_bindings(expr, definitions);
 
     if let Some((name, rhs)) = match_set(&rewritten) {
         let o = evaluate_depth_outcome(&rhs, 0);
         if !o.has_error() {
-            definitions.insert(name, clone_term(&o.term));
+            definitions.insert(name, Definition::Own(clone_term(&o.term)));
         }
         return o;
     }
 
-    if let Term::Application { head, arguments: args } = &rewritten {
-        if head.is_symbol("CompoundExpression") {
-            return eval_compound_into(args, definitions, 0);
-        }
+    if let Some((name, rhs)) = match_set_delayed(&rewritten) {
+        definitions.insert(name, Definition::Delayed(clone_term(&rhs)));
+        return EvalOutcome::value(Term::null());
     }
 
     evaluate_depth_outcome(&rewritten, 0)
@@ -247,7 +272,7 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "While" => Some(eval_while(args, depth)),
         "For" => Some(eval_for(args, depth)),
         "CompoundExpression" => Some(eval_compound(args, depth)),
-        "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth)),
+        "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth, &DefinitionMap::new())),
         _ => None,
     }
 }
@@ -460,20 +485,14 @@ fn substitute_symbol(expr: &Term, name: &str, value: &Term) -> Term {
     }
 }
 
-/// Sequential statements with temporary `Set` bindings (`x=5; x+1` → `6`).
+/// Sequential statements with temporary `Set` / `SetDelayed` bindings (`x=5; x+1` → `6`).
 fn eval_compound(args: &[Term], depth: u32) -> EvalOutcome {
-    use std::collections::HashMap;
-
-    let mut env = HashMap::new();
+    let mut env = DefinitionMap::new();
     eval_compound_into(args, &mut env, depth)
 }
 
 /// Like [`eval_compound`], but reads/writes an existing definition map (Session persistence).
-fn eval_compound_into(
-    args: &[Term],
-    env: &mut std::collections::HashMap<String, Term>,
-    depth: u32,
-) -> EvalOutcome {
+fn eval_compound_into(args: &[Term], env: &mut DefinitionMap, depth: u32) -> EvalOutcome {
     if args.is_empty() {
         return EvalOutcome::value(Term::null());
     }
@@ -486,8 +505,12 @@ fn eval_compound_into(
         if let Some((name, rhs)) = match_set(&rewritten) {
             let mut o = evaluate_depth_outcome(&rhs, depth + 1);
             diagnostics.append(&mut o.diagnostics);
-            env.insert(name, clone_term(&o.term));
+            env.insert(name, Definition::Own(clone_term(&o.term)));
             last = o.term;
+        }
+        else if let Some((name, rhs)) = match_set_delayed(&rewritten) {
+            env.insert(name, Definition::Delayed(clone_term(&rhs)));
+            last = Term::null();
         }
         else {
             let mut o = evaluate_depth_outcome(&rewritten, depth + 1);
@@ -514,13 +537,70 @@ fn match_set(term: &Term) -> Option<(String, Term)> {
     }
 }
 
+fn match_set_delayed(term: &Term) -> Option<(String, Term)> {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("SetDelayed") && args.len() == 2 => {
+            match &args[0] {
+                Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// `Module` 局部：`x=1` 或裸 `x`。
+fn match_module_local(term: &Term) -> Option<(String, Option<Term>)> {
+    if let Some((name, rhs)) = match_set(term) {
+        return Some((name, Some(rhs)));
+    }
+    match term {
+        Term::Atom(Atom::Symbol(s)) => Some((s.clone(), None)),
+        _ => None,
+    }
+}
+
+fn next_module_id() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(1);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
+fn apply_symbol_rename(expr: &Term, rename: &std::collections::HashMap<String, String>) -> Term {
+    match expr {
+        Term::Atom(Atom::Symbol(s)) => {
+            if let Some(u) = rename.get(s) {
+                Term::symbol(u)
+            }
+            else {
+                clone_term(expr)
+            }
+        }
+        Term::Atom(_) => clone_term(expr),
+        Term::List(items) => Term::List(items.iter().map(|i| apply_symbol_rename(i, rename)).collect()),
+        Term::Application { head, arguments: args } => {
+            if (head.is_symbol("Set") || head.is_symbol("SetDelayed")) && args.len() == 2 {
+                Term::Application {
+                    head: Box::new(clone_term(head)),
+                    arguments: vec![clone_term(&args[0]), apply_symbol_rename(&args[1], rename)],
+                }
+            }
+            else {
+                Term::Application {
+                    head: Box::new(apply_symbol_rename(head, rename)),
+                    arguments: args.iter().map(|a| apply_symbol_rename(a, rename)).collect(),
+                }
+            }
+        }
+    }
+}
+
 /// `With` / `Module` / `Block` — local bindings from `{x=1,…}` then evaluate body.
 ///
-/// Living 25: still on legacy `Term` bridge for Feature Gap；持久 Session API 另切片。
-/// `Module` 暂与 `With` 同为词法替换（未做唯一化重命名）。
-fn eval_local_scope(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
-    use std::collections::HashMap;
-
+/// Living 25: still on legacy `Term` bridge for Feature Gap.
+/// `Module` 对局部符号做 `$n` 唯一化重命名；`With`/`Block` 仍为直接词法替换。
+/// `outer` 为 Session / 外层定义（局部同名遮蔽，不写回）。
+fn eval_local_scope(head: &str, args: &[Term], depth: u32, outer: &DefinitionMap) -> EvalOutcome {
     if args.len() != 2 {
         return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
     }
@@ -528,12 +608,15 @@ fn eval_local_scope(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
     let locals = match &args[0] {
         Term::List(items) => items.as_slice(),
         other => {
-            // Single binding without List wrapper is not Mathematica-normal; reject gently.
             return EvalOutcome::unevaluated(Term::apply(head, vec![clone_term(other), clone_term(&args[1])]));
         }
     };
 
-    let mut env: HashMap<String, Term> = HashMap::new();
+    if head == "Module" {
+        return eval_module(locals, &args[1], depth, outer);
+    }
+
+    let mut env = clone_definition_map(outer);
     let mut diagnostics = Vec::new();
     for item in locals {
         let Some((name, rhs)) = match_set(item) else {
@@ -550,7 +633,7 @@ fn eval_local_scope(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
                 diagnostics,
             };
         }
-        env.insert(name, o.term);
+        env.insert(name, Definition::Own(o.term));
     }
 
     let body = apply_bindings(&args[1], &env);
@@ -564,11 +647,78 @@ fn eval_local_scope(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
     out
 }
 
-fn apply_bindings(expr: &Term, env: &std::collections::HashMap<String, Term>) -> Term {
+fn clone_definition_map(env: &DefinitionMap) -> DefinitionMap {
+    env.iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                match v {
+                    Definition::Own(t) => Definition::Own(clone_term(t)),
+                    Definition::Delayed(t) => Definition::Delayed(clone_term(t)),
+                },
+            )
+        })
+        .collect()
+}
+
+fn eval_module(locals: &[Term], body: &Term, depth: u32, outer: &DefinitionMap) -> EvalOutcome {
+    let mut rename = std::collections::HashMap::new();
+    let mut init_env = clone_definition_map(outer);
+    let mut diagnostics = Vec::new();
+    let mut uniq_values: std::collections::HashMap<String, Term> = std::collections::HashMap::new();
+
+    for item in locals {
+        let Some((name, rhs_opt)) = match_module_local(item) else {
+            return EvalOutcome::unevaluated(Term::apply(
+                "Module",
+                vec![Term::List(clone_terms(locals)), clone_term(body)],
+            ));
+        };
+        let uniq = format!("{}${}", name, next_module_id());
+        rename.insert(name.clone(), uniq.clone());
+        if let Some(rhs) = rhs_opt {
+            let rewritten_rhs = apply_bindings(&rhs, &init_env);
+            let mut o = evaluate_depth_outcome(&rewritten_rhs, depth + 1);
+            diagnostics.append(&mut o.diagnostics);
+            if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                return EvalOutcome {
+                    term: Term::apply("Module", vec![Term::List(clone_terms(locals)), clone_term(body)]),
+                    kind: EvalKind::Unevaluated,
+                    status: ComputationStatus::Invalid,
+                    diagnostics,
+                };
+            }
+            // Sequential Module inits see prior locals under the original name.
+            init_env.insert(name.clone(), Definition::Own(clone_term(&o.term)));
+            uniq_values.insert(uniq, o.term);
+        }
+    }
+
+    let mut body_env = clone_definition_map(outer);
+    for orig in rename.keys() {
+        body_env.remove(orig);
+    }
+    for (uniq, val) in uniq_values {
+        body_env.insert(uniq, Definition::Own(val));
+    }
+
+    let body_renamed = apply_symbol_rename(body, &rename);
+    let body_bound = apply_bindings(&body_renamed, &body_env);
+    let mut out = evaluate_depth_outcome(&body_bound, depth + 1);
+    diagnostics.append(&mut out.diagnostics);
+    out.diagnostics = diagnostics;
+    if out.diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        out.status = ComputationStatus::Invalid;
+        out.kind = EvalKind::Unevaluated;
+    }
+    out
+}
+
+fn apply_bindings(expr: &Term, env: &DefinitionMap) -> Term {
     match expr {
         Term::Atom(Atom::Symbol(s)) => {
-            if let Some(v) = env.get(s) {
-                clone_term(v)
+            if let Some(def) = env.get(s) {
+                definition_term(def)
             }
             else {
                 clone_term(expr)
@@ -577,8 +727,8 @@ fn apply_bindings(expr: &Term, env: &std::collections::HashMap<String, Term>) ->
         Term::Atom(_) => clone_term(expr),
         Term::List(items) => Term::List(items.iter().map(|i| apply_bindings(i, env)).collect()),
         Term::Application { head, arguments: args } => {
-            // Do not substitute into Set LHS.
-            if head.is_symbol("Set") && args.len() == 2 {
+            // Do not substitute into Set / SetDelayed LHS.
+            if (head.is_symbol("Set") || head.is_symbol("SetDelayed")) && args.len() == 2 {
                 Term::Application {
                     head: Box::new(clone_term(head)),
                     arguments: vec![clone_term(&args[0]), apply_bindings(&args[1], env)],

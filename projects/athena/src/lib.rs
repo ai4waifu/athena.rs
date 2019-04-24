@@ -85,7 +85,7 @@ pub use athena_engine::{
     solve_linear_congruence, solve_linear_system_exact, solve_linear_system_machine, solve_lu, solve_machine,
     solve_ode_checked, solve_univariate_polynomial_roots, sub_polynomial, taylor, transpose, try_calculus_request,
     unsupported_operation, verify_factorization, verify_groebner_basis, witness_from_exact, z_checked, clone_atom,
-    clone_number, clone_term, clone_terms, DefinitionMap,
+    clone_number, clone_term, clone_terms, Definition, DefinitionMap,
 };
 
 /// 数值塔：[`NumericValue`] / [`Number`] 为唯一执行真相源。

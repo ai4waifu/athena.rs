@@ -335,6 +335,52 @@ fn session_compound_set_writes_definitions() {
 }
 
 #[test]
+fn session_setdelayed_evaluates_on_use() {
+    use athena_engine::Session;
+
+    let mut session = Session::new();
+    let delayed = Term::apply(
+        "SetDelayed",
+        vec![Term::symbol("a"), Term::apply("Plus", vec![Term::int(1), Term::int(1)])],
+    );
+    assert_eq!(session.evaluate(&delayed), Term::null());
+    assert_eq!(session.evaluate(&Term::symbol("a")), Term::int(2));
+}
+
+#[test]
+fn module_bare_local_is_renamed_unique() {
+    let e1 = evaluate(&Term::apply("Module", vec![Term::List(vec![Term::symbol("x")]), Term::symbol("x")]));
+    let e2 = evaluate(&Term::apply("Module", vec![Term::List(vec![Term::symbol("x")]), Term::symbol("x")]));
+    match (&e1, &e2) {
+        (Term::Atom(Atom::Symbol(a)), Term::Atom(Atom::Symbol(b))) => {
+            assert!(a.starts_with("x$"), "got {a}");
+            assert!(b.starts_with("x$"), "got {b}");
+            assert_ne!(a, b);
+        }
+        other => panic!("expected unique Module symbols, got {other:?}"),
+    }
+}
+
+#[test]
+fn module_local_does_not_clobber_session() {
+    use athena_engine::Session;
+
+    let mut session = Session::new();
+    session.evaluate(&Term::apply("Set", vec![Term::symbol("x"), Term::int(5)]));
+    assert_eq!(
+        session.evaluate(&Term::apply(
+            "Module",
+            vec![
+                Term::List(vec![Term::apply("Set", vec![Term::symbol("x"), Term::int(1)])]),
+                Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]),
+            ],
+        )),
+        Term::int(2)
+    );
+    assert_eq!(session.evaluate(&Term::symbol("x")), Term::int(5));
+}
+
+#[test]
 fn mldivide_is_unsupported_not_divide() {
     use athena_engine::{EvalKind, evaluate_outcome};
     use athena_types::DiagnosticCode;

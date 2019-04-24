@@ -82,7 +82,7 @@ pub use calculus::{
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
 pub use eval::{
-    DefinitionMap, EvalKind, EvalOutcome, as_boolean, evaluate, evaluate_checked, evaluate_in, evaluate_outcome,
+    Definition, DefinitionMap, EvalKind, EvalOutcome, as_boolean, evaluate, evaluate_checked, evaluate_in, evaluate_outcome,
     evaluate_with_definitions, invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation,
 };
 pub use field::{
