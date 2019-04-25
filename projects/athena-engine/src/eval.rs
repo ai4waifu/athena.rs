@@ -3,13 +3,14 @@
 use std::cmp::Ordering;
 
 use athena_numeric::{
-    Number, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial, mul as num_mul,
-    pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
+    Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div,
+    factorial as num_factorial, mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, Severity};
 
 use crate::{
-    numeric_clone::{clone_number, clone_term, clone_terms},
+    linear_algebra::{MatrixValue, SolveDisposition, solve_exact},
+    numeric_clone::{clone_number, clone_rational, clone_term, clone_terms},
     term::{Atom, Term, number_from_term},
 };
 
@@ -813,6 +814,7 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
             eval_dot_binop("DotDivide", &args[0], &args[1], |a, b| eval_times(vec![a, eval_power(b, Term::int(-1))]))
         }
         "DotPower" if args.len() == 2 => eval_dot_binop("DotPower", &args[0], &args[1], eval_power),
+        "Mldivide" | "DotLeftDivide" if args.len() == 2 => eval_mldivide(name, &args[0], &args[1]),
         "Mldivide" | "DotLeftDivide" => {
             let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
             EvalOutcome::invalid(term, unsupported_operation(name))
@@ -1526,4 +1528,120 @@ fn substitute_slot(body: &Term, value: &Term) -> Term {
             arguments: args.iter().map(|a| substitute_slot(a, value)).collect(),
         },
     }
+}
+
+/// Living 25 Term bridge：exact `A\b` via [`solve_exact`]. Non-numeric / singular → keep head + diagnostic.
+fn eval_mldivide(head: &str, a: &Term, b: &Term) -> EvalOutcome {
+    let echo = || Term::apply(head, vec![clone_term(a), clone_term(b)]);
+    let Some(am) = term_to_rational_matrix(a) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    let Some(bm) = term_to_rational_matrix(b) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    match solve_exact(&am, &bm) {
+        Ok(sol) if sol.disposition == SolveDisposition::Unique => {
+            match sol.particular {
+                Some(x) => match matrix_to_nested_list(&x) {
+                    Ok(term) => EvalOutcome::value(term),
+                    Err(d) => EvalOutcome::invalid(echo(), d),
+                },
+                None => EvalOutcome::invalid(echo(), unsupported_operation(head)),
+            }
+        }
+        Ok(sol) => {
+            let detail = match sol.disposition {
+                SolveDisposition::Inconsistent => "inconsistent",
+                SolveDisposition::Infinite { .. } => "underdetermined",
+                SolveDisposition::Unique => "unique",
+                SolveDisposition::Singular => "singular",
+                SolveDisposition::ResourceLimited => "resource_limited",
+            };
+            EvalOutcome::invalid(echo(), Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail))
+        }
+        Err(d) => EvalOutcome::invalid(echo(), d),
+    }
+}
+
+fn term_scalar_rational(term: &Term) -> Option<Rational> {
+    let n = number_from_term(term)?;
+    if let Some(i) = n.as_exact_integer() {
+        return Some(Rational::new(Integer::from_i64(i), Integer::one()));
+    }
+    if let Some(i) = n.as_integer() {
+        return Some(Rational::new(crate::numeric_clone::clone_integer(i), Integer::one()));
+    }
+    n.as_rational().map(clone_rational)
+}
+
+fn term_to_rational_matrix(term: &Term) -> Option<MatrixValue> {
+    match term {
+        Term::List(rows) if !rows.is_empty() => {
+            if matches!(rows.first(), Some(Term::List(_))) {
+                let mut data = Vec::new();
+                let mut cols: Option<u64> = None;
+                for row in rows {
+                    let Term::List(cells) = row else {
+                        return None;
+                    };
+                    let c = cells.len() as u64;
+                    match cols {
+                        Some(prev) if prev != c => return None,
+                        None => cols = Some(c),
+                        _ => {}
+                    }
+                    for cell in cells {
+                        data.push(term_scalar_rational(cell)?);
+                    }
+                }
+                let cols = cols.unwrap_or(0);
+                MatrixValue::from_rationals_row_major(rows.len() as u64, cols, data).ok()
+            }
+            else {
+                let mut data = Vec::with_capacity(rows.len());
+                for cell in rows {
+                    data.push(term_scalar_rational(cell)?);
+                }
+                MatrixValue::from_rationals_row_major(1, data.len() as u64, data).ok()
+            }
+        }
+        other => {
+            let r = term_scalar_rational(other)?;
+            MatrixValue::from_rationals_row_major(1, 1, vec![r]).ok()
+        }
+    }
+}
+
+fn rational_to_term(r: &Rational) -> Term {
+    if r.is_integer() {
+        if let Some(i) = r.numerator().to_i64() {
+            return Term::int(i);
+        }
+    }
+    Term::number(Number::from_rational_normalized(clone_rational(r)))
+}
+
+fn matrix_to_nested_list(m: &MatrixValue) -> std::result::Result<Term, Diagnostic> {
+    let rows = m.shape().rows;
+    let cols = m.shape().cols;
+    let mut out = Vec::with_capacity(rows as usize);
+    for i in 0..rows {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            match m.get(i, j)? {
+                crate::linear_algebra::MatrixEntry::Rational(r) => row.push(rational_to_term(&r)),
+                crate::linear_algebra::MatrixEntry::Integer(n) => {
+                    if let Some(i64v) = n.to_i64() {
+                        row.push(Term::int(i64v));
+                    }
+                    else {
+                        row.push(Term::number(Number::integer(crate::numeric_clone::clone_integer(&n))));
+                    }
+                }
+                crate::linear_algebra::MatrixEntry::MachineF64(x) => row.push(Term::real(x)),
+            }
+        }
+        out.push(Term::List(row));
+    }
+    Ok(Term::List(out))
 }
