@@ -404,3 +404,38 @@ fn mldivide_2x2_exact_unique() {
     ]);
     assert_eq!(e, expected);
 }
+
+#[test]
+fn pure_function_slot_application() {
+    // Function[Power[Slot[1], 2]][4] → 16
+    let f = Term::apply(
+        "Function",
+        vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])],
+    );
+    let e = evaluate(&Term::Application { head: Box::new(f), arguments: vec![Term::int(4)] });
+    assert_eq!(e, Term::int(16));
+}
+
+#[test]
+fn named_function_application() {
+    // Function[x, x^2][3] → 9
+    let f = Term::apply(
+        "Function",
+        vec![Term::symbol("x"), Term::apply("Power", vec![Term::symbol("x"), Term::int(2)])],
+    );
+    let e = evaluate(&Term::Application { head: Box::new(f), arguments: vec![Term::int(3)] });
+    assert_eq!(e, Term::int(9));
+}
+
+#[test]
+fn map_pure_function_squares() {
+    let f = Term::apply(
+        "Function",
+        vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])],
+    );
+    let e = evaluate(&Term::apply(
+        "Map",
+        vec![f, Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])],
+    ));
+    assert_eq!(e, Term::List(vec![Term::int(1), Term::int(4), Term::int(9)]));
+}
