@@ -1042,6 +1042,10 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "First" if args.len() == 1 => eval_first(&args[0]),
         "Join" => eval_join(args),
         "Apply" if args.len() == 2 => eval_apply(&args[0], &args[1], depth),
+        "Zeros" => eval_matrix_fill("Zeros", &args, 0),
+        "Ones" => eval_matrix_fill("Ones", &args, 1),
+        "Eye" | "IdentityMatrix" => eval_eye(name, args),
+        "Size" | "Dimensions" if args.len() == 1 => eval_size(&args[0]),
         "List" => EvalOutcome::value(Term::List(args)),
         "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => EvalOutcome::value(eval_machine_unary(name, &args[0])),
@@ -1555,6 +1559,123 @@ fn eval_apply(func: &Term, target: &Term, depth: u32) -> EvalOutcome {
             evaluate_depth_outcome(&app, depth + 1)
         }
         other => EvalOutcome::unevaluated(Term::apply("Apply", vec![clone_term(func), clone_term(other)])),
+    }
+}
+
+/// Parse `n` or `m,n` non-negative integer dimensions for matrix constructors.
+fn parse_matrix_dims(args: &[Term]) -> Option<(u64, u64)> {
+    let as_dim = |t: &Term| -> Option<u64> {
+        let n = number_from_term(t)?.as_exact_integer()?;
+        if n < 0 {
+            None
+        }
+        else {
+            Some(n as u64)
+        }
+    };
+    match args {
+        [n] => {
+            let n = as_dim(n)?;
+            Some((n, n))
+        }
+        [m, n] => Some((as_dim(m)?, as_dim(n)?)),
+        _ => None,
+    }
+}
+
+fn matrix_fill_nested(rows: u64, cols: u64, fill: i64) -> EvalOutcome {
+    let n = match rows.checked_mul(cols) {
+        Some(v) => v as usize,
+        None => {
+            return EvalOutcome::invalid(
+                Term::List(vec![]),
+                Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"),
+            );
+        }
+    };
+    let fill_r = Rational::new(Integer::from_i64(fill), Integer::one());
+    let mut data = Vec::with_capacity(n);
+    for _ in 0..n {
+        data.push(clone_rational(&fill_r));
+    }
+    match MatrixValue::from_rationals_row_major(rows, cols, data) {
+        Ok(m) => match matrix_to_nested_list(&m) {
+            Ok(term) => EvalOutcome::value(term),
+            Err(d) => EvalOutcome::invalid(Term::List(vec![]), d),
+        },
+        Err(d) => EvalOutcome::invalid(Term::List(vec![]), d),
+    }
+}
+
+fn eval_matrix_fill(head: &str, args: &[Term], fill: i64) -> EvalOutcome {
+    let Some((rows, cols)) = parse_matrix_dims(args) else {
+        return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
+    };
+    matrix_fill_nested(rows, cols, fill)
+}
+
+fn eval_eye(head: &str, args: Vec<Term>) -> EvalOutcome {
+    let Some((rows, cols)) = parse_matrix_dims(&args) else {
+        return EvalOutcome::unevaluated(Term::apply(head, args));
+    };
+    let n = match rows.checked_mul(cols) {
+        Some(v) => v as usize,
+        None => {
+            return EvalOutcome::invalid(
+                Term::apply(head, args),
+                Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"),
+            );
+        }
+    };
+    let zero = Rational::new(Integer::from_i64(0), Integer::one());
+    let one = Rational::new(Integer::from_i64(1), Integer::one());
+    let mut data = Vec::with_capacity(n);
+    for _ in 0..n {
+        data.push(clone_rational(&zero));
+    }
+    let diag = rows.min(cols);
+    for i in 0..diag {
+        data[(i * cols + i) as usize] = clone_rational(&one);
+    }
+    match MatrixValue::from_rationals_row_major(rows, cols, data) {
+        Ok(m) => match matrix_to_nested_list(&m) {
+            Ok(term) => EvalOutcome::value(term),
+            Err(d) => EvalOutcome::invalid(Term::apply(head, args), d),
+        },
+        Err(d) => EvalOutcome::invalid(Term::apply(head, args), d),
+    }
+}
+
+/// Shape of nested-list matrices / row vectors for Feature Gap Term bridge.
+fn nested_list_shape(term: &Term) -> Option<(u64, u64)> {
+    match term {
+        Term::List(rows) if rows.is_empty() => Some((0, 0)),
+        Term::List(rows) if matches!(rows.first(), Some(Term::List(_))) => {
+            let mut cols: Option<u64> = None;
+            for row in rows {
+                let Term::List(cells) = row else {
+                    return None;
+                };
+                let c = cells.len() as u64;
+                match cols {
+                    Some(prev) if prev != c => return None,
+                    None => cols = Some(c),
+                    _ => {}
+                }
+            }
+            Some((rows.len() as u64, cols.unwrap_or(0)))
+        }
+        Term::List(cells) => Some((1, cells.len() as u64)),
+        _ => None,
+    }
+}
+
+fn eval_size(arg: &Term) -> EvalOutcome {
+    match nested_list_shape(arg) {
+        Some((rows, cols)) => {
+            EvalOutcome::value(Term::List(vec![Term::int(rows as i64), Term::int(cols as i64)]))
+        }
+        None => EvalOutcome::unevaluated(Term::apply("Size", vec![clone_term(arg)])),
     }
 }
 
