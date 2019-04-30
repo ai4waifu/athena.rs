@@ -1,6 +1,6 @@
 //! 桥接 `evaluate` 覆盖（集成测试位于 crate 根旁）。
 
-use athena_engine::{Atom, Term, evaluate, evaluate_checked};
+use athena_engine::{Atom, Term, clone_term, evaluate, evaluate_checked};
 
 #[test]
 fn plus_fold() {
@@ -635,10 +635,54 @@ fn elementwise_dot_ops_on_lists() {
         Term::List(vec![Term::int(7), Term::int(8)]),
     ]);
     assert_eq!(
-        evaluate(&Term::apply("DotTimes", vec![a, b])),
+        evaluate(&Term::apply("DotTimes", vec![clone_term(&a), clone_term(&b)])),
         Term::List(vec![
             Term::List(vec![Term::int(5), Term::int(12)]),
             Term::List(vec![Term::int(21), Term::int(32)]),
         ])
+    );
+}
+
+#[test]
+fn matrix_det_sum_matmul_linear_solve() {
+    let m = Term::List(vec![
+        Term::List(vec![Term::int(1), Term::int(2)]),
+        Term::List(vec![Term::int(3), Term::int(4)]),
+    ]);
+    assert_eq!(evaluate(&Term::apply("Det", vec![clone_term(&m)])), Term::int(-2));
+    assert_eq!(
+        evaluate(&Term::apply("Sum", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])),
+        Term::int(6)
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Sum", vec![clone_term(&m)])),
+        Term::List(vec![Term::int(4), Term::int(6)])
+    );
+    let b = Term::List(vec![
+        Term::List(vec![Term::int(5), Term::int(6)]),
+        Term::List(vec![Term::int(7), Term::int(8)]),
+    ]);
+    assert_eq!(
+        evaluate(&Term::apply("Times", vec![clone_term(&m), clone_term(&b)])),
+        Term::List(vec![
+            Term::List(vec![Term::int(19), Term::int(22)]),
+            Term::List(vec![Term::int(43), Term::int(50)]),
+        ])
+    );
+    let rhs = Term::List(vec![Term::List(vec![Term::int(5)]), Term::List(vec![Term::int(6)])]);
+    assert_eq!(
+        evaluate(&Term::apply("LinearSolve", vec![clone_term(&m), rhs])),
+        Term::List(vec![
+            Term::List(vec![Term::int(-4)]),
+            Term::List(vec![Term::rational_i64(9, 2).unwrap()]),
+        ])
+    );
+    // Symbolic Sum iterator still works
+    assert_eq!(
+        evaluate(&Term::apply(
+            "Sum",
+            vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(1), Term::int(10)])]
+        )),
+        Term::int(55)
     );
 }

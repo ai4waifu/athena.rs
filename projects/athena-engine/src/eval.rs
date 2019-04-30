@@ -9,7 +9,7 @@ use athena_numeric::{
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, Severity};
 
 use crate::{
-    linear_algebra::{MatrixValue, SolveDisposition, solve_exact},
+    linear_algebra::{MatrixValue, SolveDisposition, det_bareiss, matmul, solve_exact},
     numeric_clone::{clone_number, clone_rational, clone_term, clone_terms},
     term::{Atom, Term, number_from_term},
 };
@@ -277,7 +277,7 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "MatchQ" => Some(eval_match_q(args, depth)),
         "Cases" => Some(eval_cases(args, depth)),
         "Table" => Some(eval_table(args, depth)),
-        "Sum" => Some(eval_sum_product("Sum", args, depth)),
+        "Sum" => Some(eval_sum_dispatch(args, depth)),
         "Product" => Some(eval_sum_product("Product", args, depth)),
         "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => Some(EvalOutcome::unevaluated(
             Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) },
@@ -557,6 +557,30 @@ fn eval_table(args: &[Term], depth: u32) -> EvalOutcome {
 }
 
 /// `Sum[body, iterator]` / `Product[body, iterator]` — fold evaluated Table values.
+/// `Sum[list]` → 数组求和；`Sum[body, iterator]` → 符号求和折叠。
+fn eval_sum_dispatch(args: &[Term], depth: u32) -> EvalOutcome {
+    match args {
+        [only] => {
+            let mut o = evaluate_depth_outcome(only, depth + 1);
+            let summed = eval_array_sum(&o.term);
+            if summed.has_error() {
+                o.diagnostics.extend(summed.diagnostics);
+                o.term = summed.term;
+                o.kind = summed.kind;
+                o.status = summed.status;
+                return o;
+            }
+            o.diagnostics.extend(summed.diagnostics);
+            o.term = summed.term;
+            o.kind = summed.kind;
+            o.status = summed.status;
+            o
+        }
+        [_, _] => eval_sum_product("Sum", args, depth),
+        _ => EvalOutcome::unevaluated(Term::apply("Sum", clone_terms(args))),
+    }
+}
+
 fn eval_sum_product(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
     if args.len() != 2 {
         return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
@@ -1046,6 +1070,8 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "Ones" => eval_matrix_fill("Ones", &args, 1),
         "Eye" | "IdentityMatrix" => eval_eye(name, args),
         "Size" | "Dimensions" if args.len() == 1 => eval_size(&args[0]),
+        "Det" if args.len() == 1 => eval_det(&args[0]),
+        "LinearSolve" if args.len() == 2 => eval_mldivide("LinearSolve", &args[0], &args[1]),
         "List" => EvalOutcome::value(Term::List(args)),
         "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => EvalOutcome::value(eval_machine_unary(name, &args[0])),
@@ -1290,7 +1316,7 @@ fn eval_times(args: Vec<Term>) -> Term {
     }
 }
 
-/// `Times`：标量 × nested List 按 MATLAB/数组语义广播；两矩阵保持 `Times`（矩阵乘留给后续）。
+/// `Times`：标量 × nested List 按 MATLAB/数组语义广播；两矩阵走 `matmul`；其它保持符号 `Times`。
 fn eval_times_outcome(args: Vec<Term>) -> EvalOutcome {
     let mut scalars = Vec::new();
     let mut lists = Vec::new();
@@ -1311,7 +1337,72 @@ fn eval_times_outcome(args: Vec<Term>) -> EvalOutcome {
         let scale = eval_times(scalars);
         return eval_dot_binop("DotTimes", &scale, &lists[0], |a, b| eval_times(vec![a, b]));
     }
+    if !other && lists.len() == 2 && scalars.is_empty() && args.len() == 2 {
+        if let (Some(am), Some(bm)) = (term_to_rational_matrix(&lists[0]), term_to_rational_matrix(&lists[1])) {
+            return match matmul(&am, &bm) {
+                Ok(m) => match matrix_to_nested_list(&m) {
+                    Ok(term) => EvalOutcome::value(term),
+                    Err(d) => EvalOutcome::invalid(Term::apply("Times", args), d),
+                },
+                Err(d) => EvalOutcome::invalid(Term::apply("Times", args), d),
+            };
+        }
+    }
     EvalOutcome::value(eval_times(args))
+}
+
+fn eval_det(arg: &Term) -> EvalOutcome {
+    let echo = || Term::apply("Det", vec![clone_term(arg)]);
+    let Some(m) = term_to_rational_matrix(arg) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    match det_bareiss(&m) {
+        Ok(r) => EvalOutcome::value(rational_to_term(&r.det)),
+        Err(d) => EvalOutcome::invalid(echo(), d),
+    }
+}
+
+/// MATLAB-style `sum`：向量 → 标量和；矩阵 → 各列之和（行向量）。
+fn eval_array_sum(arg: &Term) -> EvalOutcome {
+    let echo = || Term::apply("Sum", vec![clone_term(arg)]);
+    let Some(m) = term_to_rational_matrix(arg) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    let rows = m.shape().rows;
+    let cols = m.shape().cols;
+    let entry_q = |i: u64, j: u64| -> std::result::Result<Rational, Diagnostic> {
+        match m.get(i, j)? {
+            crate::linear_algebra::MatrixEntry::Rational(r) => Ok(r),
+            crate::linear_algebra::MatrixEntry::Integer(n) => Ok(Rational::from_integer(n)),
+            crate::linear_algebra::MatrixEntry::MachineF64(_) => {
+                Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "sum_requires_exact"))
+            }
+        }
+    };
+    if rows == 1 || cols == 1 {
+        let mut acc = Rational::new(Integer::from_i64(0), Integer::one());
+        for i in 0..rows {
+            for j in 0..cols {
+                match entry_q(i, j) {
+                    Ok(r) => acc = acc.add(&r),
+                    Err(d) => return EvalOutcome::invalid(echo(), d),
+                }
+            }
+        }
+        return EvalOutcome::value(rational_to_term(&acc));
+    }
+    let mut out = Vec::with_capacity(cols as usize);
+    for j in 0..cols {
+        let mut acc = Rational::new(Integer::from_i64(0), Integer::one());
+        for i in 0..rows {
+            match entry_q(i, j) {
+                Ok(r) => acc = acc.add(&r),
+                Err(d) => return EvalOutcome::invalid(echo(), d),
+            }
+        }
+        out.push(rational_to_term(&acc));
+    }
+    EvalOutcome::value(Term::List(out))
 }
 
 /// 数值系数前置，保持与历史 Times 规范一致。
