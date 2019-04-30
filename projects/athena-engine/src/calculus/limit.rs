@@ -31,10 +31,24 @@ pub fn limit_checked(
 }
 
 fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: LimitDirection) -> CalculusResult<Term> {
+    if let Some(v) = try_known_finite_limit(expression, variable, point) {
+        return CalculusResult::Exact { value: v, conditions: Vec::new() };
+    }
+
     let substituted = replace_symbol(expression, variable, point);
     let value = evaluate(&substituted);
 
-    if is_indeterminate_form(&value) {
+    // `Times` may short-circuit `0 * 0^-1 → 0`; recover true 0/0 via the unsimplified quotient.
+    let silent_zero_over_zero = number_from_term(&value).is_some_and(|n| n.is_zero())
+        && split_quotient(expression).is_some_and(|(num, den)| {
+            number_from_term(&evaluate(&replace_symbol(&num, variable, point))).is_some_and(|n| n.is_zero())
+                && number_from_term(&evaluate(&replace_symbol(&den, variable, point))).is_some_and(|n| n.is_zero())
+        });
+
+    if is_indeterminate_form(&value) || silent_zero_over_zero {
+        if let Some(v) = try_lhopital_once(expression, variable, point, direction) {
+            return CalculusResult::Exact { value: v, conditions: Vec::new() };
+        }
         return CalculusResult::Unevaluated {
             expression: limit_form(expression, variable, &LimitApproach::Finite(clone_term(point)), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
@@ -64,6 +78,108 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
     }
 
     unevaluated_limit(expression, variable, &LimitApproach::Finite(clone_term(point)), direction)
+}
+
+/// Known closed forms before substitution (avoids `0 * 0^-1 → 0` silent wrong).
+fn try_known_finite_limit(expression: &Term, variable: &str, point: &Term) -> Option<Term> {
+    if !number_from_term(point).is_some_and(|n| n.is_zero()) {
+        return None;
+    }
+    if is_sinc_form(expression, variable) {
+        return Some(Term::int(1));
+    }
+    None
+}
+
+fn is_sinc_form(expression: &Term, variable: &str) -> bool {
+    match expression {
+        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
+            is_sin_of_var(&args[0], variable) && args[1].is_symbol(variable)
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
+            (is_sin_of_var(&args[0], variable) && is_reciprocal_var(&args[1], variable))
+                || (is_sin_of_var(&args[1], variable) && is_reciprocal_var(&args[0], variable))
+        }
+        _ => false,
+    }
+}
+
+fn is_sin_of_var(expr: &Term, variable: &str) -> bool {
+    matches!(expr, Term::Application { head, arguments: args } if head.is_symbol("Sin") && args.len() == 1 && args[0].is_symbol(variable))
+}
+
+fn is_reciprocal_var(expr: &Term, variable: &str) -> bool {
+    matches!(
+        expr,
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power")
+                && args.len() == 2
+                && args[0].is_symbol(variable)
+                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1))
+    )
+}
+
+/// One-step L'Hôpital for `0/0` quotient forms.
+fn try_lhopital_once(expression: &Term, variable: &str, point: &Term, _direction: LimitDirection) -> Option<Term> {
+    let (num, den) = split_quotient(expression)?;
+    let num_at = evaluate(&replace_symbol(&num, variable, point));
+    let den_at = evaluate(&replace_symbol(&den, variable, point));
+    let num_zero = number_from_term(&num_at).is_some_and(|n| n.is_zero());
+    let den_zero = number_from_term(&den_at).is_some_and(|n| n.is_zero());
+    if !(num_zero && den_zero) {
+        return None;
+    }
+    let num_d = super::derivative::differentiate(&num, variable);
+    let den_d = super::derivative::differentiate(&den, variable);
+    let ratio = Term::apply("Times", vec![num_d, Term::apply("Power", vec![den_d, Term::int(-1)])]);
+    let value = evaluate(&replace_symbol(&ratio, variable, point));
+    if is_indeterminate_form(&value) || is_singular_form(&value) || contains_symbol(&value, variable) {
+        return None;
+    }
+    Some(value)
+}
+
+fn split_quotient(expression: &Term) -> Option<(Term, Term)> {
+    match expression {
+        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
+            Some((clone_term(&args[0]), clone_term(&args[1])))
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
+            if is_reciprocal_power(&args[1]) {
+                Some((clone_term(&args[0]), reciprocal_base(&args[1])?))
+            }
+            else if is_reciprocal_power(&args[0]) {
+                Some((clone_term(&args[1]), reciprocal_base(&args[0])?))
+            }
+            else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn is_reciprocal_power(expr: &Term) -> bool {
+    matches!(
+        expr,
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power")
+                && args.len() == 2
+                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1))
+    )
+}
+
+fn reciprocal_base(expr: &Term) -> Option<Term> {
+    match expr {
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Power")
+                && args.len() == 2
+                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1)) =>
+        {
+            Some(clone_term(&args[0]))
+        }
+        _ => None,
+    }
 }
 
 /// 单侧简单极点 `c / (x - a)`（以及 `c / x`）。
@@ -241,6 +357,20 @@ fn is_indeterminate_form(expr: &Term) -> bool {
     match expr {
         Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
             number_from_term(&args[0]).is_some_and(|n| n.is_zero()) && number_from_term(&args[1]).is_some_and(|n| n.is_zero())
+        }
+        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
+            let has_zero = args.iter().any(|a| number_from_term(a).is_some_and(|n| n.is_zero()));
+            let has_singular_pow = args.iter().any(|a| {
+                matches!(
+                    a,
+                    Term::Application { head, arguments: p }
+                        if head.is_symbol("Power")
+                            && p.len() == 2
+                            && number_from_term(&p[0]).is_some_and(|n| n.is_zero())
+                            && number_from_term(&p[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0)
+                )
+            });
+            has_zero && has_singular_pow
         }
         Term::Application { head, .. } if head.is_symbol("Indeterminate") => true,
         _ => false,

@@ -1545,8 +1545,10 @@ fn eval_simplify(expr: &Term, depth: u32) -> Term {
 }
 
 fn eval_machine_unary(name: &str, arg: &Term) -> Term {
-    let Some(x) = number_from_term(arg).and_then(|n| num_to_f64_lossy(&n))
-    else {
+    if let Some(exact) = eval_trig_exact(name, arg) {
+        return exact;
+    }
+    let Some(x) = term_as_f64(arg) else {
         return Term::apply(name, vec![clone_term(arg)]);
     };
     let y = match name {
@@ -1557,7 +1559,72 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
         "Log" => x.ln(),
         _ => return Term::apply(name, vec![clone_term(arg)]),
     };
-    if y.is_finite() { Term::real(y) } else { Term::apply(name, vec![clone_term(arg)]) }
+    if y.is_finite() {
+        Term::real(y)
+    }
+    else {
+        Term::apply(name, vec![clone_term(arg)])
+    }
+}
+
+/// Exact trig values for Feature Gap (`Cos[Pi]`, `Sin[0]`, …) before machine float.
+fn eval_trig_exact(name: &str, arg: &Term) -> Option<Term> {
+    let angle = normalize_pi_angle(arg)?;
+    // `angle` is integer multiple of `$\pi$` (k).
+    match name {
+        "Sin" => {
+            // sin(k π) = 0
+            Some(Term::int(0))
+        }
+        "Cos" => {
+            // cos(k π) = (-1)^k
+            if angle % 2 == 0 {
+                Some(Term::int(1))
+            }
+            else {
+                Some(Term::int(-1))
+            }
+        }
+        "Tan" if angle % 2 == 0 => Some(Term::int(0)),
+        _ => None,
+    }
+}
+
+/// Map `0`, `Pi`, `-Pi`, `n*Pi` to integer `n` when possible.
+fn normalize_pi_angle(arg: &Term) -> Option<i64> {
+    if let Some(n) = number_from_term(arg).and_then(|n| n.as_exact_integer()) {
+        if n == 0 {
+            return Some(0);
+        }
+    }
+    if arg.is_symbol("Pi") {
+        return Some(1);
+    }
+    match arg {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
+            match args.as_slice() {
+                [a, b] if a.is_symbol("Pi") => number_from_term(b).and_then(|n| n.as_exact_integer()),
+                [a, b] if b.is_symbol("Pi") => number_from_term(a).and_then(|n| n.as_exact_integer()),
+                _ => None,
+            }
+        }
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Plus") && args.len() == 1 && args[0].is_symbol("Pi") =>
+        {
+            Some(1)
+        }
+        _ => None,
+    }
+}
+
+fn term_as_f64(arg: &Term) -> Option<f64> {
+    if let Some(k) = normalize_pi_angle(arg) {
+        return Some((k as f64) * std::f64::consts::PI);
+    }
+    if arg.is_symbol("E") {
+        return Some(std::f64::consts::E);
+    }
+    number_from_term(arg).and_then(|n| num_to_f64_lossy(&n))
 }
 
 fn eval_sqrt(arg: &Term) -> Term {
