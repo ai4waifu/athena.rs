@@ -1072,6 +1072,7 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "Size" | "Dimensions" if args.len() == 1 => eval_size(&args[0]),
         "Det" if args.len() == 1 => eval_det(&args[0]),
         "LinearSolve" if args.len() == 2 => eval_mldivide("LinearSolve", &args[0], &args[1]),
+        "Solve" if args.len() == 2 => eval_solve(&args[0], &args[1]),
         "List" => EvalOutcome::value(Term::List(args)),
         "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => EvalOutcome::value(eval_machine_unary(name, &args[0])),
@@ -2209,6 +2210,192 @@ fn substitute_slot(body: &Term, value: &Term) -> Term {
             arguments: args.iter().map(|a| substitute_slot(a, value)).collect(),
         },
     }
+}
+
+/// Living 25 Term bridge：单变量多项式 `Solve` → `{{x->r},…}`（typed `SolutionSet` 仍为正式合同）。
+fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
+    let echo = || Term::apply("Solve", vec![clone_term(equation), clone_term(unknown)]);
+    let Term::Atom(Atom::Symbol(var)) = unknown else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    let zero_expr = match equation {
+        Term::Application { head, arguments } if head.is_symbol("Equal") && arguments.len() == 2 => {
+            evaluate(&Term::apply(
+                "Plus",
+                vec![
+                    clone_term(&arguments[0]),
+                    Term::apply("Times", vec![Term::int(-1), clone_term(&arguments[1])]),
+                ],
+            ))
+        }
+        other => evaluate(other),
+    };
+    let Some(terms) = collect_univariate_monomials(&zero_expr, var) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    if terms.is_empty() {
+        // 0 == 0 → 恒真，无离散根集；保守未求值。
+        return EvalOutcome::unevaluated(echo());
+    }
+
+    use crate::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialFactorLimits, RingTable};
+    use crate::solve::{BoundSymbol, CoverageStatus, SolveDomain, solve_univariate_polynomial_roots};
+    use athena_types::SymbolId;
+
+    let mut rings = RingTable::new();
+    let Ok(ring) = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    let mut builder = PolynomialBuilder::new(ring);
+    for (coeff, deg) in terms {
+        if let Err(_) = builder.push_term(coeff, vec![deg]) {
+            return EvalOutcome::unevaluated(echo());
+        }
+    }
+    let Ok(poly) = builder.build(&rings) else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    let unknown_sym = BoundSymbol::free(SymbolId(0));
+    let Ok(adapted) =
+        solve_univariate_polynomial_roots(poly, &rings, unknown_sym, SolveDomain::Rationals, PolynomialFactorLimits::default())
+    else {
+        return EvalOutcome::unevaluated(echo());
+    };
+    if !matches!(adapted.solution.coverage, CoverageStatus::Complete) {
+        return EvalOutcome::unevaluated(echo());
+    }
+
+    let mut roots: Vec<Term> = Vec::new();
+    for branch in &adapted.solution.branches {
+        let Some(tid) = branch.bindings.get(&unknown_sym) else {
+            return EvalOutcome::unevaluated(echo());
+        };
+        let Some(val) = adapted.values.get(tid) else {
+            return EvalOutcome::unevaluated(echo());
+        };
+        let root_term = match val {
+            crate::solve::BindingValue::Number(n) => number_to_term(n),
+            crate::solve::BindingValue::Rational(r) => rational_to_term(r),
+            crate::solve::BindingValue::MachineF64(_) => return EvalOutcome::unevaluated(echo()),
+        };
+        roots.push(root_term);
+    }
+    roots.sort_by(|a, b| match (number_from_term(a), number_from_term(b)) {
+        (Some(na), Some(nb)) => num_compare(&na, &nb).unwrap_or(Ordering::Equal),
+        _ => Ordering::Equal,
+    });
+
+    let list = Term::List(
+        roots
+            .into_iter()
+            .map(|r| Term::List(vec![Term::apply("Rule", vec![Term::symbol(var), r])]))
+            .collect(),
+    );
+    EvalOutcome::value(list)
+}
+
+fn number_to_term(n: &Number) -> Term {
+    if let Some(i) = n.as_exact_integer() {
+        return Term::int(i);
+    }
+    if let Some(i) = n.as_integer() {
+        if let Some(v) = i.to_i64() {
+            return Term::int(v);
+        }
+    }
+    if let Some(r) = n.as_rational() {
+        return rational_to_term(r);
+    }
+    Term::number(clone_number(n))
+}
+
+/// 将 `Plus`/`Times`/`Power` 展开为单变量 `(coeff, degree)` 项（仅有理系数）。
+fn collect_univariate_monomials(expr: &Term, var: &str) -> Option<Vec<(Number, u32)>> {
+    fn merge(dst: &mut Vec<(Number, u32)>, src: Vec<(Number, u32)>) -> Option<()> {
+        for (c, d) in src {
+            if let Some((existing, _)) = dst.iter_mut().find(|(_, ed)| *ed == d) {
+                *existing = num_add(clone_number(existing), c).ok()?;
+            }
+            else {
+                dst.push((c, d));
+            }
+        }
+        dst.retain(|(c, _)| !c.is_zero());
+        Some(())
+    }
+
+    fn mul_lists(a: &[(Number, u32)], b: &[(Number, u32)]) -> Option<Vec<(Number, u32)>> {
+        let mut out = Vec::new();
+        for (ca, da) in a {
+            for (cb, db) in b {
+                let c = num_mul(clone_number(ca), clone_number(cb)).ok()?;
+                let d = da.checked_add(*db)?;
+                merge(&mut out, vec![(c, d)])?;
+            }
+        }
+        Some(out)
+    }
+
+    fn go(expr: &Term, var: &str) -> Option<Vec<(Number, u32)>> {
+        match expr {
+            Term::Atom(Atom::Symbol(s)) if s.as_str() == var => Some(vec![(Number::small_int(1), 1)]),
+            Term::Atom(_) => {
+                let n = number_from_term(expr)?;
+                Some(vec![(clone_number(n), 0)])
+            }
+            Term::Application { head, arguments } if head.is_symbol("Plus") => {
+                let mut out = Vec::new();
+                for a in arguments {
+                    merge(&mut out, go(a, var)?)?;
+                }
+                Some(out)
+            }
+            Term::Application { head, arguments } if head.is_symbol("Times") => {
+                let mut out = vec![(Number::small_int(1), 0)];
+                for a in arguments {
+                    out = mul_lists(&out, &go(a, var)?)?;
+                }
+                Some(out)
+            }
+            Term::Application { head, arguments } if head.is_symbol("Power") && arguments.len() == 2 => {
+                let exp = number_from_term(&arguments[1])?.as_integer_exp()?;
+                if exp < 0 {
+                    return None;
+                }
+                let exp = exp as u32;
+                if arguments[0].is_symbol(var) {
+                    return Some(vec![(Number::small_int(1), exp)]);
+                }
+                let base = go(&arguments[0], var)?;
+                if base.len() == 1 && base[0].1 == 0 {
+                    let mut p = Number::small_int(1);
+                    for _ in 0..exp {
+                        p = num_mul(p, clone_number(&base[0].0)).ok()?;
+                    }
+                    return Some(vec![(p, 0)]);
+                }
+                // (poly)^n：仅支持已展开低次，保守拒绝。
+                if exp == 0 {
+                    return Some(vec![(Number::small_int(1), 0)]);
+                }
+                if exp == 1 {
+                    return Some(base);
+                }
+                None
+            }
+            Term::List(_) => None,
+            other => {
+                if let Some(n) = number_from_term(other) {
+                    Some(vec![(clone_number(n), 0)])
+                }
+                else {
+                    None
+                }
+            }
+        }
+    }
+
+    go(expr, var)
 }
 
 /// Living 25 Term bridge：exact `A\b` via [`solve_exact`]. Non-numeric / singular → keep head + diagnostic.
