@@ -275,6 +275,57 @@ fn for_span_last_value() {
 }
 
 #[test]
+fn for_accumulator_shares_compound_bindings() {
+    let e = evaluate(&Term::apply(
+        "CompoundExpression",
+        vec![
+            Term::apply("Set", vec![Term::symbol("s"), Term::int(0)]),
+            Term::apply(
+                "For",
+                vec![
+                    Term::symbol("i"),
+                    Term::apply("Span", vec![Term::int(1), Term::int(3)]),
+                    Term::apply(
+                        "Set",
+                        vec![
+                            Term::symbol("s"),
+                            Term::apply("Plus", vec![Term::symbol("s"), Term::symbol("i")]),
+                        ],
+                    ),
+                ],
+            ),
+            Term::symbol("s"),
+        ],
+    ));
+    assert_eq!(e, Term::int(6));
+}
+
+#[test]
+fn compare_chain_less_expands_to_and() {
+    let e = evaluate(&Term::apply(
+        "Less",
+        vec![Term::apply("Less", vec![Term::int(1), Term::int(2)]), Term::int(3)],
+    ));
+    assert_eq!(e, Term::boolean(true));
+    let e2 = evaluate(&Term::apply(
+        "Less",
+        vec![Term::apply("Less", vec![Term::int(1), Term::int(0)]), Term::int(3)],
+    ));
+    assert_eq!(e2, Term::boolean(false));
+}
+
+#[test]
+fn try_catch_on_error_and_success() {
+    let err = evaluate(&Term::apply(
+        "Try",
+        vec![Term::apply("error", vec![Term::Atom(Atom::String("e".into()))]), Term::int(1)],
+    ));
+    assert_eq!(err, Term::int(1));
+    let ok = evaluate(&Term::apply("Try", vec![Term::int(2), Term::int(3)]));
+    assert_eq!(ok, Term::int(2));
+}
+
+#[test]
 fn with_module_block_local_bindings() {
     use athena_engine::clone_term;
 
