@@ -10,6 +10,7 @@
 #![deny(missing_docs)]
 
 pub mod algebra;
+pub mod arena_ops;
 pub mod calculus;
 pub mod domain;
 pub mod eval;
@@ -26,6 +27,7 @@ pub mod object;
 pub mod optimization;
 pub mod plot;
 pub mod polynomial;
+pub mod present;
 pub mod rewriter;
 pub mod semantic;
 pub mod session;
@@ -33,6 +35,7 @@ pub mod solve;
 pub mod solver;
 pub mod symbol;
 pub mod term;
+pub mod value;
 
 mod engine;
 mod numeric_clone;
@@ -54,7 +57,7 @@ pub use algebra::{
     PermutationGroupSpec, PropertyState, PropertyWitness, QuotientProjection, SubgroupInclusion, field_automorphism,
     frobenius_coords, is_galois_extension,
 };
-pub use athena_ir::{AtomKind, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
+pub use athena_ir::{AtomKind, OperatorRegistry, SymbolTable, TermArena, TermBuilder, TermKind, canonical_hash};
 pub use athena_numeric::{
     BarrettParams, ExactInteger, ExactRational, Integer, ModularTimingPolicy, ModularValue, Modulus, ModulusBinding,
     ModulusContext, ModulusTable, MontgomeryParams, Number, NumericBackend, NumericBackendContract, NumericBackendLimits,
@@ -169,6 +172,7 @@ pub use polynomial::{
 };
 pub use semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable};
 pub use session::Session;
+pub use value::ValueBindingTable;
 pub use solve::{
     BindingId, BindingMap, BindingValue, BindingValueTable, BoundSymbol, BranchStatus, Constraint, ConstraintConnective,
     ConstraintSet, CoverageStatus, Equation, ExecutionLimits, Inequality, InequalityOp, LinearAdaptedSolution, LinearSolveMode,

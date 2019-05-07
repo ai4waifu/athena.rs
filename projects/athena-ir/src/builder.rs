@@ -6,6 +6,7 @@ use athena_types::{OperatorId, SourceSpan, SymbolId, TermId};
 use crate::{
     arena::TermArena,
     node::{AtomKind, TermKind},
+    operator::OperatorRegistry,
     symbol::SymbolTable,
 };
 
@@ -50,6 +51,33 @@ impl<'a> TermBuilder<'a> {
     /// 算子应用 term。
     pub fn app(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
         self.arena.push(TermKind::App { op, args }, span)
+    }
+
+    /// 经注册表解析 head 名的应用 term。
+    pub fn app_named(
+        &mut self,
+        registry: &mut OperatorRegistry,
+        head: &str,
+        args: Vec<TermId>,
+        span: SourceSpan,
+    ) -> TermId {
+        let op = registry.intern(head);
+        self.app(op, args, span)
+    }
+
+    /// Typed Boolean 原子 term。
+    pub fn boolean(&mut self, value: bool, span: SourceSpan) -> TermId {
+        self.arena.push(TermKind::Atom(AtomKind::Boolean(value)), span)
+    }
+
+    /// Typed Null 原子 term。
+    pub fn null(&mut self, span: SourceSpan) -> TermId {
+        self.arena.push(TermKind::Atom(AtomKind::Null), span)
+    }
+
+    /// 小型精确整数。
+    pub fn int(&mut self, n: i64, span: SourceSpan) -> TermId {
+        self.number(NumericValue::small_int(n), span)
     }
 
     /// 符号表（只读）。
