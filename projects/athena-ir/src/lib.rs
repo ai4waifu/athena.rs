@@ -17,7 +17,7 @@ pub use athena_numeric as numeric;
 
 pub use arena::TermArena;
 pub use builder::TermBuilder;
-pub use hash::canonical_hash;
+pub use hash::{canonical_hash, canonical_hash_named, fnv1a64};
 pub use node::{AtomKind, TermKind};
 pub use operator::OperatorRegistry;
 pub use symbol::SymbolTable;

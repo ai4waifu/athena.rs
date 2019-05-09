@@ -60,6 +60,35 @@ impl TermArena {
     pub fn verify(&self, root: TermId) -> Result<()> {
         verify_term(self, root, &mut vec![])
     }
+
+    /// 结构等价（数值载荷按 [`NumericValue`](athena_numeric::NumericValue) 精确相等）。
+    ///
+    /// DAG 共享子图去重；与插入地址无关，只比结构与载荷。
+    pub fn structural_eq(&self, a: TermId, b: TermId) -> bool {
+        let mut seen = std::collections::HashSet::new();
+        structural_eq_walk(self, a, b, &mut seen)
+    }
+}
+
+fn structural_eq_walk(arena: &TermArena, x: TermId, y: TermId, seen: &mut std::collections::HashSet<(u32, u32)>) -> bool {
+    if x == y {
+        return true;
+    }
+    if !seen.insert((x.0, y.0)) {
+        return true;
+    }
+    match (arena.get(x), arena.get(y)) {
+        (Some(TermKind::Atom(p)), Some(TermKind::Atom(q))) => p == q,
+        (Some(TermKind::List(xs)), Some(TermKind::List(ys))) => {
+            xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
+        }
+        (Some(TermKind::App { op: op_x, args: xs }), Some(TermKind::App { op: op_y, args: ys })) => {
+            op_x == op_y
+                && xs.len() == ys.len()
+                && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
+        }
+        _ => false,
+    }
 }
 
 fn verify_term(arena: &TermArena, id: TermId, stack: &mut Vec<TermId>) -> Result<()> {
