@@ -1,8 +1,8 @@
 //! 𝔽_p 系数专用内核：小素数 word path · 大素数 `Modulus` path。
 
+use crate::numeric_clone::clone_integer;
 use athena_numeric::{Integer, Modulus, Number, NumericValue};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
-use crate::numeric_clone::{clone_integer};
 
 /// 小素数 word 内核（`p` 落入 `u64`；乘积经 `u128` 约化）。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

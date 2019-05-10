@@ -2,9 +2,7 @@
 
 use athena_types::AssumptionSet;
 
-use crate::{
-    term::{Atom, Term, number_from_term},
-};
+use crate::term::{Atom, Term, number_from_term};
 
 use super::request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
 use crate::numeric_clone::{clone_term, clone_terms};
@@ -190,7 +188,13 @@ fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
     else {
         3
     };
-    Some(CalculusRequest::Laurent { expression: clone_term(expr), variable, center, order, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Laurent {
+        expression: clone_term(expr),
+        variable,
+        center,
+        order,
+        assumptions: AssumptionSet::empty(),
+    })
 }
 
 fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
@@ -215,13 +219,23 @@ fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
             else {
                 3
             };
-            Some(CalculusRequest::Asymptotic { expression: clone_term(expr), variable, order, assumptions: AssumptionSet::empty() })
+            Some(CalculusRequest::Asymptotic {
+                expression: clone_term(expr),
+                variable,
+                order,
+                assumptions: AssumptionSet::empty(),
+            })
         }
         [expr, var, order_term] => {
             let variable = symbol_name(var)?;
             let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
             let order = u32::try_from(n).ok()?;
-            Some(CalculusRequest::Asymptotic { expression: clone_term(expr), variable, order, assumptions: AssumptionSet::empty() })
+            Some(CalculusRequest::Asymptotic {
+                expression: clone_term(expr),
+                variable,
+                order,
+                assumptions: AssumptionSet::empty(),
+            })
         }
         _ => None,
     }
@@ -357,7 +371,11 @@ fn lower_curl(args: &[Term]) -> Option<CalculusRequest> {
         return None;
     };
     let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
-    Some(CalculusRequest::Curl { components: clone_terms(components), variables: variables?, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Curl {
+        components: clone_terms(components),
+        variables: variables?,
+        assumptions: AssumptionSet::empty(),
+    })
 }
 
 fn symbol_name(term: &Term) -> Option<String> {

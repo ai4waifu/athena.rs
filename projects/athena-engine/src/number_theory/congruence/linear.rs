@@ -3,12 +3,12 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_integer, clone_modulus};
 use super::super::{
     gcd::extended_gcd,
     result::NumberTheoryResult,
     value::{CongruenceSolution, NumberTheoryValue},
 };
+use crate::numeric_clone::{clone_integer, clone_modulus};
 
 /// 求解 `a x ≡ b (mod m)`。`m` 须为已验证 [`Modulus`]。
 pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> NumberTheoryResult {

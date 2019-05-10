@@ -3,12 +3,15 @@
 use athena_ir::{AtomKind, TermKind};
 use athena_types::ValueId;
 
-use crate::arena_ops::{app_head_name, app_args, term_of_value};
-use crate::session::Session;
+use crate::{
+    arena_ops::{app_args, app_head_name, term_of_value},
+    session::Session,
+};
 
 /// 将 [`ValueId`] 呈现为调试字符串。
 pub fn value_debug(session: &Session, value: ValueId) -> String {
-    let Some(id) = term_of_value(session, value) else {
+    let Some(id) = term_of_value(session, value)
+    else {
         return format!("ValueId({})", value.0);
     };
     term_debug(session, id)
@@ -34,7 +37,7 @@ pub fn term_debug(session: &Session, id: athena_types::TermId) -> String {
 
 fn atom_debug(session: &Session, atom: &AtomKind) -> String {
     match atom {
-        AtomKind::Number(n) => format!("{n:?}"),
+        AtomKind::Number(n) => n.to_render_string(),
         AtomKind::String(s) => format!("\"{s}\""),
         AtomKind::Symbol(sym) => session.arena.symbols().resolve(*sym).unwrap_or("?").to_string(),
         AtomKind::Boolean(true) => "True".into(),

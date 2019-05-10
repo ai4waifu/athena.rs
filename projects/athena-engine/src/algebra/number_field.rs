@@ -1,8 +1,8 @@
 //! 数域 `ℚ(α)` 幂基与相对扩张算术。
 
+use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
-use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 
 /// 数域幂基 / 相对塔规格。
 #[derive(Debug, PartialEq, Eq)]
@@ -109,8 +109,14 @@ pub fn embed_base_coords(base_coords: &[Rational], absolute_degree: u32, base_de
     if base_coords.len() != base_degree as usize {
         return Err(elem_err("embed_base_length"));
     }
-    let mut out = { let mut __v = Vec::new(); resize_rationals(&mut __v, absolute_degree as usize, &Rational::zero()); __v };
-    for (dst, src) in out.iter_mut().zip(base_coords.iter()) { *dst = clone_rational(src); }
+    let mut out = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, absolute_degree as usize, &Rational::zero());
+        __v
+    };
+    for (dst, src) in out.iter_mut().zip(base_coords.iter()) {
+        *dst = clone_rational(src);
+    }
     Ok(out)
 }
 
@@ -122,7 +128,11 @@ pub fn relative_modulus_from_rational(coeffs: &[Rational], base_degree: u32) -> 
     Ok(monic
         .into_iter()
         .map(|c| {
-            let mut block = { let mut __v = Vec::new(); resize_rationals(&mut __v, bd, &Rational::zero()); __v };
+            let mut block = {
+                let mut __v = Vec::new();
+                resize_rationals(&mut __v, bd, &Rational::zero());
+                __v
+            };
             block[0] = c;
             block
         })
@@ -156,7 +166,11 @@ pub fn minimal_polynomial_over_q(coords: &[Rational], modulus: &[Rational]) -> R
     }
     let mut powers = Vec::with_capacity(n + 1);
     let mut cur = {
-        let mut one = { let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v };
+        let mut one = {
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, n, &Rational::zero());
+            __v
+        };
         one[0] = Rational::one();
         one
     };
@@ -184,7 +198,15 @@ pub fn mul_relative_nf_coords(
     }
     let a_poly = split_blocks(a, bd, rd);
     let b_poly = split_blocks(b, bd, rd);
-    let mut prod = { let mut __out = Vec::with_capacity(2 * rd); for _ in 0..(2 * rd) { let mut __v = Vec::new(); resize_rationals(&mut __v, bd, &Rational::zero()); __out.push(__v); } __out };
+    let mut prod = {
+        let mut __out = Vec::with_capacity(2 * rd);
+        for _ in 0..(2 * rd) {
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, bd, &Rational::zero());
+            __out.push(__v);
+        }
+        __out
+    };
     for i in 0..rd {
         for j in 0..rd {
             let p = mul_nf_coords(&a_poly[i], &b_poly[j], base_modulus);
@@ -194,7 +216,11 @@ pub fn mul_relative_nf_coords(
     let g = relative_modulus;
     let dg = g.len() - 1;
     while prod.len() > dg {
-        let lead = prod.last().map(|v| clone_rationals(v)).unwrap_or_else(|| { let mut __v = Vec::new(); resize_rationals(&mut __v, bd, &Rational::zero()); __v });
+        let lead = prod.last().map(|v| clone_rationals(v)).unwrap_or_else(|| {
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, bd, &Rational::zero());
+            __v
+        });
         if lead.iter().all(|c| c.is_zero()) {
             prod.pop();
             continue;
@@ -208,7 +234,14 @@ pub fn mul_relative_nf_coords(
             prod.pop();
         }
     }
-    while prod.len() < (rd) { prod.push({ let mut __v = Vec::new(); resize_rationals(&mut __v, bd, &Rational::zero()); __v }); } prod.truncate(rd);
+    while prod.len() < (rd) {
+        prod.push({
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, bd, &Rational::zero());
+            __v
+        });
+    }
+    prod.truncate(rd);
     Ok(flatten_blocks(&prod))
 }
 
@@ -224,10 +257,18 @@ pub fn inv_relative_nf_coords(
     if a.iter().all(|c| c.is_zero()) {
         return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "field"));
     }
-    let mut one = { let mut __v = Vec::new(); resize_rationals(&mut __v, abs, &Rational::zero()); __v };
+    let mut one = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, abs, &Rational::zero());
+        __v
+    };
     one[0] = Rational::one();
     let mut cols = Vec::with_capacity(abs);
-    let mut e = { let mut __v = Vec::new(); resize_rationals(&mut __v, abs, &Rational::zero()); __v };
+    let mut e = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, abs, &Rational::zero());
+        __v
+    };
     for i in 0..abs {
         e[i] = Rational::one();
         if i > 0 {
@@ -352,7 +393,11 @@ fn has_factor_degree(z: &[Integer], degree: usize) -> bool {
         return false;
     }
     let bound = 3i64;
-    let mut coeffs = { let mut __v = Vec::new(); resize_integers(&mut __v, degree + 1, &Integer::zero()); __v };
+    let mut coeffs = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, degree + 1, &Integer::zero());
+        __v
+    };
     coeffs[degree] = Integer::one();
     loop {
         if divides_z(z, &coeffs) {
@@ -384,7 +429,11 @@ fn div_rem_z(a: &[Integer], b: &[Integer]) -> (Vec<Integer>, Vec<Integer>) {
     }
     let db = bb.len() - 1;
     let lb = clone_integer(&bb[db]);
-    let mut quot = { let mut __v = Vec::new(); resize_integers(&mut __v, rem.len() - bb.len() + 1, &Integer::zero()); __v };
+    let mut quot = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, rem.len() - bb.len() + 1, &Integer::zero());
+        __v
+    };
     while rem.len() >= bb.len() {
         let dr = rem.len() - 1;
         let lr = clone_integer(&rem[dr]);
@@ -423,7 +472,11 @@ fn poly_mul_q(a: &[Rational], b: &[Rational]) -> Vec<Rational> {
     if a.is_empty() || b.is_empty() {
         return Vec::new();
     }
-    let mut out = { let mut __v = Vec::new(); resize_rationals(&mut __v, a.len() + b.len() - 1, &Rational::zero()); __v };
+    let mut out = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, a.len() + b.len() - 1, &Rational::zero());
+        __v
+    };
     for (i, x) in a.iter().enumerate() {
         if x.is_zero() {
             continue;
@@ -503,7 +556,11 @@ fn poly_div_rem_q(a: &[Rational], b: &[Rational]) -> Result<(Vec<Rational>, Vec<
     if rem.len() < b.len() {
         return Ok((Vec::new(), rem));
     }
-    let mut quot = { let mut __v = Vec::new(); resize_rationals(&mut __v, rem.len() - b.len() + 1, &Rational::zero()); __v };
+    let mut quot = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, rem.len() - b.len() + 1, &Rational::zero());
+        __v
+    };
     while rem.len() >= b.len() {
         let dr = rem.len() - 1;
         let lr = clone_rational(&rem[dr]);
@@ -529,7 +586,11 @@ fn poly_div_rem_q(a: &[Rational], b: &[Rational]) -> Result<(Vec<Rational>, Vec<
 
 fn poly_sub_q(a: &[Rational], b: &[Rational]) -> Vec<Rational> {
     let n = a.len().max(b.len());
-    let mut out = { let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v };
+    let mut out = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, n, &Rational::zero());
+        __v
+    };
     for i in 0..n {
         let x = a.get(i).map(clone_rational).unwrap_or_else(Rational::zero);
         let y = b.get(i).map(clone_rational).unwrap_or_else(Rational::zero);
@@ -548,7 +609,15 @@ fn trim_q(mut v: Vec<Rational>) -> Vec<Rational> {
 fn shortest_relation(powers: &[Vec<Rational>]) -> Result<Option<Vec<Rational>>> {
     let cols = powers.len();
     let rows = powers[0].len();
-    let mut mat = { let mut __out = Vec::with_capacity(rows); for _ in 0..(rows) { let mut __v = Vec::new(); resize_rationals(&mut __v, cols, &Rational::zero()); __out.push(__v); } __out };
+    let mut mat = {
+        let mut __out = Vec::with_capacity(rows);
+        for _ in 0..(rows) {
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, cols, &Rational::zero());
+            __out.push(__v);
+        }
+        __out
+    };
     for j in 0..cols {
         for i in 0..rows {
             mat[i][j] = clone_rational(&powers[j][i]);
@@ -603,7 +672,11 @@ fn shortest_relation(powers: &[Vec<Rational>]) -> Result<Option<Vec<Rational>>> 
         return Ok(None);
     }
     let f = *free.last().unwrap();
-    let mut rel = { let mut __v = Vec::new(); resize_rationals(&mut __v, cols, &Rational::zero()); __v };
+    let mut rel = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, cols, &Rational::zero());
+        __v
+    };
     rel[f] = Rational::one();
     for row in 0..rows {
         let piv = (0..cols).find(|&c| !mat[row][c].is_zero());
@@ -636,7 +709,15 @@ fn flatten_blocks(blocks: &[Vec<Rational>]) -> Vec<Rational> {
 
 fn solve_linear_q(columns: &[Vec<Rational>], target: &[Rational]) -> Result<Vec<Rational>> {
     let n = columns.len();
-    let mut mat = { let mut __out = Vec::with_capacity(n); for _ in 0..(n) { let mut __v = Vec::new(); resize_rationals(&mut __v, n + 1, &Rational::zero()); __out.push(__v); } __out };
+    let mut mat = {
+        let mut __out = Vec::with_capacity(n);
+        for _ in 0..(n) {
+            let mut __v = Vec::new();
+            resize_rationals(&mut __v, n + 1, &Rational::zero());
+            __out.push(__v);
+        }
+        __out
+    };
     for j in 0..n {
         for i in 0..n {
             mat[i][j] = clone_rational(&columns[j][i]);

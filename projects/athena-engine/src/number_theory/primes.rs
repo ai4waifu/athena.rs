@@ -6,7 +6,7 @@ use super::{
     certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence},
     value::Primality,
 };
-use crate::numeric_clone::{clone_integer};
+use crate::numeric_clone::clone_integer;
 
 /// 默认 Miller–Rabin 固定基数量上限（大整数路径）。
 pub const DEFAULT_MR_ROUNDS: u32 = 16;

@@ -1,8 +1,8 @@
 //! `RingTable` ↔ `FieldTable` 系数域统一。
 
-use athena_engine::{clone_number, 
+use athena_engine::{
     AlgebraParentId, CoefficientDomain, CoefficientParent, FieldId, Integer, MonomialOrder, RingTable, SymbolId,
-    add_polynomial, mul_polynomial,
+    add_polynomial, clone_number, mul_polynomial,
 };
 use athena_numeric::Number;
 

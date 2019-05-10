@@ -1,7 +1,6 @@
 //! 统一的微积分 / 域值（表达式、级数或向量微积分对象）。
 
-use crate::numeric_clone::clone_term;
-use crate::term::Term;
+use crate::{numeric_clone::clone_term, term::Term};
 
 use super::{
     differential::DifferentialSolution,

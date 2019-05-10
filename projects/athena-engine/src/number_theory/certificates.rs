@@ -1,7 +1,7 @@
 //! 素性 / 分解可验证证据（verifier-friendly；生成器可后续扩展）。
 
-use athena_numeric::Integer;
 use crate::numeric_clone::clone_integer;
+use athena_numeric::Integer;
 
 use super::value::MillerRabinBaseSelection;
 
@@ -61,7 +61,6 @@ pub enum CompositeWitness {
         base: u32,
     },
 }
-
 
 impl CompositeWitness {
     /// Owning 复制。

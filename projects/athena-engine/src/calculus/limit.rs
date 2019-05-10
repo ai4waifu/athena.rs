@@ -8,12 +8,12 @@ use crate::{
     term::{Term, number_from_term},
 };
 
-use crate::numeric_clone::{clone_number, clone_term};
 use super::{
     request::{LimitApproach, LimitDirection},
     result::CalculusResult,
     term_util::{contains_symbol, replace_symbol},
 };
+use crate::numeric_clone::{clone_number, clone_term};
 
 /// 在假设下尝试求极限。
 pub fn limit_checked(
@@ -310,7 +310,10 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                     Some((n, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => polynomial_degree_leading(
-                    &Term::apply("Plus", vec![clone_term(&args[0]), Term::apply("Times", vec![Term::int(-1), clone_term(&args[1])])]),
+                    &Term::apply(
+                        "Plus",
+                        vec![clone_term(&args[0]), Term::apply("Times", vec![Term::int(-1), clone_term(&args[1])])],
+                    ),
                     var,
                 ),
                 _ => None,

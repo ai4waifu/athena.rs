@@ -3,8 +3,10 @@
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, FieldId, SymbolId};
 
-use crate::numeric_clone::{clone_integer, clone_modulus};
-use crate::algebra::{CoefficientParent, FieldTable};
+use crate::{
+    algebra::{CoefficientParent, FieldTable},
+    numeric_clone::{clone_integer, clone_modulus},
+};
 
 use super::{fingerprint::RingFingerprint, monomial_layout::MonomialLayout, order::MonomialOrder};
 
@@ -102,7 +104,6 @@ impl RingDescriptor {
         self.variables.len()
     }
 }
-
 
 impl CoefficientDomain {
     /// Owning 复制。

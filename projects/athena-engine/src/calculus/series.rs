@@ -2,9 +2,9 @@
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_term};
 use crate::{
     eval::evaluate,
+    numeric_clone::clone_term,
     term::{Term, number_from_term},
 };
 
@@ -179,7 +179,10 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
         Term::symbol(variable)
     }
     else {
-        evaluate(&Term::apply("Plus", vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), clone_term(&center)])]))
+        evaluate(&Term::apply(
+            "Plus",
+            vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), clone_term(&center)])],
+        ))
     };
 
     for m in 0..=MAX_POLE {

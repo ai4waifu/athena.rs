@@ -4,11 +4,11 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::term::Term;
 
-use crate::numeric_clone::{clone_term};
 use super::{
     result::CalculusResult,
     series::{Remainder, laurent},
 };
+use crate::numeric_clone::clone_term;
 
 /// 在 `point` 处的留数对象（非裸系数）。
 #[derive(Debug, PartialEq)]
@@ -40,7 +40,8 @@ pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> Calcu
         CalculusResult::Exact { value: series, conditions } => {
             let pole_order =
                 series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
-            let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| clone_term(&c)).unwrap_or_else(|| Term::int(0));
+            let value =
+                series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| clone_term(&c)).unwrap_or_else(|| Term::int(0));
             // 若余项未知且无主部，不假装精确 0
             if matches!(series.remainder, Remainder::Unknown) && pole_order == 0 && is_zero_like(&value) {
                 return CalculusResult::Unevaluated {
@@ -72,7 +73,8 @@ pub fn residue_checked(expression: &Term, variable: &str, point: &Term) -> Calcu
         CalculusResult::Conditional { value: series, conditions } => {
             let pole_order =
                 series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
-            let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| clone_term(&c)).unwrap_or_else(|| Term::int(0));
+            let value =
+                series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| clone_term(&c)).unwrap_or_else(|| Term::int(0));
             CalculusResult::Conditional {
                 value: Residue {
                     expression: clone_term(&expression),

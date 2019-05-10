@@ -3,8 +3,7 @@
 //! 与 [`athena_numeric::Integer::add`] 同合同：经 [`NumericContext::portable_default`]，
 //! 预算无界时 `expect`。有 Session / 显式 context 的路径应改调 [`Integer::try_clone_in`]。
 
-use athena_numeric::natural::Natural;
-use athena_numeric::{Integer, Modulus, ModularValue, Number, NumericContext, Rational};
+use athena_numeric::{Integer, ModularValue, Modulus, Number, NumericContext, Rational, natural::Natural};
 use athena_types::Result;
 
 use crate::term::{Atom, Term};
@@ -66,7 +65,6 @@ pub fn clone_modular(m: &ModularValue) -> ModularValue {
 pub fn try_clone_integer(n: &Integer, ctx: &NumericContext) -> Result<Integer> {
     n.try_clone_in(ctx)
 }
-
 
 /// Vec<Integer> 扩容（不依赖 Integer: Clone）。
 pub fn resize_integers(v: &mut Vec<Integer>, new_len: usize, fill: &Integer) {

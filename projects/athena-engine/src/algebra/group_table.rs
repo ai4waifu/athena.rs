@@ -7,7 +7,6 @@ use athena_types::{AlgebraMapId, Diagnostic, DiagnosticCode, GroupId, GroupPrese
 
 use crate::group::{Group, GroupDescriptor, Permutation, Subgroup};
 
-use crate::numeric_clone::{clone_integer};
 use super::{
     bsgs::BsgsChain,
     fingerprint::GroupFingerprint,
@@ -16,6 +15,7 @@ use super::{
     presentation::{GroupPresentation, GroupPresentationKind},
     subgroup::{coset_index, is_normal, quotient_generators, verify_homomorphism_and_cache},
 };
+use crate::numeric_clone::clone_integer;
 
 /// 置换群 intern 规格。
 #[derive(Debug)]

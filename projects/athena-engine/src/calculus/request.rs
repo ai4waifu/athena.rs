@@ -2,8 +2,10 @@
 
 use athena_types::AssumptionSet;
 
-use crate::numeric_clone::{clone_term, clone_terms};
-use crate::term::Term;
+use crate::{
+    numeric_clone::{clone_term, clone_terms},
+    term::Term,
+};
 
 /// 求导阶数。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

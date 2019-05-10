@@ -66,7 +66,9 @@ impl PolynomialRepr {
         let desc = rings.get(poly.ring()).ok_or_else(|| ring_unknown(poly.ring()))?;
         let n = desc.variable_count();
         let body = match target {
-            ReprTarget::DistributedSparse => PolynomialReprBody::DistributedSparse { terms: poly.terms().iter().map(|t| t.owning_copy()).collect() },
+            ReprTarget::DistributedSparse => {
+                PolynomialReprBody::DistributedSparse { terms: poly.terms().iter().map(|t| t.owning_copy()).collect() }
+            }
             ReprTarget::DenseUnivariate { var_index } | ReprTarget::SparseUnivariate { var_index } => {
                 if var_index >= n {
                     return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
@@ -85,23 +87,21 @@ impl PolynomialRepr {
         Ok(Self { ring: poly.ring(), body })
     }
 
-
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             ring: self.ring,
             body: match &self.body {
-                PolynomialReprBody::DenseUnivariate { var_index, coefficients } => PolynomialReprBody::DenseUnivariate {
-                    var_index: *var_index,
-                    coefficients: clone_numbers(coefficients),
-                },
+                PolynomialReprBody::DenseUnivariate { var_index, coefficients } => {
+                    PolynomialReprBody::DenseUnivariate { var_index: *var_index, coefficients: clone_numbers(coefficients) }
+                }
                 PolynomialReprBody::SparseUnivariate { var_index, terms } => PolynomialReprBody::SparseUnivariate {
                     var_index: *var_index,
                     terms: terms.iter().map(|(d, c)| (*d, clone_number(c))).collect(),
                 },
-                PolynomialReprBody::DistributedSparse { terms } => PolynomialReprBody::DistributedSparse {
-                    terms: terms.iter().map(|tm| tm.owning_copy()).collect(),
-                },
+                PolynomialReprBody::DistributedSparse { terms } => {
+                    PolynomialReprBody::DistributedSparse { terms: terms.iter().map(|tm| tm.owning_copy()).collect() }
+                }
             },
         }
     }
@@ -170,7 +170,11 @@ fn terms_to_dense(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<Number
     for term in terms {
         max_deg = max_deg.max(term.exponents()[var_index] as usize);
     }
-    let mut coeffs = { let mut __v = Vec::new(); resize_numbers(&mut __v, max_deg + 1, &Number::integer(Integer::zero())); __v };
+    let mut coeffs = {
+        let mut __v = Vec::new();
+        resize_numbers(&mut __v, max_deg + 1, &Number::integer(Integer::zero()));
+        __v
+    };
     for term in terms {
         let d = term.exponents()[var_index] as usize;
         coeffs[d] = clone_number(term.coefficient());

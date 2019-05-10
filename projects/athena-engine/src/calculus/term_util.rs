@@ -1,7 +1,9 @@
 //! 微积分模块共享的项改写。
 
-use crate::numeric_clone::{clone_term};
-use crate::term::{Atom, Term};
+use crate::{
+    numeric_clone::clone_term,
+    term::{Atom, Term},
+};
 
 /// 将 `var` 的每次出现替换为 `with`。
 pub fn replace_symbol(expr: &Term, var: &str, with: &Term) -> Term {

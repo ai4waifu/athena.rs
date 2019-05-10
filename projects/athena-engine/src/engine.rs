@@ -2,9 +2,9 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::numeric_clone::clone_term;
 use crate::{
     domain::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
+    numeric_clone::clone_term,
     term::Term,
 };
 

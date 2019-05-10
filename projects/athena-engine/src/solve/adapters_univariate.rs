@@ -17,7 +17,7 @@ use super::{
     solution::{BranchStatus, MultiplicityInfo, SolutionBranch, SolutionSet},
     value_table::{BindingValue, BindingValueTable},
 };
-use crate::numeric_clone::{clone_number};
+use crate::numeric_clone::clone_number;
 
 /// 一元根适配结果。
 #[derive(Debug, PartialEq)]

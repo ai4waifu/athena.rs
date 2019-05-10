@@ -1,8 +1,8 @@
-﻿//! 鏁拌鍩?gate锛歡cd / 绱犳€?/ 鍒嗚В / 妯¤繍绠椼€?
+//! 鏁拌鍩?gate锛歡cd / 绱犳€?/ 鍒嗚В / 妯¤繍绠椼€?
 
-use athena_engine::{clone_modulus, 
+use athena_engine::{
     AthenaEngine, DiagnosticCode, DomainRequest, DomainResult, FactorLimits, FactorizationCompleteness, Integer, Modulus,
-    NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality,
+    NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality, clone_modulus,
 };
 
 fn expect_nt(r: Result<DomainResult, athena_types::Diagnostic>) -> NumberTheoryResult {
@@ -87,9 +87,10 @@ fn factor_integer_complete_small() {
 fn modular_inverse_and_pow() {
     let engine = AthenaEngine::new();
     let m = Modulus::new(17).unwrap();
-    let out = expect_nt(
-        engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 3.into(), modulus: clone_modulus(&m) })),
-    );
+    let out = expect_nt(engine.execute_domain(DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse {
+        a: 3.into(),
+        modulus: clone_modulus(&m),
+    })));
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => {
             assert_eq!(v.residue(), Integer::from_i64(6)); // 3*6=18鈮?

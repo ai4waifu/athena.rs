@@ -126,14 +126,17 @@ pub enum Definition {
     Own(Term),
     /// `SetDelayed`：存未求值 RHS，使用时再求值。
     Delayed(Term),
+    /// Patterned down-values：`f[x_] := rhs` keyed by head `f`.
+    DownValues(Vec<(Term, Term)>),
 }
 
-/// Own / Delayed 符号定义表。
+/// Own / Delayed / DownValues 符号定义表。
 pub type DefinitionMap = std::collections::HashMap<String, Definition>;
 
-fn definition_term(def: &Definition) -> Term {
+fn definition_term(def: &Definition) -> Option<Term> {
     match def {
-        Definition::Own(t) | Definition::Delayed(t) => clone_term(t),
+        Definition::Own(t) | Definition::Delayed(t) => Some(clone_term(t)),
+        Definition::DownValues(_) => None,
     }
 }
 
@@ -160,6 +163,11 @@ pub fn evaluate_with_definitions(definitions: &mut DefinitionMap, expr: &Term) -
             definitions.insert(name, Definition::Own(clone_term(&o.term)));
         }
         return o;
+    }
+
+    if let Some((name, lhs, rhs)) = match_set_delayed_down(&rewritten) {
+        insert_down_value(definitions, name, lhs, rhs);
+        return EvalOutcome::value(Term::null());
     }
 
     if let Some((name, rhs)) = match_set_delayed(&rewritten) {
@@ -264,10 +272,9 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         _ => return None,
     };
     match name {
-        "Hold" | "HoldForm" => Some(EvalOutcome::unevaluated(Term::Application {
-            head: Box::new(clone_term(head)),
-            arguments: clone_terms(args),
-        })),
+        "Hold" | "HoldForm" => {
+            Some(EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) }))
+        }
         "If" => Some(eval_if(args, depth)),
         "Which" => Some(eval_which(args, depth)),
         "While" => Some(eval_while(args, depth, &mut DefinitionMap::new())),
@@ -282,9 +289,9 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         // Chained comparisons must see unevaluated nested compare ops (`1 < 2 < 3`).
         "Less" | "Greater" | "LessEqual" | "GreaterEqual" => Some(eval_compare_chain(name, args, depth)),
         "Try" => Some(eval_try(args, depth)),
-        "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => Some(EvalOutcome::unevaluated(
-            Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) },
-        )),
+        "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => {
+            Some(EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) }))
+        }
         _ => None,
     }
 }
@@ -307,7 +314,8 @@ fn eval_cases(args: &[Term], depth: u32) -> EvalOutcome {
         return EvalOutcome::unevaluated(Term::apply("Cases", clone_terms(args)));
     }
     let mut list_o = evaluate_depth_outcome(&args[0], depth + 1);
-    let Term::List(items) = &list_o.term else {
+    let Term::List(items) = &list_o.term
+    else {
         return EvalOutcome::unevaluated(Term::apply("Cases", vec![list_o.term, clone_term(&args[1])]));
     };
     let pat = &args[1];
@@ -538,7 +546,8 @@ fn eval_table(args: &[Term], depth: u32) -> EvalOutcome {
     }
     let iter_o = evaluate_depth_outcome(&args[1], depth + 1);
     let mut diagnostics = iter_o.diagnostics;
-    let Some((var, values)) = expand_iterator(&iter_o.term) else {
+    let Some((var, values)) = expand_iterator(&iter_o.term)
+    else {
         return EvalOutcome::unevaluated(Term::apply("Table", vec![clone_term(&args[0]), iter_o.term]));
     };
     let mut out = Vec::with_capacity(values.len());
@@ -592,7 +601,8 @@ fn eval_sum_product(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
         return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
     }
     let mut table_o = eval_table(args, depth);
-    let Term::List(items) = table_o.term else {
+    let Term::List(items) = table_o.term
+    else {
         return EvalOutcome::unevaluated(Term::apply(head, vec![clone_term(&args[0]), table_o.term]));
     };
     if table_o.kind != EvalKind::Value {
@@ -630,7 +640,8 @@ fn eval_sum_product(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
 
 /// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` into optional binder + values.
 fn expand_iterator(spec: &Term) -> Option<(Option<String>, Vec<Term>)> {
-    let Term::List(items) = spec else {
+    let Term::List(items) = spec
+    else {
         return None;
     };
     match items.as_slice() {
@@ -739,6 +750,10 @@ fn eval_stmt_into(stmt: &Term, env: &mut DefinitionMap, depth: u32) -> EvalOutco
         }
         return o;
     }
+    if let Some((name, lhs, rhs)) = match_set_delayed_down(&rewritten) {
+        insert_down_value(env, name, lhs, rhs);
+        return EvalOutcome::value(Term::null());
+    }
     if let Some((name, rhs)) = match_set_delayed(&rewritten) {
         env.insert(name, Definition::Delayed(clone_term(&rhs)));
         return EvalOutcome::value(Term::null());
@@ -843,10 +858,7 @@ fn eval_compound_into(args: &[Term], env: &mut DefinitionMap, depth: u32) -> Eva
     for arg in args {
         // Do not `apply_bindings` into For/While bodies before the loop runs.
         if let Term::Application { head, .. } = arg {
-            if head.is_symbol("For")
-                || head.is_symbol("While")
-                || head.is_symbol("Try")
-                || head.is_symbol("CompoundExpression")
+            if head.is_symbol("For") || head.is_symbol("While") || head.is_symbol("Try") || head.is_symbol("CompoundExpression")
             {
                 let mut o = eval_stmt_into(arg, env, depth + 1);
                 diagnostics.append(&mut o.diagnostics);
@@ -870,6 +882,10 @@ fn eval_compound_into(args: &[Term], env: &mut DefinitionMap, depth: u32) -> Eva
             env.insert(name, Definition::Own(clone_term(&o.term)));
             last = o.term;
         }
+        else if let Some((name, lhs, rhs)) = match_set_delayed_down(&rewritten) {
+            insert_down_value(env, name, lhs, rhs);
+            last = Term::null();
+        }
         else if let Some((name, rhs)) = match_set_delayed(&rewritten) {
             env.insert(name, Definition::Delayed(clone_term(&rhs)));
             last = Term::null();
@@ -889,25 +905,45 @@ fn eval_compound_into(args: &[Term], env: &mut DefinitionMap, depth: u32) -> Eva
 
 fn match_set(term: &Term) -> Option<(String, Term)> {
     match term {
-        Term::Application { head, arguments: args } if head.is_symbol("Set") && args.len() == 2 => {
-            match &args[0] {
-                Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
-                _ => None,
-            }
-        }
+        Term::Application { head, arguments: args } if head.is_symbol("Set") && args.len() == 2 => match &args[0] {
+            Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
+            _ => None,
+        },
         _ => None,
     }
 }
 
 fn match_set_delayed(term: &Term) -> Option<(String, Term)> {
     match term {
-        Term::Application { head, arguments: args } if head.is_symbol("SetDelayed") && args.len() == 2 => {
-            match &args[0] {
-                Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
-                _ => None,
-            }
-        }
+        Term::Application { head, arguments: args } if head.is_symbol("SetDelayed") && args.len() == 2 => match &args[0] {
+            Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
+            _ => None,
+        },
         _ => None,
+    }
+}
+
+/// `f[x_] := rhs` → `(f, lhs, rhs)`.
+fn match_set_delayed_down(term: &Term) -> Option<(String, Term, Term)> {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("SetDelayed") && args.len() == 2 => match &args[0] {
+            Term::Application { head: lhs_head, .. } => match lhs_head.as_ref() {
+                Term::Atom(Atom::Symbol(name)) => Some((name.clone(), clone_term(&args[0]), clone_term(&args[1]))),
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn insert_down_value(env: &mut DefinitionMap, name: String, lhs: Term, rhs: Term) {
+    match env.get_mut(&name) {
+        Some(Definition::DownValues(rules)) => rules.push((lhs, rhs)),
+        Some(other) => *other = Definition::DownValues(vec![(lhs, rhs)]),
+        None => {
+            env.insert(name, Definition::DownValues(vec![(lhs, rhs)]));
+        }
     }
 }
 
@@ -981,7 +1017,8 @@ fn eval_local_scope(head: &str, args: &[Term], depth: u32, outer: &DefinitionMap
     let mut env = clone_definition_map(outer);
     let mut diagnostics = Vec::new();
     for item in locals {
-        let Some((name, rhs)) = match_set(item) else {
+        let Some((name, rhs)) = match_set(item)
+        else {
             return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
         };
         let rewritten_rhs = apply_bindings(&rhs, &env);
@@ -1017,6 +1054,9 @@ fn clone_definition_map(env: &DefinitionMap) -> DefinitionMap {
                 match v {
                     Definition::Own(t) => Definition::Own(clone_term(t)),
                     Definition::Delayed(t) => Definition::Delayed(clone_term(t)),
+                    Definition::DownValues(rules) => {
+                        Definition::DownValues(rules.iter().map(|(lhs, rhs)| (clone_term(lhs), clone_term(rhs))).collect())
+                    }
                 },
             )
         })
@@ -1030,11 +1070,9 @@ fn eval_module(locals: &[Term], body: &Term, depth: u32, outer: &DefinitionMap) 
     let mut uniq_values: std::collections::HashMap<String, Term> = std::collections::HashMap::new();
 
     for item in locals {
-        let Some((name, rhs_opt)) = match_module_local(item) else {
-            return EvalOutcome::unevaluated(Term::apply(
-                "Module",
-                vec![Term::List(clone_terms(locals)), clone_term(body)],
-            ));
+        let Some((name, rhs_opt)) = match_module_local(item)
+        else {
+            return EvalOutcome::unevaluated(Term::apply("Module", vec![Term::List(clone_terms(locals)), clone_term(body)]));
         };
         let uniq = format!("{}${}", name, next_module_id());
         rename.insert(name.clone(), uniq.clone());
@@ -1080,29 +1118,108 @@ fn apply_bindings(expr: &Term, env: &DefinitionMap) -> Term {
     match expr {
         Term::Atom(Atom::Symbol(s)) => {
             if let Some(def) = env.get(s) {
-                definition_term(def)
+                if let Some(t) = definition_term(def) {
+                    return t;
+                }
             }
-            else {
-                clone_term(expr)
-            }
+            clone_term(expr)
         }
         Term::Atom(_) => clone_term(expr),
         Term::List(items) => Term::List(items.iter().map(|i| apply_bindings(i, env)).collect()),
         Term::Application { head, arguments: args } => {
             // Do not substitute into Set / SetDelayed LHS.
             if (head.is_symbol("Set") || head.is_symbol("SetDelayed")) && args.len() == 2 {
-                Term::Application {
+                return Term::Application {
                     head: Box::new(clone_term(head)),
                     arguments: vec![clone_term(&args[0]), apply_bindings(&args[1], env)],
+                };
+            }
+            let app = Term::Application {
+                head: Box::new(apply_bindings(head, env)),
+                arguments: args.iter().map(|a| apply_bindings(a, env)).collect(),
+            };
+            if let Some(rewritten) = try_apply_down_value(&app, env) { apply_bindings(&rewritten, env) } else { app }
+        }
+    }
+}
+
+fn try_apply_down_value(expr: &Term, env: &DefinitionMap) -> Option<Term> {
+    let Term::Application { head, .. } = expr
+    else {
+        return None;
+    };
+    let Term::Atom(Atom::Symbol(name)) = head.as_ref()
+    else {
+        return None;
+    };
+    let Definition::DownValues(rules) = env.get(name)?
+    else {
+        return None;
+    };
+    for (lhs, rhs) in rules {
+        if let Some(binds) = pattern_bind(expr, lhs) {
+            return Some(substitute_pattern_binds(rhs, &binds));
+        }
+    }
+    None
+}
+
+fn pattern_bind(expr: &Term, pattern: &Term) -> Option<std::collections::HashMap<String, Term>> {
+    let mut binds = std::collections::HashMap::new();
+    if pattern_bind_into(expr, pattern, &mut binds) { Some(binds) } else { None }
+}
+
+fn pattern_bind_into(expr: &Term, pattern: &Term, binds: &mut std::collections::HashMap<String, Term>) -> bool {
+    match pattern {
+        Term::Application { head, arguments: args } if head.is_symbol("Blank") => match args.as_slice() {
+            [] => true,
+            [head_pat] => expr_has_head(expr, head_pat),
+            _ => false,
+        },
+        Term::Application { head, arguments: args } if head.is_symbol("Pattern") && args.len() == 2 => {
+            if let Term::Atom(Atom::Symbol(name)) = &args[0] {
+                if pattern_bind_into(expr, &args[1], binds) {
+                    binds.insert(name.clone(), clone_term(expr));
+                    true
+                }
+                else {
+                    false
                 }
             }
             else {
-                Term::Application {
-                    head: Box::new(apply_bindings(head, env)),
-                    arguments: args.iter().map(|a| apply_bindings(a, env)).collect(),
-                }
+                false
             }
         }
+        Term::List(ps) => match expr {
+            Term::List(xs) if xs.len() == ps.len() => xs.iter().zip(ps.iter()).all(|(x, p)| pattern_bind_into(x, p, binds)),
+            _ => false,
+        },
+        Term::Application { head: ph, arguments: pa } => match expr {
+            Term::Application { head: eh, arguments: ea } if ea.len() == pa.len() => {
+                pattern_bind_into(eh, ph, binds) && ea.iter().zip(pa.iter()).all(|(e, p)| pattern_bind_into(e, p, binds))
+            }
+            _ => false,
+        },
+        other => terms_structurally_equal(expr, other),
+    }
+}
+
+fn substitute_pattern_binds(expr: &Term, binds: &std::collections::HashMap<String, Term>) -> Term {
+    match expr {
+        Term::Atom(Atom::Symbol(s)) => {
+            if let Some(v) = binds.get(s) {
+                clone_term(v)
+            }
+            else {
+                clone_term(expr)
+            }
+        }
+        Term::Atom(_) => clone_term(expr),
+        Term::List(items) => Term::List(items.iter().map(|i| substitute_pattern_binds(i, binds)).collect()),
+        Term::Application { head, arguments: args } => Term::Application {
+            head: Box::new(substitute_pattern_binds(head, binds)),
+            arguments: args.iter().map(|a| substitute_pattern_binds(a, binds)).collect(),
+        },
     }
 }
 
@@ -1256,9 +1373,7 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
             let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
             EvalOutcome::invalid(
                 term,
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("operation", "error")
-                    .detail("message", msg),
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "error").detail("message", msg),
             )
         }
         _ => EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: args }),
@@ -1497,7 +1612,8 @@ fn eval_times_outcome(args: Vec<Term>) -> EvalOutcome {
 
 fn eval_det(arg: &Term) -> EvalOutcome {
     let echo = || Term::apply("Det", vec![clone_term(arg)]);
-    let Some(m) = term_to_rational_matrix(arg) else {
+    let Some(m) = term_to_rational_matrix(arg)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     match det_bareiss(&m) {
@@ -1509,7 +1625,8 @@ fn eval_det(arg: &Term) -> EvalOutcome {
 /// MATLAB-style `sum`：向量 → 标量和；矩阵 → 各列之和（行向量）。
 fn eval_array_sum(arg: &Term) -> EvalOutcome {
     let echo = || Term::apply("Sum", vec![clone_term(arg)]);
-    let Some(m) = term_to_rational_matrix(arg) else {
+    let Some(m) = term_to_rational_matrix(arg)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     let rows = m.shape().rows;
@@ -1692,7 +1809,8 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
     if let Some(exact) = eval_trig_exact(name, arg) {
         return exact;
     }
-    let Some(x) = term_as_f64(arg) else {
+    let Some(x) = term_as_f64(arg)
+    else {
         return Term::apply(name, vec![clone_term(arg)]);
     };
     let y = match name {
@@ -1703,12 +1821,7 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
         "Log" => x.ln(),
         _ => return Term::apply(name, vec![clone_term(arg)]),
     };
-    if y.is_finite() {
-        Term::real(y)
-    }
-    else {
-        Term::apply(name, vec![clone_term(arg)])
-    }
+    if y.is_finite() { Term::real(y) } else { Term::apply(name, vec![clone_term(arg)]) }
 }
 
 /// Exact trig values for Feature Gap (`Cos[Pi]`, `Sin[0]`, …) before machine float.
@@ -1722,12 +1835,7 @@ fn eval_trig_exact(name: &str, arg: &Term) -> Option<Term> {
         }
         "Cos" => {
             // cos(k π) = (-1)^k
-            if angle % 2 == 0 {
-                Some(Term::int(1))
-            }
-            else {
-                Some(Term::int(-1))
-            }
+            if angle % 2 == 0 { Some(Term::int(1)) } else { Some(Term::int(-1)) }
         }
         "Tan" if angle % 2 == 0 => Some(Term::int(0)),
         _ => None,
@@ -1745,16 +1853,12 @@ fn normalize_pi_angle(arg: &Term) -> Option<i64> {
         return Some(1);
     }
     match arg {
-        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
-            match args.as_slice() {
-                [a, b] if a.is_symbol("Pi") => number_from_term(b).and_then(|n| n.as_exact_integer()),
-                [a, b] if b.is_symbol("Pi") => number_from_term(a).and_then(|n| n.as_exact_integer()),
-                _ => None,
-            }
-        }
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Plus") && args.len() == 1 && args[0].is_symbol("Pi") =>
-        {
+        Term::Application { head, arguments: args } if head.is_symbol("Times") => match args.as_slice() {
+            [a, b] if a.is_symbol("Pi") => number_from_term(b).and_then(|n| n.as_exact_integer()),
+            [a, b] if b.is_symbol("Pi") => number_from_term(a).and_then(|n| n.as_exact_integer()),
+            _ => None,
+        },
+        Term::Application { head, arguments: args } if head.is_symbol("Plus") && args.len() == 1 && args[0].is_symbol("Pi") => {
             Some(1)
         }
         _ => None,
@@ -1798,14 +1902,23 @@ fn eval_factorial(arg: &Term) -> Term {
 
 fn eval_compare<F>(head: &str, left: &Term, right: &Term, cmp: F) -> Term
 where
-    F: Fn(Ordering) -> bool,
+    F: Fn(Ordering) -> bool + Copy,
 {
-    if let (Some(a), Some(b)) = (number_from_term(left), number_from_term(right)) {
-        if let Some(ord) = num_compare(a, b) {
-            return Term::boolean(cmp(ord));
+    match (left, right) {
+        (Term::List(xs), Term::List(ys)) if xs.len() == ys.len() => {
+            Term::List(xs.iter().zip(ys.iter()).map(|(a, b)| eval_compare(head, a, b, cmp)).collect())
+        }
+        (Term::List(xs), r) => Term::List(xs.iter().map(|a| eval_compare(head, a, r, cmp)).collect()),
+        (l, Term::List(ys)) => Term::List(ys.iter().map(|b| eval_compare(head, l, b, cmp)).collect()),
+        _ => {
+            if let (Some(a), Some(b)) = (number_from_term(left), number_from_term(right)) {
+                if let Some(ord) = num_compare(a, b) {
+                    return Term::boolean(cmp(ord));
+                }
+            }
+            Term::apply(head, vec![clone_term(left), clone_term(right)])
         }
     }
-    Term::apply(head, vec![clone_term(left), clone_term(right)])
 }
 
 fn eval_logic_and(left: &Term, right: &Term) -> Term {
@@ -1831,7 +1944,8 @@ fn eval_logic_not(arg: &Term) -> Term {
 
 fn eval_range(args: Vec<Term>) -> EvalOutcome {
     let ints: Option<Vec<i64>> = args.iter().map(|t| number_from_term(t).and_then(|n| n.as_exact_integer())).collect();
-    let Some(ints) = ints else {
+    let Some(ints) = ints
+    else {
         return EvalOutcome::unevaluated(Term::apply("Range", args));
     };
     let list = match ints.as_slice() {
@@ -1858,15 +1972,14 @@ fn eval_first(arg: &Term) -> EvalOutcome {
     match arg {
         Term::List(items) if !items.is_empty() => EvalOutcome::value(clone_term(&items[0])),
         Term::Application { arguments, .. } if !arguments.is_empty() => EvalOutcome::value(clone_term(&arguments[0])),
-        Term::List(items) => {
-            EvalOutcome::invalid(Term::apply("First", vec![clone_term(arg)]), invalid_index_diagnostic(1, Some(items.len() as u64)))
-        }
-        Term::Application { arguments, .. } => {
-            EvalOutcome::invalid(
-                Term::apply("First", vec![clone_term(arg)]),
-                invalid_index_diagnostic(1, Some(arguments.len() as u64)),
-            )
-        }
+        Term::List(items) => EvalOutcome::invalid(
+            Term::apply("First", vec![clone_term(arg)]),
+            invalid_index_diagnostic(1, Some(items.len() as u64)),
+        ),
+        Term::Application { arguments, .. } => EvalOutcome::invalid(
+            Term::apply("First", vec![clone_term(arg)]),
+            invalid_index_diagnostic(1, Some(arguments.len() as u64)),
+        ),
         _ => EvalOutcome::unevaluated(Term::apply("First", vec![clone_term(arg)])),
     }
 }
@@ -1896,12 +2009,7 @@ fn eval_apply(func: &Term, target: &Term, depth: u32) -> EvalOutcome {
 fn parse_matrix_dims(args: &[Term]) -> Option<(u64, u64)> {
     let as_dim = |t: &Term| -> Option<u64> {
         let n = number_from_term(t)?.as_exact_integer()?;
-        if n < 0 {
-            None
-        }
-        else {
-            Some(n as u64)
-        }
+        if n < 0 { None } else { Some(n as u64) }
     };
     match args {
         [n] => {
@@ -1938,14 +2046,16 @@ fn matrix_fill_nested(rows: u64, cols: u64, fill: i64) -> EvalOutcome {
 }
 
 fn eval_matrix_fill(head: &str, args: &[Term], fill: i64) -> EvalOutcome {
-    let Some((rows, cols)) = parse_matrix_dims(args) else {
+    let Some((rows, cols)) = parse_matrix_dims(args)
+    else {
         return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
     };
     matrix_fill_nested(rows, cols, fill)
 }
 
 fn eval_eye(head: &str, args: Vec<Term>) -> EvalOutcome {
-    let Some((rows, cols)) = parse_matrix_dims(&args) else {
+    let Some((rows, cols)) = parse_matrix_dims(&args)
+    else {
         return EvalOutcome::unevaluated(Term::apply(head, args));
     };
     let n = match rows.checked_mul(cols) {
@@ -1983,7 +2093,8 @@ fn nested_list_shape(term: &Term) -> Option<(u64, u64)> {
         Term::List(rows) if matches!(rows.first(), Some(Term::List(_))) => {
             let mut cols: Option<u64> = None;
             for row in rows {
-                let Term::List(cells) = row else {
+                let Term::List(cells) = row
+                else {
                     return None;
                 };
                 let c = cells.len() as u64;
@@ -2002,9 +2113,7 @@ fn nested_list_shape(term: &Term) -> Option<(u64, u64)> {
 
 fn eval_size(arg: &Term) -> EvalOutcome {
     match nested_list_shape(arg) {
-        Some((rows, cols)) => {
-            EvalOutcome::value(Term::List(vec![Term::int(rows as i64), Term::int(cols as i64)]))
-        }
+        Some((rows, cols)) => EvalOutcome::value(Term::List(vec![Term::int(rows as i64), Term::int(cols as i64)])),
         None => EvalOutcome::unevaluated(Term::apply("Size", vec![clone_term(arg)])),
     }
 }
@@ -2342,7 +2451,10 @@ fn substitute_slot(body: &Term, value: &Term) -> Term {
     match body {
         Term::Atom(Atom::Symbol(s)) if s == "#" || s == "#1" => clone_term(value),
         Term::Application { head, arguments: args }
-            if head.is_symbol("Slot") && (args.is_empty() || (args.len() == 1 && matches!(&args[0], Term::Atom(Atom::Number(n)) if n.as_exact_integer() == Some(1)))) =>
+            if head.is_symbol("Slot")
+                && (args.is_empty()
+                    || (args.len() == 1
+                        && matches!(&args[0], Term::Atom(Atom::Number(n)) if n.as_exact_integer() == Some(1)))) =>
         {
             clone_term(value)
         }
@@ -2358,22 +2470,19 @@ fn substitute_slot(body: &Term, value: &Term) -> Term {
 /// Living 25 Term bridge：单变量多项式 `Solve` → `{{x->r},…}`（typed `SolutionSet` 仍为正式合同）。
 fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
     let echo = || Term::apply("Solve", vec![clone_term(equation), clone_term(unknown)]);
-    let Term::Atom(Atom::Symbol(var)) = unknown else {
+    let Term::Atom(Atom::Symbol(var)) = unknown
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     let zero_expr = match equation {
-        Term::Application { head, arguments } if head.is_symbol("Equal") && arguments.len() == 2 => {
-            evaluate(&Term::apply(
-                "Plus",
-                vec![
-                    clone_term(&arguments[0]),
-                    Term::apply("Times", vec![Term::int(-1), clone_term(&arguments[1])]),
-                ],
-            ))
-        }
+        Term::Application { head, arguments } if head.is_symbol("Equal") && arguments.len() == 2 => evaluate(&Term::apply(
+            "Plus",
+            vec![clone_term(&arguments[0]), Term::apply("Times", vec![Term::int(-1), clone_term(&arguments[1])])],
+        )),
         other => evaluate(other),
     };
-    let Some(terms) = collect_univariate_monomials(&zero_expr, var) else {
+    let Some(terms) = collect_univariate_monomials(&zero_expr, var)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     if terms.is_empty() {
@@ -2381,12 +2490,15 @@ fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
         return EvalOutcome::unevaluated(echo());
     }
 
-    use crate::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialFactorLimits, RingTable};
-    use crate::solve::{BoundSymbol, CoverageStatus, SolveDomain, solve_univariate_polynomial_roots};
+    use crate::{
+        polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialFactorLimits, RingTable},
+        solve::{BoundSymbol, CoverageStatus, SolveDomain, solve_univariate_polynomial_roots},
+    };
     use athena_types::SymbolId;
 
     let mut rings = RingTable::new();
-    let Ok(ring) = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex) else {
+    let Ok(ring) = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     let mut builder = PolynomialBuilder::new(ring);
@@ -2395,7 +2507,8 @@ fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
             return EvalOutcome::unevaluated(echo());
         }
     }
-    let Ok(poly) = builder.build(&rings) else {
+    let Ok(poly) = builder.build(&rings)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     let unknown_sym = BoundSymbol::free(SymbolId(0));
@@ -2410,10 +2523,12 @@ fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
 
     let mut roots: Vec<Term> = Vec::new();
     for branch in &adapted.solution.branches {
-        let Some(tid) = branch.bindings.get(&unknown_sym) else {
+        let Some(tid) = branch.bindings.get(&unknown_sym)
+        else {
             return EvalOutcome::unevaluated(echo());
         };
-        let Some(val) = adapted.values.get(tid) else {
+        let Some(val) = adapted.values.get(tid)
+        else {
             return EvalOutcome::unevaluated(echo());
         };
         let root_term = match val {
@@ -2428,12 +2543,8 @@ fn eval_solve(equation: &Term, unknown: &Term) -> EvalOutcome {
         _ => Ordering::Equal,
     });
 
-    let list = Term::List(
-        roots
-            .into_iter()
-            .map(|r| Term::List(vec![Term::apply("Rule", vec![Term::symbol(var), r])]))
-            .collect(),
-    );
+    let list =
+        Term::List(roots.into_iter().map(|r| Term::List(vec![Term::apply("Rule", vec![Term::symbol(var), r])])).collect());
     EvalOutcome::value(list)
 }
 
@@ -2453,6 +2564,10 @@ fn number_to_term(n: &Number) -> Term {
 }
 
 /// 将 `Plus`/`Times`/`Power` 展开为单变量 `(coeff, degree)` 项（仅有理系数）。
+pub(crate) fn collect_univariate_monomials_for_solve(expr: &Term, var: &str) -> Option<Vec<(Number, u32)>> {
+    collect_univariate_monomials(expr, var)
+}
+
 fn collect_univariate_monomials(expr: &Term, var: &str) -> Option<Vec<(Number, u32)>> {
     fn merge(dst: &mut Vec<(Number, u32)>, src: Vec<(Number, u32)>) -> Option<()> {
         for (c, d) in src {
@@ -2544,22 +2659,22 @@ fn collect_univariate_monomials(expr: &Term, var: &str) -> Option<Vec<(Number, u
 /// Living 25 Term bridge：exact `A\b` via [`solve_exact`]. Non-numeric / singular → keep head + diagnostic.
 fn eval_mldivide(head: &str, a: &Term, b: &Term) -> EvalOutcome {
     let echo = || Term::apply(head, vec![clone_term(a), clone_term(b)]);
-    let Some(am) = term_to_rational_matrix(a) else {
+    let Some(am) = term_to_rational_matrix(a)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
-    let Some(bm) = term_to_rational_matrix(b) else {
+    let Some(bm) = term_to_rational_matrix(b)
+    else {
         return EvalOutcome::unevaluated(echo());
     };
     match solve_exact(&am, &bm) {
-        Ok(sol) if sol.disposition == SolveDisposition::Unique => {
-            match sol.particular {
-                Some(x) => match matrix_to_nested_list(&x) {
-                    Ok(term) => EvalOutcome::value(term),
-                    Err(d) => EvalOutcome::invalid(echo(), d),
-                },
-                None => EvalOutcome::invalid(echo(), unsupported_operation(head)),
-            }
-        }
+        Ok(sol) if sol.disposition == SolveDisposition::Unique => match sol.particular {
+            Some(x) => match matrix_to_nested_list(&x) {
+                Ok(term) => EvalOutcome::value(term),
+                Err(d) => EvalOutcome::invalid(echo(), d),
+            },
+            None => EvalOutcome::invalid(echo(), unsupported_operation(head)),
+        },
         Ok(sol) => {
             let detail = match sol.disposition {
                 SolveDisposition::Inconsistent => "inconsistent",
@@ -2568,7 +2683,10 @@ fn eval_mldivide(head: &str, a: &Term, b: &Term) -> EvalOutcome {
                 SolveDisposition::Singular => "singular",
                 SolveDisposition::ResourceLimited => "resource_limited",
             };
-            EvalOutcome::invalid(echo(), Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail))
+            EvalOutcome::invalid(
+                echo(),
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail),
+            )
         }
         Err(d) => EvalOutcome::invalid(echo(), d),
     }
@@ -2592,7 +2710,8 @@ fn term_to_rational_matrix(term: &Term) -> Option<MatrixValue> {
                 let mut data = Vec::new();
                 let mut cols: Option<u64> = None;
                 for row in rows {
-                    let Term::List(cells) = row else {
+                    let Term::List(cells) = row
+                    else {
                         return None;
                     };
                     let c = cells.len() as u64;
@@ -2621,6 +2740,10 @@ fn term_to_rational_matrix(term: &Term) -> Option<MatrixValue> {
             MatrixValue::from_rationals_row_major(1, 1, vec![r]).ok()
         }
     }
+}
+
+pub(crate) fn rational_to_term_for_solve(r: &Rational) -> Term {
+    rational_to_term(r)
 }
 
 fn rational_to_term(r: &Rational) -> Term {

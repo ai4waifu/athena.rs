@@ -3,7 +3,7 @@
 use athena_numeric::Integer;
 
 use super::isqrt::isqrt;
-use crate::numeric_clone::{clone_integer};
+use crate::numeric_clone::clone_integer;
 
 /// 若 `n = b^e`（`e > 1`）返回 `(base, exponent)`，否则 `None`（`n > 1`）。
 pub fn perfect_power_decomposition(n: &Integer) -> Option<(Integer, u32)> {

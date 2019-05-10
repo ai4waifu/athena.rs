@@ -1,7 +1,7 @@
 //! 域与域元素对象合同。
 
-use athena_numeric::{Integer, Rational};
 use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals};
+use athena_numeric::{Integer, Rational};
 use athena_types::{ExtensionId, FieldId, FieldPresentationId};
 
 use crate::algebra::PropertyState;
@@ -79,18 +79,15 @@ pub enum FieldDescriptor {
 /// 向后兼容别名（迁移期；新代码用 [`FieldDescriptor`]）。
 pub type FieldKind = FieldDescriptor;
 
-
 impl FieldDescriptor {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Rationals => Self::Rationals,
             Self::Prime { characteristic } => Self::Prime { characteristic: clone_integer(characteristic) },
-            Self::Extension { base, extension, degree } => Self::Extension {
-                base: *base,
-                extension: *extension,
-                degree: degree.clone(),
-            },
+            Self::Extension { base, extension, degree } => {
+                Self::Extension { base: *base, extension: *extension, degree: degree.clone() }
+            }
         }
     }
 }
@@ -104,11 +101,7 @@ impl Clone for FieldDescriptor {
 impl Field {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            id: self.id,
-            descriptor: self.descriptor.owning_copy(),
-            presentation: self.presentation,
-        }
+        Self { id: self.id, descriptor: self.descriptor.owning_copy(), presentation: self.presentation }
     }
 }
 
@@ -140,11 +133,7 @@ impl Clone for FieldElementRepr {
 impl FieldElement {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            field: self.field,
-            presentation: self.presentation,
-            repr: self.repr.owning_copy(),
-        }
+        Self { field: self.field, presentation: self.presentation, repr: self.repr.owning_copy() }
     }
 }
 

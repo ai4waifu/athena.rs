@@ -5,11 +5,11 @@ use std::sync::Arc;
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 use super::{
     parent::{ElementParentKind, MatrixParent},
     shape::{Layout, MatrixShape, StorageOrder},
 };
+use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 
 /// 元素缓冲（精确与机器不得混用同一不透明 `f64` 语义）。
 #[derive(Debug, PartialEq)]
@@ -173,8 +173,16 @@ impl MatrixValue {
             StorageOrder::ColumnMajor => Layout::column_major(shape)?,
         };
         let data = match parent.element {
-            ElementParentKind::Integers => MatrixBuffer::Integers(Arc::new({ let mut __v = Vec::new(); resize_integers(&mut __v, n, &Integer::zero()); __v })),
-            ElementParentKind::Rationals => MatrixBuffer::Rationals(Arc::new({ let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v })),
+            ElementParentKind::Integers => MatrixBuffer::Integers(Arc::new({
+                let mut __v = Vec::new();
+                resize_integers(&mut __v, n, &Integer::zero());
+                __v
+            })),
+            ElementParentKind::Rationals => MatrixBuffer::Rationals(Arc::new({
+                let mut __v = Vec::new();
+                resize_rationals(&mut __v, n, &Rational::zero());
+                __v
+            })),
             ElementParentKind::MachineReal => MatrixBuffer::MachineF64(Arc::new(vec![0.0; n])),
         };
         Self::parent_matches_buffer(parent, &data)?;
@@ -206,13 +214,7 @@ impl MatrixValue {
 
     /// Owning 复制（共享 `Arc` 缓冲）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            parent: self.parent,
-            shape: self.shape,
-            layout: self.layout,
-            offset: self.offset,
-            data: self.data.owning_copy(),
-        }
+        Self { parent: self.parent, shape: self.shape, layout: self.layout, offset: self.offset, data: self.data.owning_copy() }
     }
 
     /// 读取元素（拷贝）。

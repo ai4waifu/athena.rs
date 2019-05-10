@@ -4,6 +4,7 @@ mod algebra;
 mod calculus;
 mod eval;
 mod graph_theory;
+mod interp;
 mod linear_algebra;
 mod mgraph;
 mod number_theory;

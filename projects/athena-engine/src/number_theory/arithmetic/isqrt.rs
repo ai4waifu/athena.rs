@@ -1,7 +1,7 @@
 //! 整数平方根（数学 floor `√n`）。
 
+use crate::numeric_clone::clone_integer;
 use athena_numeric::Integer;
-use crate::numeric_clone::{clone_integer};
 
 /// `⌊√n⌋`（`n ≥ 0`；负输入返回 `0`）。
 pub fn isqrt(n: &Integer) -> Integer {

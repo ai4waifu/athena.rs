@@ -1,8 +1,8 @@
 //! 𝔽_{p^n} 多项式基 presentation 数据与坐标算术。
 
+use crate::numeric_clone::{clone_integer, clone_integers, resize_integers};
 use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
-use crate::numeric_clone::{clone_integer, clone_integers, resize_integers};
 
 /// 不可变 𝔽_{p^n} 多项式基规格（由 [`super::table::FieldTable`] 持有）。
 #[derive(Debug, PartialEq, Eq)]
@@ -114,7 +114,11 @@ pub fn inv_coords(a: &[Integer], spec: &FiniteFieldPolySpec, p: &Modulus) -> Res
 
 fn has_monic_factor_of_degree(f: &[Integer], degree: usize, p: &Modulus) -> Result<bool> {
     let prime = p.value();
-    let mut coeffs = { let mut __v = Vec::new(); resize_integers(&mut __v, degree + 1, &Integer::zero()); __v };
+    let mut coeffs = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, degree + 1, &Integer::zero());
+        __v
+    };
     coeffs[degree] = Integer::one();
     loop {
         if divides_monic(f, &coeffs, p)? {
@@ -172,7 +176,11 @@ fn poly_mul(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
     if a.is_empty() || b.is_empty() {
         return Vec::new();
     }
-    let mut out = { let mut __v = Vec::new(); resize_integers(&mut __v, a.len() + b.len() - 1, &Integer::zero()); __v };
+    let mut out = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, a.len() + b.len() - 1, &Integer::zero());
+        __v
+    };
     for (i, ai) in a.iter().enumerate() {
         for (j, bj) in b.iter().enumerate() {
             out[i + j] = p.reduce(&out[i + j].add(&p.reduce(&ai.mul(bj))));
@@ -210,7 +218,11 @@ fn poly_mod(a: &[Integer], modulus: &[Integer], p: &Modulus) -> Vec<Integer> {
 
 fn poly_sub(a: &[Integer], b: &[Integer], p: &Modulus) -> Vec<Integer> {
     let len = a.len().max(b.len());
-    let mut out = { let mut __v = Vec::new(); resize_integers(&mut __v, len, &Integer::zero()); __v };
+    let mut out = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, len, &Integer::zero());
+        __v
+    };
     for (i, ai) in a.iter().enumerate() {
         out[i] = clone_integer(&ai);
     }
@@ -324,7 +336,11 @@ pub fn frobenius_coords(coords: &[Integer], spec: &FiniteFieldPolySpec, p: &Modu
     let n = spec.degree as usize;
     let prime = p.value().to_u64().and_then(|v| usize::try_from(v).ok()).unwrap_or(1).max(1);
     let max_deg = (n - 1).saturating_mul(prime) + 1;
-    let mut raised = { let mut __v = Vec::new(); resize_integers(&mut __v, max_deg, &Integer::zero()); __v };
+    let mut raised = {
+        let mut __v = Vec::new();
+        resize_integers(&mut __v, max_deg, &Integer::zero());
+        __v
+    };
     for (i, c) in coords.iter().enumerate() {
         let idx = i.saturating_mul(prime);
         if idx < raised.len() {

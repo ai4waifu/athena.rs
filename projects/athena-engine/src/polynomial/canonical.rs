@@ -11,7 +11,7 @@ use super::{
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
 };
-use crate::numeric_clone::{clone_number};
+use crate::numeric_clone::clone_number;
 
 /// 将任意项列表规范化为 [`CanonicalPolynomial`]（须已注册 [`RingId`]）。
 pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<CanonicalPolynomial> {

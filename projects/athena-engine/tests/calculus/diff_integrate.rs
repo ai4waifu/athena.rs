@@ -2,9 +2,9 @@
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
-use athena_engine::{clone_term, 
+use athena_engine::{
     AthenaEngine, CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder, DomainRequest, DomainResult, LimitApproach,
-    LimitDirection, Remainder, Term, differentiate_checked, integrate_checked, try_calculus_request,
+    LimitDirection, Remainder, Term, clone_term, differentiate_checked, integrate_checked, try_calculus_request,
 };
 
 fn expect_calculus(r: Result<DomainResult, athena_types::Diagnostic>) -> CalculusResult<CalculusValue> {
@@ -379,10 +379,7 @@ fn limit_sinc_at_zero() {
     let engine = AthenaEngine::new();
     let expr = Term::apply(
         "Times",
-        vec![
-            Term::apply("Sin", vec![Term::symbol("x")]),
-            Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
-        ],
+        vec![Term::apply("Sin", vec![Term::symbol("x")]), Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)])],
     );
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
         expression: expr,
