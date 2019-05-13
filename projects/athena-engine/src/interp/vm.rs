@@ -303,8 +303,7 @@ impl<'a> Vm<'a> {
         }
         // 语句位的控制形式在 legacy 于 `apply_bindings` 之前被拦截：循环体必须保持原始，
         // 让每次迭代看到新绑定。跳过改写预处理，直接编译。
-        let rewritten =
-            if mode == CompileMode::Stmt && self.is_control_head(expr) { expr } else { rewrite::rewrite_bindings(self, expr) };
+        let rewritten = if self.skips_rewrite(expr, mode) { expr } else { rewrite::rewrite_bindings(self, expr) };
         let unit = self.get_or_compile(rewritten, mode);
         self.depth += 1;
         let out = self.run(&unit);
@@ -312,12 +311,19 @@ impl<'a> Vm<'a> {
         out
     }
 
-    fn is_control_head(&self, expr: TermId) -> bool {
-        matches!(
-            self.session.arena.get(expr),
-            Some(TermKind::App { op, .. })
-                if matches!(self.session.operators.name(*op), Some("While") | Some("For") | Some("Try") | Some("CompoundExpression"))
-        )
+    /// 语句位控制形式与顶层作用域形式在 legacy 于改写预处理之前被拦截：
+    /// 循环体保持原始让每次迭代看到新绑定；顶层 `With` / `Module` / `Block`
+    /// 体不得被 Session 定义穿透。
+    fn skips_rewrite(&self, expr: TermId, mode: CompileMode) -> bool {
+        let Some(TermKind::App { op, .. }) = self.session.arena.get(expr)
+        else {
+            return false;
+        };
+        match self.session.operators.name(*op) {
+            Some("While" | "For" | "Try" | "CompoundExpression") => mode == CompileMode::Stmt,
+            Some("With" | "Module" | "Block") => mode == CompileMode::Top,
+            _ => false,
+        }
     }
 
     fn get_or_compile(&mut self, root: TermId, mode: CompileMode) -> Rc<ExecUnit> {
@@ -334,7 +340,7 @@ impl<'a> Vm<'a> {
     // ---- 执行 ----
 
     fn run(&mut self, unit: &ExecUnit) -> Outcome {
-        let mut stack: Vec<(TermId, EvalKind)> = Vec::new();
+        let mut stack: Vec<(TermId, EvalKind, athena_types::ComputationStatus)> = Vec::new();
         let mut diags: Vec<Diagnostic> = Vec::new();
         let mut pc = 0usize;
         loop {
@@ -343,25 +349,30 @@ impl<'a> Vm<'a> {
                 break;
             };
             match instr {
-                super::Instr::Const { term } => stack.push((*term, EvalKind::Value)),
+                super::Instr::Const { term } => stack.push((*term, EvalKind::Value, athena_types::ComputationStatus::Exact)),
                 super::Instr::MakeList { argc } => {
                     let n = *argc as usize;
                     let popped = stack.split_off(stack.len() - n);
-                    let all_value = popped.iter().all(|(_, k)| *k == EvalKind::Value);
-                    let items: Vec<TermId> = popped.into_iter().map(|(t, _)| t).collect();
+                    let all_value = popped.iter().all(|(_, k, _)| *k == EvalKind::Value);
+                    let items: Vec<TermId> = popped.into_iter().map(|(t, _, _)| t).collect();
                     let term = self.push_list(items);
-                    let kind = if all_value { EvalKind::Value } else { EvalKind::Unevaluated };
-                    stack.push((term, kind));
+                    let (kind, status) = if all_value {
+                        (EvalKind::Value, athena_types::ComputationStatus::Exact)
+                    }
+                    else {
+                        (EvalKind::Unevaluated, athena_types::ComputationStatus::Partial)
+                    };
+                    stack.push((term, kind, status));
                 }
                 super::Instr::MakeApp { op, argc } => {
                     let n = *argc as usize;
-                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _)| t).collect();
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
                     let term = self.rebuild_app_op(*op, args);
-                    stack.push((term, EvalKind::Unevaluated));
+                    stack.push((term, EvalKind::Unevaluated, athena_types::ComputationStatus::Unknown));
                 }
                 super::Instr::EvalOp { handler, argc } => {
                     let n = *argc as usize;
-                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _)| t).collect();
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
                     let out = (super::HANDLERS[handler.0 as usize])(self, &args);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
@@ -373,7 +384,7 @@ impl<'a> Vm<'a> {
                         };
                     }
                     diags.extend(out.diagnostics);
-                    stack.push((out.term, out.kind));
+                    stack.push((out.term, out.kind, out.status));
                 }
                 super::Instr::EvalRaw { handler, operands } => {
                     let out = (super::HANDLERS[handler.0 as usize])(self, operands);
@@ -387,12 +398,12 @@ impl<'a> Vm<'a> {
                         };
                     }
                     diags.extend(out.diagnostics);
-                    stack.push((out.term, out.kind));
+                    stack.push((out.term, out.kind, out.status));
                 }
                 super::Instr::EvalDynamic { argc } => {
                     let n = *argc as usize;
-                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _)| t).collect();
-                    let (head, _) = stack.pop().expect("EvalDynamic head");
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
+                    let (head, _, _) = stack.pop().expect("EvalDynamic head");
                     let out = super::control::eval_dynamic(self, head, args);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
@@ -404,10 +415,10 @@ impl<'a> Vm<'a> {
                         };
                     }
                     diags.extend(out.diagnostics);
-                    stack.push((out.term, out.kind));
+                    stack.push((out.term, out.kind, out.status));
                 }
                 super::Instr::BranchFalse { target } => {
-                    let (t, _) = stack.pop().expect("BranchFalse operand");
+                    let (t, _, _) = stack.pop().expect("BranchFalse operand");
                     if super::builtin::as_boolean_id(self, t) == Some(false) {
                         pc = *target as usize;
                         continue;
@@ -418,28 +429,30 @@ impl<'a> Vm<'a> {
                     continue;
                 }
                 super::Instr::DefineOwn { sym } => {
-                    let (value, _) = stack.last().copied().expect("DefineOwn rhs");
+                    let (value, _, _) = stack.last().copied().expect("DefineOwn rhs");
                     self.define_own(*sym, value);
                 }
                 super::Instr::DefineDelayed { sym } => {
-                    let (value, _) = stack.pop().expect("DefineDelayed rhs");
+                    let (value, _, _) = stack.pop().expect("DefineDelayed rhs");
                     self.define_delayed(*sym, value);
-                    stack.push((self.push_null(), EvalKind::Value));
+                    stack.push((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
                 }
                 super::Instr::DefineDownValue { sym, lhs } => {
-                    let (value, _) = stack.pop().expect("DefineDownValue rhs");
+                    let (value, _, _) = stack.pop().expect("DefineDownValue rhs");
                     self.define_down_value(*sym, *lhs, value);
-                    stack.push((self.push_null(), EvalKind::Value));
+                    stack.push((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
                 }
                 super::Instr::Ret => {
-                    let (term, kind) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value));
-                    return Outcome { term, kind, status: athena_types::ComputationStatus::Exact, diagnostics: diags };
+                    let (term, kind, status) =
+                        stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
+                    return Outcome { term, kind, status, diagnostics: diags };
                 }
             }
             pc += 1;
         }
-        let (term, kind) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value));
-        Outcome { term, kind, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
+        let (term, kind, status) =
+            stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
+        Outcome { term, kind, status, diagnostics: diags }
     }
 }
 
