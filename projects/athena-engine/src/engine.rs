@@ -1,10 +1,11 @@
 //! 执行引擎句柄 — 宿主组合请求；数学逻辑在子模块中。
 
-use athena_types::{Diagnostic, DiagnosticCode, Result};
+use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use crate::{
     domain::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
-    numeric_clone::clone_term,
+    interp,
+    session::Session,
     term::Term,
 };
 
@@ -26,12 +27,12 @@ impl AthenaEngine {
         Self {}
     }
 
-    /// 在内建定义下求值桥接 [`Term`]。
-    pub fn evaluate_term(&self, expr: &Term) -> Term {
-        crate::eval::evaluate(expr)
+    /// 在内建定义下求值（KernelIR + VM · Living `25` L4）。
+    pub fn evaluate_term(&self, session: &mut Session, expr: TermId) -> TermId {
+        interp::vm::evaluate_session(session, expr).term
     }
 
-    /// 先求导再求值（遗留桥接；优先使用 [`Self::execute_domain`]）。
+    /// 先求导再求值（遗留桥接，随微积分 `TermId` 化一并翻转；优先使用 [`Self::execute_domain`]）。
     pub fn differentiate_term(&self, expr: &Term, var: &str) -> Term {
         crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
     }
@@ -41,9 +42,10 @@ impl AthenaEngine {
         dispatch_domain(request)
     }
 
-    /// 经 `Simplify` 头部化简。
-    pub fn simplify_term(&self, expr: &Term) -> Term {
-        self.evaluate_term(&Term::apply("Simplify", vec![clone_term(expr)]))
+    /// 经 `Simplify` 头部化简（KernelIR + VM）。
+    pub fn simplify_term(&self, session: &mut Session, expr: TermId) -> TermId {
+        let wrapped = interp::push_app(session, "Simplify", vec![expr]);
+        interp::vm::evaluate_session(session, wrapped).term
     }
 
     /// Arena/`()` 桩求值 — 保留至 IR 路径落地。
