@@ -18,7 +18,8 @@ pub mod pattern;
 pub mod rewrite;
 pub mod vm;
 
-use athena_types::{ComputationStatus, Diagnostic, Severity, TermId};
+use athena_numeric::Number;
+use athena_types::{ComputationStatus, Diagnostic, Severity, SymbolId, TermId};
 
 pub use env::{DefinitionLayer, LocalBinding, ScopeFrame};
 pub use kernel::{ExecUnit, HandlerId, Instr};
@@ -82,6 +83,26 @@ impl Outcome {
         }
         self
     }
+}
+
+/// 会话级数字原子构造。
+pub fn push_number(session: &mut crate::session::Session, n: Number) -> TermId {
+    let span = athena_ir::TermKind::default_span();
+    session.arena.push(athena_ir::TermKind::Atom(athena_ir::AtomKind::Number(n)), span)
+}
+
+/// 会话级数字原子读取。
+pub fn number_of<'a>(session: &'a crate::session::Session, id: TermId) -> Option<&'a Number> {
+    match session.arena.get(id) {
+        Some(athena_ir::TermKind::Atom(athena_ir::AtomKind::Number(n))) => Some(n),
+        _ => None,
+    }
+}
+
+/// 会话级符号替换（`Table` / `For` / `Function` 具化）。
+pub fn substitute_symbol(session: &mut crate::session::Session, expr: TermId, sym: SymbolId, value: TermId) -> TermId {
+    let mut vm = vm::Vm::new(session);
+    pattern::substitute_symbol(&mut vm, expr, sym, value)
 }
 
 /// handler 表下标（与 [`HANDLERS`] 顺序一一对应）。

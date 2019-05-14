@@ -95,7 +95,7 @@ pub(crate) struct Vm<'a> {
 }
 
 impl<'a> Vm<'a> {
-    fn new(session: &'a mut Session) -> Self {
+    pub(crate) fn new(session: &'a mut Session) -> Self {
         let num_ctx = session.numeric_context();
         Self { session, envs: vec![Env { base_global: true, local: None, frames: Vec::new() }], depth: 0, num_ctx }
     }

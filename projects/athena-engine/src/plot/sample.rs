@@ -1,13 +1,9 @@
 //! 均匀网格 1D 采样。
 
 use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
-use athena_types::{Diagnostic, DiagnosticCode, Result};
+use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use crate::{
-    calculus::replace_symbol,
-    eval::evaluate,
-    term::{Term, number_from_term},
-};
+use crate::{interp, session::Session};
 
 use super::types::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy};
 
@@ -18,7 +14,13 @@ const MAX_SAMPLES_HARD: u32 = 1_000_000;
 ///
 /// `expr` 中的符号 `var` 被替换为机器实数后求值；无法得到有限 `f64` 的点记为 gap。
 /// 相邻有效点若相对跳跃超过 [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
-pub fn sample_1d(expr: &Term, var: &str, domain: SampleDomain, policy: SamplingPolicy) -> Result<SampledCurve> {
+pub fn sample_1d(
+    session: &mut Session,
+    expr: TermId,
+    var: &str,
+    domain: SampleDomain,
+    policy: SamplingPolicy,
+) -> Result<SampledCurve> {
     if policy.is_cancelled() {
         return Err(cancelled());
     }
@@ -46,9 +48,11 @@ pub fn sample_1d(expr: &Term, var: &str, domain: SampleDomain, policy: SamplingP
         }
         let t = i as f64 / (n - 1) as f64;
         let x = domain.start + span * t;
-        let substituted = replace_symbol(expr, var, &Term::number(Number::machine(x)));
-        let value = evaluate(&substituted);
-        let (y, valid) = match number_from_term(&value).and_then(|num| num_to_f64_lossy(num)) {
+        let point = interp::push_number(session, Number::machine(x));
+        let vs = var_sym(session, var);
+        let substituted = interp::substitute_symbol(session, expr, vs, point);
+        let value = interp::vm::evaluate_session(session, substituted).term;
+        let (y, valid) = match interp::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
         };
@@ -70,6 +74,10 @@ pub fn sample_1d(expr: &Term, var: &str, domain: SampleDomain, policy: SamplingP
         curve.points.push(SamplePoint { x, y, valid });
     }
     Ok(curve)
+}
+
+fn var_sym(session: &mut Session, var: &str) -> athena_types::SymbolId {
+    session.arena.symbols_mut().intern(var)
 }
 
 fn cancelled() -> Diagnostic {
