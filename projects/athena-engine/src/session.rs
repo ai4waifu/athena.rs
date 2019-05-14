@@ -8,9 +8,9 @@ use athena_numeric::{ExecutionBudget, NumericContext};
 use athena_types::{ExprId, TermId, ValueId};
 
 use crate::{
-    eval::{DefinitionMap, EvalOutcome, evaluate_in, evaluate_with_definitions},
+    eval::DefinitionMap,
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
-    interp::{env::DefinitionLayer, vm::UnitCache},
+    interp::{self, env::DefinitionLayer, vm::UnitCache},
     linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
@@ -126,19 +126,14 @@ impl Session {
         self.value_bindings.term_of(value)
     }
 
-    /// 在本 Session 定义表上求值（顶层 `Set` 持久化）。
-    pub fn evaluate(&mut self, expr: &Term) -> Term {
-        evaluate_in(&mut self.definitions, expr)
+    /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。
+    pub fn evaluate(&mut self, expr: TermId) -> interp::Outcome {
+        interp::vm::evaluate_session(self, expr)
     }
 
-    /// 带状态 / 诊断的 Session 求值。
-    pub fn evaluate_outcome(&mut self, expr: &Term) -> EvalOutcome {
-        evaluate_with_definitions(&mut self.definitions, expr)
-    }
-
-    /// 清除 Own 符号定义（不触及 heap / rings）。
+    /// 清除符号定义（不触及 heap / rings）。
     pub fn clear_definitions(&mut self) {
-        self.definitions.clear();
+        self.defs.clear();
     }
 
     /// Session runtime heap。
