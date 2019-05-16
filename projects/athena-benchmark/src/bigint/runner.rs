@@ -2,6 +2,7 @@
 
 use std::hint::black_box;
 
+use athena_engine::{clone_integer, clone_natural};
 use athena_gc::HeapBudget;
 use athena_numeric::{EphemeralInteger, EphemeralNatural, Integer, NumericContext, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;
@@ -353,9 +354,12 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     };
 
     let athena_int = match case.implementation {
-        Implementation::Athena if matches!(case.layer, BenchLayer::Numeric | BenchLayer::E2e) => {
-            Some(AthenaIntOps { a: a_ref.clone(), b: b_ref.clone(), prod: prod_ref.clone(), exp })
-        }
+        Implementation::Athena if matches!(case.layer, BenchLayer::Numeric | BenchLayer::E2e) => Some(AthenaIntOps {
+            a: clone_integer(&a_ref),
+            b: clone_integer(&b_ref),
+            prod: prod_ref.as_ref().map(|n| clone_integer(n)),
+            exp,
+        }),
         _ => None,
     };
 
@@ -453,8 +457,8 @@ fn integer_from_decimal(s: &str) -> Integer {
     number_from_wire(&WireNumber::from_decimal_str(s).expect("wire decimal"))
         .expect("from wire")
         .as_integer()
+        .map(clone_integer)
         .expect("integer")
-        .clone()
 }
 
 fn reference_decimal(op: BigIntOp, a: &Integer, b: &Integer, prod: Option<&Integer>, exp: u32, ctx: &NumericContext) -> String {
@@ -476,7 +480,7 @@ fn pow_u32_reused(base: &Integer, exp: u32, ctx: &NumericContext) -> Integer {
         return Integer::zero();
     }
     let mut acc = Integer::one();
-    let mut cur = base.clone();
+    let mut cur = clone_integer(base);
     let mut e = exp;
     while e > 0 {
         if e & 1 == 1 {
@@ -496,7 +500,7 @@ fn nat_pow_u32(base: &Natural, exp: u32, ctx: &NumericContext) -> Natural {
         return Natural::zero();
     }
     let mut acc = Natural::one();
-    let mut cur = base.clone();
+    let mut cur = clone_natural(base);
     let mut e = exp;
     while e > 0 {
         if e & 1 == 1 {

@@ -2,8 +2,16 @@
 
 use athena_engine::{
     CoefficientDomain, JitParityOutcome, MonomialOrder, Number, PolynomialBuilder, RingTable, SampleDomain, SamplingPolicy,
-    SymbolId, Term, mul_with_jit_parity, sample_1d,
+    Session, SymbolId, Term,
+    arena_ops::{push_app_named, push_int, push_symbol_name},
+    mul_with_jit_parity, sample_1d,
 };
+
+fn square_of_x(session: &mut Session) -> athena_types::TermId {
+    let x = push_symbol_name(session, "x");
+    let two = push_int(session, 2);
+    push_app_named(session, "Power", vec![x, two])
+}
 
 use crate::{
     fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
@@ -18,8 +26,9 @@ impl Fixture for Sample1dFixture {
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
-        let expr = Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]);
-        let curve = sample_1d(&expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(5))
+        let mut session = Session::new();
+        let expr = square_of_x(&mut session);
+        let curve = sample_1d(&mut session, expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(5))
             .map_err(|d| d.code.as_str().to_string())?;
         if curve.points.len() != 5 {
             return Err(format!("expected 5 points, got {}", curve.points.len()));
@@ -31,8 +40,9 @@ impl Fixture for Sample1dFixture {
     }
 
     fn run_once(&self) {
-        let expr = Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]);
-        let _ = sample_1d(&expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(17));
+        let mut session = Session::new();
+        let expr = square_of_x(&mut session);
+        let _ = sample_1d(&mut session, expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(17));
     }
 }
 

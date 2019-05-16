@@ -8,6 +8,7 @@
 
 use std::{hint::black_box, str::FromStr};
 
+use athena_engine::{clone_integer, clone_natural};
 use athena_gc::{GcHeap, GcMode, HeapBudget};
 use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural};
 
@@ -136,7 +137,7 @@ impl Fixture for CloneHeapNatural {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Natural clone"))
     }
     fn run_once(&self) {
-        black_box(self.n.clone());
+        black_box(clone_natural(&self.n));
     }
 }
 
@@ -202,7 +203,7 @@ impl Fixture for IntegerClone4 {
         Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "Integer clone"))
     }
     fn run_once(&self) {
-        black_box(self.a.clone());
+        black_box(clone_integer(&self.a));
     }
 }
 
@@ -324,8 +325,8 @@ pub(super) fn register(suite: &mut Suite) {
     let b_dec = Natural::from_limbs(LIMBS4_B.to_vec()).unwrap().to_decimal_string();
     let a_int = Integer::from_str(&a_dec).expect("a");
     let b_int = Integer::from_str(&b_dec).expect("b");
-    suite.register(Box::new(IntegerClone4 { a: a_int.clone() }));
-    suite.register(Box::new(IntegerTryAdd4 { ctx: shared_ctx(), a: a_int.clone(), b: b_int.clone() }));
+    suite.register(Box::new(IntegerClone4 { a: clone_integer(&a_int) }));
+    suite.register(Box::new(IntegerTryAdd4 { ctx: shared_ctx(), a: clone_integer(&a_int), b: clone_integer(&b_int) }));
     {
         let ctx = NumericContext::session_default();
         let a = Integer::from_limbs_in(&ctx, LIMBS4).expect("session a");
