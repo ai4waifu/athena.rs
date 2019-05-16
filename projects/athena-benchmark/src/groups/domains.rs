@@ -2,7 +2,7 @@
 
 use athena_engine::{
     CoefficientDomain, JitParityOutcome, MonomialOrder, Number, PolynomialBuilder, RingTable, SampleDomain, SamplingPolicy,
-    Session, SymbolId, Term,
+    Session, SymbolId,
     arena_ops::{push_app_named, push_int, push_symbol_name},
     mul_with_jit_parity, sample_1d,
 };

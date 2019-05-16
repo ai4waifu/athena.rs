@@ -13,7 +13,7 @@ pub mod algebra;
 pub mod arena_ops;
 pub mod calculus;
 pub mod domain;
-pub mod eval;
+mod eval;
 pub mod field;
 pub mod function;
 pub mod galois;
@@ -85,10 +85,7 @@ pub use calculus::{
 };
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use eval::{
-    Definition, DefinitionMap, EvalKind, EvalOutcome, as_boolean, evaluate, evaluate_checked, evaluate_in, evaluate_outcome,
-    evaluate_with_definitions, invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation,
-};
+pub use eval::{invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation};
 pub use field::{
     Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
     add_field_elements, apply_base_field_embedding, apply_field_automorphism, apply_field_embedding,

@@ -412,9 +412,20 @@ fn definite_integral_sin_zero_to_pi() {
 
 #[test]
 fn cos_pi_is_exact_minus_one() {
-    use athena_engine::evaluate;
-    assert_eq!(evaluate(&Term::apply("Cos", vec![Term::symbol("Pi")])), Term::int(-1));
-    assert_eq!(evaluate(&Term::apply("Sin", vec![Term::symbol("Pi")])), Term::int(0));
+    use athena_engine::{
+        Session,
+        arena_ops::{push_app_named, push_symbol_name},
+        interp::vm::evaluate_session,
+        present::term_debug,
+    };
+    let mut s = Session::new();
+    let pi = push_symbol_name(&mut s, "Pi");
+    let cos = push_app_named(&mut s, "Cos", vec![pi]);
+    let cos_out = evaluate_session(&mut s, cos);
+    assert_eq!(term_debug(&s, cos_out.term), "-1");
+    let sin = push_app_named(&mut s, "Sin", vec![pi]);
+    let sin_out = evaluate_session(&mut s, sin);
+    assert_eq!(term_debug(&s, sin_out.term), "0");
 }
 
 #[test]
@@ -889,10 +900,18 @@ fn try_calculus_request_d_limit_series() {
 
 #[test]
 fn evaluate_routes_d_through_domain() {
-    let e = athena_engine::evaluate(&Term::apply(
-        "D",
-        vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(3)]), Term::symbol("x")],
-    ));
-    let text = format!("{e:?}");
+    use athena_engine::{
+        Session,
+        arena_ops::{push_app_named, push_symbol_name},
+        interp::vm::evaluate_session,
+        present::term_debug,
+    };
+    let mut s = Session::new();
+    let x = push_symbol_name(&mut s, "x");
+    let three = athena_engine::arena_ops::push_int(&mut s, 3);
+    let cube = push_app_named(&mut s, "Power", vec![x, three]);
+    let d = push_app_named(&mut s, "D", vec![cube, x]);
+    let out = evaluate_session(&mut s, d);
+    let text = term_debug(&s, out.term);
     assert!(text.contains('x'), "got {text}");
 }
