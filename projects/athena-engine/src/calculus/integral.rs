@@ -1,75 +1,88 @@
-//! 桥接 [`Term`] 上的不定 / 定积分（初等子集）。
+//! 会话 arena 上的不定 / 定积分（初等子集 · `TermId` 进出）。
 
-use athena_types::{Diagnostic, DiagnosticCode};
-
-use crate::{
-    eval::evaluate,
-    term::{Atom, Term, number_from_term},
-};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
+    ctx::CalculusCtx,
     result::CalculusResult,
     term_util::{contains_symbol, replace_symbol},
 };
-use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 
-/// 在 `Term` 上做符号积分（多项式 / 初等子集）。
-pub fn integrate(expr: &Term, var: &str) -> Term {
-    match expr {
-        Term::Atom(Atom::Number(n)) => Term::apply("Times", vec![Term::number(clone_number(n)), Term::symbol(var)]),
-        Term::Atom(Atom::String(_)) | Term::Atom(Atom::Boolean(_)) | Term::Atom(Atom::Null) => {
-            Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)])
+/// 在 arena 上做符号积分（多项式 / 初等子集）。
+pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
+    let Some(shape) = cc.shape(expr)
+    else {
+        return expr;
+    };
+    match shape {
+        crate::interp::vm::Shape::Number => {
+            let n = cc.number_of(expr).map(|n| cc.copy(n)).expect("number");
+            cc.ap("Times", vec![cc.num(n), cc.sym(var)])
         }
-        Term::Atom(Atom::Symbol(s)) if s == var => {
-            evaluate(&Term::apply("Divide", vec![Term::apply("Power", vec![Term::symbol(var), Term::int(2)]), Term::int(2)]))
+        crate::interp::vm::Shape::Str(_) | crate::interp::vm::Shape::Bool(_) | crate::interp::vm::Shape::Null => {
+            cc.ap("Integrate", vec![expr, cc.sym(var)])
         }
-        Term::Atom(Atom::Symbol(_)) => Term::apply("Times", vec![clone_term(expr), Term::symbol(var)]),
-        Term::List(items) => Term::List(items.iter().map(|i| integrate(i, var)).collect()),
-        Term::Application { head, arguments: args } => {
-            let h = head.head_name().unwrap_or("");
-            match h {
-                "Plus" => evaluate(&Term::apply("Plus", args.iter().map(|a| integrate(a, var)).collect())),
+        crate::interp::vm::Shape::Sym(s) => {
+            if cc.sym_is(s, var) {
+                let x2 = cc.ap("Power", vec![cc.sym(var), cc.in_(2)]);
+                cc.eval(cc.ap("Divide", vec![x2, cc.in_(2)]))
+            }
+            else {
+                cc.ap("Times", vec![expr, cc.sym(var)])
+            }
+        }
+        crate::interp::vm::Shape::List(items) => {
+            let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
+            cc.list(iss)
+        }
+        crate::interp::vm::Shape::App(_, _) => {
+            let Some((h, args)) = cc.app(expr)
+            else {
+                return expr;
+            };
+            match h.as_str() {
+                "Plus" => {
+                    let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
+                    cc.eval(cc.ap("Plus", iss))
+                }
                 "Times" if args.len() == 2 => {
-                    let (coeff, rest) = if number_from_term(&args[0]).is_some() {
-                        (&args[0], &args[1])
+                    let (coeff, rest) = if cc.number_of(args[0]).is_some() {
+                        (args[0], args[1])
                     }
-                    else if number_from_term(&args[1]).is_some() {
-                        (&args[1], &args[0])
+                    else if cc.number_of(args[1]).is_some() {
+                        (args[1], args[0])
                     }
                     else {
-                        return Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]);
+                        return cc.ap("Integrate", vec![expr, cc.sym(var)]);
                     };
-                    evaluate(&Term::apply("Times", vec![clone_term(coeff), integrate(rest, var)]))
+                    let ir = integrate(cc, rest, var);
+                    cc.eval(cc.ap("Times", vec![coeff, ir]))
                 }
-                "Power" if args.len() == 2 && args[0].is_symbol(var) => {
-                    if let Some(n) = number_from_term(&args[1]).and_then(|e| e.as_integer_exp()) {
+                "Power" if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
+                    if let Some(n) = cc.int_exp(args[1]) {
                         if n != -1 {
-                            return evaluate(&Term::apply(
-                                "Divide",
-                                vec![
-                                    Term::apply("Power", vec![clone_term(&args[0]), Term::integer(n + 1)]),
-                                    Term::integer(n + 1),
-                                ],
-                            ));
+                            let p = cc.ap("Power", vec![args[0], cc.in_(n + 1)]);
+                            return cc.eval(cc.ap("Divide", vec![p, cc.in_(n + 1)]));
                         }
                     }
-                    Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)])
+                    cc.ap("Integrate", vec![expr, cc.sym(var)])
                 }
-                "Sin" if args.len() == 1 && args[0].is_symbol(var) => {
-                    evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Cos", clone_terms(args))]))
+                "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
+                    let c = cc.ap("Cos", args.clone());
+                    cc.eval(cc.ap("Times", vec![cc.in_(-1), c]))
                 }
-                "Cos" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Sin", clone_terms(args)),
-                "Exp" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Exp", clone_terms(args)),
-                _ => Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]),
+                "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.ap("Sin", args.clone()),
+                "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.ap("Exp", args.clone()),
+                _ => cc.ap("Integrate", vec![expr, cc.sym(var)]),
             }
         }
     }
 }
 
 /// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。
-pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
-    let value = integrate(expr, var);
-    if matches!(&value, Term::Application { head, .. } if head.is_symbol("Integrate")) {
+pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> CalculusResult<TermId> {
+    let value = integrate(cc, expr, var);
+    if cc.head_name(value).is_some_and(|h| h == "Integrate") {
         CalculusResult::Unevaluated { expression: value, reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary) }
     }
     else {
@@ -78,35 +91,38 @@ pub fn integrate_checked(expr: &Term, var: &str) -> CalculusResult<Term> {
 }
 
 /// 经原函数求值 `F(upper) - F(lower)` 的定积分。
-pub fn definite_integrate_checked(expr: &Term, var: &str, lower: &Term, upper: &Term) -> CalculusResult<Term> {
-    match integrate_checked(expr, var) {
+pub fn definite_integrate_checked(
+    cc: &mut CalculusCtx<'_>,
+    expr: TermId,
+    var: &str,
+    lower: TermId,
+    upper: TermId,
+) -> CalculusResult<TermId> {
+    let echo = |cc: &mut CalculusCtx<'_>| {
+        let iter = cc.list(vec![cc.sym(var), lower, upper]);
+        cc.ap("Integrate", vec![expr, iter])
+    };
+    match integrate_checked(cc, expr, var) {
         CalculusResult::Exact { value: antideriv, conditions } => {
-            let at_upper = evaluate(&replace_symbol(&antideriv, var, upper));
-            let at_lower = evaluate(&replace_symbol(&antideriv, var, lower));
-            if contains_symbol(&at_upper, var) || contains_symbol(&at_lower, var) {
+            let at_upper = cc.eval(replace_symbol(cc, antideriv, var, upper));
+            let at_lower = cc.eval(replace_symbol(cc, antideriv, var, lower));
+            if contains_symbol(cc, at_upper, var) || contains_symbol(cc, at_lower, var) {
                 return CalculusResult::Unevaluated {
-                    expression: Term::apply(
-                        "Integrate",
-                        vec![clone_term(expr), Term::List(vec![Term::symbol(var), clone_term(lower), clone_term(upper)])],
-                    ),
+                    expression: echo(cc),
                     reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid),
                 };
             }
-            let value = evaluate(&Term::apply("Plus", vec![at_upper, Term::apply("Times", vec![Term::int(-1), at_lower])]));
+            let neg = cc.ap("Times", vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.ap("Plus", vec![at_upper, neg]));
             CalculusResult::Exact { value, conditions }
         }
         CalculusResult::Conditional { value: antideriv, conditions } => {
-            let at_upper = evaluate(&replace_symbol(&antideriv, var, upper));
-            let at_lower = evaluate(&replace_symbol(&antideriv, var, lower));
-            let value = evaluate(&Term::apply("Plus", vec![at_upper, Term::apply("Times", vec![Term::int(-1), at_lower])]));
+            let at_upper = cc.eval(replace_symbol(cc, antideriv, var, upper));
+            let at_lower = cc.eval(replace_symbol(cc, antideriv, var, lower));
+            let neg = cc.ap("Times", vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.ap("Plus", vec![at_upper, neg]));
             CalculusResult::Conditional { value, conditions }
         }
-        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
-            expression: Term::apply(
-                "Integrate",
-                vec![clone_term(expr), Term::List(vec![Term::symbol(var), clone_term(lower), clone_term(upper)])],
-            ),
-            reason,
-        },
+        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated { expression: echo(cc), reason },
     }
 }

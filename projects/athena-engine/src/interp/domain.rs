@@ -1,12 +1,12 @@
-//! 域分派桥 — `D` / `Integrate` / `Limit` / `Series` / `DSolve` / `LaplaceTransform` / `Solve`。
+//! 域分派 — `D` / `Integrate` / `Limit` / `Series` / `DSolve` / `LaplaceTransform` / `Solve`。
 //!
-//! 过渡实现：arena id ↔ engine 内部微积分桥的私有转换（Living `25` 阶段 3 之后
-//! `CalculusRequest` 载荷 `TermId` 化时整体删除，禁止成为公共兼容 API）。
+//! 微积分与 `Solve` 均经 session arena + [`TermId`]（Living `25`）。
 
 use athena_ir::{AtomKind, TermKind};
+use athena_numeric::{Number, add as num_add, mul as num_mul};
 use athena_types::TermId;
 
-use crate::term::{Atom, Term};
+use crate::numeric_clone::clone_number;
 
 use super::{Outcome, vm::Vm};
 
@@ -52,12 +52,17 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
             diagnostics: diags,
         };
     }
-    let echo = vm.push_app(name, evaluated.clone());
-    let legacy_app = app_legacy(vm, name, &evaluated);
-    if let Some(req) = crate::calculus::try_calculus_request(&legacy_app) {
-        let result = crate::calculus::execute_calculus(req);
-        let bridged = crate::calculus::calculus_result_bridge_term(&result);
-        let term = from_legacy_term(vm, &bridged);
+    let echo = vm.push_app(name, evaluated);
+    let req = {
+        let mut cc = crate::calculus::ctx::CalculusCtx::new(vm.session);
+        crate::calculus::try_calculus_request(&mut cc, echo)
+    };
+    if let Some(req) = req {
+        let result = crate::calculus::execute_calculus(vm.session, req);
+        let term = {
+            let mut cc = crate::calculus::ctx::CalculusCtx::new(vm.session);
+            crate::calculus::calculus_result_bridge_term(&mut cc, &result)
+        };
         return Outcome::value(term).with_diagnostics(diags);
     }
     Outcome::unevaluated(echo).with_diagnostics(diags)
@@ -73,17 +78,24 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
     else {
         return Outcome::unevaluated(echo);
     };
-    let legacy_eq = to_legacy_term(vm, equation);
-    let zero_expr = match &legacy_eq {
-        Term::Application { head, arguments } if head.is_symbol("Equal") && arguments.len() == 2 => {
-            crate::eval::evaluate(&Term::apply(
-                "Plus",
-                vec![clone_legacy(&arguments[0]), Term::apply("Times", vec![Term::int(-1), clone_legacy(&arguments[1])])],
-            ))
+
+    let zero_id = if vm.head_name(equation).as_deref() == Some("Equal") {
+        let args = vm.app_args(equation).unwrap_or_default();
+        if args.len() == 2 {
+            let neg1 = vm.push_int(-1);
+            let neg = vm.push_app("Times", vec![neg1, args[1]]);
+            let plus = vm.push_app("Plus", vec![args[0], neg]);
+            vm.eval_value(plus).term
         }
-        other => crate::eval::evaluate(&clone_legacy(other)),
+        else {
+            vm.eval_value(equation).term
+        }
+    }
+    else {
+        vm.eval_value(equation).term
     };
-    let Some(terms) = crate::eval::collect_univariate_monomials_for_solve(&zero_expr, &var_name)
+
+    let Some(terms) = collect_univariate_monomials(vm, zero_id, &var_name)
     else {
         return Outcome::unevaluated(echo);
     };
@@ -133,11 +145,11 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
             return Outcome::unevaluated(echo);
         };
         let root_term = match val {
-            crate::solve::BindingValue::Number(n) => Term::number(crate::numeric_clone::clone_number(n)),
-            crate::solve::BindingValue::Rational(r) => crate::eval::rational_to_term_for_solve(r),
+            crate::solve::BindingValue::Number(n) => push_number_for_solve(vm, n),
+            crate::solve::BindingValue::Rational(r) => super::lin::rational_to_term(vm, r),
             crate::solve::BindingValue::MachineF64(_) => return Outcome::unevaluated(echo),
         };
-        roots.push(from_legacy_term(vm, &root_term));
+        roots.push(root_term);
     }
     roots.sort_by(|a, b| {
         match (super::arith::num_compare_ids(vm, *a, *b), super::arith::number_of(vm, *a), super::arith::number_of(vm, *b)) {
@@ -156,69 +168,111 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
     Outcome::value(vm.push_list(out))
 }
 
-fn app_legacy(vm: &Vm<'_>, name: &str, args: &[TermId]) -> Term {
-    Term::Application { head: Box::new(Term::symbol(name)), arguments: args.iter().map(|a| to_legacy_term(vm, *a)).collect() }
-}
-
-fn clone_legacy(t: &Term) -> Term {
-    crate::numeric_clone::clone_term(t)
-}
-
-/// arena 子树 → legacy 树（过渡私有；`Number` 走 `clone_number`）。
-pub(crate) fn to_legacy_term(vm: &Vm<'_>, id: TermId) -> Term {
-    let Some(kind) = vm.session.arena.get(id)
-    else {
-        return Term::null();
-    };
-    match kind {
-        TermKind::Atom(AtomKind::Number(n)) => Term::number(crate::numeric_clone::clone_number(n)),
-        TermKind::Atom(AtomKind::String(s)) => Term::Atom(Atom::String(s.clone())),
-        TermKind::Atom(AtomKind::Symbol(s)) => Term::symbol(vm.session.arena.symbols().resolve(*s).unwrap_or("?").to_string()),
-        TermKind::Atom(AtomKind::Boolean(b)) => Term::boolean(*b),
-        TermKind::Atom(AtomKind::Null) => Term::null(),
-        TermKind::List(items) => Term::List(items.iter().map(|i| to_legacy_term(vm, *i)).collect()),
-        TermKind::App { op, args } => {
-            let name = vm.session.operators.name(*op).unwrap_or("?").to_string();
-            let arguments: Vec<Term> = args.iter().map(|a| to_legacy_term(vm, *a)).collect();
-            if name == "Application" && !arguments.is_empty() {
-                let mut it = arguments.into_iter();
-                let head = Box::new(it.next().unwrap_or_else(|| Term::null()));
-                return Term::Application { head, arguments: it.collect() };
-            }
-            Term::Application { head: Box::new(Term::symbol(name)), arguments }
+fn push_number_for_solve(vm: &mut Vm<'_>, n: &Number) -> TermId {
+    if let Some(i) = n.as_exact_integer() {
+        return vm.push_int(i);
+    }
+    if let Some(i) = n.as_integer() {
+        if let Some(v) = i.to_i64() {
+            return vm.push_int(v);
         }
     }
+    if let Some(r) = n.as_rational() {
+        return super::lin::rational_to_term(vm, r);
+    }
+    super::arith::push_number(vm, clone_number(n))
 }
 
-/// legacy 树 → arena 子树（过渡私有）。
-pub(crate) fn from_legacy_term(vm: &mut Vm<'_>, term: &Term) -> TermId {
-    match term {
-        Term::Atom(Atom::Number(n)) => {
-            let span = TermKind::default_span();
-            vm.session.arena.push(TermKind::Atom(AtomKind::Number(crate::numeric_clone::clone_number(n))), span)
-        }
-        Term::Atom(Atom::String(s)) => {
-            let span = TermKind::default_span();
-            vm.session.arena.push(TermKind::Atom(AtomKind::String(s.clone())), span)
-        }
-        Term::Atom(Atom::Symbol(s)) => vm.push_symbol(s),
-        Term::Atom(Atom::Boolean(b)) => vm.push_bool(*b),
-        Term::Atom(Atom::Null) => vm.push_null(),
-        Term::List(items) => {
-            let ids: Vec<TermId> = items.iter().map(|i| from_legacy_term(vm, i)).collect();
-            vm.push_list(ids)
-        }
-        Term::Application { head, arguments } => {
-            if let Term::Atom(Atom::Symbol(s)) = head.as_ref() {
-                let args: Vec<TermId> = arguments.iter().map(|a| from_legacy_term(vm, a)).collect();
-                vm.push_app(s, args)
+/// 将 `Plus`/`Times`/`Power` 展开为单变量 `(coeff, degree)` 项（仅有理系数 · arena 版）。
+fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<Vec<(Number, u32)>> {
+    fn merge(dst: &mut Vec<(Number, u32)>, src: Vec<(Number, u32)>) -> Option<()> {
+        for (c, d) in src {
+            if let Some((existing, _)) = dst.iter_mut().find(|(_, ed)| *ed == d) {
+                *existing = num_add(clone_number(existing), c).ok()?;
             }
             else {
-                let head_id = from_legacy_term(vm, head);
-                let mut wrapped = vec![head_id];
-                wrapped.extend(arguments.iter().map(|a| from_legacy_term(vm, a)));
-                vm.rebuild_app_wrapped(wrapped)
+                dst.push((c, d));
             }
         }
+        dst.retain(|(c, _)| !c.is_zero());
+        Some(())
     }
+
+    fn mul_lists(a: &[(Number, u32)], b: &[(Number, u32)]) -> Option<Vec<(Number, u32)>> {
+        let mut out = Vec::new();
+        for (ca, da) in a {
+            for (cb, db) in b {
+                let c = num_mul(clone_number(ca), clone_number(cb)).ok()?;
+                let d = da.checked_add(*db)?;
+                merge(&mut out, vec![(c, d)])?;
+            }
+        }
+        Some(out)
+    }
+
+    fn is_sym(vm: &Vm<'_>, id: TermId, var: &str) -> bool {
+        matches!(
+            vm.session.arena.get(id),
+            Some(TermKind::Atom(AtomKind::Symbol(s))) if vm.session.arena.symbols().resolve(*s) == Some(var)
+        )
+    }
+
+    fn go(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<Vec<(Number, u32)>> {
+        if is_sym(vm, expr, var) {
+            return Some(vec![(Number::small_int(1), 1)]);
+        }
+        if let Some(n) = super::arith::number_of(vm, expr) {
+            return Some(vec![(clone_number(n), 0)]);
+        }
+        match vm.head_name(expr).as_deref() {
+            Some("Plus") => {
+                let mut out = Vec::new();
+                for a in vm.app_args(expr).unwrap_or_default() {
+                    merge(&mut out, go(vm, a, var)?)?;
+                }
+                Some(out)
+            }
+            Some("Times") => {
+                let mut out = vec![(Number::small_int(1), 0)];
+                for a in vm.app_args(expr).unwrap_or_default() {
+                    out = mul_lists(&out, &go(vm, a, var)?)?;
+                }
+                Some(out)
+            }
+            Some("Power") => {
+                let args = vm.app_args(expr).unwrap_or_default();
+                if args.len() != 2 {
+                    return None;
+                }
+                let exp = super::arith::number_of(vm, args[1])?.as_integer_exp()?;
+                if exp < 0 {
+                    return None;
+                }
+                let exp = exp as u32;
+                if is_sym(vm, args[0], var) {
+                    return Some(vec![(Number::small_int(1), exp)]);
+                }
+                let base = go(vm, args[0], var)?;
+                if base.len() == 1 && base[0].1 == 0 {
+                    let mut p = Number::small_int(1);
+                    for _ in 0..exp {
+                        p = num_mul(p, clone_number(&base[0].0)).ok()?;
+                    }
+                    return Some(vec![(p, 0)]);
+                }
+                // (poly)^n：仅支持已展开低次，保守拒绝。
+                if exp == 0 {
+                    return Some(vec![(Number::small_int(1), 0)]);
+                }
+                if exp == 1 {
+                    return Some(base);
+                }
+                None
+            }
+            Some("List") => None,
+            _ => None,
+        }
+    }
+
+    go(vm, expr, var)
 }

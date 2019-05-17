@@ -6,22 +6,8 @@
 use athena_numeric::{Integer, ModularValue, Modulus, Number, NumericContext, Rational, natural::Natural};
 use athena_types::Result;
 
-use crate::term::{Atom, Term};
-
 fn portable() -> NumericContext {
     NumericContext::portable_default()
-}
-
-/// [`Term`] owning 深复制（portable 无界 context）。
-#[inline]
-pub fn clone_term(t: &Term) -> Term {
-    t.try_clone_in(&portable()).expect("portable default max_limbs unbounded")
-}
-
-/// [`Atom`] owning 复制（portable 无界 context）。
-#[inline]
-pub fn clone_atom(a: &Atom) -> Atom {
-    a.try_clone_in(&portable()).expect("portable default max_limbs unbounded")
 }
 
 /// [`Integer`] owning 复制（portable 无界 context）。
@@ -115,9 +101,4 @@ pub fn clone_rationals(v: &[Rational]) -> Vec<Rational> {
 /// 克隆 `Vec<Number>`。
 pub fn clone_numbers(v: &[Number]) -> Vec<Number> {
     v.iter().map(clone_number).collect()
-}
-
-/// 克隆 `Vec<Term>`。
-pub fn clone_terms(v: &[Term]) -> Vec<Term> {
-    v.iter().map(clone_term).collect()
 }

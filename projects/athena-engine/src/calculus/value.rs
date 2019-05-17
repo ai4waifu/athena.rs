@@ -1,6 +1,8 @@
 //! 统一的微积分 / 域值（表达式、级数或向量微积分对象）。
 
-use crate::{numeric_clone::clone_term, term::Term};
+use athena_types::TermId;
+
+use super::ctx::CalculusCtx;
 
 use super::{
     differential::DifferentialSolution,
@@ -15,7 +17,7 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub enum CalculusValue {
     /// 普通表达式。
-    Expression(Term),
+    Expression(TermId),
     /// 独立级数对象（保留余项）。
     Series(Series),
     /// 梯度对象（非裸列表）。
@@ -36,8 +38,8 @@ pub enum CalculusValue {
     Transform(TransformResult),
 }
 
-impl From<Term> for CalculusValue {
-    fn from(value: Term) -> Self {
+impl From<TermId> for CalculusValue {
+    fn from(value: TermId) -> Self {
         Self::Expression(value)
     }
 }
@@ -97,25 +99,25 @@ impl From<TransformResult> for CalculusValue {
 }
 
 impl CalculusValue {
-    /// 展平为桥接 [`Term`]，供仍需要单一表达式的宿主使用。
-    pub fn to_bridge_term(&self) -> Term {
+    /// 展平为单一表达式桥接项（Living `25`：仅余微积分内桥接用）。
+    pub fn to_bridge_term(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         match self {
-            Self::Expression(t) => clone_term(t),
-            Self::Series(s) => s.to_term(),
-            Self::Gradient(g) => g.to_list_term(),
-            Self::Jacobian(j) => j.to_list_term(),
-            Self::Hessian(h) => h.to_list_term(),
+            Self::Expression(t) => *t,
+            Self::Series(s) => s.to_term(cc),
+            Self::Gradient(g) => g.to_list_term(cc),
+            Self::Jacobian(j) => j.to_list_term(cc),
+            Self::Hessian(h) => h.to_list_term(cc),
             Self::Divergence(d) => d.to_bridge_term(),
-            Self::Curl(c) => c.to_list_term(),
+            Self::Curl(c) => c.to_list_term(cc),
             Self::Residue(r) => r.to_bridge_term(),
-            Self::DifferentialSolution(d) => d.to_equal_term(),
-            Self::Transform(t) => t.to_bridge_term(),
+            Self::DifferentialSolution(d) => d.to_equal_term(cc),
+            Self::Transform(t) => t.to_bridge_term(cc),
         }
     }
 }
 
 /// 将仅含项的微积分结果映射为值结果。
-pub fn map_term_result(r: CalculusResult<Term>) -> CalculusResult<CalculusValue> {
+pub fn map_term_result(r: CalculusResult<TermId>) -> CalculusResult<CalculusValue> {
     match r {
         CalculusResult::Exact { value, conditions } => {
             CalculusResult::Exact { value: CalculusValue::Expression(value), conditions }
@@ -262,11 +264,11 @@ pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResul
     }
 }
 
-/// 抽取 evaluate 风格 API 的主载荷。
-pub fn calculus_result_bridge_term(r: &CalculusResult<CalculusValue>) -> Term {
+/// 抽取 evaluate 风格 API 的主载荷（写回 session arena）。
+pub fn calculus_result_bridge_term(cc: &mut CalculusCtx<'_>, r: &CalculusResult<CalculusValue>) -> TermId {
     match r {
         CalculusResult::Exact { value, .. }
         | CalculusResult::Conditional { value, .. }
-        | CalculusResult::Unevaluated { expression: value, .. } => value.to_bridge_term(),
+        | CalculusResult::Unevaluated { expression: value, .. } => value.to_bridge_term(cc),
     }
 }

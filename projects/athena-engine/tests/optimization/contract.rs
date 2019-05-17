@@ -3,7 +3,7 @@
 use athena_engine::{
     AlgorithmPolicy, AssumptionScopeId, DecisionVariable, DomainId, DomainRequest, DomainResult, FeasibleSet, Integrality,
     Objective, ObjectiveId, ObjectiveSense, OptimizationLimits, OptimizationProblem, OptimizationRequest, OptimizationResult,
-    ProblemClass, ProblemId, TermId, VariableDomain, VariableId, execute_domain, execute_optimization,
+    ProblemClass, ProblemId, Session, TermId, VariableDomain, VariableId, execute_domain, execute_optimization,
     optimization::{Constraint as OptConstraint, ConstraintId, ConstraintRelation},
 };
 
@@ -82,7 +82,8 @@ fn execute_optimization_is_unevaluated_bootstrap() {
     }
 
     let req = DomainRequest::Optimization(OptimizationRequest::ValidateProblem { problem });
-    let DomainResult::Optimization(OptimizationResult::Unevaluated { .. }) = execute_domain(req).unwrap()
+    let mut session = Session::new();
+    let DomainResult::Optimization(OptimizationResult::Unevaluated { .. }) = execute_domain(&mut session, req).unwrap()
     else {
         panic!("expected optimization Unevaluated via DomainRequest");
     };

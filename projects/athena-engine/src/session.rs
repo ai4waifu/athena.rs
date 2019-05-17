@@ -8,14 +8,12 @@ use athena_numeric::{ExecutionBudget, NumericContext};
 use athena_types::{ExprId, TermId, ValueId};
 
 use crate::{
-    eval::DefinitionMap,
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
     interp::{self, env::DefinitionLayer, vm::UnitCache},
     linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
     semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable},
-    term::Term,
     value::ValueBindingTable,
 };
 
@@ -29,8 +27,6 @@ pub struct Session {
     pub exprs: ExprBindingTable,
     /// 值身份 ↔ 存储 `TermId`。
     pub value_bindings: ValueBindingTable,
-    /// Own / Delayed 符号定义（跨 `evaluate` 持久）。
-    pub definitions: DefinitionMap,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
     /// KernelIR 编译缓存（canonical hash → `ExecUnit`）。
@@ -56,7 +52,7 @@ impl core::fmt::Debug for Session {
         f.debug_struct("Session")
             .field("arena_len", &self.arena.len())
             .field("operators", &self.operators.len())
-            .field("definitions", &self.definitions.keys().collect::<Vec<_>>())
+            .field("defs", &self.defs)
             .field("rings", &self.rings)
             .field("mgraph", &self.mgraph)
             .field("exprs", &self.exprs)
@@ -88,7 +84,6 @@ impl Session {
             operators: OperatorRegistry::standard(),
             exprs: ExprBindingTable::default(),
             value_bindings: ValueBindingTable::default(),
-            definitions: DefinitionMap::new(),
             defs: DefinitionLayer::new(),
             units: UnitCache::new(),
             module_counter: 0,

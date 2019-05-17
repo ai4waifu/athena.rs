@@ -24,4 +24,5 @@ athena-ndarray = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
-unsafe_code = "forbid"
+# `deny`（非 `forbid`）：`calculus::ctx::Cc` 经独占生命周期裸指针消除嵌套 builder E0499。
+unsafe_code = "deny"

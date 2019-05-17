@@ -1,9 +1,11 @@
-//! 特殊函数定义表 — domain / 导数 / 分支策略（引导实现）。
+//! 特殊函数定义表 — domain / 导数 / 分支策略（arena 版 · Living `25`）。
 //!
 //! 微积分算法经本表查询一元函数的形式导数，而不是在 `differentiate` 里无限堆 `match` 臂。
 //! 第一阶段覆盖：初等三角/双曲/反三角、`Exp`/`Log`/`Sqrt`/`Abs`/`Sign`、`Gamma`、`Erf`。
 
-use crate::{numeric_clone::clone_term, term::Term};
+use athena_types::TermId;
+
+use crate::calculus::ctx::CalculusCtx;
 
 /// 分支约定 — 复数主值与实数规则不得混用。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +21,7 @@ pub enum BranchPolicy {
 }
 
 /// 一元函数形式导数：`f'(u)`，仍含自变量 `u`（链式法则外层再乘 `u'`）。
-pub type UnaryDerivative = fn(arg: &Term) -> Term;
+pub type UnaryDerivative = fn(&mut CalculusCtx<'_>, TermId) -> TermId;
 
 /// 注册的函数语义。
 #[derive(Debug, Clone, Copy)]
@@ -63,110 +65,94 @@ static REGISTRY: &[FunctionDefinition] = &[
     FunctionDefinition { name: "Erf", arity: 1, branch: BranchPolicy::Principal, unary_derivative: Some(deriv_erf) },
 ];
 
-fn deriv_exp(arg: &Term) -> Term {
-    Term::apply("Exp", vec![clone_term(arg)])
+fn deriv_exp(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    cc.ap("Exp", vec![arg])
 }
 
-fn deriv_log(arg: &Term) -> Term {
-    Term::apply("Power", vec![clone_term(arg), Term::int(-1)])
+fn deriv_log(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    cc.ap("Power", vec![arg, cc.in_(-1)])
 }
 
-fn deriv_sin(arg: &Term) -> Term {
-    Term::apply("Cos", vec![clone_term(arg)])
+fn deriv_sin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    cc.ap("Cos", vec![arg])
 }
 
-fn deriv_cos(arg: &Term) -> Term {
-    Term::apply("Times", vec![Term::int(-1), Term::apply("Sin", vec![clone_term(arg)])])
+fn deriv_cos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    let sin = cc.ap("Sin", vec![arg]);
+    cc.ap("Times", vec![cc.in_(-1), sin])
 }
 
-fn deriv_tan(arg: &Term) -> Term {
-    Term::apply("Power", vec![Term::apply("Cos", vec![clone_term(arg)]), Term::int(-2)])
+fn deriv_tan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    let cos = cc.ap("Cos", vec![arg]);
+    cc.ap("Power", vec![cos, cc.in_(-2)])
 }
 
-fn deriv_sinh(arg: &Term) -> Term {
-    Term::apply("Cosh", vec![clone_term(arg)])
+fn deriv_sinh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    cc.ap("Cosh", vec![arg])
 }
 
-fn deriv_cosh(arg: &Term) -> Term {
-    Term::apply("Sinh", vec![clone_term(arg)])
+fn deriv_cosh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    cc.ap("Sinh", vec![arg])
 }
 
-fn deriv_tanh(arg: &Term) -> Term {
-    Term::apply("Power", vec![Term::apply("Cosh", vec![clone_term(arg)]), Term::int(-2)])
+fn deriv_tanh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    let cosh = cc.ap("Cosh", vec![arg]);
+    cc.ap("Power", vec![cosh, cc.in_(-2)])
 }
 
-fn deriv_arcsin(arg: &Term) -> Term {
+fn deriv_arcsin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/Sqrt[1-u^2]
-    Term::apply(
-        "Power",
-        vec![
-            Term::apply(
-                "Sqrt",
-                vec![Term::apply(
-                    "Plus",
-                    vec![
-                        Term::int(1),
-                        Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])]),
-                    ],
-                )],
-            ),
-            Term::int(-1),
-        ],
-    )
+    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
+    let one_minus = cc.ap("Plus", vec![cc.in_(1), cc.ap("Times", vec![cc.in_(-1), u2])]);
+    let sqrt = cc.ap("Sqrt", vec![one_minus]);
+    cc.ap("Power", vec![sqrt, cc.in_(-1)])
 }
 
-fn deriv_arccos(arg: &Term) -> Term {
-    Term::apply("Times", vec![Term::int(-1), deriv_arcsin(arg)])
+fn deriv_arccos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+    let s = deriv_arcsin(cc, arg);
+    cc.ap("Times", vec![cc.in_(-1), s])
 }
 
-fn deriv_arctan(arg: &Term) -> Term {
+fn deriv_arctan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/(1+u^2)
-    Term::apply(
-        "Power",
-        vec![Term::apply("Plus", vec![Term::int(1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])]), Term::int(-1)],
-    )
+    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
+    let one_plus = cc.ap("Plus", vec![cc.in_(1), u2]);
+    cc.ap("Power", vec![one_plus, cc.in_(-1)])
 }
 
-fn deriv_sqrt(arg: &Term) -> Term {
+fn deriv_sqrt(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/(2 Sqrt[u])
-    Term::apply(
-        "Power",
-        vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(arg)])]), Term::int(-1)],
-    )
+    let sqrt = cc.ap("Sqrt", vec![arg]);
+    let two_sqrt = cc.ap("Times", vec![cc.in_(2), sqrt]);
+    cc.ap("Power", vec![two_sqrt, cc.in_(-1)])
 }
 
-fn deriv_abs(arg: &Term) -> Term {
+fn deriv_abs(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 绝对值分支：Abs[u]/u（条件在 differentiate_checked）
-    Term::apply(
-        "Times",
-        vec![Term::apply("Abs", vec![clone_term(arg)]), Term::apply("Power", vec![clone_term(arg), Term::int(-1)])],
-    )
+    let abs = cc.ap("Abs", vec![arg]);
+    let uinv = cc.ap("Power", vec![arg, cc.in_(-1)]);
+    cc.ap("Times", vec![abs, uinv])
 }
 
-fn deriv_sign(_arg: &Term) -> Term {
+fn deriv_sign(_cc: &mut CalculusCtx<'_>, _arg: TermId) -> TermId {
     // 形式：几乎处处 0（奇点在 0 由假设处理）
-    Term::int(0)
+    _cc.in_(0)
 }
 
-fn deriv_gamma(arg: &Term) -> Term {
+fn deriv_gamma(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：Γ'(z) = Γ(z) PolyGamma[0, z]
-    Term::apply(
-        "Times",
-        vec![Term::apply("Gamma", vec![clone_term(arg)]), Term::apply("PolyGamma", vec![Term::int(0), clone_term(arg)])],
-    )
+    let gamma = cc.ap("Gamma", vec![arg]);
+    let poly = cc.ap("PolyGamma", vec![cc.in_(0), arg]);
+    cc.ap("Times", vec![gamma, poly])
 }
 
-fn deriv_erf(arg: &Term) -> Term {
+fn deriv_erf(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：(2/Sqrt[Pi]) Exp[-u^2]
-    Term::apply(
-        "Times",
-        vec![
-            Term::int(2),
-            Term::apply("Power", vec![Term::apply("Sqrt", vec![Term::symbol("Pi")]), Term::int(-1)]),
-            Term::apply(
-                "Exp",
-                vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])])],
-            ),
-        ],
-    )
+    let pi = cc.sym("Pi");
+    let sqrt_pi = cc.ap("Sqrt", vec![pi]);
+    let inv = cc.ap("Power", vec![sqrt_pi, cc.in_(-1)]);
+    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
+    let neg = cc.ap("Times", vec![cc.in_(-1), u2]);
+    let exp = cc.ap("Exp", vec![neg]);
+    cc.ap("Times", vec![cc.in_(2), inv, exp])
 }
