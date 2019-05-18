@@ -87,5 +87,17 @@ pub use athena_engine::{
     witness_from_exact, z_checked,
 };
 
+/// Arena 构造 / 读取（方言 Form → AthenaIR lowering）。
+pub use athena_engine::arena_ops::{
+    app_args, app_head_name, as_boolean_id, copy_term_subtree, get_kind, number_from_id, push_app_named, push_bool, push_int,
+    push_list, push_null, push_symbol_name, symbol_name,
+};
+
+/// 调试呈现（非方言 render）。
+pub use athena_engine::present::term_debug;
+
+/// Interp 求值结果。
+pub use athena_engine::interp::{EvalKind, Outcome as EvalOutcome};
+
 /// 数值塔：[`NumericValue`] / [`Number`] 为唯一执行真相源。
 pub use athena_engine::numeric;
