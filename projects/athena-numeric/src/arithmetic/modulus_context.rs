@@ -4,9 +4,7 @@ use std::collections::HashMap;
 
 use athena_types::ModulusId;
 
-use crate::{
-    execution_budget::NumericContext,
-    kernel::limb as limb_kernel, modular::Modulus, natural::Natural};
+use crate::{execution_budget::NumericContext, kernel::limb as limb_kernel, modular::Modulus, natural::Natural};
 
 /// Montgomery 约化常量（奇模数）。
 #[derive(Debug, PartialEq, Eq)]

@@ -6,7 +6,10 @@
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
 use crate::{
-    execution_budget::NumericContext, integer::Integer, modulus_context::ModulusTable, storage::{MagnitudePair, gc_alloc_error},
+    execution_budget::NumericContext,
+    integer::Integer,
+    modulus_context::ModulusTable,
+    storage::{MagnitudePair, gc_alloc_error},
 };
 
 /// 正整数模数（`m > 1`）。
@@ -59,12 +62,7 @@ impl Modulus {
 
     /// 模数值（始终 `> 1`）。观察者路径优先 [`Self::as_limbs`]。
     pub fn value(&self) -> Integer {
-        Integer::from_pair(
-            self.value
-                .clone_inline()
-                .or_else(|| self.value.try_clone().ok())
-                .expect("modulus magnitude clone"),
-        )
+        Integer::from_pair(self.value.clone_inline().or_else(|| self.value.try_clone().ok()).expect("modulus magnitude clone"))
     }
 
     /// 只读 limb 视图（无分配）。
@@ -127,10 +125,7 @@ impl ModularValue {
     /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self {
-            residue: self.residue.try_clone().map_err(gc_alloc_error)?,
-            binding: self.binding.try_clone_in(ctx)?,
-        })
+        Ok(Self { residue: self.residue.try_clone().map_err(gc_alloc_error)?, binding: self.binding.try_clone_in(ctx)? })
     }
 
     /// 在给定模数下构造（自动化约，嵌入模数）。
@@ -147,10 +142,7 @@ impl ModularValue {
     /// 剩余。
     pub fn residue(&self) -> Integer {
         Integer::from_pair(
-            self.residue
-                .clone_inline()
-                .or_else(|| self.residue.try_clone().ok())
-                .expect("residue magnitude clone"),
+            self.residue.clone_inline().or_else(|| self.residue.try_clone().ok()).expect("residue magnitude clone"),
         )
     }
 

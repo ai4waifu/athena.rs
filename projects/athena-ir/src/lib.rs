@@ -5,8 +5,8 @@
 #![deny(missing_docs)]
 
 pub mod arena;
-pub mod builder;
-pub mod hash;
+pub mod build;
+pub mod canonical;
 pub mod node;
 pub mod operator;
 pub mod symbol;
@@ -15,10 +15,10 @@ pub mod trace;
 /// 数值塔再导出。
 pub use athena_numeric as numeric;
 
-pub use arena::TermArena;
-pub use builder::TermBuilder;
-pub use hash::{canonical_hash, canonical_hash_named, fnv1a64};
-pub use node::{AtomKind, TermKind};
+pub use arena::ExprArena;
+pub use build::ExprBuilder;
+pub use canonical::{canonical_hash, canonical_hash_named, fnv1a64};
+pub use node::{Atom, ExprNode};
 pub use operator::OperatorRegistry;
 pub use symbol::SymbolTable;
-pub use trace::trace_term_kind;
+pub use trace::trace_expr_node;

@@ -18,7 +18,7 @@ pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExprId, ExtensionId,
     FieldId, FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId,
-    PolynomialId, PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId,
+    PolynomialId, PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId,
     TheoryContextId, ValueId,
 };
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};

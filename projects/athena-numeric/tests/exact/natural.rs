@@ -1,6 +1,6 @@
 //! `Natural`（无符号大整数）算术与 limb 内核测试。
 
-use athena_numeric::{NumericContext, Integer, NumericValue, natural::Natural, number_from_wire};
+use athena_numeric::{Integer, NumericContext, NumericValue, natural::Natural, number_from_wire};
 use athena_types::wire::{ExactNumber, WireNumber};
 use std::str::FromStr;
 

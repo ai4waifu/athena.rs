@@ -1,7 +1,7 @@
 //! 基于 Core IR 的重写与化简引擎。
 
-use athena_ir::{TermArena, TermKind};
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_ir::{ExprArena, ExprNode};
+use athena_types::{Diagnostic, DiagnosticCode, ExprId, Result};
 
 /// 重写 pass 选项。
 #[derive(Debug, Clone, Default)]
@@ -14,12 +14,12 @@ pub struct RewriteOptions {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewriteResult {
     /// 重写后的根 term（可与输入相同）。
-    pub root: TermId,
+    pub root: ExprId,
     /// 树是否发生变化。
     pub changed: bool,
 }
 
-/// 规则驱动的 rewriter（作用于 [`TermArena`]）。
+/// 规则驱动的 rewriter（作用于 [`ExprArena`]）。
 #[derive(Debug, Default)]
 pub struct Rewriter {
     options: RewriteOptions,
@@ -37,7 +37,7 @@ impl Rewriter {
     }
 
     /// 化简 term（stub：可选叶节点常量折叠）。
-    pub fn simplify(&self, arena: &mut TermArena, root: TermId) -> Result<RewriteResult> {
+    pub fn simplify(&self, arena: &mut ExprArena, root: ExprId) -> Result<RewriteResult> {
         arena.verify(root)?;
         if !self.options.constant_fold {
             return Ok(RewriteResult { root, changed: false });
@@ -47,13 +47,13 @@ impl Rewriter {
     }
 }
 
-fn fold_constants(arena: &mut TermArena, id: TermId) -> Result<bool> {
-    // 只拷贝 `TermId` 子列表，避免复制含 `NumericValue` 的 `Atom`（Living `19`：无隐式 Clone）。
-    let children: Option<Vec<TermId>> = match arena.get(id) {
+fn fold_constants(arena: &mut ExprArena, id: ExprId) -> Result<bool> {
+    // 只拷贝 `ExprId` 子列表，避免复制含 `NumericValue` 的 `Atom`（Living `19`：无隐式 Clone）。
+    let children: Option<Vec<ExprId>> = match arena.get(id) {
         None => return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)),
-        Some(TermKind::List(items)) => Some(items.clone()),
-        Some(TermKind::App { args, .. }) => Some(args.clone()),
-        Some(TermKind::Atom(_)) => None,
+        Some(ExprNode::List(items)) => Some(items.clone()),
+        Some(ExprNode::App { args, .. }) => Some(args.clone()),
+        Some(ExprNode::Atom(_)) => None,
     };
     let Some(children) = children
     else {

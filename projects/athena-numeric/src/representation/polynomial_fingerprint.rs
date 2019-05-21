@@ -1,4 +1,4 @@
-//! 稳定多项式指纹（非 Session 局部 TermId）。
+//! 稳定多项式指纹（非 Session 局部 ExprId）。
 
 /// 极小多项式 / defining polynomial 的 canonical 内容哈希。
 ///

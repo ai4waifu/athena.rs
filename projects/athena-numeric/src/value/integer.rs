@@ -142,9 +142,7 @@ impl Integer {
     /// [`Self::magnitude_view`] / [`Self::as_limbs`]。
     fn abs_natural(&self) -> Natural {
         Natural::from_pair(
-            self.inner
-                .try_clone_clear_sign()
-                .unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")),
+            self.inner.try_clone_clear_sign().unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")),
         )
     }
 
@@ -171,9 +169,6 @@ impl Integer {
     pub fn clone_inline(&self) -> Option<Self> {
         Some(Self::from_pair(self.inner.clone_inline()?))
     }
-
-
-
 
     /// 将借用幅度按符号发布到 `ctx` heap（结果 owning）。
     fn publish_signed(ctx: &NumericContext, limbs: &[u64], negative: bool) -> Result<Self> {
@@ -707,9 +702,7 @@ impl Integer {
             return Ok(Self::zero());
         }
         let mut acc = Self::one();
-        let mut base = self
-            .try_clone_in(&NumericContext::portable_default())
-            .map_err(|_| ())?;
+        let mut base = self.try_clone_in(&NumericContext::portable_default()).map_err(|_| ())?;
         let mut e = exp;
         while e > 0 {
             if e & 1 == 1 {
@@ -770,9 +763,7 @@ impl Integer {
             return Ok(Self::zero());
         }
         let mut lo = Self::zero();
-        let mut hi = self
-            .try_clone_in(&NumericContext::portable_default())?
-            .add(&Self::one());
+        let mut hi = self.try_clone_in(&NumericContext::portable_default())?.add(&Self::one());
         let two = Integer::from_i64(2);
         while lo.add(&Integer::one()).cmp(&hi) == std::cmp::Ordering::Less {
             let mid = lo.add(&hi).div(&two).expect("divisor two");

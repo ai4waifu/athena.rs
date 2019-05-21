@@ -4,7 +4,6 @@ use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
 use crate::{
     execution_budget::NumericContext,
-    
     integer::Integer,
     kernel::limb as limb_kernel,
     modular::ModularValue,
@@ -105,7 +104,12 @@ pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: 
     let mut out: Vec<ModularValue> = Vec::with_capacity(residues.len());
     for i in (0..residues.len()).rev() {
         let ri = ctx.modulus.reduce(&residues[i]);
-        let inv_i = if i == 0 { inv_acc.try_clone_in(&NumericContext::portable_default())? } else { ctx.mod_mul(&inv_acc, &prefix[i - 1]) };
+        let inv_i = if i == 0 {
+            inv_acc.try_clone_in(&NumericContext::portable_default())?
+        }
+        else {
+            ctx.mod_mul(&inv_acc, &prefix[i - 1])
+        };
         out.push(ModularValue::new_interned(inv_i, modulus_id));
         if i > 0 {
             inv_acc = ctx.mod_mul(&inv_acc, &ri);

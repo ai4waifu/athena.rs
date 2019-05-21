@@ -139,7 +139,12 @@ impl Dyadic {
 
     /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
-        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits() }
+        if self.is_zero() {
+            0
+        }
+        else {
+            Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits()
+        }
     }
 
     /// 去掉末尾二进制零并规范零的符号。

@@ -21,7 +21,7 @@ pub enum BenchGroup {
     Bigint,
     /// 路径拆分 microbench（kernel / alloc / clone / publish）。
     Path,
-    /// TermArena / hash / verify。
+    /// ExprArena / hash / verify。
     Ir,
     /// 匹配与规范化。
     Rewriter,

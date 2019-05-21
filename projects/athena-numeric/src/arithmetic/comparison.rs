@@ -4,7 +4,6 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
     execution_budget::NumericContext,
-    
     number::NumericValue,
     promotion::{DefaultPromotion, Promotion, PromotionPolicy},
 };
@@ -53,8 +52,10 @@ impl NumericCompare for DefaultNumericCompare {
         }
         if lhs.domain() != rhs.domain() {
             let domain = DefaultPromotion::common_domain(lhs, rhs, &policy.promotion)?;
-            let a = DefaultPromotion::promote(lhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
-            let b = DefaultPromotion::promote(rhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
+            let a =
+                DefaultPromotion::promote(lhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
+            let b =
+                DefaultPromotion::promote(rhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
             return Self::compare_same_domain(&a, &b, policy);
         }
         Self::compare_same_domain(lhs, rhs, policy)

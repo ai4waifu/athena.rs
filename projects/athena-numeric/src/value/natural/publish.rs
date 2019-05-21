@@ -27,9 +27,6 @@ impl Natural {
         Some(Self::from_pair(self.inner.clone_inline()?))
     }
 
-
-
-
     /// 由小端 limb 构造（已规范化；经 [`NumericContext::portable_default`] 发布）。
     ///
     /// trim 后 ≤ 2 limb 不分配；更长幅度走 GC，失败返回 Diagnostic。

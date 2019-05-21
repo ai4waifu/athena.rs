@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use athena_numeric::{NumericContext, Integer, NumericValue, Sign, number_from_wire};
+use athena_numeric::{Integer, NumericContext, NumericValue, Sign, number_from_wire};
 use athena_types::wire::{ExactNumber, WireNumber};
 
 fn int_from_wire(s: &str) -> Integer {
