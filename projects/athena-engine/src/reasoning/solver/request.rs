@@ -3,7 +3,7 @@
 //! [`SolverRequest`] 只描述「向某个 provider 发出的执行请求」。
 //! 问题语义、unknown/parameter、goal、coverage 属于 [`crate::domains::solve::SolveProblem`]。
 
-use athena_types::{AssumptionSetId, ExprId};
+use athena_types::{AssumptionSetId, TermId};
 
 /// 领域引用（骨架字符串标签；后续换枚举 / DomainId）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,7 +52,7 @@ pub struct SolverRequest {
     /// 域。
     pub domain: DomainRef,
     /// 根项（候选输入，非完整 SolveProblem）。
-    pub roots: Vec<ExprId>,
+    pub roots: Vec<TermId>,
     /// 操作。
     pub operation: SolverOperation,
     /// 限制。

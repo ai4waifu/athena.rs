@@ -5,9 +5,9 @@
 
 use std::{collections::HashMap, rc::Rc};
 
-use athena_ir::{Atom, ExprNode};
+use athena_ir::{Atom, TermNode};
 use athena_numeric::{Number, NumericContext};
-use athena_types::{Diagnostic, DiagnosticCode, ExprId, OperatorId, SymbolId};
+use athena_types::{Diagnostic, DiagnosticCode, OperatorId, SymbolId, TermId};
 
 use crate::runtime::{
     session::Session,
@@ -36,8 +36,8 @@ pub(crate) enum CompileMode {
 /// 编译缓存：canonical hash → 候选（源子树 + 单元），命中须 `structural_eq` 复核。
 #[derive(Debug, Default)]
 pub struct UnitCache {
-    value: HashMap<u64, Vec<(ExprId, Rc<ExecUnit>)>>,
-    stmt: HashMap<u64, Vec<(ExprId, Rc<ExecUnit>)>>,
+    value: HashMap<u64, Vec<(TermId, Rc<ExecUnit>)>>,
+    stmt: HashMap<u64, Vec<(TermId, Rc<ExecUnit>)>>,
 }
 
 impl UnitCache {
@@ -46,14 +46,14 @@ impl UnitCache {
         Self::default()
     }
 
-    fn slot(&self, mode: CompileMode) -> Option<&HashMap<u64, Vec<(ExprId, Rc<ExecUnit>)>>> {
+    fn slot(&self, mode: CompileMode) -> Option<&HashMap<u64, Vec<(TermId, Rc<ExecUnit>)>>> {
         match mode {
             CompileMode::Value => Some(&self.value),
             CompileMode::Stmt | CompileMode::Top => Some(&self.stmt),
         }
     }
 
-    fn slot_mut(&mut self, mode: CompileMode) -> Option<&mut HashMap<u64, Vec<(ExprId, Rc<ExecUnit>)>>> {
+    fn slot_mut(&mut self, mode: CompileMode) -> Option<&mut HashMap<u64, Vec<(TermId, Rc<ExecUnit>)>>> {
         match mode {
             CompileMode::Value => Some(&mut self.value),
             CompileMode::Stmt => Some(&mut self.stmt),
@@ -62,7 +62,7 @@ impl UnitCache {
         }
     }
 
-    fn lookup(&self, hash: u64, root: ExprId, arena: &athena_ir::ExprArena, mode: CompileMode) -> Option<Rc<ExecUnit>> {
+    fn lookup(&self, hash: u64, root: TermId, arena: &athena_ir::TermStore, mode: CompileMode) -> Option<Rc<ExecUnit>> {
         for (source, unit) in self.slot(mode)?.get(&hash)? {
             if arena.structural_eq(*source, root) {
                 return Some(unit.clone());
@@ -71,7 +71,7 @@ impl UnitCache {
         None
     }
 
-    fn insert(&mut self, hash: u64, root: ExprId, unit: ExecUnit, mode: CompileMode) {
+    fn insert(&mut self, hash: u64, root: TermId, unit: ExecUnit, mode: CompileMode) {
         if let Some(slot) = self.slot_mut(mode) {
             slot.entry(hash).or_default().push((root, Rc::new(unit)));
         }
@@ -122,7 +122,7 @@ impl<'a> Vm<'a> {
     }
 
     /// 当前 env 写 Own（根 env 落 Session 定义表，作用域 env 落局部层并随 pop 丢弃）。
-    pub(crate) fn define_own(&mut self, sym: SymbolId, value: ExprId) {
+    pub(crate) fn define_own(&mut self, sym: SymbolId, value: TermId) {
         match self.current_local_mut() {
             Some(layer) => layer.define_own(sym, value),
             None => self.session.defs.define_own(sym, value),
@@ -130,7 +130,7 @@ impl<'a> Vm<'a> {
     }
 
     /// 当前 env 写 Delayed。
-    pub(crate) fn define_delayed(&mut self, sym: SymbolId, value: ExprId) {
+    pub(crate) fn define_delayed(&mut self, sym: SymbolId, value: TermId) {
         match self.current_local_mut() {
             Some(layer) => layer.define_delayed(sym, value),
             None => self.session.defs.define_delayed(sym, value),
@@ -138,7 +138,7 @@ impl<'a> Vm<'a> {
     }
 
     /// 当前 env 追加 DownValue。
-    pub(crate) fn define_down_value(&mut self, sym: SymbolId, lhs: ExprId, rhs: ExprId) {
+    pub(crate) fn define_down_value(&mut self, sym: SymbolId, lhs: TermId, rhs: TermId) {
         match self.current_local_mut() {
             Some(layer) => layer.define_down_value(sym, lhs, rhs),
             None => self.session.defs.define_down_value(sym, lhs, rhs),
@@ -169,33 +169,33 @@ impl<'a> Vm<'a> {
     }
 
     /// 符号 DownValues（当前 env）。
-    pub(crate) fn down_values(&self, sym: SymbolId) -> Option<Vec<(ExprId, ExprId)>> {
+    pub(crate) fn down_values(&self, sym: SymbolId) -> Option<Vec<(TermId, TermId)>> {
         let env = self.envs.last()?;
         if env.base_global {
-            self.session.defs.down_values(sym).map(<[(ExprId, ExprId)]>::to_vec)
+            self.session.defs.down_values(sym).map(<[(TermId, TermId)]>::to_vec)
         }
         else {
-            env.local.as_ref().and_then(|l| l.down_values(sym)).map(<[(ExprId, ExprId)]>::to_vec)
+            env.local.as_ref().and_then(|l| l.down_values(sym)).map(<[(TermId, TermId)]>::to_vec)
         }
     }
 
     // ---- arena 构造 ----
 
-    pub(crate) fn rebuild_app_op(&mut self, op: OperatorId, args: Vec<ExprId>) -> ExprId {
-        let span = ExprNode::default_span();
-        self.session.arena.push(ExprNode::App { op, args }, span)
+    pub(crate) fn rebuild_app_op(&mut self, op: OperatorId, args: Vec<TermId>) -> TermId {
+        let span = TermNode::default_span();
+        self.session.arena.push(TermNode::App { op, args }, span)
     }
 
     /// `Application[headTerm, args…]` 包装（非符号 head）。
-    pub(crate) fn rebuild_app_wrapped(&mut self, args: Vec<ExprId>) -> ExprId {
+    pub(crate) fn rebuild_app_wrapped(&mut self, args: Vec<TermId>) -> TermId {
         let op = self.session.operators.intern("Application");
         self.rebuild_app_op(op, args)
     }
 
     /// 惰性重建 App（head 已求值）：符号 head → `App{op:符号名}`，否则 `Application` 包装。
-    pub(crate) fn rebuild_app(&mut self, head: ExprId, args: Vec<ExprId>) -> ExprId {
+    pub(crate) fn rebuild_app(&mut self, head: TermId, args: Vec<TermId>) -> TermId {
         match self.session.arena.get(head) {
-            Some(ExprNode::Atom(Atom::Symbol(sym))) => {
+            Some(TermNode::Atom(Atom::Symbol(sym))) => {
                 let name = self.session.arena.symbols().resolve(*sym).unwrap_or("?").to_string();
                 let op = self.session.operators.intern(&name);
                 self.rebuild_app_op(op, args)
@@ -209,27 +209,27 @@ impl<'a> Vm<'a> {
         }
     }
 
-    pub(crate) fn push_app(&mut self, head: &str, args: Vec<ExprId>) -> ExprId {
+    pub(crate) fn push_app(&mut self, head: &str, args: Vec<TermId>) -> TermId {
         push_app_named(self.session, head, args)
     }
 
-    pub(crate) fn push_list(&mut self, items: Vec<ExprId>) -> ExprId {
+    pub(crate) fn push_list(&mut self, items: Vec<TermId>) -> TermId {
         push_list(self.session, items)
     }
 
-    pub(crate) fn push_int(&mut self, n: i64) -> ExprId {
+    pub(crate) fn push_int(&mut self, n: i64) -> TermId {
         push_int(self.session, n)
     }
 
-    pub(crate) fn push_bool(&mut self, v: bool) -> ExprId {
+    pub(crate) fn push_bool(&mut self, v: bool) -> TermId {
         push_bool(self.session, v)
     }
 
-    pub(crate) fn push_null(&mut self) -> ExprId {
+    pub(crate) fn push_null(&mut self) -> TermId {
         push_null(self.session)
     }
 
-    pub(crate) fn push_symbol(&mut self, name: &str) -> ExprId {
+    pub(crate) fn push_symbol(&mut self, name: &str) -> TermId {
         push_symbol_name(self.session, name)
     }
 
@@ -242,39 +242,39 @@ impl<'a> Vm<'a> {
     }
 
     /// head 名（App 走注册表反查 · List → `List` · 符号原子 → 自身）。
-    pub(crate) fn head_name(&self, id: ExprId) -> Option<String> {
+    pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.session.arena.get(id)? {
-            ExprNode::App { op, .. } => self.session.operators.name(*op).map(str::to_string),
-            ExprNode::List(_) => Some("List".into()),
-            ExprNode::Atom(Atom::Symbol(sym)) => self.session.arena.symbols().resolve(*sym).map(str::to_string),
+            TermNode::App { op, .. } => self.session.operators.name(*op).map(str::to_string),
+            TermNode::List(_) => Some("List".into()),
+            TermNode::Atom(Atom::Symbol(sym)) => self.session.arena.symbols().resolve(*sym).map(str::to_string),
             _ => None,
         }
     }
 
     /// App 的参数列表（List 同形）。
-    pub(crate) fn app_args(&self, id: ExprId) -> Option<Vec<ExprId>> {
+    pub(crate) fn app_args(&self, id: TermId) -> Option<Vec<TermId>> {
         match self.session.arena.get(id)? {
-            ExprNode::App { args, .. } => Some(args.clone()),
-            ExprNode::List(items) => Some(items.clone()),
+            TermNode::App { args, .. } => Some(args.clone()),
+            TermNode::List(items) => Some(items.clone()),
             _ => None,
         }
     }
 
     /// 廉价结构快照（不复制数字载荷）。
-    pub(crate) fn shape(&self, id: ExprId) -> Option<Shape> {
+    pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
         match self.session.arena.get(id)? {
-            ExprNode::Atom(Atom::Number(_)) => Some(Shape::Number),
-            ExprNode::Atom(Atom::String(s)) => Some(Shape::Str(s.clone())),
-            ExprNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
-            ExprNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
-            ExprNode::Atom(Atom::Null) => Some(Shape::Null),
-            ExprNode::List(items) => Some(Shape::List(items.clone())),
-            ExprNode::App { op, args } => Some(Shape::App(*op, args.clone())),
+            TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
+            TermNode::Atom(Atom::String(s)) => Some(Shape::Str(s.clone())),
+            TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
+            TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
+            TermNode::Atom(Atom::Null) => Some(Shape::Null),
+            TermNode::List(items) => Some(Shape::List(items.clone())),
+            TermNode::App { op, args } => Some(Shape::App(*op, args.clone())),
         }
     }
 
     /// 唯一化局部符号（`name$N` 物化）。
-    pub(crate) fn unique_symbol(&mut self, name: &str) -> ExprId {
+    pub(crate) fn unique_symbol(&mut self, name: &str) -> TermId {
         self.session.module_counter += 1;
         let uniq = format!("{name}${}", self.session.module_counter);
         self.push_symbol(&uniq)
@@ -283,22 +283,22 @@ impl<'a> Vm<'a> {
     // ---- 求值入口 ----
 
     /// 顶层求值（语句语义 · Session 定义表可见）。
-    pub fn evaluate_top(session: &'a mut Session, expr: ExprId) -> Outcome {
+    pub fn evaluate_top(session: &'a mut Session, expr: TermId) -> Outcome {
         let mut vm = Vm::new(session);
         vm.eval(expr, CompileMode::Top)
     }
 
     /// 值位求值。
-    pub(crate) fn eval_value(&mut self, expr: ExprId) -> Outcome {
+    pub(crate) fn eval_value(&mut self, expr: TermId) -> Outcome {
         self.eval(expr, CompileMode::Value)
     }
 
     /// 语句位求值（`Set` 定义、循环体继承 env）。
-    pub(crate) fn eval_stmt(&mut self, expr: ExprId) -> Outcome {
+    pub(crate) fn eval_stmt(&mut self, expr: TermId) -> Outcome {
         self.eval(expr, CompileMode::Stmt)
     }
 
-    fn eval(&mut self, expr: ExprId, mode: CompileMode) -> Outcome {
+    fn eval(&mut self, expr: TermId, mode: CompileMode) -> Outcome {
         if self.depth > 256 {
             return Outcome::unevaluated(expr);
         }
@@ -315,8 +315,8 @@ impl<'a> Vm<'a> {
     /// 语句位控制形式与顶层作用域形式在 legacy 于改写预处理之前被拦截：
     /// 循环体保持原始让每次迭代看到新绑定；顶层 `With` / `Module` / `Block`
     /// 体不得被 Session 定义穿透。
-    fn skips_rewrite(&self, expr: ExprId, mode: CompileMode) -> bool {
-        let Some(ExprNode::App { op, .. }) = self.session.arena.get(expr)
+    fn skips_rewrite(&self, expr: TermId, mode: CompileMode) -> bool {
+        let Some(TermNode::App { op, .. }) = self.session.arena.get(expr)
         else {
             return false;
         };
@@ -327,7 +327,7 @@ impl<'a> Vm<'a> {
         }
     }
 
-    fn get_or_compile(&mut self, root: ExprId, mode: CompileMode) -> Rc<ExecUnit> {
+    fn get_or_compile(&mut self, root: TermId, mode: CompileMode) -> Rc<ExecUnit> {
         let hash = athena_ir::canonical_hash(&self.session.arena, root);
         if let Some(unit) = self.session.units.lookup(hash, root, &self.session.arena, mode) {
             return unit;
@@ -341,7 +341,7 @@ impl<'a> Vm<'a> {
     // ---- 执行 ----
 
     fn run(&mut self, unit: &ExecUnit) -> Outcome {
-        let mut stack: Vec<(ExprId, EvalKind, athena_types::ComputationStatus)> = Vec::new();
+        let mut stack: Vec<(TermId, EvalKind, athena_types::ComputationStatus)> = Vec::new();
         let mut diags: Vec<Diagnostic> = Vec::new();
         let mut pc = 0usize;
         loop {
@@ -355,7 +355,7 @@ impl<'a> Vm<'a> {
                     let n = *argc as usize;
                     let popped = stack.split_off(stack.len() - n);
                     let all_value = popped.iter().all(|(_, k, _)| *k == EvalKind::Value);
-                    let items: Vec<ExprId> = popped.into_iter().map(|(t, _, _)| t).collect();
+                    let items: Vec<TermId> = popped.into_iter().map(|(t, _, _)| t).collect();
                     let term = self.push_list(items);
                     let (kind, status) = if all_value {
                         (EvalKind::Value, athena_types::ComputationStatus::Exact)
@@ -367,13 +367,13 @@ impl<'a> Vm<'a> {
                 }
                 super::Instr::MakeApp { op, argc } => {
                     let n = *argc as usize;
-                    let args: Vec<ExprId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
                     let term = self.rebuild_app_op(*op, args);
                     stack.push((term, EvalKind::Unevaluated, athena_types::ComputationStatus::Unknown));
                 }
                 super::Instr::EvalOp { handler, argc } => {
                     let n = *argc as usize;
-                    let args: Vec<ExprId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
                     let out = (super::HANDLERS[handler.0 as usize])(self, &args);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
@@ -403,7 +403,7 @@ impl<'a> Vm<'a> {
                 }
                 super::Instr::EvalDynamic { argc } => {
                     let n = *argc as usize;
-                    let args: Vec<ExprId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
+                    let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
                     let (head, _, _) = stack.pop().expect("EvalDynamic head");
                     let out = crate::execution::builtins::control::eval_dynamic(self, head, args);
                     if out.has_error() {
@@ -464,16 +464,16 @@ pub(crate) enum Shape {
     Sym(SymbolId),
     Bool(bool),
     Null,
-    List(Vec<ExprId>),
-    App(OperatorId, Vec<ExprId>),
+    List(Vec<TermId>),
+    App(OperatorId, Vec<TermId>),
 }
 
 /// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。
-pub fn evaluate_session(session: &mut Session, expr: ExprId) -> Outcome {
+pub fn evaluate_session(session: &mut Session, expr: TermId) -> Outcome {
     Vm::evaluate_top(session, expr)
 }
 
 /// handler 求值错误捷径。
-pub(crate) fn invalid_echo(echo: ExprId, operation: &str) -> Outcome {
+pub(crate) fn invalid_echo(echo: TermId, operation: &str) -> Outcome {
     Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", operation))
 }

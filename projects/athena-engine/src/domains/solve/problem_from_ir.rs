@@ -1,7 +1,7 @@
 //! 从 AthenaIR 关系根组装 [`SolveProblem`]。
 
-use athena_ir::ExprArena;
-use athena_types::{AssumptionSetId, Diagnostic, ExprId};
+use athena_ir::TermStore;
+use athena_types::{AssumptionSetId, Diagnostic, TermId};
 
 use super::{
     binding::BoundSymbol,
@@ -18,8 +18,8 @@ use super::{
 /// - `goal` 必须由 lowering / 调用方显式给出，禁止从字符串推断
 /// - 不修改 [`crate::reasoning::solver::SolverRequest`]
 pub fn assemble_solve_problem(
-    arena: &ExprArena,
-    equation_roots: &[ExprId],
+    arena: &TermStore,
+    equation_roots: &[TermId],
     ops: &RelationalOperators,
     unknowns: Vec<BoundSymbol>,
     parameters: Vec<BoundSymbol>,

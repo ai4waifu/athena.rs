@@ -1,7 +1,7 @@
 //! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现（arena 版 · Living `25`）。
 
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{ctx::CalculusCtx, request::TransformKind, result::CalculusResult};
 use crate::execution::vm::Shape;
@@ -10,7 +10,7 @@ use crate::execution::vm::Shape;
 #[derive(Debug, PartialEq)]
 pub struct RegionOfConvergence {
     /// 已知时的结构化 / 桥接谓词（如 `Greater[Re[s], a]`）。
-    pub predicate: Option<ExprId>,
+    pub predicate: Option<TermId>,
     /// ROC 是否已知（false ⇒ 不得假装绝对收敛）。
     pub known: bool,
 }
@@ -54,7 +54,7 @@ pub struct TransformResult {
     /// 种类。
     pub kind: TransformKind,
     /// 变换变量下的像函数表达式。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 时间 / 序列变量。
     pub time_variable: String,
     /// 变换变量（`s`、`ω`、`z` 等）。
@@ -65,7 +65,7 @@ pub struct TransformResult {
 
 impl TransformResult {
     /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`。
-    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         let vars = cc.list(vec![cc.sym(&self.time_variable), cc.sym(&self.transform_variable)]);
         let mut args = vec![self.expression, vars];
         if let Some(roc) = self.region_of_convergence.predicate {
@@ -86,7 +86,7 @@ impl TransformResult {
 /// 已解码表达式的单边 Laplace 变换。
 pub fn laplace_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     time_variable: &str,
     transform_variable: &str,
     _assumptions: &AssumptionSet,
@@ -127,7 +127,7 @@ pub fn laplace_checked(
 /// 引导实现：双边指数衰减、Gaussian、因果指数，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn fourier_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     time_variable: &str,
     transform_variable: &str,
     _assumptions: &AssumptionSet,
@@ -168,7 +168,7 @@ pub fn fourier_checked(
 /// 引导实现：`KroneckerDelta`、单位阶跃 / 常数、`a^n`、`n a^n`，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn z_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     time_variable: &str,
     transform_variable: &str,
     _assumptions: &AssumptionSet,
@@ -201,14 +201,14 @@ fn echo_transform(
     cc: &mut CalculusCtx<'_>,
     _kind: TransformKind,
     head: &str,
-    expression: ExprId,
+    expression: TermId,
     time_variable: &str,
     transform_variable: &str,
-) -> ExprId {
+) -> TermId {
     cc.ap(head, vec![expression, cc.sym(time_variable), cc.sym(transform_variable)])
 }
 
-fn laplace_one(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, s: &str) -> Option<(ExprId, RegionOfConvergence)> {
+fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(n) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Laplace：ℒ{c} = c/s，Re(s)>0
         let sinv = cc.ap("Power", vec![cc.sym(s), cc.in_(-1)]);
@@ -297,7 +297,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, s: &str) -> Opti
     }
 }
 
-fn fourier_one(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, omega: &str) -> Option<(ExprId, RegionOfConvergence)> {
+fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     let (h, args) = cc.app(expr)?;
     match h.as_str() {
         "Plus" => {
@@ -366,7 +366,7 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, omega: &str) -> 
     }
 }
 
-fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, omega: &str) -> Option<(ExprId, RegionOfConvergence)> {
+fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     // 形态：Exp[-a t]（a>0）→ 1/(a + I ω)
     let (h, args) = cc.app(expr)?;
     if h != "Exp" || args.len() != 1 {
@@ -384,7 +384,7 @@ fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: ExprId, t: &str, omega: &s
     Some((body, RegionOfConvergence::real_line(cc, omega)))
 }
 
-fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [ExprId], t: &str) -> Option<ExprId> {
+fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [TermId], t: &str) -> Option<TermId> {
     match args {
         [a, b] if is_unit_step(cc, *a, t) => Some(*b),
         [a, b] if is_unit_step(cc, *b, t) => Some(*a),
@@ -392,7 +392,7 @@ fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [ExprId], t: &str) -> Opt
     }
 }
 
-fn is_unit_step(cc: &CalculusCtx<'_>, term: ExprId, t: &str) -> bool {
+fn is_unit_step(cc: &CalculusCtx<'_>, term: TermId, t: &str) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -401,7 +401,7 @@ fn is_unit_step(cc: &CalculusCtx<'_>, term: ExprId, t: &str) -> bool {
 }
 
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
-fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: ExprId, var: &str) -> Option<Number> {
+fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
     let (h, args) = cc.app(term)?;
     if h != "Times" || args.len() != 2 {
         return None;
@@ -422,7 +422,7 @@ fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: ExprId, var: &str) ->
     evaluate_neg_number(cc, &coeff)
 }
 
-fn is_abs_of(cc: &CalculusCtx<'_>, term: ExprId, var: &str) -> bool {
+fn is_abs_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -431,7 +431,7 @@ fn is_abs_of(cc: &CalculusCtx<'_>, term: ExprId, var: &str) -> bool {
 }
 
 /// `Times[-a, Power[t, 2]]`，返回 a>0。
-fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: ExprId, var: &str) -> Option<Number> {
+fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
     let (h, args) = cc.app(term)?;
     if h != "Times" || args.len() != 2 {
         return None;
@@ -452,7 +452,7 @@ fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: ExprId, var: &str)
     evaluate_neg_number(cc, &coeff)
 }
 
-fn is_square_of(cc: &CalculusCtx<'_>, term: ExprId, var: &str) -> bool {
+fn is_square_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -473,7 +473,7 @@ fn number_is_positive(n: &Number) -> bool {
     num_compare(n, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater)
 }
 
-fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: ExprId, var: &str) -> Option<Number> {
+fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
     if is_sym_named(cc, term, var) {
         return Some(Number::small_int(1));
     }
@@ -499,7 +499,7 @@ fn roc_half_plane_bound(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> 
     None
 }
 
-fn z_one(cc: &mut CalculusCtx<'_>, expr: ExprId, n: &str, z: &str) -> Option<(ExprId, RegionOfConvergence)> {
+fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(c) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let base = z_over_z_minus(cc, z, &Number::small_int(1));
@@ -589,14 +589,14 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: ExprId, n: &str, z: &str) -> Option<(Ex
     }
 }
 
-fn z_over_z_minus(cc: &mut CalculusCtx<'_>, z: &str, a: &Number) -> ExprId {
+fn z_over_z_minus(cc: &mut CalculusCtx<'_>, z: &str, a: &Number) -> TermId {
     let neg = cc.ap("Times", vec![cc.in_(-1), cc.num(cc.copy(a))]);
     let za = cc.ap("Plus", vec![cc.sym(z), neg]);
     let inv = cc.ap("Power", vec![za, cc.in_(-1)]);
     cc.eval(cc.ap("Times", vec![cc.sym(z), inv]))
 }
 
-fn is_kronecker_delta(cc: &CalculusCtx<'_>, term: ExprId, n: &str) -> bool {
+fn is_kronecker_delta(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -604,7 +604,7 @@ fn is_kronecker_delta(cc: &CalculusCtx<'_>, term: ExprId, n: &str) -> bool {
     (h == "KroneckerDelta" || h == "DiscreteDelta") && args.len() == 1 && is_sym_named(cc, args[0], n)
 }
 
-fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[ExprId], n: &str) -> Option<Number> {
+fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[TermId], n: &str) -> Option<Number> {
     match args {
         [a, b] if is_sym_named(cc, *a, n) => match_power_base(cc, *b, n),
         [a, b] if is_sym_named(cc, *b, n) => match_power_base(cc, *a, n),
@@ -612,7 +612,7 @@ fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[ExprId], n: &str) -> Option
     }
 }
 
-fn match_power_base(cc: &CalculusCtx<'_>, term: ExprId, n: &str) -> Option<Number> {
+fn match_power_base(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> Option<Number> {
     let (h, args) = cc.app(term)?;
     if h == "Power" && args.len() == 2 && is_sym_named(cc, args[1], n) {
         return cc.number_of(args[0]).map(|n| cc.copy(n));
@@ -634,7 +634,7 @@ fn roc_abs_radius(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option
     None
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: ExprId, name: &str) -> bool {
+fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
     matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
 }
 

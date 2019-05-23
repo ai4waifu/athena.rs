@@ -1,6 +1,6 @@
-//! 公共诊断构造与表达式摘要。
+//! 公共诊断构造与 term 摘要。
 
-pub mod expression_summary;
+pub mod term_summary;
 
 use athena_types::{Diagnostic, DiagnosticCode};
 

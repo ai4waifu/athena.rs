@@ -1,6 +1,6 @@
 //! Solve 相关 M-Graph 关系种类（不得混为 Equality）。
 
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use super::policy::SolvePolicy;
 use crate::runtime::values::numeric_clone::clone_number;
@@ -11,47 +11,47 @@ pub enum SolveRelationKind {
     /// 候选满足问题（非完整性）。
     Satisfies {
         /// 解项 / 分支根。
-        solution: ExprId,
+        solution: TermId,
         /// 问题指纹根或问题句柄项。
-        problem: ExprId,
+        problem: TermId,
     },
     /// 解集在指定问题下完整。
     CompleteFor {
         /// 解集根。
-        solution_set: ExprId,
+        solution_set: TermId,
         /// 问题根。
-        problem: ExprId,
+        problem: TermId,
     },
     /// 约束等价（`Reduce` / 量词消去）。
     EquivalentConstraint {
         /// 原约束。
-        left: ExprId,
+        left: TermId,
         /// 消去/化简后约束。
-        right: ExprId,
+        right: TermId,
     },
     /// 代数根身份。
     RootOf {
         /// 多项式。
-        polynomial: ExprId,
+        polynomial: TermId,
         /// 根。
-        root: ExprId,
+        root: TermId,
     },
     /// 唯一解。
     UniqueSolution {
         /// 问题。
-        problem: ExprId,
+        problem: TermId,
         /// 分支。
-        branch: ExprId,
+        branch: TermId,
     },
     /// 无解（需要不可满足性证书，不能由搜索失败产生）。
     NoSolution {
         /// 问题。
-        problem: ExprId,
+        problem: TermId,
     },
     /// 局部收敛（绑定 policy，非全局存在性）。
     LocalConvergence {
         /// 根。
-        root: ExprId,
+        root: TermId,
         /// 策略摘要标签。
         policy_tag: String,
     },
@@ -77,7 +77,7 @@ impl SolveRelationKind {
     }
 
     /// 由 policy 构造局部收敛关系标签。
-    pub fn local_convergence(root: ExprId, policy: &SolvePolicy) -> Self {
+    pub fn local_convergence(root: TermId, policy: &SolvePolicy) -> Self {
         let policy_tag = policy.tags.first().cloned().unwrap_or_else(|| "default".into());
         Self::LocalConvergence { root, policy_tag }
     }

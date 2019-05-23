@@ -1,17 +1,17 @@
 //! 控制流与作用域 handler（legacy `eval_compound*` / `eval_if` / `eval_while` / `eval_local_scope` 等语义）。
 
-use athena_ir::{Atom, ExprNode};
-use athena_types::ExprId;
+use athena_ir::{Atom, TermNode};
+use athena_types::TermId;
 
 use crate::execution::{
     Outcome,
-    builtins::catalog::{as_boolean_id, expression_summary, non_boolean_condition_diagnostic},
+    builtins::catalog::{as_boolean_id, non_boolean_condition_diagnostic, term_summary},
     environment::{LocalBinding, ScopeFrame},
     vm::Vm,
 };
 
 /// `Function[…][args…]` 动态分派（`EvalDynamic`）。
-pub(crate) fn eval_dynamic(vm: &mut Vm<'_>, head: ExprId, args: Vec<ExprId>) -> Outcome {
+pub(crate) fn eval_dynamic(vm: &mut Vm<'_>, head: TermId, args: Vec<TermId>) -> Outcome {
     if vm.head_name(head).is_some_and(|h| h == "Function") {
         return apply_function(vm, &vm.app_args(head).unwrap_or_default(), &args);
     }
@@ -19,19 +19,19 @@ pub(crate) fn eval_dynamic(vm: &mut Vm<'_>, head: ExprId, args: Vec<ExprId>) -> 
 }
 
 /// `CompoundExpression` 语句位：顺序求值，写当前 env。
-pub(crate) fn h_compound(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_compound(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     compound_into(vm, args)
 }
 
 /// `CompoundExpression` 值位：全新 env（legacy `eval_compound`）。
-pub(crate) fn h_compound_fresh(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_compound_fresh(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     vm.push_env_fresh();
     let out = compound_into(vm, args);
     vm.pop_env();
     out
 }
 
-fn compound_into(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+fn compound_into(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.is_empty() {
         return Outcome::value(vm.push_null());
     }
@@ -58,7 +58,7 @@ fn compound_into(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() < 2 || args.len() > 4 {
         return Outcome::unevaluated(vm.push_app("If", args.to_vec()));
     }
@@ -84,7 +84,7 @@ pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
                 vm.eval_value(args[3]).with_diagnostics(diags)
             }
             else {
-                let summary = expression_summary(vm, cond_o.term);
+                let summary = term_summary(vm, cond_o.term);
                 let mut held = vec![cond_o.term];
                 held.extend_from_slice(&args[1..]);
                 let term = vm.push_app("If", held);
@@ -100,12 +100,12 @@ pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.is_empty() || args.len() % 2 != 0 {
         return Outcome::unevaluated(vm.push_app("Which", args.to_vec()));
     }
     let mut diags = Vec::new();
-    let mut uneval_pairs: Vec<ExprId> = Vec::new();
+    let mut uneval_pairs: Vec<TermId> = Vec::new();
     let mut i = 0;
     while i + 1 < args.len() {
         let cond_o = vm.eval_value(args[i]);
@@ -131,7 +131,7 @@ pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
         }
     }
     else {
-        let summary = expression_summary(vm, uneval_pairs[0]);
+        let summary = term_summary(vm, uneval_pairs[0]);
         diags.push(non_boolean_condition_diagnostic(&summary));
         Outcome {
             term: vm.push_app("Which", uneval_pairs),
@@ -143,19 +143,19 @@ pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 }
 
 /// `While[cond, body]`（语句位 · 继承 env）。
-pub(crate) fn h_while(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_while(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     while_loop(vm, args)
 }
 
 /// `While` 值位：全新 env。
-pub(crate) fn h_while_fresh(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_while_fresh(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     vm.push_env_fresh();
     let out = while_loop(vm, args);
     vm.pop_env();
     out
 }
 
-fn while_loop(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+fn while_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 2 {
         return Outcome::unevaluated(vm.push_app("While", args.to_vec()));
     }
@@ -190,7 +190,7 @@ fn while_loop(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
                 }
             }
             None => {
-                diags.push(non_boolean_condition_diagnostic(&expression_summary(vm, cond_o.term)));
+                diags.push(non_boolean_condition_diagnostic(&term_summary(vm, cond_o.term)));
                 let term = vm.push_app("While", vec![cond_o.term, args[1]]);
                 return Outcome {
                     term,
@@ -212,30 +212,30 @@ fn while_loop(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 }
 
 /// `For[var, iterator, body]`（语句位 · 继承 env）。
-pub(crate) fn h_for(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_for(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     for_loop(vm, args)
 }
 
 /// `For` 值位：全新 env。
-pub(crate) fn h_for_fresh(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_for_fresh(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     vm.push_env_fresh();
     let out = for_loop(vm, args);
     vm.pop_env();
     out
 }
 
-fn for_loop(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+fn for_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 3 {
         return Outcome::unevaluated(vm.push_app("For", args.to_vec()));
     }
     let var_sym = match vm.session.arena.get(args[0]) {
-        Some(ExprNode::Atom(Atom::Symbol(s))) => *s,
+        Some(TermNode::Atom(Atom::Symbol(s))) => *s,
         _ => return Outcome::unevaluated(vm.push_app("For", args.to_vec())),
     };
     let iter_o = vm.eval_value(args[1]);
     let mut diags = iter_o.diagnostics.clone();
     let Some(values) = (match vm.session.arena.get(iter_o.term) {
-        Some(ExprNode::List(_)) => vm.app_args(iter_o.term),
+        Some(TermNode::List(_)) => vm.app_args(iter_o.term),
         _ => None,
     })
     else {
@@ -266,7 +266,7 @@ fn for_loop(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 }
 
 /// `Try[body, catch]`：body Error 时求值 catch。
-pub(crate) fn h_try(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_try(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 2 {
         return Outcome::unevaluated(vm.push_app("Try", args.to_vec()));
     }
@@ -279,41 +279,41 @@ pub(crate) fn h_try(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 
 // ---- Hold / Pattern 保持 ----
 
-pub(crate) fn h_hold(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_hold(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let _ = vm;
     Outcome::unevaluated(operands[0])
 }
 
-pub(crate) fn h_pattern_hold(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_pattern_hold(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let _ = vm;
     Outcome::unevaluated(operands[0])
 }
 
 // ---- With / Module / Block ----
 
-pub(crate) fn h_with(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_with(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     with_block(vm, args, false, "With")
 }
 
-pub(crate) fn h_with_top(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_with_top(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     with_block(vm, args, true, "With")
 }
 
-pub(crate) fn h_block(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_block(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     with_block(vm, args, false, "Block")
 }
 
-pub(crate) fn h_block_top(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_block_top(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     with_block(vm, args, true, "Block")
 }
 
 /// `With` / `Block`：局部 `{x=1,…}` 后求值体（legacy `eval_local_scope` 非路径）。
-fn with_block(vm: &mut Vm<'_>, args: &[ExprId], top: bool, head: &str) -> Outcome {
+fn with_block(vm: &mut Vm<'_>, args: &[TermId], top: bool, head: &str) -> Outcome {
     if args.len() != 2 {
         return Outcome::unevaluated(vm.push_app(head, args.to_vec()));
     }
     let Some(locals) = (match vm.session.arena.get(args[0]) {
-        Some(ExprNode::List(_)) => vm.app_args(args[0]),
+        Some(TermNode::List(_)) => vm.app_args(args[0]),
         _ => None,
     })
     else {
@@ -347,8 +347,8 @@ fn with_block(vm: &mut Vm<'_>, args: &[ExprId], top: bool, head: &str) -> Outcom
 }
 
 /// `x = rhs` 语句形态识别 → `(SymbolId, rhs)`。
-fn match_set(vm: &Vm<'_>, term: ExprId) -> Option<(athena_types::SymbolId, ExprId)> {
-    let ExprNode::App { args, .. } = vm.session.arena.get(term)?
+fn match_set(vm: &Vm<'_>, term: TermId) -> Option<(athena_types::SymbolId, TermId)> {
+    let TermNode::App { args, .. } = vm.session.arena.get(term)?
     else {
         return None;
     };
@@ -356,27 +356,27 @@ fn match_set(vm: &Vm<'_>, term: ExprId) -> Option<(athena_types::SymbolId, ExprI
         return None;
     }
     let sym = match vm.session.arena.get(args[0]) {
-        Some(ExprNode::Atom(Atom::Symbol(s))) => *s,
+        Some(TermNode::Atom(Atom::Symbol(s))) => *s,
         _ => return None,
     };
     Some((sym, args[1]))
 }
 
-pub(crate) fn h_module(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_module(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     module(vm, args, false)
 }
 
-pub(crate) fn h_module_top(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_module_top(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     module(vm, args, true)
 }
 
 /// `Module[{x=1, y}, body]`：局部符号帧（未初始化逃逸物化为 `name$N`）。
-fn module(vm: &mut Vm<'_>, args: &[ExprId], top: bool) -> Outcome {
+fn module(vm: &mut Vm<'_>, args: &[TermId], top: bool) -> Outcome {
     if args.len() != 2 {
         return Outcome::unevaluated(vm.push_app("Module", args.to_vec()));
     }
     let Some(locals) = (match vm.session.arena.get(args[0]) {
-        Some(ExprNode::List(_)) => vm.app_args(args[0]),
+        Some(TermNode::List(_)) => vm.app_args(args[0]),
         _ => None,
     })
     else {
@@ -387,7 +387,7 @@ fn module(vm: &mut Vm<'_>, args: &[ExprId], top: bool) -> Outcome {
     // 初始化阶段：顺序求值，先前局部以原名可见（legacy `init_env` 语义）。
     let mut init_frame = ScopeFrame::new();
     let mut diags = Vec::new();
-    let mut initialized: Vec<(athena_types::SymbolId, ExprId)> = Vec::new();
+    let mut initialized: Vec<(athena_types::SymbolId, TermId)> = Vec::new();
     let mut bare: Vec<athena_types::SymbolId> = Vec::new();
     for item in locals.clone() {
         let local = match module_local(vm, item) {
@@ -436,18 +436,18 @@ fn module(vm: &mut Vm<'_>, args: &[ExprId], top: bool) -> Outcome {
 }
 
 /// `Module` 局部：`x=1` 或裸 `x`（legacy `match_module_local`）。
-fn module_local(vm: &Vm<'_>, term: ExprId) -> Option<(athena_types::SymbolId, Option<ExprId>)> {
+fn module_local(vm: &Vm<'_>, term: TermId) -> Option<(athena_types::SymbolId, Option<TermId>)> {
     if let Some((sym, rhs)) = match_set(vm, term) {
         return Some((sym, Some(rhs)));
     }
     match vm.session.arena.get(term) {
-        Some(ExprNode::Atom(Atom::Symbol(s))) => Some((*s, None)),
+        Some(TermNode::Atom(Atom::Symbol(s))) => Some((*s, None)),
         _ => None,
     }
 }
 
 /// `Function[body]`（Slot）或 `Function[var, body]` 应用（legacy `apply_function`）。
-pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[ExprId], args: &[ExprId]) -> Outcome {
+pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[TermId], args: &[TermId]) -> Outcome {
     match fargs {
         [body] if args.len() == 1 => {
             let substituted = crate::execution::builtins::patterns::substitute_slot(vm, *body, args[0]);
@@ -455,7 +455,7 @@ pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[ExprId], args: &[ExprId])
         }
         [var, body] if args.len() == 1 => {
             if let Some(sym) = match vm.session.arena.get(*var) {
-                Some(ExprNode::Atom(Atom::Symbol(s))) => Some(*s),
+                Some(TermNode::Atom(Atom::Symbol(s))) => Some(*s),
                 _ => None,
             } {
                 let substituted = crate::execution::builtins::patterns::substitute_symbol(vm, *body, sym, args[0]);

@@ -1,6 +1,6 @@
-//! 将已解码微积分应用（arena `ExprId`）识别为 [`CalculusRequest`]。
+//! 将已解码微积分应用（arena `TermId`）识别为 [`CalculusRequest`]。
 
-use athena_types::{AssumptionSet, ExprId};
+use athena_types::{AssumptionSet, TermId};
 
 use super::{
     ctx::CalculusCtx,
@@ -11,7 +11,7 @@ use crate::execution::vm::Shape;
 /// 若可识别，将微积分应用映射为域请求。
 ///
 /// 仅语言中立的 AthenaIR 形态 — 方言文本解析留在宿主（SXO）。
-pub fn try_calculus_request(cc: &mut CalculusCtx<'_>, root: ExprId) -> Option<CalculusRequest> {
+pub fn try_calculus_request(cc: &mut CalculusCtx<'_>, root: TermId) -> Option<CalculusRequest> {
     let (name, args) = cc.app(root)?;
     let args = args.as_slice();
     match name.as_str() {
@@ -32,7 +32,7 @@ pub fn try_calculus_request(cc: &mut CalculusCtx<'_>, root: ExprId) -> Option<Ca
     }
 }
 
-fn lower_d(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_d(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, var] => {
             if let Some(v) = symbol_name(cc, *var) {
@@ -62,7 +62,7 @@ fn lower_d(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest>
     }
 }
 
-fn lower_integrate(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_integrate(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, var] => {
             if let Some(v) = symbol_name(cc, *var) {
@@ -86,7 +86,7 @@ fn lower_integrate(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<Calculus
     }
 }
 
-fn lower_limit(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_limit(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let (expr, variable, approach, direction) = match args {
         [expr, spec] => {
             let (v, approach) = parse_limit_spec(cc, *spec)?;
@@ -106,7 +106,7 @@ fn lower_limit(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequ
     Some(CalculusRequest::Limit { expression: expr, variable, approach, direction, assumptions: AssumptionSet::empty() })
 }
 
-fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: ExprId) -> Option<(String, LimitApproach)> {
+fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: TermId) -> Option<(String, LimitApproach)> {
     if let Some((h, args)) = cc.app(spec) {
         if h == "Rule" && args.len() == 2 {
             let v = symbol_name(cc, args[0])?;
@@ -122,7 +122,7 @@ fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: ExprId) -> Option<(String, L
     None
 }
 
-fn approach_from_term(cc: &CalculusCtx<'_>, term: ExprId) -> LimitApproach {
+fn approach_from_term(cc: &CalculusCtx<'_>, term: TermId) -> LimitApproach {
     if is_sym_infinity(cc, term) {
         return LimitApproach::PositiveInfinity;
     }
@@ -134,7 +134,7 @@ fn approach_from_term(cc: &CalculusCtx<'_>, term: ExprId) -> LimitApproach {
     LimitApproach::Finite(term)
 }
 
-fn lower_series(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_series(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expr, spec] = args
     else {
         return None;
@@ -158,7 +158,7 @@ fn lower_series(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusReq
     Some(CalculusRequest::Series { expression: *expr, variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
-fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expr, spec] = args
     else {
         return None;
@@ -182,7 +182,7 @@ fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRe
     Some(CalculusRequest::Laurent { expression: *expr, variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
-fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
             let Some(Shape::List(items)) = cc.shape(*spec)
@@ -215,7 +215,7 @@ fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<Calculu
     }
 }
 
-fn lower_residue(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_residue(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
             let Some(Shape::List(items)) = cc.shape(*spec)
@@ -236,7 +236,7 @@ fn lower_residue(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRe
     }
 }
 
-fn lower_dsolve(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_dsolve(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [equation, dep, indep] = args
     else {
         return None;
@@ -252,7 +252,7 @@ fn lower_dsolve(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusReq
     })
 }
 
-fn lower_laplace(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_laplace(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
@@ -266,7 +266,7 @@ fn lower_laplace(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRe
     })
 }
 
-fn lower_fourier(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_fourier(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
@@ -280,7 +280,7 @@ fn lower_fourier(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRe
     })
 }
 
-fn lower_z(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_z(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
@@ -294,7 +294,7 @@ fn lower_z(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest>
     })
 }
 
-fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [comps, vars] = args
     else {
         return None;
@@ -315,7 +315,7 @@ fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<Calculu
     })
 }
 
-fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusRequest> {
+fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [comps, vars] = args
     else {
         return None;
@@ -332,11 +332,11 @@ fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[ExprId]) -> Option<CalculusReque
     Some(CalculusRequest::Curl { components: components.to_vec(), variables: variables?, assumptions: AssumptionSet::empty() })
 }
 
-fn is_sym_infinity(cc: &CalculusCtx<'_>, term: ExprId) -> bool {
+fn is_sym_infinity(cc: &CalculusCtx<'_>, term: TermId) -> bool {
     matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, "Infinity"))
 }
 
-fn symbol_name(cc: &CalculusCtx<'_>, term: ExprId) -> Option<String> {
+fn symbol_name(cc: &CalculusCtx<'_>, term: TermId) -> Option<String> {
     match cc.shape(term)? {
         Shape::Sym(s) => Some(cc.sym_name(s).to_string()),
         _ => None,

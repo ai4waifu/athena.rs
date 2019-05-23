@@ -1,6 +1,6 @@
 //! `rewriter` 分组种子 fixture。
 
-use athena_ir::{ExprArena, ExprBuilder};
+use athena_ir::{TermBuilder, TermStore};
 use athena_numeric::Number;
 use athena_rewriter::{RewriteOptions, Rewriter};
 use athena_types::SourceSpan;
@@ -18,8 +18,8 @@ impl Fixture for SimplifyStubFixture {
     }
 
     fn validate(&self) -> Result<ValidationSummary, String> {
-        let mut arena = ExprArena::new();
-        let mut b = ExprBuilder::new(&mut arena);
+        let mut arena = TermStore::new();
+        let mut b = TermBuilder::new(&mut arena);
         let root = b.number(Number::small_int(42), SourceSpan::default());
         let rw = Rewriter::with_options(RewriteOptions { constant_fold: true });
         let out = rw.simplify(&mut arena, root).map_err(|d| d.code.as_str().to_string())?;
@@ -30,8 +30,8 @@ impl Fixture for SimplifyStubFixture {
     }
 
     fn run_once(&self) {
-        let mut arena = ExprArena::new();
-        let mut b = ExprBuilder::new(&mut arena);
+        let mut arena = TermStore::new();
+        let mut b = TermBuilder::new(&mut arena);
         let root = b.number(Number::small_int(7), SourceSpan::default());
         let rw = Rewriter::with_options(RewriteOptions { constant_fold: true });
         let _ = rw.simplify(&mut arena, root);

@@ -1,6 +1,6 @@
 //! Solve 定义域。
 
-use athena_types::{ExprId, ExtensionId, FieldId};
+use athena_types::{ExtensionId, FieldId, TermId};
 
 use crate::domains::algebra::AlgebraParentId;
 
@@ -28,9 +28,9 @@ pub enum SolveDomain {
     /// 实区间（端点为 IR 项）。
     Interval {
         /// 下界。
-        lo: ExprId,
+        lo: TermId,
         /// 上界。
-        hi: ExprId,
+        hi: TermId,
         /// 是否含下界。
         closed_lo: bool,
         /// 是否含上界。

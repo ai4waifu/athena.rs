@@ -1,6 +1,6 @@
 //! 决策变量。
 
-use athena_types::{DomainId, ExprId};
+use athena_types::{DomainId, TermId};
 
 use super::ids::VariableId;
 
@@ -48,9 +48,9 @@ pub struct DecisionVariable {
     /// 取值域。
     pub domain: VariableDomain,
     /// 下界表达式（可选，`None` = −∞ / 无界）。
-    pub lower_bound: Option<ExprId>,
+    pub lower_bound: Option<TermId>,
     /// 上界表达式（可选，`None` = +∞ / 无界）。
-    pub upper_bound: Option<ExprId>,
+    pub upper_bound: Option<TermId>,
     /// 整数性。
     pub integrality: Integrality,
     /// 元数据。

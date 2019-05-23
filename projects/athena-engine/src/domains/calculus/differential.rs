@@ -1,14 +1,14 @@
 //! 常微分方程 — 带残差验证的一阶子集（arena 版 · Living `25`）。
 
 use athena_numeric::{Number, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
     derivative::differentiate,
-    expression_util::{contains_symbol, replace_symbol},
     integral::integrate,
     result::CalculusResult,
+    symbol_rewrite::{contains_symbol, replace_symbol},
 };
 use crate::execution::vm::Shape;
 
@@ -18,12 +18,12 @@ pub enum VerificationStatus {
     /// 残差求值为零。
     Verified {
         /// 代入后的残差表达式（应为 0）。
-        residual: ExprId,
+        residual: TermId,
     },
     /// 残差未化简为零。
     Failed {
         /// 非零残差。
-        residual: ExprId,
+        residual: TermId,
     },
 }
 
@@ -35,14 +35,14 @@ pub struct DifferentialSolution {
     /// 自变量名。
     pub independent: String,
     /// `y(x)` 的显式特解右端。
-    pub explicit: ExprId,
+    pub explicit: TermId,
     /// 残差验证状态 — 发出解时必填。
     pub verified: VerificationStatus,
 }
 
 impl DifferentialSolution {
     /// 桥接项 `Equal[y[x], explicit]`。
-    pub fn to_equal_term(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn to_equal_term(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         let y = cc.sym(&self.dependent);
         let lhs = cc.ap(&self.dependent, vec![y]);
         cc.ap("Equal", vec![lhs, self.explicit])
@@ -52,7 +52,7 @@ impl DifferentialSolution {
 /// 识别后的 `y' = f(x, y)` 右端。
 struct FirstOrderRhs {
     /// `f`，仍可能含因变量符号。
-    f: ExprId,
+    f: TermId,
 }
 
 /// 求解已解码方程项给出的一阶 ODE。
@@ -67,10 +67,10 @@ struct FirstOrderRhs {
 /// - 可分离 `y' = g(x) y^n`（`n=2`）→ `y = -1/∫g`
 pub fn solve_ode_checked(
     cc: &mut CalculusCtx<'_>,
-    equation: ExprId,
+    equation: TermId,
     dependent: &str,
     independent: &str,
-    initial: Option<(ExprId, ExprId)>,
+    initial: Option<(TermId, TermId)>,
     _assumptions: &AssumptionSet,
 ) -> CalculusResult<DifferentialSolution> {
     let Some(rhs) = recognize_y_prime_equals(cc, equation, dependent, independent)
@@ -155,11 +155,11 @@ fn apply_ivp(
     cc: &mut CalculusCtx<'_>,
     dependent: &str,
     independent: &str,
-    f: ExprId,
-    particular: ExprId,
-    x0: ExprId,
-    y0: ExprId,
-) -> ExprId {
+    f: TermId,
+    particular: TermId,
+    x0: TermId,
+    y0: TermId,
+) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
         let ax0 = cc.eval(cc.ap("Times", vec![cc.num(cc.copy(&a)), x0]));
@@ -187,7 +187,7 @@ fn apply_ivp(
     particular
 }
 
-fn residual_of(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: ExprId, explicit: ExprId) -> ExprId {
+fn residual_of(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: TermId, explicit: TermId) -> TermId {
     let d = differentiate(cc, explicit, independent);
     let yp = cc.eval(d);
     let f_sub = cc.eval(replace_symbol(cc, f, dependent, explicit));
@@ -196,7 +196,7 @@ fn residual_of(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: 
 }
 
 /// `y' = g(x)`：右端不含因变量。
-fn try_rhs_independent_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, independent: &str) -> Option<ExprId> {
+fn try_rhs_independent_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
     if contains_symbol(cc, f, dependent) {
         return None;
     }
@@ -208,7 +208,7 @@ fn try_rhs_independent_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str
 }
 
 /// `y' = c y^n`（`n≠1`）。`n=2` ⇒ `y = -1/(c x)`。
-fn try_power_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, independent: &str) -> Option<ExprId> {
+fn try_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
     let (c, n) = match_scaled_power_of_y(cc, f, dependent)?;
     if n == 1 {
         return None;
@@ -238,7 +238,7 @@ fn try_power_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, independ
 
 /// 常系数 Bernoulli：`y' = a y + b y^n`（`n≠0,1`）。
 /// `a≠0` ⇒ 常数特解 `y^{n-1} = -a/b`（优先 `n=2` ⇒ `y = -a/b`）。
-fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, independent: &str) -> Option<ExprId> {
+fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
     let (a, b, n) = match_bernoulli_const_rhs(cc, f, dependent)?;
     if n == 0 || n == 1 {
         return None;
@@ -261,7 +261,7 @@ fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, ind
 }
 
 /// 可分离 `y' = g(x) y^n`（引导实现：`n=2` ⇒ `y = -1/∫g`）。
-fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str, independent: &str) -> Option<ExprId> {
+fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
     let (g, n) = match_g_times_y_power(cc, f, dependent)?;
     if n != 2 {
         return None;
@@ -281,7 +281,7 @@ fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str,
     Some(cc.eval(cc.ap("Times", vec![cc.in_(-1), inv])))
 }
 
-fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) -> Option<(Number, i64)> {
+fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, i64)> {
     let Some((h, args)) = cc.app(f)
     else {
         return None;
@@ -309,7 +309,7 @@ fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str)
     None
 }
 
-fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) -> Option<(Number, Number, i64)> {
+fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number, i64)> {
     // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
     let (h, args) = cc.app(f)?;
     if h != "Plus" || args.len() != 2 {
@@ -342,7 +342,7 @@ fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &st
     Some((a, b, n))
 }
 
-fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) -> Option<(ExprId, i64)> {
+fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(TermId, i64)> {
     let (h, args) = cc.app(f)?;
     if h != "Times" || args.len() != 2 {
         return None;
@@ -362,7 +362,7 @@ fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) -
 
 fn recognize_y_prime_equals(
     cc: &mut CalculusCtx<'_>,
-    equation: ExprId,
+    equation: TermId,
     dependent: &str,
     independent: &str,
 ) -> Option<FirstOrderRhs> {
@@ -387,7 +387,7 @@ fn recognize_y_prime_equals(
     None
 }
 
-fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: ExprId, dependent: &str, independent: &str) -> Option<Number> {
+fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> Option<Number> {
     let (h, args) = cc.app(term)?;
     if h != "Plus" || args.len() != 2 {
         return None;
@@ -401,7 +401,7 @@ fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: ExprId, dependent: &str, ind
     None
 }
 
-fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) -> Option<(Number, Number)> {
+fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number)> {
     // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
     let (h, args) = cc.app(f)?;
     if h != "Plus" || args.len() != 2 {
@@ -441,7 +441,7 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: ExprId, dependent: &str) 
     Some((p, q))
 }
 
-fn is_d_of(cc: &CalculusCtx<'_>, term: ExprId, dependent: &str, independent: &str) -> bool {
+fn is_d_of(cc: &CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -449,11 +449,11 @@ fn is_d_of(cc: &CalculusCtx<'_>, term: ExprId, dependent: &str, independent: &st
     h == "D" && args.len() == 2 && is_sym_named(cc, args[0], dependent) && is_sym_named(cc, args[1], independent)
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: ExprId, name: &str) -> bool {
+fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
     matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
 }
 
-fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: ExprId, dependent: &str) -> Option<Number> {
+fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str) -> Option<Number> {
     let Some((h, args)) = cc.app(term)
     else {
         return None;
@@ -470,11 +470,11 @@ fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: ExprId, dependent: &str) 
     None
 }
 
-fn is_zero_term(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_zero_term(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     cc.number_of(expr).is_some_and(|n| n.is_zero())
 }
 
-fn placeholder(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, equation: ExprId) -> DifferentialSolution {
+fn placeholder(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, equation: TermId) -> DifferentialSolution {
     DifferentialSolution {
         dependent: dependent.to_string(),
         independent: independent.to_string(),
@@ -487,7 +487,7 @@ fn unsupported(
     cc: &mut CalculusCtx<'_>,
     dependent: &str,
     independent: &str,
-    equation: ExprId,
+    equation: TermId,
 ) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(cc, dependent, independent, equation),

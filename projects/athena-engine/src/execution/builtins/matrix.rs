@@ -1,8 +1,8 @@
 //! 矩阵相关 handler 与辅助（legacy `eval_det` / `eval_mldivide` / `eval_dot_binop` 等语义）。
 
-use athena_ir::ExprNode;
+use athena_ir::TermNode;
 use athena_numeric::{Integer, Rational};
-use athena_types::{Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use crate::domains::linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact};
 
@@ -23,7 +23,7 @@ pub(crate) enum DotOpKind {
     Power,
 }
 
-fn dot_apply(vm: &mut Vm<'_>, kind: DotOpKind, a: ExprId, b: ExprId) -> ExprId {
+fn dot_apply(vm: &mut Vm<'_>, kind: DotOpKind, a: TermId, b: TermId) -> TermId {
     match kind {
         DotOpKind::Times => times(vm, &[a, b]),
         DotOpKind::Divide => {
@@ -36,10 +36,10 @@ fn dot_apply(vm: &mut Vm<'_>, kind: DotOpKind, a: ExprId, b: ExprId) -> ExprId {
 }
 
 /// nested List 广播二元运算（legacy `eval_dot_binop`）。
-pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId, kind: DotOpKind) -> Outcome {
+pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, kind: DotOpKind) -> Outcome {
     let op = vm.session.operators.intern(head);
-    let l_list = matches!(vm.session.arena.get(left), Some(ExprNode::List(_)));
-    let r_list = matches!(vm.session.arena.get(right), Some(ExprNode::List(_)));
+    let l_list = matches!(vm.session.arena.get(left), Some(TermNode::List(_)));
+    let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
             let (a, b) = (vm.app_args(left).unwrap_or_default(), vm.app_args(right).unwrap_or_default());
@@ -56,8 +56,8 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId
             let mut out = Vec::with_capacity(a.len());
             let mut diags = Vec::new();
             for (x, y) in a.iter().zip(b.iter()) {
-                let cell = if matches!(vm.session.arena.get(*x), Some(ExprNode::List(_)))
-                    || matches!(vm.session.arena.get(*y), Some(ExprNode::List(_)))
+                let cell = if matches!(vm.session.arena.get(*x), Some(TermNode::List(_)))
+                    || matches!(vm.session.arena.get(*y), Some(TermNode::List(_)))
                 {
                     dot_binop(vm, head, *x, *y, kind)
                 }
@@ -89,7 +89,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId
             let mut out = Vec::with_capacity(a.len());
             let mut diags = Vec::new();
             for x in a {
-                let cell = if matches!(vm.session.arena.get(x), Some(ExprNode::List(_))) {
+                let cell = if matches!(vm.session.arena.get(x), Some(TermNode::List(_))) {
                     dot_binop(vm, head, x, right, kind)
                 }
                 else {
@@ -120,7 +120,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId
             let mut out = Vec::with_capacity(b.len());
             let mut diags = Vec::new();
             for y in b {
-                let cell = if matches!(vm.session.arena.get(y), Some(ExprNode::List(_))) {
+                let cell = if matches!(vm.session.arena.get(y), Some(TermNode::List(_))) {
                     dot_binop(vm, head, left, y, kind)
                 }
                 else {
@@ -155,15 +155,15 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId
     }
 }
 
-pub(crate) fn h_zeros(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_zeros(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     matrix_fill(vm, "Zeros", args, 0)
 }
 
-pub(crate) fn h_ones(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_ones(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     matrix_fill(vm, "Ones", args, 1)
 }
 
-fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[ExprId], fill: i64) -> Outcome {
+fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> Outcome {
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
         return Outcome::unevaluated(vm.push_app(head, args.to_vec()));
@@ -191,7 +191,7 @@ fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[ExprId], fill: i64) -> Outco
     }
 }
 
-pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     // `EvalOp` 传入已求值维度参数（与 `Zeros` / `Ones` 同形），不是 EvalRaw root。
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
@@ -226,7 +226,7 @@ pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     match nested_list_shape(vm, args[0]) {
         Some((rows, cols)) => {
             let r = vm.push_int(rows as i64);
@@ -237,7 +237,7 @@ pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let echo = vm.push_app("Det", vec![args[0]]);
     let Some(m) = term_to_rational_matrix(vm, args[0])
     else {
@@ -249,17 +249,17 @@ pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let echo = vm.push_app("LinearSolve", vec![args[0], args[1]]);
     mldivide(vm, "LinearSolve", args[0], args[1], echo)
 }
 
-pub(crate) fn h_solve(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_solve(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     super::domains::solve(vm, args[0], args[1])
 }
 
 /// exact `A\b`（legacy `eval_mldivide`）。echo 由调用方构造（保持 head 名）。
-pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: ExprId, b: ExprId, echo: ExprId) -> Outcome {
+pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: TermId) -> Outcome {
     let Some(am) = term_to_rational_matrix(vm, a)
     else {
         return Outcome::unevaluated(echo);
@@ -294,7 +294,7 @@ pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: ExprId, b: ExprId, echo: 
 }
 
 /// MATLAB-style `sum`：向量 → 标量和；矩阵 → 各列之和（行向量）。
-pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: ExprId) -> Outcome {
+pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
     let echo = vm.push_app("Sum", vec![arg]);
     let Some(m) = term_to_rational_matrix(vm, arg)
     else {
@@ -338,7 +338,7 @@ pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: ExprId) -> Outcome {
 
 // ---- 矩阵 ↔ arena 辅助 ----
 
-fn term_scalar_rational(vm: &Vm<'_>, term: ExprId) -> Option<Rational> {
+fn term_scalar_rational(vm: &Vm<'_>, term: TermId) -> Option<Rational> {
     let n = number_of(vm, term)?;
     if let Some(i) = n.as_exact_integer() {
         return Some(Rational::new(Integer::from_i64(i), Integer::one()));
@@ -350,15 +350,15 @@ fn term_scalar_rational(vm: &Vm<'_>, term: ExprId) -> Option<Rational> {
 }
 
 /// nested-list 矩阵 → `MatrixValue`（legacy `term_to_rational_matrix`）。
-pub(crate) fn term_to_rational_matrix(vm: &Vm<'_>, term: ExprId) -> Option<MatrixValue> {
+pub(crate) fn term_to_rational_matrix(vm: &Vm<'_>, term: TermId) -> Option<MatrixValue> {
     match vm.session.arena.get(term) {
-        Some(ExprNode::List(rows)) if !rows.is_empty() => {
-            if matches!(vm.session.arena.get(rows[0]), Some(ExprNode::List(_))) {
+        Some(TermNode::List(rows)) if !rows.is_empty() => {
+            if matches!(vm.session.arena.get(rows[0]), Some(TermNode::List(_))) {
                 let mut data = Vec::new();
                 let mut cols: Option<u64> = None;
                 for row in rows {
                     let cells = match vm.session.arena.get(*row) {
-                        Some(ExprNode::List(cells)) => cells.clone(),
+                        Some(TermNode::List(cells)) => cells.clone(),
                         _ => return None,
                     };
                     let c = cells.len() as u64;
@@ -389,7 +389,7 @@ pub(crate) fn term_to_rational_matrix(vm: &Vm<'_>, term: ExprId) -> Option<Matri
 }
 
 /// `MatrixValue` → nested List（legacy `matrix_to_nested_list`）。
-pub(crate) fn matrix_to_nested_list(vm: &mut Vm<'_>, m: &MatrixValue) -> std::result::Result<ExprId, Diagnostic> {
+pub(crate) fn matrix_to_nested_list(vm: &mut Vm<'_>, m: &MatrixValue) -> std::result::Result<TermId, Diagnostic> {
     let (rows, cols) = (m.shape().rows, m.shape().cols);
     let mut out = Vec::with_capacity(rows as usize);
     for i in 0..rows {
@@ -417,7 +417,7 @@ pub(crate) fn matrix_to_nested_list(vm: &mut Vm<'_>, m: &MatrixValue) -> std::re
 }
 
 /// `Rational` → 整数或精确有理数原子（legacy `rational_to_term`）。
-pub(crate) fn rational_to_term(vm: &mut Vm<'_>, r: &Rational) -> ExprId {
+pub(crate) fn rational_to_term(vm: &mut Vm<'_>, r: &Rational) -> TermId {
     if r.is_integer() {
         if let Some(i) = r.numerator().to_i64() {
             return vm.push_int(i);
@@ -427,8 +427,8 @@ pub(crate) fn rational_to_term(vm: &mut Vm<'_>, r: &Rational) -> ExprId {
 }
 
 /// `n` / `m,n` 非负整数维度（legacy `parse_matrix_dims`）。
-fn parse_matrix_dims(vm: &Vm<'_>, args: &[ExprId]) -> Option<(u64, u64)> {
-    let as_dim = |t: ExprId| -> Option<u64> {
+fn parse_matrix_dims(vm: &Vm<'_>, args: &[TermId]) -> Option<(u64, u64)> {
+    let as_dim = |t: TermId| -> Option<u64> {
         let n = number_of(vm, t)?.as_exact_integer()?;
         if n < 0 { None } else { Some(n as u64) }
     };
@@ -443,19 +443,19 @@ fn parse_matrix_dims(vm: &Vm<'_>, args: &[ExprId]) -> Option<(u64, u64)> {
 }
 
 /// nested-list 矩阵 / 行向量形状（legacy `nested_list_shape`）。
-pub(crate) fn nested_list_shape(vm: &Vm<'_>, term: ExprId) -> Option<(u64, u64)> {
-    let Some(ExprNode::List(rows)) = vm.session.arena.get(term)
+pub(crate) fn nested_list_shape(vm: &Vm<'_>, term: TermId) -> Option<(u64, u64)> {
+    let Some(TermNode::List(rows)) = vm.session.arena.get(term)
     else {
         return None;
     };
     if rows.is_empty() {
         return Some((0, 0));
     }
-    if matches!(vm.session.arena.get(rows[0]), Some(ExprNode::List(_))) {
+    if matches!(vm.session.arena.get(rows[0]), Some(TermNode::List(_))) {
         let mut cols: Option<u64> = None;
         for row in rows {
             let cells = match vm.session.arena.get(*row) {
-                Some(ExprNode::List(cells)) => cells.len() as u64,
+                Some(TermNode::List(cells)) => cells.len() as u64,
                 _ => return None,
             };
             match cols {

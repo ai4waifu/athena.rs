@@ -1,7 +1,7 @@
 //! Interp 执行层语义验收（Living `25` L2 · KernelIR + VM）。
 
 use athena_engine::{
-    diagnostics::expression_summary::expression_debug,
+    diagnostics::term_summary::term_debug,
     execution,
     execution::vm::evaluate_session,
     runtime::{
@@ -10,11 +10,11 @@ use athena_engine::{
     },
 };
 
-type Tid = athena_types::ExprId;
+type Tid = athena_types::TermId;
 
 fn eval(s: &mut Session, expr: Tid) -> String {
     let out = evaluate_session(s, expr);
-    expression_debug(s, out.term)
+    term_debug(s, out.term)
 }
 
 fn sym(name: &str, s: &mut Session) -> Tid {

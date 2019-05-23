@@ -3,7 +3,7 @@
 //! - [`ValueIdTable`] / [`ResultIdTable`]：值与结果容器身份分配
 //! - [`AssumptionScopeTable`]：[`athena_types::AssumptionScope`] 的 Session intern
 //!
-//! `ExprId` 即 AthenaIR arena 原生引用（Living `25`），不再经二级映射表。
+//! `TermId` 即 AthenaIR arena 原生引用（Living `25`），不再经二级映射表。
 
 mod bindings;
 mod scope_table;

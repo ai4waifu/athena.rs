@@ -2,22 +2,22 @@
 
 use std::cmp::Ordering;
 
-use athena_ir::{Atom, ExprNode};
+use athena_ir::{Atom, TermNode};
 use athena_numeric::Number;
-use athena_types::{Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use crate::execution::{Outcome, builtins::arithmetic::number_of, vm::Vm};
 
 /// 将项解释为 typed Boolean（Boolean 原子 · `True`/`False` 符号 · 精确 `1`/`0`）。
-pub(crate) fn as_boolean_id(vm: &Vm<'_>, id: ExprId) -> Option<bool> {
+pub(crate) fn as_boolean_id(vm: &Vm<'_>, id: TermId) -> Option<bool> {
     match vm.session.arena.get(id) {
-        Some(ExprNode::Atom(Atom::Boolean(b))) => Some(*b),
-        Some(ExprNode::Atom(Atom::Symbol(s))) => match vm.session.arena.symbols().resolve(*s) {
+        Some(TermNode::Atom(Atom::Boolean(b))) => Some(*b),
+        Some(TermNode::Atom(Atom::Symbol(s))) => match vm.session.arena.symbols().resolve(*s) {
             Some("True") => Some(true),
             Some("False") => Some(false),
             _ => None,
         },
-        Some(ExprNode::Atom(Atom::Number(n))) => {
+        Some(TermNode::Atom(Atom::Number(n))) => {
             if n.is_zero() {
                 Some(false)
             }
@@ -46,41 +46,41 @@ pub(crate) fn non_boolean_condition_diagnostic(got: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::NonBooleanCondition).detail("expected", "Boolean").detail("got", got)
 }
 
-/// 诊断摘要（legacy `expression_summary`）。
-pub(crate) fn expression_summary(vm: &Vm<'_>, term: ExprId) -> String {
+/// 诊断摘要（term 节点简短分类名）。
+pub(crate) fn term_summary(vm: &Vm<'_>, term: TermId) -> String {
     match vm.session.arena.get(term) {
-        Some(ExprNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).unwrap_or("?").to_string(),
-        Some(ExprNode::Atom(Atom::String(_))) => "String".into(),
-        Some(ExprNode::Atom(Atom::Number(_))) => "Number".into(),
-        Some(ExprNode::Atom(Atom::Boolean(true))) => "True".into(),
-        Some(ExprNode::Atom(Atom::Boolean(false))) => "False".into(),
-        Some(ExprNode::Atom(Atom::Null)) => "Null".into(),
-        Some(ExprNode::List(_)) => "List".into(),
-        Some(ExprNode::App { .. }) => vm.head_name(term).unwrap_or_else(|| "Application".into()),
+        Some(TermNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).unwrap_or("?").to_string(),
+        Some(TermNode::Atom(Atom::String(_))) => "String".into(),
+        Some(TermNode::Atom(Atom::Number(_))) => "Number".into(),
+        Some(TermNode::Atom(Atom::Boolean(true))) => "True".into(),
+        Some(TermNode::Atom(Atom::Boolean(false))) => "False".into(),
+        Some(TermNode::Atom(Atom::Null)) => "Null".into(),
+        Some(TermNode::List(_)) => "List".into(),
+        Some(TermNode::App { .. }) => vm.head_name(term).unwrap_or_else(|| "Application".into()),
         None => "Invalid".into(),
     }
 }
 
 // ---- 比较 ----
 
-pub(crate) fn h_equal(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_equal(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = eval_compare(vm, "Equal", args[0], args[1], |o| o == Ordering::Equal);
     wrap_compare(vm, term, "Equal")
 }
 
-pub(crate) fn h_unequal(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_unequal(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = eval_compare(vm, "Unequal", args[0], args[1], |o| o != Ordering::Equal);
     wrap_compare(vm, term, "Unequal")
 }
 
-fn wrap_compare(vm: &mut Vm<'_>, term: ExprId, head: &str) -> Outcome {
+fn wrap_compare(vm: &mut Vm<'_>, term: TermId, head: &str) -> Outcome {
     if vm.head_name(term).is_some_and(|h| h == head) { Outcome::unevaluated(term) } else { Outcome::value(term) }
 }
 
 /// 列表广播 + 数值比较（legacy `eval_compare`）。
-fn eval_compare(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId, cmp: fn(Ordering) -> bool) -> ExprId {
-    let l_list = matches!(vm.session.arena.get(left), Some(ExprNode::List(_)));
-    let r_list = matches!(vm.session.arena.get(right), Some(ExprNode::List(_)));
+fn eval_compare(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, cmp: fn(Ordering) -> bool) -> TermId {
+    let l_list = matches!(vm.session.arena.get(left), Some(TermNode::List(_)));
+    let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
             let (xs, ys) = (vm.app_args(left).unwrap_or_default(), vm.app_args(right).unwrap_or_default());
@@ -113,7 +113,7 @@ fn eval_compare(vm: &mut Vm<'_>, head: &str, left: ExprId, right: ExprId, cmp: f
 
 macro_rules! compare_chain_handler {
     ($name:ident, $op:expr, $pick:expr) => {
-        pub(crate) fn $name(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+        pub(crate) fn $name(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             compare_chain(vm, $op, args, $pick)
         }
     };
@@ -127,12 +127,12 @@ compare_chain_handler!(h_greater_equal_chain, "GreaterEqual", |o: Ordering| o !=
 const COMPARE_HEADS: [&str; 6] = ["Less", "Greater", "LessEqual", "GreaterEqual", "Equal", "Unequal"];
 
 /// 左结合比较链：`Less[Less[1,2],3]` → `And[1<2, 2<3]`（legacy `eval_compare_chain`）。
-fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[ExprId], pick: fn(Ordering) -> bool) -> Outcome {
+fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) -> bool) -> Outcome {
     if args.len() != 2 {
         return Outcome::unevaluated(vm.push_app(op, args.to_vec()));
     }
     let nested = match vm.session.arena.get(args[0]) {
-        Some(ExprNode::App { args: inner, .. }) if inner.len() == 2 => {
+        Some(TermNode::App { args: inner, .. }) if inner.len() == 2 => {
             vm.head_name(args[0]).is_some_and(|h| COMPARE_HEADS.contains(&h.as_str()))
         }
         _ => false,
@@ -173,17 +173,17 @@ fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[ExprId], pick: fn(Ordering) 
 
 // ---- 逻辑 ----
 
-pub(crate) fn h_and(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_and(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = logic_and(vm, args[0], args[1]);
     wrap_logic(vm, term, "And")
 }
 
-pub(crate) fn h_or(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_or(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = logic_or(vm, args[0], args[1]);
     wrap_logic(vm, term, "Or")
 }
 
-pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = match as_boolean_id(vm, args[0]) {
         Some(v) => vm.push_bool(!v),
         None => vm.push_app("Not", vec![args[0]]),
@@ -191,18 +191,18 @@ pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     wrap_logic(vm, term, "Not")
 }
 
-fn wrap_logic(vm: &mut Vm<'_>, term: ExprId, head: &str) -> Outcome {
+fn wrap_logic(vm: &mut Vm<'_>, term: TermId, head: &str) -> Outcome {
     if vm.head_name(term).is_some_and(|h| h == head) { Outcome::unevaluated(term) } else { Outcome::value(term) }
 }
 
-fn logic_and(vm: &mut Vm<'_>, left: ExprId, right: ExprId) -> ExprId {
+fn logic_and(vm: &mut Vm<'_>, left: TermId, right: TermId) -> TermId {
     match (as_boolean_id(vm, left), as_boolean_id(vm, right)) {
         (Some(a), Some(b)) => vm.push_bool(a && b),
         _ => vm.push_app("And", vec![left, right]),
     }
 }
 
-fn logic_or(vm: &mut Vm<'_>, left: ExprId, right: ExprId) -> ExprId {
+fn logic_or(vm: &mut Vm<'_>, left: TermId, right: TermId) -> TermId {
     match (as_boolean_id(vm, left), as_boolean_id(vm, right)) {
         (Some(a), Some(b)) => vm.push_bool(a || b),
         _ => vm.push_app("Or", vec![left, right]),
@@ -211,12 +211,12 @@ fn logic_or(vm: &mut Vm<'_>, left: ExprId, right: ExprId) -> ExprId {
 
 // ---- 列表 / 一元数值 ----
 
-pub(crate) fn h_list(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_list(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     Outcome::value(vm.push_list(args.to_vec()))
 }
 
 /// `Sin`/`Cos`/`Tan`/`Exp`/`Log`：精确三角值优先，其余保持符号（raw root 形式）。
-pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.app_args(root).unwrap_or_default();
@@ -254,7 +254,7 @@ pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
 }
 
 /// 精确三角值（`Cos[Pi]`、`Sin[0]`、…；legacy `eval_trig_exact`）。
-fn eval_trig_exact(vm: &mut Vm<'_>, name: &str, arg: ExprId) -> Option<ExprId> {
+fn eval_trig_exact(vm: &mut Vm<'_>, name: &str, arg: TermId) -> Option<TermId> {
     let angle = normalize_pi_angle(vm, arg)?;
     match name {
         "Sin" => Some(vm.push_int(0)),
@@ -265,7 +265,7 @@ fn eval_trig_exact(vm: &mut Vm<'_>, name: &str, arg: ExprId) -> Option<ExprId> {
 }
 
 /// 机器 `f64` 视图（`k·π` / `E` / 数字；legacy `term_as_f64`）。
-pub(crate) fn term_as_f64(vm: &Vm<'_>, arg: ExprId) -> Option<f64> {
+pub(crate) fn term_as_f64(vm: &Vm<'_>, arg: TermId) -> Option<f64> {
     if let Some(k) = normalize_pi_angle(vm, arg) {
         return Some((k as f64) * std::f64::consts::PI);
     }
@@ -276,7 +276,7 @@ pub(crate) fn term_as_f64(vm: &Vm<'_>, arg: ExprId) -> Option<f64> {
 }
 
 /// `0`、`Pi`、`-Pi`、`n*Pi` → 整数 `n`（legacy `normalize_pi_angle`）。
-pub(crate) fn normalize_pi_angle(vm: &Vm<'_>, arg: ExprId) -> Option<i64> {
+pub(crate) fn normalize_pi_angle(vm: &Vm<'_>, arg: TermId) -> Option<i64> {
     if let Some(n) = number_of(vm, arg).and_then(|n| n.as_exact_integer()) {
         if n == 0 {
             return Some(0);
@@ -306,15 +306,15 @@ pub(crate) fn normalize_pi_angle(vm: &Vm<'_>, arg: ExprId) -> Option<i64> {
     None
 }
 
-fn is_app_named(vm: &Vm<'_>, id: ExprId, name: &str) -> bool {
+fn is_app_named(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     vm.head_name(id).is_some_and(|h| h == name)
 }
 
-fn head_is(vm: &Vm<'_>, id: ExprId, name: &str) -> bool {
+fn head_is(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     is_app_named(vm, id, name)
 }
 
-pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("sqrt copy")) {
         if let Ok(Some(v)) = athena_numeric::sqrt(&n) {
             crate::execution::builtins::arithmetic::push_number(vm, v)
@@ -329,7 +329,7 @@ pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     Outcome::value(term)
 }
 
-pub(crate) fn h_abs(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_abs(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("abs copy")) {
         crate::execution::builtins::arithmetic::push_number(vm, athena_numeric::abs(n))
     }
@@ -339,7 +339,7 @@ pub(crate) fn h_abs(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     Outcome::value(term)
 }
 
-pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("factorial copy")) {
         match athena_numeric::factorial(&n) {
             Ok(v) => crate::execution::builtins::arithmetic::push_number(vm, v),
@@ -352,7 +352,7 @@ pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     Outcome::value(term)
 }
 
-pub(crate) fn h_simplify(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_simplify(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let e = vm.eval_value(args[0]);
     if e.has_error() {
         return e;
@@ -362,7 +362,7 @@ pub(crate) fn h_simplify(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 }
 
 /// `Sin[x]^2 + Cos[x]^2 → 1`（顺序可交换 · legacy `try_pythagorean`）。
-fn try_pythagorean(vm: &mut Vm<'_>, expr: ExprId) -> Option<ExprId> {
+fn try_pythagorean(vm: &mut Vm<'_>, expr: TermId) -> Option<TermId> {
     if !is_app_named(vm, expr, "Plus") {
         return None;
     }
@@ -380,8 +380,8 @@ fn try_pythagorean(vm: &mut Vm<'_>, expr: ExprId) -> Option<ExprId> {
     None
 }
 
-fn is_trig_sq(vm: &Vm<'_>, expr: ExprId, name: &str) -> bool {
-    let Some(ExprNode::App { args, .. }) = vm.session.arena.get(expr)
+fn is_trig_sq(vm: &Vm<'_>, expr: TermId, name: &str) -> bool {
+    let Some(TermNode::App { args, .. }) = vm.session.arena.get(expr)
     else {
         return false;
     };
@@ -389,21 +389,21 @@ fn is_trig_sq(vm: &Vm<'_>, expr: ExprId, name: &str) -> bool {
         return false;
     }
     let exp_is_two =
-        matches!(vm.session.arena.get(args[1]), Some(ExprNode::Atom(Atom::Number(n))) if *n == Number::small_int(2));
+        matches!(vm.session.arena.get(args[1]), Some(TermNode::Atom(Atom::Number(n))) if *n == Number::small_int(2));
     exp_is_two
-        && matches!(vm.session.arena.get(args[0]), Some(ExprNode::App { args: a, .. }) if a.len() == 1 && vm.head_name(args[0]).is_some_and(|h| h == name))
+        && matches!(vm.session.arena.get(args[0]), Some(TermNode::App { args: a, .. }) if a.len() == 1 && vm.head_name(args[0]).is_some_and(|h| h == name))
 }
 
-fn same_trig_arg(vm: &Vm<'_>, a: ExprId, b: ExprId) -> bool {
-    fn arg(vm: &Vm<'_>, expr: ExprId) -> Option<ExprId> {
-        let ExprNode::App { args, .. } = vm.session.arena.get(expr)?
+fn same_trig_arg(vm: &Vm<'_>, a: TermId, b: TermId) -> bool {
+    fn arg(vm: &Vm<'_>, expr: TermId) -> Option<TermId> {
+        let TermNode::App { args, .. } = vm.session.arena.get(expr)?
         else {
             return None;
         };
         if args.len() != 2 {
             return None;
         }
-        let ExprNode::App { args: inner, .. } = vm.session.arena.get(args[0])?
+        let TermNode::App { args: inner, .. } = vm.session.arena.get(args[0])?
         else {
             return None;
         };
@@ -417,7 +417,7 @@ fn same_trig_arg(vm: &Vm<'_>, a: ExprId, b: ExprId) -> bool {
 
 // ---- Range / Length / First / Join ----
 
-pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let mut ints = Vec::with_capacity(args.len());
     for a in args {
         match number_of(vm, *a).and_then(|n| n.as_exact_integer()) {
@@ -437,7 +437,7 @@ pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn range_ints(vm: &mut Vm<'_>, a: i64, b: i64, step: i64) -> Option<Vec<ExprId>> {
+pub(crate) fn range_ints(vm: &mut Vm<'_>, a: i64, b: i64, step: i64) -> Option<Vec<TermId>> {
     if step == 0 {
         return None;
     }
@@ -458,7 +458,7 @@ pub(crate) fn range_ints(vm: &mut Vm<'_>, a: i64, b: i64, step: i64) -> Option<V
     Some(out)
 }
 
-pub(crate) fn h_length(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_length(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let term = match vm.app_args(args[0]) {
         Some(items) => vm.push_int(items.len() as i64),
         None => return Outcome::unevaluated(vm.push_app("Length", vec![args[0]])),
@@ -466,7 +466,7 @@ pub(crate) fn h_length(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     Outcome::value(term)
 }
 
-pub(crate) fn h_first(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_first(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     match vm.app_args(args[0]) {
         Some(items) if !items.is_empty() => Outcome::value(items[0]),
         Some(items) => {
@@ -477,11 +477,11 @@ pub(crate) fn h_first(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     }
 }
 
-pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let mut out = Vec::new();
     for arg in args {
         match vm.app_args(*arg) {
-            Some(items) if matches!(vm.session.arena.get(*arg), Some(ExprNode::List(_))) => out.extend(items),
+            Some(items) if matches!(vm.session.arena.get(*arg), Some(TermNode::List(_))) => out.extend(items),
             _ => return Outcome::unevaluated(vm.push_app("Join", args.to_vec())),
         }
     }
@@ -490,13 +490,13 @@ pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
 
 // ---- 诊断捷径 ----
 
-pub(crate) fn h_unsupported(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_unsupported(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     Outcome::invalid(root, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", name))
 }
 
-pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.app_args(root).unwrap_or_default();
@@ -510,7 +510,7 @@ pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
     let op = vm.session.operators.intern(&name);
     let echo = vm.rebuild_app_op(op, evaluated);
     let msg = match vm.session.arena.get(vm.app_args(echo).unwrap_or_default().first().copied().unwrap_or(echo)) {
-        Some(ExprNode::Atom(Atom::String(s))) => s.clone(),
+        Some(TermNode::Atom(Atom::String(s))) => s.clone(),
         _ => "error".to_string(),
     };
     Outcome::invalid(
@@ -521,6 +521,6 @@ pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
 }
 
 /// 值位 `Set` / `SetDelayed` quirk：参数已求值，再求值 rhs 一次（legacy 双重求值一致）。
-pub(crate) fn h_set_eval_rhs(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_set_eval_rhs(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     vm.eval_value(args[1])
 }

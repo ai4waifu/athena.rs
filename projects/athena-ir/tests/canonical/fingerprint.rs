@@ -1,11 +1,11 @@
-use athena_ir::{Atom, ExprArena, ExprBuilder, ExprNode, OperatorRegistry, canonical_hash, canonical_hash_named, fnv1a64};
+use athena_ir::{Atom, OperatorRegistry, TermBuilder, TermNode, TermStore, canonical_hash, canonical_hash_named, fnv1a64};
 use athena_types::SourceSpan;
 
 const SPAN: SourceSpan = SourceSpan { start: 0, end: 0 };
 
-fn build_plus_x_plus_y(x_first: bool) -> (ExprArena, athena_types::ExprId) {
-    let mut arena = ExprArena::new();
-    let mut b = ExprBuilder::new(&mut arena);
+fn build_plus_x_plus_y(x_first: bool) -> (TermStore, athena_types::TermId) {
+    let mut arena = TermStore::new();
+    let mut b = TermBuilder::new(&mut arena);
     let x = b.symbol("x", SPAN);
     let y = b.symbol("y", SPAN);
     let plus = b.app_named(&mut OperatorRegistry::standard(), "Plus", vec![x, y], SPAN);
@@ -37,14 +37,14 @@ fn canonical_hash_named_registry_order_independent() {
     let plus_b = reg_b.intern("Plus");
     reg_b.intern("Sin");
 
-    let mut arena_a = ExprArena::new();
-    let mut b_a = ExprBuilder::new(&mut arena_a);
+    let mut arena_a = TermStore::new();
+    let mut b_a = TermBuilder::new(&mut arena_a);
     let one_a = b_a.int(1, SPAN);
     let two_a = b_a.int(2, SPAN);
     let t_a = b_a.app(plus_a, vec![one_a, two_a], SPAN);
 
-    let mut arena_b = ExprArena::new();
-    let mut b_b = ExprBuilder::new(&mut arena_b);
+    let mut arena_b = TermStore::new();
+    let mut b_b = TermBuilder::new(&mut arena_b);
     let one_b = b_b.int(1, SPAN);
     let two_b = b_b.int(2, SPAN);
     let t_b = b_b.app(plus_b, vec![one_b, two_b], SPAN);
@@ -60,8 +60,8 @@ fn structural_eq_value_and_structure() {
     let (arena2, r2) = build_plus_x_plus_y(false);
     assert!(arena.structural_eq(r1, r2));
 
-    let mut arena3 = ExprArena::new();
-    let mut b = ExprBuilder::new(&mut arena3);
+    let mut arena3 = TermStore::new();
+    let mut b = TermBuilder::new(&mut arena3);
     let x = b.symbol("x", SPAN);
     let plus = b.app_named(&mut OperatorRegistry::standard(), "Plus", vec![x, x], SPAN);
     assert!(!arena3.structural_eq(plus, r1));
@@ -70,8 +70,8 @@ fn structural_eq_value_and_structure() {
 
 #[test]
 fn structural_eq_atom_payloads() {
-    let mut arena = ExprArena::new();
-    let mut b = ExprBuilder::new(&mut arena);
+    let mut arena = TermStore::new();
+    let mut b = TermBuilder::new(&mut arena);
     let i1 = b.int(2, SPAN);
     let i2 = b.int(2, SPAN);
     let r = b.rational_i64(1, 2, SPAN).unwrap();
@@ -81,5 +81,5 @@ fn structural_eq_atom_payloads() {
     assert!(!arena.structural_eq(i1, r));
     assert!(!arena.structural_eq(i1, f));
     assert!(!arena.structural_eq(tr, i1));
-    assert!(matches!(arena.get(i1), Some(ExprNode::Atom(Atom::Number(_)))));
+    assert!(matches!(arena.get(i1), Some(TermNode::Atom(Atom::Number(_)))));
 }

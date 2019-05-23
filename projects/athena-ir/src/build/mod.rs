@@ -2,4 +2,4 @@
 
 pub mod builder;
 
-pub use builder::ExprBuilder;
+pub use builder::TermBuilder;

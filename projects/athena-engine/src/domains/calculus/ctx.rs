@@ -1,7 +1,7 @@
 //! 微积分算法的会话上下文 — `Shape` 读取 + builder 构造 + interp 求值（Living `25` L3）。
 //!
-//! 领域算法不再持有 owning 树：全部读写都落在调用方的 session `ExprArena`，
-//! 结果以 `ExprId` 返回，子树按 arena 地址共享。
+//! 领域算法不再持有 owning 树：全部读写都落在调用方的 session `TermStore`，
+//! 结果以 `TermId` 返回，子树按 arena 地址共享。
 //!
 //! Builder 方法取 `&self`：`Cc` 已对 `Session` 持有独占生命周期，嵌套
 //! `cc.ap(..., vec![cc.in_(…)])` 在 `&mut self` 下会触发 E0499；与 rustc Arena
@@ -11,7 +11,7 @@
 
 use athena_ir::Atom;
 use athena_numeric::Number;
-use athena_types::{ExprId, OperatorId, SymbolId};
+use athena_types::{OperatorId, SymbolId, TermId};
 use std::marker::PhantomData;
 
 use crate::{
@@ -47,15 +47,15 @@ impl<'a> CalculusCtx<'a> {
     // ---- 读取 ----
 
     /// 廉价结构快照（不复制数字载荷）。
-    pub(crate) fn shape(&self, id: ExprId) -> Option<Shape> {
+    pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
         match self.session().arena.get(id)? {
-            athena_ir::ExprNode::Atom(Atom::Number(_)) => Some(Shape::Number),
-            athena_ir::ExprNode::Atom(Atom::String(v)) => Some(Shape::Str(v.clone())),
-            athena_ir::ExprNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
-            athena_ir::ExprNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
-            athena_ir::ExprNode::Atom(Atom::Null) => Some(Shape::Null),
-            athena_ir::ExprNode::List(items) => Some(Shape::List(items.clone())),
-            athena_ir::ExprNode::App { op, args } => Some(Shape::App(*op, args.clone())),
+            athena_ir::TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
+            athena_ir::TermNode::Atom(Atom::String(v)) => Some(Shape::Str(v.clone())),
+            athena_ir::TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
+            athena_ir::TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
+            athena_ir::TermNode::Atom(Atom::Null) => Some(Shape::Null),
+            athena_ir::TermNode::List(items) => Some(Shape::List(items.clone())),
+            athena_ir::TermNode::App { op, args } => Some(Shape::App(*op, args.clone())),
         }
     }
 
@@ -65,7 +65,7 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// App 形态：(head 名, 参数)。
-    pub(crate) fn app(&self, id: ExprId) -> Option<(String, Vec<ExprId>)> {
+    pub(crate) fn app(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
         match self.shape(id)? {
             Shape::App(op, args) => Some((self.op_name(op).to_string(), args)),
             _ => None,
@@ -73,7 +73,7 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// head 名（App 走注册表 · List → `List` · 符号 → 自身）。
-    pub(crate) fn head_name(&self, id: ExprId) -> Option<String> {
+    pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.shape(id)? {
             Shape::App(op, _) => Some(self.op_name(op).to_string()),
             Shape::List(_) => Some("List".into()),
@@ -93,15 +93,15 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// arena 数字引用。
-    pub(crate) fn number_of(&self, id: ExprId) -> Option<&Number> {
+    pub(crate) fn number_of(&self, id: TermId) -> Option<&Number> {
         match self.session().arena.get(id) {
-            Some(athena_ir::ExprNode::Atom(Atom::Number(n))) => Some(n),
+            Some(athena_ir::TermNode::Atom(Atom::Number(n))) => Some(n),
             _ => None,
         }
     }
 
     /// 数字整数值。
-    pub(crate) fn int_exp(&self, id: ExprId) -> Option<i64> {
+    pub(crate) fn int_exp(&self, id: TermId) -> Option<i64> {
         self.number_of(id).and_then(|n| n.as_integer_exp())
     }
 
@@ -111,36 +111,36 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// 结构等价。
-    pub(crate) fn eq(&self, a: ExprId, b: ExprId) -> bool {
+    pub(crate) fn eq(&self, a: TermId, b: TermId) -> bool {
         self.session().arena.structural_eq(a, b)
     }
 
     // ---- interp 求值 ----
 
     /// 在内建定义下求值到稳定形。
-    pub(crate) fn eval(&self, id: ExprId) -> ExprId {
+    pub(crate) fn eval(&self, id: TermId) -> TermId {
         execution::vm::evaluate_session(self.session_mut(), id).term
     }
 
     // ---- 构造 ----
 
     /// 数字原子。
-    pub(crate) fn num(&self, n: Number) -> ExprId {
+    pub(crate) fn num(&self, n: Number) -> TermId {
         execution::push_number(self.session_mut(), n)
     }
 
     /// 小型精确整数。
-    pub(crate) fn in_(&self, n: i64) -> ExprId {
+    pub(crate) fn in_(&self, n: i64) -> TermId {
         crate::runtime::values::arena::push_int(self.session_mut(), n)
     }
 
     /// 机器实数。
-    pub(crate) fn real(&self, x: f64) -> ExprId {
+    pub(crate) fn real(&self, x: f64) -> TermId {
         execution::push_number(self.session_mut(), Number::machine(x))
     }
 
     /// 符号原子。
-    pub(crate) fn sym(&self, name: &str) -> ExprId {
+    pub(crate) fn sym(&self, name: &str) -> TermId {
         crate::runtime::values::arena::push_symbol_name(self.session_mut(), name)
     }
 
@@ -150,12 +150,12 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// 列表。
-    pub(crate) fn list(&self, items: Vec<ExprId>) -> ExprId {
+    pub(crate) fn list(&self, items: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_list(self.session_mut(), items)
     }
 
     /// 算子应用。
-    pub(crate) fn ap(&self, head: &str, args: Vec<ExprId>) -> ExprId {
+    pub(crate) fn ap(&self, head: &str, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_app_named(self.session_mut(), head, args)
     }
 }

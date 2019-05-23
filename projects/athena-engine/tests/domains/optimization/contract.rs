@@ -11,7 +11,7 @@ use athena_engine::{
     },
     runtime::Session,
 };
-use athena_types::{AssumptionScopeId, DomainId, ExprId};
+use athena_types::{AssumptionScopeId, DomainId, TermId};
 
 fn sample_lp() -> OptimizationProblem {
     let variables = vec![DecisionVariable::continuous_real(VariableId(0))];
@@ -19,12 +19,12 @@ fn sample_lp() -> OptimizationProblem {
     feasible.constraints.push(OptConstraint {
         id: ConstraintId(0),
         relation: ConstraintRelation::LessEqual,
-        expression: ExprId(10),
+        expression: TermId(10),
         domain: DomainId(0),
         provenance: None,
     });
     let objectives =
-        vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: ExprId(20), priority: 0 }];
+        vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: TermId(20), priority: 0 }];
     OptimizationProblem::try_new(
         ProblemId(1),
         ProblemClass::LinearProgram,
@@ -50,7 +50,7 @@ fn rejects_integrality_domain_mismatch() {
         ProblemClass::MixedIntegerLinearProgram,
         vec![var],
         FeasibleSet::empty(DomainId(0)),
-        vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: ExprId(1), priority: 0 }],
+        vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: TermId(1), priority: 0 }],
         AssumptionScopeId(0),
         AlgorithmPolicy::default(),
         OptimizationLimits::default(),

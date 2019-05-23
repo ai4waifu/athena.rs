@@ -3,9 +3,9 @@
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
 use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
-use athena_ir::{ExprArena, ExprBuilder, OperatorRegistry};
+use athena_ir::{OperatorRegistry, TermBuilder, TermStore};
 use athena_numeric::{ExecutionBudget, NumericContext};
-use athena_types::{ExprId, ValueId};
+use athena_types::{TermId, ValueId};
 
 use crate::{
     domains::{
@@ -26,10 +26,10 @@ use crate::{
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
     /// Core IR arena（表达式与求值结果存储）。
-    pub arena: ExprArena,
+    pub arena: TermStore,
     /// 内建算子注册表。
     pub operators: OperatorRegistry,
-    /// 值身份 ↔ 存储 [`ExprId`]。
+    /// 值身份 ↔ 存储 [`TermId`]。
     pub value_bindings: ValueBindingTable,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
@@ -83,7 +83,7 @@ impl Session {
         let heap = GcHeap::new_shared(HeapBudget::default());
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
-            arena: ExprArena::new(),
+            arena: TermStore::new(),
             operators: OperatorRegistry::standard(),
             value_bindings: ValueBindingTable::default(),
             defs: DefinitionLayer::new(),
@@ -98,23 +98,23 @@ impl Session {
         }
     }
 
-    /// 获取可变 [`ExprBuilder`]。
-    pub fn builder(&mut self) -> ExprBuilder<'_> {
-        ExprBuilder::new(&mut self.arena)
+    /// 获取可变 [`TermBuilder`]。
+    pub fn builder(&mut self) -> TermBuilder<'_> {
+        TermBuilder::new(&mut self.arena)
     }
 
     /// 将存储项注册为值身份。
-    pub fn intern_value(&mut self, term: ExprId) -> ValueId {
+    pub fn intern_value(&mut self, term: TermId) -> ValueId {
         self.value_bindings.intern_term(term)
     }
 
     /// 值对应的存储项。
-    pub fn expression_of_value(&self, value: ValueId) -> Option<ExprId> {
+    pub fn term_of_value(&self, value: ValueId) -> Option<TermId> {
         self.value_bindings.term_of(value)
     }
 
     /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。
-    pub fn evaluate(&mut self, expr: ExprId) -> execution::Outcome {
+    pub fn evaluate(&mut self, expr: TermId) -> execution::Outcome {
         execution::vm::evaluate_session(self, expr)
     }
 

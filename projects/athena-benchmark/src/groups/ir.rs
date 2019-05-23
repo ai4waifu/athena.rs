@@ -1,6 +1,6 @@
 //! `ir` 分组种子 fixture。
 
-use athena_ir::{ExprArena, ExprBuilder, canonical_hash};
+use athena_ir::{TermBuilder, TermStore, canonical_hash};
 use athena_numeric::Number;
 use athena_types::SourceSpan;
 
@@ -18,8 +18,8 @@ impl Fixture for ArenaHashFixture {
 
     fn validate(&self) -> Result<ValidationSummary, String> {
         let (h1, root) = build_and_hash();
-        let mut arena = ExprArena::new();
-        let mut b = ExprBuilder::new(&mut arena);
+        let mut arena = TermStore::new();
+        let mut b = TermBuilder::new(&mut arena);
         let span = SourceSpan::default();
         let a = b.number(Number::small_int(1), span);
         let c = b.number(Number::small_int(2), span);
@@ -38,9 +38,9 @@ impl Fixture for ArenaHashFixture {
     }
 }
 
-fn build_and_hash() -> (u64, athena_types::ExprId) {
-    let mut arena = ExprArena::new();
-    let mut b = ExprBuilder::new(&mut arena);
+fn build_and_hash() -> (u64, athena_types::TermId) {
+    let mut arena = TermStore::new();
+    let mut b = TermBuilder::new(&mut arena);
     let span = SourceSpan::default();
     let a = b.number(Number::small_int(1), span);
     let c = b.number(Number::small_int(2), span);

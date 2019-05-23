@@ -3,7 +3,7 @@
 //! 与 [`crate::domains::solve::Constraint`] 分离：Solve 约束描述方程/不等式求解问题；
 //! 本类型描述优化可行域成员关系。
 
-use athena_types::{DomainId, ExprId};
+use athena_types::{DomainId, TermId};
 
 use super::ids::ConstraintId;
 
@@ -30,7 +30,7 @@ pub struct Constraint {
     /// 关系。
     pub relation: ConstraintRelation,
     /// 约束表达式（规范形待后续冻结）。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 系数 / 嵌入域。
     pub domain: DomainId,
     /// 来源说明（非证书）。

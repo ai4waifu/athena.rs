@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use athena_types::{ExprId, SymbolId};
+use athena_types::{SymbolId, TermId};
 
 /// Session / arena 内的绑定槽位（与裸 [`SymbolId`] 区分）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -31,11 +31,11 @@ impl BoundSymbol {
     }
 }
 
-/// 解分支上的变量绑定：[`BoundSymbol`] → 解表达式 [`ExprId`]。
+/// 解分支上的变量绑定：[`BoundSymbol`] → 解表达式 [`TermId`]。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BindingMap {
     /// 有序绑定表（稳定比较）。
-    pub entries: BTreeMap<BoundSymbol, ExprId>,
+    pub entries: BTreeMap<BoundSymbol, TermId>,
 }
 
 impl BindingMap {
@@ -45,12 +45,12 @@ impl BindingMap {
     }
 
     /// 插入或覆盖一个绑定。
-    pub fn insert(&mut self, symbol: BoundSymbol, value: ExprId) {
+    pub fn insert(&mut self, symbol: BoundSymbol, value: TermId) {
         self.entries.insert(symbol, value);
     }
 
     /// 查询。
-    pub fn get(&self, symbol: &BoundSymbol) -> Option<ExprId> {
+    pub fn get(&self, symbol: &BoundSymbol) -> Option<TermId> {
         self.entries.get(symbol).copied()
     }
 

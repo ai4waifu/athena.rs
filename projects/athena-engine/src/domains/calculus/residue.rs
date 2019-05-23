@@ -1,6 +1,6 @@
 //! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 Living `25`）。
 
-use athena_types::{Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
@@ -12,20 +12,20 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub struct Residue {
     /// 源表达式。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 复变量。
     pub variable: String,
     /// 展开点（已解码）。
-    pub point: ExprId,
+    pub point: TermId,
     /// 留数值（`(z-a)^{-1}` 系数；解析则多为 0）。
-    pub value: ExprId,
+    pub value: TermId,
     /// 若 Laurent 成功估出的极点阶（主部最低幂的相反数）；解析点为 `0`。
     pub pole_order: u32,
 }
 
 impl Residue {
     /// 桥接为留数标量项。
-    pub fn materialize_expression(&self) -> ExprId {
+    pub fn materialize_expression(&self) -> TermId {
         self.value
     }
 }
@@ -33,7 +33,7 @@ impl Residue {
 /// 计算 `Res(expression, variable → point)`。
 ///
 /// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
-pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, point: ExprId) -> CalculusResult<Residue> {
+pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> CalculusResult<Residue> {
     let zero = cc.in_(0);
     match laurent(cc, expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {
@@ -81,11 +81,11 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &
     }
 }
 
-fn residue_echo(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, point: ExprId) -> ExprId {
+fn residue_echo(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
     let spec = cc.list(vec![cc.sym(variable), point]);
     cc.ap("Residue", vec![expression, spec])
 }
 
-fn is_zero_like(cc: &CalculusCtx<'_>, term: ExprId) -> bool {
+fn is_zero_like(cc: &CalculusCtx<'_>, term: TermId) -> bool {
     cc.number_of(term).is_some_and(|n| n.is_zero())
 }

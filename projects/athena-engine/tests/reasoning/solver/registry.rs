@@ -9,7 +9,7 @@ use athena_engine::reasoning::{
         score_candidate,
     },
 };
-use athena_types::{AssumptionSetId, Diagnostic, ExprId};
+use athena_types::{AssumptionSetId, Diagnostic, TermId};
 
 struct StubReflector;
 
@@ -44,7 +44,7 @@ fn solver_registry_lookup() {
 
 #[test]
 fn score_candidate_is_stable_integer() {
-    let candidate = SolverCandidate { solver: SolverId(0), roots: vec![ExprId(0)] };
+    let candidate = SolverCandidate { solver: SolverId(0), roots: vec![TermId(0)] };
     let a = score_candidate(&candidate);
     let b = score_candidate(&candidate);
     assert_eq!(a, b);
@@ -56,7 +56,7 @@ fn score_candidate_is_stable_integer() {
 fn solver_request_smoke() {
     let req = SolverRequest {
         domain: DomainRef::Arithmetic,
-        roots: vec![ExprId(1)],
+        roots: vec![TermId(1)],
         operation: SolverOperation { name: "noop".into() },
         limits: SolverLimits::default(),
         assumptions: AssumptionSetId(0),

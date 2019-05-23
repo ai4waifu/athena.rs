@@ -1,10 +1,10 @@
-//! KernelIR 编译器 — `ExprArena` 子树 → [`ExecUnit`]（Living `25` L2）。
+//! KernelIR 编译器 — `TermStore` 子树 → [`ExecUnit`]（Living `25` L2）。
 //!
 //! 编译期一次性遍历：`OperatorId` 分派预解析、`Set` 语句位降为定义指令、
 //! 控制形式降为 raw handler 调用。未知算子降为惰性重建。
 
-use athena_ir::{Atom, ExprNode};
-use athena_types::{ExprId, OperatorId};
+use athena_ir::{Atom, TermNode};
+use athena_types::{OperatorId, TermId};
 
 use crate::execution::{
     ids,
@@ -13,14 +13,14 @@ use crate::execution::{
 };
 
 /// 编译一个子树。`mode` 决定 `Set` / 控制形式的 env 语义变体。
-pub(crate) fn lower(vm: &mut Vm<'_>, root: ExprId, mode: CompileMode) -> ExecUnit {
+pub(crate) fn lower(vm: &mut Vm<'_>, root: TermId, mode: CompileMode) -> ExecUnit {
     let mut code = Vec::new();
     lower_into(vm, root, mode, &mut code);
     code.push(Instr::Ret);
     ExecUnit { source: root, code }
 }
 
-fn lower_into(vm: &mut Vm<'_>, root: ExprId, mode: CompileMode, code: &mut Vec<Instr>) {
+fn lower_into(vm: &mut Vm<'_>, root: TermId, mode: CompileMode, code: &mut Vec<Instr>) {
     let Some(shape) = vm.shape(root)
     else {
         code.push(Instr::Const { term: root });
@@ -49,11 +49,11 @@ fn lower_into(vm: &mut Vm<'_>, root: ExprId, mode: CompileMode, code: &mut Vec<I
     }
 }
 
-fn raw(handler: HandlerId, operands: Vec<ExprId>) -> Instr {
+fn raw(handler: HandlerId, operands: Vec<TermId>) -> Instr {
     Instr::EvalRaw { handler, operands }
 }
 
-fn lower_app(vm: &mut Vm<'_>, root: ExprId, op: OperatorId, args: Vec<ExprId>, mode: CompileMode, code: &mut Vec<Instr>) {
+fn lower_app(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, mode: CompileMode, code: &mut Vec<Instr>) {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
     let argc = args.len();
 
@@ -244,11 +244,11 @@ fn lower_app(vm: &mut Vm<'_>, root: ExprId, op: OperatorId, args: Vec<ExprId>, m
 }
 
 /// `Set` / `SetDelayed` 语句位：lhs 形态决定定义指令，否则回退值位 quirk。
-fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<ExprId>, code: &mut Vec<Instr>) {
+fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec<Instr>) {
     let lhs = args[0];
     let rhs = args[1];
     let lhs_symbol = match vm.session.arena.get(lhs) {
-        Some(ExprNode::Atom(Atom::Symbol(sym))) => Some(*sym),
+        Some(TermNode::Atom(Atom::Symbol(sym))) => Some(*sym),
         _ => None,
     };
     if name == "Set" {
@@ -264,7 +264,7 @@ fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<ExprId>, code: &mut Vec
         code.push(Instr::DefineDelayed { sym });
         return;
     }
-    else if let Some(ExprNode::App { op, .. }) = vm.session.arena.get(lhs) {
+    else if let Some(TermNode::App { op, .. }) = vm.session.arena.get(lhs) {
         // `f[x_] := rhs`
         let head_name = vm.session.operators.name(*op).unwrap_or("").to_string();
         if !head_name.is_empty() && head_name != "Application" {

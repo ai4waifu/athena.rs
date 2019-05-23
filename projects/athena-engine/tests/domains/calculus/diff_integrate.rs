@@ -1,12 +1,12 @@
-//! 微积分合同：`ConditionalResult`、`DomainRequest`、Abs/Sqrt、极限、级数（arena `ExprId` · Living `25`）。
+//! 微积分合同：`ConditionalResult`、`DomainRequest`、Abs/Sqrt、极限、级数（arena `TermId` · Living `25`）。
 
 use std::cell::RefCell;
 
-use athena_types::{AssumptionSet, DiagnosticCode, ExprId, Predicate};
+use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
 use athena_engine::{
     api::AthenaEngine,
-    diagnostics::expression_summary::expression_debug,
+    diagnostics::term_summary::term_debug,
     domains::{
         DomainRequest, DomainResult,
         calculus::{
@@ -20,7 +20,7 @@ use athena_engine::{
     },
 };
 
-type Tid = ExprId;
+type Tid = TermId;
 
 struct H {
     s: RefCell<Session>,
@@ -48,7 +48,7 @@ impl H {
     }
 
     fn dbg(&self, id: Tid) -> String {
-        expression_debug(&self.s.borrow(), id)
+        term_debug(&self.s.borrow(), id)
     }
 
     fn eq(&self, a: Tid, b: Tid) -> bool {
@@ -136,7 +136,7 @@ fn abs_derivative_requires_assumption() {
     let expr = h.ap("Abs", vec![h.sym("x")]);
     let unchecked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &AssumptionSet::empty()));
     assert!(!unchecked.unresolved.is_empty(), "Abs' must carry unresolved NonZero");
-    let with = AssumptionSet::from_predicates(vec![Predicate::NonZero(ExprId(0))]);
+    let with = AssumptionSet::from_predicates(vec![Predicate::NonZero(TermId(0))]);
     let checked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &with));
     assert!(checked.unresolved.is_empty());
 }
@@ -221,7 +221,7 @@ fn sqrt_derivative_requires_assumption() {
     let expr = h.ap("Sqrt", vec![h.sym("x")]);
     let unchecked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &AssumptionSet::empty()));
     assert!(!unchecked.unresolved.is_empty());
-    let with = AssumptionSet::from_predicates(vec![Predicate::NonNegative(ExprId(0))]);
+    let with = AssumptionSet::from_predicates(vec![Predicate::NonNegative(TermId(0))]);
     let checked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &with));
     assert!(checked.unresolved.is_empty());
 }

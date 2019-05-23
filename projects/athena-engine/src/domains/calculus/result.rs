@@ -1,6 +1,6 @@
 //! 微积分结果契约 — 表达式 + 条件 + 完备性。
 
-use athena_types::{AssumptionSet, Condition, Diagnostic, ExprId, Predicate};
+use athena_types::{AssumptionSet, Condition, Diagnostic, Predicate, TermId};
 
 /// 携带值及其适用条件的结果。
 #[derive(Debug, PartialEq)]
@@ -27,7 +27,7 @@ impl<T> ConditionalResult<T> {
 
 /// 统一的微积分结果（非裸表达式项）。
 #[derive(Debug, PartialEq)]
-pub enum CalculusResult<T = ExprId> {
+pub enum CalculusResult<T = TermId> {
     /// 精确符号结果。
     Exact {
         /// 值。

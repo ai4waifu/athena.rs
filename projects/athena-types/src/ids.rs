@@ -1,12 +1,12 @@
 //! 稳定标识符 newtype（IR 与注册表）。
 
-/// AthenaIR arena 表达式身份（Living `25`：原生 arena 引用，不是二级映射句柄）。
+/// 不可变符号项身份（Living `25`：`TermStore` 原生引用，不是二级映射句柄）。
 ///
 /// 已计算值用 [`ValueId`]；结果容器用 [`ResultId`]。禁止与二者互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ExprId(pub u32);
+pub struct TermId(pub u32);
 
-/// IR 节点 id（预留，与表达式区分 stmt 等扩展）。
+/// IR 节点 id（预留扩展；不得与 [`TermId`] 双身份并存冒充）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(pub u32);
 
@@ -98,7 +98,7 @@ pub struct ResultId(pub u32);
 
 /// 证明 / 证据引用身份。
 ///
-/// 不得混入表达式 equality，也不得与 [ExprId] / [ValueId] / [ResultId] 互换。
+/// 不得混入表达式 equality，也不得与 [TermId] / [ValueId] / [ResultId] 互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ProofRef(pub u64);
 

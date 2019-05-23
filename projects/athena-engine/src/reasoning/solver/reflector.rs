@@ -1,6 +1,6 @@
 //! Reflector 合同。
 
-use athena_types::{Diagnostic, ExprId};
+use athena_types::{Diagnostic, TermId};
 
 use crate::reasoning::mgraph::{DeterminacyGuarantee, EqualityWitness, HyperEdge, MGraphState};
 
@@ -16,7 +16,7 @@ pub struct SolverContext {
     pub solver: SolverId,
 }
 
-/// Reflection 结果 — solver 不直改 `ExprArena`。
+/// Reflection 结果 — solver 不直改 `TermStore`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReflectionResult {
     /// 等式。
@@ -26,7 +26,7 @@ pub struct ReflectionResult {
     /// 确定性保证。
     pub guarantees: Vec<DeterminacyGuarantee>,
     /// 残差项。
-    pub residual: Option<ExprId>,
+    pub residual: Option<TermId>,
     /// 元数据。
     pub metadata: SolverMetadata,
 }

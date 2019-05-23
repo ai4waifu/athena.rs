@@ -1,7 +1,7 @@
 //! 均匀网格 1D 采样。
 
 use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
-use athena_types::{Diagnostic, DiagnosticCode, ExprId, Result};
+use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use crate::{execution, runtime::session::Session};
 
@@ -16,7 +16,7 @@ const MAX_SAMPLES_HARD: u32 = 1_000_000;
 /// 相邻有效点若相对跳跃超过 [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
 pub fn sample_1d(
     session: &mut Session,
-    expr: ExprId,
+    expr: TermId,
     var: &str,
     domain: SampleDomain,
     policy: SamplingPolicy,

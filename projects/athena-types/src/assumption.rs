@@ -1,35 +1,35 @@
 //! 微积分与域条件结果所用的假设集。
 
-use crate::ids::{AssumptionSetId, ExprId, SymbolId};
+use crate::ids::{AssumptionSetId, SymbolId, TermId};
 
 /// 原子假设谓词（语言中立）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Predicate {
     /// `lhs = rhs`。
-    Equal(ExprId, ExprId),
+    Equal(TermId, TermId),
     /// `lhs ≠ rhs`。
-    NotEqual(ExprId, ExprId),
+    NotEqual(TermId, TermId),
     /// `lhs < rhs`。
-    Less(ExprId, ExprId),
+    Less(TermId, TermId),
     /// `lhs ≤ rhs`。
-    LessEqual(ExprId, ExprId),
+    LessEqual(TermId, TermId),
     /// `lhs > rhs`。
-    Greater(ExprId, ExprId),
+    Greater(TermId, TermId),
     /// `lhs ≥ rhs`。
-    GreaterEqual(ExprId, ExprId),
+    GreaterEqual(TermId, TermId),
     /// 值为整数。
-    Integer(ExprId),
+    Integer(TermId),
     /// 值严格为正。
-    Positive(ExprId),
+    Positive(TermId),
     /// 值非负。
-    NonNegative(ExprId),
+    NonNegative(TermId),
     /// 值为实数。
-    Real(ExprId),
+    Real(TermId),
     /// 值为复数。
-    Complex(ExprId),
+    Complex(TermId),
     /// 值非零。
-    NonZero(ExprId),
-    /// 符号非零（桥接，直至 ExprId 绑定落地）。
+    NonZero(TermId),
+    /// 符号非零（桥接，直至符号绑定合同落地）。
     SymbolNonZero(SymbolId),
     /// 符号为实数。
     SymbolReal(SymbolId),

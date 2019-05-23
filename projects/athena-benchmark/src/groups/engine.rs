@@ -2,11 +2,11 @@
 
 use athena_engine::{execution::vm::evaluate_session, runtime::Session};
 
-fn push_int(n: i64, session: &mut Session) -> athena_types::ExprId {
+fn push_int(n: i64, session: &mut Session) -> athena_types::TermId {
     athena_engine::runtime::values::arena::push_int(session, n)
 }
 
-fn push_app_named(head: &str, args: Vec<athena_types::ExprId>, session: &mut Session) -> athena_types::ExprId {
+fn push_app_named(head: &str, args: Vec<athena_types::TermId>, session: &mut Session) -> athena_types::TermId {
     athena_engine::runtime::values::arena::push_app_named(session, head, args)
 }
 

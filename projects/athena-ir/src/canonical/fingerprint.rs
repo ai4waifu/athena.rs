@@ -4,11 +4,11 @@
 //! 算子默认按 [`OperatorId`](athena_types::OperatorId)（session 内稳定）；
 //! 跨注册表稳定键用 [`canonical_hash_named`]（按注册名）。
 
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use crate::{
-    arena::ExprArena,
-    node::{Atom, ExprNode},
+    arena::TermStore,
+    node::{Atom, TermNode},
     operator::OperatorRegistry,
 };
 
@@ -42,29 +42,29 @@ fn mix_len(state: &mut u64, len: usize) {
 }
 
 /// 对 term 子树求规范结构 hash（算子按 [`OperatorId`]）。
-pub fn canonical_hash(arena: &ExprArena, root: ExprId) -> u64 {
+pub fn canonical_hash(arena: &TermStore, root: TermId) -> u64 {
     hash_walk(arena, None, root).state
 }
 
 /// 对 term 子树求跨注册表稳定 hash：算子按注册名（JIT kernel key / wire）。
-pub fn canonical_hash_named(arena: &ExprArena, registry: &OperatorRegistry, root: ExprId) -> u64 {
+pub fn canonical_hash_named(arena: &TermStore, registry: &OperatorRegistry, root: TermId) -> u64 {
     hash_walk(arena, Some(registry), root).state
 }
 
 struct HashWalk<'a> {
-    arena: &'a ExprArena,
+    arena: &'a TermStore,
     registry: Option<&'a OperatorRegistry>,
     state: u64,
-    seen: Vec<ExprId>,
+    seen: Vec<TermId>,
 }
 
-fn hash_walk<'a>(arena: &'a ExprArena, registry: Option<&'a OperatorRegistry>, root: ExprId) -> HashWalk<'a> {
+fn hash_walk<'a>(arena: &'a TermStore, registry: Option<&'a OperatorRegistry>, root: TermId) -> HashWalk<'a> {
     let mut s = HashWalk { arena, registry, state: FNV_OFFSET_BASIS, seen: Vec::new() };
     hash_term(&mut s, root);
     s
 }
 
-fn hash_term(s: &mut HashWalk<'_>, id: ExprId) {
+fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
     if s.seen.contains(&id) {
         mix_tag(&mut s.state, b"cycle");
         return;
@@ -76,35 +76,35 @@ fn hash_term(s: &mut HashWalk<'_>, id: ExprId) {
     };
     s.seen.push(id);
     match kind {
-        ExprNode::Atom(Atom::Number(n)) => {
+        TermNode::Atom(Atom::Number(n)) => {
             mix_tag(&mut s.state, b"num");
             mix_u64(&mut s.state, fnv1a64(n.to_render_string().as_bytes()));
             mix_u64(&mut s.state, fnv1a64(format!("{:?}", n.domain()).as_bytes()));
         }
-        ExprNode::Atom(Atom::String(v)) => {
+        TermNode::Atom(Atom::String(v)) => {
             mix_tag(&mut s.state, b"str");
             mix_u64(&mut s.state, fnv1a64(v.as_bytes()));
         }
-        ExprNode::Atom(Atom::Symbol(sym)) => {
+        TermNode::Atom(Atom::Symbol(sym)) => {
             mix_tag(&mut s.state, b"sym");
             match s.arena.symbols().resolve(*sym) {
                 Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
                 None => mix_u64(&mut s.state, u64::from(sym.0)),
             }
         }
-        ExprNode::Atom(Atom::Boolean(b)) => {
+        TermNode::Atom(Atom::Boolean(b)) => {
             mix_tag(&mut s.state, b"bool");
             mix_u64(&mut s.state, u64::from(*b));
         }
-        ExprNode::Atom(Atom::Null) => mix_tag(&mut s.state, b"null"),
-        ExprNode::List(items) => {
+        TermNode::Atom(Atom::Null) => mix_tag(&mut s.state, b"null"),
+        TermNode::List(items) => {
             mix_tag(&mut s.state, b"list");
             mix_len(&mut s.state, items.len());
             for c in items {
                 hash_term(s, *c);
             }
         }
-        ExprNode::App { op, args } => {
+        TermNode::App { op, args } => {
             mix_tag(&mut s.state, b"app");
             match s.registry.and_then(|r| r.name(*op)) {
                 Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
