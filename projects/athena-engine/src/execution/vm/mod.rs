@@ -11,7 +11,7 @@ use athena_types::{Diagnostic, DiagnosticCode, OperatorId, SymbolId, TermId};
 
 use crate::runtime::{
     session::Session,
-    values::arena::{push_app_named, push_bool, push_int, push_list, push_null, push_symbol_name},
+    values::arena::{push_application_named, push_bool, push_int, push_list, push_null, push_symbol_name},
 };
 
 use crate::execution::{
@@ -122,95 +122,95 @@ impl<'a> Vm<'a> {
     }
 
     /// 当前 env 写 Own（根 env 落 Session 定义表，作用域 env 落局部层并随 pop 丢弃）。
-    pub(crate) fn define_own(&mut self, sym: SymbolId, value: TermId) {
+    pub(crate) fn define_own(&mut self, symbol: SymbolId, value: TermId) {
         match self.current_local_mut() {
-            Some(layer) => layer.define_own(sym, value),
-            None => self.session.defs.define_own(sym, value),
+            Some(layer) => layer.define_own(symbol, value),
+            None => self.session.defs.define_own(symbol, value),
         }
     }
 
     /// 当前 env 写 Delayed。
-    pub(crate) fn define_delayed(&mut self, sym: SymbolId, value: TermId) {
+    pub(crate) fn define_delayed(&mut self, symbol: SymbolId, value: TermId) {
         match self.current_local_mut() {
-            Some(layer) => layer.define_delayed(sym, value),
-            None => self.session.defs.define_delayed(sym, value),
+            Some(layer) => layer.define_delayed(symbol, value),
+            None => self.session.defs.define_delayed(symbol, value),
         }
     }
 
     /// 当前 env 追加 DownValue。
-    pub(crate) fn define_down_value(&mut self, sym: SymbolId, lhs: TermId, rhs: TermId) {
+    pub(crate) fn define_down_value(&mut self, symbol: SymbolId, lhs: TermId, rhs: TermId) {
         match self.current_local_mut() {
-            Some(layer) => layer.define_down_value(sym, lhs, rhs),
-            None => self.session.defs.define_down_value(sym, lhs, rhs),
+            Some(layer) => layer.define_down_value(symbol, lhs, rhs),
+            None => self.session.defs.define_down_value(symbol, lhs, rhs),
         }
     }
 
     /// 符号解析（帧 → 层 / Session 定义表，仅当前 env）。
-    pub(crate) fn lookup_symbol(&self, sym: SymbolId) -> Option<LocalBinding> {
+    pub(crate) fn lookup_symbol(&self, symbol: SymbolId) -> Option<LocalBinding> {
         let env = self.envs.last()?;
         for frame in env.frames.iter().rev() {
-            if let Some(b) = frame.lookup(sym) {
+            if let Some(b) = frame.lookup(symbol) {
                 return Some(b);
             }
         }
         if env.base_global {
-            if let Some(v) = self.session.defs.own(sym) {
+            if let Some(v) = self.session.defs.own(symbol) {
                 return Some(LocalBinding::Own(v));
             }
-            if let Some(v) = self.session.defs.delayed(sym) {
+            if let Some(v) = self.session.defs.delayed(symbol) {
                 return Some(LocalBinding::Own(v));
             }
             None
         }
         else {
             let layer = env.local.as_ref()?;
-            layer.own(sym).or_else(|| layer.delayed(sym)).map(LocalBinding::Own)
+            layer.own(symbol).or_else(|| layer.delayed(symbol)).map(LocalBinding::Own)
         }
     }
 
     /// 符号 DownValues（当前 env）。
-    pub(crate) fn down_values(&self, sym: SymbolId) -> Option<Vec<(TermId, TermId)>> {
+    pub(crate) fn down_values(&self, symbol: SymbolId) -> Option<Vec<(TermId, TermId)>> {
         let env = self.envs.last()?;
         if env.base_global {
-            self.session.defs.down_values(sym).map(<[(TermId, TermId)]>::to_vec)
+            self.session.defs.down_values(symbol).map(<[(TermId, TermId)]>::to_vec)
         }
         else {
-            env.local.as_ref().and_then(|l| l.down_values(sym)).map(<[(TermId, TermId)]>::to_vec)
+            env.local.as_ref().and_then(|l| l.down_values(symbol)).map(<[(TermId, TermId)]>::to_vec)
         }
     }
 
     // ---- arena 构造 ----
 
-    pub(crate) fn rebuild_app_op(&mut self, op: OperatorId, args: Vec<TermId>) -> TermId {
+    pub(crate) fn rebuild_application_operator(&mut self, op: OperatorId, args: Vec<TermId>) -> TermId {
         let span = TermNode::default_span();
-        self.session.arena.push(TermNode::App { op, args }, span)
+        self.session.arena.push(TermNode::Application { head: op, arguments: args }, span)
     }
 
     /// `Application[headTerm, args…]` 包装（非符号 head）。
-    pub(crate) fn rebuild_app_wrapped(&mut self, args: Vec<TermId>) -> TermId {
+    pub(crate) fn rebuild_application_wrapped(&mut self, args: Vec<TermId>) -> TermId {
         let op = self.session.operators.intern("Application");
-        self.rebuild_app_op(op, args)
+        self.rebuild_application_operator(op, args)
     }
 
     /// 惰性重建 App（head 已求值）：符号 head → `App{op:符号名}`，否则 `Application` 包装。
-    pub(crate) fn rebuild_app(&mut self, head: TermId, args: Vec<TermId>) -> TermId {
+    pub(crate) fn rebuild_application(&mut self, head: TermId, args: Vec<TermId>) -> TermId {
         match self.session.arena.get(head) {
-            Some(TermNode::Atom(Atom::Symbol(sym))) => {
-                let name = self.session.arena.symbols().resolve(*sym).unwrap_or("?").to_string();
+            Some(TermNode::Atom(Atom::Symbol(symbol))) => {
+                let name = self.session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
                 let op = self.session.operators.intern(&name);
-                self.rebuild_app_op(op, args)
+                self.rebuild_application_operator(op, args)
             }
             _ => {
                 let mut wrapped = Vec::with_capacity(args.len() + 1);
                 wrapped.push(head);
                 wrapped.extend(args);
-                self.rebuild_app_wrapped(wrapped)
+                self.rebuild_application_wrapped(wrapped)
             }
         }
     }
 
-    pub(crate) fn push_app(&mut self, head: &str, args: Vec<TermId>) -> TermId {
-        push_app_named(self.session, head, args)
+    pub(crate) fn push_application(&mut self, head: &str, args: Vec<TermId>) -> TermId {
+        push_application_named(self.session, head, args)
     }
 
     pub(crate) fn push_list(&mut self, items: Vec<TermId>) -> TermId {
@@ -244,17 +244,17 @@ impl<'a> Vm<'a> {
     /// head 名（App 走注册表反查 · List → `List` · 符号原子 → 自身）。
     pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.session.arena.get(id)? {
-            TermNode::App { op, .. } => self.session.operators.name(*op).map(str::to_string),
+            TermNode::Application { head: op, .. } => self.session.operators.name(*op).map(str::to_string),
             TermNode::List(_) => Some("List".into()),
-            TermNode::Atom(Atom::Symbol(sym)) => self.session.arena.symbols().resolve(*sym).map(str::to_string),
+            TermNode::Atom(Atom::Symbol(symbol)) => self.session.arena.symbols().resolve(*symbol).map(str::to_string),
             _ => None,
         }
     }
 
     /// App 的参数列表（List 同形）。
-    pub(crate) fn app_args(&self, id: TermId) -> Option<Vec<TermId>> {
+    pub(crate) fn application_arguments(&self, id: TermId) -> Option<Vec<TermId>> {
         match self.session.arena.get(id)? {
-            TermNode::App { args, .. } => Some(args.clone()),
+            TermNode::Application { arguments: args, .. } => Some(args.clone()),
             TermNode::List(items) => Some(items.clone()),
             _ => None,
         }
@@ -264,12 +264,12 @@ impl<'a> Vm<'a> {
     pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
         match self.session.arena.get(id)? {
             TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
-            TermNode::Atom(Atom::String(s)) => Some(Shape::Str(s.clone())),
-            TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
+            TermNode::Atom(Atom::String(s)) => Some(Shape::String(s.clone())),
+            TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
             TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
             TermNode::Atom(Atom::Null) => Some(Shape::Null),
             TermNode::List(items) => Some(Shape::List(items.clone())),
-            TermNode::App { op, args } => Some(Shape::App(*op, args.clone())),
+            TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
         }
     }
 
@@ -316,7 +316,7 @@ impl<'a> Vm<'a> {
     /// 循环体保持原始让每次迭代看到新绑定；顶层 `With` / `Module` / `Block`
     /// 体不得被 Session 定义穿透。
     fn skips_rewrite(&self, expr: TermId, mode: CompileMode) -> bool {
-        let Some(TermNode::App { op, .. }) = self.session.arena.get(expr)
+        let Some(TermNode::Application { head: op, .. }) = self.session.arena.get(expr)
         else {
             return false;
         };
@@ -350,7 +350,7 @@ impl<'a> Vm<'a> {
                 break;
             };
             match instr {
-                super::Instr::Const { term } => stack.push((*term, EvalKind::Value, athena_types::ComputationStatus::Exact)),
+                super::Instr::Constant { term } => stack.push((*term, EvalKind::Value, athena_types::ComputationStatus::Exact)),
                 super::Instr::MakeList { argc } => {
                     let n = *argc as usize;
                     let popped = stack.split_off(stack.len() - n);
@@ -365,10 +365,10 @@ impl<'a> Vm<'a> {
                     };
                     stack.push((term, kind, status));
                 }
-                super::Instr::MakeApp { op, argc } => {
+                super::Instr::MakeApplication { op, argc } => {
                     let n = *argc as usize;
                     let args: Vec<TermId> = stack.split_off(stack.len() - n).into_iter().map(|(t, _, _)| t).collect();
-                    let term = self.rebuild_app_op(*op, args);
+                    let term = self.rebuild_application_operator(*op, args);
                     stack.push((term, EvalKind::Unevaluated, athena_types::ComputationStatus::Unknown));
                 }
                 super::Instr::EvalOp { handler, argc } => {
@@ -429,21 +429,21 @@ impl<'a> Vm<'a> {
                     pc = *target as usize;
                     continue;
                 }
-                super::Instr::DefineOwn { sym } => {
+                super::Instr::DefineOwn { symbol } => {
                     let (value, _, _) = stack.last().copied().expect("DefineOwn rhs");
-                    self.define_own(*sym, value);
+                    self.define_own(*symbol, value);
                 }
-                super::Instr::DefineDelayed { sym } => {
+                super::Instr::DefineDelayed { symbol } => {
                     let (value, _, _) = stack.pop().expect("DefineDelayed rhs");
-                    self.define_delayed(*sym, value);
+                    self.define_delayed(*symbol, value);
                     stack.push((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
                 }
-                super::Instr::DefineDownValue { sym, lhs } => {
+                super::Instr::DefineDownValue { symbol, lhs } => {
                     let (value, _, _) = stack.pop().expect("DefineDownValue rhs");
-                    self.define_down_value(*sym, *lhs, value);
+                    self.define_down_value(*symbol, *lhs, value);
                     stack.push((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
                 }
-                super::Instr::Ret => {
+                super::Instr::Return => {
                     let (term, kind, status) =
                         stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
                     return Outcome { term, kind, status, diagnostics: diags };
@@ -460,12 +460,12 @@ impl<'a> Vm<'a> {
 /// 廉价结构快照（数字载荷只标记为 `Number`，不复制）。
 pub(crate) enum Shape {
     Number,
-    Str(String),
-    Sym(SymbolId),
+    String(String),
+    Symbol(SymbolId),
     Bool(bool),
     Null,
     List(Vec<TermId>),
-    App(OperatorId, Vec<TermId>),
+    Application(OperatorId, Vec<TermId>),
 }
 
 /// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。

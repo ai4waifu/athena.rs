@@ -18,19 +18,18 @@ use crate::{
     execution::{self, environment::DefinitionLayer, vm::UnitCache},
     reasoning::mgraph::MGraphState,
     runtime::{
-        semantic::{AssumptionScopeTable, ResultIdTable, ValueIdTable},
-        values::binding::ValueBindingTable,
+        results::{ComputationResult, ResultStore},
+        semantic::AssumptionScopeTable,
+        values::{RuntimeValue, ValueStore},
     },
 };
 
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
-    /// Core IR arena（表达式与求值结果存储）。
+    /// Core IR 符号项存储。
     pub arena: TermStore,
     /// 内建算子注册表。
     pub operators: OperatorRegistry,
-    /// 值身份 ↔ 存储 [`TermId`]。
-    pub value_bindings: ValueBindingTable,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
     /// KernelIR 编译缓存（canonical hash → `ExecUnit`）。
@@ -41,10 +40,10 @@ pub struct Session {
     pub rings: RingTable,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
-    /// 值对象身份注册表。
-    pub values: ValueIdTable,
-    /// 结果容器身份。
-    pub results: ResultIdTable,
+    /// 运行时值存储（`ValueId` → [`RuntimeValue`]）。
+    pub values: ValueStore,
+    /// 计算结果存储（`ResultId` → [`ComputationResult`]）。
+    pub results: ResultStore,
     /// 假设作用域 intern。
     pub assumption_scopes: AssumptionScopeTable,
     /// Session 级 `athena-gc` heap（object / numeric roots 编排）。
@@ -59,7 +58,6 @@ impl core::fmt::Debug for Session {
             .field("defs", &self.defs)
             .field("rings", &self.rings)
             .field("mgraph", &self.mgraph)
-            .field("value_bindings", &self.value_bindings)
             .field("values", &self.values)
             .field("results", &self.results)
             .field("assumption_scopes", &self.assumption_scopes)
@@ -85,14 +83,13 @@ impl Session {
         Self {
             arena: TermStore::new(),
             operators: OperatorRegistry::standard(),
-            value_bindings: ValueBindingTable::default(),
             defs: DefinitionLayer::new(),
             units: UnitCache::new(),
             module_counter: 0,
             rings: RingTable::default(),
             mgraph: MGraphState::default(),
-            values: ValueIdTable::default(),
-            results: ResultIdTable::default(),
+            values: ValueStore::default(),
+            results: ResultStore::default(),
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
         }
@@ -103,14 +100,24 @@ impl Session {
         TermBuilder::new(&mut self.arena)
     }
 
-    /// 将存储项注册为值身份。
-    pub fn intern_value(&mut self, term: TermId) -> ValueId {
-        self.value_bindings.intern_term(term)
+    /// 将符号项包装为运行时值（`RuntimeValue::SymbolicTerm`，非双射表）。
+    pub fn insert_symbolic_value(&mut self, term: TermId) -> ValueId {
+        self.values.insert_symbolic_term(term)
     }
 
-    /// 值对应的存储项。
-    pub fn term_of_value(&self, value: ValueId) -> Option<TermId> {
-        self.value_bindings.term_of(value)
+    /// 插入任意运行时值。
+    pub fn insert_value(&mut self, value: RuntimeValue) -> ValueId {
+        self.values.insert(value)
+    }
+
+    /// 若该值载荷是符号项，返回其 [`TermId`]。
+    pub fn symbolic_term_of_value(&self, value: ValueId) -> Option<TermId> {
+        self.values.get(value).and_then(RuntimeValue::as_symbolic_term)
+    }
+
+    /// 记录一次可观察计算结果。
+    pub fn insert_result(&mut self, result: ComputationResult) -> athena_types::ResultId {
+        self.results.insert(result)
     }
 
     /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。

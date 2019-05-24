@@ -4,21 +4,29 @@ use athena_ir::{Atom, TermBuilder, TermNode};
 use athena_numeric::Number;
 use athena_types::{SourceSpan, TermId, ValueId};
 
-use crate::runtime::session::Session;
+use crate::runtime::{
+    session::Session,
+    values::{RuntimeValue, ValueStore},
+};
 
 /// 默认空 span。
 pub fn default_span() -> SourceSpan {
     SourceSpan { start: 0, end: 0 }
 }
 
-/// 将 arena 节点注册为值身份。
-pub fn intern_value(session: &mut Session, term: TermId) -> ValueId {
-    session.value_bindings.intern_term(term)
+/// 将符号项包装为运行时值（非 `TermId`↔`ValueId` 双射）。
+pub fn insert_symbolic_value(session: &mut Session, term: TermId) -> ValueId {
+    session.insert_symbolic_value(term)
 }
 
-/// 值 → 存储表达式。
-pub fn term_of_value(session: &Session, value: ValueId) -> Option<TermId> {
-    session.value_bindings.term_of(value)
+/// 若值载荷是符号项，返回其 [`TermId`]。
+pub fn symbolic_term_of_value(session: &Session, value: ValueId) -> Option<TermId> {
+    session.symbolic_term_of_value(value)
+}
+
+/// 直接向 [`ValueStore`] 插入载荷（测试与宿主辅助）。
+pub fn insert_runtime_value(store: &mut ValueStore, value: RuntimeValue) -> ValueId {
+    store.insert(value)
 }
 
 /// 构造小型整数节点。
@@ -46,9 +54,9 @@ pub fn push_symbol_name(session: &mut Session, name: &str) -> TermId {
 }
 
 /// 构造命名应用节点。
-pub fn push_app_named(session: &mut Session, head: &str, args: Vec<TermId>) -> TermId {
+pub fn push_application_named(session: &mut Session, head: &str, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
-    b.app_named(&mut session.operators, head, args, default_span())
+    b.application_named(&mut session.operators, head, args, default_span())
 }
 
 /// 构造列表节点。
@@ -63,8 +71,8 @@ pub fn get_kind<'a>(session: &'a Session, id: TermId) -> Option<&'a TermNode> {
 }
 
 /// 应用节点的算子名。
-pub fn app_head_name(session: &Session, id: TermId) -> Option<String> {
-    let TermNode::App { op, .. } = session.arena.get(id)?
+pub fn application_head_name(session: &Session, id: TermId) -> Option<String> {
+    let TermNode::Application { head: op, .. } = session.arena.get(id)?
     else {
         return None;
     };
@@ -72,9 +80,9 @@ pub fn app_head_name(session: &Session, id: TermId) -> Option<String> {
 }
 
 /// 应用节点的参数（拷贝 id 列表）。
-pub fn app_args(session: &Session, id: TermId) -> Option<Vec<TermId>> {
+pub fn application_arguments(session: &Session, id: TermId) -> Option<Vec<TermId>> {
     match session.arena.get(id)? {
-        TermNode::App { args, .. } => Some(args.clone()),
+        TermNode::Application { arguments: args, .. } => Some(args.clone()),
         _ => None,
     }
 }

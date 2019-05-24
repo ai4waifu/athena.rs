@@ -52,7 +52,7 @@ fn fold_constants(arena: &mut TermStore, id: TermId) -> Result<bool> {
     let children: Option<Vec<TermId>> = match arena.get(id) {
         None => return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)),
         Some(TermNode::List(items)) => Some(items.clone()),
-        Some(TermNode::App { args, .. }) => Some(args.clone()),
+        Some(TermNode::Application { arguments: args, .. }) => Some(args.clone()),
         Some(TermNode::Atom(_)) => None,
     };
     let Some(children) = children

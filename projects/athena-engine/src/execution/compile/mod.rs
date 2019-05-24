@@ -16,18 +16,18 @@ use crate::execution::{
 pub(crate) fn lower(vm: &mut Vm<'_>, root: TermId, mode: CompileMode) -> ExecUnit {
     let mut code = Vec::new();
     lower_into(vm, root, mode, &mut code);
-    code.push(Instr::Ret);
+    code.push(Instr::Return);
     ExecUnit { source: root, code }
 }
 
 fn lower_into(vm: &mut Vm<'_>, root: TermId, mode: CompileMode, code: &mut Vec<Instr>) {
     let Some(shape) = vm.shape(root)
     else {
-        code.push(Instr::Const { term: root });
+        code.push(Instr::Constant { term: root });
         return;
     };
     match shape {
-        Shape::Sym(sym) => {
+        Shape::Symbol(sym) => {
             let name = vm.session.arena.symbols().resolve(sym).unwrap_or("");
             let term = match name {
                 "True" => vm.push_bool(true),
@@ -35,9 +35,9 @@ fn lower_into(vm: &mut Vm<'_>, root: TermId, mode: CompileMode, code: &mut Vec<I
                 "Null" => vm.push_null(),
                 _ => root,
             };
-            code.push(Instr::Const { term });
+            code.push(Instr::Constant { term });
         }
-        Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => code.push(Instr::Const { term: root }),
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => code.push(Instr::Constant { term: root }),
         Shape::List(items) => {
             let n = items.len().min(u16::MAX as usize) as u16;
             for item in items {
@@ -45,7 +45,7 @@ fn lower_into(vm: &mut Vm<'_>, root: TermId, mode: CompileMode, code: &mut Vec<I
             }
             code.push(Instr::MakeList { argc: n });
         }
-        Shape::App(op, args) => lower_app(vm, root, op, args, mode, code),
+        Shape::Application(op, args) => lower_application(vm, root, op, args, mode, code),
     }
 }
 
@@ -53,7 +53,7 @@ fn raw(handler: HandlerId, operands: Vec<TermId>) -> Instr {
     Instr::EvalRaw { handler, operands }
 }
 
-fn lower_app(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, mode: CompileMode, code: &mut Vec<Instr>) {
+fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, mode: CompileMode, code: &mut Vec<Instr>) {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
     let argc = args.len();
 
@@ -169,7 +169,7 @@ fn lower_app(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, m
         for a in &args {
             lower_into(vm, *a, CompileMode::Value, code);
         }
-        code.push(Instr::MakeApp { op, argc: argc.min(u16::MAX as usize) as u16 });
+        code.push(Instr::MakeApplication { op, argc: argc.min(u16::MAX as usize) as u16 });
         return;
     }
 
@@ -240,7 +240,7 @@ fn lower_app(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, m
     for a in &args {
         lower_into(vm, *a, CompileMode::Value, code);
     }
-    code.push(Instr::MakeApp { op, argc: argc.min(u16::MAX as usize) as u16 });
+    code.push(Instr::MakeApplication { op, argc: argc.min(u16::MAX as usize) as u16 });
 }
 
 /// `Set` / `SetDelayed` 语句位：lhs 形态决定定义指令，否则回退值位 quirk。
@@ -254,23 +254,23 @@ fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec
     if name == "Set" {
         if let Some(sym) = lhs_symbol {
             lower_into(vm, rhs, CompileMode::Value, code);
-            code.push(Instr::DefineOwn { sym });
+            code.push(Instr::DefineOwn { symbol: sym });
             return;
         }
     }
     else if let Some(sym) = lhs_symbol {
         // `x := rhs`
         lower_into(vm, rhs, CompileMode::Value, code);
-        code.push(Instr::DefineDelayed { sym });
+        code.push(Instr::DefineDelayed { symbol: sym });
         return;
     }
-    else if let Some(TermNode::App { op, .. }) = vm.session.arena.get(lhs) {
+    else if let Some(TermNode::Application { head: op, .. }) = vm.session.arena.get(lhs) {
         // `f[x_] := rhs`
         let head_name = vm.session.operators.name(*op).unwrap_or("").to_string();
         if !head_name.is_empty() && head_name != "Application" {
             let sym = vm.session.arena.symbols_mut().intern(head_name);
             lower_into(vm, rhs, CompileMode::Value, code);
-            code.push(Instr::DefineDownValue { sym, lhs });
+            code.push(Instr::DefineDownValue { symbol: sym, lhs });
             return;
         }
     }

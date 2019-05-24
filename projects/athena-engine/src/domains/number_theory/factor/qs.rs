@@ -208,7 +208,7 @@ fn insert_relation(
             for (a, b) in parity.iter_mut().zip(prow.iter()) {
                 *a ^= *b;
             }
-            comb = sym_diff(comb, pcomb);
+            comb = symmetric_difference(comb, pcomb);
         }
         else {
             pivots[c] = Some(reduced.len());
@@ -220,7 +220,7 @@ fn insert_relation(
     if comb.is_empty() { None } else { Some(comb) }
 }
 
-fn sym_diff(mut a: Vec<usize>, b: &[usize]) -> Vec<usize> {
+fn symmetric_difference(mut a: Vec<usize>, b: &[usize]) -> Vec<usize> {
     for &x in b {
         if let Some(pos) = a.iter().position(|&y| y == x) {
             a.swap_remove(pos);

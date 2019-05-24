@@ -50,12 +50,12 @@ impl<'a> CalculusCtx<'a> {
     pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
         match self.session().arena.get(id)? {
             athena_ir::TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
-            athena_ir::TermNode::Atom(Atom::String(v)) => Some(Shape::Str(v.clone())),
-            athena_ir::TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Sym(*s)),
+            athena_ir::TermNode::Atom(Atom::String(v)) => Some(Shape::String(v.clone())),
+            athena_ir::TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
             athena_ir::TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
             athena_ir::TermNode::Atom(Atom::Null) => Some(Shape::Null),
             athena_ir::TermNode::List(items) => Some(Shape::List(items.clone())),
-            athena_ir::TermNode::App { op, args } => Some(Shape::App(*op, args.clone())),
+            athena_ir::TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
         }
     }
 
@@ -65,9 +65,9 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// App 形态：(head 名, 参数)。
-    pub(crate) fn app(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
+    pub(crate) fn application(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
         match self.shape(id)? {
-            Shape::App(op, args) => Some((self.op_name(op).to_string(), args)),
+            Shape::Application(op, args) => Some((self.op_name(op).to_string(), args)),
             _ => None,
         }
     }
@@ -75,21 +75,21 @@ impl<'a> CalculusCtx<'a> {
     /// head 名（App 走注册表 · List → `List` · 符号 → 自身）。
     pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.shape(id)? {
-            Shape::App(op, _) => Some(self.op_name(op).to_string()),
+            Shape::Application(op, _) => Some(self.op_name(op).to_string()),
             Shape::List(_) => Some("List".into()),
-            Shape::Sym(s) => Some(self.sym_name(s).to_string()),
+            Shape::Symbol(s) => Some(self.symbol_name(s).to_string()),
             _ => None,
         }
     }
 
     /// 符号名。
-    pub(crate) fn sym_name(&self, sym: SymbolId) -> &str {
-        self.session().arena.symbols().resolve(sym).unwrap_or("")
+    pub(crate) fn symbol_name(&self, symbol: SymbolId) -> &str {
+        self.session().arena.symbols().resolve(symbol).unwrap_or("")
     }
 
     /// 符号名是否等于给定名。
-    pub(crate) fn sym_is(&self, sym: SymbolId, name: &str) -> bool {
-        self.sym_name(sym) == name
+    pub(crate) fn symbol_is(&self, symbol: SymbolId, name: &str) -> bool {
+        self.symbol_name(symbol) == name
     }
 
     /// arena 数字引用。
@@ -140,7 +140,7 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// 符号原子。
-    pub(crate) fn sym(&self, name: &str) -> TermId {
+    pub(crate) fn symbol(&self, name: &str) -> TermId {
         crate::runtime::values::arena::push_symbol_name(self.session_mut(), name)
     }
 
@@ -155,7 +155,7 @@ impl<'a> CalculusCtx<'a> {
     }
 
     /// 算子应用。
-    pub(crate) fn ap(&self, head: &str, args: Vec<TermId>) -> TermId {
-        crate::runtime::values::arena::push_app_named(self.session_mut(), head, args)
+    pub(crate) fn apply(&self, head: &str, args: Vec<TermId>) -> TermId {
+        crate::runtime::values::arena::push_application_named(self.session_mut(), head, args)
     }
 }

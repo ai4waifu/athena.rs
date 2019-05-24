@@ -14,7 +14,7 @@ pub(crate) fn h_span(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     for a in args {
         match number_of(vm, *a).and_then(|n| n.as_exact_integer()) {
             Some(v) => ints.push(v),
-            None => return Outcome::unevaluated(vm.push_app("Span", args.to_vec())),
+            None => return Outcome::unevaluated(vm.push_application("Span", args.to_vec())),
         }
     }
     let list = match ints.as_slice() {
@@ -24,7 +24,7 @@ pub(crate) fn h_span(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     };
     match list {
         Some(items) => Outcome::value(vm.push_list(items)),
-        None => Outcome::unevaluated(vm.push_app("Span", args.to_vec())),
+        None => Outcome::unevaluated(vm.push_application("Span", args.to_vec())),
     }
 }
 
@@ -75,10 +75,10 @@ pub(crate) fn h_part(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 /// `Part[m, All, j, …]` — 剩余下标映射到各行（MATLAB `A(:,j)`）。
 fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() < 2 {
-        return Outcome::unevaluated(vm.push_app("Part", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("Part", args.to_vec()));
     }
     if is_all_symbol(vm, args[1]) && args.len() >= 3 && matches!(vm.session.arena.get(args[0]), Some(TermNode::List(_))) {
-        let rows = vm.app_args(args[0]).unwrap_or_default();
+        let rows = vm.application_arguments(args[0]).unwrap_or_default();
         let mut diags = Vec::new();
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
@@ -140,7 +140,7 @@ fn is_all_symbol(vm: &Vm<'_>, term: TermId) -> bool {
 fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
     // 索引列表：逐个抽取再组列表。
     if matches!(vm.session.arena.get(index), Some(TermNode::List(_))) {
-        let indices = vm.app_args(index).unwrap_or_default();
+        let indices = vm.application_arguments(index).unwrap_or_default();
         let mut diags = Vec::new();
         let mut out = Vec::with_capacity(indices.len());
         for idx in indices {
@@ -161,7 +161,7 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
     }
 
     if matches!(vm.session.arena.get(expr), Some(TermNode::List(_))) {
-        let items = vm.app_args(expr).unwrap_or_default();
+        let items = vm.application_arguments(expr).unwrap_or_default();
         if is_end_symbol(vm, index) {
             let end = vm.push_int(items.len() as i64);
             return part_outcome(vm, expr, end);
@@ -172,7 +172,7 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
         let len = items.len();
         let Some(idx) = number_of(vm, index).and_then(|n| n.as_exact_integer())
         else {
-            return Outcome::unevaluated(vm.push_app("Part", vec![expr, index]));
+            return Outcome::unevaluated(vm.push_application("Part", vec![expr, index]));
         };
         if idx == 0 {
             // Mathematica：`Part[list, 0]` 为 head `List`。
@@ -185,7 +185,7 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
             let n = len as i64;
             let pos = n + idx;
             if pos < 0 || pos as usize >= len {
-                let echo = vm.push_app("Part", vec![expr, index]);
+                let echo = vm.push_application("Part", vec![expr, index]);
                 return Outcome::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)));
             }
             pos as usize
@@ -193,21 +193,21 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
         return match items.get(i) {
             Some(item) => Outcome::value(*item),
             None => {
-                let echo = vm.push_app("Part", vec![expr, index]);
+                let echo = vm.push_application("Part", vec![expr, index]);
                 Outcome::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)))
             }
         };
     }
-    Outcome::unevaluated(vm.push_app("Part", vec![expr, index]))
+    Outcome::unevaluated(vm.push_application("Part", vec![expr, index]))
 }
 
 pub(crate) fn h_apply(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if matches!(vm.session.arena.get(args[1]), Some(TermNode::List(_))) {
-        let items = vm.app_args(args[1]).unwrap_or_default();
-        let app = vm.rebuild_app(args[0], items);
+        let items = vm.application_arguments(args[1]).unwrap_or_default();
+        let app = vm.rebuild_application(args[0], items);
         return vm.eval_value(app);
     }
-    Outcome::unevaluated(vm.push_app("Apply", vec![args[0], args[1]]))
+    Outcome::unevaluated(vm.push_application("Apply", vec![args[0], args[1]]))
 }
 
 pub(crate) fn h_replace_all(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
@@ -224,7 +224,7 @@ pub(crate) fn h_replace_all(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 }
 
 fn rule_pair(vm: &Vm<'_>, expr: TermId) -> Option<(TermId, TermId)> {
-    let TermNode::App { args, .. } = vm.session.arena.get(expr)?
+    let TermNode::Application { arguments: args, .. } = vm.session.arena.get(expr)?
     else {
         return None;
     };
@@ -238,11 +238,11 @@ fn rule_pair(vm: &Vm<'_>, expr: TermId) -> Option<(TermId, TermId)> {
 
 pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let Some(items) = (match vm.session.arena.get(args[1]) {
-        Some(TermNode::List(_)) => vm.app_args(args[1]),
+        Some(TermNode::List(_)) => vm.application_arguments(args[1]),
         _ => None,
     })
     else {
-        return Outcome::value(vm.push_app("Map", vec![args[0], args[1]]));
+        return Outcome::value(vm.push_application("Map", vec![args[0], args[1]]));
     };
     let mut out = Vec::with_capacity(items.len());
     let mut diags = Vec::new();
@@ -257,20 +257,20 @@ pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 
 fn map_one(vm: &mut Vm<'_>, func: TermId, item: TermId) -> TermId {
     if let Some(name) = symbol_name(vm, func) {
-        return vm.push_app(&name, vec![item]);
+        return vm.push_application(&name, vec![item]);
     }
     if is_function_arity(vm, func, 1) {
-        let body = vm.app_args(func).unwrap_or_default()[0];
+        let body = vm.application_arguments(func).unwrap_or_default()[0];
         return crate::execution::builtins::patterns::substitute_slot(vm, body, item);
     }
     if is_function_arity(vm, func, 2) {
-        let fargs = vm.app_args(func).unwrap_or_default();
+        let fargs = vm.application_arguments(func).unwrap_or_default();
         if let Some(var) = symbol_name(vm, fargs[0]) {
             let sym = vm.session.arena.symbols_mut().intern(var);
             return crate::execution::builtins::patterns::substitute_symbol(vm, fargs[1], sym, item);
         }
     }
-    vm.push_app("Map", vec![func, item])
+    vm.push_application("Map", vec![func, item])
 }
 
 fn symbol_name(vm: &Vm<'_>, id: TermId) -> Option<String> {
@@ -284,5 +284,5 @@ fn is_function_arity(vm: &Vm<'_>, id: TermId, arity: usize) -> bool {
     if vm.head_name(id).is_none_or(|h| h != "Function") {
         return false;
     }
-    vm.app_args(id).is_some_and(|a| a.len() == arity)
+    vm.application_arguments(id).is_some_and(|a| a.len() == arity)
 }

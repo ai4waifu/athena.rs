@@ -18,27 +18,27 @@ pub struct RegionOfConvergence {
 impl RegionOfConvergence {
     /// 已知半平面 `Re[s] > a`（实数 `a`）。
     pub fn re_s_greater(cc: &mut CalculusCtx<'_>, s: &str, a: Number) -> Self {
-        let re = cc.ap("Re", vec![cc.sym(s)]);
-        let greater = cc.ap("Greater", vec![re, cc.num(a)]);
+        let re = cc.apply("Re", vec![cc.symbol(s)]);
+        let greater = cc.apply("Greater", vec![re, cc.num(a)]);
         Self { predicate: Some(greater), known: true }
     }
 
     /// Fourier 频率在实轴上（经典 L¹ / Schwartz 像）。
     pub fn real_line(cc: &mut CalculusCtx<'_>, omega: &str) -> Self {
-        let element = cc.ap("Element", vec![cc.sym(omega), cc.sym("Reals")]);
+        let element = cc.apply("Element", vec![cc.symbol(omega), cc.symbol("Reals")]);
         Self { predicate: Some(element), known: true }
     }
 
     /// Z 变换外半径 `Abs[z] > r`。
     pub fn abs_z_greater(cc: &mut CalculusCtx<'_>, z: &str, r: Number) -> Self {
-        let abs = cc.ap("Abs", vec![cc.sym(z)]);
-        let greater = cc.ap("Greater", vec![abs, cc.num(r)]);
+        let abs = cc.apply("Abs", vec![cc.symbol(z)]);
+        let greater = cc.apply("Greater", vec![abs, cc.num(r)]);
         Self { predicate: Some(greater), known: true }
     }
 
     /// 全平面收敛（如 `KroneckerDelta[n]`）。
     pub fn entire_plane(cc: &mut CalculusCtx<'_>, z: &str) -> Self {
-        let element = cc.ap("Element", vec![cc.sym(z), cc.sym("Complexes")]);
+        let element = cc.apply("Element", vec![cc.symbol(z), cc.symbol("Complexes")]);
         Self { predicate: Some(element), known: true }
     }
 
@@ -66,20 +66,20 @@ pub struct TransformResult {
 impl TransformResult {
     /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`。
     pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        let vars = cc.list(vec![cc.sym(&self.time_variable), cc.sym(&self.transform_variable)]);
+        let vars = cc.list(vec![cc.symbol(&self.time_variable), cc.symbol(&self.transform_variable)]);
         let mut args = vec![self.expression, vars];
         if let Some(roc) = self.region_of_convergence.predicate {
             args.push(roc);
         }
         else {
-            args.push(cc.sym("ROCUnknown"));
+            args.push(cc.symbol("ROCUnknown"));
         }
         let head = match self.kind {
             TransformKind::Laplace => "LaplaceTransform",
             TransformKind::Fourier => "FourierTransform",
             TransformKind::Z => "ZTransform",
         };
-        cc.ap(head, args)
+        cc.apply(head, args)
     }
 }
 
@@ -205,22 +205,22 @@ fn echo_transform(
     time_variable: &str,
     transform_variable: &str,
 ) -> TermId {
-    cc.ap(head, vec![expression, cc.sym(time_variable), cc.sym(transform_variable)])
+    cc.apply(head, vec![expression, cc.symbol(time_variable), cc.symbol(transform_variable)])
 }
 
 fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(n) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Laplace：ℒ{c} = c/s，Re(s)>0
-        let sinv = cc.ap("Power", vec![cc.sym(s), cc.in_(-1)]);
-        let body = cc.eval(cc.ap("Times", vec![cc.num(n), sinv]));
+        let sinv = cc.apply("Power", vec![cc.symbol(s), cc.in_(-1)]);
+        let body = cc.eval(cc.apply("Times", vec![cc.num(n), sinv]));
         return Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))));
     }
-    if is_sym_named(cc, expr, t) {
+    if is_symbol_named(cc, expr, t) {
         // Laplace：ℒ{t} = 1/s²
-        let body = cc.ap("Power", vec![cc.sym(s), cc.in_(-2)]);
+        let body = cc.apply("Power", vec![cc.symbol(s), cc.in_(-2)]);
         return Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))));
     }
-    let (h, args) = cc.app(expr)?;
+    let (h, args) = cc.application(expr)?;
     match h.as_str() {
         "Plus" => {
             let mut parts = Vec::new();
@@ -237,23 +237,23 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.ap("Plus", parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
             Some((body, RegionOfConvergence::re_s_greater(cc, s, roc_bound)))
         }
         "Times" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = laplace_one(cc, args[1], t, s)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = laplace_one(cc, args[0], t, s)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             None
         }
-        "Power" if args.len() == 2 && is_sym_named(cc, args[0], t) => {
+        "Power" if args.len() == 2 && is_symbol_named(cc, args[0], t) => {
             let n = cc.int_exp(args[1])?;
             if n < 0 {
                 return None;
@@ -261,36 +261,36 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
             let n_u = u32::try_from(n).ok()?;
             // Laplace：ℒ{tⁿ} = n!/sⁿ⁺¹
             let fact = factorial_u32(n_u)?;
-            let spow = cc.ap("Power", vec![cc.sym(s), cc.in_(-(n_u as i64 + 1))]);
-            let body = cc.eval(cc.ap("Times", vec![cc.in_(fact), spow]));
+            let spow = cc.apply("Power", vec![cc.symbol(s), cc.in_(-(n_u as i64 + 1))]);
+            let body = cc.eval(cc.apply("Times", vec![cc.in_(fact), spow]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         "Exp" if args.len() == 1 => {
             // 形态：Exp[a t] 或 Exp[Times[a,t]]
             let a = match_coeff_times_var(cc, args[0], t)?;
             // 1/(s-a), Re(s)>a（实数 a）
-            let neg = cc.ap("Times", vec![cc.in_(-1), cc.num(cc.copy(&a))]);
-            let plus = cc.ap("Plus", vec![cc.sym(s), neg]);
-            let body = cc.eval(cc.ap("Power", vec![plus, cc.in_(-1)]));
+            let neg = cc.apply("Times", vec![cc.in_(-1), cc.num(cc.copy(&a))]);
+            let plus = cc.apply("Plus", vec![cc.symbol(s), neg]);
+            let body = cc.eval(cc.apply("Power", vec![plus, cc.in_(-1)]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, a)))
         }
         "Sin" if args.len() == 1 => {
             let w = match_coeff_times_var(cc, args[0], t)?;
             // Laplace：w/(s²+w²)
-            let s2 = cc.ap("Power", vec![cc.sym(s), cc.in_(2)]);
-            let w2 = cc.ap("Power", vec![cc.num(cc.copy(&w)), cc.in_(2)]);
-            let den = cc.eval(cc.ap("Plus", vec![s2, w2]));
-            let dinv = cc.ap("Power", vec![den, cc.in_(-1)]);
-            let body = cc.eval(cc.ap("Times", vec![cc.num(w), dinv]));
+            let s2 = cc.apply("Power", vec![cc.symbol(s), cc.in_(2)]);
+            let w2 = cc.apply("Power", vec![cc.num(cc.copy(&w)), cc.in_(2)]);
+            let den = cc.eval(cc.apply("Plus", vec![s2, w2]));
+            let dinv = cc.apply("Power", vec![den, cc.in_(-1)]);
+            let body = cc.eval(cc.apply("Times", vec![cc.num(w), dinv]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         "Cos" if args.len() == 1 => {
             let w = match_coeff_times_var(cc, args[0], t)?;
-            let s2 = cc.ap("Power", vec![cc.sym(s), cc.in_(2)]);
-            let w2 = cc.ap("Power", vec![cc.num(cc.copy(&w)), cc.in_(2)]);
-            let den = cc.eval(cc.ap("Plus", vec![s2, w2]));
-            let dinv = cc.ap("Power", vec![den, cc.in_(-1)]);
-            let body = cc.eval(cc.ap("Times", vec![cc.sym(s), dinv]));
+            let s2 = cc.apply("Power", vec![cc.symbol(s), cc.in_(2)]);
+            let w2 = cc.apply("Power", vec![cc.num(cc.copy(&w)), cc.in_(2)]);
+            let den = cc.eval(cc.apply("Plus", vec![s2, w2]));
+            let dinv = cc.apply("Power", vec![den, cc.in_(-1)]);
+            let body = cc.eval(cc.apply("Times", vec![cc.symbol(s), dinv]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         _ => None,
@@ -298,7 +298,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
 }
 
 fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
-    let (h, args) = cc.app(expr)?;
+    let (h, args) = cc.application(expr)?;
     match h.as_str() {
         "Plus" => {
             let mut parts = Vec::new();
@@ -309,18 +309,18 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.ap("Plus", parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
             Some((body, RegionOfConvergence::real_line(cc, omega)))
         }
         "Times" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = fourier_one(cc, args[1], t, omega)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = fourier_one(cc, args[0], t, omega)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             // 形态：UnitStep[t] * Exp[-a t] → 1/(a + I ω)，a>0
@@ -335,12 +335,12 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 if !number_is_positive(&a) {
                     return None;
                 }
-                let a2 = cc.ap("Power", vec![cc.num(cc.copy(&a)), cc.in_(2)]);
-                let w2 = cc.ap("Power", vec![cc.sym(omega), cc.in_(2)]);
-                let den = cc.eval(cc.ap("Plus", vec![a2, w2]));
-                let dinv = cc.ap("Power", vec![den, cc.in_(-1)]);
-                let two_a = cc.ap("Times", vec![cc.in_(2), cc.num(a)]);
-                let body = cc.eval(cc.ap("Times", vec![two_a, dinv]));
+                let a2 = cc.apply("Power", vec![cc.num(cc.copy(&a)), cc.in_(2)]);
+                let w2 = cc.apply("Power", vec![cc.symbol(omega), cc.in_(2)]);
+                let den = cc.eval(cc.apply("Plus", vec![a2, w2]));
+                let dinv = cc.apply("Power", vec![den, cc.in_(-1)]);
+                let two_a = cc.apply("Times", vec![cc.in_(2), cc.num(a)]);
+                let body = cc.eval(cc.apply("Times", vec![two_a, dinv]));
                 return Some((body, RegionOfConvergence::real_line(cc, omega)));
             }
             if let Some(a) = match_neg_coeff_square_var(cc, args[0], t) {
@@ -348,16 +348,16 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 if !number_is_positive(&a) {
                     return None;
                 }
-                let ainv = cc.ap("Power", vec![cc.num(cc.copy(&a)), cc.in_(-1)]);
-                let pia = cc.ap("Times", vec![cc.sym("Pi"), ainv]);
-                let scale = cc.ap("Sqrt", vec![pia]);
-                let w2 = cc.ap("Power", vec![cc.sym(omega), cc.in_(2)]);
-                let four_a = cc.ap("Times", vec![cc.in_(4), cc.num(cc.copy(&a))]);
-                let w24a = cc.ap("Power", vec![four_a, cc.in_(-1)]);
-                let neg_w24a = cc.ap("Times", vec![cc.in_(-1), w24a]);
-                let exp_arg = cc.eval(cc.ap("Times", vec![w2, neg_w24a]));
-                let exp = cc.ap("Exp", vec![exp_arg]);
-                let body = cc.eval(cc.ap("Times", vec![scale, exp]));
+                let ainv = cc.apply("Power", vec![cc.num(cc.copy(&a)), cc.in_(-1)]);
+                let pia = cc.apply("Times", vec![cc.symbol("Pi"), ainv]);
+                let scale = cc.apply("Sqrt", vec![pia]);
+                let w2 = cc.apply("Power", vec![cc.symbol(omega), cc.in_(2)]);
+                let four_a = cc.apply("Times", vec![cc.in_(4), cc.num(cc.copy(&a))]);
+                let w24a = cc.apply("Power", vec![four_a, cc.in_(-1)]);
+                let neg_w24a = cc.apply("Times", vec![cc.in_(-1), w24a]);
+                let exp_arg = cc.eval(cc.apply("Times", vec![w2, neg_w24a]));
+                let exp = cc.apply("Exp", vec![exp_arg]);
+                let body = cc.eval(cc.apply("Times", vec![scale, exp]));
                 return Some((body, RegionOfConvergence::real_line(cc, omega)));
             }
             None
@@ -368,7 +368,7 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
 
 fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     // 形态：Exp[-a t]（a>0）→ 1/(a + I ω)
-    let (h, args) = cc.app(expr)?;
+    let (h, args) = cc.application(expr)?;
     if h != "Exp" || args.len() != 1 {
         return None;
     }
@@ -378,9 +378,9 @@ fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &s
         return None;
     }
     let a = evaluate_neg_number(cc, &a_signed)?;
-    let iw = cc.ap("Times", vec![cc.sym("I"), cc.sym(omega)]);
-    let den = cc.eval(cc.ap("Plus", vec![cc.num(a), iw]));
-    let body = cc.eval(cc.ap("Power", vec![den, cc.in_(-1)]));
+    let iw = cc.apply("Times", vec![cc.symbol("I"), cc.symbol(omega)]);
+    let den = cc.eval(cc.apply("Plus", vec![cc.num(a), iw]));
+    let body = cc.eval(cc.apply("Power", vec![den, cc.in_(-1)]));
     Some((body, RegionOfConvergence::real_line(cc, omega)))
 }
 
@@ -393,16 +393,16 @@ fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [TermId], t: &str) -> Opt
 }
 
 fn is_unit_step(cc: &CalculusCtx<'_>, term: TermId, t: &str) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };
-    (h == "UnitStep" || h == "HeavisideTheta") && args.len() == 1 && is_sym_named(cc, args[0], t)
+    (h == "UnitStep" || h == "HeavisideTheta") && args.len() == 1 && is_symbol_named(cc, args[0], t)
 }
 
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
 fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
-    let (h, args) = cc.app(term)?;
+    let (h, args) = cc.application(term)?;
     if h != "Times" || args.len() != 2 {
         return None;
     }
@@ -423,16 +423,16 @@ fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) ->
 }
 
 fn is_abs_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };
-    h == "Abs" && args.len() == 1 && is_sym_named(cc, args[0], var)
+    h == "Abs" && args.len() == 1 && is_symbol_named(cc, args[0], var)
 }
 
 /// `Times[-a, Power[t, 2]]`，返回 a>0。
 fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
-    let (h, args) = cc.app(term)?;
+    let (h, args) = cc.application(term)?;
     if h != "Times" || args.len() != 2 {
         return None;
     }
@@ -453,18 +453,18 @@ fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str)
 }
 
 fn is_square_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };
     h == "Power"
         && args.len() == 2
-        && is_sym_named(cc, args[0], var)
+        && is_symbol_named(cc, args[0], var)
         && cc.number_of(args[1]).and_then(|n| n.as_integer_exp()) == Some(2)
 }
 
 fn evaluate_neg_number(cc: &mut CalculusCtx<'_>, n: &Number) -> Option<Number> {
-    let neg = cc.ap("Times", vec![cc.in_(-1), cc.num(cc.copy(n))]);
+    let neg = cc.apply("Times", vec![cc.in_(-1), cc.num(cc.copy(n))]);
     let t = cc.eval(neg);
     cc.number_of(t).map(|v| cc.copy(v))
 }
@@ -474,15 +474,15 @@ fn number_is_positive(n: &Number) -> bool {
 }
 
 fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
-    if is_sym_named(cc, term, var) {
+    if is_symbol_named(cc, term, var) {
         return Some(Number::small_int(1));
     }
-    let (h, args) = cc.app(term)?;
+    let (h, args) = cc.application(term)?;
     if h == "Times" && args.len() == 2 {
-        if is_sym_named(cc, args[1], var) {
+        if is_symbol_named(cc, args[1], var) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }
-        if is_sym_named(cc, args[0], var) {
+        if is_symbol_named(cc, args[0], var) {
             return cc.number_of(args[1]).map(|n| cc.copy(n));
         }
     }
@@ -492,7 +492,7 @@ fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> O
 fn roc_half_plane_bound(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate?;
     // 形态：Greater[Re[s], a]
-    let (h, args) = cc.app(pred)?;
+    let (h, args) = cc.application(pred)?;
     if h == "Greater" && args.len() == 2 {
         return cc.number_of(args[1]).map(|n| cc.copy(n));
     }
@@ -503,7 +503,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
     if let Some(c) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let base = z_over_z_minus(cc, z, &Number::small_int(1));
-        let body = cc.eval(cc.ap("Times", vec![cc.num(c), base]));
+        let body = cc.eval(cc.apply("Times", vec![cc.num(c), base]));
         return Some((body, RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1))));
     }
     if is_kronecker_delta(cc, expr, n) {
@@ -515,7 +515,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
             RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1)),
         ));
     }
-    let (h, args) = cc.app(expr)?;
+    let (h, args) = cc.application(expr)?;
     match h.as_str() {
         "Plus" => {
             let mut parts = Vec::new();
@@ -531,7 +531,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 }
                 else if matches!(
                     roc.predicate,
-                    Some(pred) if cc.app(pred).is_some_and(|(ph, _)| ph == "Element")
+                    Some(pred) if cc.application(pred).is_some_and(|(ph, _)| ph == "Element")
                 ) {
                     // 整平面收敛 — 半径保持不变
                 }
@@ -543,7 +543,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.ap("Plus", parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
             let roc = if all_entire {
                 RegionOfConvergence::entire_plane(cc, z)
             }
@@ -555,22 +555,22 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
         "Times" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = z_one(cc, args[1], n, z)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = z_one(cc, args[0], n, z)?;
-                let body = cc.eval(cc.ap("Times", vec![cc.num(c), inner]));
+                let body = cc.eval(cc.apply("Times", vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             // Z 变换：n·aⁿ → a·z/(z-a)²
             if let Some(a) = match_n_times_power(cc, &args, n) {
                 let radius = num_abs(cc.copy(&a));
-                let neg = cc.ap("Times", vec![cc.in_(-1), cc.num(cc.copy(&a))]);
-                let za = cc.ap("Plus", vec![cc.sym(z), neg]);
-                let den = cc.eval(cc.ap("Power", vec![za, cc.in_(2)]));
-                let dinv = cc.ap("Power", vec![den, cc.in_(-1)]);
-                let body = cc.eval(cc.ap("Times", vec![cc.num(a), cc.sym(z), dinv]));
+                let neg = cc.apply("Times", vec![cc.in_(-1), cc.num(cc.copy(&a))]);
+                let za = cc.apply("Plus", vec![cc.symbol(z), neg]);
+                let den = cc.eval(cc.apply("Power", vec![za, cc.in_(2)]));
+                let dinv = cc.apply("Power", vec![den, cc.in_(-1)]);
+                let body = cc.eval(cc.apply("Times", vec![cc.num(a), cc.symbol(z), dinv]));
                 return Some((body, RegionOfConvergence::abs_z_greater(cc, z, radius)));
             }
             // 形态：UnitStep[n] * Power[a,n]
@@ -579,7 +579,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
             }
             None
         }
-        "Power" if args.len() == 2 && is_sym_named(cc, args[1], n) => {
+        "Power" if args.len() == 2 && is_symbol_named(cc, args[1], n) => {
             let a = cc.copy(cc.number_of(args[0])?);
             // Z 变换：aⁿ → z/(z-a)，|z|>|a|
             let radius = num_abs(cc.copy(&a));
@@ -590,31 +590,31 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
 }
 
 fn z_over_z_minus(cc: &mut CalculusCtx<'_>, z: &str, a: &Number) -> TermId {
-    let neg = cc.ap("Times", vec![cc.in_(-1), cc.num(cc.copy(a))]);
-    let za = cc.ap("Plus", vec![cc.sym(z), neg]);
-    let inv = cc.ap("Power", vec![za, cc.in_(-1)]);
-    cc.eval(cc.ap("Times", vec![cc.sym(z), inv]))
+    let neg = cc.apply("Times", vec![cc.in_(-1), cc.num(cc.copy(a))]);
+    let za = cc.apply("Plus", vec![cc.symbol(z), neg]);
+    let inv = cc.apply("Power", vec![za, cc.in_(-1)]);
+    cc.eval(cc.apply("Times", vec![cc.symbol(z), inv]))
 }
 
 fn is_kronecker_delta(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };
-    (h == "KroneckerDelta" || h == "DiscreteDelta") && args.len() == 1 && is_sym_named(cc, args[0], n)
+    (h == "KroneckerDelta" || h == "DiscreteDelta") && args.len() == 1 && is_symbol_named(cc, args[0], n)
 }
 
 fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[TermId], n: &str) -> Option<Number> {
     match args {
-        [a, b] if is_sym_named(cc, *a, n) => match_power_base(cc, *b, n),
-        [a, b] if is_sym_named(cc, *b, n) => match_power_base(cc, *a, n),
+        [a, b] if is_symbol_named(cc, *a, n) => match_power_base(cc, *b, n),
+        [a, b] if is_symbol_named(cc, *b, n) => match_power_base(cc, *a, n),
         _ => None,
     }
 }
 
 fn match_power_base(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> Option<Number> {
-    let (h, args) = cc.app(term)?;
-    if h == "Power" && args.len() == 2 && is_sym_named(cc, args[1], n) {
+    let (h, args) = cc.application(term)?;
+    if h == "Power" && args.len() == 2 && is_symbol_named(cc, args[1], n) {
         return cc.number_of(args[0]).map(|n| cc.copy(n));
     }
     None
@@ -623,9 +623,9 @@ fn match_power_base(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> Option<Numbe
 fn roc_abs_radius(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate?;
     // 形态：Greater[Abs[z], r]
-    let (h, args) = cc.app(pred)?;
+    let (h, args) = cc.application(pred)?;
     if h == "Greater" && args.len() == 2 {
-        if let Some((ah, inner)) = cc.app(args[0]) {
+        if let Some((ah, inner)) = cc.application(args[0]) {
             if ah == "Abs" && inner.len() == 1 {
                 return cc.number_of(args[1]).map(|n| cc.copy(n));
             }
@@ -634,8 +634,8 @@ fn roc_abs_radius(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option
     None
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
+fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, name))
 }
 
 fn factorial_u32(n: u32) -> Option<i64> {

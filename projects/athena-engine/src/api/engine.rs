@@ -45,7 +45,7 @@ impl AthenaEngine {
 
     /// 经 `Simplify` 头部化简（KernelIR + VM）。
     pub fn simplify_expression(&self, session: &mut Session, expr: TermId) -> TermId {
-        let wrapped = execution::push_app(session, "Simplify", vec![expr]);
+        let wrapped = execution::push_application(session, "Simplify", vec![expr]);
         execution::vm::evaluate_session(session, wrapped).term
     }
 

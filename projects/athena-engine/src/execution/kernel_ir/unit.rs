@@ -13,7 +13,7 @@ pub struct HandlerId(pub u32);
 #[derive(Debug, Clone)]
 pub enum Instr {
     /// 压入编译期已确定的子树引用（arena 共享，不复制）。
-    Const {
+    Constant {
         /// 常量子树根。
         term: TermId,
     },
@@ -22,8 +22,8 @@ pub enum Instr {
         /// 元素个数。
         argc: u16,
     },
-    /// 弹出 `argc` 个已求值参数，按 `op` 惰性重建 `App`（未知算子 · Unevaluated）。
-    MakeApp {
+    /// 弹出 `argc` 个已求值参数，按 `op` 惰性重建 `Application`（未知算子 · Unevaluated）。
+    MakeApplication {
         /// 算子。
         op: OperatorId,
         /// 参数个数。
@@ -61,22 +61,22 @@ pub enum Instr {
     /// 语句层定义：弹出 rhs 写入当前 env，栈顶保留 rhs（`Set` 语句位）。
     DefineOwn {
         /// 定义符号。
-        sym: athena_types::SymbolId,
+        symbol: athena_types::SymbolId,
     },
     /// 语句层定义：弹出 rhs 存 Delayed，压入 `Null`（`SetDelayed` 语句位）。
     DefineDelayed {
         /// 定义符号。
-        sym: athena_types::SymbolId,
+        symbol: athena_types::SymbolId,
     },
     /// 语句层定义：弹出 rhs 与内嵌 lhs 模式存 DownValues，压入 `Null`（`f[x_] := rhs` 语句位）。
     DefineDownValue {
         /// 定义符号。
-        sym: athena_types::SymbolId,
+        symbol: athena_types::SymbolId,
         /// lhs 模式子树。
         lhs: TermId,
     },
     /// 结束单元，栈顶为单元值。
-    Ret,
+    Return,
 }
 
 /// 编译产物：一个 canonical 结构对应的线性指令序列。
@@ -91,6 +91,6 @@ pub struct ExecUnit {
 impl ExecUnit {
     /// 常量单元（仅返回原子子树）。
     pub fn constant(source: TermId) -> Self {
-        Self { source, code: vec![Instr::Const { term: source }, Instr::Ret] }
+        Self { source, code: vec![Instr::Constant { term: source }, Instr::Return] }
     }
 }

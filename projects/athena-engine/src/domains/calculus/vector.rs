@@ -181,12 +181,12 @@ pub fn divergence_checked(
 ) -> CalculusResult<Divergence> {
     if components.len() != variables.len() {
         let comps = cc.list(components.to_vec());
-        let vars = cc.list(variables.iter().map(|v| cc.sym(v)).collect());
+        let vars = cc.list(variables.iter().map(|v| cc.symbol(v)).collect());
         return CalculusResult::Unevaluated {
             expression: Divergence {
                 components: components.to_vec(),
                 variables: variables.to_vec(),
-                value: cc.ap("Divergence", vec![comps, vars]),
+                value: cc.apply("Divergence", vec![comps, vars]),
             },
             reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
         };
@@ -205,7 +205,7 @@ pub fn divergence_checked(
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
         parts.push(cc.eval(part.value));
     }
-    let value = if parts.len() == 1 { parts[0] } else { cc.eval(cc.ap("Plus", parts)) };
+    let value = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
     finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved)
 }
 
@@ -254,8 +254,8 @@ pub fn curl_checked(
 }
 
 fn sub_terms(cc: &mut CalculusCtx<'_>, a: TermId, b: TermId) -> TermId {
-    let neg = cc.ap("Times", vec![cc.in_(-1), b]);
-    cc.eval(cc.ap("Plus", vec![a, neg]))
+    let neg = cc.apply("Times", vec![cc.in_(-1), b]);
+    cc.eval(cc.apply("Plus", vec![a, neg]))
 }
 
 fn merge_conditions(

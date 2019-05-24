@@ -66,72 +66,72 @@ static REGISTRY: &[FunctionDefinition] = &[
 ];
 
 fn deriv_exp(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    cc.ap("Exp", vec![arg])
+    cc.apply("Exp", vec![arg])
 }
 
 fn deriv_log(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    cc.ap("Power", vec![arg, cc.in_(-1)])
+    cc.apply("Power", vec![arg, cc.in_(-1)])
 }
 
 fn deriv_sin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    cc.ap("Cos", vec![arg])
+    cc.apply("Cos", vec![arg])
 }
 
 fn deriv_cos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    let sin = cc.ap("Sin", vec![arg]);
-    cc.ap("Times", vec![cc.in_(-1), sin])
+    let sin = cc.apply("Sin", vec![arg]);
+    cc.apply("Times", vec![cc.in_(-1), sin])
 }
 
 fn deriv_tan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    let cos = cc.ap("Cos", vec![arg]);
-    cc.ap("Power", vec![cos, cc.in_(-2)])
+    let cos = cc.apply("Cos", vec![arg]);
+    cc.apply("Power", vec![cos, cc.in_(-2)])
 }
 
 fn deriv_sinh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    cc.ap("Cosh", vec![arg])
+    cc.apply("Cosh", vec![arg])
 }
 
 fn deriv_cosh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    cc.ap("Sinh", vec![arg])
+    cc.apply("Sinh", vec![arg])
 }
 
 fn deriv_tanh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
-    let cosh = cc.ap("Cosh", vec![arg]);
-    cc.ap("Power", vec![cosh, cc.in_(-2)])
+    let cosh = cc.apply("Cosh", vec![arg]);
+    cc.apply("Power", vec![cosh, cc.in_(-2)])
 }
 
 fn deriv_arcsin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/Sqrt[1-u^2]
-    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
-    let one_minus = cc.ap("Plus", vec![cc.in_(1), cc.ap("Times", vec![cc.in_(-1), u2])]);
-    let sqrt = cc.ap("Sqrt", vec![one_minus]);
-    cc.ap("Power", vec![sqrt, cc.in_(-1)])
+    let u2 = cc.apply("Power", vec![arg, cc.in_(2)]);
+    let one_minus = cc.apply("Plus", vec![cc.in_(1), cc.apply("Times", vec![cc.in_(-1), u2])]);
+    let sqrt = cc.apply("Sqrt", vec![one_minus]);
+    cc.apply("Power", vec![sqrt, cc.in_(-1)])
 }
 
 fn deriv_arccos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     let s = deriv_arcsin(cc, arg);
-    cc.ap("Times", vec![cc.in_(-1), s])
+    cc.apply("Times", vec![cc.in_(-1), s])
 }
 
 fn deriv_arctan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/(1+u^2)
-    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
-    let one_plus = cc.ap("Plus", vec![cc.in_(1), u2]);
-    cc.ap("Power", vec![one_plus, cc.in_(-1)])
+    let u2 = cc.apply("Power", vec![arg, cc.in_(2)]);
+    let one_plus = cc.apply("Plus", vec![cc.in_(1), u2]);
+    cc.apply("Power", vec![one_plus, cc.in_(-1)])
 }
 
 fn deriv_sqrt(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：1/(2 Sqrt[u])
-    let sqrt = cc.ap("Sqrt", vec![arg]);
-    let two_sqrt = cc.ap("Times", vec![cc.in_(2), sqrt]);
-    cc.ap("Power", vec![two_sqrt, cc.in_(-1)])
+    let sqrt = cc.apply("Sqrt", vec![arg]);
+    let two_sqrt = cc.apply("Times", vec![cc.in_(2), sqrt]);
+    cc.apply("Power", vec![two_sqrt, cc.in_(-1)])
 }
 
 fn deriv_abs(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 绝对值分支：Abs[u]/u（条件在 differentiate_checked）
-    let abs = cc.ap("Abs", vec![arg]);
-    let uinv = cc.ap("Power", vec![arg, cc.in_(-1)]);
-    cc.ap("Times", vec![abs, uinv])
+    let abs = cc.apply("Abs", vec![arg]);
+    let uinv = cc.apply("Power", vec![arg, cc.in_(-1)]);
+    cc.apply("Times", vec![abs, uinv])
 }
 
 fn deriv_sign(_cc: &mut CalculusCtx<'_>, _arg: TermId) -> TermId {
@@ -141,18 +141,18 @@ fn deriv_sign(_cc: &mut CalculusCtx<'_>, _arg: TermId) -> TermId {
 
 fn deriv_gamma(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：Γ'(z) = Γ(z) PolyGamma[0, z]
-    let gamma = cc.ap("Gamma", vec![arg]);
-    let poly = cc.ap("PolyGamma", vec![cc.in_(0), arg]);
-    cc.ap("Times", vec![gamma, poly])
+    let gamma = cc.apply("Gamma", vec![arg]);
+    let poly = cc.apply("PolyGamma", vec![cc.in_(0), arg]);
+    cc.apply("Times", vec![gamma, poly])
 }
 
 fn deriv_erf(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
     // 形式：(2/Sqrt[Pi]) Exp[-u^2]
-    let pi = cc.sym("Pi");
-    let sqrt_pi = cc.ap("Sqrt", vec![pi]);
-    let inv = cc.ap("Power", vec![sqrt_pi, cc.in_(-1)]);
-    let u2 = cc.ap("Power", vec![arg, cc.in_(2)]);
-    let neg = cc.ap("Times", vec![cc.in_(-1), u2]);
-    let exp = cc.ap("Exp", vec![neg]);
-    cc.ap("Times", vec![cc.in_(2), inv, exp])
+    let pi = cc.symbol("Pi");
+    let sqrt_pi = cc.apply("Sqrt", vec![pi]);
+    let inv = cc.apply("Power", vec![sqrt_pi, cc.in_(-1)]);
+    let u2 = cc.apply("Power", vec![arg, cc.in_(2)]);
+    let neg = cc.apply("Times", vec![cc.in_(-1), u2]);
+    let exp = cc.apply("Exp", vec![neg]);
+    cc.apply("Times", vec![cc.in_(2), inv, exp])
 }

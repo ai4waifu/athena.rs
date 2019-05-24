@@ -1,12 +1,11 @@
-//! 语义身份与假设作用域表（Living 表达式 / 假设合同）。
+//! 语义身份与假设作用域表（Living `25` / `26`）。
 //!
-//! - [`ValueIdTable`] / [`ResultIdTable`]：值与结果容器身份分配
+//! - [`crate::runtime::values::ValueStore`]：`ValueId` → [`crate::runtime::values::RuntimeValue`]
+//! - [`crate::runtime::results::ResultStore`]：`ResultId` → [`crate::runtime::results::ComputationResult`]
 //! - [`AssumptionScopeTable`]：[`athena_types::AssumptionScope`] 的 Session intern
 //!
-//! `TermId` 即 AthenaIR arena 原生引用（Living `25`），不再经二级映射表。
+//! `TermId` 是 `TermStore` 原生引用。禁止 `ValueId`↔`TermId` 双射表。
 
-mod bindings;
 mod scope_table;
 
-pub use bindings::{ResultIdTable, ValueIdTable};
 pub use scope_table::AssumptionScopeTable;

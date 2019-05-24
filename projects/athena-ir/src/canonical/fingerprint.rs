@@ -104,7 +104,7 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
                 hash_term(s, *c);
             }
         }
-        TermNode::App { op, args } => {
+        TermNode::Application { head: op, arguments: args } => {
             mix_tag(&mut s.state, b"app");
             match s.registry.and_then(|r| r.name(*op)) {
                 Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),

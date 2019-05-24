@@ -16,7 +16,7 @@ use athena_engine::{
     },
     runtime::{
         Session,
-        values::arena::{push_app_named, push_int, push_list, push_symbol_name},
+        values::arena::{push_application_named, push_int, push_list, push_symbol_name},
     },
 };
 
@@ -31,7 +31,7 @@ impl H {
         Self { s: RefCell::new(Session::new()) }
     }
 
-    fn sym(&self, name: &str) -> Tid {
+    fn symbol(&self, name: &str) -> Tid {
         push_symbol_name(&mut self.s.borrow_mut(), name)
     }
 
@@ -40,7 +40,7 @@ impl H {
     }
 
     fn ap(&self, head: &str, args: Vec<Tid>) -> Tid {
-        push_app_named(&mut self.s.borrow_mut(), head, args)
+        push_application_named(&mut self.s.borrow_mut(), head, args)
     }
 
     fn lst(&self, items: Vec<Tid>) -> Tid {
@@ -86,7 +86,7 @@ fn lower(h: &H, root: Tid) -> CalculusRequest {
 fn derivative_power_via_domain() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Power", vec![h.sym("x"), h.i(3)]);
+    let expr = h.ap("Power", vec![h.symbol("x"), h.i(3)]);
     let out = run(
         &engine,
         &h,
@@ -110,7 +110,7 @@ fn derivative_power_via_domain() {
 fn repeated_derivative() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Power", vec![h.sym("x"), h.i(3)]);
+    let expr = h.ap("Power", vec![h.symbol("x"), h.i(3)]);
     let out = run(
         &engine,
         &h,
@@ -133,7 +133,7 @@ fn repeated_derivative() {
 #[test]
 fn abs_derivative_requires_assumption() {
     let h = H::new();
-    let expr = h.ap("Abs", vec![h.sym("x")]);
+    let expr = h.ap("Abs", vec![h.symbol("x")]);
     let unchecked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &AssumptionSet::empty()));
     assert!(!unchecked.unresolved.is_empty(), "Abs' must carry unresolved NonZero");
     let with = AssumptionSet::from_predicates(vec![Predicate::NonZero(TermId(0))]);
@@ -144,7 +144,7 @@ fn abs_derivative_requires_assumption() {
 #[test]
 fn integrate_checked_elementary() {
     let h = H::new();
-    let expr = h.ap("Power", vec![h.sym("x"), h.i(2)]);
+    let expr = h.ap("Power", vec![h.symbol("x"), h.i(2)]);
     match h.with_cc(|cc| integrate_checked(cc, expr, "x")) {
         CalculusResult::Exact { value, .. } => {
             let text = h.dbg(value);
@@ -157,7 +157,7 @@ fn integrate_checked_elementary() {
 #[test]
 fn integrate_checked_unevaluated() {
     let h = H::new();
-    let expr = h.ap("Foo", vec![h.sym("x")]);
+    let expr = h.ap("Foo", vec![h.symbol("x")]);
     match h.with_cc(|cc| integrate_checked(cc, expr, "x")) {
         CalculusResult::Unevaluated { reason, .. } => {
             assert_eq!(reason.code, DiagnosticCode::IntegralNotElementary);
@@ -170,7 +170,7 @@ fn integrate_checked_unevaluated() {
 fn limit_finite_polynomial() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.i(1)]);
+    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.i(1)]);
     let approach = h.i(2);
     let out = run(
         &engine,
@@ -195,7 +195,7 @@ fn limit_finite_polynomial() {
 fn limit_unevaluated_infinity() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Sin", vec![h.sym("x")]);
+    let expr = h.ap("Sin", vec![h.symbol("x")]);
     let out = run(
         &engine,
         &h,
@@ -218,7 +218,7 @@ fn limit_unevaluated_infinity() {
 #[test]
 fn sqrt_derivative_requires_assumption() {
     let h = H::new();
-    let expr = h.ap("Sqrt", vec![h.sym("x")]);
+    let expr = h.ap("Sqrt", vec![h.symbol("x")]);
     let unchecked = h.with_cc(|cc| differentiate_checked(cc, expr, "x", &AssumptionSet::empty()));
     assert!(!unchecked.unresolved.is_empty());
     let with = AssumptionSet::from_predicates(vec![Predicate::NonNegative(TermId(0))]);
@@ -230,7 +230,7 @@ fn sqrt_derivative_requires_assumption() {
 fn taylor_polynomial_exact() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.i(1)]);
+    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.i(1)]);
     let center = h.i(0);
     let out = run(
         &engine,
@@ -263,7 +263,7 @@ fn laurent_simple_pole() {
         &engine,
         &h,
         CalculusRequest::Laurent {
-            expression: h.ap("Power", vec![h.sym("x"), h.i(-1)]),
+            expression: h.ap("Power", vec![h.symbol("x"), h.i(-1)]),
             variable: "x".into(),
             center: h.i(0),
             order: 2,
@@ -283,8 +283,8 @@ fn laurent_simple_pole() {
     }
 
     // (1+x)/x 在 0 展开 → x^{-1} + 1
-    let expr = h.ap("Times", vec![h.ap("Plus", vec![h.i(1), h.sym("x")]), h.ap("Power", vec![h.sym("x"), h.i(-1)])]);
-    let term = h.ap("LaurentSeries", vec![expr, h.lst(vec![h.sym("x"), h.i(0), h.i(2)])]);
+    let expr = h.ap("Times", vec![h.ap("Plus", vec![h.i(1), h.symbol("x")]), h.ap("Power", vec![h.symbol("x"), h.i(-1)])]);
+    let term = h.ap("LaurentSeries", vec![expr, h.lst(vec![h.symbol("x"), h.i(0), h.i(2)])]);
     let req = lower(&h, term);
     let out2 = run(&engine, &h, req);
     match out2 {
@@ -306,7 +306,7 @@ fn residue_simple_poles() {
         &engine,
         &h,
         CalculusRequest::Residue {
-            expression: h.ap("Power", vec![h.sym("x"), h.i(-1)]),
+            expression: h.ap("Power", vec![h.symbol("x"), h.i(-1)]),
             variable: "x".into(),
             point: h.i(0),
             assumptions: AssumptionSet::empty(),
@@ -325,7 +325,7 @@ fn residue_simple_poles() {
         &engine,
         &h,
         CalculusRequest::Residue {
-            expression: h.ap("Power", vec![h.sym("x"), h.i(-2)]),
+            expression: h.ap("Power", vec![h.symbol("x"), h.i(-2)]),
             variable: "x".into(),
             point: h.i(0),
             assumptions: AssumptionSet::empty(),
@@ -340,8 +340,8 @@ fn residue_simple_poles() {
     }
 
     // 形态：Residue[(1+x)/x, {x, 0}] → 1
-    let expr = h.ap("Times", vec![h.ap("Plus", vec![h.i(1), h.sym("x")]), h.ap("Power", vec![h.sym("x"), h.i(-1)])]);
-    let term = h.ap("Residue", vec![expr, h.lst(vec![h.sym("x"), h.i(0)])]);
+    let expr = h.ap("Times", vec![h.ap("Plus", vec![h.i(1), h.symbol("x")]), h.ap("Power", vec![h.symbol("x"), h.i(-1)])]);
+    let term = h.ap("Residue", vec![expr, h.lst(vec![h.symbol("x"), h.i(0)])]);
     let req = lower(&h, term);
     let out3 = run(&engine, &h, req);
     match out3 {
@@ -356,25 +356,25 @@ fn residue_simple_poles() {
 fn special_function_registry_derivatives() {
     let h = H::new();
     // 导数：Sinh' = Cosh
-    let sinh = h.ap("Sinh", vec![h.sym("x")]);
+    let sinh = h.ap("Sinh", vec![h.symbol("x")]);
     let d_sinh = h.with_cc(|cc| differentiate(cc, sinh, "x"));
-    let cosh = h.ap("Cosh", vec![h.sym("x")]);
+    let cosh = h.ap("Cosh", vec![h.symbol("x")]);
     assert!(h.eq(d_sinh, cosh), "got {}", h.dbg(d_sinh));
 
     // 导数：ArcTan' = 1/(1+x^2)
-    let atan = h.ap("ArcTan", vec![h.sym("x")]);
+    let atan = h.ap("ArcTan", vec![h.symbol("x")]);
     let d_atan = h.with_cc(|cc| differentiate(cc, atan, "x"));
     let text = h.dbg(d_atan);
     assert!(text.contains('1') || text.contains("Power"), "got {text}");
 
     // 误差函数：Erf' 含 Exp 与 Pi
-    let erf = h.ap("Erf", vec![h.sym("x")]);
+    let erf = h.ap("Erf", vec![h.symbol("x")]);
     let d_erf = h.with_cc(|cc| differentiate(cc, erf, "x"));
     let text = h.dbg(d_erf);
     assert!(text.contains("Exp") && text.contains("Pi"), "got {text}");
 
     // 导数：Gamma' = Gamma * PolyGamma[0, ·]
-    let gamma = h.ap("Gamma", vec![h.sym("x")]);
+    let gamma = h.ap("Gamma", vec![h.symbol("x")]);
     let d_gamma = h.with_cc(|cc| differentiate(cc, gamma, "x"));
     let text = h.dbg(d_gamma);
     assert!(text.contains("Gamma") && text.contains("PolyGamma"), "got {text}");
@@ -388,7 +388,7 @@ fn asymptotic_at_infinity() {
     let engine = AthenaEngine::new();
     let h = H::new();
     // 极限：x²+1，x→∞
-    let poly = h.ap("Plus", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.i(1)]);
+    let poly = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.i(1)]);
     let out = run(
         &engine,
         &h,
@@ -406,8 +406,8 @@ fn asymptotic_at_infinity() {
     }
 
     // 1/(x+1) ~ x^{-1} - x^{-2} + …
-    let rat = h.ap("Power", vec![h.ap("Plus", vec![h.sym("x"), h.i(1)]), h.i(-1)]);
-    let term = h.ap("Asymptotic", vec![rat, h.lst(vec![h.sym("x"), h.sym("Infinity"), h.i(2)])]);
+    let rat = h.ap("Power", vec![h.ap("Plus", vec![h.symbol("x"), h.i(1)]), h.i(-1)]);
+    let term = h.ap("Asymptotic", vec![rat, h.lst(vec![h.symbol("x"), h.symbol("Infinity"), h.i(2)])]);
     let req = lower(&h, term);
     let out2 = run(&engine, &h, req);
     match out2 {
@@ -425,7 +425,7 @@ fn asymptotic_at_infinity() {
 fn limit_poly_at_infinity() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Times", vec![h.i(-2), h.sym("x")]), h.i(5)]);
+    let expr = h.ap("Plus", vec![h.ap("Times", vec![h.i(-2), h.symbol("x")]), h.i(5)]);
     let out = run(
         &engine,
         &h,
@@ -449,7 +449,7 @@ fn limit_poly_at_infinity() {
 fn onesided_simple_pole() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Divide", vec![h.i(1), h.sym("x")]);
+    let expr = h.ap("Divide", vec![h.i(1), h.symbol("x")]);
     let above = run(
         &engine,
         &h,
@@ -494,7 +494,7 @@ fn definite_integral_power() {
         &engine,
         &h,
         CalculusRequest::DefiniteIntegral {
-            expression: h.sym("x"),
+            expression: h.symbol("x"),
             variable: "x".into(),
             lower: h.i(0),
             upper: h.i(2),
@@ -513,7 +513,7 @@ fn definite_integral_power() {
 fn limit_sinc_at_zero() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Times", vec![h.ap("Sin", vec![h.sym("x")]), h.ap("Power", vec![h.sym("x"), h.i(-1)])]);
+    let expr = h.ap("Times", vec![h.ap("Sin", vec![h.symbol("x")]), h.ap("Power", vec![h.symbol("x"), h.i(-1)])]);
     let out = run(
         &engine,
         &h,
@@ -541,10 +541,10 @@ fn definite_integral_sin_zero_to_pi() {
         &engine,
         &h,
         CalculusRequest::DefiniteIntegral {
-            expression: h.ap("Sin", vec![h.sym("x")]),
+            expression: h.ap("Sin", vec![h.symbol("x")]),
             variable: "x".into(),
             lower: h.i(0),
-            upper: h.sym("Pi"),
+            upper: h.symbol("Pi"),
             assumptions: AssumptionSet::empty(),
         },
     );
@@ -559,7 +559,7 @@ fn definite_integral_sin_zero_to_pi() {
 #[test]
 fn cos_pi_is_exact_minus_one() {
     let h = H::new();
-    let pi = h.sym("Pi");
+    let pi = h.symbol("Pi");
     let cos = h.ap("Cos", vec![pi]);
     let cos_out = h.with_session(|s| athena_engine::execution::vm::evaluate_session(s, cos));
     assert_eq!(h.dbg(cos_out.term), "-1");
@@ -572,7 +572,7 @@ fn cos_pi_is_exact_minus_one() {
 fn taylor_nonzero_center() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Power", vec![h.ap("Plus", vec![h.sym("x"), h.ap("Times", vec![h.i(-1), h.i(1)])]), h.i(2)]);
+    let expr = h.ap("Power", vec![h.ap("Plus", vec![h.symbol("x"), h.ap("Times", vec![h.i(-1), h.i(1)])]), h.i(2)]);
     let center = h.i(1);
     let out = run(
         &engine,
@@ -598,7 +598,7 @@ fn taylor_nonzero_center() {
 fn gradient_of_quadratic() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.ap("Power", vec![h.sym("y"), h.i(2)])]);
+    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.ap("Power", vec![h.symbol("y"), h.i(2)])]);
     let out = run(
         &engine,
         &h,
@@ -629,7 +629,7 @@ fn jacobian_linear_map() {
         &engine,
         &h,
         CalculusRequest::Jacobian {
-            expressions: vec![h.ap("Plus", vec![h.sym("x"), h.sym("y")]), h.sym("x")],
+            expressions: vec![h.ap("Plus", vec![h.symbol("x"), h.symbol("y")]), h.symbol("x")],
             variables: vec!["x".into(), "y".into()],
             assumptions: AssumptionSet::empty(),
         },
@@ -650,7 +650,7 @@ fn jacobian_linear_map() {
 fn hessian_quadratic() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.ap("Times", vec![h.sym("x"), h.sym("y")])]);
+    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.ap("Times", vec![h.symbol("x"), h.symbol("y")])]);
     let out = run(
         &engine,
         &h,
@@ -681,7 +681,7 @@ fn divergence_of_linear_field() {
         &engine,
         &h,
         CalculusRequest::Divergence {
-            components: vec![h.sym("x"), h.sym("y")],
+            components: vec![h.symbol("x"), h.symbol("y")],
             variables: vec!["x".into(), "y".into()],
             assumptions: AssumptionSet::empty(),
         },
@@ -703,7 +703,7 @@ fn curl_of_linear_3d_field() {
         &engine,
         &h,
         CalculusRequest::Curl {
-            components: vec![h.ap("Times", vec![h.i(-1), h.sym("y")]), h.sym("x"), h.i(0)],
+            components: vec![h.ap("Times", vec![h.i(-1), h.symbol("y")]), h.symbol("x"), h.i(0)],
             variables: vec!["x".into(), "y".into(), "z".into()],
             assumptions: AssumptionSet::empty(),
         },
@@ -722,7 +722,7 @@ fn divergence_via_term_lowering() {
     let h = H::new();
     let term = h.ap(
         "Divergence",
-        vec![h.lst(vec![h.sym("x"), h.sym("y"), h.sym("z")]), h.lst(vec![h.sym("x"), h.sym("y"), h.sym("z")])],
+        vec![h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")]), h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")])],
     );
     let req = lower(&h, term);
     let out = run(&engine, &h, req);
@@ -738,7 +738,7 @@ fn divergence_via_term_lowering() {
 fn ode_y_prime_equals_const() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let eq = h.ap("Equal", vec![h.ap("D", vec![h.sym("y"), h.sym("x")]), h.i(2)]);
+    let eq = h.ap("Equal", vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.i(2)]);
     let out = run(
         &engine,
         &h,
@@ -763,7 +763,7 @@ fn ode_y_prime_equals_const() {
 fn ode_ivp_y_prime_const() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let eq = h.ap("Equal", vec![h.ap("D", vec![h.sym("y"), h.sym("x")]), h.i(2)]);
+    let eq = h.ap("Equal", vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.i(2)]);
     let out = run(
         &engine,
         &h,
@@ -791,7 +791,7 @@ fn ode_separable_g_of_x() {
     let engine = AthenaEngine::new();
     let h = H::new();
     // ODE：y' = x ⇒ y = x²/2
-    let eq = h.ap("Equal", vec![h.ap("D", vec![h.sym("y"), h.sym("x")]), h.sym("x")]);
+    let eq = h.ap("Equal", vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.symbol("x")]);
     let out = run(
         &engine,
         &h,
@@ -818,7 +818,7 @@ fn ode_power_y_squared() {
     let engine = AthenaEngine::new();
     let h = H::new();
     // ODE：y' = y² ⇒ y = -1/x
-    let eq = h.ap("Equal", vec![h.ap("D", vec![h.sym("y"), h.sym("x")]), h.ap("Power", vec![h.sym("y"), h.i(2)])]);
+    let eq = h.ap("Equal", vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.ap("Power", vec![h.symbol("y"), h.i(2)])]);
     let out = run(
         &engine,
         &h,
@@ -847,8 +847,8 @@ fn ode_bernoulli_const_and_separable_xy2() {
     let eq = h.ap(
         "Equal",
         vec![
-            h.ap("D", vec![h.sym("y"), h.sym("x")]),
-            h.ap("Plus", vec![h.ap("Times", vec![h.i(2), h.sym("y")]), h.ap("Power", vec![h.sym("y"), h.i(2)])]),
+            h.ap("D", vec![h.symbol("y"), h.symbol("x")]),
+            h.ap("Plus", vec![h.ap("Times", vec![h.i(2), h.symbol("y")]), h.ap("Power", vec![h.symbol("y"), h.i(2)])]),
         ],
     );
     let out = run(
@@ -873,7 +873,7 @@ fn ode_bernoulli_const_and_separable_xy2() {
     // ODE：y' = x·y² ⇒ y = -1/(x²/2) = -2/x²
     let eq2 = h.ap(
         "Equal",
-        vec![h.ap("D", vec![h.sym("y"), h.sym("x")]), h.ap("Times", vec![h.sym("x"), h.ap("Power", vec![h.sym("y"), h.i(2)])])],
+        vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.ap("Times", vec![h.symbol("x"), h.ap("Power", vec![h.symbol("y"), h.i(2)])])],
     );
     let out2 = run(
         &engine,
@@ -905,7 +905,7 @@ fn laplace_exp_and_sin() {
         &h,
         CalculusRequest::Transform {
             kind: athena_engine::domains::calculus::TransformKind::Laplace,
-            expression: h.ap("Exp", vec![h.ap("Times", vec![h.i(2), h.sym("t")])]),
+            expression: h.ap("Exp", vec![h.ap("Times", vec![h.i(2), h.symbol("t")])]),
             time_variable: "t".into(),
             transform_variable: "s".into(),
             assumptions: AssumptionSet::empty(),
@@ -925,7 +925,7 @@ fn laplace_exp_and_sin() {
         &h,
         CalculusRequest::Transform {
             kind: athena_engine::domains::calculus::TransformKind::Laplace,
-            expression: h.ap("Sin", vec![h.sym("t")]),
+            expression: h.ap("Sin", vec![h.symbol("t")]),
             time_variable: "t".into(),
             transform_variable: "s".into(),
             assumptions: AssumptionSet::empty(),
@@ -939,7 +939,7 @@ fn fourier_exp_abs_decay() {
     let engine = AthenaEngine::new();
     let h = H::new();
     // 形态：Exp[-Abs[t]] → 2/(1+ω²)
-    let expr = h.ap("Exp", vec![h.ap("Times", vec![h.i(-1), h.ap("Abs", vec![h.sym("t")])])]);
+    let expr = h.ap("Exp", vec![h.ap("Times", vec![h.i(-1), h.ap("Abs", vec![h.symbol("t")])])]);
     let out = run(
         &engine,
         &h,
@@ -968,8 +968,8 @@ fn fourier_exp_abs_decay() {
 fn fourier_gaussian_and_lowering() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Exp", vec![h.ap("Times", vec![h.i(-1), h.ap("Power", vec![h.sym("t"), h.i(2)])])]);
-    let term = h.ap("FourierTransform", vec![expr, h.sym("t"), h.sym("w")]);
+    let expr = h.ap("Exp", vec![h.ap("Times", vec![h.i(-1), h.ap("Power", vec![h.symbol("t"), h.i(2)])])]);
+    let term = h.ap("FourierTransform", vec![expr, h.symbol("t"), h.symbol("w")]);
     let req = lower(&h, term);
     let out = run(&engine, &h, req);
     match out {
@@ -982,7 +982,7 @@ fn fourier_gaussian_and_lowering() {
     }
 
     let causal =
-        h.ap("Times", vec![h.ap("UnitStep", vec![h.sym("t")]), h.ap("Exp", vec![h.ap("Times", vec![h.i(-2), h.sym("t")])])]);
+        h.ap("Times", vec![h.ap("UnitStep", vec![h.symbol("t")]), h.ap("Exp", vec![h.ap("Times", vec![h.i(-2), h.symbol("t")])])]);
     let causal_out = run(
         &engine,
         &h,
@@ -1008,7 +1008,7 @@ fn z_transform_geometric_and_delta() {
     let engine = AthenaEngine::new();
     let h = H::new();
     // 2^n → z/(z-2), |z|>2
-    let geom = h.ap("Power", vec![h.i(2), h.sym("n")]);
+    let geom = h.ap("Power", vec![h.i(2), h.symbol("n")]);
     let out = run(
         &engine,
         &h,
@@ -1032,8 +1032,8 @@ fn z_transform_geometric_and_delta() {
         other => panic!("expected Z Transform, got {other:?}"),
     }
 
-    let delta = h.ap("KroneckerDelta", vec![h.sym("n")]);
-    let term = h.ap("ZTransform", vec![delta, h.sym("n"), h.sym("z")]);
+    let delta = h.ap("KroneckerDelta", vec![h.symbol("n")]);
+    let term = h.ap("ZTransform", vec![delta, h.symbol("n"), h.symbol("z")]);
     let req = lower(&h, term);
     let delta_out = run(&engine, &h, req);
     match delta_out {
@@ -1048,18 +1048,18 @@ fn z_transform_geometric_and_delta() {
 #[test]
 fn try_calculus_request_d_limit_series() {
     let h = H::new();
-    let d = h.ap("D", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.sym("x")]);
+    let d = h.ap("D", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.symbol("x")]);
     assert!(h.with_cc(|cc| matches!(try_calculus_request(cc, d), Some(CalculusRequest::Derivative { .. }))));
-    let lim = h.ap("Limit", vec![h.sym("x"), h.ap("Rule", vec![h.sym("x"), h.i(1)])]);
+    let lim = h.ap("Limit", vec![h.symbol("x"), h.ap("Rule", vec![h.symbol("x"), h.i(1)])]);
     assert!(h.with_cc(|cc| matches!(try_calculus_request(cc, lim), Some(CalculusRequest::Limit { .. }))));
-    let series = h.ap("Series", vec![h.ap("Power", vec![h.sym("x"), h.i(2)]), h.lst(vec![h.sym("x"), h.i(0), h.i(3)])]);
+    let series = h.ap("Series", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.lst(vec![h.symbol("x"), h.i(0), h.i(3)])]);
     assert!(h.with_cc(|cc| matches!(try_calculus_request(cc, series), Some(CalculusRequest::Series { .. }))));
 }
 
 #[test]
 fn evaluate_routes_d_through_domain() {
     let h = H::new();
-    let x = h.sym("x");
+    let x = h.symbol("x");
     let three = h.i(3);
     let cube = h.ap("Power", vec![x, three]);
     let d = h.ap("D", vec![cube, x]);

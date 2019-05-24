@@ -35,7 +35,7 @@ pub(crate) fn h_calc_laplace(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
 }
 
 fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
-    let args = vm.app_args(root).unwrap_or_default();
+    let args = vm.application_arguments(root).unwrap_or_default();
     let mut evaluated = Vec::with_capacity(args.len());
     let mut diags = Vec::new();
     for a in args {
@@ -44,7 +44,7 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
         evaluated.push(o.term);
     }
     if diags.iter().any(|d| d.severity == athena_types::Severity::Error) {
-        let echo = vm.push_app(name, evaluated);
+        let echo = vm.push_application(name, evaluated);
         return Outcome {
             term: echo,
             kind: crate::execution::EvalKind::Unevaluated,
@@ -52,7 +52,7 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
             diagnostics: diags,
         };
     }
-    let echo = vm.push_app(name, evaluated);
+    let echo = vm.push_application(name, evaluated);
     let req = {
         let mut cc = crate::domains::calculus::ctx::CalculusCtx::new(vm.session);
         crate::domains::calculus::try_calculus_request(&mut cc, echo)
@@ -70,7 +70,7 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
 
 /// 单变量多项式 `Solve` → `{{x->r},…}`（typed `SolutionSet` 仍为正式合同）。
 pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outcome {
-    let echo = vm.push_app("Solve", vec![equation, unknown]);
+    let echo = vm.push_application("Solve", vec![equation, unknown]);
     let Some(var_name) = (match vm.session.arena.get(unknown) {
         Some(TermNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).map(str::to_string),
         _ => None,
@@ -80,11 +80,11 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
     };
 
     let zero_id = if vm.head_name(equation).as_deref() == Some("Equal") {
-        let args = vm.app_args(equation).unwrap_or_default();
+        let args = vm.application_arguments(equation).unwrap_or_default();
         if args.len() == 2 {
             let neg1 = vm.push_int(-1);
-            let neg = vm.push_app("Times", vec![neg1, args[1]]);
-            let plus = vm.push_app("Plus", vec![args[0], neg]);
+            let neg = vm.push_application("Times", vec![neg1, args[1]]);
+            let plus = vm.push_application("Plus", vec![args[0], neg]);
             vm.eval_value(plus).term
         }
         else {
@@ -166,7 +166,7 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
     let rule_op = vm.session.operators.intern("Rule");
     let mut out = Vec::with_capacity(roots.len());
     for r in roots {
-        let rule = vm.rebuild_app_op(rule_op, vec![var_id, r]);
+        let rule = vm.rebuild_application_operator(rule_op, vec![var_id, r]);
         out.push(vm.push_list(vec![rule]));
     }
     Outcome::value(vm.push_list(out))
@@ -214,7 +214,7 @@ fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<
         Some(out)
     }
 
-    fn is_sym(vm: &Vm<'_>, id: TermId, var: &str) -> bool {
+    fn is_symbol(vm: &Vm<'_>, id: TermId, var: &str) -> bool {
         matches!(
             vm.session.arena.get(id),
             Some(TermNode::Atom(Atom::Symbol(s))) if vm.session.arena.symbols().resolve(*s) == Some(var)
@@ -222,7 +222,7 @@ fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<
     }
 
     fn go(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<Vec<(Number, u32)>> {
-        if is_sym(vm, expr, var) {
+        if is_symbol(vm, expr, var) {
             return Some(vec![(Number::small_int(1), 1)]);
         }
         if let Some(n) = crate::execution::builtins::arithmetic::number_of(vm, expr) {
@@ -231,20 +231,20 @@ fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<
         match vm.head_name(expr).as_deref() {
             Some("Plus") => {
                 let mut out = Vec::new();
-                for a in vm.app_args(expr).unwrap_or_default() {
+                for a in vm.application_arguments(expr).unwrap_or_default() {
                     merge(&mut out, go(vm, a, var)?)?;
                 }
                 Some(out)
             }
             Some("Times") => {
                 let mut out = vec![(Number::small_int(1), 0)];
-                for a in vm.app_args(expr).unwrap_or_default() {
+                for a in vm.application_arguments(expr).unwrap_or_default() {
                     out = mul_lists(&out, &go(vm, a, var)?)?;
                 }
                 Some(out)
             }
             Some("Power") => {
-                let args = vm.app_args(expr).unwrap_or_default();
+                let args = vm.application_arguments(expr).unwrap_or_default();
                 if args.len() != 2 {
                     return None;
                 }
@@ -253,7 +253,7 @@ fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<
                     return None;
                 }
                 let exp = exp as u32;
-                if is_sym(vm, args[0], var) {
+                if is_symbol(vm, args[0], var) {
                     return Some(vec![(Number::small_int(1), exp)]);
                 }
                 let base = go(vm, args[0], var)?;

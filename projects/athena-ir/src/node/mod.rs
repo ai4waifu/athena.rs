@@ -43,11 +43,11 @@ pub enum TermNode {
     /// 有序序列（列表 / 向量表面）。
     List(Vec<TermId>),
     /// 算子应用。
-    App {
+    Application {
         /// 注册算子。
-        op: OperatorId,
+        head: OperatorId,
         /// 参数 term。
-        args: Vec<TermId>,
+        arguments: Vec<TermId>,
     },
 }
 
@@ -57,7 +57,7 @@ impl TermNode {
         Ok(match self {
             Self::Atom(a) => Self::Atom(a.try_clone_in(ctx)?),
             Self::List(xs) => Self::List(xs.clone()),
-            Self::App { op, args } => Self::App { op: *op, args: args.clone() },
+            Self::Application { head: op, arguments: args } => Self::Application { head: *op, arguments: args.clone() },
         })
     }
 

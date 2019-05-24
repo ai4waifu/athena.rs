@@ -42,9 +42,9 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
-            let (a, b) = (vm.app_args(left).unwrap_or_default(), vm.app_args(right).unwrap_or_default());
+            let (a, b) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if a.len() != b.len() {
-                let echo = vm.rebuild_app_op(op, vec![left, right]);
+                let echo = vm.rebuild_application_operator(op, vec![left, right]);
                 return Outcome::invalid(
                     echo,
                     Diagnostic::new(DiagnosticCode::ShapeMismatch)
@@ -65,7 +65,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     Outcome::value(dot_apply(vm, kind, *x, *y))
                 };
                 if cell.has_error() {
-                    let echo = vm.rebuild_app_op(op, vec![left, right]);
+                    let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
                     return Outcome {
                         term: echo,
@@ -85,7 +85,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
             }
         }
         (true, false) => {
-            let a = vm.app_args(left).unwrap_or_default();
+            let a = vm.application_arguments(left).unwrap_or_default();
             let mut out = Vec::with_capacity(a.len());
             let mut diags = Vec::new();
             for x in a {
@@ -96,7 +96,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     Outcome::value(dot_apply(vm, kind, x, right))
                 };
                 if cell.has_error() {
-                    let echo = vm.rebuild_app_op(op, vec![left, right]);
+                    let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
                     return Outcome {
                         term: echo,
@@ -116,7 +116,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
             }
         }
         (false, true) => {
-            let b = vm.app_args(right).unwrap_or_default();
+            let b = vm.application_arguments(right).unwrap_or_default();
             let mut out = Vec::with_capacity(b.len());
             let mut diags = Vec::new();
             for y in b {
@@ -127,7 +127,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     Outcome::value(dot_apply(vm, kind, left, y))
                 };
                 if cell.has_error() {
-                    let echo = vm.rebuild_app_op(op, vec![left, right]);
+                    let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
                     return Outcome {
                         term: echo,
@@ -150,7 +150,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
             if number_of(vm, left).is_some() && number_of(vm, right).is_some() {
                 return Outcome::value(dot_apply(vm, kind, left, right));
             }
-            Outcome::unevaluated(vm.rebuild_app_op(op, vec![left, right]))
+            Outcome::unevaluated(vm.rebuild_application_operator(op, vec![left, right]))
         }
     }
 }
@@ -166,7 +166,7 @@ pub(crate) fn h_ones(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> Outcome {
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
-        return Outcome::unevaluated(vm.push_app(head, args.to_vec()));
+        return Outcome::unevaluated(vm.push_application(head, args.to_vec()));
     };
     let n = match rows.checked_mul(cols) {
         Some(v) => v as usize,
@@ -195,13 +195,13 @@ pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     // `EvalOp` 传入已求值维度参数（与 `Zeros` / `Ones` 同形），不是 EvalRaw root。
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
-        return Outcome::unevaluated(vm.push_app("Eye", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("Eye", args.to_vec()));
     };
     let n = match rows.checked_mul(cols) {
         Some(v) => v as usize,
         None => {
             return Outcome::invalid(
-                vm.push_app("Eye", args.to_vec()),
+                vm.push_application("Eye", args.to_vec()),
                 Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"),
             );
         }
@@ -216,7 +216,7 @@ pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     for i in 0..diag {
         data[(i * cols + i) as usize] = crate::runtime::values::numeric_clone::clone_rational(&one);
     }
-    let echo = vm.push_app("Eye", args.to_vec());
+    let echo = vm.push_application("Eye", args.to_vec());
     match MatrixValue::from_rationals_row_major(rows, cols, data) {
         Ok(m) => match matrix_to_nested_list(vm, &m) {
             Ok(term) => Outcome::value(term),
@@ -233,12 +233,12 @@ pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             let c = vm.push_int(cols as i64);
             Outcome::value(vm.push_list(vec![r, c]))
         }
-        None => Outcome::unevaluated(vm.push_app("Size", vec![args[0]])),
+        None => Outcome::unevaluated(vm.push_application("Size", vec![args[0]])),
     }
 }
 
 pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
-    let echo = vm.push_app("Det", vec![args[0]]);
+    let echo = vm.push_application("Det", vec![args[0]]);
     let Some(m) = term_to_rational_matrix(vm, args[0])
     else {
         return Outcome::unevaluated(echo);
@@ -250,7 +250,7 @@ pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 }
 
 pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
-    let echo = vm.push_app("LinearSolve", vec![args[0], args[1]]);
+    let echo = vm.push_application("LinearSolve", vec![args[0], args[1]]);
     mldivide(vm, "LinearSolve", args[0], args[1], echo)
 }
 
@@ -295,7 +295,7 @@ pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: 
 
 /// MATLAB-style `sum`：向量 → 标量和；矩阵 → 各列之和（行向量）。
 pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
-    let echo = vm.push_app("Sum", vec![arg]);
+    let echo = vm.push_application("Sum", vec![arg]);
     let Some(m) = term_to_rational_matrix(vm, arg)
     else {
         return Outcome::unevaluated(echo);

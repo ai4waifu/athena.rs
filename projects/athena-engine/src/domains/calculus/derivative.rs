@@ -17,81 +17,81 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
     };
     match shape {
         crate::execution::vm::Shape::Number
-        | crate::execution::vm::Shape::Str(_)
+        | crate::execution::vm::Shape::String(_)
         | crate::execution::vm::Shape::Bool(_)
         | crate::execution::vm::Shape::Null => cc.in_(0),
-        crate::execution::vm::Shape::Sym(s) => cc.in_(if cc.sym_is(s, var) { 1 } else { 0 }),
+        crate::execution::vm::Shape::Symbol(s) => cc.in_(if cc.symbol_is(s, var) { 1 } else { 0 }),
         crate::execution::vm::Shape::List(items) => {
             let ds = items.iter().map(|i| differentiate(cc, *i, var)).collect();
             cc.list(ds)
         }
-        crate::execution::vm::Shape::App(_, args) => {
-            let Some((h, args)) = cc.app(expr)
+        crate::execution::vm::Shape::Application(_, args) => {
+            let Some((h, args)) = cc.application(expr)
             else {
                 return expr;
             };
             match h.as_str() {
                 "Plus" => {
                     let ds = args.iter().map(|a| differentiate(cc, *a, var)).collect();
-                    cc.eval(cc.ap("Plus", ds))
+                    cc.eval(cc.apply("Plus", ds))
                 }
                 "Times" => {
                     let mut terms = Vec::new();
                     for i in 0..args.len() {
                         let mut factors = args.clone();
                         factors[i] = differentiate(cc, args[i], var);
-                        terms.push(cc.ap("Times", factors));
+                        terms.push(cc.apply("Times", factors));
                     }
-                    cc.eval(cc.ap("Plus", terms))
+                    cc.eval(cc.apply("Plus", terms))
                 }
                 "Power" if args.len() == 2 => {
                     let base = args[0];
                     let exp = args[1];
                     if let Some(n) = cc.int_exp(exp) {
                         let n1 = cc.in_(n - 1);
-                        let pow = cc.ap("Power", vec![base, n1]);
+                        let pow = cc.apply("Power", vec![base, n1]);
                         let d = differentiate(cc, base, var);
-                        cc.eval(cc.ap("Times", vec![cc.in_(n), pow, d]))
+                        cc.eval(cc.apply("Times", vec![cc.in_(n), pow, d]))
                     }
                     else if let Some(nf) = cc.number_of(exp).map(|n| cc.copy(n)).and_then(|n| n.as_machine_f64()) {
-                        let base_pow = cc.ap("Power", vec![base, cc.real(nf - 1.0)]);
+                        let base_pow = cc.apply("Power", vec![base, cc.real(nf - 1.0)]);
                         let d = differentiate(cc, base, var);
-                        cc.eval(cc.ap("Times", vec![cc.real(nf), base_pow, d]))
+                        cc.eval(cc.apply("Times", vec![cc.real(nf), base_pow, d]))
                     }
                     else {
-                        cc.ap("D", vec![expr, cc.sym(var)])
+                        cc.apply("D", vec![expr, cc.symbol(var)])
                     }
                 }
                 "Subtract" if args.len() == 2 => {
                     let d0 = differentiate(cc, args[0], var);
                     let d1 = differentiate(cc, args[1], var);
-                    let neg = cc.ap("Times", vec![cc.in_(-1), d1]);
-                    cc.eval(cc.ap("Plus", vec![d0, neg]))
+                    let neg = cc.apply("Times", vec![cc.in_(-1), d1]);
+                    cc.eval(cc.apply("Plus", vec![d0, neg]))
                 }
                 "Divide" if args.len() == 2 => {
                     let (a, b) = (args[0], args[1]);
                     let da = differentiate(cc, a, var);
                     let db = differentiate(cc, b, var);
-                    let t1 = cc.ap("Times", vec![da, b]);
-                    let t2 = cc.ap("Times", vec![cc.in_(-1), a, db]);
-                    let plus = cc.ap("Plus", vec![t1, t2]);
-                    let binv = cc.ap("Power", vec![b, cc.in_(-2)]);
-                    cc.eval(cc.ap("Times", vec![plus, binv]))
+                    let t1 = cc.apply("Times", vec![da, b]);
+                    let t2 = cc.apply("Times", vec![cc.in_(-1), a, db]);
+                    let plus = cc.apply("Plus", vec![t1, t2]);
+                    let binv = cc.apply("Power", vec![b, cc.in_(-2)]);
+                    cc.eval(cc.apply("Times", vec![plus, binv]))
                 }
                 // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
-                "Abs" | "Sqrt" if args.len() == 1 => cc.ap("D", vec![expr, cc.sym(var)]),
+                "Abs" | "Sqrt" if args.len() == 1 => cc.apply("D", vec![expr, cc.symbol(var)]),
                 _ => {
                     if let Some(def) = lookup_function(&h) {
                         if def.arity == 1 && args.len() == 1 {
                             if let Some(df) = def.unary_derivative {
                                 let outer = df(cc, args[0]);
                                 let inner = differentiate(cc, args[0], var);
-                                return cc.eval(cc.ap("Times", vec![outer, inner]));
+                                return cc.eval(cc.apply("Times", vec![outer, inner]));
                             }
                         }
                     }
                     // 未知头部：保留 D，禁止静默当成 0。
-                    cc.ap("D", vec![expr, cc.sym(var)])
+                    cc.apply("D", vec![expr, cc.symbol(var)])
                 }
             }
         }
@@ -105,13 +105,13 @@ pub fn differentiate_checked(
     var: &str,
     assumptions: &athena_types::AssumptionSet,
 ) -> ConditionalResult<TermId> {
-    if let Some((h, args)) = cc.app(expr) {
+    if let Some((h, args)) = cc.application(expr) {
         if h == "Abs" && args.len() == 1 {
             let inner = args[0];
-            let abs = cc.ap("Abs", vec![inner]);
-            let binv = cc.ap("Power", vec![inner, cc.in_(-1)]);
+            let abs = cc.apply("Abs", vec![inner]);
+            let binv = cc.apply("Power", vec![inner, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
-            let candidate = cc.eval(cc.ap("Times", vec![abs, binv, d]));
+            let candidate = cc.eval(cc.apply("Times", vec![abs, binv, d]));
             let needs_nonzero =
                 !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
@@ -125,11 +125,11 @@ pub fn differentiate_checked(
         }
         if h == "Sqrt" && args.len() == 1 {
             let inner = args[0];
-            let sqrt = cc.ap("Sqrt", vec![inner]);
-            let two_sqrt = cc.ap("Times", vec![cc.in_(2), sqrt]);
-            let binv = cc.ap("Power", vec![two_sqrt, cc.in_(-1)]);
+            let sqrt = cc.apply("Sqrt", vec![inner]);
+            let two_sqrt = cc.apply("Times", vec![cc.in_(2), sqrt]);
+            let binv = cc.apply("Power", vec![two_sqrt, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
-            let candidate = cc.eval(cc.ap("Times", vec![binv, d]));
+            let candidate = cc.eval(cc.apply("Times", vec![binv, d]));
             let needs_nonneg =
                 !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
             if needs_nonneg {

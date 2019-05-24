@@ -43,7 +43,7 @@ pub use domain::SolveDomain;
 pub use frontier::ResumeToken;
 pub use goal::SolveGoal;
 pub use map_coverage::{coverage_from_exact_disposition, coverage_from_factorization, coverage_from_machine_disposition};
-pub use normalize::{RelationalOperators, normalize_constraint_conjunction, normalize_relational_app};
+pub use normalize::{RelationalOperators, normalize_constraint_conjunction, normalize_relational_application};
 pub use policy::{ExecutionLimits, SolvePolicy};
 pub use problem::SolveProblem;
 pub use problem_from_ir::assemble_solve_problem;

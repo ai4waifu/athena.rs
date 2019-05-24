@@ -39,8 +39,8 @@ impl<'a> TermBuilder<'a> {
     }
 
     /// 已有符号 id 的原子 term。
-    pub fn symbol_id(&mut self, sym: SymbolId, span: SourceSpan) -> TermId {
-        self.arena.push(TermNode::Atom(Atom::Symbol(sym)), span)
+    pub fn symbol_id(&mut self, symbol: SymbolId, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Symbol(symbol)), span)
     }
 
     /// 列表 term。
@@ -49,14 +49,14 @@ impl<'a> TermBuilder<'a> {
     }
 
     /// 算子应用 term。
-    pub fn app(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
-        self.arena.push(TermNode::App { op, args }, span)
+    pub fn application(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Application { head: op, arguments: args }, span)
     }
 
     /// 经注册表解析 head 名的应用 term。
-    pub fn app_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
+    pub fn application_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
         let op = registry.intern(head);
-        self.app(op, args, span)
+        self.application(op, args, span)
     }
 
     /// Typed Boolean 原子 term。

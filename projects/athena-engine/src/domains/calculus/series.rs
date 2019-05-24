@@ -48,16 +48,16 @@ impl Series {
                 return cc.in_(1);
             }
             if power == 1 {
-                return cc.sym(&self.variable);
+                return cc.symbol(&self.variable);
             }
-            return cc.ap("Power", vec![cc.sym(&self.variable), cc.in_(power)]);
+            return cc.apply("Power", vec![cc.symbol(&self.variable), cc.in_(power)]);
         }
         let delta = if is_zero_term(cc, self.center) {
-            cc.sym(&self.variable)
+            cc.symbol(&self.variable)
         }
         else {
-            let neg = cc.ap("Times", vec![cc.in_(-1), self.center]);
-            let plus = cc.ap("Plus", vec![cc.sym(&self.variable), neg]);
+            let neg = cc.apply("Times", vec![cc.in_(-1), self.center]);
+            let plus = cc.apply("Plus", vec![cc.symbol(&self.variable), neg]);
             cc.eval(plus)
         };
         if power == 0 {
@@ -67,12 +67,12 @@ impl Series {
             delta
         }
         else {
-            cc.ap("Power", vec![delta, cc.in_(power)])
+            cc.apply("Power", vec![delta, cc.in_(power)])
         }
     }
 
     fn center_is_infinity(&self, cc: &CalculusCtx<'_>) -> bool {
-        matches!(cc.shape(self.center), Some(Shape::Sym(s)) if cc.sym_is(s, "Infinity"))
+        matches!(cc.shape(self.center), Some(Shape::Symbol(s)) if cc.symbol_is(s, "Infinity"))
     }
 
     /// 精确时转为 Plus/Times/Power 多项式项。
@@ -89,11 +89,11 @@ impl Series {
                 }
                 else {
                     let dp = self.delta_power(cc, *power);
-                    cc.eval(cc.ap("Times", vec![*coeff, dp]))
+                    cc.eval(cc.apply("Times", vec![*coeff, dp]))
                 }
             })
             .collect();
-        if parts.len() == 1 { parts[0] } else { cc.eval(cc.ap("Plus", parts)) }
+        if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) }
     }
 }
 
@@ -116,7 +116,7 @@ pub fn taylor(
     else {
         // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
         let shifted_var = {
-            let plus = cc.ap("Plus", vec![cc.sym(SHIFT), center]);
+            let plus = cc.apply("Plus", vec![cc.symbol(SHIFT), center]);
             cc.eval(plus)
         };
         replace_symbol(cc, expression, variable, shifted_var)
@@ -140,7 +140,7 @@ pub fn taylor(
                 reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
             };
         }
-        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.ap("Divide", vec![at_zero, cc.in_(factorial)])) };
+        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.apply("Divide", vec![at_zero, cc.in_(factorial)])) };
         if !is_zero_term(cc, coeff) {
             terms.push((coeff, n as i64));
         }
@@ -155,14 +155,14 @@ pub fn taylor(
     }
     else {
         let delta = if is_zero_term(cc, center) {
-            cc.sym(variable)
+            cc.symbol(variable)
         }
         else {
-            let neg = cc.ap("Times", vec![cc.in_(-1), center]);
-            let plus = cc.ap("Plus", vec![cc.sym(variable), neg]);
+            let neg = cc.apply("Times", vec![cc.in_(-1), center]);
+            let plus = cc.apply("Plus", vec![cc.symbol(variable), neg]);
             cc.eval(plus)
         };
-        let pow = cc.ap("Power", vec![delta, cc.in_((order + 1) as i64)]);
+        let pow = cc.apply("Power", vec![delta, cc.in_((order + 1) as i64)]);
         Remainder::BigO(pow)
     };
 
@@ -184,11 +184,11 @@ pub fn laurent(
 ) -> CalculusResult<Series> {
     const MAX_POLE: u32 = 8;
     let delta = if is_zero_term(cc, center) {
-        cc.sym(variable)
+        cc.symbol(variable)
     }
     else {
-        let neg = cc.ap("Times", vec![cc.in_(-1), center]);
-        let plus = cc.ap("Plus", vec![cc.sym(variable), neg]);
+        let neg = cc.apply("Times", vec![cc.in_(-1), center]);
+        let plus = cc.apply("Plus", vec![cc.symbol(variable), neg]);
         cc.eval(plus)
     };
 
@@ -197,8 +197,8 @@ pub fn laurent(
             expression
         }
         else {
-            let dpow = cc.ap("Power", vec![delta, cc.in_(m as i64)]);
-            let times = cc.ap("Times", vec![expression, dpow]);
+            let dpow = cc.apply("Power", vec![delta, cc.in_(m as i64)]);
+            let times = cc.apply("Times", vec![expression, dpow]);
             cc.eval(times)
         };
         match taylor(cc, cleared, variable, center, order.saturating_add(m)) {
@@ -243,7 +243,7 @@ fn remap_laurent_series(
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            let pow = cc.ap("Power", vec![delta, cc.in_((order + 1) as i64)]);
+            let pow = cc.apply("Power", vec![delta, cc.in_((order + 1) as i64)]);
             Remainder::BigO(pow)
         }
         Remainder::Unknown => Remainder::Unknown,
@@ -256,9 +256,9 @@ fn remap_laurent_series(
 /// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
 pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, order: u32) -> CalculusResult<Series> {
     const T: &str = "__athena_asymp_t";
-    let infinity = cc.sym("Infinity");
-    let t_sym = cc.sym(T);
-    let inv = cc.ap("Power", vec![t_sym, cc.in_(-1)]);
+    let infinity = cc.symbol("Infinity");
+    let t_sym = cc.symbol(T);
+    let inv = cc.apply("Power", vec![t_sym, cc.in_(-1)]);
     let substituted = replace_symbol(cc, expression, variable, inv);
     let g = cc.eval(substituted);
     let g = clear_negative_powers_of_var(cc, g, T);
@@ -279,7 +279,7 @@ pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
 
 /// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
 fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
-    let Some((h, args)) = cc.app(expr)
+    let Some((h, args)) = cc.application(expr)
     else {
         return expr;
     };
@@ -288,23 +288,23 @@ fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &st
             if cc.number_of(args[1]).is_some_and(|n| n.is_neg_one()) {
                 if let Some(k) = negative_valuation(cc, args[0], var) {
                     if k > 0 {
-                        let scale = cc.ap("Power", vec![cc.sym(var), cc.in_(k as i64)]);
-                        let cleared_den = cc.eval(cc.ap("Times", vec![args[0], scale]));
-                        let den_inv = cc.ap("Power", vec![cleared_den, cc.in_(-1)]);
-                        return cc.eval(cc.ap("Times", vec![scale, den_inv]));
+                        let scale = cc.apply("Power", vec![cc.symbol(var), cc.in_(k as i64)]);
+                        let cleared_den = cc.eval(cc.apply("Times", vec![args[0], scale]));
+                        let den_inv = cc.apply("Power", vec![cleared_den, cc.in_(-1)]);
+                        return cc.eval(cc.apply("Times", vec![scale, den_inv]));
                     }
                 }
             }
             let base = clear_negative_powers_of_var(cc, args[0], var);
-            cc.ap("Power", vec![base, args[1]])
+            cc.apply("Power", vec![base, args[1]])
         }
         "Plus" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.eval(cc.ap("Plus", parts))
+            cc.eval(cc.apply("Plus", parts))
         }
         "Times" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.eval(cc.ap("Times", parts))
+            cc.eval(cc.apply("Times", parts))
         }
         _ => expr,
     }
@@ -318,8 +318,8 @@ fn negative_valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<u
 
 fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
     match cc.shape(expr)? {
-        Shape::Sym(s) if cc.sym_is(s, var) => Some(1),
-        Shape::Sym(_) | Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => Some(0),
+        Shape::Symbol(s) if cc.symbol_is(s, var) => Some(1),
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => Some(0),
         Shape::List(items) => {
             let mut m = i64::MAX;
             for i in items {
@@ -327,8 +327,8 @@ fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
             }
             if m == i64::MAX { Some(0) } else { Some(m) }
         }
-        Shape::App(_, args) => {
-            let Some((h, args)) = cc.app(expr)
+        Shape::Application(_, args) => {
+            let Some((h, args)) = cc.application(expr)
             else {
                 return None;
             };
@@ -367,18 +367,18 @@ fn remap_asymptotic_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            let pow = cc.ap("Power", vec![cc.sym(variable), cc.in_(-(order as i64 + 1))]);
+            let pow = cc.apply("Power", vec![cc.symbol(variable), cc.in_(-(order as i64 + 1))]);
             Remainder::BigO(pow)
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    let center = cc.sym("Infinity");
+    let center = cc.symbol("Infinity");
     Series { variable: variable.to_string(), center, terms, order, remainder }
 }
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。
 fn term_has_singular_zero_power(cc: &CalculusCtx<'_>, term: TermId) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };

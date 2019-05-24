@@ -23,7 +23,7 @@ pub(crate) fn number_of<'a>(vm: &'a Vm<'_>, id: TermId) -> Option<&'a Number> {
     }
 }
 
-fn is_app_named(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
+fn is_application_named(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     vm.head_name(id).is_some_and(|h| h == name)
 }
 
@@ -49,7 +49,7 @@ pub(crate) fn plus(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
     match flat.len() {
         0 => vm.push_int(0),
         1 => flat[0],
-        _ => vm.push_app("Plus", flat),
+        _ => vm.push_application("Plus", flat),
     }
 }
 
@@ -98,7 +98,7 @@ fn groups_to_plus_terms(vm: &mut Vm<'_>, groups: Vec<(TermId, Number)>) -> Vec<T
 
 /// 拆出数值系数：`Times[c, rest…]` / 纯数 / 其它。
 fn split_numeric_coeff(vm: &mut Vm<'_>, term: TermId) -> (Number, TermId) {
-    if let Some(Shape::App(op, args)) = vm.shape(term) {
+    if let Some(Shape::Application(op, args)) = vm.shape(term) {
         if vm.session.operators.name(op) == Some("Times") && !args.is_empty() {
             let mut coef = Number::small_int(1);
             let mut rest = Vec::new();
@@ -114,7 +114,7 @@ fn split_numeric_coeff(vm: &mut Vm<'_>, term: TermId) -> (Number, TermId) {
             let kernel = match rest.len() {
                 0 => vm.push_int(1),
                 1 => rest[0],
-                _ => vm.push_app("Times", rest),
+                _ => vm.push_application("Times", rest),
             };
             return (coef, kernel);
         }
@@ -127,8 +127,8 @@ fn split_numeric_coeff(vm: &mut Vm<'_>, term: TermId) -> (Number, TermId) {
 }
 
 fn flatten_plus(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, sum: &mut Option<Number>) {
-    if is_app_named(vm, a, "Plus") {
-        let args = vm.app_args(a).unwrap_or_default();
+    if is_application_named(vm, a, "Plus") {
+        let args = vm.application_arguments(a).unwrap_or_default();
         for x in args {
             flatten_plus(vm, x, flat, sum);
         }
@@ -179,7 +179,7 @@ fn times_outcome(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         let am = super::matrix::term_to_rational_matrix(vm, lists[0]);
         let bm = super::matrix::term_to_rational_matrix(vm, lists[1]);
         if let (Some(am), Some(bm)) = (am, bm) {
-            let echo = vm.push_app("Times", args.to_vec());
+            let echo = vm.push_application("Times", args.to_vec());
             return match crate::domains::linear_algebra::matmul(&am, &bm) {
                 Ok(m) => match super::matrix::matrix_to_nested_list(vm, &m) {
                     Ok(term) => Outcome::value(term),
@@ -210,9 +210,9 @@ pub(crate) fn times(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
         return vm.push_int(1);
     }
     // Times 对 Plus 分配：c·(a+b) → c·a + c·b（仅单层，避免爆炸）
-    if let Some(idx) = flat.iter().position(|t| is_app_named(vm, *t, "Plus")) {
+    if let Some(idx) = flat.iter().position(|t| is_application_named(vm, *t, "Plus")) {
         let plus_id = flat.remove(idx);
-        if let Some(summands) = vm.app_args(plus_id) {
+        if let Some(summands) = vm.application_arguments(plus_id) {
             let mut parts = Vec::with_capacity(summands.len());
             for s in summands {
                 let mut factors = flat.clone();
@@ -227,7 +227,7 @@ pub(crate) fn times(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
     match flat.len() {
         0 => vm.push_int(1),
         1 => flat[0],
-        _ => vm.push_app("Times", flat),
+        _ => vm.push_application("Times", flat),
     }
 }
 
@@ -253,10 +253,10 @@ fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<TermId>) -> Vec<TermId> {
     let mut rest = Vec::new();
     for f in factors {
         let base_exp = match vm.shape(f) {
-            Some(Shape::App(op, args)) if vm.session.operators.name(op) == Some("Power") && args.len() == 2 => {
+            Some(Shape::Application(op, args)) if vm.session.operators.name(op) == Some("Power") && args.len() == 2 => {
                 Some((args[0], args[1]))
             }
-            Some(Shape::Sym(_)) => {
+            Some(Shape::Symbol(_)) => {
                 let one = vm.push_int(1);
                 Some((f, one))
             }
@@ -293,8 +293,8 @@ fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<TermId>) -> Vec<TermId> {
 }
 
 fn flatten_times(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, prod: &mut Option<Number>) {
-    if is_app_named(vm, a, "Times") {
-        let args = vm.app_args(a).unwrap_or_default();
+    if is_application_named(vm, a, "Times") {
+        let args = vm.application_arguments(a).unwrap_or_default();
         for x in args {
             flatten_times(vm, x, flat, prod);
         }
@@ -325,7 +325,7 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
         if e.is_zero() {
             // 标量 `x^0 → 1`；List 用 `DotPower` 逐元素，此路不处理。
             if matches!(vm.shape(base), Some(Shape::List(_))) {
-                return vm.push_app("Power", vec![base, exp]);
+                return vm.push_application("Power", vec![base, exp]);
             }
             return vm.push_int(1);
         }
@@ -341,11 +341,11 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
         }
         // (c * u)^n → c^n * u^n（整数 n）；(u^a)^b → u^(a*b)（a,b 为数）
         if e.as_integer_exp().is_some() {
-            if let Some(Shape::App(op, args)) = vm.shape(base) {
+            if let Some(Shape::Application(op, args)) = vm.shape(base) {
                 if vm.session.operators.name(op) == Some("Times") && args.len() >= 2 {
                     if let Some(c) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("coef copy")) {
                         if let Ok(cp) = num_pow(&c, &e) {
-                            let rest = if args.len() == 2 { args[1] } else { vm.push_app("Times", args[1..].to_vec()) };
+                            let rest = if args.len() == 2 { args[1] } else { vm.push_application("Times", args[1..].to_vec()) };
                             let rest_pow = power(vm, rest, exp);
                             let cp_id = push_number(vm, cp);
                             return times(vm, &[cp_id, rest_pow]);
@@ -371,7 +371,7 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
             return push_number(vm, v);
         }
     }
-    vm.push_app("Power", vec![base, exp])
+    vm.push_application("Power", vec![base, exp])
 }
 
 pub(crate) fn h_subtract(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
@@ -401,7 +401,7 @@ pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
-    let args = vm.app_args(root).unwrap_or_default();
+    let args = vm.application_arguments(root).unwrap_or_default();
     if args.len() != 2 {
         return Outcome::invalid(
             root,
@@ -417,7 +417,7 @@ pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     };
     let _ = &diags;
     let op = vm.session.operators.intern(&name);
-    let echo = vm.rebuild_app_op(op, vec![a.term, b.term]);
+    let echo = vm.rebuild_application_operator(op, vec![a.term, b.term]);
     if a.has_error() || b.has_error() {
         let mut d = a.diagnostics.clone();
         d.extend(b.diagnostics.clone());

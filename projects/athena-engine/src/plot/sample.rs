@@ -49,7 +49,7 @@ pub fn sample_1d(
         let t = i as f64 / (n - 1) as f64;
         let x = domain.start + span * t;
         let point = execution::push_number(session, Number::machine(x));
-        let vs = var_sym(session, var);
+        let vs = var_symbol(session, var);
         let substituted = execution::substitute_symbol(session, expr, vs, point);
         let value = execution::vm::evaluate_session(session, substituted).term;
         let (y, valid) = match execution::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
@@ -76,7 +76,7 @@ pub fn sample_1d(
     Ok(curve)
 }
 
-fn var_sym(session: &mut Session, var: &str) -> athena_types::SymbolId {
+fn var_symbol(session: &mut Session, var: &str) -> athena_types::SymbolId {
     session.arena.symbols_mut().intern(var)
 }
 
