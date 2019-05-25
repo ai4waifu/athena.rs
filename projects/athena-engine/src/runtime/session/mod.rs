@@ -82,7 +82,7 @@ impl Session {
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
             arena: TermStore::new(),
-            operators: OperatorRegistry::standard(),
+            operators: OperatorRegistry::new(),
             defs: DefinitionLayer::new(),
             units: UnitCache::new(),
             module_counter: 0,

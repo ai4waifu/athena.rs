@@ -8,7 +8,7 @@ fn build_plus_x_plus_y(x_first: bool) -> (TermStore, athena_types::TermId) {
     let mut b = TermBuilder::new(&mut arena);
     let x = b.symbol("x", SPAN);
     let y = b.symbol("y", SPAN);
-    let plus = b.application_named(&mut OperatorRegistry::standard(), "Plus", vec![x, y], SPAN);
+    let plus = b.application_named(&mut OperatorRegistry::new(), "Plus", vec![x, y], SPAN);
     let _ = x_first;
     (arena, plus)
 }
@@ -63,7 +63,7 @@ fn structural_eq_value_and_structure() {
     let mut arena3 = TermStore::new();
     let mut b = TermBuilder::new(&mut arena3);
     let x = b.symbol("x", SPAN);
-    let plus = b.application_named(&mut OperatorRegistry::standard(), "Plus", vec![x, x], SPAN);
+    let plus = b.application_named(&mut OperatorRegistry::new(), "Plus", vec![x, x], SPAN);
     assert!(!arena3.structural_eq(plus, r1));
     assert!(arena3.structural_eq(plus, plus));
 }

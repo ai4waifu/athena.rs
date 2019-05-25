@@ -23,7 +23,8 @@ pub struct RelationalOperators {
 }
 
 impl RelationalOperators {
-    /// 测试用占位 id（`0..5`）。
+    /// 测试用占位 id（`0..5`）。调用方须自行保证与构造的 `OperatorId` 一致。
+    /// 不依赖任何预置表面算子目录。
     pub fn placeholder() -> Self {
         Self {
             equal: OperatorId(0),
