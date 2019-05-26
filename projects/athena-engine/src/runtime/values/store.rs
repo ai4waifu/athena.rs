@@ -63,8 +63,8 @@ impl ValueStore {
         self.values.contains_key(&id)
     }
 
-    /// 已分配数量。
-    pub fn len(&self) -> usize {
+    /// 已分配值条数（不是序列长度）。
+    pub fn count(&self) -> usize {
         self.values.len()
     }
 
