@@ -41,6 +41,22 @@ fn relation_index_groups_by_scope() {
     let rec = view.relation(ids[0]).unwrap();
     assert_eq!(rec.scope, ScopeRef::UNCONDITIONAL);
     assert_eq!(rec.status, RelationStatus::Accepted);
+    assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::POLYNOMIAL_RESULT);
+    assert!(rec.subjects.is_empty());
+}
+
+#[test]
+fn admit_maps_congruence_predicate() {
+    let mut core = MGraphCore::new();
+    let id = core.admit(VerifiedClaim::new(Claim {
+        proposition: Proposition::Congruence { modulus_fingerprint: 7, left: 1, right: 8 },
+        scope: Scope::Unconditional,
+        guarantee: Guarantee::ProvenExact,
+        evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "test".into() },
+    }));
+    let view = MGraphView::new(&core);
+    let rec = view.relation(id).unwrap();
+    assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::CONGRUENCE);
 }
 
 #[test]
@@ -59,7 +75,7 @@ fn scope_index_refines_edge() {
 fn semantic_core_commit_syncs_core_and_fact_log() {
     let mut semantic = SemanticCore::new();
     let id = semantic.commit(sample_verified(42));
-    assert_eq!(semantic.fact_log.len(), 1);
+    assert_eq!(semantic.fact_log.count(), 1);
     assert_eq!(semantic.relation_count(), 1);
     assert!(semantic.relation(id).is_some());
     assert!(semantic.view().relation(id).is_some());

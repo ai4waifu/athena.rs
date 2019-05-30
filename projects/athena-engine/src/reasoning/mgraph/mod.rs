@@ -27,9 +27,9 @@ pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, OperationalState, run_closure_step};
 pub use core::{
     ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
-    MGraphCore, MGraphState, MGraphView, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind,
-    SolverCandidate, SolverFrontier, SolverId, SolverScore, WitnessRef, scope_from_ref, scope_ref_from_assumption_set,
-    scope_to_ref,
+    MGraphCore, MGraphState, MGraphView, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef,
+    ScopeRelationKind, SemanticRef, SolverCandidate, SolverFrontier, SolverId, SolverScore, WitnessRef, predicates,
+    scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use equivalence::ExactUnionFind;
 pub use facts::{Claim, Evidence, FactId, FactLog, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};

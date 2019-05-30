@@ -2,6 +2,8 @@
 
 use athena_types::{AssumptionSetId, TermId};
 
+use crate::reasoning::mgraph::core::refs::PredicateId;
+
 /// 求解器 id（M-Graph / solver 共享）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SolverId(pub u32);
@@ -48,12 +50,14 @@ pub struct DeterminacyGuarantee {
 }
 
 /// 超边（多参数联合约束）。
+///
+/// Living `26`：用 [`PredicateId`] 标识关系，禁止任意 `String` 标签。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HyperEdge {
     /// 参与项。
     pub nodes: Vec<TermId>,
-    /// 标签。
-    pub label: String,
+    /// 语义谓词。
+    pub predicate: PredicateId,
 }
 
 /// 重写 / 求解 witness。

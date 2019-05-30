@@ -7,12 +7,12 @@ use athena_engine::reasoning::mgraph::{
 #[test]
 fn fact_log_is_append_only_monotonic() {
     let mut core = SemanticCore::new();
-    assert_eq!(core.fact_log.len(), 0);
+    assert_eq!(core.fact_log.count(), 0);
     let id0 = core.commit(sample_claim(Guarantee::ProvenExact, 1));
     let id1 = core.commit(sample_claim(Guarantee::ProvenExact, 2));
     assert_eq!(id0, FactId(0));
     assert_eq!(id1, FactId(1));
-    assert_eq!(core.fact_log.len(), 2);
+    assert_eq!(core.fact_log.count(), 2);
     assert!(core.fact_log.get(FactId(0)).is_some());
 }
 

@@ -9,8 +9,8 @@ pub mod state;
 pub mod types;
 
 pub use refs::{
-    RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, WitnessRef, scope_from_ref, scope_ref_from_assumption_set,
-    scope_to_ref,
+    PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, WitnessRef, predicates,
+    scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use state::MGraphState;
 pub use types::{
@@ -83,7 +83,7 @@ impl MGraphCore {
 
     /// 关系条数。
     pub fn relation_count(&self) -> usize {
-        self.relation_index.len()
+        self.relation_index.count()
     }
 }
 

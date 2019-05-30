@@ -35,8 +35,8 @@ impl FactLog {
         self.claims.get(id.0 as usize)
     }
 
-    /// 条目数。
-    pub fn len(&self) -> usize {
+    /// 已验证事实条数。
+    pub fn count(&self) -> usize {
         self.claims.len()
     }
 
