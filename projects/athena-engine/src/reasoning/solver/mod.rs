@@ -17,4 +17,4 @@ pub use frontier::score_candidate;
 pub use reflector::{ReflectionResult, Reflector, SolverContext};
 pub use registry::SolverRegistry;
 pub use request::{DomainRef, SolverLimits, SolverOperation, SolverRequest};
-pub use types::{SolverId, SolverMetadata};
+pub use types::{CapabilityProviderId, SolverMetadata};

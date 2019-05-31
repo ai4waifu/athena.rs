@@ -7,7 +7,7 @@ use crate::{
     reasoning::mgraph::{
         core::state::MGraphState,
         facts::claim::{Claim, Evidence, Guarantee, Scope, VerifiedClaim, proposition_from_cache_key},
-        polynomial::{POLYNOMIAL_SOLVER_ID, PolynomialWitness, witness_from_exact},
+        polynomial::{POLYNOMIAL_PROVIDER_ID, PolynomialWitness, witness_from_exact},
     },
 };
 
@@ -184,7 +184,7 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
 
 fn build_polynomial_evidence(key: &PolynomialCacheKey, value: &PolynomialDomainValue, guarantee: Guarantee) -> Evidence {
     if guarantee != Guarantee::ProvenExact {
-        return Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: format!("rejected:{guarantee:?}") };
+        return Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: format!("rejected:{guarantee:?}") };
     }
     let witness = witness_from_exact(key, value);
     evidence_from_witness(&witness)
@@ -214,7 +214,7 @@ fn guarantee_rank(g: Guarantee) -> u8 {
 
 fn evidence_from_witness(witness: &PolynomialWitness) -> Evidence {
     Evidence::TrustedKernel {
-        solver: POLYNOMIAL_SOLVER_ID,
+        provider: POLYNOMIAL_PROVIDER_ID,
         summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary),
     }
 }

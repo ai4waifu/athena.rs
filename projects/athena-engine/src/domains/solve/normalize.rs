@@ -38,7 +38,11 @@ impl RelationalOperators {
 }
 
 /// 将二元关系 App 归一化为 [`Constraint`]，**不**压成 `lhs - rhs = 0`。
-pub fn normalize_relational_application(arena: &TermStore, root: TermId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
+pub fn normalize_relational_application(
+    arena: &TermStore,
+    root: TermId,
+    ops: &RelationalOperators,
+) -> Result<Constraint, Diagnostic> {
     let (kind, span) = arena_node(arena, root)?;
     let TermNode::Application { head: op, arguments: args } = kind
     else {

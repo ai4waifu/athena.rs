@@ -54,7 +54,13 @@ impl<'a> TermBuilder<'a> {
     }
 
     /// 经注册表解析 head 名的应用 term。
-    pub fn application_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
+    pub fn application_named(
+        &mut self,
+        registry: &mut OperatorRegistry,
+        head: &str,
+        args: Vec<TermId>,
+        span: SourceSpan,
+    ) -> TermId {
         let op = registry.intern(head);
         self.application(op, args, span)
     }

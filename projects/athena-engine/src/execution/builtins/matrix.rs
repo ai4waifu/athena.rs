@@ -42,7 +42,8 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
-            let (a, b) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
+            let (a, b) =
+                (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if a.len() != b.len() {
                 let echo = vm.rebuild_application_operator(op, vec![left, right]);
                 return Outcome::invalid(

@@ -6,14 +6,14 @@ use crate::reasoning::mgraph::{DeterminacyGuarantee, EqualityWitness, HyperEdge,
 
 use super::{
     request::SolverRequest,
-    types::{SolverId, SolverMetadata},
+    types::{CapabilityProviderId, SolverMetadata},
 };
 
 /// 求解上下文。
 #[derive(Debug, Clone, Copy)]
 pub struct SolverContext {
-    /// 调用求解器。
-    pub solver: SolverId,
+    /// 能力 provider。
+    pub provider: CapabilityProviderId,
 }
 
 /// Reflection 结果 — solver 不直改 `TermStore`。

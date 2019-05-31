@@ -1,7 +1,7 @@
 //! M-Graph 实现层：`MGraphCore` · scope/relation 索引 · admit 路径。
 
 use athena_engine::reasoning::mgraph::{
-    AdmissionGate, Claim, ClosureSeeds, Evidence, Guarantee, MGraphCore, MGraphView, OuterCandidate, POLYNOMIAL_SOLVER_ID,
+    AdmissionGate, Claim, ClosureSeeds, Evidence, Guarantee, MGraphCore, MGraphView, OuterCandidate, POLYNOMIAL_PROVIDER_ID,
     Proposition, RelationStatus, Scope, ScopeRef, ScopeRelationKind, SemanticCore, VerificationPolicy, scope_from_ref,
     scope_to_ref,
 };
@@ -55,7 +55,7 @@ fn admit_maps_congruence_predicate() {
             proposition: Proposition::Congruence { modulus_fingerprint: 7, left: 1, right: 8 },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "test".into() },
+            evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
         },
     );
     let view = semantic.view();
@@ -95,7 +95,7 @@ fn outer_candidate_is_not_stored_in_core() {
         },
         scope: Scope::Unconditional,
         guarantee: Guarantee::Candidate,
-        evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "pending".into() },
+        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "pending".into() },
     });
     assert_eq!(semantic.relation_count(), 0);
 }
@@ -120,7 +120,7 @@ fn candidate_guarantee_is_rejected_by_admission_gate() {
             },
             scope: Scope::Unconditional,
             guarantee: Guarantee::Candidate,
-            evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "forge".into() },
+            evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "forge".into() },
         },
         &VerificationPolicy::default(),
     )
@@ -141,6 +141,6 @@ fn sample_claim(fingerprint: u64) -> Claim {
         },
         scope: Scope::Unconditional,
         guarantee: Guarantee::ProvenExact,
-        evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "test".into() },
+        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
     }
 }

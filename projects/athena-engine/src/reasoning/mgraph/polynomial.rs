@@ -2,12 +2,12 @@
 
 use std::collections::HashMap;
 
-use crate::reasoning::mgraph::core::types::{RewriteWitness, SolverId};
+use crate::reasoning::mgraph::core::types::{CapabilityProviderId, RewriteWitness};
 
 use crate::domains::polynomial::{PolynomialCacheKey, PolynomialCacheOp, PolynomialDomainValue, PolynomialResult};
 
-/// 多项式域 solver id（M-Graph / solver 共享）。
-pub const POLYNOMIAL_SOLVER_ID: SolverId = SolverId(10);
+/// 多项式域 capability provider 身份。
+pub const POLYNOMIAL_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(10);
 
 /// 缓存接纳层级（semantic core 与 partial 结果分离）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -73,7 +73,7 @@ impl PolynomialMGraphStore {
     pub fn insert(&mut self, entry: PolynomialCacheEntry) -> Option<RewriteWitness> {
         let edge = if entry.tier == PolynomialCacheTier::Verified {
             entry.witness.as_ref().map(|_| RewriteWitness {
-                solver: POLYNOMIAL_SOLVER_ID,
+                provider: POLYNOMIAL_PROVIDER_ID,
                 inputs: Vec::new(),
                 outputs: Vec::new(),
             })

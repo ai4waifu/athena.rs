@@ -252,7 +252,8 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
         if !positive && degree % 2 == 1 {
             sign_positive = !sign_positive;
         }
-        let value = if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
+        let value =
+            if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
     unevaluated_limit(

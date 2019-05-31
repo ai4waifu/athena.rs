@@ -1,6 +1,6 @@
 //! 求解器标识与元数据（调度侧，不含数学覆盖承诺）。
 
-pub use crate::reasoning::mgraph::SolverId;
+pub use crate::reasoning::mgraph::CapabilityProviderId;
 
 /// 求解器元数据。
 ///

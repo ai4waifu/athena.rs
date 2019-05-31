@@ -28,7 +28,7 @@ fn quantize_score(benefit: f64, cost: f64, confidence: f64, unlocks: usize) -> i
 
 fn stable_tie_breaker(candidate: &SolverCandidate) -> u64 {
     let mut h = DefaultHasher::new();
-    candidate.solver.0.hash(&mut h);
+    candidate.provider.0.hash(&mut h);
     for root in &candidate.roots {
         root.0.hash(&mut h);
     }

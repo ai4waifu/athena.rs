@@ -4,9 +4,9 @@ use athena_types::{AssumptionSetId, TermId};
 
 use crate::reasoning::mgraph::core::refs::PredicateId;
 
-/// 求解器 id（M-Graph / solver 共享）。
+/// 能力 provider 身份（M-Graph / capability registry 共享）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SolverId(pub u32);
+pub struct CapabilityProviderId(pub u32);
 
 /// 等价类划分（`TermId` → 代表元）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -63,8 +63,8 @@ pub struct HyperEdge {
 /// 重写 / 求解 witness。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewriteWitness {
-    /// 求解器。
-    pub solver: SolverId,
+    /// 能力 provider。
+    pub provider: CapabilityProviderId,
     /// 输入。
     pub inputs: Vec<TermId>,
     /// 输出。
@@ -85,8 +85,8 @@ pub struct EqualityWitness {
 /// 求解候选。
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolverCandidate {
-    /// 求解器。
-    pub solver: SolverId,
+    /// 能力 provider。
+    pub provider: CapabilityProviderId,
     /// 根项。
     pub roots: Vec<TermId>,
 }

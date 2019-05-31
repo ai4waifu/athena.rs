@@ -4,9 +4,7 @@
 use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
-    core::refs::{
-        PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, WitnessRef, predicates, scope_to_ref,
-    },
+    core::refs::{PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, WitnessRef, predicates, scope_to_ref},
     facts::{
         claim::{Guarantee, Proposition, VerifiedClaim},
         log::FactId,
