@@ -4,7 +4,10 @@
 use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
-    core::refs::{PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, WitnessRef, predicates, scope_to_ref},
+    core::refs::{
+        PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates,
+        scope_to_ref,
+    },
     facts::{
         claim::{Guarantee, Proposition, VerifiedClaim},
         log::FactId,
@@ -20,6 +23,8 @@ pub struct RelationRecord {
     pub subjects: Vec<SemanticRef>,
     /// 所属 scope。
     pub scope: ScopeRef,
+    /// 理论上下文。
+    pub theory: TheoryContextId,
     /// 接纳状态。
     pub status: RelationStatus,
     /// 证据引用（可为 `None`，证据仍在 claim 内）。
@@ -33,15 +38,17 @@ impl RelationRecord {
     pub fn from_verified(claim: VerifiedClaim) -> Self {
         let scope = scope_to_ref(claim.claim.scope);
         let status = relation_status_from_guarantee(claim.claim.guarantee);
-        let (predicate, subjects) = predicate_and_subjects(&claim.claim.proposition);
-        Self { predicate, subjects, scope, status, witness: None, verified: claim }
+        let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim.proposition);
+        Self { predicate, subjects, scope, theory, status, witness: None, verified: claim }
     }
 }
 
-fn predicate_and_subjects(proposition: &Proposition) -> (PredicateId, Vec<SemanticRef>) {
+fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<SemanticRef>, TheoryContextId) {
     match proposition {
-        Proposition::PolynomialResult { .. } => (predicates::POLYNOMIAL_RESULT, Vec::new()),
-        Proposition::Congruence { .. } => (predicates::CONGRUENCE, Vec::new()),
+        Proposition::PolynomialResult { .. } => {
+            (predicates::POLYNOMIAL_RESULT, Vec::new(), TheoryContextId::POLYNOMIAL)
+        }
+        Proposition::Congruence { .. } => (predicates::CONGRUENCE, Vec::new(), TheoryContextId::CONGRUENCE),
     }
 }
 

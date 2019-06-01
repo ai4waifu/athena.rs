@@ -43,6 +43,7 @@ fn relation_index_groups_by_scope() {
     assert_eq!(rec.scope, ScopeRef::UNCONDITIONAL);
     assert_eq!(rec.status, RelationStatus::Accepted);
     assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::POLYNOMIAL_RESULT);
+    assert_eq!(rec.theory, athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL);
     assert!(rec.subjects.is_empty());
 }
 
