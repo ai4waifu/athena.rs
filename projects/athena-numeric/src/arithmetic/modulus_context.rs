@@ -115,9 +115,8 @@ impl ModulusTable {
         }
         let id = ModulusId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        let mut ctx = ModulusContext::from_modulus(
-            modulus.try_clone_in(&NumericContext::portable_default()).expect("modulus clone for intern"),
-        );
+        let mut ctx =
+            ModulusContext::from_modulus(modulus.try_clone_in(&NumericContext::portable_default()).expect("modulus clone for intern"));
         ctx.id = id;
         self.by_modulus.insert(modulus, id);
         self.contexts.insert(id, ctx);

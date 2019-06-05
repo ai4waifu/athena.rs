@@ -102,18 +102,7 @@ pub struct FixtureMeta {
 impl FixtureMeta {
     /// 非 bigint 种子 fixture 的简写构造。
     pub fn basic(id: &'static str, group: BenchGroup, scale: &'static str, domain: &'static str) -> Self {
-        Self {
-            id,
-            group,
-            scale,
-            domain,
-            layer: None,
-            context_policy: None,
-            implementation: None,
-            operation: None,
-            bits: None,
-            gc_mode: None,
-        }
+        Self { id, group, scale, domain, layer: None, context_policy: None, implementation: None, operation: None, bits: None, gc_mode: None }
     }
 
     /// Path 分段：强制标注 layer / context / gc（Living `15`/`18`，禁止互冒）。
@@ -307,11 +296,7 @@ fn base_report(
         peak_scratch_bytes: None,
         gc_time_ns: None,
         validation: validation.unwrap_or_else(|| {
-            ValidationSummary::passed(
-                crate::validate::ExactnessKind::Unspecified,
-                crate::validate::DeterminacyKind::Unspecified,
-                "skipped",
-            )
+            ValidationSummary::passed(crate::validate::ExactnessKind::Unspecified, crate::validate::DeterminacyKind::Unspecified, "skipped")
         }),
         fallback_reason: Some(reason.to_string()),
         timing_note: Some("performance timing is Criterion-only (`cargo bench`); athena-bench does not measure ns/op".into()),

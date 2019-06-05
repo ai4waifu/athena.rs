@@ -97,11 +97,7 @@ impl ChunkRegistry {
             return Err(GraphError::ChunkPinned { chunk: id });
         }
         if !matches!(meta.residency, ChunkResidency::Resident | ChunkResidency::Evictable | ChunkResidency::Mapped) {
-            return Err(GraphError::InvalidResidencyTransition {
-                chunk: id,
-                from: meta.residency,
-                to: ChunkResidency::Spilled,
-            });
+            return Err(GraphError::InvalidResidencyTransition { chunk: id, from: meta.residency, to: ChunkResidency::Spilled });
         }
         meta.spill = Some(spill);
         meta.residency = ChunkResidency::Spilled;
@@ -115,11 +111,7 @@ impl ChunkRegistry {
             return Err(GraphError::ChunkUnreachable { chunk: id });
         }
         if !meta.residency.can_materialize() && meta.residency != ChunkResidency::Loading {
-            return Err(GraphError::InvalidResidencyTransition {
-                chunk: id,
-                from: meta.residency,
-                to: ChunkResidency::Resident,
-            });
+            return Err(GraphError::InvalidResidencyTransition { chunk: id, from: meta.residency, to: ChunkResidency::Resident });
         }
         meta.residency = ChunkResidency::Loading;
         meta.residency = ChunkResidency::Resident;
@@ -133,11 +125,7 @@ impl ChunkRegistry {
             return Err(GraphError::ChunkPinned { chunk: id });
         }
         if meta.residency != ChunkResidency::Resident {
-            return Err(GraphError::InvalidResidencyTransition {
-                chunk: id,
-                from: meta.residency,
-                to: ChunkResidency::Evictable,
-            });
+            return Err(GraphError::InvalidResidencyTransition { chunk: id, from: meta.residency, to: ChunkResidency::Evictable });
         }
         meta.residency = ChunkResidency::Evictable;
         Ok(())

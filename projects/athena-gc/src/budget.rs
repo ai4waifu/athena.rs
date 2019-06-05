@@ -17,12 +17,7 @@ pub struct HeapBudget {
 
 impl Default for HeapBudget {
     fn default() -> Self {
-        Self {
-            max_arena_bytes: 256 * 1024 * 1024,
-            max_segment_count: 4096,
-            max_limbs: 64 * 1024 * 1024,
-            max_scratch_bytes: 64 * 1024 * 1024,
-        }
+        Self { max_arena_bytes: 256 * 1024 * 1024, max_segment_count: 4096, max_limbs: 64 * 1024 * 1024, max_scratch_bytes: 64 * 1024 * 1024 }
     }
 }
 

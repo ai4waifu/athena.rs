@@ -82,13 +82,8 @@ fn structural_eq_walk(arena: &TermStore, x: TermId, y: TermId, seen: &mut std::c
         (Some(TermNode::List(xs)), Some(TermNode::List(ys))) => {
             xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
         }
-        (
-            Some(TermNode::Application { head: op_x, arguments: xs }),
-            Some(TermNode::Application { head: op_y, arguments: ys }),
-        ) => {
-            op_x == op_y
-                && xs.len() == ys.len()
-                && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
+        (Some(TermNode::Application { head: op_x, arguments: xs }), Some(TermNode::Application { head: op_y, arguments: ys })) => {
+            op_x == op_y && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
         }
         _ => false,
     }

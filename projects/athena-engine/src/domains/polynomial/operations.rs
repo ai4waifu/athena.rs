@@ -21,7 +21,7 @@ pub fn add_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     }
     let ring = lhs.ring();
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
-    rings.coeff_kernel(ring)?;
+    rings.coefficient_kernel(ring)?;
     let mut raw = lhs.into_parts().1;
     raw.extend(rhs.into_parts().1);
     canonicalize_terms(ring, desc, raw, rings)
@@ -35,7 +35,7 @@ pub fn sub_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     }
     let ring = lhs.ring();
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
-    let coeff = rings.coeff_kernel(ring)?;
+    let coeff = rings.coefficient_kernel(ring)?;
     validate_exponent_lengths(&lhs, desc.variable_count())?;
     validate_exponent_lengths(&rhs, desc.variable_count())?;
     let mut raw = lhs.into_parts().1;
@@ -54,7 +54,7 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     }
     let ring = lhs.ring();
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
-    let coeff = rings.coeff_kernel(ring)?;
+    let coeff = rings.coefficient_kernel(ring)?;
     let n = desc.variable_count();
     validate_exponent_lengths(&lhs, n)?;
     validate_exponent_lengths(&rhs, n)?;
@@ -62,10 +62,7 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     for lt in lhs.terms() {
         for rt in rhs.terms() {
             let exponents = add_exponent_vectors(lt.exponents(), rt.exponents())?;
-            raw.push(MonomialTerm::from_parts(
-                coeff.mul(clone_number(lt.coefficient()), clone_number(rt.coefficient()))?,
-                exponents,
-            ));
+            raw.push(MonomialTerm::from_parts(coeff.mul(clone_number(lt.coefficient()), clone_number(rt.coefficient()))?, exponents));
         }
     }
     canonicalize_terms(ring, desc, raw, rings)
@@ -84,9 +81,7 @@ fn validate_exponent_lengths(poly: &Polynomial, n: usize) -> Result<()> {
 
 fn ensure_same_ring(lhs: &Polynomial, rhs: &Polynomial) -> Result<()> {
     if lhs.ring() != rhs.ring() {
-        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
-            .detail("domain", "polynomial")
-            .detail("operation", "ring_mismatch"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("domain", "polynomial").detail("operation", "ring_mismatch"));
     }
     Ok(())
 }

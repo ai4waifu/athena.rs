@@ -1,8 +1,8 @@
 //! 图身份 / snapshot / view mapping / CSR 单调校验合同。
 
 use athena_graph::{
-    CsrGraph, GraphBuilder, GraphDirection, GraphId, GraphRevision, GraphSemantics, ImmutableGraph, InducedSubgraphView,
-    MutableGraph, ReversedGraphView, ViewTransform, graph_to_csr,
+    CsrGraph, GraphBuilder, GraphDirection, GraphId, GraphRevision, GraphSemantics, ImmutableGraph, InducedSubgraphView, MutableGraph,
+    ReversedGraphView, ViewTransform, graph_to_csr,
 };
 use athena_ndarray::{ChunkedArray, InMemoryStorage, LogicalShape, MemoryBudget};
 
@@ -150,8 +150,7 @@ fn induced_view_maps_only_kept_nodes_and_internal_edges() {
 #[test]
 fn csr_rejects_non_monotonic_offsets() {
     let budget = MemoryBudget::new(4096).unwrap();
-    let offsets =
-        ChunkedArray::new(LogicalShape::new([4]).unwrap(), InMemoryStorage::from_vec(vec![0, 5, 3, 10]), budget).unwrap();
+    let offsets = ChunkedArray::new(LogicalShape::new([4]).unwrap(), InMemoryStorage::from_vec(vec![0, 5, 3, 10]), budget).unwrap();
     let indices = ChunkedArray::new(LogicalShape::new([10]).unwrap(), InMemoryStorage::from_vec(vec![0; 10]), budget).unwrap();
     let err = CsrGraph::new(3, offsets, indices).unwrap_err();
     assert!(matches!(err, athena_graph::GraphError::OffsetNonMonotonic { .. }));

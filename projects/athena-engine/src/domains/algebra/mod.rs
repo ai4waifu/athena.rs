@@ -30,21 +30,18 @@ pub use finite_field_poly::{
     FiniteFieldPolySpec, add_coords, canonical_coords, frobenius_coords, frobenius_power_coords, inv_coords, mul_coords,
 };
 pub use galois_field::{
-    apply_frobenius_coords, field_automorphism, galois_group_of_extension, is_extension_normal, is_extension_separable,
-    is_galois_extension,
+    apply_frobenius_coords, field_automorphism, galois_group_of_extension, is_extension_normal, is_extension_separable, is_galois_extension,
 };
 pub use group_facts::GroupPropertyFacts;
 pub use group_table::{GroupTable, PermutationGroupSpec};
 pub use map::{
-    AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind, QuotientProjection,
-    SubgroupInclusion,
+    AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind, QuotientProjection, SubgroupInclusion,
 };
 pub use map_table::MapTable;
 pub use number_field::{
-    NumberFieldSpec, absolute_degree_product, add_nf_coords, canonical_nf_coords, embed_base_coords, inv_nf_coords,
-    inv_relative_nf_coords, is_irreducible_over_rationals, make_monic, minimal_polynomial_from_powers,
-    minimal_polynomial_over_q, mul_nf_coords, mul_relative_nf_coords, relative_modulus_from_rational,
-    validate_rational_modulus,
+    NumberFieldSpec, absolute_degree_product, add_nf_coords, canonical_nf_coords, embed_base_coords, inv_nf_coords, inv_relative_nf_coords,
+    is_irreducible_over_rationals, make_monic, minimal_polynomial_from_powers, minimal_polynomial_over_q, mul_nf_coords,
+    mul_relative_nf_coords, relative_modulus_from_rational, validate_rational_modulus,
 };
 pub use parent::{AlgebraParentId, CoefficientParent};
 pub use permutation::RawPerm;

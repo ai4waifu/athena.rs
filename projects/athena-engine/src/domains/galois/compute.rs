@@ -9,14 +9,11 @@ use super::{request::GaloisRequest, result::GaloisResult, value::GaloisDomainVal
 /// 经域表与群表执行伽罗瓦请求。
 pub fn execute_galois_with_tables(request: GaloisRequest, fields: &mut FieldTable, groups: &mut GroupTable) -> GaloisResult {
     match request {
-        GaloisRequest::IsExtensionSeparable { extension } => {
-            match crate::domains::algebra::is_extension_separable(fields, extension) {
-                Ok(v) => GaloisResult::Exact { value: GaloisDomainValue::Boolean(v) },
-                Err(reason) => GaloisResult::Unevaluated { reason },
-            }
-        }
-        GaloisRequest::IsExtensionNormal { extension } => match crate::domains::algebra::is_extension_normal(fields, extension)
-        {
+        GaloisRequest::IsExtensionSeparable { extension } => match crate::domains::algebra::is_extension_separable(fields, extension) {
+            Ok(v) => GaloisResult::Exact { value: GaloisDomainValue::Boolean(v) },
+            Err(reason) => GaloisResult::Unevaluated { reason },
+        },
+        GaloisRequest::IsExtensionNormal { extension } => match crate::domains::algebra::is_extension_normal(fields, extension) {
             Ok(v) => GaloisResult::Exact { value: GaloisDomainValue::Boolean(v) },
             Err(reason) => GaloisResult::Unevaluated { reason },
         },
@@ -30,13 +27,13 @@ pub fn execute_galois_with_tables(request: GaloisRequest, fields: &mut FieldTabl
                 Err(reason) => GaloisResult::Unevaluated { reason },
             }
         }
-        GaloisRequest::IsPolynomialSeparable { .. }
-        | GaloisRequest::GaloisGroupOfPolynomial { .. }
-        | GaloisRequest::FixedField { .. } => GaloisResult::Unevaluated {
-            reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("domain", "galois")
-                .detail("operation", operation_name(&request)),
-        },
+        GaloisRequest::IsPolynomialSeparable { .. } | GaloisRequest::GaloisGroupOfPolynomial { .. } | GaloisRequest::FixedField { .. } => {
+            GaloisResult::Unevaluated {
+                reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("domain", "galois")
+                    .detail("operation", operation_name(&request)),
+            }
+        }
     }
 }
 

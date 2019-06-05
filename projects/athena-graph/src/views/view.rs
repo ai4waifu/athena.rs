@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    EdgeId, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, MutableGraph, NodeId, SourceEdgeRef, SourceNodeRef,
-    ViewEdgeRef, ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
+    EdgeId, GraphDirection, GraphError, GraphId, GraphRevision, GraphView, MutableGraph, NodeId, SourceEdgeRef, SourceNodeRef, ViewEdgeRef,
+    ViewFingerprint, ViewMapping, ViewNodeRef, ViewTransform,
 };
 
 fn hash_nodes(nodes: &HashSet<u64>) -> u64 {

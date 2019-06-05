@@ -42,12 +42,7 @@ impl RingFingerprint {
     }
 
     /// 由环内容分量计算（intern 前无 [`RingHandle`] 时使用）。
-    pub fn from_parts(
-        coefficients: &CoefficientDomain,
-        variables: &[SymbolId],
-        order: &MonomialOrder,
-        fields: &FieldTable,
-    ) -> Self {
+    pub fn from_parts(coefficients: &CoefficientDomain, variables: &[SymbolId], order: &MonomialOrder, fields: &FieldTable) -> Self {
         let mut out = Vec::new();
         out.extend_from_slice(RING_WIRE_MAGIC);
         encode_coefficient_domain(coefficients, fields, &mut out);
@@ -194,9 +189,7 @@ fn numeric_kind_tag(kind: NumericKind) -> u8 {
 }
 
 fn unsupported_coeff_for_fingerprint() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "polynomial")
-        .detail("operation", "fingerprint_coefficient_wire")
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "fingerprint_coefficient_wire")
 }
 
 fn unknown_ring(ring: athena_types::RingId) -> Diagnostic {

@@ -112,14 +112,10 @@ pub fn differentiate_checked(
             let binv = cc.apply("Power", vec![inner, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
             let candidate = cc.eval(cc.apply("Times", vec![abs, binv, d]));
-            let needs_nonzero =
-                !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
+            let needs_nonzero = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
                 // `TermId(0)` 为桥接占位，直至 Abs 参数绑定落地。
-                return ConditionalResult::with_unresolved(
-                    candidate,
-                    vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))],
-                );
+                return ConditionalResult::with_unresolved(candidate, vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))]);
             }
             return ConditionalResult::exact(candidate);
         }
@@ -130,13 +126,9 @@ pub fn differentiate_checked(
             let binv = cc.apply("Power", vec![two_sqrt, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
             let candidate = cc.eval(cc.apply("Times", vec![binv, d]));
-            let needs_nonneg =
-                !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
+            let needs_nonneg = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
             if needs_nonneg {
-                return ConditionalResult::with_unresolved(
-                    candidate,
-                    vec![unresolved(Predicate::NonNegative(athena_types::TermId(0)))],
-                );
+                return ConditionalResult::with_unresolved(candidate, vec![unresolved(Predicate::NonNegative(athena_types::TermId(0)))]);
             }
             return ConditionalResult::exact(candidate);
         }

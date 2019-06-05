@@ -87,15 +87,13 @@ pub struct Layout {
 impl Layout {
     /// 给定 shape 的稠密行主序 layout。
     pub fn row_major(shape: MatrixShape) -> Result<Self, Diagnostic> {
-        let cols = i64::try_from(shape.cols)
-            .map_err(|_| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "cols_i64"))?;
+        let cols = i64::try_from(shape.cols).map_err(|_| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "cols_i64"))?;
         Ok(Self { order: StorageOrder::RowMajor, row_stride: cols, col_stride: 1 })
     }
 
     /// 给定 shape 的稠密列主序 layout。
     pub fn column_major(shape: MatrixShape) -> Result<Self, Diagnostic> {
-        let rows = i64::try_from(shape.rows)
-            .map_err(|_| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "rows_i64"))?;
+        let rows = i64::try_from(shape.rows).map_err(|_| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "rows_i64"))?;
         Ok(Self { order: StorageOrder::ColumnMajor, row_stride: 1, col_stride: rows })
     }
 

@@ -29,11 +29,7 @@ impl PartialOrd for State {
 }
 
 /// 非负权 Dijkstra；无权域边权按 1 计。
-pub fn shortest_path_non_negative(
-    graph: &GraphObject,
-    source: GraphNodeId,
-    target: GraphNodeId,
-) -> Result<ShortestPathResult, Diagnostic> {
+pub fn shortest_path_non_negative(graph: &GraphObject, source: GraphNodeId, target: GraphNodeId) -> Result<ShortestPathResult, Diagnostic> {
     validate_weight_domain(graph)?;
     let inner = graph.to_athena_graph();
     let n = graph.node_count();
@@ -57,9 +53,7 @@ pub fn shortest_path_non_negative(
         for next in inner.out_neighbors(node) {
             let w = edge_weight(&graph.memory, node, next, unit_weight)?;
             let next_cost = cost.checked_add(w).ok_or_else(|| {
-                Diagnostic::new(DiagnosticCode::NumericResourceLimit)
-                    .detail("domain", "graph_theory")
-                    .detail("field", "distance")
+                Diagnostic::new(DiagnosticCode::NumericResourceLimit).detail("domain", "graph_theory").detail("field", "distance")
             })?;
             relaxations += 1;
             let idx = next.0 as usize;
@@ -102,9 +96,7 @@ pub fn shortest_path_non_negative(
     while cur != source {
         let Some(p) = prev[cur.0 as usize]
         else {
-            return Err(Diagnostic::new(DiagnosticCode::DomainError)
-                .detail("domain", "graph_theory")
-                .detail("field", "path_reconstruct"));
+            return Err(Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "graph_theory").detail("field", "path_reconstruct"));
         };
         path.push(p);
         cur = p;

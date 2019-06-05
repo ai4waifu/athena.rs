@@ -98,9 +98,7 @@ fn machine_f64(r: &Real, op: &str) -> Result<f64> {
                 Ok(*x)
             }
         }
-        Real::Decimal(_) => {
-            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", op))
-        }
+        Real::Decimal(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", op)),
     }
 }
 
@@ -114,9 +112,9 @@ fn neg_real(r: &Real) -> Result<Real> {
                 Ok(Real::machine(-*x))
             }
         }
-        Real::Decimal(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "numeric")
-            .detail("operation", "complex_decimal")),
+        Real::Decimal(_) => {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "complex_decimal"))
+        }
     }
 }
 

@@ -145,10 +145,7 @@ pub fn reject_non_canonical(reason: WireReject) -> Diagnostic {
 
 /// 拒绝非规范零 / 高位零 / 非法符号等。
 pub fn reject_non_canonical_reason(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-        .detail("domain", "numeric")
-        .detail("wire", "ANV1")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("wire", "ANV1").detail("reason", reason)
 }
 
 /// 校验 ANV1 幅度 limb 已规范：`count≠0`；`count≥2` 时最高 limb ≠ 0。

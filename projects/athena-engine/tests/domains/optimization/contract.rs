@@ -4,9 +4,9 @@ use athena_engine::{
     domains::{
         DomainRequest, DomainResult, execute_domain,
         optimization::{
-            AlgorithmPolicy, Constraint as OptConstraint, ConstraintId, ConstraintRelation, DecisionVariable, FeasibleSet,
-            Integrality, Objective, ObjectiveId, ObjectiveSense, OptimizationLimits, OptimizationProblem, OptimizationRequest,
-            OptimizationResult, ProblemClass, ProblemId, VariableDomain, VariableId, execute_optimization,
+            AlgorithmPolicy, Constraint as OptConstraint, ConstraintId, ConstraintRelation, DecisionVariable, FeasibleSet, Integrality,
+            Objective, ObjectiveId, ObjectiveSense, OptimizationLimits, OptimizationProblem, OptimizationRequest, OptimizationResult,
+            ProblemClass, ProblemId, VariableDomain, VariableId, execute_optimization,
         },
     },
     runtime::Session,
@@ -23,8 +23,7 @@ fn sample_lp() -> OptimizationProblem {
         domain: DomainId(0),
         provenance: None,
     });
-    let objectives =
-        vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: TermId(20), priority: 0 }];
+    let objectives = vec![Objective { id: ObjectiveId(0), sense: ObjectiveSense::Minimize, expression: TermId(20), priority: 0 }];
     OptimizationProblem::try_new(
         ProblemId(1),
         ProblemClass::LinearProgram,

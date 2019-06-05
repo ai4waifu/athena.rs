@@ -43,13 +43,8 @@ impl GcHeap {
         }
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) = self.allocate_payload(
-            SegmentKind::Numeric,
-            BlockKind::Numeric,
-            payload_bytes,
-            u32::MAX,
-            NumericOwnership::RustOwned,
-        )?;
+        let (seg_id, limbs) =
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::RustOwned)?;
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
@@ -63,13 +58,8 @@ impl GcHeap {
         }
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
-        let (seg_id, limbs) = self.allocate_payload(
-            SegmentKind::Numeric,
-            BlockKind::Numeric,
-            payload_bytes,
-            u32::MAX,
-            NumericOwnership::GcOwned,
-        )?;
+        let (seg_id, limbs) =
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::GcOwned)?;
         self.traced_numeric.insert(limbs.as_ptr() as usize);
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }

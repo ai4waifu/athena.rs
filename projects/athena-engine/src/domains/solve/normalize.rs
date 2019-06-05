@@ -38,11 +38,7 @@ impl RelationalOperators {
 }
 
 /// 将二元关系 App 归一化为 [`Constraint`]，**不**压成 `lhs - rhs = 0`。
-pub fn normalize_relational_application(
-    arena: &TermStore,
-    root: TermId,
-    ops: &RelationalOperators,
-) -> Result<Constraint, Diagnostic> {
+pub fn normalize_relational_application(arena: &TermStore, root: TermId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
     let (kind, span) = arena_node(arena, root)?;
     let TermNode::Application { head: op, arguments: args } = kind
     else {
@@ -79,11 +75,7 @@ pub fn normalize_relational_application(
 }
 
 /// 将若干根项归一化为合取 [`ConstraintSet`]。
-pub fn normalize_constraint_conjunction(
-    arena: &TermStore,
-    roots: &[TermId],
-    ops: &RelationalOperators,
-) -> Result<ConstraintSet, Diagnostic> {
+pub fn normalize_constraint_conjunction(arena: &TermStore, roots: &[TermId], ops: &RelationalOperators) -> Result<ConstraintSet, Diagnostic> {
     let mut members = Vec::with_capacity(roots.len());
     for root in roots {
         members.push(normalize_relational_application(arena, *root, ops)?);
@@ -98,8 +90,5 @@ fn arena_node(arena: &TermStore, id: TermId) -> Result<(&TermNode, SourceSpan), 
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::TypeMismatch)
-        .detail("domain", "solve")
-        .detail("operation", "normalize_relational")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("domain", "solve").detail("operation", "normalize_relational").detail("reason", reason)
 }

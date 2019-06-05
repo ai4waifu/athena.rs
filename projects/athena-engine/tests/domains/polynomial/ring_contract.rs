@@ -47,9 +47,8 @@ fn duplicate_symbol_rejected() {
 #[test]
 fn weighted_len_mismatch_rejected() {
     let mut table = RingTable::new();
-    let err = table
-        .intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], MonomialOrder::Weighted { weights: vec![1] })
-        .unwrap_err();
+    let err =
+        table.intern(CoefficientDomain::Integer, vec![SymbolId(1), SymbolId(2)], MonomialOrder::Weighted { weights: vec![1] }).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_POLYNOMIAL_ORDER_INVALID");
 }
 
@@ -74,5 +73,5 @@ fn ring_table_intern_idempotent() {
         panic!("expected coefficient ring parent");
     };
     assert_eq!(coeff_ring, desc.coefficient_ring);
-    assert!(matches!(table.coeff_rings().get(coeff_ring).unwrap().domain, CoefficientDomain::Integer));
+    assert!(matches!(table.coefficient_rings().get(coeff_ring).unwrap().domain, CoefficientDomain::Integer));
 }

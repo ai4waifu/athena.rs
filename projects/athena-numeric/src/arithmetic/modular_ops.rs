@@ -43,8 +43,7 @@ impl ModulusContext {
         let aa_mag = aa.magnitude();
         let bb_mag = bb.magnitude();
         if let Some(mp) = &self.montgomery {
-            let prod =
-                limb_kernel::mul_mod_montgomery_precomputed(aa_mag.as_limbs(), bb_mag.as_limbs(), mag.as_limbs(), mp.n_prime);
+            let prod = limb_kernel::mul_mod_montgomery_precomputed(aa_mag.as_limbs(), bb_mag.as_limbs(), mag.as_limbs(), mp.n_prime);
             return Integer::from_positive_natural(Natural::from_limbs(prod).expect("gc numeric alloc"));
         }
         if let Some(bp) = &self.barrett {
@@ -78,9 +77,7 @@ impl ModulusContext {
 
 /// 批量模逆（乘积树；要求各剩余在模 `m` 下可逆）。
 pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: &[Integer]) -> Result<Vec<ModularValue>> {
-    let ctx = table
-        .get(modulus_id)
-        .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId"))?;
+    let ctx = table.get(modulus_id).ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId"))?;
     let m = ctx.modulus.value();
     if residues.is_empty() {
         return Ok(Vec::new());
@@ -104,12 +101,7 @@ pub fn batch_mod_inverse(table: &ModulusTable, modulus_id: ModulusId, residues: 
     let mut out: Vec<ModularValue> = Vec::with_capacity(residues.len());
     for i in (0..residues.len()).rev() {
         let ri = ctx.modulus.reduce(&residues[i]);
-        let inv_i = if i == 0 {
-            inv_acc.try_clone_in(&NumericContext::portable_default())?
-        }
-        else {
-            ctx.mod_mul(&inv_acc, &prefix[i - 1])
-        };
+        let inv_i = if i == 0 { inv_acc.try_clone_in(&NumericContext::portable_default())? } else { ctx.mod_mul(&inv_acc, &prefix[i - 1]) };
         out.push(ModularValue::new_interned(inv_i, modulus_id));
         if i > 0 {
             inv_acc = ctx.mod_mul(&inv_acc, &ri);

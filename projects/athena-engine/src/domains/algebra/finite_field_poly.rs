@@ -32,9 +32,7 @@ pub fn validate_modulus_shape(coeffs: &[Integer], p: &Modulus) -> Result<u32> {
             .detail("operation", "modulus_degree_too_small"));
     }
     if !coeffs.last().map(|c| c.is_one()).unwrap_or(false) {
-        return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
-            .detail("domain", "field")
-            .detail("operation", "modulus_not_monic"));
+        return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid).detail("domain", "field").detail("operation", "modulus_not_monic"));
     }
     for c in coeffs {
         let r = p.reduce(c);
@@ -45,9 +43,7 @@ pub fn validate_modulus_shape(coeffs: &[Integer], p: &Modulus) -> Result<u32> {
         }
     }
     let n = u32::try_from(coeffs.len() - 1).map_err(|_| {
-        Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
-            .detail("domain", "field")
-            .detail("operation", "modulus_degree_overflow")
+        Diagnostic::new(DiagnosticCode::FieldExtensionInvalid).detail("domain", "field").detail("operation", "modulus_degree_overflow")
     })?;
     Ok(n)
 }
@@ -75,9 +71,7 @@ pub fn is_irreducible_monic(coeffs: &[Integer], p: &Modulus) -> Result<bool> {
 /// 规范元素坐标（长度 n，系数 ∈ `[0, p)`）。
 pub fn canonical_coords(mut coords: Vec<Integer>, degree: u32, p: &Modulus) -> Result<Vec<Integer>> {
     let n = usize::try_from(degree).map_err(|_| {
-        Diagnostic::new(DiagnosticCode::FieldElementInvalid)
-            .detail("domain", "field")
-            .detail("operation", "extension_degree_overflow")
+        Diagnostic::new(DiagnosticCode::FieldElementInvalid).detail("domain", "field").detail("operation", "extension_degree_overflow")
     })?;
     if coords.len() > n {
         return Err(Diagnostic::new(DiagnosticCode::FieldElementInvalid)

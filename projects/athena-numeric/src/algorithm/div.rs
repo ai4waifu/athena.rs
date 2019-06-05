@@ -19,10 +19,5 @@ pub(crate) fn select_div_strategy(u_limbs: usize, v_limbs: usize, caps: Algorith
     if v_limbs == 0 {
         return DivStrategy::Knuth;
     }
-    if caps.bz_division && u_limbs >= DIV_BZ_THRESHOLD && u_limbs >= 2 * v_limbs {
-        DivStrategy::BurnikelZiegler
-    }
-    else {
-        DivStrategy::Knuth
-    }
+    if caps.bz_division && u_limbs >= DIV_BZ_THRESHOLD && u_limbs >= 2 * v_limbs { DivStrategy::BurnikelZiegler } else { DivStrategy::Knuth }
 }

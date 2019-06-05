@@ -141,9 +141,7 @@ impl ModularValue {
 
     /// 剩余。
     pub fn residue(&self) -> Integer {
-        Integer::from_pair(
-            self.residue.clone_inline().or_else(|| self.residue.try_clone().ok()).expect("residue magnitude clone"),
-        )
+        Integer::from_pair(self.residue.clone_inline().or_else(|| self.residue.try_clone().ok()).expect("residue magnitude clone"))
     }
 
     /// 嵌入模数（仅 `Embedded` 绑定）。

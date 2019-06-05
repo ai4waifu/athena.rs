@@ -45,9 +45,7 @@ pub fn execute_polynomial(request: PolynomialRequest) -> PolynomialResult {
 pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTable) -> PolynomialResult {
     match request {
         PolynomialRequest::Normalize { polynomial } => match canonicalize_polynomial(polynomial, rings) {
-            Ok(normalized) => {
-                PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: normalized }) }
-            }
+            Ok(normalized) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: normalized }) },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Add { lhs, rhs } => match add_polynomial(lhs, rhs, rings) {
@@ -55,9 +53,7 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Mul { lhs, rhs } => match mul_polynomial(lhs, rhs, rings) {
-            Ok(product) => {
-                PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }) }
-            }
+            Ok(product) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }) },
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Div { dividend, divisor, policy } => match div_univariate(dividend, divisor, policy, rings) {
@@ -78,15 +74,15 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Groebner { generators, limits } => match compute_groebner_basis(generators, rings, limits) {
-            Ok(computation) => PolynomialResult::Exact {
-                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)),
-            },
+            Ok(computation) => {
+                PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
+            }
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
         PolynomialRequest::Eliminate { generators, limits } => match compute_elimination_basis(generators, rings, limits) {
-            Ok(computation) => PolynomialResult::Exact {
-                value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)),
-            },
+            Ok(computation) => {
+                PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
+            }
             Err(reason) => PolynomialResult::Unevaluated { reason },
         },
     }

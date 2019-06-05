@@ -8,7 +8,7 @@ use super::{
     builder::PolynomialBuilder,
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus},
-    coeff_kernel::CoeffRing,
+    coefficient_kernel::CoefficientRing,
     expr::Polynomial,
     ideal::Ideal,
     monomial_layout::MonomialLayout,
@@ -147,14 +147,10 @@ pub type GroebnerBasis = VerifiedGroebnerBasis;
 /// 计算 Gröbner 基（Buchberger；系数域须为域）。
 ///
 /// 仅 [`GroebnerComputation::Complete`] 可作 exact membership / 消元定理 / M-Graph exact witness。
-pub fn compute_groebner_basis(
-    generators: Vec<Polynomial>,
-    rings: &RingTable,
-    limits: GroebnerLimits,
-) -> Result<GroebnerComputation> {
+pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
-    let coeff = rings.coeff_kernel(ideal.ring)?;
+    let coeff = rings.coefficient_kernel(ideal.ring)?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -213,21 +209,14 @@ pub fn compute_groebner_basis(
         basis_elements: basis.len(),
         s_pair_steps: steps,
         complete: true,
-        verification: PropertyState::Proven {
-            value: (),
-            witness: PropertyWitness::placeholder("groebner_independent_verifier"),
-        },
+        verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") },
         elimination_elements: None,
     };
     Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: ideal.ring, basis, certificate, verification }))
 }
 
 /// 消元理想：须为完整已验证 Gröbner 基；环须为 [`MonomialOrder::Elimination`]。
-pub fn compute_elimination_basis(
-    generators: Vec<Polynomial>,
-    rings: &RingTable,
-    limits: GroebnerLimits,
-) -> Result<GroebnerComputation> {
+pub fn compute_elimination_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
     let ideal = Ideal::new(generators)?;
     let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
     let eliminate = match &desc.order {
@@ -253,12 +242,7 @@ pub fn compute_elimination_basis(
             certificate.elimination_elements = Some(elim.len());
             certificate.mark_verified();
             certificate.complete = true;
-            Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis {
-                ring: verified.ring,
-                basis: elim,
-                certificate,
-                verification,
-            }))
+            Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: verified.ring, basis: elim, certificate, verification }))
         }
         GroebnerComputation::Partial(mut frontier) => {
             frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
@@ -280,9 +264,7 @@ pub fn compute_elimination_basis(
 /// 对已验证 Gröbner 基做规范余式（strict API）。
 pub fn reduce_by_verified(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, rings: &RingTable) -> Result<Polynomial> {
     if polynomial.ring() != basis.ring {
-        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
-            .detail("domain", "polynomial")
-            .detail("operation", "reduce_ring_mismatch"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("domain", "polynomial").detail("operation", "reduce_ring_mismatch"));
     }
     if !basis.certificate.is_exact_witness() {
         return Err(Diagnostic::new(DiagnosticCode::GroebnerIncomplete)
@@ -290,7 +272,7 @@ pub fn reduce_by_verified(polynomial: Polynomial, basis: &VerifiedGroebnerBasis,
             .detail("operation", "reduce_requires_verified"));
     }
     let desc = rings.get(polynomial.ring()).ok_or_else(|| ring_unknown(polynomial.ring()))?;
-    let coeff = rings.coeff_kernel(polynomial.ring())?;
+    let coeff = rings.coefficient_kernel(polynomial.ring())?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -311,7 +293,7 @@ pub fn ideal_membership(polynomial: Polynomial, basis: &VerifiedGroebnerBasis, r
 /// 严格路径请用 [`reduce_by_verified`]。
 pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTable) -> Result<Polynomial> {
     let desc = rings.get(polynomial.ring()).ok_or_else(|| ring_unknown(polynomial.ring()))?;
-    let coeff = rings.coeff_kernel(polynomial.ring())?;
+    let coeff = rings.coefficient_kernel(polynomial.ring())?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -324,9 +306,7 @@ pub fn reduce_ideal(polynomial: Polynomial, basis: &[Polynomial], rings: &RingTa
 /// 独立验证：所有 critical S-pair 约化为零。
 pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<GroebnerVerificationReport> {
     if basis.is_empty() {
-        return Err(Diagnostic::new(DiagnosticCode::DomainError)
-            .detail("domain", "polynomial")
-            .detail("operation", "verify_empty_basis"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "verify_empty_basis"));
     }
     let ring = basis[0].ring();
     for p in basis {
@@ -337,7 +317,7 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
         }
     }
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
-    let coeff = rings.coeff_kernel(ring)?;
+    let coeff = rings.coefficient_kernel(ring)?;
     if !coeff.is_field() {
         return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
             .detail("domain", "polynomial")
@@ -388,9 +368,7 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
         }
     }
     if out.is_empty() {
-        return Err(Diagnostic::new(DiagnosticCode::DomainError)
-            .detail("domain", "polynomial")
-            .detail("operation", "groebner_zero_ideal"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "groebner_zero_ideal"));
     }
     Ok(out)
 }
@@ -399,13 +377,7 @@ fn leading_term(poly: &Polynomial) -> Option<super::expr::MonomialTerm> {
     poly.terms().first().map(|t| t.owning_copy())
 }
 
-fn s_polynomial(
-    f: &Polynomial,
-    g: &Polynomial,
-    rings: &RingTable,
-    layout: &MonomialLayout,
-    coeff: &CoeffRing<'_>,
-) -> Result<Polynomial> {
+fn s_polynomial(f: &Polynomial, g: &Polynomial, rings: &RingTable, layout: &MonomialLayout, coeff: &CoefficientRing<'_>) -> Result<Polynomial> {
     let lf = leading_term(f).ok_or_else(zero_poly_err)?;
     let lg = leading_term(g).ok_or_else(zero_poly_err)?;
     let lcm = layout.lcm_exponents(&lf.exponents, &lg.exponents)?;
@@ -422,7 +394,7 @@ fn multiply_by_monomial(
     exp_delta: &[u32],
     layout: &MonomialLayout,
     rings: &RingTable,
-    coeff: &CoeffRing<'_>,
+    coeff: &CoefficientRing<'_>,
 ) -> Result<Polynomial> {
     if poly.terms().is_empty() || scalar.is_zero() {
         return Ok(Polynomial::zero(poly.ring()));
@@ -441,7 +413,7 @@ fn reduce_polynomial(
     basis: &[Polynomial],
     rings: &RingTable,
     layout: &MonomialLayout,
-    coeff: &CoeffRing<'_>,
+    coeff: &CoefficientRing<'_>,
 ) -> Result<Polynomial> {
     let mut remainder = poly.owning_copy();
     loop {
@@ -477,7 +449,7 @@ fn autoreduce_basis(
     basis: Vec<Polynomial>,
     rings: &RingTable,
     layout: &MonomialLayout,
-    coeff: &CoeffRing<'_>,
+    coeff: &CoefficientRing<'_>,
 ) -> Result<Vec<Polynomial>> {
     let mut out = Vec::new();
     for (i, g) in basis.iter().enumerate() {
@@ -488,9 +460,7 @@ fn autoreduce_basis(
         }
         let r_leading = layout.pack(&r.terms[0].exponents)?;
         if out.iter().any(|p| {
-            leading_term(p)
-                .and_then(|lt| layout.pack(lt.exponents()).ok())
-                .is_some_and(|lt_packed| layout.packed_equal(&lt_packed, &r_leading))
+            leading_term(p).and_then(|lt| layout.pack(lt.exponents()).ok()).is_some_and(|lt_packed| layout.packed_equal(&lt_packed, &r_leading))
         }) {
             continue;
         }
@@ -500,11 +470,7 @@ fn autoreduce_basis(
 }
 
 fn extract_elimination_polys(basis: &[Polynomial], eliminate: usize) -> Vec<Polynomial> {
-    basis
-        .iter()
-        .filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0)))
-        .map(|p| p.owning_copy())
-        .collect()
+    basis.iter().filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0))).map(|p| p.owning_copy()).collect()
 }
 
 fn zero_poly_err() -> Diagnostic {

@@ -53,14 +53,7 @@ fn raw(handler: HandlerId, operands: Vec<TermId>) -> Instr {
     Instr::EvalRaw { handler, operands }
 }
 
-fn lower_application(
-    vm: &mut Vm<'_>,
-    root: TermId,
-    op: OperatorId,
-    args: Vec<TermId>,
-    mode: CompileMode,
-    code: &mut Vec<Instr>,
-) {
+fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<TermId>, mode: CompileMode, code: &mut Vec<Instr>) {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
     let argc = args.len();
 

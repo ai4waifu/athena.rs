@@ -1,9 +1,7 @@
 //! `domains` 分组：域算法与多项式 parity fixture。
 
 use athena_engine::{
-    domains::polynomial::{
-        CoefficientDomain, JitParityOutcome, MonomialOrder, PolynomialBuilder, RingTable, mul_with_jit_parity,
-    },
+    domains::polynomial::{CoefficientDomain, JitParityOutcome, MonomialOrder, PolynomialBuilder, RingTable, mul_with_jit_parity},
     plot::{SampleDomain, SamplingPolicy, sample_1d},
     runtime::{
         Session,
@@ -61,9 +59,7 @@ impl Fixture for PolynomialMulParityFixture {
 
     fn validate(&self) -> Result<ValidationSummary, String> {
         let mut rings = RingTable::new();
-        let ring = rings
-            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-            .map_err(|d| d.code.as_str().to_string())?;
+        let ring = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).map_err(|d| d.code.as_str().to_string())?;
         let mut b1 = PolynomialBuilder::new(ring);
         b1.push_term(Number::small_int(3), vec![1]).map_err(|d| d.code.as_str().to_string())?;
         let lhs = b1.build(&rings).map_err(|d| d.code.as_str().to_string())?;

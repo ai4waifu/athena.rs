@@ -33,10 +33,7 @@ fn sqrt2_squared_is_2() {
     let k = table.number_field_from_minimal_polynomial(q_poly_x2_minus(2)).unwrap();
     let sqrt2 = canonical_number_field_element(&table, k, vec![Rational::zero(), Rational::one()]).unwrap();
     let sq = mul_field_elements(&table, &sqrt2, &sqrt2).unwrap();
-    assert_eq!(
-        sq.repr,
-        FieldElementRepr::NumberFieldCoords { coords: vec![Rational::from_integer(Integer::from_i64(2)), Rational::zero()] }
-    );
+    assert_eq!(sq.repr, FieldElementRepr::NumberFieldCoords { coords: vec![Rational::from_integer(Integer::from_i64(2)), Rational::zero()] });
 }
 
 #[test]
@@ -84,12 +81,8 @@ fn sqrt3_squared_is_3_in_tower() {
     let mut table = FieldTable::new();
     let k2 = table.number_field_from_minimal_polynomial(q_poly_x2_minus(2)).unwrap();
     let k23 = table.relative_number_field(k2, q_poly_x2_minus(3)).unwrap();
-    let sqrt3 = canonical_number_field_element(
-        &table,
-        k23,
-        vec![Rational::zero(), Rational::zero(), Rational::one(), Rational::zero()],
-    )
-    .unwrap();
+    let sqrt3 =
+        canonical_number_field_element(&table, k23, vec![Rational::zero(), Rational::zero(), Rational::one(), Rational::zero()]).unwrap();
     let sq = mul_field_elements(&table, &sqrt3, &sqrt3).unwrap();
     assert_eq!(
         sq.repr,

@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::polynomial::{
-        CoefficientDomain, GroebnerLimits, MonomialOrder, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest,
-        PolynomialResult, cache_key_for_request, record_polynomial_result,
+        CoefficientDomain, GroebnerLimits, MonomialOrder, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
+        cache_key_for_request, record_polynomial_result,
     },
     reasoning::mgraph::{
         AdmissionOutcome, AdmissionRejectReason, Claim, Evidence, EvidenceVerifier, Guarantee, Scope, VerificationPolicy,
@@ -67,10 +67,7 @@ fn groebner_partial_cached_but_not_admitted() {
     b2.push_term(Number::small_int(1), vec![0, 1]).unwrap();
     b2.push_term(Number::small_int(-1), vec![0, 0]).unwrap();
     let g2 = b2.build(&session.rings).unwrap();
-    let req = PolynomialRequest::Groebner {
-        generators: vec![g1, g2],
-        limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
-    };
+    let req = PolynomialRequest::Groebner { generators: vec![g1, g2], limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 } };
     session.execute_polynomial_mgraph(req.clone());
     assert_eq!(session.mgraph.semantic.fact_log.count(), 0);
     assert_eq!(session.mgraph.operational.result_cache.polynomial.partial_len(), 1);
@@ -90,12 +87,7 @@ fn placeholder_exact_result_not_admitted() {
         &session.rings,
     )
     .unwrap();
-    record_polynomial_result(
-        key.clone(),
-        PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder },
-        &mut session.mgraph,
-    )
-    .unwrap();
+    record_polynomial_result(key.clone(), PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder }, &mut session.mgraph).unwrap();
     assert_eq!(session.mgraph.semantic.fact_log.count(), 0);
     match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::Placeholder, .. } => {}
@@ -119,10 +111,7 @@ fn probable_claim_blocked_by_verifier() {
         proposition: proposition_from_cache_key(&key),
         scope: Scope::Unconditional,
         guarantee: Guarantee::Probable,
-        evidence: Evidence::TrustedKernel {
-            provider: athena_engine::reasoning::mgraph::POLYNOMIAL_PROVIDER_ID,
-            summary: "probable".into(),
-        },
+        evidence: Evidence::TrustedKernel { provider: athena_engine::reasoning::mgraph::POLYNOMIAL_PROVIDER_ID, summary: "probable".into() },
     };
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: Guarantee::Probable } => {}

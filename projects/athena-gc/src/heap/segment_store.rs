@@ -67,15 +67,7 @@ impl GcHeap {
         };
         let id = SegmentId { index: index as u32, generation };
         self.segments[index] = Some(SegmentStorage {
-            meta: SegmentMeta {
-                id,
-                kind,
-                capacity,
-                used: 0,
-                live_count: 0,
-                pin_count: Cell::new(0),
-                last_access: self.access_clock,
-            },
+            meta: SegmentMeta { id, kind, capacity, used: 0, live_count: 0, pin_count: Cell::new(0), last_access: self.access_clock },
             bytes: vec![0u8; capacity],
         });
         self.resident_bytes = self.resident_bytes.saturating_add(capacity);

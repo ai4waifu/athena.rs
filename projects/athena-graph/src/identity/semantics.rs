@@ -96,12 +96,7 @@ pub struct GraphSnapshot {
 
 impl GraphSnapshot {
     /// 构造快照。
-    pub const fn new(
-        graph_id: GraphId,
-        revision: GraphRevision,
-        semantics: GraphSemantics,
-        representation: RepresentationId,
-    ) -> Self {
+    pub const fn new(graph_id: GraphId, revision: GraphRevision, semantics: GraphSemantics, representation: RepresentationId) -> Self {
         Self { graph_id, revision, semantics, representation }
     }
 }

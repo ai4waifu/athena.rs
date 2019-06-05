@@ -42,9 +42,7 @@ pub use crate::{
         rounding,
         rounding::RoundingPolicy,
     },
-    certificate::{
-        CertificateMethod, NumericBinding, NumericCertificate, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord,
-    },
+    certificate::{CertificateMethod, NumericBinding, NumericCertificate, NumericEvidenceArena, NumericEvidenceId, NumericEvidenceRecord},
     dispatch::{
         AlgorithmCapability, CapabilityBundle, MachineCapability, NumericBackend, NumericBackendContract, NumericBackendLimits,
         NumericCapability, NumericExecutor, NumericOperation, NumericResultMode, PortableBackend, ResourceCapability,

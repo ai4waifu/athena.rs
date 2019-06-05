@@ -141,13 +141,7 @@ pub struct FactorFrontier {
 
 impl Default for FactorFrontier {
     fn default() -> Self {
-        Self {
-            unit: Integer::one(),
-            factors_found: Vec::new(),
-            unresolved_cofactors: Vec::new(),
-            steps_used: 0,
-            resource_exhausted: false,
-        }
+        Self { unit: Integer::one(), factors_found: Vec::new(), unresolved_cofactors: Vec::new(), steps_used: 0, resource_exhausted: false }
     }
 }
 

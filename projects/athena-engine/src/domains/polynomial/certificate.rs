@@ -48,8 +48,7 @@ pub struct GroebnerCertificate {
 impl GroebnerCertificate {
     /// 独立 verifier 已通过。
     pub fn mark_verified(&mut self) {
-        self.verification =
-            PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") };
+        self.verification = PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") };
     }
 
     /// 清除验证态（partial / resource-limited 候选）。

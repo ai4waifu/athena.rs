@@ -1,8 +1,7 @@
 //! 多项式表示族：DenseUnivariate / SparseUnivariate / DistributedSparse 往返与数学相等。
 
 use athena_engine::domains::polynomial::{
-    CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRepr, PolynomialReprBody, ReprTarget, RingTable,
-    reprs_mathematically_equal,
+    CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRepr, PolynomialReprBody, ReprTarget, RingTable, reprs_mathematically_equal,
 };
 use athena_numeric::Number;
 use athena_types::SymbolId;
@@ -13,10 +12,7 @@ fn univariate_x_ring() -> (RingTable, athena_engine::domains::polynomial::RingId
     (rings, id)
 }
 
-fn sample_univariate(
-    rings: &RingTable,
-    ring: athena_engine::domains::polynomial::RingId,
-) -> athena_engine::domains::polynomial::Polynomial {
+fn sample_univariate(rings: &RingTable, ring: athena_engine::domains::polynomial::RingId) -> athena_engine::domains::polynomial::Polynomial {
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(3), vec![0]).unwrap();
     b.push_term(Number::small_int(2), vec![1]).unwrap();

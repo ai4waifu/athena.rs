@@ -18,9 +18,7 @@ mod value;
 
 pub use dialect::{DialectArgs, DialectMatrixOp, lower_dialect_op, matlab_star_kind};
 pub use equality::{MatrixEqualityKind, matrices_equal};
-pub use exact::{
-    ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact,
-};
+pub use exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact};
 pub use index::{AxisRange, DialectOrigin, IndexSpec, lower_1based_inclusive_slice, lower_1based_scalar};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
 pub use ops::{hadamard, index_scalar, matmul, slice_matrix, transpose};

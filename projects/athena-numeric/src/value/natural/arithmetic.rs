@@ -200,8 +200,7 @@ impl Natural {
 
     /// 模幂（`modulus > 0`；默认上下文）。
     pub fn mod_pow(&self, exp: &Self, modulus: &Self) -> Self {
-        self.try_mod_pow(exp, modulus, &NumericContext::portable_default())
-            .expect("mod_pow modulus non-zero and unbounded default")
+        self.try_mod_pow(exp, modulus, &NumericContext::portable_default()).expect("mod_pow modulus non-zero and unbounded default")
     }
 
     /// 模幂（服从 `ctx` 预算；奇模数足够宽时走 Montgomery）。

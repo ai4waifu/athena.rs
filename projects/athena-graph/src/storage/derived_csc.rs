@@ -16,10 +16,7 @@ pub struct DerivedCsc<O = InMemoryStorage<u64>, I = InMemoryStorage<u64>> {
 
 impl DerivedCsc<InMemoryStorage<u64>, InMemoryStorage<u64>> {
     /// 从 CSR 构建 CSC，并记录源身份/修订（取自 CSR metadata，若有）。
-    pub fn from_csr<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(
-        csr: &CsrGraph<O, I>,
-        budget: MemoryBudget,
-    ) -> Result<Self, GraphError> {
+    pub fn from_csr<O: ArrayStorage<u64>, I: ArrayStorage<u64>>(csr: &CsrGraph<O, I>, budget: MemoryBudget) -> Result<Self, GraphError> {
         let mut csc = csr_to_csc(csr, budget)?;
         let (source_graph_id, source_revision, semantics, sorted) = match csr.metadata() {
             Some(m) => (m.graph_id, m.revision, m.semantics, m.sorted_adjacency),

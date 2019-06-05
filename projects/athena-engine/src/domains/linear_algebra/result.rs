@@ -3,9 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
-    exact::{
-        ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact,
-    },
+    exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact},
     machine::{MachineSolveResult, rank_machine, solve_machine},
     ops::{hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,

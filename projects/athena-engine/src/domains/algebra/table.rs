@@ -2,20 +2,16 @@
 
 use std::collections::HashMap;
 
-use crate::runtime::values::numeric_clone::{
-    clone_integer, clone_integers, clone_modulus, clone_rational, clone_rationals, resize_rationals,
-};
+use crate::runtime::values::numeric_clone::{clone_integer, clone_integers, clone_modulus, clone_rational, clone_rationals, resize_rationals};
 use athena_numeric::{Integer, Rational};
-use athena_types::{
-    AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result,
-};
+use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result};
 
 use crate::domains::{
     algebra::{
         finite_field_poly::{FiniteFieldPolySpec, canonicalize_modulus, is_irreducible_monic, validate_modulus_shape},
         number_field::{
-            NumberFieldSpec, absolute_degree_product, is_irreducible_over_rationals, make_monic,
-            relative_modulus_from_rational, validate_rational_modulus,
+            NumberFieldSpec, absolute_degree_product, is_irreducible_over_rationals, make_monic, relative_modulus_from_rational,
+            validate_rational_modulus,
         },
         property::{PropertyState, PropertyWitness},
     },
@@ -91,11 +87,8 @@ impl FieldTable {
             }
             FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. } => {
                 let spec = self.number_fields.get(&field)?;
-                let abs: Vec<_> = spec
-                    .absolute_modulus
-                    .iter()
-                    .map(|c| (clone_integer(&c.numerator()), clone_integer(&c.denominator())))
-                    .collect();
+                let abs: Vec<_> =
+                    spec.absolute_modulus.iter().map(|c| (clone_integer(&c.numerator()), clone_integer(&c.denominator()))).collect();
                 Some(FieldFingerprint::number_field(&abs))
             }
             other => Some(FieldFingerprint::from_presentation_kind_tag(other)),
@@ -152,10 +145,7 @@ impl FieldTable {
                 .detail("domain", "field")
                 .detail("operation", "polynomial_basis_modulus"));
         }
-        let key = FieldInternKey::PolynomialBasis {
-            characteristic: clone_integer(&characteristic),
-            modulus: clone_integers(&modulus),
-        };
+        let key = FieldInternKey::PolynomialBasis { characteristic: clone_integer(&characteristic), modulus: clone_integers(&modulus) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
@@ -171,8 +161,7 @@ impl FieldTable {
         self.by_key.insert(key, field);
         self.field_to_presentation.insert(field, presentation_id);
         self.presentations.insert(presentation_id, presentation);
-        self.poly_extensions
-            .insert(field, FiniteFieldPolySpec { extension: extension_id, base, characteristic, degree, modulus });
+        self.poly_extensions.insert(field, FiniteFieldPolySpec { extension: extension_id, base, characteristic, degree, modulus });
         let base_pres = self.presentation_id(base)?;
         let embedding = self.map_table.register_prime_subfield_embedding(base, field, base_pres, presentation_id);
         let ext = FieldExtension::finite_field_polynomial(extension_id, base, field, degree, embedding);
@@ -365,9 +354,7 @@ impl FieldTable {
     pub fn prime_modulus(&self, field: FieldId) -> Result<athena_numeric::Modulus> {
         let p = self.characteristic(field).ok_or_else(|| unknown_field(field))?;
         athena_numeric::Modulus::new(p).map_err(|_| {
-            Diagnostic::new(DiagnosticCode::ModulusInvalid)
-                .detail("domain", "field")
-                .detail("operation", "prime_modulus_from_presentation")
+            Diagnostic::new(DiagnosticCode::ModulusInvalid).detail("domain", "field").detail("operation", "prime_modulus_from_presentation")
         })
     }
 
@@ -410,10 +397,7 @@ impl FieldTable {
                 Ok(FieldDescriptor::Extension {
                     base: spec.base,
                     extension: *extension,
-                    degree: PropertyState::Proven {
-                        value: spec.relative_degree,
-                        witness: PropertyWitness::placeholder("number_field_tower"),
-                    },
+                    degree: PropertyState::Proven { value: spec.relative_degree, witness: PropertyWitness::placeholder("number_field_tower") },
                 })
             }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -470,9 +454,9 @@ fn validate_prime_modulus(p: &Integer) -> Result<()> {
     }
     match primality_test(p, None) {
         Primality::Prime { .. } => Ok(()),
-        Primality::Composite { .. } => Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
-            .detail("domain", "field")
-            .detail("operation", "prime_field_not_prime")),
+        Primality::Composite { .. } => {
+            Err(Diagnostic::new(DiagnosticCode::ModulusInvalid).detail("domain", "field").detail("operation", "prime_field_not_prime"))
+        }
         Primality::ProbablePrime { .. } | Primality::Unknown => Err(Diagnostic::new(DiagnosticCode::PrimeTestInconclusive)
             .detail("domain", "field")
             .detail("operation", "prime_field_characteristic")),
@@ -520,18 +504,14 @@ fn rational_is_square_in_quadratic(e: &Rational, base_abs_mod: &[Rational]) -> R
         return Ok(false);
     }
     let ratio = e.try_div(&d).map_err(|_| {
-        Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
-            .detail("domain", "field")
-            .detail("operation", "quadratic_square_test")
+        Diagnostic::new(DiagnosticCode::FieldExtensionInvalid).detail("domain", "field").detail("operation", "quadratic_square_test")
     })?;
     Ok(is_square_rational(&ratio))
 }
 
 fn biquadratic_absolute_modulus(base_abs_mod: &[Rational], d2: &Rational) -> Result<Vec<Rational>> {
     if base_abs_mod.len() != 3 {
-        return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid)
-            .detail("domain", "field")
-            .detail("operation", "biquadratic_base"));
+        return Err(Diagnostic::new(DiagnosticCode::FieldExtensionInvalid).detail("domain", "field").detail("operation", "biquadratic_base"));
     }
     let d1 = base_abs_mod[0].neg();
     let two = Rational::from_integer(Integer::from_i64(2));

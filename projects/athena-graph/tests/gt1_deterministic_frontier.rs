@@ -1,8 +1,8 @@
 //! 确定性 frontier、稳定邻接扩展序、取消与恢复。
 
 use athena_graph::{
-    CancelFlag, DeterministicBfsOutcome, GraphBuilder, GraphDirection, ImmutableGraph, MutableGraph, NodeId, bfs_order,
-    deterministic_bfs, resume_deterministic_bfs,
+    CancelFlag, DeterministicBfsOutcome, GraphBuilder, GraphDirection, ImmutableGraph, MutableGraph, NodeId, bfs_order, deterministic_bfs,
+    resume_deterministic_bfs,
 };
 
 fn build(f: impl FnOnce(&mut MutableGraph<(), ()>)) -> ImmutableGraph<(), ()> {

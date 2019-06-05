@@ -5,10 +5,7 @@ use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
     core::{
-        refs::{
-            PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates,
-            scope_to_ref,
-        },
+        refs::{PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates, scope_to_ref},
         types::CapabilityProviderId,
     },
     facts::{
@@ -57,9 +54,7 @@ fn provider_from_evidence(evidence: &Evidence) -> Option<CapabilityProviderId> {
 
 fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<SemanticRef>, TheoryContextId) {
     match proposition {
-        Proposition::PolynomialResult { .. } => {
-            (predicates::POLYNOMIAL_RESULT, Vec::new(), TheoryContextId::POLYNOMIAL)
-        }
+        Proposition::PolynomialResult { .. } => (predicates::POLYNOMIAL_RESULT, Vec::new(), TheoryContextId::POLYNOMIAL),
         Proposition::Congruence { .. } => (predicates::CONGRUENCE, Vec::new(), TheoryContextId::CONGRUENCE),
     }
 }

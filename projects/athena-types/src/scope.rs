@@ -159,9 +159,7 @@ impl AssumptionScope {
 
     /// 是否无本层谓词、无父、经典无猜想。
     pub fn is_unconditional_empty(&self) -> bool {
-        self.parent.is_none()
-            && self.predicates.is_empty()
-            && matches!(self.theory_context, TheoryContext::ClassicalUnconditional)
+        self.parent.is_none() && self.predicates.is_empty() && matches!(self.theory_context, TheoryContext::ClassicalUnconditional)
     }
 
     /// 继承：以 `parent` 为父，附加本层谓词。
@@ -241,22 +239,14 @@ impl AssumptionScope {
             (None, x) | (x, None) => x,
             (Some(a), Some(b)) if a == b => Some(a),
             (Some(_), Some(_)) => {
-                return ScopeMergeOutcome::Conflict(ScopeConflict {
-                    kind: ScopeConflictKind::DomainMismatch,
-                    left: None,
-                    right: None,
-                });
+                return ScopeMergeOutcome::Conflict(ScopeConflict { kind: ScopeConflictKind::DomainMismatch, left: None, right: None });
             }
         };
         let precision_policy = match (self.precision_policy, other.precision_policy) {
             (None, x) | (x, None) => x,
             (Some(a), Some(b)) if a == b => Some(a),
             (Some(_), Some(_)) => {
-                return ScopeMergeOutcome::Conflict(ScopeConflict {
-                    kind: ScopeConflictKind::PrecisionMismatch,
-                    left: None,
-                    right: None,
-                });
+                return ScopeMergeOutcome::Conflict(ScopeConflict { kind: ScopeConflictKind::PrecisionMismatch, left: None, right: None });
             }
         };
         ScopeMergeOutcome::Ok(Self {
@@ -325,9 +315,7 @@ fn detect_predicate_conflict(predicates: &[Predicate]) -> Option<ScopeConflict> 
 fn predicates_contradict(a: &Predicate, b: &Predicate) -> bool {
     use Predicate::*;
     match (a, b) {
-        (Equal(x1, y1), NotEqual(x2, y2)) | (NotEqual(x1, y1), Equal(x2, y2)) => {
-            (*x1 == *x2 && *y1 == *y2) || (*x1 == *y2 && *y1 == *x2)
-        }
+        (Equal(x1, y1), NotEqual(x2, y2)) | (NotEqual(x1, y1), Equal(x2, y2)) => (*x1 == *x2 && *y1 == *y2) || (*x1 == *y2 && *y1 == *x2),
         _ => false,
     }
 }

@@ -68,13 +68,7 @@ fn mul_1x1_isa(a: u64, b: u64) -> u128 {
     }
 }
 
-fn add_into_adx(
-    a: &[u64],
-    b: &[u64],
-    out: &mut LimbBuffer,
-    _scratch: &mut ScratchWorkspace,
-    budget: &ExecutionBudget,
-) -> Result<()> {
+fn add_into_adx(a: &[u64], b: &[u64], out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
     let la = portable::effective_len(a);
     let lb = portable::effective_len(b);
     budget.check_add(la, lb)?;
@@ -94,13 +88,7 @@ fn add_into_adx(
     Ok(())
 }
 
-fn sub_into_sbb(
-    a: &[u64],
-    b: &[u64],
-    out: &mut LimbBuffer,
-    _scratch: &mut ScratchWorkspace,
-    budget: &ExecutionBudget,
-) -> Result<()> {
+fn sub_into_sbb(a: &[u64], b: &[u64], out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
     let la = portable::effective_len(a);
     let lb = portable::effective_len(b);
     budget.check_limbs(la.max(lb))?;
@@ -121,13 +109,7 @@ fn sub_into_sbb(
     Ok(())
 }
 
-fn mul_1_into_isa(
-    a: &[u64],
-    limb: u64,
-    out: &mut LimbBuffer,
-    _scratch: &mut ScratchWorkspace,
-    budget: &ExecutionBudget,
-) -> Result<()> {
+fn mul_1_into_isa(a: &[u64], limb: u64, out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
     let la = portable::effective_len(a);
     budget.check_limbs(la + 1)?;
     if limb == 0 || la == 0 || is_zero_prefix(a, la) {
@@ -168,9 +150,7 @@ fn mul_into_isa(
             out.trim_canonical();
             Ok(())
         }
-        MulStrategy::Karatsuba | MulStrategy::Toom3 => {
-            <PortableLimbKernel as LimbKernel>::mul_into(a, b, strategy, out, scratch, budget)
-        }
+        MulStrategy::Karatsuba | MulStrategy::Toom3 => <PortableLimbKernel as LimbKernel>::mul_into(a, b, strategy, out, scratch, budget),
     }
 }
 
@@ -188,9 +168,7 @@ fn sqr_into_isa(
             // Square via mul(a,a) mulx schoolbook（与 portable sqr 语义一致）。
             mul_into_isa(a, a, MulStrategy::Schoolbook, out, scratch, budget)
         }
-        MulStrategy::Karatsuba | MulStrategy::Toom3 => {
-            <PortableLimbKernel as LimbKernel>::sqr_into(a, strategy, out, scratch, budget)
-        }
+        MulStrategy::Karatsuba | MulStrategy::Toom3 => <PortableLimbKernel as LimbKernel>::sqr_into(a, strategy, out, scratch, budget),
     }
 }
 

@@ -197,11 +197,8 @@ fn render_bigint_validation(rows: &[&FixtureReport]) -> String {
         }
     }
 
-    let layers = [
-        (BenchLayer::Kernel, ContextPolicy::Reused),
-        (BenchLayer::Numeric, ContextPolicy::Reused),
-        (BenchLayer::E2e, ContextPolicy::PerCall),
-    ];
+    let layers =
+        [(BenchLayer::Kernel, ContextPolicy::Reused), (BenchLayer::Numeric, ContextPolicy::Reused), (BenchLayer::E2e, ContextPolicy::PerCall)];
 
     for op in &ops {
         for &(layer, policy) in &layers {
@@ -218,13 +215,8 @@ fn render_bigint_validation(rows: &[&FixtureReport]) -> String {
                 continue;
             }
 
-            let _ = writeln!(
-                out,
-                "### `{op}` · layer=`{}` · context=`{}` · gc=`{}`\n",
-                layer.as_str(),
-                policy.as_str(),
-                layer.suggested_gc_mode()
-            );
+            let _ =
+                writeln!(out, "### `{op}` · layer=`{}` · context=`{}` · gc=`{}`\n", layer.as_str(), policy.as_str(), layer.suggested_gc_mode());
 
             let mut bits: Vec<u32> = athena_rows.iter().filter_map(|r| r.bits).collect();
             bits.sort_unstable();
@@ -264,13 +256,7 @@ fn render_bigint_validation(rows: &[&FixtureReport]) -> String {
     out
 }
 
-fn find_row<'a>(
-    rows: &'a [&'a FixtureReport],
-    op: &str,
-    bits: u32,
-    impl_name: &str,
-    layer: Option<BenchLayer>,
-) -> Option<&'a FixtureReport> {
+fn find_row<'a>(rows: &'a [&'a FixtureReport], op: &str, bits: u32, impl_name: &str, layer: Option<BenchLayer>) -> Option<&'a FixtureReport> {
     rows.iter().copied().find(|r| {
         if r.skipped {
             return false;

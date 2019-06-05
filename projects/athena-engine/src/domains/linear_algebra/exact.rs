@@ -67,11 +67,7 @@ impl Clone for ExactDetResult {
 impl ExactSolveResult {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            disposition: self.disposition.clone(),
-            particular: self.particular.as_ref().map(|m| m.owning_copy()),
-            guarantee: self.guarantee,
-        }
+        Self { disposition: self.disposition.clone(), particular: self.particular.as_ref().map(|m| m.owning_copy()), guarantee: self.guarantee }
     }
 }
 
@@ -84,12 +80,7 @@ impl Clone for ExactSolveResult {
 impl ExactRrefResult {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            matrix: self.matrix.owning_copy(),
-            pivot_cols: self.pivot_cols.clone(),
-            rank: self.rank,
-            guarantee: self.guarantee,
-        }
+        Self { matrix: self.matrix.owning_copy(), pivot_cols: self.pivot_cols.clone(), rank: self.rank, guarantee: self.guarantee }
     }
 }
 
@@ -224,9 +215,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
         }
         for i in (k + 1)..n {
             for j in (k + 1)..n {
-                let num = a[(i * n + j) as usize]
-                    .mul(&a[(k * n + k) as usize])
-                    .sub(&a[(i * n + k) as usize].mul(&a[(k * n + j) as usize]));
+                let num = a[(i * n + j) as usize].mul(&a[(k * n + k) as usize]).sub(&a[(i * n + k) as usize].mul(&a[(k * n + j) as usize]));
                 // 对 prev 做精确整除
                 a[(i * n + j) as usize] = num.div(&prev).expect("div");
             }
@@ -365,11 +354,7 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
     }
     let particular = MatrixValue::from_rationals_row_major(n, 1, x)?;
     if free_vars.is_empty() {
-        Ok(ExactSolveResult {
-            disposition: SolveDisposition::Unique,
-            particular: Some(particular),
-            guarantee: AlgorithmGuarantee::Exact,
-        })
+        Ok(ExactSolveResult { disposition: SolveDisposition::Unique, particular: Some(particular), guarantee: AlgorithmGuarantee::Exact })
     }
     else {
         Ok(ExactSolveResult {

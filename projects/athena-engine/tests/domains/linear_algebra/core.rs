@@ -4,10 +4,10 @@ use athena_engine::{
     domains::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
-            AlgorithmGuarantee, DialectArgs, DialectMatrixOp, DialectOrigin, IndexSpec, LinearAlgebraRequest,
-            LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind, MatrixParent, MatrixShape, MatrixValue,
-            SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, lower_1based_scalar,
-            lower_dialect_op, matlab_star_kind, matmul, matrices_equal, rank_exact, solve_exact, solve_machine, transpose,
+            AlgorithmGuarantee, DialectArgs, DialectMatrixOp, DialectOrigin, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult,
+            LinearAlgebraValue, MatrixEntry, MatrixEqualityKind, MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder,
+            det_bareiss, execute_linear_algebra, hadamard, lower_1based_scalar, lower_dialect_op, matlab_star_kind, matmul, matrices_equal,
+            rank_exact, solve_exact, solve_machine, transpose,
         },
     },
     runtime::Session,
@@ -70,29 +70,17 @@ fn dialect_canonical_parity_matmul_vs_hadamard() {
     let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
     let b = MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap();
 
-    let mm_mathematica = lower_dialect_op(
-        DialectOrigin::Mathematica,
-        DialectMatrixOp::MatMul,
-        DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() },
-    )
-    .unwrap();
-    let mm_matlab = lower_dialect_op(
-        DialectOrigin::Matlab,
-        matlab_star_kind(false),
-        DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() },
-    )
-    .unwrap();
+    let mm_mathematica =
+        lower_dialect_op(DialectOrigin::Mathematica, DialectMatrixOp::MatMul, DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
+    let mm_matlab =
+        lower_dialect_op(DialectOrigin::Matlab, matlab_star_kind(false), DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
     assert_eq!(mm_mathematica, mm_matlab);
 
-    let had_mathematica = lower_dialect_op(
-        DialectOrigin::Mathematica,
-        DialectMatrixOp::Hadamard,
-        DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() },
-    )
-    .unwrap();
-    let had_matlab =
-        lower_dialect_op(DialectOrigin::Matlab, matlab_star_kind(true), DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() })
+    let had_mathematica =
+        lower_dialect_op(DialectOrigin::Mathematica, DialectMatrixOp::Hadamard, DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() })
             .unwrap();
+    let had_matlab =
+        lower_dialect_op(DialectOrigin::Matlab, matlab_star_kind(true), DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
     assert_eq!(had_mathematica, had_matlab);
     assert_ne!(mm_matlab, had_matlab);
 
@@ -115,12 +103,9 @@ fn dialect_1based_index_parity() {
         DialectArgs::Index { matrix: m.clone(), row_1based: 2, col_1based: 1 },
     )
     .unwrap();
-    let req_matlab = lower_dialect_op(
-        DialectOrigin::Matlab,
-        DialectMatrixOp::IndexScalar,
-        DialectArgs::Index { matrix: m, row_1based: 2, col_1based: 1 },
-    )
-    .unwrap();
+    let req_matlab =
+        lower_dialect_op(DialectOrigin::Matlab, DialectMatrixOp::IndexScalar, DialectArgs::Index { matrix: m, row_1based: 2, col_1based: 1 })
+            .unwrap();
     assert_eq!(req_mma, req_matlab);
     let LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(v) } = execute_linear_algebra(req_mma)
     else {

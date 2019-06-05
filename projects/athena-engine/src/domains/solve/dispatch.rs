@@ -71,8 +71,5 @@ pub fn require_goal(problem: &SolveProblem, expected: SolveGoal) -> Result<(), D
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::TypeMismatch)
-        .detail("domain", "solve")
-        .detail("operation", "execute_goal")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("domain", "solve").detail("operation", "execute_goal").detail("reason", reason)
 }

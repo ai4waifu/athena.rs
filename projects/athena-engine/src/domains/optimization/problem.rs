@@ -95,24 +95,10 @@ impl OptimizationProblem {
             }
         }
         if objectives.is_empty() {
-            return Err(Diagnostic::new(DiagnosticCode::DomainError)
-                .detail("domain", "optimization")
-                .detail("reason", "empty_objectives"));
+            return Err(Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "optimization").detail("reason", "empty_objectives"));
         }
-        let seed = id.0 as u64
-            ^ ((variables.len() as u64) << 8)
-            ^ ((feasible_set.constraints.len() as u64) << 16)
-            ^ ((objectives.len() as u64) << 24);
-        Ok(Self {
-            id,
-            fingerprint: fingerprint_placeholder(seed),
-            class,
-            variables,
-            feasible_set,
-            objectives,
-            assumptions,
-            policy,
-            limits,
-        })
+        let seed =
+            id.0 as u64 ^ ((variables.len() as u64) << 8) ^ ((feasible_set.constraints.len() as u64) << 16) ^ ((objectives.len() as u64) << 24);
+        Ok(Self { id, fingerprint: fingerprint_placeholder(seed), class, variables, feasible_set, objectives, assumptions, policy, limits })
     }
 }

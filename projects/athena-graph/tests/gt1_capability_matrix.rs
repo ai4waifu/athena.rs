@@ -38,10 +38,7 @@ fn csr_satisfies_chunked_sequential_and_external_workspace() {
 #[test]
 fn memory_graph_rejects_external_workspace() {
     let g = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish();
-    assert!(matches!(
-        g.ensure_capabilities(GraphAlgorithmRequirements::external_workspace()),
-        Err(GraphError::CapabilityMismatch { .. })
-    ));
+    assert!(matches!(g.ensure_capabilities(GraphAlgorithmRequirements::external_workspace()), Err(GraphError::CapabilityMismatch { .. })));
 }
 
 #[test]
@@ -74,16 +71,10 @@ fn multi_pass_rejected_without_in_memory_or_chunked() {
 #[test]
 fn distributed_shards_rejected_on_all_current_backends() {
     let g = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish();
-    assert!(matches!(
-        g.ensure_capabilities(GraphAlgorithmRequirements::distributed_shards()),
-        Err(GraphError::CapabilityMismatch { .. })
-    ));
+    assert!(matches!(g.ensure_capabilities(GraphAlgorithmRequirements::distributed_shards()), Err(GraphError::CapabilityMismatch { .. })));
     let budget = MemoryBudget::new(4096).unwrap();
     let csr = edge_list_to_csr(2, vec![(0, 1)], budget).unwrap();
-    assert!(matches!(
-        csr.ensure_capabilities(GraphAlgorithmRequirements::distributed_shards()),
-        Err(GraphError::CapabilityMismatch { .. })
-    ));
+    assert!(matches!(csr.ensure_capabilities(GraphAlgorithmRequirements::distributed_shards()), Err(GraphError::CapabilityMismatch { .. })));
 }
 
 #[test]

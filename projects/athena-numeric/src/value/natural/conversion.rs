@@ -59,10 +59,7 @@ impl Natural {
     }
 
     /// 在执行预算下解码 [`Self::wire_encode_magnitude`] 字节（canonical reject）。
-    pub(crate) fn wire_decode_magnitude_budgeted(
-        bytes: &[u8],
-        budget: &crate::policy::execution_budget::ExecutionBudget,
-    ) -> Result<Self> {
+    pub(crate) fn wire_decode_magnitude_budgeted(bytes: &[u8], budget: &crate::policy::execution_budget::ExecutionBudget) -> Result<Self> {
         use crate::format::validation::assert_canonical_magnitude_limbs;
         if bytes.len() < 4 {
             return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
@@ -71,9 +68,7 @@ impl Natural {
         }
         budget.check_wire_bytes(bytes.len())?;
         let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_count")
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", "wire_magnitude_count")
         })?) as usize;
         budget.check_limbs(count)?;
         let need = 4usize
@@ -118,9 +113,7 @@ impl Natural {
                 .detail("operation", "wire_magnitude_short"));
         }
         let count = u32::from_le_bytes(bytes[0..4].try_into().map_err(|_| {
-            Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-                .detail("domain", "numeric")
-                .detail("operation", "wire_magnitude_count")
+            Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", "wire_magnitude_count")
         })?) as usize;
         let total = 4usize
             .checked_add(count.checked_mul(8).ok_or_else(|| {

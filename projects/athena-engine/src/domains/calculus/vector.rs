@@ -72,10 +72,7 @@ pub fn gradient_checked(
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Gradient> {
     if variables.is_empty() {
-        return CalculusResult::Exact {
-            value: Gradient { expression, variables: Vec::new(), components: Vec::new() },
-            conditions: Vec::new(),
-        };
+        return CalculusResult::Exact { value: Gradient { expression, variables: Vec::new(), components: Vec::new() }, conditions: Vec::new() };
     }
     let mut components = Vec::with_capacity(variables.len());
     let mut conditions = Vec::new();
@@ -258,12 +255,7 @@ fn sub_terms(cc: &mut CalculusCtx<'_>, a: TermId, b: TermId) -> TermId {
     cc.eval(cc.apply("Plus", vec![a, neg]))
 }
 
-fn merge_conditions(
-    conditions: &mut Vec<Condition>,
-    unresolved: &mut Vec<Condition>,
-    more_c: Vec<Condition>,
-    more_u: Vec<Condition>,
-) {
+fn merge_conditions(conditions: &mut Vec<Condition>, unresolved: &mut Vec<Condition>, more_c: Vec<Condition>, more_u: Vec<Condition>) {
     conditions.extend(more_c);
     unresolved.extend(more_u);
 }

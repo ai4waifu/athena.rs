@@ -133,8 +133,7 @@ fn distributive_law_smoke() {
     let b = build_univariate(&rings, ring, &[(1, 1), (1, 0)]);
     let c = build_univariate(&rings, ring, &[(3, 0)]);
     let left = mul_polynomial(a.clone(), add_polynomial(b.clone(), c.clone(), &rings).unwrap(), &rings).unwrap();
-    let right =
-        add_polynomial(mul_polynomial(a.clone(), b, &rings).unwrap(), mul_polynomial(a, c, &rings).unwrap(), &rings).unwrap();
+    let right = add_polynomial(mul_polynomial(a.clone(), b, &rings).unwrap(), mul_polynomial(a, c, &rings).unwrap(), &rings).unwrap();
     assert_eq!(left, right);
 }
 

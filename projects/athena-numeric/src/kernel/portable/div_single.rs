@@ -6,13 +6,7 @@ use crate::{kernel::LimbBuffer, policy::execution_budget::ExecutionBudget};
 
 use super::primitive::effective_len;
 
-pub(super) fn div_rem_1_into(
-    u: &[u64],
-    d: u64,
-    q_out: &mut LimbBuffer,
-    r_out: &mut LimbBuffer,
-    budget: &ExecutionBudget,
-) -> Result<()> {
+pub(super) fn div_rem_1_into(u: &[u64], d: u64, q_out: &mut LimbBuffer, r_out: &mut LimbBuffer, budget: &ExecutionBudget) -> Result<()> {
     assert_ne!(d, 0);
     let la = effective_len(u);
     if la == 1 && u[0] < d {

@@ -27,15 +27,13 @@ mod solution;
 mod value_table;
 
 pub use adapters_linear::{
-    LinearAdaptedSolution, adapt_exact_linear_solve, adapt_machine_linear_solve, solve_linear_system_exact,
-    solve_linear_system_machine,
+    LinearAdaptedSolution, adapt_exact_linear_solve, adapt_machine_linear_solve, solve_linear_system_exact, solve_linear_system_machine,
 };
 pub use adapters_univariate::{UnivariateAdaptedSolution, adapt_univariate_factorization, solve_univariate_polynomial_roots};
 pub use binding::{BindingId, BindingMap, BoundSymbol};
 pub use certificate::{ResidualCertificate, proof_ref_from_witness};
 pub use constraint::{
-    Constraint, ConstraintConnective, ConstraintSet, Equation, Inequality, InequalityOp, QuantifiedConstraint, Quantifier,
-    SolvePredicate,
+    Constraint, ConstraintConnective, ConstraintSet, Equation, Inequality, InequalityOp, QuantifiedConstraint, Quantifier, SolvePredicate,
 };
 pub use coverage::CoverageStatus;
 pub use dispatch::{LinearSolveMode, execute_linear_system_goal, execute_polynomial_root_goal, require_goal};

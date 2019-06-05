@@ -1,8 +1,8 @@
 //! Montgomery/Barrett 内核、`ModulusId` 路径、批量逆元、分解流水线。
 
 use athena_engine::domains::number_theory::{
-    FactorAlgorithms, FactorLimits, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue,
-    batch_mod_inverse, execute_number_theory, factor_integer, mod_inverse_with_table, mod_pow_with_table, verify_factorization,
+    FactorAlgorithms, FactorLimits, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, batch_mod_inverse,
+    execute_number_theory, factor_integer, mod_inverse_with_table, mod_pow_with_table, verify_factorization,
 };
 use athena_numeric::{Integer, Modulus, ModulusTable};
 
@@ -47,10 +47,8 @@ fn batch_mod_inverse_product_tree() {
 
 #[test]
 fn batch_mod_inverse_via_request() {
-    let out = execute_number_theory(NumberTheoryRequest::BatchModInverse {
-        residues: vec![2.into(), 3.into()],
-        modulus: Modulus::new(11).unwrap(),
-    });
+    let out =
+        execute_number_theory(NumberTheoryRequest::BatchModInverse { residues: vec![2.into(), 3.into()], modulus: Modulus::new(11).unwrap() });
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::ModularList(v) } => {
             assert_eq!(v.len(), 2);
@@ -78,8 +76,7 @@ fn pollard_rho_splits_semiprime() {
 fn fermat_splits_close_semiprime() {
     let n = Integer::from_i64(1_000_003).mul(&Integer::from_i64(1_000_033));
     let mut limits = FactorLimits::default();
-    limits.policy.algorithms =
-        FactorAlgorithms { trial: false, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: true };
+    limits.policy.algorithms = FactorAlgorithms { trial: false, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: true };
     limits.budget.max_steps = Some(100_000);
     let f = factor_integer(&n, &limits).expect("factor");
     assert_eq!(f.completeness(), FactorizationCompleteness::Complete);

@@ -125,8 +125,7 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
         return Outcome::unevaluated(echo);
     };
     let unknown_sym = BoundSymbol::free(SymbolId(0));
-    let Ok(adapted) =
-        solve_univariate_polynomial_roots(poly, &rings, unknown_sym, SolveDomain::Rationals, PolynomialFactorLimits::default())
+    let Ok(adapted) = solve_univariate_polynomial_roots(poly, &rings, unknown_sym, SolveDomain::Rationals, PolynomialFactorLimits::default())
     else {
         return Outcome::unevaluated(echo);
     };

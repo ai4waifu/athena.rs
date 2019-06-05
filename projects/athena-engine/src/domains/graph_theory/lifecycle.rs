@@ -6,8 +6,8 @@ use std::collections::VecDeque;
 
 use athena_gc::GcHeap;
 use athena_graph::{
-    ChunkRegistry, ChunkResidency, FrontierCheckpoint, GraphAlgorithmCheckpoint, GraphError, GraphPublication,
-    GraphWorkspaceId, SpillObjectId, allocate_spill_id, allocate_workspace_id,
+    ChunkRegistry, ChunkResidency, FrontierCheckpoint, GraphAlgorithmCheckpoint, GraphError, GraphPublication, GraphWorkspaceId, SpillObjectId,
+    allocate_spill_id, allocate_workspace_id,
 };
 
 /// 图 chunk 驻留 / spill 策略控制器。
@@ -73,11 +73,7 @@ impl GraphResidencyController {
     }
 
     /// 需要读时 materialize（若已 Spilled）。
-    pub fn ensure_resident(
-        &mut self,
-        registry: &mut ChunkRegistry,
-        chunk: athena_graph::GraphChunkId,
-    ) -> Result<(), GraphError> {
+    pub fn ensure_resident(&mut self, registry: &mut ChunkRegistry, chunk: athena_graph::GraphChunkId) -> Result<(), GraphError> {
         let residency = registry.get(chunk).map(|m| m.residency).ok_or(GraphError::UnknownChunk { chunk })?;
         if residency == ChunkResidency::Spilled || residency == ChunkResidency::Evictable {
             registry.materialize(chunk)?;
@@ -89,12 +85,7 @@ impl GraphResidencyController {
     fn count_resident(&self, registry: &ChunkRegistry) -> usize {
         self.lru
             .iter()
-            .filter(|id| {
-                registry
-                    .get(**id)
-                    .map(|m| matches!(m.residency, ChunkResidency::Resident | ChunkResidency::Mapped))
-                    .unwrap_or(false)
-            })
+            .filter(|id| registry.get(**id).map(|m| matches!(m.residency, ChunkResidency::Resident | ChunkResidency::Mapped)).unwrap_or(false))
             .count()
     }
 

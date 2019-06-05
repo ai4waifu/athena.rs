@@ -46,14 +46,9 @@ pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPatte
                     else {
                         return TermPattern::Exact(pat);
                     };
-                    TermPattern::Bind {
-                        name: name_sym,
-                        inner: Box::new(lower_from_dialect_term(vm, args[1])),
-                    }
+                    TermPattern::Bind { name: name_sym, inner: Box::new(lower_from_dialect_term(vm, args[1])) }
                 }
-                _ => TermPattern::StructuralApplication(
-                    args.into_iter().map(|a| lower_from_dialect_term(vm, a)).collect(),
-                ),
+                _ => TermPattern::StructuralApplication(args.into_iter().map(|a| lower_from_dialect_term(vm, a)).collect()),
             }
         }
         Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_from_dialect_term(vm, i)).collect()),
@@ -62,12 +57,7 @@ pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPatte
 }
 
 /// 对中性 [`TermPattern`] 做结构匹配并收集绑定。
-pub(crate) fn match_term_pattern(
-    vm: &mut Vm<'_>,
-    expr: TermId,
-    pattern: &TermPattern,
-    binds: &mut HashMap<SymbolId, TermId>,
-) -> bool {
+pub(crate) fn match_term_pattern(vm: &mut Vm<'_>, expr: TermId, pattern: &TermPattern, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     match pattern {
         TermPattern::Any => true,
         TermPattern::HeadConstraint { head_name } => head_constraint_holds(vm, expr, head_name),
@@ -98,12 +88,7 @@ pub(crate) fn match_term_pattern(
     }
 }
 
-fn zip_match(
-    vm: &mut Vm<'_>,
-    exprs: &[TermId],
-    patterns: &[TermPattern],
-    binds: &mut HashMap<SymbolId, TermId>,
-) -> bool {
+fn zip_match(vm: &mut Vm<'_>, exprs: &[TermId], patterns: &[TermPattern], binds: &mut HashMap<SymbolId, TermId>) -> bool {
     if exprs.len() != patterns.len() {
         return false;
     }
@@ -114,9 +99,7 @@ fn head_constraint_holds(vm: &mut Vm<'_>, expr: TermId, head_name: &str) -> bool
     match head_name {
         "Integer" => match vm.shape(expr) {
             Some(Shape::Number) => match vm.session.arena.get(expr) {
-                Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
-                    n.as_exact_integer().is_some() || n.as_integer().is_some()
-                }
+                Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => n.as_exact_integer().is_some() || n.as_integer().is_some(),
                 _ => false,
             },
             _ => false,

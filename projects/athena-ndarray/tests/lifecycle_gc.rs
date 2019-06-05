@@ -1,9 +1,7 @@
 //! 数组简版 GC：真实 `allocate_object` + Trace + `RootKind::Array`。
 
 use athena_gc::{GcHeap, HeapBudget, Trace};
-use athena_ndarray::{
-    ArrayId, ArrayLayout, ArrayRevision, LogicalShape, RecordingTracer, allocate_array_chunk_id, finish_array_on_heap,
-};
+use athena_ndarray::{ArrayId, ArrayLayout, ArrayRevision, LogicalShape, RecordingTracer, allocate_array_chunk_id, finish_array_on_heap};
 
 #[test]
 fn finish_array_on_heap_registers_roots() {
@@ -36,9 +34,7 @@ fn snapshot_trace_marks_revision_and_chunks() {
     let shape = LogicalShape::new([4]).unwrap();
     let layout = ArrayLayout::row_major(shape.clone(), 8).unwrap();
     let chunk = allocate_array_chunk_id(&mut h).unwrap();
-    let published =
-        athena_ndarray::publish_array_snapshot(&mut h, ArrayId::allocate(), ArrayRevision(2), shape, layout, vec![chunk])
-            .unwrap();
+    let published = athena_ndarray::publish_array_snapshot(&mut h, ArrayId::allocate(), ArrayRevision(2), shape, layout, vec![chunk]).unwrap();
     let mut tracer = RecordingTracer::default();
     published.publication.snapshot_record.trace(&mut tracer);
     assert!(tracer.marked.contains(&published.snapshot_id().as_object()));

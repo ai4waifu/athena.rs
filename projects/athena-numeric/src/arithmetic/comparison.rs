@@ -52,10 +52,8 @@ impl NumericCompare for DefaultNumericCompare {
         }
         if lhs.domain() != rhs.domain() {
             let domain = DefaultPromotion::common_domain(lhs, rhs, &policy.promotion)?;
-            let a =
-                DefaultPromotion::promote(lhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
-            let b =
-                DefaultPromotion::promote(rhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
+            let a = DefaultPromotion::promote(lhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
+            let b = DefaultPromotion::promote(rhs.try_clone_in(&NumericContext::portable_default())?, &domain, &policy.promotion)?;
             return Self::compare_same_domain(&a, &b, policy);
         }
         Self::compare_same_domain(lhs, rhs, policy)
@@ -63,11 +61,7 @@ impl NumericCompare for DefaultNumericCompare {
 }
 
 impl DefaultNumericCompare {
-    fn compare_same_domain(
-        lhs: &NumericValue,
-        rhs: &NumericValue,
-        _policy: &ComparisonPolicy,
-    ) -> Result<NumericComparison, Diagnostic> {
+    fn compare_same_domain(lhs: &NumericValue, rhs: &NumericValue, _policy: &ComparisonPolicy) -> Result<NumericComparison, Diagnostic> {
         match (lhs, rhs) {
             (NumericValue::Integer(a), NumericValue::Integer(b)) => {
                 Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
@@ -85,23 +79,16 @@ impl DefaultNumericCompare {
                     (Real::Machine(x), Real::Machine(y)) => {
                         Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                     }
-                    (Real::Decimal(a), Real::Decimal(b)) => {
-                        Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
-                    }
+                    (Real::Decimal(a), Real::Decimal(b)) => Ok(if a == b { NumericComparison::ExactEqual } else { NumericComparison::Unequal }),
                     (Real::Machine(x), Real::Decimal(b)) | (Real::Decimal(b), Real::Machine(x)) => match b.to_f64_exact() {
-                        Some(y) if x.is_finite() => Ok(if x.to_bits() == y.to_bits() {
-                            NumericComparison::ExactEqual
+                        Some(y) if x.is_finite() => {
+                            Ok(if x.to_bits() == y.to_bits() { NumericComparison::ExactEqual } else { NumericComparison::Unequal })
                         }
-                        else {
-                            NumericComparison::Unequal
-                        }),
                         _ => Ok(NumericComparison::Unknown),
                     },
                 }
             }
-            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("domain", "numeric")
-                .detail("operation", "compare")),
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "compare")),
         }
     }
 }

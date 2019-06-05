@@ -44,8 +44,7 @@ fn karatsuba_capability_matches_schoolbook_baseline() {
 #[test]
 fn toom_capability_matches_schoolbook_baseline() {
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let ctx_t =
-        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
+    let ctx_t = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
 
     let mut caps_sb = CapabilityBundle::portable_default();
     caps_sb.algorithm.karatsuba = false;
@@ -66,8 +65,7 @@ fn toom_capability_matches_schoolbook_baseline() {
 #[test]
 fn burnikel_ziegler_capability_matches_knuth_baseline() {
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let ctx_bz =
-        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
+    let ctx_bz = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), CapabilityBundle::portable_default());
 
     let mut caps_kn = CapabilityBundle::portable_default();
     caps_kn.algorithm.bz_division = false;
@@ -119,14 +117,8 @@ fn half_gcd_capability_matches_lehmer_baseline_on_wide_odds() {
     let mut caps_l = CapabilityBundle::portable_default();
     caps_l.algorithm.half_gcd = false;
 
-    assert_eq!(
-        athena_numeric::algorithm::AlgorithmPlanner::new(caps_h).plan_gcd(a.as_limbs().len(), b.as_limbs().len()),
-        GcdStrategy::HalfGcd
-    );
-    assert_eq!(
-        athena_numeric::algorithm::AlgorithmPlanner::new(caps_l).plan_gcd(a.as_limbs().len(), b.as_limbs().len()),
-        GcdStrategy::Lehmer
-    );
+    assert_eq!(athena_numeric::algorithm::AlgorithmPlanner::new(caps_h).plan_gcd(a.as_limbs().len(), b.as_limbs().len()), GcdStrategy::HalfGcd);
+    assert_eq!(athena_numeric::algorithm::AlgorithmPlanner::new(caps_l).plan_gcd(a.as_limbs().len(), b.as_limbs().len()), GcdStrategy::Lehmer);
 
     let ctx_h = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap.clone(), caps_h);
     let ctx_l = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps_l);

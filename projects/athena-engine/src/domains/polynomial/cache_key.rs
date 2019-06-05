@@ -108,9 +108,7 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable) -> 
 
 fn ring_fingerprint_for(poly: &Polynomial, rings: &RingTable) -> Result<RingFingerprint> {
     rings.ring_fingerprint(poly.ring()).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "polynomial")
-            .detail("operation", "cache_key_unknown_ring")
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_ring")
     })
 }
 
@@ -130,13 +128,7 @@ fn single_input_key(op: PolynomialCacheOp, poly: &Polynomial, rings: &RingTable,
     })
 }
 
-fn two_input_key(
-    op: PolynomialCacheOp,
-    lhs: &Polynomial,
-    rhs: &Polynomial,
-    rings: &RingTable,
-    limits_fp: u64,
-) -> Result<PolynomialCacheKey> {
+fn two_input_key(op: PolynomialCacheOp, lhs: &Polynomial, rhs: &Polynomial, rings: &RingTable, limits_fp: u64) -> Result<PolynomialCacheKey> {
     if lhs.ring() != rhs.ring() {
         return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
             .detail("domain", "polynomial")
@@ -154,12 +146,7 @@ fn two_input_key(
     })
 }
 
-fn many_input_key(
-    op: PolynomialCacheOp,
-    generators: &[Polynomial],
-    rings: &RingTable,
-    limits_fp: u64,
-) -> Result<PolynomialCacheKey> {
+fn many_input_key(op: PolynomialCacheOp, generators: &[Polynomial], rings: &RingTable, limits_fp: u64) -> Result<PolynomialCacheKey> {
     if generators.is_empty() {
         return Err(Diagnostic::new(DiagnosticCode::DomainError)
             .detail("domain", "polynomial")
@@ -180,14 +167,7 @@ fn many_input_key(
     }
     input_fingerprints.sort_unstable();
     input_hashes.sort_unstable();
-    Ok(PolynomialCacheKey {
-        operation: op,
-        ring,
-        ring_fingerprint,
-        input_fingerprints,
-        input_hashes,
-        limits_fingerprint: limits_fp,
-    })
+    Ok(PolynomialCacheKey { operation: op, ring, ring_fingerprint, input_fingerprints, input_hashes, limits_fingerprint: limits_fp })
 }
 
 fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {

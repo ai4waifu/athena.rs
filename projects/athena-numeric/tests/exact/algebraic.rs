@@ -35,8 +35,7 @@ fn rejects_empty_isolating_interval() {
 
 #[test]
 fn minpoly_round_constructs() {
-    let iv =
-        Interval::try_bounded(Real::machine(1.4), Real::machine(1.5), athena_numeric::IntervalDecoration::Certain).unwrap();
+    let iv = Interval::try_bounded(Real::machine(1.4), Real::machine(1.5), athena_numeric::IntervalDecoration::Certain).unwrap();
     let a = AlgebraicNumber::try_new(
         PolynomialFingerprint(7),
         iv,

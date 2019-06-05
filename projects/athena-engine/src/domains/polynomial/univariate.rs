@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     builder::PolynomialBuilder,
-    coeff_kernel::CoeffRing,
+    coefficient_kernel::CoefficientRing,
     expr::Polynomial,
     ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
@@ -22,12 +22,7 @@ pub struct UnivariateDivision {
 }
 
 /// 单变量精确除法。
-pub fn div_univariate(
-    dividend: Polynomial,
-    divisor: Polynomial,
-    policy: DivisionPolicy,
-    rings: &RingTable,
-) -> Result<UnivariateDivision> {
+pub fn div_univariate(dividend: Polynomial, divisor: Polynomial, policy: DivisionPolicy, rings: &RingTable) -> Result<UnivariateDivision> {
     ensure_same_ring(&dividend, &divisor)?;
     let desc = rings.get(dividend.ring()).ok_or_else(|| ring_unknown(dividend.ring()))?;
     let var = detect_univariate_var(&dividend, desc.variable_count())?;
@@ -36,7 +31,7 @@ pub fn div_univariate(
     let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(dividend.ring()))?;
     let (q, r) = match domain {
         CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(dividend.ring())?;
+            let coeff = rings.coefficient_kernel(dividend.ring())?;
             div_dense_field(&a, &b, &coeff, policy)?
         }
         CoefficientDomain::Integer => div_dense_integer(&a, &b, policy)?,
@@ -58,7 +53,7 @@ pub fn gcd_univariate(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(lhs.ring()))?;
     let g = match domain {
         CoefficientDomain::Rational | CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(lhs.ring())?;
+            let coeff = rings.coefficient_kernel(lhs.ring())?;
             gcd_dense_field(a, b, &coeff)?
         }
         CoefficientDomain::Integer => gcd_dense_integer(a, b)?,
@@ -78,12 +73,7 @@ pub fn resultant_univariate(lhs: Polynomial, rhs: Polynomial, rings: &RingTable)
     resultant_dense(&a, &b, domain, lhs.ring(), rings)
 }
 
-fn div_dense_field(
-    a: &[Number],
-    b: &[Number],
-    coeff: &CoeffRing<'_>,
-    policy: DivisionPolicy,
-) -> Result<(Vec<Number>, Vec<Number>)> {
+fn div_dense_field(a: &[Number], b: &[Number], coeff: &CoefficientRing<'_>, policy: DivisionPolicy) -> Result<(Vec<Number>, Vec<Number>)> {
     if is_zero_dense(b) {
         return Err(division_by_zero());
     }
@@ -189,7 +179,7 @@ fn pseudo_divide(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Number>
     Ok((trim_dense(&quot), rem))
 }
 
-fn gcd_dense_field(a: Vec<Number>, b: Vec<Number>, coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
+fn gcd_dense_field(a: Vec<Number>, b: Vec<Number>, coeff: &CoefficientRing<'_>) -> Result<Vec<Number>> {
     let mut a = trim_dense(&a);
     let mut b = trim_dense(&b);
     if is_zero_dense(&b) {
@@ -284,7 +274,7 @@ fn normalize_resultant_sign(
     match domain {
         CoefficientDomain::Rational | CoefficientDomain::Integer => Ok(num_neg(det)),
         CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(ring)?;
+            let coeff = rings.coefficient_kernel(ring)?;
             coeff.neg(det)
         }
         _ => Err(unsupported_domain()),
@@ -297,11 +287,9 @@ fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain, ring: RingId, rin
         return Ok(Number::small_int(1));
     }
     match domain {
-        CoefficientDomain::Rational | CoefficientDomain::Integer => {
-            det_rational(mat.iter().map(|row| clone_numbers(row)).collect())
-        }
+        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat.iter().map(|row| clone_numbers(row)).collect()),
         CoefficientDomain::FiniteField { .. } => {
-            let coeff = rings.coeff_kernel(ring)?;
+            let coeff = rings.coefficient_kernel(ring)?;
             det_field(mat.iter().map(|row| clone_numbers(row)).collect(), &coeff)
         }
         _ => Err(unsupported_domain()),
@@ -339,7 +327,7 @@ fn det_rational(mut a: Vec<Vec<Number>>) -> Result<Number> {
     Ok(det)
 }
 
-fn det_field(mut a: Vec<Vec<Number>>, coeff: &CoeffRing<'_>) -> Result<Number> {
+fn det_field(mut a: Vec<Vec<Number>>, coeff: &CoefficientRing<'_>) -> Result<Number> {
     let n = a.len();
     let mut det = Number::small_int(1);
     for col in 0..n {
@@ -401,9 +389,7 @@ fn detect_univariate_var(poly: &Polynomial, n: usize) -> Result<usize> {
             }
         }
     }
-    active.ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "zero_polynomial")
-    })
+    active.ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "zero_polynomial"))
 }
 
 fn to_dense(poly: &Polynomial, var: usize, n: usize) -> Result<Vec<Number>> {
@@ -469,12 +455,12 @@ fn degree(v: &[Number]) -> usize {
 }
 
 fn lc(v: &[Number]) -> Result<Number> {
-    v.last().map(clone_number).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "zero_polynomial")
-    })
+    v.last()
+        .map(clone_number)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "zero_polynomial"))
 }
 
-fn sub_scaled_monomial(a: &[Number], b: &[Number], scale: Number, shift: usize, coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
+fn sub_scaled_monomial(a: &[Number], b: &[Number], scale: Number, shift: usize, coeff: &CoefficientRing<'_>) -> Result<Vec<Number>> {
     let mut out = clone_numbers(a);
     for (i, bc) in b.iter().enumerate() {
         let idx = i + shift;
@@ -531,14 +517,14 @@ fn primitive_part_dense(v: &[Number], content: &Integer) -> Result<Vec<Number>> 
     v.iter()
         .map(|c| match c {
             Number::Integer(n) => Ok(Number::integer(n.div(content).expect("div"))),
-            _ => Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
-                .detail("domain", "polynomial")
-                .detail("operation", "primitive_part")),
+            _ => {
+                Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "polynomial").detail("operation", "primitive_part"))
+            }
         })
         .collect()
 }
 
-fn monic_dense(v: &[Number], coeff: &CoeffRing<'_>) -> Result<Vec<Number>> {
+fn monic_dense(v: &[Number], coeff: &CoefficientRing<'_>) -> Result<Vec<Number>> {
     if is_zero_dense(v) {
         return Ok(clone_numbers(v));
     }
@@ -579,9 +565,7 @@ fn num_pow(base: Number, exp: usize) -> Result<Number> {
 
 fn ensure_same_ring(lhs: &Polynomial, rhs: &Polynomial) -> Result<()> {
     if lhs.ring() != rhs.ring() {
-        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
-            .detail("domain", "polynomial")
-            .detail("operation", "ring_mismatch"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch).detail("domain", "polynomial").detail("operation", "ring_mismatch"));
     }
     Ok(())
 }
@@ -591,15 +575,11 @@ fn division_by_zero() -> Diagnostic {
 }
 
 fn exponent_mismatch() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
-        .detail("domain", "polynomial")
-        .detail("operation", "exponent_length")
+    Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch).detail("domain", "polynomial").detail("operation", "exponent_length")
 }
 
 fn unsupported_domain() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "polynomial")
-        .detail("operation", "univariate_unsupported_domain")
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "univariate_unsupported_domain")
 }
 
 fn ring_unknown(ring: RingId) -> Diagnostic {

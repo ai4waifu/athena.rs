@@ -7,13 +7,13 @@ use crate::domains::algebra::{FiniteFieldPolySpec, add_coords, canonical_coords,
 
 /// 扩张有限域系数算术。
 #[derive(Debug)]
-pub struct FpExtCoeffKernel {
+pub struct FpExtCoefficientKernel {
     field: FieldId,
     spec: FiniteFieldPolySpec,
     modulus: Modulus,
 }
 
-impl FpExtCoeffKernel {
+impl FpExtCoefficientKernel {
     /// 由已注册 𝔽_{p^n} presentation 构造。
     pub fn new(field: FieldId, spec: FiniteFieldPolySpec, modulus: Modulus) -> Self {
         Self { field, spec, modulus }

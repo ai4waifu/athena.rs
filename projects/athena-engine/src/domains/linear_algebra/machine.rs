@@ -178,8 +178,7 @@ pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> 
             };
             residual = residual.max((avi - bvi).abs());
         }
-        result.witness =
-            Some(MachineSolveWitness { residual_inf: residual, numerical_rank: lu.numerical_rank, pivot_threshold });
+        result.witness = Some(MachineSolveWitness { residual_inf: residual, numerical_rank: lu.numerical_rank, pivot_threshold });
     }
     Ok(result)
 }

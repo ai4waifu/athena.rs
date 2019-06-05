@@ -107,10 +107,5 @@ pub fn scope_ref_from_assumption_set(id: AssumptionSetId) -> ScopeRef {
 
 /// 若可能，还原为 claim [`Scope`]。
 pub fn scope_from_ref(scope: ScopeRef) -> Scope {
-    if scope == ScopeRef::UNCONDITIONAL {
-        Scope::Unconditional
-    }
-    else {
-        Scope::UnderAssumptions(AssumptionSetId(scope.0.wrapping_sub(1)))
-    }
+    if scope == ScopeRef::UNCONDITIONAL { Scope::Unconditional } else { Scope::UnderAssumptions(AssumptionSetId(scope.0.wrapping_sub(1))) }
 }

@@ -35,10 +35,8 @@ fn rejects_duplicate_fields() {
 
 #[test]
 fn lazy_select_limit_preserves_schema() {
-    let schema =
-        Schema::new([Field::new("id", LogicalType::Int(64), false), Field::new("name", LogicalType::Utf8, true)]).unwrap();
-    let table =
-        Table::with_rows(schema.clone(), 100).lazy().select([TableExpr::Column("id".into())]).limit(10).collect_meta().unwrap();
+    let schema = Schema::new([Field::new("id", LogicalType::Int(64), false), Field::new("name", LogicalType::Utf8, true)]).unwrap();
+    let table = Table::with_rows(schema.clone(), 100).lazy().select([TableExpr::Column("id".into())]).limit(10).collect_meta().unwrap();
     assert_eq!(table.schema(), &schema);
     assert_eq!(table.row_count(), 10);
 }

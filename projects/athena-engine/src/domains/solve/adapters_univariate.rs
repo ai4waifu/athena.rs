@@ -4,8 +4,7 @@ use athena_numeric::{Number, div as num_div, neg as num_neg};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::domains::polynomial::{
-    Polynomial, PolynomialFactorLimits, PolynomialFactorization, PolynomialFactorizationCompleteness, RingTable,
-    factor_univariate,
+    Polynomial, PolynomialFactorLimits, PolynomialFactorization, PolynomialFactorizationCompleteness, RingTable, factor_univariate,
 };
 
 use super::{
@@ -73,9 +72,7 @@ pub fn adapt_univariate_factorization(
 
     let frontier = match &coverage {
         CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
-        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => {
-            Some(ResumeToken::empty("univariate_factor"))
-        }
+        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => Some(ResumeToken::empty("univariate_factor")),
         _ => None,
     };
 
@@ -126,8 +123,5 @@ fn linear_root_from_poly(poly: &Polynomial) -> Result<Option<Number>, Diagnostic
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::TypeMismatch)
-        .detail("domain", "solve")
-        .detail("operation", "adapt_univariate")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("domain", "solve").detail("operation", "adapt_univariate").detail("reason", reason)
 }

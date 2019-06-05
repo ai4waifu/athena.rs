@@ -8,8 +8,8 @@ mod builder;
 mod cache_key;
 mod canonical;
 mod certificate;
-mod coeff_kernel;
-mod coeff_ring_table;
+mod coefficient_kernel;
+mod coefficient_ring_table;
 mod exponent;
 mod expr;
 mod factor;
@@ -35,21 +35,21 @@ pub use builder::PolynomialBuilder;
 pub use cache_key::{PolynomialCacheKey, PolynomialCacheOp, cache_key_for_request};
 pub use canonical::canonicalize_polynomial;
 pub use certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus};
-pub use coeff_kernel::{CoeffRing, FpBigKernel, FpWordKernel, QCoeffKernel, SpecializedCoeffKernel, ZCoeffKernel};
-pub use coeff_ring_table::{CoeffRingTable, CoefficientRingDescriptor};
+pub use coefficient_kernel::{
+    CoefficientRing, FpBigKernel, FpWordKernel, QCoefficientKernel, SpecializedCoefficientKernel, ZCoefficientKernel,
+};
+pub use coefficient_ring_table::{CoefficientRingDescriptor, CoefficientRingTable};
 pub use expr::{CanonicalPolynomial, MonomialTerm, Polynomial};
 pub use factor::{
-    PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus,
-    PolynomialFactorization, PolynomialFactorizationCompleteness, factor_univariate,
+    PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
+    PolynomialFactorizationCompleteness, factor_univariate,
 };
 pub use fingerprint::{
-    FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint,
-    polynomial_fingerprint_u64,
+    FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint, polynomial_fingerprint_u64,
 };
 pub use groebner::{
     GroebnerBasis, GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis,
-    compute_elimination_basis, compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal,
-    verify_groebner_basis,
+    compute_elimination_basis, compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, verify_groebner_basis,
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;

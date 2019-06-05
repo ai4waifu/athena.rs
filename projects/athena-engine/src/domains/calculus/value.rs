@@ -119,9 +119,7 @@ impl CalculusValue {
 /// 将仅含项的微积分结果映射为值结果。
 pub fn map_term_result(r: CalculusResult<TermId>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Expression(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Expression(value), conditions },
         CalculusResult::Conditional { value, conditions } => {
             CalculusResult::Conditional { value: CalculusValue::Expression(value), conditions }
         }
@@ -134,12 +132,8 @@ pub fn map_term_result(r: CalculusResult<TermId>) -> CalculusResult<CalculusValu
 /// 将级数微积分结果映射为值结果。
 pub fn map_series_result(r: CalculusResult<Series>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Series(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Series(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Series(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Series(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Series(expression), reason }
         }
@@ -149,12 +143,8 @@ pub fn map_series_result(r: CalculusResult<Series>) -> CalculusResult<CalculusVa
 /// 将类型化向量微积分结果映射为 [`CalculusValue`]。
 pub fn map_gradient_result(r: CalculusResult<Gradient>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Gradient(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Gradient(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Gradient(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Gradient(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Gradient(expression), reason }
         }
@@ -164,12 +154,8 @@ pub fn map_gradient_result(r: CalculusResult<Gradient>) -> CalculusResult<Calcul
 /// 映射 Jacobian 结果。
 pub fn map_jacobian_result(r: CalculusResult<Jacobian>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Jacobian(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Jacobian(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Jacobian(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Jacobian(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Jacobian(expression), reason }
         }
@@ -179,12 +165,8 @@ pub fn map_jacobian_result(r: CalculusResult<Jacobian>) -> CalculusResult<Calcul
 /// 映射 Hessian 结果。
 pub fn map_hessian_result(r: CalculusResult<Hessian>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Hessian(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Hessian(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Hessian(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Hessian(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Hessian(expression), reason }
         }
@@ -194,9 +176,7 @@ pub fn map_hessian_result(r: CalculusResult<Hessian>) -> CalculusResult<Calculus
 /// 映射散度结果。
 pub fn map_divergence_result(r: CalculusResult<Divergence>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Divergence(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Divergence(value), conditions },
         CalculusResult::Conditional { value, conditions } => {
             CalculusResult::Conditional { value: CalculusValue::Divergence(value), conditions }
         }
@@ -210,9 +190,7 @@ pub fn map_divergence_result(r: CalculusResult<Divergence>) -> CalculusResult<Ca
 pub fn map_curl_result(r: CalculusResult<Curl>) -> CalculusResult<CalculusValue> {
     match r {
         CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Curl(value), conditions },
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Curl(value), conditions }
-        }
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Curl(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Curl(expression), reason }
         }
@@ -222,12 +200,8 @@ pub fn map_curl_result(r: CalculusResult<Curl>) -> CalculusResult<CalculusValue>
 /// 映射留数结果。
 pub fn map_residue_result(r: CalculusResult<Residue>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Residue(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Residue(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Residue(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Residue(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Residue(expression), reason }
         }
@@ -237,9 +211,7 @@ pub fn map_residue_result(r: CalculusResult<Residue>) -> CalculusResult<Calculus
 /// 映射 ODE 解结果。
 pub fn map_ode_result(r: CalculusResult<DifferentialSolution>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::DifferentialSolution(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::DifferentialSolution(value), conditions },
         CalculusResult::Conditional { value, conditions } => {
             CalculusResult::Conditional { value: CalculusValue::DifferentialSolution(value), conditions }
         }
@@ -252,12 +224,8 @@ pub fn map_ode_result(r: CalculusResult<DifferentialSolution>) -> CalculusResult
 /// 映射变换结果。
 pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => {
-            CalculusResult::Exact { value: CalculusValue::Transform(value), conditions }
-        }
-        CalculusResult::Conditional { value, conditions } => {
-            CalculusResult::Conditional { value: CalculusValue::Transform(value), conditions }
-        }
+        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Transform(value), conditions },
+        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Transform(value), conditions },
         CalculusResult::Unevaluated { expression, reason } => {
             CalculusResult::Unevaluated { expression: CalculusValue::Transform(expression), reason }
         }

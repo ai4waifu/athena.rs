@@ -8,8 +8,8 @@ use athena_types::{CoefficientRingId, Diagnostic, FieldId, RingId, SymbolId};
 use crate::domains::algebra::{CoefficientParent, FieldTable};
 
 use super::{
-    coeff_kernel::CoeffRing,
-    coeff_ring_table::CoeffRingTable,
+    coefficient_kernel::CoefficientRing,
+    coefficient_ring_table::CoefficientRingTable,
     fingerprint::{RingFingerprint, RingHandle},
     monomial_layout::MonomialLayout,
     order::MonomialOrder,
@@ -25,10 +25,10 @@ struct RingInternKey {
     order: MonomialOrder,
 }
 
-/// Session 持有的多项式环注册表（内嵌 [`CoeffRingTable`] 与 [`FieldTable`]）。
+/// Session 持有的多项式环注册表（内嵌 [`CoefficientRingTable`] 与 [`FieldTable`]）。
 #[derive(Debug, Default)]
 pub struct RingTable {
-    coeff_rings: CoeffRingTable,
+    coefficient_rings: CoefficientRingTable,
     fields: FieldTable,
     next_id: u32,
     by_id: HashMap<RingHandle, RingDescriptor>,
@@ -52,8 +52,8 @@ impl RingTable {
     }
 
     /// 系数环 intern 表（只读）。
-    pub fn coeff_rings(&self) -> &CoeffRingTable {
-        &self.coeff_rings
+    pub fn coefficient_rings(&self) -> &CoefficientRingTable {
+        &self.coefficient_rings
     }
 
     /// 系数域标签（经 [`RingDescriptor::coefficient_ring`] 解析）。
@@ -63,13 +63,13 @@ impl RingTable {
     }
 
     pub(crate) fn coefficient_domain_for_descriptor(&self, desc: &RingDescriptor) -> Option<&CoefficientDomain> {
-        self.coeff_rings.get(desc.coefficient_ring).map(|d| &d.domain)
+        self.coefficient_rings.get(desc.coefficient_ring).map(|d| &d.domain)
     }
 
     /// 解析环上的专用系数内核。
-    pub fn coeff_kernel(&self, ring: RingHandle) -> Result<CoeffRing<'_>, Diagnostic> {
+    pub fn coefficient_kernel(&self, ring: RingHandle) -> Result<CoefficientRing<'_>, Diagnostic> {
         let desc = self.get(ring).ok_or_else(|| ring_unknown(ring))?;
-        CoeffRing::for_descriptor(desc.coefficient_ring, &self.coeff_rings)
+        CoefficientRing::for_descriptor(desc.coefficient_ring, &self.coefficient_rings)
     }
 
     /// 系数父对象（`RingDescriptor.coefficients`）。
@@ -83,22 +83,12 @@ impl RingTable {
     }
 
     /// 经已注册 [`FieldId`] 构造多项式环（特征与模数由 presentation 提供）。
-    pub fn intern_over_field(
-        &mut self,
-        field: FieldId,
-        variables: Vec<SymbolId>,
-        order: MonomialOrder,
-    ) -> Result<RingHandle, Diagnostic> {
+    pub fn intern_over_field(&mut self, field: FieldId, variables: Vec<SymbolId>, order: MonomialOrder) -> Result<RingHandle, Diagnostic> {
         self.intern(CoefficientDomain::FiniteField { field }, variables, order)
     }
 
     /// 经 [`FieldTable::prime_field`] 注册 𝔽_p 后构造多项式环（素域推荐路径）。
-    pub fn intern_over_prime_field(
-        &mut self,
-        p: Integer,
-        variables: Vec<SymbolId>,
-        order: MonomialOrder,
-    ) -> Result<RingHandle, Diagnostic> {
+    pub fn intern_over_prime_field(&mut self, p: Integer, variables: Vec<SymbolId>, order: MonomialOrder) -> Result<RingHandle, Diagnostic> {
         let field = self.fields.prime_field(p)?;
         self.intern_over_field(field, variables, order)
     }
@@ -111,10 +101,9 @@ impl RingTable {
         order: MonomialOrder,
     ) -> Result<RingHandle, Diagnostic> {
         let coefficients = normalize_coefficient_domain(coefficients, &mut self.fields)?;
-        let (domain, variables, order, characteristic) =
-            RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
-        let coefficient_ring = self.coeff_rings.intern(domain.clone(), &self.fields)?;
-        let coefficients = self.coeff_rings.coefficient_parent(coefficient_ring);
+        let (domain, variables, order, characteristic) = RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
+        let coefficient_ring = self.coefficient_rings.intern(domain.clone(), &self.fields)?;
+        let coefficients = self.coefficient_rings.coefficient_parent(coefficient_ring);
         let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
@@ -123,16 +112,8 @@ impl RingTable {
         let monomial_layout = MonomialLayout::compile(&order, variables.len())?;
         let id = RingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        let desc = RingDescriptor::with_id(
-            id,
-            coefficient_ring,
-            coefficients,
-            variables,
-            order,
-            characteristic,
-            ring_fingerprint,
-            monomial_layout,
-        );
+        let desc =
+            RingDescriptor::with_id(id, coefficient_ring, coefficients, variables, order, characteristic, ring_fingerprint, monomial_layout);
         self.by_key.insert(key, id);
         self.by_id.insert(id, desc);
         Ok(id)
@@ -154,10 +135,7 @@ impl RingTable {
     }
 }
 
-fn normalize_coefficient_domain(
-    coefficients: CoefficientDomain,
-    fields: &mut FieldTable,
-) -> Result<CoefficientDomain, Diagnostic> {
+fn normalize_coefficient_domain(coefficients: CoefficientDomain, fields: &mut FieldTable) -> Result<CoefficientDomain, Diagnostic> {
     match coefficients {
         CoefficientDomain::FiniteField { field } => {
             fields.validate_finite_field(field)?;

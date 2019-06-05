@@ -86,12 +86,7 @@ pub fn chinese_remainder(residues: &[Integer], moduli: &[Modulus]) -> NumberTheo
             }
             Ok(CrtResult::Inconsistent { gcd, residue_difference, .. }) => {
                 return NumberTheoryResult::Exact {
-                    value: NumberTheoryValue::Crt(CrtResult::Inconsistent {
-                        left_index: 0,
-                        right_index: i,
-                        gcd,
-                        residue_difference,
-                    }),
+                    value: NumberTheoryValue::Crt(CrtResult::Inconsistent { left_index: 0, right_index: i, gcd, residue_difference }),
                 };
             }
             Err(reason) => return NumberTheoryResult::Unevaluated { reason },

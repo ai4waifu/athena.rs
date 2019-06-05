@@ -1,7 +1,7 @@
 mod canonical;
 mod characteristic_safety;
-mod coeff_kernel;
-mod coeff_ring;
+mod coefficient_kernel;
+mod coefficient_ring;
 mod exact_kernel;
 mod factor;
 mod fingerprint;

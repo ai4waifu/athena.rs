@@ -108,11 +108,7 @@ impl Table {
 }
 
 /// 构造一维 存储后端 列的便利函数。
-pub fn column_from_store<T, S: ArrayStorage<T>>(
-    field: Field,
-    store: S,
-    budget: MemoryBudget,
-) -> Result<ChunkedColumn<T, S>, TableError> {
+pub fn column_from_store<T, S: ArrayStorage<T>>(field: Field, store: S, budget: MemoryBudget) -> Result<ChunkedColumn<T, S>, TableError> {
     let len = store.len();
     let shape = LogicalShape::new([len])?;
     let values = ChunkedArray::new(shape, store, budget)?;

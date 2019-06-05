@@ -46,17 +46,14 @@ fn bump_ephemeral_clear_rewinds_without_drop_tax() {
     let a = Natural::from_limbs_in(&ctx, vec![1, 2, 3]).expect("a");
     let b = Natural::from_limbs_in(&ctx, vec![4, 5, 6]).expect("b");
     let mark = heap.borrow().mark_numeric_bump();
-    let used_before =
-        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_before = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     for _ in 0..64 {
         let _ = a.try_add(&b, &ctx).expect("add");
     }
-    let used_mid =
-        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_mid = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     assert!(used_mid > used_before, "ephemeral bump must advance");
     heap.borrow_mut().clear_numeric_to(mark).expect("clear");
-    let used_after =
-        heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
+    let used_after = heap.borrow().segments().filter(|s| s.kind == athena_gc::SegmentKind::Numeric).map(|s| s.used).sum::<usize>();
     assert_eq!(used_after, used_before, "clear must rewind to mark");
     // 操作数仍可读
     assert_eq!(a.as_limbs(), &[1, 2, 3]);

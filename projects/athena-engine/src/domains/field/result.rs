@@ -28,9 +28,7 @@ pub enum FieldResult {
 /// 执行域论请求（无 Session 上下文；仍返回 Unevaluated）。
 pub fn execute_field(request: FieldRequest) -> FieldResult {
     let op = operation_name(&request);
-    FieldResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "field").detail("operation", op),
-    }
+    FieldResult::Unevaluated { reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "field").detail("operation", op) }
 }
 
 /// 经 [`FieldTable`] 执行域论请求（ℚ / 𝔽_p / 𝔽_{p^n}）。
@@ -86,11 +84,7 @@ pub fn execute_field_with_table_mut(request: FieldRequest, table: &mut FieldTabl
 
 fn run_binary<F>(table: &FieldTable, op: F, lhs: super::types::FieldElement, rhs: super::types::FieldElement) -> FieldResult
 where
-    F: FnOnce(
-        &FieldTable,
-        &super::types::FieldElement,
-        &super::types::FieldElement,
-    ) -> athena_types::Result<super::types::FieldElement>,
+    F: FnOnce(&FieldTable, &super::types::FieldElement, &super::types::FieldElement) -> athena_types::Result<super::types::FieldElement>,
 {
     match op(table, &lhs, &rhs) {
         Ok(value) => FieldResult::Exact { value: FieldDomainValue::Element(value) },

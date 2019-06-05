@@ -1,4 +1,4 @@
-﻿//! Semantic core 合同：FactLog 单调性 · 派生索引可重建。
+//! Semantic core 合同：FactLog 单调性 · 派生索引可重建。
 
 use athena_engine::reasoning::mgraph::{
     AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_PROVIDER_ID, Proposition, Scope, SemanticCore,

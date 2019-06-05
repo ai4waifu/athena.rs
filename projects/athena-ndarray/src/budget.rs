@@ -82,12 +82,7 @@ impl BudgetLedger {
     }
 
     /// 校验单次读请求：元素字节 ≤ 驻留剩余，且不开整表后门。
-    pub fn check_read_request(
-        &self,
-        budget: MemoryBudget,
-        element_size: usize,
-        element_count: usize,
-    ) -> Result<usize, ArrayError> {
+    pub fn check_read_request(&self, budget: MemoryBudget, element_size: usize, element_count: usize) -> Result<usize, ArrayError> {
         if element_size == 0 {
             return Ok(0);
         }
@@ -103,10 +98,7 @@ impl BudgetLedger {
             });
         }
         if self.open_chunks >= budget.max_open_chunks() {
-            return Err(ArrayError::OpenChunksExceeded {
-                requested: self.open_chunks.saturating_add(1),
-                limit: budget.max_open_chunks(),
-            });
+            return Err(ArrayError::OpenChunksExceeded { requested: self.open_chunks.saturating_add(1), limit: budget.max_open_chunks() });
         }
         Ok(bytes)
     }
@@ -121,12 +113,7 @@ pub struct ChunkGuard<'a> {
 
 impl<'a> ChunkGuard<'a> {
     /// 在账本上打开一次有界读（调用方随后 `read_range`）。
-    pub fn acquire(
-        ledger: &'a mut BudgetLedger,
-        budget: MemoryBudget,
-        element_size: usize,
-        element_count: usize,
-    ) -> Result<Self, ArrayError> {
+    pub fn acquire(ledger: &'a mut BudgetLedger, budget: MemoryBudget, element_size: usize, element_count: usize) -> Result<Self, ArrayError> {
         let bytes = ledger.check_read_request(budget, element_size, element_count)?;
         ledger.open_chunk(budget)?;
         // open_chunk 成功后再占 resident；失败路径已返回。

@@ -134,9 +134,7 @@ pub(crate) fn encode_real_payload(r: &Real) -> Result<(u8, Vec<u8>), Diagnostic>
     match r {
         Real::Machine(x) => {
             if x.is_nan() {
-                return Err(crate::format::validation::reject_non_canonical(
-                    crate::format::validation::WireReject::RealMachineNan,
-                ));
+                return Err(crate::format::validation::reject_non_canonical(crate::format::validation::WireReject::RealMachineNan));
             }
             let mut payload = Vec::with_capacity(1 + 8);
             payload.push(REAL_SUBTYPE_MACHINE);
@@ -208,8 +206,8 @@ pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diag
                     return Err(reject_non_canonical(WireReject::SignUnknown));
                 }
                 let sign = if sign == 2 { Sign::Negative } else { Sign::Zero };
-                let dyadic = Dyadic::try_new(sign, Natural::zero(), 0)
-                    .map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
+                let dyadic =
+                    Dyadic::try_new(sign, Natural::zero(), 0).map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
                 return Decimal::try_from_dyadic(dyadic, precision_bits)
                     .map(Real::Decimal)
                     .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
@@ -225,8 +223,7 @@ pub(crate) fn decode_real_payload(sign: u8, payload: &[u8]) -> Result<Real, Diag
                 return Err(reject_non_canonical(WireReject::RealDecimalPrecisionExceeds));
             }
             let sign = if sign == 2 { Sign::Negative } else { Sign::Positive };
-            let dyadic =
-                Dyadic::try_new(sign, mag, exp).map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
+            let dyadic = Dyadic::try_new(sign, mag, exp).map_err(|_| reject_non_canonical(WireReject::RealDecimalNotNormalized))?;
             Decimal::try_from_dyadic(dyadic, precision_bits)
                 .map(Real::Decimal)
                 .map_err(|_| reject_non_canonical(WireReject::RealDecimalPrecisionExceeds))
@@ -334,16 +331,14 @@ pub(crate) fn decode_interval_payload(sign: u8, payload: &[u8]) -> Result<Interv
             if payload.len() != 2 {
                 return Err(reject_non_canonical(WireReject::IntervalTrailing));
             }
-            let decoration =
-                decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            let decoration = decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
             Ok(Interval::entire_with(decoration))
         }
         INTERVAL_BOUNDED => {
             if payload.len() < 2 {
                 return Err(reject_non_canonical(WireReject::IntervalTrailing));
             }
-            let decoration =
-                decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
+            let decoration = decoration_from_tag(payload[1]).ok_or_else(|| reject_non_canonical(WireReject::IntervalUnknownDecoration))?;
             let (lower, rest) = decode_nested_real(&payload[2..])?;
             let (upper, tail) = decode_nested_real(rest)?;
             if !tail.is_empty() {
@@ -470,8 +465,7 @@ pub(crate) fn decode_algebraic_payload(sign: u8, payload: &[u8]) -> Result<Algeb
     let tag = payload[0];
     let fingerprint = u64::from_le_bytes(payload[1..9].try_into().unwrap());
     let root_index = u32::from_le_bytes(payload[9..13].try_into().unwrap());
-    let interval = decode_interval_payload(0, &payload[13..])
-        .map_err(|err| map_interval_truncation(err, WireReject::AlgebraicTrailing))?;
+    let interval = decode_interval_payload(0, &payload[13..]).map_err(|err| map_interval_truncation(err, WireReject::AlgebraicTrailing))?;
     match tag {
         ALG_PLACEHOLDER => {
             if fingerprint != 0 || root_index != 0 {
@@ -712,9 +706,7 @@ pub fn decode_blob(bytes: &[u8]) -> Result<WireBlobParts, Diagnostic> {
 
 fn check_payload_limit(len: usize, op: &str) -> Result<(), Diagnostic> {
     if len as u32 > crate::dispatch::PORTABLE_WIRE_PAYLOAD_LIMIT_BYTES {
-        return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden)
-            .detail("domain", "numeric")
-            .detail("operation", op));
+        return Err(Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", op));
     }
     Ok(())
 }

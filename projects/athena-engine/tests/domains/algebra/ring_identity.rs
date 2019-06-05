@@ -1,9 +1,7 @@
 //! 代数身份：指纹、映射验证、抽象描述子守卫。
 
 use athena_engine::domains::{
-    algebra::{
-        FieldFingerprint, FieldTable, GroupFingerprint, GroupTable, MapVerification, MapVerificationKind, PropertyWitness,
-    },
+    algebra::{FieldFingerprint, FieldTable, GroupFingerprint, GroupTable, MapVerification, MapVerificationKind, PropertyWitness},
     group::{GroupRequest, Permutation, execute_group_with_table_mut},
 };
 use athena_numeric::Integer;
@@ -71,9 +69,7 @@ fn permutation_group_record_is_computable_descriptor() {
         GroupRequest::PermutationGroup { degree: 2, generators: vec![Permutation { images: vec![1, 0] }] },
         &mut table,
     ) {
-        athena_engine::domains::group::GroupResult::Exact {
-            value: athena_engine::domains::group::GroupDomainValue::Group(g),
-        } => g,
+        athena_engine::domains::group::GroupResult::Exact { value: athena_engine::domains::group::GroupDomainValue::Group(g) } => g,
         other => panic!("expected group, got {other:?}"),
     };
     assert!(matches!(g.descriptor, athena_engine::domains::group::GroupDescriptor::Permutation { degree: 2 }));

@@ -114,17 +114,11 @@ impl GcHeap {
         block.write_u64s(offset_elems, values)
     }
 
-    fn allocate_graph_domain(
-        &mut self,
-        kind: SegmentKind,
-        block_kind: BlockKind,
-        payload_bytes: usize,
-    ) -> Result<GraphDomainBlock> {
+    fn allocate_graph_domain(&mut self, kind: SegmentKind, block_kind: BlockKind, payload_bytes: usize) -> Result<GraphDomainBlock> {
         if payload_bytes == 0 {
             return Err(GcError::InvalidCapacity);
         }
-        let (segment_id, ptr) =
-            self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, NumericOwnership::Unspecified)?;
+        let (segment_id, ptr) = self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, NumericOwnership::Unspecified)?;
         Ok(GraphDomainBlock { ptr, byte_len: payload_bytes, segment_id, heap_id: self.id, kind })
     }
 

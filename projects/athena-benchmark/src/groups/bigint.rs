@@ -40,11 +40,7 @@ impl Fixture for BigIntFixture {
 
     fn validate(&self) -> Result<ValidationSummary, String> {
         self.prepared.validate()?;
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "bigint matrix vs athena numeric reference",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "bigint matrix vs athena numeric reference"))
     }
 
     fn run_once(&self) {

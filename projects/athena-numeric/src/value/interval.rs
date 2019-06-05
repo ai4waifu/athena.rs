@@ -175,16 +175,9 @@ impl Interval {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
             (Self::Entire { decoration }, _) | (_, Self::Entire { decoration }) => Ok(Self::Entire { decoration: *decoration }),
-            (
-                Self::Bounded { lower: l1, upper: u1, decoration: d1 },
-                Self::Bounded { lower: l2, upper: u2, decoration: d2 },
-            ) => {
-                let lo = Real::machine(f64_add_down(
-                    endpoint_f64(l1, "interval_add_lower")?,
-                    endpoint_f64(l2, "interval_add_lower")?,
-                ));
-                let hi =
-                    Real::machine(f64_add_up(endpoint_f64(u1, "interval_add_upper")?, endpoint_f64(u2, "interval_add_upper")?));
+            (Self::Bounded { lower: l1, upper: u1, decoration: d1 }, Self::Bounded { lower: l2, upper: u2, decoration: d2 }) => {
+                let lo = Real::machine(f64_add_down(endpoint_f64(l1, "interval_add_lower")?, endpoint_f64(l2, "interval_add_lower")?));
+                let hi = Real::machine(f64_add_up(endpoint_f64(u1, "interval_add_upper")?, endpoint_f64(u2, "interval_add_upper")?));
                 Self::try_bounded(lo, hi, merge_decoration(*d1, *d2))
             }
         }
@@ -197,16 +190,9 @@ impl Interval {
             (Self::Entire { decoration }, Self::Entire { .. }) => Ok(Self::Entire { decoration: *decoration }),
             (Self::Entire { .. }, Self::Bounded { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
             (Self::Bounded { .. }, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
-            (
-                Self::Bounded { lower: l1, upper: u1, decoration: d1 },
-                Self::Bounded { lower: l2, upper: u2, decoration: d2 },
-            ) => {
-                let lo = Real::machine(f64_sub_down(
-                    endpoint_f64(l1, "interval_sub_lower")?,
-                    endpoint_f64(u2, "interval_sub_lower")?,
-                ));
-                let hi =
-                    Real::machine(f64_sub_up(endpoint_f64(u1, "interval_sub_upper")?, endpoint_f64(l2, "interval_sub_upper")?));
+            (Self::Bounded { lower: l1, upper: u1, decoration: d1 }, Self::Bounded { lower: l2, upper: u2, decoration: d2 }) => {
+                let lo = Real::machine(f64_sub_down(endpoint_f64(l1, "interval_sub_lower")?, endpoint_f64(u2, "interval_sub_lower")?));
+                let hi = Real::machine(f64_sub_up(endpoint_f64(u1, "interval_sub_upper")?, endpoint_f64(l2, "interval_sub_upper")?));
                 Self::try_bounded(lo, hi, merge_decoration(*d1, *d2))
             }
         }
@@ -217,10 +203,7 @@ impl Interval {
         match (self, other) {
             (Self::Empty, _) | (_, Self::Empty) => Ok(Self::Empty),
             (Self::Entire { .. }, _) | (_, Self::Entire { .. }) => Ok(Self::Entire { decoration: IntervalDecoration::Trivial }),
-            (
-                Self::Bounded { lower: l1, upper: u1, decoration: d1 },
-                Self::Bounded { lower: l2, upper: u2, decoration: d2 },
-            ) => {
+            (Self::Bounded { lower: l1, upper: u1, decoration: d1 }, Self::Bounded { lower: l2, upper: u2, decoration: d2 }) => {
                 let a = endpoint_f64(l1, "interval_mul")?;
                 let b = endpoint_f64(u1, "interval_mul")?;
                 let c = endpoint_f64(l2, "interval_mul")?;
@@ -245,10 +228,7 @@ impl Interval {
                 }
                 Ok(Self::Entire { decoration: IntervalDecoration::Trivial })
             }
-            (
-                Self::Bounded { lower: l1, upper: u1, decoration: d1 },
-                Self::Bounded { lower: l2, upper: u2, decoration: d2 },
-            ) => {
+            (Self::Bounded { lower: l1, upper: u1, decoration: d1 }, Self::Bounded { lower: l2, upper: u2, decoration: d2 }) => {
                 if contains_zero(l2, u2)? {
                     return Err(invalid("interval_div_zero"));
                 }
@@ -304,9 +284,7 @@ impl Interval {
 }
 
 fn endpoint_f64(r: &Real, op: &str) -> Result<f64> {
-    r.as_f64().ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", op)
-    })
+    r.as_f64().ok_or_else(|| Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", op))
 }
 
 fn contains_zero(lower: &Real, upper: &Real) -> Result<bool> {

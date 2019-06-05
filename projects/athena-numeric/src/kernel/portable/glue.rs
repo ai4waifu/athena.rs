@@ -23,21 +23,9 @@ use super::{
 
 /// 私有 limb 执行合同（输出缓冲 + scratch + 预算）。
 pub(crate) trait LimbKernel {
-    fn add_into(
-        a: &[u64],
-        b: &[u64],
-        out: &mut LimbBuffer,
-        scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()>;
+    fn add_into(a: &[u64], b: &[u64], out: &mut LimbBuffer, scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()>;
 
-    fn sub_into(
-        a: &[u64],
-        b: &[u64],
-        out: &mut LimbBuffer,
-        scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()>;
+    fn sub_into(a: &[u64], b: &[u64], out: &mut LimbBuffer, scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()>;
 
     fn mul_into(
         a: &[u64],
@@ -48,21 +36,10 @@ pub(crate) trait LimbKernel {
         budget: &ExecutionBudget,
     ) -> Result<()>;
 
-    fn mul_1_into(
-        a: &[u64],
-        limb: u64,
-        out: &mut LimbBuffer,
-        scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()>;
+    fn mul_1_into(a: &[u64], limb: u64, out: &mut LimbBuffer, scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()>;
 
-    fn sqr_into(
-        a: &[u64],
-        strategy: MulStrategy,
-        out: &mut LimbBuffer,
-        scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()>;
+    fn sqr_into(a: &[u64], strategy: MulStrategy, out: &mut LimbBuffer, scratch: &mut ScratchWorkspace, budget: &ExecutionBudget)
+    -> Result<()>;
 
     fn div_rem_into(
         u: &[u64],
@@ -78,13 +55,7 @@ pub(crate) trait LimbKernel {
 pub(crate) struct PortableLimbKernel;
 
 impl LimbKernel for PortableLimbKernel {
-    fn add_into(
-        a: &[u64],
-        b: &[u64],
-        out: &mut LimbBuffer,
-        _scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()> {
+    fn add_into(a: &[u64], b: &[u64], out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
         let la = effective_len(a);
         let lb = effective_len(b);
         budget.check_add(la, lb)?;
@@ -102,13 +73,7 @@ impl LimbKernel for PortableLimbKernel {
         Ok(())
     }
 
-    fn sub_into(
-        a: &[u64],
-        b: &[u64],
-        out: &mut LimbBuffer,
-        _scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()> {
+    fn sub_into(a: &[u64], b: &[u64], out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
         if cmp_slice(a, b) == Ordering::Less {
             return Err(kernel_err("sub_underflow"));
         }
@@ -176,13 +141,7 @@ impl LimbKernel for PortableLimbKernel {
         }
     }
 
-    fn mul_1_into(
-        a: &[u64],
-        limb: u64,
-        out: &mut LimbBuffer,
-        _scratch: &mut ScratchWorkspace,
-        budget: &ExecutionBudget,
-    ) -> Result<()> {
+    fn mul_1_into(a: &[u64], limb: u64, out: &mut LimbBuffer, _scratch: &mut ScratchWorkspace, budget: &ExecutionBudget) -> Result<()> {
         if limb == 0 || is_zero(a) {
             return out.set_zero(budget);
         }

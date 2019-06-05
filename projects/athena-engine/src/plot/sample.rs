@@ -14,13 +14,7 @@ const MAX_SAMPLES_HARD: u32 = 1_000_000;
 ///
 /// `expr` 中的符号 `var` 被替换为机器实数后求值；无法得到有限 `f64` 的点记为 gap。
 /// 相邻有效点若相对跳跃超过 [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
-pub fn sample_1d(
-    session: &mut Session,
-    expr: TermId,
-    var: &str,
-    domain: SampleDomain,
-    policy: SamplingPolicy,
-) -> Result<SampledCurve> {
+pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleDomain, policy: SamplingPolicy) -> Result<SampledCurve> {
     if policy.is_cancelled() {
         return Err(cancelled());
     }

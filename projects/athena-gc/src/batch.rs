@@ -35,12 +35,7 @@ pub struct NumericBatch<'a> {
 }
 
 impl<'a> NumericBatch<'a> {
-    pub(crate) fn new(
-        heap: &'a mut GcHeap,
-        mark: NumericBumpMark,
-        prev_ephemeral: bool,
-        prev_accounting: AllocationAccounting,
-    ) -> Self {
+    pub(crate) fn new(heap: &'a mut GcHeap, mark: NumericBumpMark, prev_ephemeral: bool, prev_accounting: AllocationAccounting) -> Self {
         Self { heap, mark, prev_ephemeral, prev_accounting, finished: false }
     }
 

@@ -178,8 +178,7 @@ impl Natural {
 
         let plan = ctx.planner().plan_mul(la, lb);
         let schoolbook = matches!(plan, crate::algorithm::MulStrategy::Schoolbook);
-        let can_steal =
-            schoolbook && matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
+        let can_steal = schoolbook && matches!(self.inner.mode(), Mode::Heap) && self.inner.heap_capacity().is_some_and(|c| c >= need);
         if !can_steal {
             return self.try_mul(rhs, ctx);
         }

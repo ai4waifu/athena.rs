@@ -1,8 +1,6 @@
 //! 预算四轴 enforce 与禁止静默整表物化。
 
-use athena_ndarray::{
-    ArrayError, ArrayStorage, BudgetLedger, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities, array1d,
-};
+use athena_ndarray::{ArrayError, ArrayStorage, BudgetLedger, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities, array1d};
 
 #[derive(Debug)]
 struct Store(Vec<u64>);

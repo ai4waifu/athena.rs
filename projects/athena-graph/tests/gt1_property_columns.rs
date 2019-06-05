@@ -10,8 +10,7 @@ fn property_column_rejects_length_mismatch() {
 
 #[test]
 fn property_cell_missing_unknown_distinct() {
-    let col = PropertyColumn::try_from_cells(3, vec![PropertyCell::Present(10), PropertyCell::Missing, PropertyCell::Unknown])
-        .unwrap();
+    let col = PropertyColumn::try_from_cells(3, vec![PropertyCell::Present(10), PropertyCell::Missing, PropertyCell::Unknown]).unwrap();
     assert_eq!(col.get(0).unwrap().as_present(), Some(&10));
     assert_eq!(col.get(1), Some(&PropertyCell::Missing));
     assert_eq!(col.get(2), Some(&PropertyCell::Unknown));

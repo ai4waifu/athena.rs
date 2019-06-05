@@ -51,15 +51,7 @@ pub(crate) fn table(vm: &mut Vm<'_>, args: &[TermId]) -> (Outcome, Option<Vec<Te
         }
     }
     let term = vm.push_list(out.clone());
-    (
-        Outcome {
-            term,
-            kind: crate::execution::EvalKind::Value,
-            status: athena_types::ComputationStatus::Exact,
-            diagnostics: diags,
-        },
-        Some(out),
-    )
+    (Outcome { term, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }, Some(out))
 }
 
 /// 展开 `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` → (可选符号, 值表)。
@@ -172,12 +164,7 @@ pub(crate) fn h_match_q(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     // 模式参数保持 Hold-ish：不求值 Blank/Pattern。
     let matched = crate::execution::builtins::patterns::pattern_matches(vm, expr_o.term, args[1]);
     let term = vm.push_bool(matched);
-    Outcome {
-        term,
-        kind: crate::execution::EvalKind::Value,
-        status: athena_types::ComputationStatus::Exact,
-        diagnostics: expr_o.diagnostics,
-    }
+    Outcome { term, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: expr_o.diagnostics }
 }
 
 pub(crate) fn h_cases(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
@@ -193,8 +180,7 @@ pub(crate) fn h_cases(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         let term = vm.push_application("Cases", vec![list_o.term, args[1]]);
         return Outcome::unevaluated(term).with_diagnostics(list_o.diagnostics);
     };
-    let out: Vec<TermId> =
-        items.into_iter().filter(|item| crate::execution::builtins::patterns::pattern_matches(vm, *item, args[1])).collect();
+    let out: Vec<TermId> = items.into_iter().filter(|item| crate::execution::builtins::patterns::pattern_matches(vm, *item, args[1])).collect();
     Outcome {
         term: vm.push_list(out),
         kind: crate::execution::EvalKind::Value,

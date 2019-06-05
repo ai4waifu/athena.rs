@@ -26,15 +26,14 @@ pub use admission::{
 pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, OperationalState, run_closure_step};
 pub use core::{
-    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses,
-    ExactnessLevel, HyperEdge, MGraphCore, MGraphState, MGraphView, PredicateId, RelationRef, RelationStatus, RewriteWitness,
-    ScopeRef, ScopeRelationKind, SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef,
-    predicates, scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
+    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
+    MGraphCore, MGraphState, MGraphView, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind, SemanticRef,
+    SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, predicates, scope_from_ref, scope_ref_from_assumption_set,
+    scope_to_ref,
 };
 pub use equivalence::ExactUnionFind;
 pub use facts::{Claim, Evidence, FactId, FactLog, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};
 pub use polynomial::{
-    POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness,
-    witness_from_exact,
+    POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,
 };
 pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex};

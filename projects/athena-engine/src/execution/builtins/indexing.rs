@@ -111,12 +111,7 @@ fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         }
         cur = o.term;
     }
-    Outcome {
-        term: cur,
-        kind: crate::execution::EvalKind::Value,
-        status: athena_types::ComputationStatus::Exact,
-        diagnostics: diags,
-    }
+    Outcome { term: cur, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
 }
 
 fn is_end_symbol(vm: &Vm<'_>, term: TermId) -> bool {
@@ -228,12 +223,7 @@ fn rule_pair(vm: &Vm<'_>, expr: TermId) -> Option<(TermId, TermId)> {
     else {
         return None;
     };
-    if args.len() == 2 && matches!(vm.head_name(expr).as_deref(), Some("Rule") | Some("RuleDelayed")) {
-        Some((args[0], args[1]))
-    }
-    else {
-        None
-    }
+    if args.len() == 2 && matches!(vm.head_name(expr).as_deref(), Some("Rule") | Some("RuleDelayed")) { Some((args[0], args[1])) } else { None }
 }
 
 pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {

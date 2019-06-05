@@ -42,10 +42,6 @@ impl CongruenceIndex {
 }
 
 /// 构造同余命题（模数 + 左右 stable 指纹）。
-pub fn congruence_proposition(
-    modulus_fingerprint: u64,
-    left: u64,
-    right: u64,
-) -> crate::reasoning::mgraph::facts::claim::Proposition {
+pub fn congruence_proposition(modulus_fingerprint: u64, left: u64, right: u64) -> crate::reasoning::mgraph::facts::claim::Proposition {
     crate::reasoning::mgraph::facts::claim::Proposition::Congruence { modulus_fingerprint, left, right }
 }

@@ -39,9 +39,6 @@ impl SolveGoal {
 
     /// 结果是否应是条件公式而非绑定枚举。
     pub fn yields_constraint_formula(self) -> bool {
-        matches!(
-            self,
-            Self::ConstraintDescription | Self::QuantifierElimination | Self::QuantifierDecision | Self::EliminationIdeal
-        )
+        matches!(self, Self::ConstraintDescription | Self::QuantifierElimination | Self::QuantifierDecision | Self::EliminationIdeal)
     }
 }

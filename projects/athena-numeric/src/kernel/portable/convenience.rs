@@ -2,9 +2,7 @@
 
 use athena_types::Result;
 
-use crate::{
-    algorithm::AlgorithmPlanner, dispatch::CapabilityBundle, kernel::LimbBuffer, policy::execution_budget::ExecutionBudget,
-};
+use crate::{algorithm::AlgorithmPlanner, dispatch::CapabilityBundle, kernel::LimbBuffer, policy::execution_budget::ExecutionBudget};
 
 use super::{
     glue::{LimbKernel, PortableLimbKernel},

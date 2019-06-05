@@ -6,7 +6,7 @@ use athena_numeric::{Number, add as coeff_add};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
-    coeff_kernel::CoeffRing,
+    coefficient_kernel::CoefficientRing,
     expr::{CanonicalPolynomial, MonomialTerm, Polynomial},
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
@@ -27,7 +27,7 @@ pub(crate) fn canonicalize_terms(
     rings: &RingTable,
 ) -> Result<CanonicalPolynomial> {
     let n = desc.variable_count();
-    let coeff_ring = rings.coeff_kernel(ring).ok();
+    let coeff_ring = rings.coefficient_kernel(ring).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();
 
     for term in raw {
@@ -81,7 +81,7 @@ fn sort_terms_desc(terms: &mut [MonomialTerm], layout: &super::monomial_layout::
     sort_error.map_or(Ok(()), Err)
 }
 
-fn merge_coefficients(a: Number, b: Number, coeff_ring: Option<&CoeffRing<'_>>) -> Result<Number> {
+fn merge_coefficients(a: Number, b: Number, coeff_ring: Option<&CoefficientRing<'_>>) -> Result<Number> {
     match coeff_ring {
         Some(ring) => ring.add(a, b),
         None => coeff_add(a, b),

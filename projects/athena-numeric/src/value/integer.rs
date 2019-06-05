@@ -141,9 +141,7 @@ impl Integer {
     /// `Mode::Heap` 下会在 owner heap 上分配并复制。算术热路径请用
     /// [`Self::magnitude_view`] / [`Self::as_limbs`]。
     fn abs_natural(&self) -> Natural {
-        Natural::from_pair(
-            self.inner.try_clone_clear_sign().unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")),
-        )
+        Natural::from_pair(self.inner.try_clone_clear_sign().unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")))
     }
 
     /// 借用小端幅度 limb（生命周期绑在 `&self`）。
@@ -361,24 +359,18 @@ impl Integer {
         Ok(match (lhs.sign(), rhs.sign()) {
             (Sign::Zero, _) => Self::publish_signed(ctx, rhs.limbs(), rhs.is_negative())?,
             (_, Sign::Zero) => Self::publish_signed(ctx, lhs.limbs(), lhs.is_negative())?,
-            (Sign::Positive, Sign::Positive) => {
-                Self::from_positive_natural(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?)
-            }
-            (Sign::Negative, Sign::Negative) => {
-                Self::from_mag_sign(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?, true)
-            }
-            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
-                match limb_kernel::cmp_slice(lhs.limbs(), rhs.limbs()) {
-                    Ordering::Greater | Ordering::Equal => {
-                        let mag = NumericExecutor::sub_limbs(lhs.limbs(), rhs.limbs(), ctx)?;
-                        Self::from_mag_sign(mag, lhs.is_negative())
-                    }
-                    Ordering::Less => {
-                        let mag = NumericExecutor::sub_limbs(rhs.limbs(), lhs.limbs(), ctx)?;
-                        Self::from_mag_sign(mag, rhs.is_negative())
-                    }
+            (Sign::Positive, Sign::Positive) => Self::from_positive_natural(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?),
+            (Sign::Negative, Sign::Negative) => Self::from_mag_sign(NumericExecutor::add_limbs(lhs.limbs(), rhs.limbs(), ctx)?, true),
+            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => match limb_kernel::cmp_slice(lhs.limbs(), rhs.limbs()) {
+                Ordering::Greater | Ordering::Equal => {
+                    let mag = NumericExecutor::sub_limbs(lhs.limbs(), rhs.limbs(), ctx)?;
+                    Self::from_mag_sign(mag, lhs.is_negative())
                 }
-            }
+                Ordering::Less => {
+                    let mag = NumericExecutor::sub_limbs(rhs.limbs(), lhs.limbs(), ctx)?;
+                    Self::from_mag_sign(mag, rhs.is_negative())
+                }
+            },
         })
     }
 
@@ -402,10 +394,7 @@ impl Integer {
         }
         if self.is_zero() {
             // 0 - b = -b（幅度 clear-sign clone；符号取反）。
-            return Ok(Self::from_mag_sign(
-                Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?),
-                !rhs.is_negative(),
-            ));
+            return Ok(Self::from_mag_sign(Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?), !rhs.is_negative()));
         }
 
         let lhs_neg = self.is_negative();
@@ -492,11 +481,7 @@ impl Integer {
     }
 
     /// 借用视图向零整除；结果发布到 `ctx`。
-    pub fn try_div_rem_trunc_view(
-        lhs: MagnitudeView<'_>,
-        rhs: MagnitudeView<'_>,
-        ctx: &NumericContext,
-    ) -> Result<(Self, Self)> {
+    pub fn try_div_rem_trunc_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<(Self, Self)> {
         ctx.check_entry()?;
         if rhs.is_zero() {
             return Err(division_by_zero("div_rem_trunc"));

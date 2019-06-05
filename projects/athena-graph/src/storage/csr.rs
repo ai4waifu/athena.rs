@@ -108,11 +108,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CsrGraph<O, I> {
     }
 }
 
-fn validate_offsets_monotonic<O: ArrayStorage<u64>>(
-    offsets: &ChunkedArray<u64, O>,
-    nodes: u64,
-    edges: u64,
-) -> Result<(), GraphError> {
+fn validate_offsets_monotonic<O: ArrayStorage<u64>>(offsets: &ChunkedArray<u64, O>, nodes: u64, edges: u64) -> Result<(), GraphError> {
     let first = offsets.read_range(0, 1)?[0];
     if first != 0 {
         return Err(GraphError::Boundary);

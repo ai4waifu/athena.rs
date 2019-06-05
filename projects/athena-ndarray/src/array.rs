@@ -121,18 +121,11 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
     }
 
     /// 仅当全表字节 ≤ 驻留预算时允许连续视图；否则 [`ArrayError::FullMaterializeForbidden`]。
-    pub fn try_full_view<'a, U>(
-        budget: MemoryBudget,
-        shape: &'a LogicalShape,
-        data: &'a [U],
-    ) -> Result<ArrayView<'a, U>, ArrayError> {
+    pub fn try_full_view<'a, U>(budget: MemoryBudget, shape: &'a LogicalShape, data: &'a [U]) -> Result<ArrayView<'a, U>, ArrayError> {
         let view = ArrayView::new(shape, data)?;
         let bytes = (shape.element_count() as usize).saturating_mul(std::mem::size_of::<U>());
         if bytes > budget.bytes() {
-            return Err(ArrayError::FullMaterializeForbidden {
-                elements: shape.element_count(),
-                resident_limit: budget.bytes(),
-            });
+            return Err(ArrayError::FullMaterializeForbidden { elements: shape.element_count(), resident_limit: budget.bytes() });
         }
         Ok(view)
     }

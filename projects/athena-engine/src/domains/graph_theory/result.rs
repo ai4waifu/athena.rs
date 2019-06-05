@@ -147,19 +147,15 @@ pub fn execute_graph_theory(request: GraphTheoryRequest) -> GraphTheoryResult {
             Ok(v) => GraphTheoryResult::Exact { value: GraphTheoryValue::StronglyConnectedComponents(v) },
             Err(reason) => GraphTheoryResult::Unevaluated { reason },
         },
-        GraphTheoryRequest::Bipartite { graph } => {
-            GraphTheoryResult::Exact { value: GraphTheoryValue::Bipartite(bipartite_l1(&graph)) }
-        }
+        GraphTheoryRequest::Bipartite { graph } => GraphTheoryResult::Exact { value: GraphTheoryValue::Bipartite(bipartite_l1(&graph)) },
         GraphTheoryRequest::MinimumSpanningForest { graph } => match minimum_spanning_forest_l1(&graph) {
             Ok(v) => GraphTheoryResult::Exact { value: GraphTheoryValue::MinimumSpanningForest(v) },
             Err(reason) => GraphTheoryResult::Unevaluated { reason },
         },
-        GraphTheoryRequest::ShortestPath { graph, source, target } => {
-            match shortest_path_non_negative(&graph, source, target) {
-                Ok(sp) => GraphTheoryResult::Exact { value: GraphTheoryValue::ShortestPath(sp) },
-                Err(reason) => GraphTheoryResult::Unevaluated { reason },
-            }
-        }
+        GraphTheoryRequest::ShortestPath { graph, source, target } => match shortest_path_non_negative(&graph, source, target) {
+            Ok(sp) => GraphTheoryResult::Exact { value: GraphTheoryValue::ShortestPath(sp) },
+            Err(reason) => GraphTheoryResult::Unevaluated { reason },
+        },
     }
 }
 

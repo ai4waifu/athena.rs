@@ -4,9 +4,9 @@ use athena_engine::{
     domains::{
         DomainRequest, DomainResult, execute_domain,
         graph_theory::{
-            BipartiteResult, ConnectedComponentsResult, GraphCertificate, GraphDomainSemantics, GraphHandle, GraphObject,
-            GraphPropertyState, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
-            ShortestPathResult, StronglyConnectedComponentsResult, WeightDomain, execute_graph_theory,
+            BipartiteResult, ConnectedComponentsResult, GraphCertificate, GraphDomainSemantics, GraphHandle, GraphObject, GraphPropertyState,
+            GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult, ShortestPathResult,
+            StronglyConnectedComponentsResult, WeightDomain, execute_graph_theory,
         },
     },
     runtime::Session,
@@ -14,8 +14,7 @@ use athena_engine::{
 use athena_graph::{GraphDirection, NodeId as GraphNodeId};
 
 fn sample_graph() -> GraphObject {
-    let edges =
-        vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(3), GraphNodeId(4), 1)];
+    let edges = vec![(GraphNodeId(0), GraphNodeId(1), 1), (GraphNodeId(1), GraphNodeId(2), 1), (GraphNodeId(3), GraphNodeId(4), 1)];
     GraphObject::from_edges(
         GraphHandle { id: 1, node_count: 5 },
         GraphDomainSemantics::new(GraphDirection::Undirected, WeightDomain::Unweighted),
@@ -51,8 +50,7 @@ fn strongly_connected_components_cycle() {
     else {
         panic!("expected exact");
     };
-    let GraphTheoryValue::StronglyConnectedComponents(StronglyConnectedComponentsResult { component_count, property, .. }) =
-        value
+    let GraphTheoryValue::StronglyConnectedComponents(StronglyConnectedComponentsResult { component_count, property, .. }) = value
     else {
         panic!("expected scc");
     };
@@ -133,8 +131,7 @@ fn minimum_spanning_forest_weighted() {
     else {
         panic!("expected exact");
     };
-    let GraphTheoryValue::MinimumSpanningForest(MinimumSpanningForestResult { total_weight, tree_count, edges, property }) =
-        value
+    let GraphTheoryValue::MinimumSpanningForest(MinimumSpanningForestResult { total_weight, tree_count, edges, property }) = value
     else {
         panic!("expected mst");
     };
@@ -155,8 +152,7 @@ fn shortest_path_unweighted() {
         GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         edges,
     );
-    let result =
-        execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(0), target: GraphNodeId(2) });
+    let result = execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(0), target: GraphNodeId(2) });
     let GraphTheoryResult::Exact { value } = result
     else {
         panic!("expected exact");
@@ -176,8 +172,7 @@ fn shortest_path_weighted() {
         GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::NonNegativeInteger),
         vec![(GraphNodeId(0), GraphNodeId(1), 5), (GraphNodeId(0), GraphNodeId(2), 1), (GraphNodeId(2), GraphNodeId(1), 1)],
     );
-    let result =
-        execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(0), target: GraphNodeId(1) });
+    let result = execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(0), target: GraphNodeId(1) });
     let GraphTheoryResult::Exact { value } = result
     else {
         panic!("expected exact");
@@ -204,8 +199,7 @@ fn shortest_path_unreachable() {
         GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
         vec![(GraphNodeId(0), GraphNodeId(1), 1)],
     );
-    let result =
-        execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(1), target: GraphNodeId(0) });
+    let result = execute_graph_theory(GraphTheoryRequest::ShortestPath { graph, source: GraphNodeId(1), target: GraphNodeId(0) });
     let GraphTheoryResult::Exact { value } = result
     else {
         panic!("expected exact unreachable");

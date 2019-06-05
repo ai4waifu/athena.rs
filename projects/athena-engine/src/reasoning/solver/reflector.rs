@@ -34,23 +34,12 @@ pub struct ReflectionResult {
 impl ReflectionResult {
     /// 空结果。
     pub fn empty() -> Self {
-        Self {
-            equalities: Vec::new(),
-            hyper_edges: Vec::new(),
-            guarantees: Vec::new(),
-            residual: None,
-            metadata: SolverMetadata::default(),
-        }
+        Self { equalities: Vec::new(), hyper_edges: Vec::new(), guarantees: Vec::new(), residual: None, metadata: SolverMetadata::default() }
     }
 }
 
 /// 单向 reflector。
 pub trait Reflector: Send + Sync {
     /// 对当前状态反射。
-    fn reflect(
-        &self,
-        state: &MGraphState,
-        request: &SolverRequest,
-        context: &SolverContext,
-    ) -> Result<ReflectionResult, Diagnostic>;
+    fn reflect(&self, state: &MGraphState, request: &SolverRequest, context: &SolverContext) -> Result<ReflectionResult, Diagnostic>;
 }

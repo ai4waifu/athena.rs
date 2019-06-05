@@ -76,9 +76,7 @@ impl ArrayLayout {
         let coords = flat_to_coords(flat, self.shape.dimensions())?;
         let mut offset: i64 = 0;
         for (c, s) in coords.iter().zip(self.strides.iter()) {
-            offset = offset
-                .checked_add((*c as i64).checked_mul(*s).ok_or(ArrayError::RangeOverflow)?)
-                .ok_or(ArrayError::RangeOverflow)?;
+            offset = offset.checked_add((*c as i64).checked_mul(*s).ok_or(ArrayError::RangeOverflow)?).ok_or(ArrayError::RangeOverflow)?;
         }
         if offset < 0 {
             return Err(ArrayError::OutOfBounds);
@@ -177,12 +175,7 @@ impl BroadcastSpec {
     }
 
     /// 流式二元逐元素：按预算分块访问输出平坦下标，禁止整表物化。
-    pub fn for_each_flat_chunk(
-        &self,
-        budget: MemoryBudget,
-        element_size: usize,
-        mut visit: impl FnMut(u64, usize),
-    ) -> Result<(), ArrayError> {
+    pub fn for_each_flat_chunk(&self, budget: MemoryBudget, element_size: usize, mut visit: impl FnMut(u64, usize)) -> Result<(), ArrayError> {
         if element_size == 0 {
             return Err(ArrayError::BudgetTooSmall { element_size: 0 });
         }

@@ -29,15 +29,7 @@ pub struct ChunkMeta {
 impl ChunkMeta {
     /// 新建 resident、可达、独占引用的 chunk。
     pub fn new_resident(id: GraphChunkId) -> Self {
-        Self {
-            id,
-            semantic_reachable: true,
-            residency: ChunkResidency::Resident,
-            spill: None,
-            lease_count: 0,
-            pin_count: 0,
-            share_count: 1,
-        }
+        Self { id, semantic_reachable: true, residency: ChunkResidency::Resident, spill: None, lease_count: 0, pin_count: 0, share_count: 1 }
     }
 }
 

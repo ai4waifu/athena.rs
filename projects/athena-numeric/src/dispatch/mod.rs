@@ -100,12 +100,7 @@ pub struct NumericBackendLimits {
 
 impl Default for NumericBackendLimits {
     fn default() -> Self {
-        Self {
-            max_limbs: None,
-            max_significand_bits: Some(53),
-            max_wire_payload_bytes: Some(1 << 20),
-            max_pow_exp: Some(10_000),
-        }
+        Self { max_limbs: None, max_significand_bits: Some(53), max_wire_payload_bytes: Some(1 << 20), max_pow_exp: Some(10_000) }
     }
 }
 

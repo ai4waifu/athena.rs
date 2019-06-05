@@ -4,10 +4,9 @@ use athena_engine::domains::{
     linear_algebra::{MatrixValue, SolveDisposition},
     polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialFactorLimits, RingTable, factor_univariate},
     solve::{
-        BindingValue, BoundSymbol, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, RelationalOperators,
-        SolveDomain, SolveGoal, SolvePolicy, SolveProblem, adapt_univariate_factorization, assemble_solve_problem,
-        execute_linear_system_goal, normalize_relational_application, solve_linear_system_exact, solve_linear_system_machine,
-        solve_univariate_polynomial_roots,
+        BindingValue, BoundSymbol, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, RelationalOperators, SolveDomain,
+        SolveGoal, SolvePolicy, SolveProblem, adapt_univariate_factorization, assemble_solve_problem, execute_linear_system_goal,
+        normalize_relational_application, solve_linear_system_exact, solve_linear_system_machine, solve_univariate_polynomial_roots,
     },
 };
 use athena_ir::{TermBuilder, TermNode, TermStore};
@@ -83,13 +82,8 @@ fn univariate_linear_root_complete() {
     b.push_term(Number::small_int(6), vec![0]).unwrap();
     let p = b.build(&rings).unwrap();
     let unknown = BoundSymbol::free(SymbolId(0));
-    let adapted =
-        solve_univariate_polynomial_roots(p, &rings, unknown, SolveDomain::Rationals, PolynomialFactorLimits::default())
-            .unwrap();
-    assert_eq!(
-        adapted.factorization_completeness,
-        athena_engine::domains::polynomial::PolynomialFactorizationCompleteness::Complete
-    );
+    let adapted = solve_univariate_polynomial_roots(p, &rings, unknown, SolveDomain::Rationals, PolynomialFactorLimits::default()).unwrap();
+    assert_eq!(adapted.factorization_completeness, athena_engine::domains::polynomial::PolynomialFactorizationCompleteness::Complete);
     assert!(matches!(adapted.solution.coverage, CoverageStatus::Complete));
     assert_eq!(adapted.solution.branches.len(), 1);
     let term = adapted.solution.branches[0].bindings.get(&unknown).unwrap();
@@ -123,9 +117,7 @@ fn univariate_x2_minus_1_complete_two_roots() {
     b.push_term(Number::small_int(-1), vec![0]).unwrap();
     let p = b.build(&rings).unwrap();
     let unknown = BoundSymbol::free(SymbolId(0));
-    let adapted =
-        solve_univariate_polynomial_roots(p, &rings, unknown, SolveDomain::Rationals, PolynomialFactorLimits::default())
-            .unwrap();
+    let adapted = solve_univariate_polynomial_roots(p, &rings, unknown, SolveDomain::Rationals, PolynomialFactorLimits::default()).unwrap();
     assert!(matches!(adapted.solution.coverage, CoverageStatus::Complete));
     assert_eq!(adapted.solution.branches.len(), 2);
 }

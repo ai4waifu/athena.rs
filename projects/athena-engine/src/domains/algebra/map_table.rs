@@ -2,14 +2,12 @@
 
 use std::collections::HashMap;
 
-use athena_types::{
-    AlgebraMapId, AutomorphismId, ExtensionId, FieldId, FieldPresentationId, GroupId, GroupPresentationId, SubgroupId,
-};
+use athena_types::{AlgebraMapId, AutomorphismId, ExtensionId, FieldId, FieldPresentationId, GroupId, GroupPresentationId, SubgroupId};
 
 use super::{
     map::{
-        AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind,
-        QuotientProjection, SubgroupInclusion,
+        AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind, QuotientProjection,
+        SubgroupInclusion,
     },
     parent::AlgebraParentId,
     permutation::RawPerm,
@@ -197,10 +195,7 @@ impl MapTable {
             source: AlgebraParentId::Field(source),
             target: AlgebraParentId::Field(target),
             kind: AlgebraMapKind::FieldEmbedding,
-            verification: MapVerification::proven(
-                MapVerificationKind::DegreeCheck,
-                PropertyWitness::placeholder("degree_check"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
@@ -226,10 +221,7 @@ impl MapTable {
             source: AlgebraParentId::Field(prime_field),
             target: AlgebraParentId::Field(extension),
             kind: AlgebraMapKind::FieldEmbedding,
-            verification: MapVerification::proven(
-                MapVerificationKind::DegreeCheck,
-                PropertyWitness::placeholder("degree_check"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
@@ -263,10 +255,7 @@ impl MapTable {
             source: AlgebraParentId::Field(field),
             target: AlgebraParentId::Field(field),
             kind: AlgebraMapKind::FieldEmbedding,
-            verification: MapVerification::proven(
-                MapVerificationKind::GeneratorRelations,
-                PropertyWitness::placeholder("generator_relations"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let embedding = FieldEmbedding { map: map_id, source_presentation: presentation, target_presentation: presentation };
         self.maps.insert(map_id, map.clone());
@@ -295,10 +284,7 @@ impl MapTable {
             source: AlgebraParentId::Group(subgroup_group),
             target: AlgebraParentId::Group(parent),
             kind: AlgebraMapKind::SubgroupInclusion,
-            verification: MapVerification::proven(
-                MapVerificationKind::DegreeCheck,
-                PropertyWitness::placeholder("degree_check"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let inclusion = SubgroupInclusion { map: id, subgroup, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
@@ -322,10 +308,7 @@ impl MapTable {
             source: AlgebraParentId::Group(source),
             target: AlgebraParentId::Group(target),
             kind: AlgebraMapKind::GroupHomomorphism,
-            verification: MapVerification::proven(
-                MapVerificationKind::GeneratorRelations,
-                PropertyWitness::placeholder("generator_relations"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let homomorphism = GroupHomomorphism { map: id, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
@@ -352,10 +335,7 @@ impl MapTable {
             source: AlgebraParentId::Group(parent),
             target: AlgebraParentId::Group(quotient),
             kind: AlgebraMapKind::QuotientProjection,
-            verification: MapVerification::proven(
-                MapVerificationKind::GeneratorRelations,
-                PropertyWitness::placeholder("generator_relations"),
-            ),
+            verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let projection = QuotientProjection { map: id, subgroup, source_presentation, target_presentation };
         self.maps.insert(id, map.clone());
