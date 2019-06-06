@@ -1,0 +1,76 @@
+{
+  "baseline_commit": "aa049f7",
+  "recorded_at": "2026-09-04",
+  "entries": [
+    {
+      "id": "evaluate_expression",
+      "pattern": "evaluate_expression",
+      "replacement": "evaluate",
+      "owner": "Athena API",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 2,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "differentiate_expression",
+      "pattern": "differentiate_expression",
+      "replacement": "differentiate",
+      "owner": "Athena API",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 1,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "simplify_expression",
+      "pattern": "simplify_expression",
+      "replacement": "simplify",
+      "owner": "Athena API",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 1,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "expr_identity",
+      "pattern": "\\bExprId\\b|\\bExprNode\\b|\\bExprArena\\b|\\bExprBuilder\\b",
+      "replacement": "TermId / TermNode / TermStore / TermBuilder",
+      "owner": "Athena IR",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-*/**/*.rs", "projects/athena/**/*.rs"]
+    },
+    {
+      "id": "polynomial_alias",
+      "pattern": "type Polynomial\\s*=",
+      "replacement": "single public CanonicalPolynomial or Polynomial name",
+      "owner": "polynomial",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 1,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "relation_index_mut",
+      "pattern": "relation_index_mut",
+      "replacement": "AdmissionGate-only writes",
+      "owner": "M-Graph",
+      "status": "expiring",
+      "expiry": "2026-09-25",
+      "baseline_max_matches": 1,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "dialect_origin",
+      "pattern": "\\bDialectOrigin\\b",
+      "replacement": "neutral MatrixRequest / IndexRequest",
+      "owner": "linear algebra",
+      "status": "expiring",
+      "expiry": "2026-10-02",
+      "baseline_max_matches": 15,
+      "globs": ["projects/**/*.rs"]
+    }
+  ]
+}
