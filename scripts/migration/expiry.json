@@ -45,11 +45,11 @@
     {
       "id": "polynomial_alias",
       "pattern": "type Polynomial\\s*=",
-      "replacement": "single public CanonicalPolynomial or Polynomial name",
+      "replacement": "struct Polynomial (no alias)",
       "owner": "polynomial",
-      "status": "expiring",
-      "expiry": "2026-09-18",
-      "baseline_max_matches": 1,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     },
     {

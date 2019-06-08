@@ -7,14 +7,14 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     coefficient_kernel::CoefficientRing,
-    expr::{CanonicalPolynomial, MonomialTerm, Polynomial},
+    expr::{MonomialTerm, Polynomial},
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
 };
 use crate::runtime::values::numeric_clone::clone_number;
 
-/// 将任意项列表规范化为 [`CanonicalPolynomial`]（须已注册 [`RingId`]）。
-pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<CanonicalPolynomial> {
+/// 将任意项列表规范化为 [`Polynomial`]（须已注册 [`RingId`]）。
+pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<Polynomial> {
     let (ring, terms) = poly.into_parts();
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
     canonicalize_terms(ring, desc, terms, rings)
@@ -25,7 +25,7 @@ pub(crate) fn canonicalize_terms(
     desc: &RingDescriptor,
     raw: Vec<MonomialTerm>,
     rings: &RingTable,
-) -> Result<CanonicalPolynomial> {
+) -> Result<Polynomial> {
     let n = desc.variable_count();
     let coeff_ring = rings.coefficient_kernel(ring).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();
@@ -59,7 +59,7 @@ pub(crate) fn canonicalize_terms(
 
     sort_terms_desc(&mut terms, &desc.monomial_layout)?;
 
-    Ok(CanonicalPolynomial::from_canonical_parts(ring, terms))
+    Ok(Polynomial::from_canonical_parts(ring, terms))
 }
 
 fn sort_terms_desc(terms: &mut [MonomialTerm], layout: &super::monomial_layout::MonomialLayout) -> Result<()> {
