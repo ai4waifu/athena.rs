@@ -50,19 +50,9 @@ impl MGraphCore {
         &self.scope_index
     }
 
-    /// Scope 关系索引（可变）。
-    pub fn scope_index_mut(&mut self) -> &mut ScopeIndex {
-        &mut self.scope_index
-    }
-
-    /// 关系索引（只读）。
+    /// 关系索引（只读）。外部写入必须经 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`]。
     pub fn relation_index(&self) -> &RelationIndex {
         &self.relation_index
-    }
-
-    /// 关系索引（可变）。
-    pub fn relation_index_mut(&mut self) -> &mut RelationIndex {
-        &mut self.relation_index
     }
 
     /// 仅由 [`crate::reasoning::mgraph::admission::semantic::SemanticCore`] 调用。

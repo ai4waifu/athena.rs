@@ -85,8 +85,8 @@ impl RelationIndex {
         Self::default()
     }
 
-    /// 追加已接纳关系（单调；id = 下标）。
-    pub fn append(&mut self, record: RelationRecord) -> RelationRef {
+    /// 追加已接纳关系（单调；id = 下标）。仅 [`crate::reasoning::mgraph::core::MGraphCore::admit`] 可写。
+    pub(crate) fn append(&mut self, record: RelationRecord) -> RelationRef {
         let id = FactId(self.records.len() as u64);
         self.by_scope.entry(record.scope).or_default().push(id);
         self.records.push(record);

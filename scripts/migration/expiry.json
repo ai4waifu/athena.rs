@@ -57,9 +57,9 @@
       "pattern": "relation_index_mut",
       "replacement": "AdmissionGate-only writes",
       "owner": "M-Graph",
-      "status": "expiring",
-      "expiry": "2026-09-25",
-      "baseline_max_matches": 1,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     },
     {
