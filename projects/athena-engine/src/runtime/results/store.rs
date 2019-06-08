@@ -1,13 +1,57 @@
-//! [`ResultId`] → [`ComputationResult`] 存储（Living `26`）。
+//! [`ResultId`] → [`ComputationResult`] 存储。
 
 use std::collections::BTreeMap;
 
-use athena_types::{ComputationStatus, Diagnostic, ResultId, TermId, ValueId};
+use athena_types::{ComputationStatus, Condition, Diagnostic, ResultId, TermId, ValueId};
 
 use super::CoverageStatus;
 
-/// 一次计算的可观察结果。
+/// 结果关联的 capability provider（结果层身份，后续可与 M-Graph provider 对齐）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ResultProviderId(pub u32);
+
+impl ResultProviderId {
+    /// 微积分。
+    pub const CALCULUS: Self = Self(1);
+    /// 数论。
+    pub const NUMBER_THEORY: Self = Self(2);
+    /// 多项式。
+    pub const POLYNOMIAL: Self = Self(3);
+    /// 群论。
+    pub const GROUP: Self = Self(4);
+    /// 域论。
+    pub const FIELD: Self = Self(5);
+    /// 伽罗瓦。
+    pub const GALOIS: Self = Self(6);
+    /// 图论。
+    pub const GRAPH_THEORY: Self = Self(7);
+    /// 线性代数。
+    pub const LINEAR_ALGEBRA: Self = Self(8);
+    /// 优化。
+    pub const OPTIMIZATION: Self = Self(9);
+}
+
+/// 结果证据引用（typed evidence store 落地前的结果层句柄）。
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResultEvidence {
+    /// 内核可重放摘要（展示用；不得单独充当机器证明）。
+    TrustedKernelSummary {
+        /// provider。
+        provider: ResultProviderId,
+        /// 人类可读摘要。
+        summary: String,
+    },
+}
+
+/// 结果来源审计。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResultProvenance {
+    /// 请求种类名（`Term` / `DomainGoal` / `Command` / …）。
+    pub request_kind: &'static str,
+}
+
+/// 一次计算的可观察结果。
+#[derive(Debug, PartialEq)]
 pub struct ComputationResult {
     /// 计算 / 验证状态。
     pub status: ComputationStatus,
@@ -17,19 +61,61 @@ pub struct ComputationResult {
     pub value: Option<ValueId>,
     /// 符号项投影（若有）。不得单独冒充「成功值」。
     pub symbolic_term: Option<TermId>,
+    /// 结果成立所需条件。
+    pub conditions: Vec<Condition>,
     /// 结构化诊断。
     pub diagnostics: Vec<Diagnostic>,
+    /// 证据引用（typed store 接入前可为空）。
+    pub evidence: Vec<ResultEvidence>,
+    /// 产出 provider。
+    pub provider: Option<ResultProviderId>,
+    /// 来源审计。
+    pub provenance: Option<ResultProvenance>,
 }
 
 impl ComputationResult {
     /// 构造带状态的空结果骨架。
     pub fn with_status(status: ComputationStatus, coverage: CoverageStatus) -> Self {
-        Self { status, coverage, value: None, symbolic_term: None, diagnostics: Vec::new() }
+        Self {
+            status,
+            coverage,
+            value: None,
+            symbolic_term: None,
+            conditions: Vec::new(),
+            diagnostics: Vec::new(),
+            evidence: Vec::new(),
+            provider: None,
+            provenance: None,
+        }
     }
 
     /// 附加诊断。
     pub fn with_diagnostic(mut self, diagnostic: Diagnostic) -> Self {
         self.diagnostics.push(diagnostic);
+        self
+    }
+
+    /// 附加条件。
+    pub fn with_condition(mut self, condition: Condition) -> Self {
+        self.conditions.push(condition);
+        self
+    }
+
+    /// 附加证据。
+    pub fn with_evidence(mut self, evidence: ResultEvidence) -> Self {
+        self.evidence.push(evidence);
+        self
+    }
+
+    /// 附加 provider。
+    pub fn with_provider(mut self, provider: ResultProviderId) -> Self {
+        self.provider = Some(provider);
+        self
+    }
+
+    /// 附加来源。
+    pub fn with_provenance(mut self, provenance: ResultProvenance) -> Self {
+        self.provenance = Some(provenance);
         self
     }
 
@@ -47,7 +133,7 @@ impl ComputationResult {
 }
 
 /// [`ResultId`] 所有者：持有真实 [`ComputationResult`] 载荷。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ResultStore {
     next: u32,
     results: BTreeMap<ResultId, ComputationResult>,

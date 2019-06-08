@@ -7,9 +7,9 @@
       "pattern": "evaluate_expression",
       "replacement": "evaluate",
       "owner": "Athena API",
-      "status": "expiring",
-      "expiry": "2026-09-18",
-      "baseline_max_matches": 2,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     },
     {
@@ -17,9 +17,9 @@
       "pattern": "differentiate_expression",
       "replacement": "differentiate",
       "owner": "Athena API",
-      "status": "expiring",
-      "expiry": "2026-09-18",
-      "baseline_max_matches": 1,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     },
     {
@@ -27,9 +27,9 @@
       "pattern": "simplify_expression",
       "replacement": "simplify",
       "owner": "Athena API",
-      "status": "expiring",
-      "expiry": "2026-09-18",
-      "baseline_max_matches": 1,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     },
     {

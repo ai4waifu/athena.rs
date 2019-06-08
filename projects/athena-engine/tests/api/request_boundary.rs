@@ -28,7 +28,37 @@ fn execute_request_term_records_computation_result() {
     assert!(loaded.symbolic_term.is_some());
     assert!(loaded.value.is_some());
     assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert!(loaded.provenance.is_some());
     assert_eq!(session.results.count(), 1);
+}
+
+#[test]
+fn execute_request_domain_goal_preserves_domain_payload() {
+    use athena_engine::domains::{
+        dispatch::DomainRequest,
+        number_theory::{NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue},
+    };
+    use athena_engine::runtime::{ResultProviderId, RuntimeValue};
+    use athena_numeric::Integer;
+
+    let engine = AthenaEngine::new();
+    let mut session = Session::new();
+    let request = AthenaRequest::Goal(athena_engine::api::DomainGoal::Dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
+        a: Integer::from_i64(12),
+        b: Integer::from_i64(8),
+    })));
+    let result_id = engine.execute_request(&mut session, request).expect("goal");
+    let loaded = session.results.get(result_id).expect("payload");
+    assert_eq!(loaded.status, athena_types::ComputationStatus::Exact);
+    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.provider, Some(ResultProviderId::NUMBER_THEORY));
+    let value_id = loaded.value.expect("value");
+    match session.values.get(value_id).expect("runtime") {
+        RuntimeValue::Domain(athena_engine::domains::dispatch::DomainResult::NumberTheory(NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Integer(n),
+        })) => assert_eq!(n, &Integer::from_i64(4)),
+        other => panic!("expected preserved domain gcd payload, got {other:?}"),
+    }
 }
 
 #[test]
