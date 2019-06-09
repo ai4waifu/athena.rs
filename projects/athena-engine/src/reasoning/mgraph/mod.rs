@@ -32,7 +32,7 @@ pub use core::{
     scope_to_ref,
 };
 pub use equivalence::ExactUnionFind;
-pub use facts::{Claim, Evidence, FactId, FactLog, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};
+pub use facts::{Claim, Evidence, FactId, AdmissionJournal, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};
 pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,
 };

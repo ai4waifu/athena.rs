@@ -1,4 +1,4 @@
-//! Semantic core 合同：FactLog 单调性 · 派生索引可重建。
+//! Semantic core 合同：AdmissionJournal 单调性 · 派生索引可重建。
 
 use athena_engine::reasoning::mgraph::{
     AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_PROVIDER_ID, Proposition, Scope, SemanticCore,
@@ -6,15 +6,15 @@ use athena_engine::reasoning::mgraph::{
 };
 
 #[test]
-fn fact_log_is_append_only_monotonic() {
+fn admission_journal_is_append_only_monotonic() {
     let mut core = SemanticCore::new();
-    assert_eq!(core.fact_log.count(), 0);
+    assert_eq!(core.admission_journal.count(), 0);
     let id0 = admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 1));
     let id1 = admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 2));
     assert_eq!(id0, FactId(0));
     assert_eq!(id1, FactId(1));
-    assert_eq!(core.fact_log.count(), 2);
-    assert!(core.fact_log.get(FactId(0)).is_some());
+    assert_eq!(core.admission_journal.count(), 2);
+    assert!(core.admission_journal.get(FactId(0)).is_some());
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn derived_indexes_rebuild_matches_incremental() {
 #[test]
 fn mgraph_state_splits_semantic_and_operational() {
     let state = MGraphState::new();
-    assert!(state.semantic.fact_log.is_empty());
+    assert!(state.semantic.admission_journal.is_empty());
     assert!(state.operational.result_cache.polynomial.is_empty());
     assert!(state.operational.hyper_edges.is_empty());
 }

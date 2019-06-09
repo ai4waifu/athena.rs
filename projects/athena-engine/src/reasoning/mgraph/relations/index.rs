@@ -10,7 +10,7 @@ use crate::reasoning::mgraph::{
     },
     facts::{
         claim::{Evidence, Guarantee, Proposition, VerifiedClaim},
-        log::FactId,
+        journal::FactId,
     },
 };
 

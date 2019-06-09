@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     domains::polynomial::PolynomialCacheOp,
-    reasoning::mgraph::{FactLog, POLYNOMIAL_PROVIDER_ID, Proposition},
+    reasoning::mgraph::{AdmissionJournal, POLYNOMIAL_PROVIDER_ID, Proposition},
 };
 
 /// 单条 kernel 操作（当前覆盖多项式域）。
@@ -39,10 +39,10 @@ impl KernelIR {
         Self { fingerprint: 0, operations: Vec::new(), provider: POLYNOMIAL_PROVIDER_ID }
     }
 
-    /// 由 fact log 抽取已验证多项式 claim 构造 KernelIR。
-    pub fn extract_from_fact_log(fact_log: &FactLog) -> Self {
+    /// 由 [`AdmissionJournal`] 抽取已验证多项式 claim 构造 KernelIR。
+    pub fn extract_from_admission_journal(admission_journal: &AdmissionJournal) -> Self {
         let mut operations = Vec::new();
-        for claim in fact_log.claims() {
+        for claim in admission_journal.claims() {
             if let Proposition::PolynomialResult { operation, request_fingerprint } = &claim.claim.proposition {
                 operations.push(KernelOperation::Polynomial { operation: *operation, request_fingerprint: *request_fingerprint });
             }

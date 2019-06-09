@@ -2,7 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use super::expr::Polynomial;
+use super::object::Polynomial;
 
 /// 多项式理想 ⟨generators⟩ ⊂ R[x]。
 #[derive(Debug, Clone, PartialEq)]

@@ -1,4 +1,4 @@
-//! Semantic core：实现层 [`MGraphCore`] + legacy [`FactLog`] + 可重建 [`DerivedIndexes`]。
+//! Semantic core：实现层 [`MGraphCore`] + [`AdmissionJournal`] + 可重建 [`DerivedIndexes`]。
 
 use crate::reasoning::mgraph::{
     core::{
@@ -9,19 +9,19 @@ use crate::reasoning::mgraph::{
     equivalence::union_find::ExactUnionFind,
     facts::{
         claim::{Claim, Guarantee, VerifiedClaim},
-        log::{FactId, FactLog},
+        journal::{AdmissionJournal, FactId},
     },
     relations::{derived::DerivedIndexes, index::RelationRecord},
 };
 
-/// 数学语义状态（scoped relation index + 派生索引）。
+/// 数学语义状态（admission journal + scoped relation index + 派生索引）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SemanticCore {
-    /// Scoped relation 索引与 admit/close 入口。
+    /// Scoped relation 索引与 admit/close 入口（查询面）。
     pub core: MGraphCore,
-    /// Legacy append-only 视图（与 `core.relation_index` 同步；当前双写）。
-    pub fact_log: FactLog,
-    /// 由 fact log 派生的索引（可 `rebuild_derived` 重建）。
+    /// 唯一追加的接纳事件源。`RelationIndex` / `DerivedIndexes` 均可由此重建。
+    pub admission_journal: AdmissionJournal,
+    /// 由 journal 派生的索引（可 `rebuild_derived` 重建）。
     pub derived: DerivedIndexes,
 }
 
@@ -31,10 +31,10 @@ impl SemanticCore {
         Self::default()
     }
 
-    /// 仅由 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`] 调用（双写 fact log）。
+    /// 仅由 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`] 调用（journal + relation index）。
     pub(crate) fn commit(&mut self, claim: VerifiedClaim) -> FactId {
         let id = self.core.admit(claim.clone());
-        self.fact_log.append(claim.clone());
+        self.admission_journal.append(claim.clone());
         self.derived.apply_verified_claim(&claim);
         id
     }
@@ -54,8 +54,8 @@ impl SemanticCore {
         MGraphView::new(&self.core)
     }
 
-    /// 从 fact log 重建全部派生索引。
+    /// 从 [`AdmissionJournal`] 重建全部派生索引。
     pub fn rebuild_derived(&mut self) {
-        self.derived = DerivedIndexes::rebuild_from(&self.fact_log);
+        self.derived = DerivedIndexes::rebuild_from(&self.admission_journal);
     }
 }

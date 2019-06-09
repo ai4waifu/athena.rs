@@ -9,7 +9,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{
     builder::PolynomialBuilder,
     canonical::canonicalize_polynomial,
-    expr::Polynomial,
+    object::Polynomial,
     ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
     univariate::div_univariate,

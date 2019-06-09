@@ -2,7 +2,7 @@
 
 use athena_types::Result;
 
-use super::{expr::Polynomial, fingerprint::polynomial_fingerprint_u64, ring_table::RingTable};
+use super::{object::Polynomial, fingerprint::polynomial_fingerprint_u64, ring_table::RingTable};
 
 /// 对 canonical 多项式求稳定结构 hash（不含 Session [`RingId`]）。
 pub fn canonical_hash(poly: &Polynomial, rings: &RingTable) -> Result<u64> {

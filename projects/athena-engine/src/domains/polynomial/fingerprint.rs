@@ -6,7 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, NumericKind, Result, SymbolId};
 use crate::{domains::algebra::FieldTable, runtime::values::numeric_clone::clone_integer};
 
 use super::{
-    expr::Polynomial,
+    object::Polynomial,
     order::MonomialOrder,
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,

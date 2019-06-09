@@ -67,9 +67,9 @@
       "pattern": "\\bDialectOrigin\\b",
       "replacement": "neutral MatrixRequest / IndexRequest",
       "owner": "linear algebra",
-      "status": "expiring",
-      "expiry": "2026-10-02",
-      "baseline_max_matches": 15,
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
     }
   ]

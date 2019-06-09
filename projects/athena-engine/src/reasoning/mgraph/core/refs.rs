@@ -14,8 +14,8 @@ impl ScopeRef {
     pub const UNCONDITIONAL: Self = Self(0);
 }
 
-/// 已接纳关系引用（与 [`crate::reasoning::mgraph::facts::log::FactId`] 同构，单调递增）。
-pub type RelationRef = crate::reasoning::mgraph::facts::log::FactId;
+/// 已接纳关系引用（与 [`crate::reasoning::mgraph::facts::FactId`] 同构，单调递增）。
+pub type RelationRef = crate::reasoning::mgraph::facts::FactId;
 
 /// 命题引用（当前与 [`RelationRef`] 同 id 空间；完整命题由领域模块解释）。
 pub type PropositionRef = RelationRef;

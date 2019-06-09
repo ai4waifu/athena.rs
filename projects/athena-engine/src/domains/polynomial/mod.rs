@@ -11,7 +11,7 @@ mod certificate;
 mod coefficient_kernel;
 mod coefficient_ring_table;
 mod exponent;
-mod expr;
+mod object;
 mod factor;
 mod fingerprint;
 mod groebner;
@@ -39,7 +39,7 @@ pub use coefficient_kernel::{
     CoefficientRing, FpBigKernel, FpWordKernel, QCoefficientKernel, SpecializedCoefficientKernel, ZCoefficientKernel,
 };
 pub use coefficient_ring_table::{CoefficientRingDescriptor, CoefficientRingTable};
-pub use expr::{MonomialTerm, Polynomial};
+pub use object::{MonomialTerm, Polynomial};
 pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,

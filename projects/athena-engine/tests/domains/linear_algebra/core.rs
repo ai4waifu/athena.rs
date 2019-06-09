@@ -1,13 +1,12 @@
-//! 矩阵不变量、精确/机器双路径与跨方言规范奇偶校验。
+//! 矩阵不变量、精确/机器双路径与中性请求合同。
 
 use athena_engine::{
     domains::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
-            AlgorithmGuarantee, DialectArgs, DialectMatrixOp, DialectOrigin, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult,
-            LinearAlgebraValue, MatrixEntry, MatrixEqualityKind, MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder,
-            det_bareiss, execute_linear_algebra, hadamard, lower_1based_scalar, lower_dialect_op, matlab_star_kind, matmul, matrices_equal,
-            rank_exact, solve_exact, solve_machine, transpose,
+            AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, matmul,
+            matrices_equal, rank_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose,
         },
     },
     runtime::Session,
@@ -66,48 +65,32 @@ fn exact_and_machine_buffers_are_incompatible() {
 }
 
 #[test]
-fn dialect_canonical_parity_matmul_vs_hadamard() {
+fn neutral_matmul_and_hadamard_requests_are_distinct() {
     let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
     let b = MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap();
 
-    let mm_mathematica =
-        lower_dialect_op(DialectOrigin::Mathematica, DialectMatrixOp::MatMul, DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
-    let mm_matlab =
-        lower_dialect_op(DialectOrigin::Matlab, matlab_star_kind(false), DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
-    assert_eq!(mm_mathematica, mm_matlab);
+    let mm = LinearAlgebraRequest::MatMul { lhs: a.clone(), rhs: b.clone() };
+    let had = LinearAlgebraRequest::Hadamard { lhs: a, rhs: b };
+    assert_ne!(mm, had);
 
-    let had_mathematica =
-        lower_dialect_op(DialectOrigin::Mathematica, DialectMatrixOp::Hadamard, DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() })
-            .unwrap();
-    let had_matlab =
-        lower_dialect_op(DialectOrigin::Matlab, matlab_star_kind(true), DialectArgs::Binary { lhs: a.clone(), rhs: b.clone() }).unwrap();
-    assert_eq!(had_mathematica, had_matlab);
-    assert_ne!(mm_matlab, had_matlab);
-
-    let r1 = execute_linear_algebra(mm_mathematica);
-    let r2 = execute_linear_algebra(mm_matlab);
+    let r1 = execute_linear_algebra(mm.clone());
+    let r2 = execute_linear_algebra(mm);
     assert_eq!(r1, r2);
+    let _ = execute_linear_algebra(had);
 }
 
 #[test]
-fn dialect_1based_index_parity() {
+fn one_based_index_helper_builds_neutral_request() {
     let m = MatrixValue::from_integers_row_major(2, 2, vec![i(10), i(20), i(30), i(40)]).unwrap();
-    let spec_mma = lower_1based_scalar(DialectOrigin::Mathematica, 2, 1).unwrap();
-    let spec_matlab = lower_1based_scalar(DialectOrigin::Matlab, 2, 1).unwrap();
-    assert_eq!(spec_mma, spec_matlab);
-    assert_eq!(spec_mma, IndexSpec::Scalar { row: 1, col: 0 });
+    let spec = scalar_index_from_one_based(2, 1).unwrap();
+    assert_eq!(spec, IndexSpec::Scalar { row: 1, col: 0 });
 
-    let req_mma = lower_dialect_op(
-        DialectOrigin::Mathematica,
-        DialectMatrixOp::IndexScalar,
-        DialectArgs::Index { matrix: m.clone(), row_1based: 2, col_1based: 1 },
-    )
-    .unwrap();
-    let req_matlab =
-        lower_dialect_op(DialectOrigin::Matlab, DialectMatrixOp::IndexScalar, DialectArgs::Index { matrix: m, row_1based: 2, col_1based: 1 })
-            .unwrap();
-    assert_eq!(req_mma, req_matlab);
-    let LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(v) } = execute_linear_algebra(req_mma)
+    let IndexSpec::Scalar { row, col } = spec
+    else {
+        panic!("scalar");
+    };
+    let req = LinearAlgebraRequest::Index { matrix: m, row, col };
+    let LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(v) } = execute_linear_algebra(req)
     else {
         panic!("index");
     };

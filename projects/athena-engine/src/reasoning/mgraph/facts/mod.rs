@@ -1,7 +1,7 @@
-//! Typed claim 与 fact log。
+//! Typed claim 与 admission journal。
 
 pub mod claim;
-pub mod log;
+pub mod journal;
 
 pub use claim::{Claim, Evidence, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};
-pub use log::{FactId, FactLog};
+pub use journal::{AdmissionJournal, FactId};

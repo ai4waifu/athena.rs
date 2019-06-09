@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     canonical::canonicalize_terms,
-    expr::{MonomialTerm, Polynomial},
+    object::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
 

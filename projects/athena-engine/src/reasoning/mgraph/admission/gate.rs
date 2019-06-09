@@ -104,7 +104,7 @@ impl AdmissionGate {
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         claim: Claim,
         policy: &VerificationPolicy,
-    ) -> Result<crate::reasoning::mgraph::facts::log::FactId, AdmissionRejectReason> {
+    ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
         match EvidenceVerifier::verify(&claim, policy) {
             AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
             AdmissionOutcome::Rejected { reason, .. } => Err(reason),

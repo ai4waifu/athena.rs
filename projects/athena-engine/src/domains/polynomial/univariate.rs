@@ -6,7 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{
     builder::PolynomialBuilder,
     coefficient_kernel::CoefficientRing,
-    expr::Polynomial,
+    object::Polynomial,
     ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
 };

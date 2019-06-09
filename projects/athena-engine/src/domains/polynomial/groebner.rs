@@ -9,7 +9,7 @@ use super::{
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus},
     coefficient_kernel::CoefficientRing,
-    expr::Polynomial,
+    object::Polynomial,
     ideal::Ideal,
     monomial_layout::MonomialLayout,
     operations::sub_polynomial,
@@ -373,7 +373,7 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
     Ok(out)
 }
 
-fn leading_term(poly: &Polynomial) -> Option<super::expr::MonomialTerm> {
+fn leading_term(poly: &Polynomial) -> Option<super::object::MonomialTerm> {
     poly.terms().first().map(|t| t.owning_copy())
 }
 
