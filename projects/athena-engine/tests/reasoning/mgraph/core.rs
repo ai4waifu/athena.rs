@@ -61,7 +61,11 @@ fn admit_maps_congruence_predicate() {
             proposition: Proposition::Congruence { modulus_fingerprint: 7, left: 1, right: 8 },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
+            evidence: Evidence::TrustedKernel {
+                provider: POLYNOMIAL_PROVIDER_ID,
+                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+                summary: "test".into(),
+            },
         },
     );
     let view = semantic.view();
@@ -109,7 +113,11 @@ fn outer_candidate_is_not_stored_in_core() {
         },
         scope: Scope::Unconditional,
         guarantee: Guarantee::Candidate,
-        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "pending".into() },
+        evidence: Evidence::TrustedKernel {
+            provider: POLYNOMIAL_PROVIDER_ID,
+            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            summary: "pending".into(),
+        },
     });
     assert_eq!(semantic.relation_count(), 0);
 }
@@ -134,7 +142,11 @@ fn candidate_guarantee_is_rejected_by_admission_gate() {
             },
             scope: Scope::Unconditional,
             guarantee: Guarantee::Candidate,
-            evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "forge".into() },
+            evidence: Evidence::TrustedKernel {
+                provider: POLYNOMIAL_PROVIDER_ID,
+                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+                summary: "forge".into(),
+            },
         },
         &VerificationPolicy::default(),
     )
@@ -155,6 +167,10 @@ fn sample_claim(fingerprint: u64) -> Claim {
         },
         scope: Scope::Unconditional,
         guarantee: Guarantee::ProvenExact,
-        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
+        evidence: Evidence::TrustedKernel {
+                provider: POLYNOMIAL_PROVIDER_ID,
+                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+                summary: "test".into(),
+            },
     }
 }

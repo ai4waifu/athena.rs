@@ -47,6 +47,10 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
         },
         scope: Scope::Unconditional,
         guarantee,
-        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
+        evidence: Evidence::TrustedKernel {
+            provider: POLYNOMIAL_PROVIDER_ID,
+            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            summary: "test".into(),
+        },
     }
 }

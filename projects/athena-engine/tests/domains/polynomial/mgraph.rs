@@ -111,7 +111,11 @@ fn probable_claim_blocked_by_verifier() {
         proposition: proposition_from_cache_key(&key),
         scope: Scope::Unconditional,
         guarantee: Guarantee::Probable,
-        evidence: Evidence::TrustedKernel { provider: athena_engine::reasoning::mgraph::POLYNOMIAL_PROVIDER_ID, summary: "probable".into() },
+        evidence: Evidence::TrustedKernel {
+            provider: athena_engine::reasoning::mgraph::POLYNOMIAL_PROVIDER_ID,
+            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            summary: "probable".into(),
+        },
     };
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: Guarantee::Probable } => {}
