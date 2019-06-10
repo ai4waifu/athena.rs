@@ -57,6 +57,22 @@ pub mod predicates {
     pub const EVALUATION_RESULT: PredicateId = PredicateId(4);
 }
 
+/// 稳定对象引用（跨 Session 用 fingerprint；非 `TermId` 下标）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectRef {
+    /// 理论上下文。
+    pub theory: TheoryContextId,
+    /// Canonical fingerprint。
+    pub fingerprint: u64,
+}
+
+impl ObjectRef {
+    /// 构造。
+    pub const fn new(theory: TheoryContextId, fingerprint: u64) -> Self {
+        Self { theory, fingerprint }
+    }
+}
+
 /// 关系主体的非拥有语义引用（M-Graph 不持有对象 payload）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemanticRef {
@@ -66,6 +82,8 @@ pub enum SemanticRef {
     Value(ValueId),
     /// 可观察计算结果。
     Result(ResultId),
+    /// 稳定对象指纹（多项式请求、同余对等）。
+    Object(ObjectRef),
 }
 
 /// 关系在 scope 内的接纳状态。

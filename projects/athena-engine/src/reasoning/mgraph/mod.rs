@@ -2,7 +2,7 @@
 //!
 //! 子树职责：
 //! - [`admission`] — 证据门控与候选
-//! - [`facts`] — claim / fact log
+//! - [`facts`] — claim / admission journal
 //! - [`equivalence`] — exact UF / 同余
 //! - [`relations`] — scope / relation 索引与理论规格
 //! - [`closure`] — 闭包步进与 operational state
@@ -27,9 +27,9 @@ pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, OperationalState, run_closure_step};
 pub use core::{
     CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
-    MGraphCore, MGraphState, MGraphView, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind, SemanticRef,
-    SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, predicates, scope_from_ref, scope_ref_from_assumption_set,
-    scope_to_ref,
+    MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind,
+    SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, predicates, scope_from_ref,
+    scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use equivalence::ExactUnionFind;
 pub use facts::{Claim, Evidence, FactId, AdmissionJournal, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key};

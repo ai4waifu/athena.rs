@@ -5,7 +5,9 @@ use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
     core::{
-        refs::{PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates, scope_to_ref},
+        refs::{
+            ObjectRef, PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates, scope_to_ref,
+        },
         types::CapabilityProviderId,
     },
     facts::{
@@ -54,8 +56,20 @@ fn provider_from_evidence(evidence: &Evidence) -> Option<CapabilityProviderId> {
 
 fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<SemanticRef>, TheoryContextId) {
     match proposition {
-        Proposition::PolynomialResult { .. } => (predicates::POLYNOMIAL_RESULT, Vec::new(), TheoryContextId::POLYNOMIAL),
-        Proposition::Congruence { .. } => (predicates::CONGRUENCE, Vec::new(), TheoryContextId::CONGRUENCE),
+        Proposition::PolynomialResult { request_fingerprint, .. } => (
+            predicates::POLYNOMIAL_RESULT,
+            vec![SemanticRef::Object(ObjectRef::new(TheoryContextId::POLYNOMIAL, *request_fingerprint))],
+            TheoryContextId::POLYNOMIAL,
+        ),
+        Proposition::Congruence { modulus_fingerprint, left, right } => (
+            predicates::CONGRUENCE,
+            vec![
+                SemanticRef::Object(ObjectRef::new(TheoryContextId::CONGRUENCE, *left)),
+                SemanticRef::Object(ObjectRef::new(TheoryContextId::CONGRUENCE, *right)),
+                SemanticRef::Object(ObjectRef::new(TheoryContextId::CONGRUENCE, *modulus_fingerprint)),
+            ],
+            TheoryContextId::CONGRUENCE,
+        ),
     }
 }
 
