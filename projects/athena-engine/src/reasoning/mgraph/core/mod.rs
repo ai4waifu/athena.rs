@@ -63,6 +63,11 @@ impl MGraphCore {
         self.relation_index.append(record)
     }
 
+    /// 用 journal 重建的查询索引整表替换（保留 scope 边）。
+    pub(crate) fn replace_relation_index(&mut self, index: RelationIndex) {
+        self.relation_index = index;
+    }
+
     /// 显式注册 scope 细化边（transport 规则的一部分）。
     pub fn refine_scope(&mut self, from: ScopeRef, to: ScopeRef) {
         self.scope_index.add_relation(from, to, ScopeRelationKind::Refines);

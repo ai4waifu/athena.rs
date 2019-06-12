@@ -28,6 +28,18 @@ fn derived_indexes_rebuild_matches_incremental() {
 }
 
 #[test]
+fn relation_index_rebuild_from_journal_matches_incremental() {
+    let mut core = SemanticCore::new();
+    admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 10));
+    admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 20));
+    let before = core.core.relation_index().records().to_vec();
+    assert_eq!(before.len(), 2);
+    core.rebuild_from_journal();
+    assert_eq!(core.core.relation_index().records(), before.as_slice());
+    assert_eq!(core.relation_count(), core.admission_journal.count());
+}
+
+#[test]
 fn mgraph_state_splits_semantic_and_operational() {
     let state = MGraphState::new();
     assert!(state.semantic.admission_journal.is_empty());

@@ -12,7 +12,7 @@ use crate::reasoning::mgraph::{
     },
     facts::{
         claim::{Evidence, Guarantee, Proposition, VerifiedClaim},
-        journal::FactId,
+        journal::{AdmissionJournal, FactId},
     },
 };
 
@@ -105,6 +105,15 @@ impl RelationIndex {
         self.by_scope.entry(record.scope).or_default().push(id);
         self.records.push(record);
         id
+    }
+
+    /// 由 [`AdmissionJournal`] 全量重建查询索引（可丢弃后再建）。
+    pub fn rebuild_from(journal: &AdmissionJournal) -> Self {
+        let mut index = Self::new();
+        for claim in journal.claims() {
+            index.append(RelationRecord::from_verified(claim.clone()));
+        }
+        index
     }
 
     /// 全部记录。
