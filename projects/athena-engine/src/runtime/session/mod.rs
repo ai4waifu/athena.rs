@@ -119,7 +119,7 @@ impl Session {
     }
 
     /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。
-    pub fn evaluate(&mut self, expr: TermId) -> execution::Outcome {
+    pub fn evaluate(&mut self, expr: TermId) -> execution::TermEvaluation {
         execution::vm::evaluate_session(self, expr)
     }
 

@@ -22,7 +22,7 @@ impl C {
     }
 }
 
-fn out(e: Tid, c: &mut C) -> execution::Outcome {
+fn out(e: Tid, c: &mut C) -> execution::TermEvaluation {
     evaluate_session(&mut c.s, e)
 }
 

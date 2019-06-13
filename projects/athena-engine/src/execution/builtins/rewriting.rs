@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use athena_types::{OperatorId, SymbolId, TermId};
 
 use crate::execution::{
-    Outcome,
+    TermEvaluation,
     environment::definitions::{DefinitionLayer, LocalBinding},
     vm::{CompileMode, Shape, Vm},
 };

@@ -8,33 +8,33 @@ use athena_types::TermId;
 
 use crate::runtime::values::numeric_clone::clone_number;
 
-use crate::execution::{Outcome, vm::Vm};
+use crate::execution::{TermEvaluation, vm::Vm};
 
-pub(crate) fn h_calc_d(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_d(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "D", operands[0])
 }
 
-pub(crate) fn h_calc_integrate(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_integrate(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "Integrate", operands[0])
 }
 
-pub(crate) fn h_calc_limit(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_limit(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "Limit", operands[0])
 }
 
-pub(crate) fn h_calc_series(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_series(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "Series", operands[0])
 }
 
-pub(crate) fn h_calc_dsolve(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_dsolve(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "DSolve", operands[0])
 }
 
-pub(crate) fn h_calc_laplace(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_calc_laplace(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     calculus_bridge(vm, "LaplaceTransform", operands[0])
 }
 
-fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
+fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> TermEvaluation {
     let args = vm.application_arguments(root).unwrap_or_default();
     let mut evaluated = Vec::with_capacity(args.len());
     let mut diags = Vec::new();
@@ -45,7 +45,7 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
     }
     if diags.iter().any(|d| d.severity == athena_types::Severity::Error) {
         let echo = vm.push_application(name, evaluated);
-        return Outcome {
+        return TermEvaluation {
             term: echo,
             kind: crate::execution::EvalKind::Unevaluated,
             status: athena_types::ComputationStatus::Invalid,
@@ -63,20 +63,20 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
             let mut cc = crate::domains::calculus::ctx::CalculusCtx::new(vm.session);
             crate::domains::calculus::materialize_calculus_result_term(&mut cc, &result)
         };
-        return Outcome::value(term).with_diagnostics(diags);
+        return TermEvaluation::value(term).with_diagnostics(diags);
     }
-    Outcome::unevaluated(echo).with_diagnostics(diags)
+    TermEvaluation::unevaluated(echo).with_diagnostics(diags)
 }
 
 /// 单变量多项式 `Solve` → `{{x->r},…}`（typed `SolutionSet` 仍为正式合同）。
-pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outcome {
+pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> TermEvaluation {
     let echo = vm.push_application("Solve", vec![equation, unknown]);
     let Some(var_name) = (match vm.session.arena.get(unknown) {
         Some(TermNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).map(str::to_string),
         _ => None,
     })
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
 
     let zero_id = if vm.head_name(equation).as_deref() == Some("Equal") {
@@ -97,10 +97,10 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
 
     let Some(terms) = collect_univariate_monomials(vm, zero_id, &var_name)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     if terms.is_empty() {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     }
 
     use crate::domains::{
@@ -112,41 +112,41 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
     let mut rings = RingTable::new();
     let Ok(ring) = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     let mut builder = PolynomialBuilder::new(ring);
     for (coeff, deg) in terms {
         if builder.push_term(coeff, vec![deg]).is_err() {
-            return Outcome::unevaluated(echo);
+            return TermEvaluation::unevaluated(echo);
         }
     }
     let Ok(poly) = builder.build(&rings)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     let unknown_sym = BoundSymbol::free(SymbolId(0));
     let Ok(adapted) = solve_univariate_polynomial_roots(poly, &rings, unknown_sym, SolveDomain::Rationals, PolynomialFactorLimits::default())
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     if !matches!(adapted.solution.coverage, CoverageStatus::Complete) {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     }
 
     let mut roots: Vec<TermId> = Vec::new();
     for branch in &adapted.solution.branches {
         let Some(tid) = branch.bindings.get(&unknown_sym)
         else {
-            return Outcome::unevaluated(echo);
+            return TermEvaluation::unevaluated(echo);
         };
         let Some(val) = adapted.values.get(tid)
         else {
-            return Outcome::unevaluated(echo);
+            return TermEvaluation::unevaluated(echo);
         };
         let root_term = match val {
             crate::domains::solve::BindingValue::Number(n) => push_number_for_solve(vm, n),
             crate::domains::solve::BindingValue::Rational(r) => super::matrix::rational_to_term(vm, r),
-            crate::domains::solve::BindingValue::MachineF64(_) => return Outcome::unevaluated(echo),
+            crate::domains::solve::BindingValue::MachineF64(_) => return TermEvaluation::unevaluated(echo),
         };
         roots.push(root_term);
     }
@@ -168,7 +168,7 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outco
         let rule = vm.rebuild_application_operator(rule_op, vec![var_id, r]);
         out.push(vm.push_list(vec![rule]));
     }
-    Outcome::value(vm.push_list(out))
+    TermEvaluation::value(vm.push_list(out))
 }
 
 fn push_number_for_solve(vm: &mut Vm<'_>, n: &Number) -> TermId {

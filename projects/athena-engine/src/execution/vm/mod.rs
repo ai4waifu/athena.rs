@@ -15,7 +15,7 @@ use crate::runtime::{
 };
 
 use crate::execution::{
-    EvalKind, Outcome,
+    EvalKind, TermEvaluation,
     builtins::rewriting,
     compile,
     environment::definitions::{DefinitionLayer, LocalBinding, ScopeFrame},
@@ -283,24 +283,24 @@ impl<'a> Vm<'a> {
     // ---- 求值入口 ----
 
     /// 顶层求值（语句语义 · Session 定义表可见）。
-    pub fn evaluate_top(session: &'a mut Session, expr: TermId) -> Outcome {
+    pub fn evaluate_top(session: &'a mut Session, expr: TermId) -> TermEvaluation {
         let mut vm = Vm::new(session);
         vm.eval(expr, CompileMode::Top)
     }
 
     /// 值位求值。
-    pub(crate) fn eval_value(&mut self, expr: TermId) -> Outcome {
+    pub(crate) fn eval_value(&mut self, expr: TermId) -> TermEvaluation {
         self.eval(expr, CompileMode::Value)
     }
 
     /// 语句位求值（`Set` 定义、循环体继承 env）。
-    pub(crate) fn eval_stmt(&mut self, expr: TermId) -> Outcome {
+    pub(crate) fn eval_stmt(&mut self, expr: TermId) -> TermEvaluation {
         self.eval(expr, CompileMode::Stmt)
     }
 
-    fn eval(&mut self, expr: TermId, mode: CompileMode) -> Outcome {
+    fn eval(&mut self, expr: TermId, mode: CompileMode) -> TermEvaluation {
         if self.depth > 256 {
-            return Outcome::unevaluated(expr);
+            return TermEvaluation::unevaluated(expr);
         }
         // 语句位的控制形式在 legacy 于 `apply_bindings` 之前被拦截：循环体必须保持原始，
         // 让每次迭代看到新绑定。跳过改写预处理，直接编译。
@@ -340,7 +340,7 @@ impl<'a> Vm<'a> {
 
     // ---- 执行 ----
 
-    fn run(&mut self, unit: &ExecUnit) -> Outcome {
+    fn run(&mut self, unit: &ExecUnit) -> TermEvaluation {
         let mut stack: Vec<(TermId, EvalKind, athena_types::ComputationStatus)> = Vec::new();
         let mut diags: Vec<Diagnostic> = Vec::new();
         let mut pc = 0usize;
@@ -377,7 +377,7 @@ impl<'a> Vm<'a> {
                     let out = (super::HANDLERS[handler.0 as usize])(self, &args);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
-                        return Outcome {
+                        return TermEvaluation {
                             term: out.term,
                             kind: EvalKind::Unevaluated,
                             status: athena_types::ComputationStatus::Invalid,
@@ -391,7 +391,7 @@ impl<'a> Vm<'a> {
                     let out = (super::HANDLERS[handler.0 as usize])(self, operands);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
-                        return Outcome {
+                        return TermEvaluation {
                             term: out.term,
                             kind: EvalKind::Unevaluated,
                             status: athena_types::ComputationStatus::Invalid,
@@ -408,7 +408,7 @@ impl<'a> Vm<'a> {
                     let out = crate::execution::builtins::control::eval_dynamic(self, head, args);
                     if out.has_error() {
                         diags.extend(out.diagnostics);
-                        return Outcome {
+                        return TermEvaluation {
                             term: out.term,
                             kind: EvalKind::Unevaluated,
                             status: athena_types::ComputationStatus::Invalid,
@@ -446,13 +446,13 @@ impl<'a> Vm<'a> {
                 super::Instr::Return => {
                     let (term, kind, status) =
                         stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
-                    return Outcome { term, kind, status, diagnostics: diags };
+                    return TermEvaluation { term, kind, status, diagnostics: diags };
                 }
             }
             pc += 1;
         }
         let (term, kind, status) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
-        Outcome { term, kind, status, diagnostics: diags }
+        TermEvaluation { term, kind, status, diagnostics: diags }
     }
 }
 
@@ -468,11 +468,11 @@ pub(crate) enum Shape {
 }
 
 /// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。
-pub fn evaluate_session(session: &mut Session, expr: TermId) -> Outcome {
+pub fn evaluate_session(session: &mut Session, expr: TermId) -> TermEvaluation {
     Vm::evaluate_top(session, expr)
 }
 
 /// handler 求值错误捷径。
-pub(crate) fn invalid_echo(echo: TermId, operation: &str) -> Outcome {
-    Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", operation))
+pub(crate) fn invalid_echo(echo: TermId, operation: &str) -> TermEvaluation {
+    TermEvaluation::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", operation))
 }

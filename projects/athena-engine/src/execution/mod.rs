@@ -17,11 +17,11 @@ pub use environment::{DefinitionLayer, LocalBinding, ScopeFrame};
 pub use kernel_ir::{ExecUnit, HandlerId, Instr};
 
 /// handler 统一签名：接收已求值或原始操作数（由指令决定），返回结果。
-pub(crate) type HandlerFn = fn(&mut vm::Vm<'_>, &[TermId]) -> Outcome;
+pub(crate) type HandlerFn = fn(&mut vm::Vm<'_>, &[TermId]) -> TermEvaluation;
 
-/// `TermId` 版求值出口。
+/// Term 求值内部报告（非正式公共 `ComputationResult`）。
 #[derive(Debug)]
-pub struct Outcome {
+pub struct TermEvaluation {
     /// 结果项（失败时可为原式或保守回显）。
     pub term: TermId,
     /// 值 / 未求值区分。
@@ -41,7 +41,7 @@ pub enum EvalKind {
     Unevaluated,
 }
 
-impl Outcome {
+impl TermEvaluation {
     /// 精确值出口。
     pub fn value(term: TermId) -> Self {
         Self { term, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics: Vec::new() }

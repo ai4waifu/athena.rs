@@ -4,17 +4,17 @@ use athena_ir::{Atom, TermNode};
 use athena_types::TermId;
 
 use crate::execution::{
-    Outcome,
+    TermEvaluation,
     builtins::{arithmetic::number_of, catalog::invalid_index_diagnostic},
     vm::Vm,
 };
 
-pub(crate) fn h_span(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_span(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let mut ints = Vec::with_capacity(args.len());
     for a in args {
         match number_of(vm, *a).and_then(|n| n.as_exact_integer()) {
             Some(v) => ints.push(v),
-            None => return Outcome::unevaluated(vm.push_application("Span", args.to_vec())),
+            None => return TermEvaluation::unevaluated(vm.push_application("Span", args.to_vec())),
         }
     }
     let list = match ints.as_slice() {
@@ -23,8 +23,8 @@ pub(crate) fn h_span(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         _ => None,
     };
     match list {
-        Some(items) => Outcome::value(vm.push_list(items)),
-        None => Outcome::unevaluated(vm.push_application("Span", args.to_vec())),
+        Some(items) => TermEvaluation::value(vm.push_list(items)),
+        None => TermEvaluation::unevaluated(vm.push_application("Span", args.to_vec())),
     }
 }
 
@@ -68,14 +68,14 @@ fn expand_span_3(vm: &mut Vm<'_>, a: i64, step: i64, b: i64) -> Option<Vec<TermI
     Some(out)
 }
 
-pub(crate) fn h_part(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_part(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     part_n(vm, args)
 }
 
 /// `Part[m, All, j, …]` — 剩余下标映射到各行（MATLAB `A(:,j)`）。
-fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     if args.len() < 2 {
-        return Outcome::unevaluated(vm.push_application("Part", args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application("Part", args.to_vec()));
     }
     if is_all_symbol(vm, args[1]) && args.len() >= 3 && matches!(vm.session.arena.get(args[0]), Some(TermNode::List(_))) {
         let rows = vm.application_arguments(args[0]).unwrap_or_default();
@@ -89,11 +89,11 @@ fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             let errored = o.has_error();
             diags.extend(o.diagnostics);
             if errored {
-                return Outcome { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
+                return TermEvaluation { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
             }
             out.push(o.term);
         }
-        return Outcome {
+        return TermEvaluation {
             term: vm.push_list(out),
             kind: crate::execution::EvalKind::Value,
             status: athena_types::ComputationStatus::Exact,
@@ -107,11 +107,11 @@ fn part_n(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         let errored = o.has_error();
         diags.extend(o.diagnostics);
         if errored {
-            return Outcome { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
+            return TermEvaluation { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
         }
         cur = o.term;
     }
-    Outcome { term: cur, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
+    TermEvaluation { term: cur, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
 }
 
 fn is_end_symbol(vm: &Vm<'_>, term: TermId) -> bool {
@@ -132,7 +132,7 @@ fn is_all_symbol(vm: &Vm<'_>, term: TermId) -> bool {
     }
 }
 
-fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
+fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> TermEvaluation {
     // 索引列表：逐个抽取再组列表。
     if matches!(vm.session.arena.get(index), Some(TermNode::List(_))) {
         let indices = vm.application_arguments(index).unwrap_or_default();
@@ -143,11 +143,11 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
             let errored = o.has_error();
             diags.extend(o.diagnostics);
             if errored {
-                return Outcome { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
+                return TermEvaluation { term: o.term, kind: o.kind, status: o.status, diagnostics: diags };
             }
             out.push(o.term);
         }
-        return Outcome {
+        return TermEvaluation {
             term: vm.push_list(out),
             kind: crate::execution::EvalKind::Value,
             status: athena_types::ComputationStatus::Exact,
@@ -162,16 +162,16 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
             return part_outcome(vm, expr, end);
         }
         if is_all_symbol(vm, index) {
-            return Outcome::value(vm.push_list(items));
+            return TermEvaluation::value(vm.push_list(items));
         }
         let len = items.len();
         let Some(idx) = number_of(vm, index).and_then(|n| n.as_exact_integer())
         else {
-            return Outcome::unevaluated(vm.push_application("Part", vec![expr, index]));
+            return TermEvaluation::unevaluated(vm.push_application("Part", vec![expr, index]));
         };
         if idx == 0 {
             // Mathematica：`Part[list, 0]` 为 head `List`。
-            return Outcome::value(vm.push_symbol("List"));
+            return TermEvaluation::value(vm.push_symbol("List"));
         }
         let i = if idx > 0 {
             (idx - 1) as usize
@@ -181,31 +181,31 @@ fn part_outcome(vm: &mut Vm<'_>, expr: TermId, index: TermId) -> Outcome {
             let pos = n + idx;
             if pos < 0 || pos as usize >= len {
                 let echo = vm.push_application("Part", vec![expr, index]);
-                return Outcome::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)));
+                return TermEvaluation::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)));
             }
             pos as usize
         };
         return match items.get(i) {
-            Some(item) => Outcome::value(*item),
+            Some(item) => TermEvaluation::value(*item),
             None => {
                 let echo = vm.push_application("Part", vec![expr, index]);
-                Outcome::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)))
+                TermEvaluation::invalid(echo, invalid_index_diagnostic(idx, Some(len as u64)))
             }
         };
     }
-    Outcome::unevaluated(vm.push_application("Part", vec![expr, index]))
+    TermEvaluation::unevaluated(vm.push_application("Part", vec![expr, index]))
 }
 
-pub(crate) fn h_apply(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_apply(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     if matches!(vm.session.arena.get(args[1]), Some(TermNode::List(_))) {
         let items = vm.application_arguments(args[1]).unwrap_or_default();
         let app = vm.rebuild_application(args[0], items);
         return vm.eval_value(app);
     }
-    Outcome::unevaluated(vm.push_application("Apply", vec![args[0], args[1]]))
+    TermEvaluation::unevaluated(vm.push_application("Apply", vec![args[0], args[1]]))
 }
 
-pub(crate) fn h_replace_all(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_replace_all(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let rule_list: Vec<(TermId, TermId)> = match vm.session.arena.get(args[1]) {
         Some(TermNode::List(items)) => items.iter().filter_map(|r| rule_pair(vm, *r)).collect(),
         _ => rule_pair(vm, args[1]).into_iter().collect(),
@@ -226,13 +226,13 @@ fn rule_pair(vm: &Vm<'_>, expr: TermId) -> Option<(TermId, TermId)> {
     if args.len() == 2 && matches!(vm.head_name(expr).as_deref(), Some("Rule") | Some("RuleDelayed")) { Some((args[0], args[1])) } else { None }
 }
 
-pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let Some(items) = (match vm.session.arena.get(args[1]) {
         Some(TermNode::List(_)) => vm.application_arguments(args[1]),
         _ => None,
     })
     else {
-        return Outcome::value(vm.push_application("Map", vec![args[0], args[1]]));
+        return TermEvaluation::value(vm.push_application("Map", vec![args[0], args[1]]));
     };
     let mut out = Vec::with_capacity(items.len());
     let mut diags = Vec::new();
@@ -242,7 +242,7 @@ pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         diags.extend(o.diagnostics);
         out.push(o.term);
     }
-    Outcome::value(vm.push_list(out)).with_diagnostics(diags)
+    TermEvaluation::value(vm.push_list(out)).with_diagnostics(diags)
 }
 
 fn map_one(vm: &mut Vm<'_>, func: TermId, item: TermId) -> TermId {

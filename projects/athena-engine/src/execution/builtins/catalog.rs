@@ -6,7 +6,7 @@ use athena_ir::{Atom, TermNode};
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
-use crate::execution::{Outcome, builtins::arithmetic::number_of, vm::Vm};
+use crate::execution::{TermEvaluation, builtins::arithmetic::number_of, vm::Vm};
 
 /// 将项解释为 typed Boolean（Boolean 原子 · `True`/`False` 符号 · 精确 `1`/`0`）。
 pub(crate) fn as_boolean_id(vm: &Vm<'_>, id: TermId) -> Option<bool> {
@@ -63,18 +63,18 @@ pub(crate) fn term_summary(vm: &Vm<'_>, term: TermId) -> String {
 
 // ---- 比较 ----
 
-pub(crate) fn h_equal(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_equal(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = eval_compare(vm, "Equal", args[0], args[1], |o| o == Ordering::Equal);
     wrap_compare(vm, term, "Equal")
 }
 
-pub(crate) fn h_unequal(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_unequal(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = eval_compare(vm, "Unequal", args[0], args[1], |o| o != Ordering::Equal);
     wrap_compare(vm, term, "Unequal")
 }
 
-fn wrap_compare(vm: &mut Vm<'_>, term: TermId, head: &str) -> Outcome {
-    if vm.head_name(term).is_some_and(|h| h == head) { Outcome::unevaluated(term) } else { Outcome::value(term) }
+fn wrap_compare(vm: &mut Vm<'_>, term: TermId, head: &str) -> TermEvaluation {
+    if vm.head_name(term).is_some_and(|h| h == head) { TermEvaluation::unevaluated(term) } else { TermEvaluation::value(term) }
 }
 
 /// 列表广播 + 数值比较（legacy `eval_compare`）。
@@ -113,7 +113,7 @@ fn eval_compare(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, cmp: f
 
 macro_rules! compare_chain_handler {
     ($name:ident, $op:expr, $pick:expr) => {
-        pub(crate) fn $name(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+        pub(crate) fn $name(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
             compare_chain(vm, $op, args, $pick)
         }
     };
@@ -127,9 +127,9 @@ compare_chain_handler!(h_greater_equal_chain, "GreaterEqual", |o: Ordering| o !=
 const COMPARE_HEADS: [&str; 6] = ["Less", "Greater", "LessEqual", "GreaterEqual", "Equal", "Unequal"];
 
 /// 左结合比较链：`Less[Less[1,2],3]` → `And[1<2, 2<3]`（legacy `eval_compare_chain`）。
-fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) -> bool) -> Outcome {
+fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) -> bool) -> TermEvaluation {
     if args.len() != 2 {
-        return Outcome::unevaluated(vm.push_application(op, args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application(op, args.to_vec()));
     }
     let nested = match vm.session.arena.get(args[0]) {
         Some(TermNode::Application { arguments: inner, .. }) if inner.len() == 2 => {
@@ -146,7 +146,7 @@ fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) 
         let mut diags = left_o.diagnostics.clone();
         diags.extend(right_o.diagnostics.clone());
         return match (as_boolean_id(vm, left_o.term), as_boolean_id(vm, right_o.term)) {
-            (Some(a), Some(b)) => Outcome {
+            (Some(a), Some(b)) => TermEvaluation {
                 term: vm.push_bool(a && b),
                 kind: crate::execution::EvalKind::Value,
                 status: athena_types::ComputationStatus::Exact,
@@ -154,7 +154,7 @@ fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) 
             },
             _ => {
                 let term = vm.push_application("And", vec![left_o.term, right_o.term]);
-                Outcome {
+                TermEvaluation {
                     term,
                     kind: crate::execution::EvalKind::Unevaluated,
                     status: athena_types::ComputationStatus::Partial,
@@ -173,17 +173,17 @@ fn compare_chain(vm: &mut Vm<'_>, op: &str, args: &[TermId], pick: fn(Ordering) 
 
 // ---- 逻辑 ----
 
-pub(crate) fn h_and(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_and(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = logic_and(vm, args[0], args[1]);
     wrap_logic(vm, term, "And")
 }
 
-pub(crate) fn h_or(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_or(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = logic_or(vm, args[0], args[1]);
     wrap_logic(vm, term, "Or")
 }
 
-pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = match as_boolean_id(vm, args[0]) {
         Some(v) => vm.push_bool(!v),
         None => vm.push_application("Not", vec![args[0]]),
@@ -191,8 +191,8 @@ pub(crate) fn h_not(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     wrap_logic(vm, term, "Not")
 }
 
-fn wrap_logic(vm: &mut Vm<'_>, term: TermId, head: &str) -> Outcome {
-    if vm.head_name(term).is_some_and(|h| h == head) { Outcome::unevaluated(term) } else { Outcome::value(term) }
+fn wrap_logic(vm: &mut Vm<'_>, term: TermId, head: &str) -> TermEvaluation {
+    if vm.head_name(term).is_some_and(|h| h == head) { TermEvaluation::unevaluated(term) } else { TermEvaluation::value(term) }
 }
 
 fn logic_and(vm: &mut Vm<'_>, left: TermId, right: TermId) -> TermId {
@@ -211,18 +211,18 @@ fn logic_or(vm: &mut Vm<'_>, left: TermId, right: TermId) -> TermId {
 
 // ---- 列表 / 一元数值 ----
 
-pub(crate) fn h_list(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
-    Outcome::value(vm.push_list(args.to_vec()))
+pub(crate) fn h_list(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
+    TermEvaluation::value(vm.push_list(args.to_vec()))
 }
 
 /// `Sin`/`Cos`/`Tan`/`Exp`/`Log`：精确三角值优先，其余保持符号（raw root 形式）。
-pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.application_arguments(root).unwrap_or_default();
     if args.len() != 1 {
         let op = vm.session.operators.intern(&name);
-        return Outcome::unevaluated(vm.rebuild_application_operator(op, args));
+        return TermEvaluation::unevaluated(vm.rebuild_application_operator(op, args));
     }
     let arg_o = vm.eval_value(args[0]);
     if arg_o.has_error() {
@@ -250,7 +250,7 @@ pub(crate) fn h_unary_trig(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     else {
         vm.push_application(&name, vec![arg_o.term])
     };
-    Outcome::value(term).with_diagnostics(arg_o.diagnostics)
+    TermEvaluation::value(term).with_diagnostics(arg_o.diagnostics)
 }
 
 /// 精确三角值（`Cos[Pi]`、`Sin[0]`、…；legacy `eval_trig_exact`）。
@@ -314,7 +314,7 @@ fn head_is(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     is_application_named(vm, id, name)
 }
 
-pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("sqrt copy")) {
         if let Ok(Some(v)) = athena_numeric::sqrt(&n) {
             crate::execution::builtins::arithmetic::push_number(vm, v)
@@ -326,20 +326,20 @@ pub(crate) fn h_sqrt(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     else {
         vm.push_application("Sqrt", vec![args[0]])
     };
-    Outcome::value(term)
+    TermEvaluation::value(term)
 }
 
-pub(crate) fn h_abs(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_abs(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("abs copy")) {
         crate::execution::builtins::arithmetic::push_number(vm, athena_numeric::abs(n))
     }
     else {
         vm.push_application("Abs", vec![args[0]])
     };
-    Outcome::value(term)
+    TermEvaluation::value(term)
 }
 
-pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = if let Some(n) = number_of(vm, args[0]).map(|n| vm.copy_number(n).expect("factorial copy")) {
         match athena_numeric::factorial(&n) {
             Ok(v) => crate::execution::builtins::arithmetic::push_number(vm, v),
@@ -349,16 +349,16 @@ pub(crate) fn h_factorial(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     else {
         vm.push_application("Factorial", vec![args[0]])
     };
-    Outcome::value(term)
+    TermEvaluation::value(term)
 }
 
-pub(crate) fn h_simplify(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_simplify(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let e = vm.eval_value(args[0]);
     if e.has_error() {
         return e;
     }
     let term = if let Some(one) = try_pythagorean(vm, e.term) { one } else { vm.eval_value(e.term).term };
-    Outcome::value(term).with_diagnostics(e.diagnostics)
+    TermEvaluation::value(term).with_diagnostics(e.diagnostics)
 }
 
 /// `Sin[x]^2 + Cos[x]^2 → 1`（顺序可交换 · legacy `try_pythagorean`）。
@@ -416,12 +416,12 @@ fn same_trig_arg(vm: &Vm<'_>, a: TermId, b: TermId) -> bool {
 
 // ---- Range / Length / First / Join ----
 
-pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let mut ints = Vec::with_capacity(args.len());
     for a in args {
         match number_of(vm, *a).and_then(|n| n.as_exact_integer()) {
             Some(v) => ints.push(v),
-            None => return Outcome::unevaluated(vm.push_application("Range", args.to_vec())),
+            None => return TermEvaluation::unevaluated(vm.push_application("Range", args.to_vec())),
         }
     }
     let list = match ints.as_slice() {
@@ -431,8 +431,8 @@ pub(crate) fn h_range(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         _ => None,
     };
     match list {
-        Some(items) => Outcome::value(vm.push_list(items)),
-        None => Outcome::unevaluated(vm.push_application("Range", args.to_vec())),
+        Some(items) => TermEvaluation::value(vm.push_list(items)),
+        None => TermEvaluation::unevaluated(vm.push_application("Range", args.to_vec())),
     }
 }
 
@@ -457,45 +457,45 @@ pub(crate) fn range_ints(vm: &mut Vm<'_>, a: i64, b: i64, step: i64) -> Option<V
     Some(out)
 }
 
-pub(crate) fn h_length(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_length(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let term = match vm.application_arguments(args[0]) {
         Some(items) => vm.push_int(items.len() as i64),
-        None => return Outcome::unevaluated(vm.push_application("Length", vec![args[0]])),
+        None => return TermEvaluation::unevaluated(vm.push_application("Length", vec![args[0]])),
     };
-    Outcome::value(term)
+    TermEvaluation::value(term)
 }
 
-pub(crate) fn h_first(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_first(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     match vm.application_arguments(args[0]) {
-        Some(items) if !items.is_empty() => Outcome::value(items[0]),
+        Some(items) if !items.is_empty() => TermEvaluation::value(items[0]),
         Some(items) => {
             let echo = vm.push_application("First", vec![args[0]]);
-            Outcome::invalid(echo, invalid_index_diagnostic(1, Some(items.len() as u64)))
+            TermEvaluation::invalid(echo, invalid_index_diagnostic(1, Some(items.len() as u64)))
         }
-        None => Outcome::unevaluated(vm.push_application("First", vec![args[0]])),
+        None => TermEvaluation::unevaluated(vm.push_application("First", vec![args[0]])),
     }
 }
 
-pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let mut out = Vec::new();
     for arg in args {
         match vm.application_arguments(*arg) {
             Some(items) if matches!(vm.session.arena.get(*arg), Some(TermNode::List(_))) => out.extend(items),
-            _ => return Outcome::unevaluated(vm.push_application("Join", args.to_vec())),
+            _ => return TermEvaluation::unevaluated(vm.push_application("Join", args.to_vec())),
         }
     }
-    Outcome::value(vm.push_list(out))
+    TermEvaluation::value(vm.push_list(out))
 }
 
 // ---- 诊断捷径 ----
 
-pub(crate) fn h_unsupported(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_unsupported(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
-    Outcome::invalid(root, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", name))
+    TermEvaluation::invalid(root, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", name))
 }
 
-pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.application_arguments(root).unwrap_or_default();
@@ -512,11 +512,11 @@ pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
         Some(TermNode::Atom(Atom::String(s))) => s.clone(),
         _ => "error".to_string(),
     };
-    Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "error").detail("message", msg))
+    TermEvaluation::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "error").detail("message", msg))
         .with_diagnostics(diags)
 }
 
 /// 值位 `Set` / `SetDelayed` quirk：参数已求值，再求值 rhs 一次（legacy 双重求值一致）。
-pub(crate) fn h_set_eval_rhs(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_set_eval_rhs(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     vm.eval_value(args[1])
 }
