@@ -1,4 +1,4 @@
-//! 矩阵相关 handler 与辅助（legacy `eval_det` / `eval_mldivide` / `eval_dot_binop` 等语义）。
+//! 矩阵相关 handler 与辅助（行列式、线性求解、元素级二元运算）。
 
 use athena_ir::TermNode;
 use athena_numeric::{Integer, Rational};
@@ -248,15 +248,15 @@ pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
 
 pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let echo = vm.push_application("LinearSolve", vec![args[0], args[1]]);
-    mldivide(vm, "LinearSolve", args[0], args[1], echo)
+    exact_linear_solve(vm, "LinearSolve", args[0], args[1], echo)
 }
 
 pub(crate) fn h_solve(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::domains::solve(vm, args[0], args[1])
 }
 
-/// exact `A\b`（legacy `eval_mldivide`）。echo 由调用方构造（保持 head 名）。
-pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: TermId) -> TermEvaluation {
+/// Exact linear solve `A X = B`。echo 由调用方构造（保持 head 名）。
+pub(crate) fn exact_linear_solve(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: TermId) -> TermEvaluation {
     let Some(am) = term_to_rational_matrix(vm, a)
     else {
         return TermEvaluation::unevaluated(echo);

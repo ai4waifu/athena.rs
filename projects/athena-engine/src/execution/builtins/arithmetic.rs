@@ -395,39 +395,6 @@ pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::matrix::dot_binop(vm, "DotPower", args[0], args[1], super::matrix::DotOpKind::Power)
 }
 
-pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
-    let root = operands[0];
-    let name = vm.head_name(root).unwrap_or_default();
-    let args = vm.application_arguments(root).unwrap_or_default();
-    if args.len() != 2 {
-        return TermEvaluation::invalid(
-            root,
-            athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation).detail("operation", name),
-        );
-    }
-    let a = vm.eval_value(args[0]);
-    let b = vm.eval_value(args[1]);
-    let diags = {
-        let mut d = a.diagnostics.clone();
-        d.extend(b.diagnostics.clone());
-        d
-    };
-    let _ = &diags;
-    let op = vm.session.operators.intern(&name);
-    let echo = vm.rebuild_application_operator(op, vec![a.term, b.term]);
-    if a.has_error() || b.has_error() {
-        let mut d = a.diagnostics.clone();
-        d.extend(b.diagnostics.clone());
-        return TermEvaluation {
-            term: echo,
-            kind: crate::execution::EvalKind::Unevaluated,
-            status: athena_types::ComputationStatus::Invalid,
-            diagnostics: d,
-        };
-    }
-    super::matrix::mldivide(vm, &name, a.term, b.term, echo).with_diagnostics(diags)
-}
-
 /// 数值比较（供 builtin / lin 使用）。
 pub(crate) fn num_compare_ids(vm: &Vm<'_>, a: TermId, b: TermId) -> Option<std::cmp::Ordering> {
     let (na, nb) = (number_of(vm, a)?, number_of(vm, b)?);

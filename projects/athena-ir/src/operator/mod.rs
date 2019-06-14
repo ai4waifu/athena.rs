@@ -1,7 +1,7 @@
 //! 算子注册表（结构身份 · 不含方言表面 catalog）。
 //!
 //! Living `26`：`athena-ir` 只提供 [`OperatorId`] 分配与反查。
-//! Mathematica / MATLAB 等表面名由方言 lowering 注入，禁止在此预置 `Plus` / `SetDelayed` / `Blank` 类目录。
+//! Mathematica / MATLAB 等表面名由方言 lowering 注入，禁止在此预置方言表面 catalog。
 
 use std::collections::HashMap;
 

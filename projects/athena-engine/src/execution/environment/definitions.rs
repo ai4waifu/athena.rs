@@ -1,13 +1,13 @@
 //! 分层定义表与作用域帧（Living `25` L2 · `SymbolId` 键）。
 //!
 //! - [`DefinitionLayer`]：语句层 Own / Delayed / DownValues（Session 全局为底层）。
-//! - [`ScopeFrame`]：`With` / `Module` / `Block` 局部遮蔽（读取优先，不写回全局）。
+//! - [`ScopeFrame`]：`LocalScope` / `LexicalScope` / `DynamicScope` 局部遮蔽（读取优先，不写回全局）。
 
 use std::collections::HashMap;
 
 use athena_types::{SymbolId, TermId};
 
-/// 语句层定义（`Set` / `SetDelayed` / DownValues）。
+/// 语句层定义（立即 / 延迟 / DownValues）。
 #[derive(Debug, Default)]
 pub struct DefinitionLayer {
     owns: HashMap<SymbolId, TermId>,
@@ -77,7 +77,7 @@ pub enum LocalBinding {
     Unique(TermId),
 }
 
-/// 作用域帧：`With` / `Module` / `Block` 局部符号 → 绑定。
+/// 作用域帧：`LocalScope` / `LexicalScope` / `DynamicScope` 局部符号 → 绑定。
 #[derive(Debug, Clone, Default)]
 pub struct ScopeFrame {
     locals: HashMap<SymbolId, LocalBinding>,

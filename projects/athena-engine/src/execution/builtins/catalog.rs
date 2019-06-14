@@ -489,6 +489,15 @@ pub(crate) fn h_join(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
 
 // ---- 诊断捷径 ----
 
+/// 预留 handler 槽（下标稳定，不承接表面名）。
+pub(crate) fn h_reserved(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
+    let root = operands.first().copied().unwrap_or_else(|| vm.push_null());
+    TermEvaluation::invalid(
+        root,
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "reserved_handler"),
+    )
+}
+
 pub(crate) fn h_unsupported(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
@@ -516,7 +525,7 @@ pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
         .with_diagnostics(diags)
 }
 
-/// 值位 `Set` / `SetDelayed` quirk：参数已求值，再求值 rhs 一次（legacy 双重求值一致）。
-pub(crate) fn h_set_eval_rhs(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
+/// 值位 `Define` / `DefineDeferred` quirk：参数已求值，再求值 rhs 一次（双重求值一致）。
+pub(crate) fn h_define_eval_rhs(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     vm.eval_value(args[1])
 }

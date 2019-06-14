@@ -58,17 +58,17 @@ pub enum Instr {
         /// 跳转目标。
         target: u32,
     },
-    /// 语句层定义：弹出 rhs 写入当前 env，栈顶保留 rhs（`Set` 语句位）。
+    /// 语句层定义：弹出 rhs 写入当前 env，栈顶保留 rhs（立即定义语句位）。
     DefineOwn {
         /// 定义符号。
         symbol: athena_types::SymbolId,
     },
-    /// 语句层定义：弹出 rhs 存 Delayed，压入 `Null`（`SetDelayed` 语句位）。
+    /// 语句层定义：弹出 rhs 存 Delayed，压入 `Null`（延迟定义语句位）。
     DefineDelayed {
         /// 定义符号。
         symbol: athena_types::SymbolId,
     },
-    /// 语句层定义：弹出 rhs 与内嵌 lhs 模式存 DownValues，压入 `Null`（`f[x_] := rhs` 语句位）。
+    /// 语句层定义：弹出 rhs 与内嵌 lhs 模式存 DownValues，压入 `Null`（延迟 DownValue 语句位）。
     DefineDownValue {
         /// 定义符号。
         symbol: athena_types::SymbolId,

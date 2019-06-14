@@ -99,14 +99,14 @@ fn comparisons_and_logic() {
 fn if_and_which() {
     let mut s = Session::new();
     let cond = apply("Less", vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let e = apply("If", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
+    let e = apply("Branch", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "10");
     let cond = apply("Greater", vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let e = apply("If", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
+    let e = apply("Branch", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "20");
     let c1 = apply("Equal", vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let c2 = apply("Equal", vec![int(3, &mut s), int(3, &mut s)], &mut s);
-    let e = apply("Which", vec![c1, int(0, &mut s), c2, int(42, &mut s)], &mut s);
+    let e = apply("Cond", vec![c1, int(0, &mut s), c2, int(42, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "42");
 }
 
@@ -114,15 +114,15 @@ fn if_and_which() {
 fn set_and_compound_persist_across_evaluations() {
     let mut s = Session::new();
     let x = symbol("x", &mut s);
-    let set = apply("Set", vec![x, int(5, &mut s)], &mut s);
+    let set = apply("Define", vec![x, int(5, &mut s)], &mut s);
     assert_eq!(eval(&mut s, set), "5");
     let e = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "6");
     // Compound 语句序列：y = 2; y + 40
     let y = symbol("y", &mut s);
-    let set = apply("Set", vec![y, int(2, &mut s)], &mut s);
+    let set = apply("Define", vec![y, int(2, &mut s)], &mut s);
     let plus = apply("Plus", vec![symbol("y", &mut s), int(40, &mut s)], &mut s);
-    let e = apply("CompoundExpression", vec![set, plus], &mut s);
+    let e = apply("Sequence", vec![set, plus], &mut s);
     assert_eq!(eval(&mut s, e), "42");
 }
 
@@ -130,16 +130,16 @@ fn set_and_compound_persist_across_evaluations() {
 fn while_accumulator() {
     let mut s = Session::new();
     // s = 0; i = 1; While[i <= 3, i = i + 1; s = s + i]; s  → 9
-    let set0 = apply("Set", vec![symbol("s", &mut s), int(0, &mut s)], &mut s);
-    let set_i_init = apply("Set", vec![symbol("i", &mut s), int(1, &mut s)], &mut s);
+    let set0 = apply("Define", vec![symbol("s", &mut s), int(0, &mut s)], &mut s);
+    let set_i_init = apply("Define", vec![symbol("i", &mut s), int(1, &mut s)], &mut s);
     let cond = apply("LessEqual", vec![symbol("i", &mut s), int(3, &mut s)], &mut s);
     let plus1 = apply("Plus", vec![symbol("i", &mut s), int(1, &mut s)], &mut s);
-    let set_i = apply("Set", vec![symbol("i", &mut s), plus1], &mut s);
+    let set_i = apply("Define", vec![symbol("i", &mut s), plus1], &mut s);
     let plus2 = apply("Plus", vec![symbol("s", &mut s), symbol("i", &mut s)], &mut s);
-    let set_s = apply("Set", vec![symbol("s", &mut s), plus2], &mut s);
-    let body = apply("CompoundExpression", vec![set_i, set_s], &mut s);
-    let wh = apply("While", vec![cond, body], &mut s);
-    let e = apply("CompoundExpression", vec![set0, set_i_init, wh, symbol("s", &mut s)], &mut s);
+    let set_s = apply("Define", vec![symbol("s", &mut s), plus2], &mut s);
+    let body = apply("Sequence", vec![set_i, set_s], &mut s);
+    let wh = apply("LoopWhile", vec![cond, body], &mut s);
+    let e = apply("Sequence", vec![set0, set_i_init, wh, symbol("s", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "9");
 }
 
@@ -156,29 +156,29 @@ fn table_sum_and_module() {
     let iter = list(vec![symbol("k", &mut s), int(1, &mut s), int(10, &mut s)], &mut s);
     let e = apply("Sum", vec![symbol("k", &mut s), iter], &mut s);
     assert_eq!(eval(&mut s, e), "55");
-    // With[{x = 3}, x + 1] → 4
-    let locals = list(vec![apply("Set", vec![symbol("x", &mut s), int(3, &mut s)], &mut s)], &mut s);
+    // LocalScope[{x = 3}, x + 1] → 4
+    let locals = list(vec![apply("Define", vec![symbol("x", &mut s), int(3, &mut s)], &mut s)], &mut s);
     let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let e = apply("With", vec![locals, body], &mut s);
+    let e = apply("LocalScope", vec![locals, body], &mut s);
     assert_eq!(eval(&mut s, e), "4");
-    // Module[{x}, x] → 唯一化符号（含 `$`）
+    // LexicalScope[{x}, x] → 唯一化符号（含 `$`）
     let locals = list(vec![symbol("x", &mut s)], &mut s);
-    let e = apply("Module", vec![locals, symbol("x", &mut s)], &mut s);
+    let e = apply("LexicalScope", vec![locals, symbol("x", &mut s)], &mut s);
     let r = eval(&mut s, e);
     assert!(r.contains("x$"), "got {r}");
-    // Module[{x}, x = 1; x + 1]：legacy 桥的 fresh-env quirk — x=1 写入 fresh env，
-    // 体中 x 先被物化为唯一化符号，结果保持 `Plus[1, x$N]` 形态（与 legacy 一致）。
+    // LexicalScope[{x}, x = 1; x + 1]：fresh-env quirk — x=1 写入 fresh env，
+    // 体中 x 先被物化为唯一化符号，结果保持 `Plus[1, x$N]` 形态。
     let locals = list(vec![symbol("x", &mut s)], &mut s);
-    let set = apply("Set", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
+    let set = apply("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
     let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let body = apply("CompoundExpression", vec![set, body], &mut s);
-    let e = apply("Module", vec![locals, body], &mut s);
+    let body = apply("Sequence", vec![set, body], &mut s);
+    let e = apply("LexicalScope", vec![locals, body], &mut s);
     let r = eval(&mut s, e);
     assert!(r.contains("Plus[1, x$"), "got {r}");
-    // Module[{x = 1}, x + 1] → 2（初始化局部，legacy 合同）
-    let locals = list(vec![apply("Set", vec![symbol("x", &mut s), int(1, &mut s)], &mut s)], &mut s);
+    // LexicalScope[{x = 1}, x + 1] → 2（初始化局部）
+    let locals = list(vec![apply("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s)], &mut s);
     let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let e = apply("Module", vec![locals, body], &mut s);
+    let e = apply("LexicalScope", vec![locals, body], &mut s);
     assert_eq!(eval(&mut s, e), "2");
 }
 
@@ -187,18 +187,18 @@ fn downvalues_and_match_q() {
     let mut s = Session::new();
     // f[x_] := x^2
     let xv = symbol("x", &mut s);
-    let blank = apply("Blank", vec![], &mut s);
-    let pat = apply("Pattern", vec![xv, blank], &mut s);
+    let blank = apply("Any", vec![], &mut s);
+    let pat = apply("Bind", vec![xv, blank], &mut s);
     let lhs = apply("f", vec![pat], &mut s);
     let rhs = apply("Power", vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
-    let def = apply("SetDelayed", vec![lhs, rhs], &mut s);
+    let def = apply("DefineDeferred", vec![lhs, rhs], &mut s);
     assert_eq!(eval(&mut s, def), "Null");
     // f[3] → 9
     let call = apply("f", vec![int(3, &mut s)], &mut s);
     assert_eq!(eval(&mut s, call), "9");
-    // MatchQ[3, _Integer] → True
-    let blank_int = apply("Blank", vec![symbol("Integer", &mut s)], &mut s);
-    let e = apply("MatchQ", vec![int(3, &mut s), blank_int], &mut s);
+    // Matches[3, Any[Integer]] → True
+    let blank_int = apply("Any", vec![symbol("Integer", &mut s)], &mut s);
+    let e = apply("Matches", vec![int(3, &mut s), blank_int], &mut s);
     assert_eq!(eval(&mut s, e), "True");
 }
 

@@ -101,7 +101,7 @@ fn pythagorean() {
 #[test]
 fn compound_expression_returns_last() {
     let mut c = C::new();
-    let e = apply("CompoundExpression", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
+    let e = apply("Sequence", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
@@ -178,10 +178,10 @@ fn if_true_branch_and_short_circuit() {
     use athena_types::DiagnosticCode;
     let mut c = C::new();
     let cond = apply("Equal", vec![i(1, &mut c), i(1, &mut c)], &mut c);
-    let e = apply("If", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
+    let e = apply("Branch", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "7");
     // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
-    let e = apply("If", vec![symbol("True", &mut c), i(7, &mut c), apply("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
+    let e = apply("Branch", vec![symbol("True", &mut c), i(7, &mut c), apply("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(term_debug(&c.s, o.term), "7");
     assert_eq!(o.kind, execution::EvalKind::Value);
@@ -192,9 +192,9 @@ fn if_true_branch_and_short_circuit() {
 fn if_false_and_null_and_non_boolean() {
     use athena_types::{ComputationStatus, DiagnosticCode};
     let mut c = C::new();
-    assert_eq!(t(apply("If", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
-    assert_eq!(t(apply("If", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
-    let e = apply("If", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
+    assert_eq!(t(apply("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
+    assert_eq!(t(apply("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
+    let e = apply("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Invalid);
@@ -214,14 +214,14 @@ fn symbol_true_false_null_canonicalize_to_typed_atoms() {
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
     assert_eq!(t(apply("Hold", vec![apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c), "Hold[Plus[1, 1]]");
-    assert_eq!(t(apply("HoldForm", vec![apply("Plus", vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c), "HoldForm[Plus[2, 3]]");
+    assert_eq!(t(apply("Hold", vec![apply("Plus", vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c), "Hold[Plus[2, 3]]");
 }
 
 #[test]
-fn which_picks_first_true_branch() {
+fn cond_picks_first_true_branch() {
     let mut c = C::new();
     let e = apply(
-        "Which",
+        "Cond",
         vec![symbol("False", &mut c), i(1, &mut c), symbol("True", &mut c), i(2, &mut c), symbol("True", &mut c), i(3, &mut c)],
         &mut c,
     );
@@ -249,15 +249,15 @@ fn part_span_slice() {
 #[test]
 fn while_false_skips_body() {
     let mut c = C::new();
-    let e = apply("While", vec![i(0, &mut c), i(1, &mut c)], &mut c);
+    let e = apply("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "Null");
 }
 
 #[test]
 fn compound_set_binds_for_later_stmts() {
     let mut c = C::new();
-    let set = apply("Set", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    let e = apply("CompoundExpression", vec![set, apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let e = apply("Sequence", vec![set, apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }
 
@@ -278,17 +278,17 @@ fn part_all_returns_list() {
 #[test]
 fn for_span_last_value() {
     let mut c = C::new();
-    let e = apply("For", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
+    let e = apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
 #[test]
 fn for_accumulator_shares_compound_bindings() {
     let mut c = C::new();
-    let set0 = apply("Set", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
-    let body = apply("Set", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
-    let f = apply("For", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
-    let e = apply("CompoundExpression", vec![set0, f, symbol("s", &mut c)], &mut c);
+    let set0 = apply("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
+    let body = apply("Define", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
+    let f = apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
+    let e = apply("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }
 
@@ -306,28 +306,28 @@ fn compare_chain_less_expands_to_and() {
 #[test]
 fn try_catch_on_error_and_success() {
     let mut c = C::new();
-    let err = apply("Try", vec![apply("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
+    let err = apply("Recover", vec![apply("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(err, &mut c), "1");
-    let ok = apply("Try", vec![i(2, &mut c), i(3, &mut c)], &mut c);
+    let ok = apply("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
     assert_eq!(t(ok, &mut c), "2");
 }
 
 #[test]
 fn with_module_block_local_bindings() {
     let locals = |c: &mut C| {
-        let l = lst(vec![apply("Set", vec![symbol("x", c), i(1, c)], c)], c);
+        let l = lst(vec![apply("Define", vec![symbol("x", c), i(1, c)], c)], c);
         let b = apply("Plus", vec![symbol("x", c), i(1, c)], c);
         (l, b)
     };
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("With", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(apply("LocalScope", vec![l, b], &mut d), &mut d), "2");
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("Module", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(apply("LexicalScope", vec![l, b], &mut d), &mut d), "2");
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("Block", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(apply("DynamicScope", vec![l, b], &mut d), &mut d), "2");
 }
 
 #[test]
@@ -342,7 +342,7 @@ fn part_column_all_then_index() {
 #[test]
 fn session_set_persists_across_evaluate() {
     let mut c = C::new();
-    let set = apply("Set", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
     assert_eq!(t(set, &mut c), "5");
     let e = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
@@ -356,9 +356,9 @@ fn session_set_persists_across_evaluate() {
 #[test]
 fn session_compound_set_writes_definitions() {
     let mut c = C::new();
-    let set = apply("Set", vec![symbol("y", &mut c), i(3, &mut c)], &mut c);
+    let set = apply("Define", vec![symbol("y", &mut c), i(3, &mut c)], &mut c);
     let plus = apply("Plus", vec![symbol("y", &mut c), i(4, &mut c)], &mut c);
-    let e = apply("CompoundExpression", vec![set, plus], &mut c);
+    let e = apply("Sequence", vec![set, plus], &mut c);
     assert_eq!(t(e, &mut c), "7");
     assert_eq!(t(symbol("y", &mut c), &mut c), "3");
 }
@@ -366,7 +366,7 @@ fn session_compound_set_writes_definitions() {
 #[test]
 fn session_setdelayed_evaluates_on_use() {
     let mut c = C::new();
-    let delayed = apply("SetDelayed", vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let delayed = apply("DefineDeferred", vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c);
     assert_eq!(t(delayed, &mut c), "Null");
     assert_eq!(t(symbol("a", &mut c), &mut c), "2");
 }
@@ -374,18 +374,18 @@ fn session_setdelayed_evaluates_on_use() {
 #[test]
 fn session_setdelayed_pattern_down_value() {
     let mut c = C::new();
-    let lhs = apply("f", vec![apply("Pattern", vec![symbol("x", &mut c), apply("Blank", vec![], &mut c)], &mut c)], &mut c);
+    let lhs = apply("f", vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)], &mut c);
     let rhs = apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    let define = apply("SetDelayed", vec![lhs, rhs], &mut c);
+    let define = apply("DefineDeferred", vec![lhs, rhs], &mut c);
     assert_eq!(t(define, &mut c), "Null");
     assert_eq!(t(apply("f", vec![i(3, &mut c)], &mut c), &mut c), "9");
     // 同一 compound 内定义 + 调用。
     let mut d = C::new();
-    let lhs = apply("f", vec![apply("Pattern", vec![symbol("x", &mut d), apply("Blank", vec![], &mut d)], &mut d)], &mut d);
+    let lhs = apply("f", vec![apply("Bind", vec![symbol("x", &mut d), apply("Any", vec![], &mut d)], &mut d)], &mut d);
     let rhs = apply("Power", vec![symbol("x", &mut d), i(2, &mut d)], &mut d);
-    let define = apply("SetDelayed", vec![lhs, rhs], &mut d);
+    let define = apply("DefineDeferred", vec![lhs, rhs], &mut d);
     let call = apply("f", vec![i(3, &mut d)], &mut d);
-    let e = apply("CompoundExpression", vec![define, call], &mut d);
+    let e = apply("Sequence", vec![define, call], &mut d);
     assert_eq!(t(e, &mut d), "9");
 }
 
@@ -399,9 +399,9 @@ fn compare_list_scalar_broadcasts() {
 #[test]
 fn module_bare_local_is_renamed_unique() {
     let mut c = C::new();
-    let e1 = apply("Module", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e1 = apply("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r1 = t(e1, &mut c);
-    let e2 = apply("Module", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e2 = apply("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r2 = t(e2, &mut c);
     assert!(r1.starts_with("x$"), "got {r1}");
     assert!(r2.starts_with("x$"), "got {r2}");
@@ -411,11 +411,11 @@ fn module_bare_local_is_renamed_unique() {
 #[test]
 fn module_local_does_not_clobber_session() {
     let mut c = C::new();
-    let set = apply("Set", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
     out(set, &mut c);
-    let locals = lst(vec![apply("Set", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let locals = lst(vec![apply("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
     let body = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    let e = apply("Module", vec![locals, body], &mut c);
+    let e = apply("LexicalScope", vec![locals, body], &mut c);
     assert_eq!(t(e, &mut c), "2");
     // Session 级 x 仍为 5。
     assert_eq!(t(symbol("x", &mut c), &mut c), "5");
@@ -425,9 +425,9 @@ fn module_local_does_not_clobber_session() {
 fn nested_module_names_do_not_collide() {
     let mut c = C::new();
     let inner_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let inner = apply("Module", vec![inner_locals, symbol("x", &mut c)], &mut c);
+    let inner = apply("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
     let outer_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let e = apply("Module", vec![outer_locals, inner], &mut c);
+    let e = apply("LexicalScope", vec![outer_locals, inner], &mut c);
     let r = t(e, &mut c);
     assert!(r.starts_with("x$"), "got {r}");
 }
@@ -437,11 +437,11 @@ fn down_value_literal_pattern_and_fallback() {
     let mut c = C::new();
     // f[1] := 10 ; f[x_] := x * 2
     let lhs1 = apply("f", vec![i(1, &mut c)], &mut c);
-    let def1 = apply("SetDelayed", vec![lhs1, i(10, &mut c)], &mut c);
+    let def1 = apply("DefineDeferred", vec![lhs1, i(10, &mut c)], &mut c);
     out(def1, &mut c);
-    let lhs2 = apply("f", vec![apply("Pattern", vec![symbol("x", &mut c), apply("Blank", vec![], &mut c)], &mut c)], &mut c);
+    let lhs2 = apply("f", vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)], &mut c);
     let rhs2 = apply("Times", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    let def2 = apply("SetDelayed", vec![lhs2, rhs2], &mut c);
+    let def2 = apply("DefineDeferred", vec![lhs2, rhs2], &mut c);
     out(def2, &mut c);
     assert_eq!(t(apply("f", vec![i(1, &mut c)], &mut c), &mut c), "10");
     assert_eq!(t(apply("f", vec![i(5, &mut c)], &mut c), &mut c), "10");
@@ -469,8 +469,8 @@ fn apply_and_join_and_length() {
 #[test]
 fn cases_filters_by_pattern() {
     let mut c = C::new();
-    let pat = apply("Blank", vec![symbol("Integer", &mut c)], &mut c);
-    let e = apply("Cases", vec![lst(vec![i(1, &mut c), symbol("y", &mut c), i(3, &mut c)], &mut c), pat], &mut c);
+    let pat = apply("Any", vec![symbol("Integer", &mut c)], &mut c);
+    let e = apply("CollectMatches", vec![lst(vec![i(1, &mut c), symbol("y", &mut c), i(3, &mut c)], &mut c), pat], &mut c);
     let r = t(e, &mut c);
     assert!(r.contains("List[1, 3]"), "got {r}");
 }
@@ -492,7 +492,7 @@ fn det_and_size() {
 }
 
 #[test]
-fn mldivide_column_vector() {
+fn linear_solve_column_vector() {
     let mut c = C::new();
     let m = lst(vec![lst(vec![i(2, &mut c), i(0, &mut c)], &mut c), lst(vec![i(0, &mut c), i(2, &mut c)], &mut c)], &mut c);
     let b = lst(vec![lst(vec![i(4, &mut c)], &mut c), lst(vec![i(6, &mut c)], &mut c)], &mut c);
@@ -521,7 +521,7 @@ fn depth_limit_returns_unevaluated() {
     let mut c = C::new();
     let cond = i(0, &mut c);
     let body = i(1, &mut c);
-    let e = apply("While", vec![cond, body], &mut c);
+    let e = apply("LoopWhile", vec![cond, body], &mut c);
     assert_eq!(t(e, &mut c), "Null");
 }
 
