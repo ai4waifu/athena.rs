@@ -21,10 +21,14 @@ impl Natural {
 
     /// 二进制位宽（零 → 0）。
     pub fn bits(&self) -> u64 {
-        if self.is_zero() {
+        Self::bits_from_limbs(self.as_limbs())
+    }
+
+    /// 由已借用 limb 计算位宽（观察者路径；无分配）。
+    pub(crate) fn bits_from_limbs(limbs: &[u64]) -> u64 {
+        if limbs.is_empty() || crate::kernel::limb::is_zero(limbs) {
             return 0;
         }
-        let limbs = self.as_limbs();
         let top = limbs.len() - 1;
         (top as u64) * 64 + (64 - limbs[top].leading_zeros() as u64)
     }

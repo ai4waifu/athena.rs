@@ -136,12 +136,11 @@ impl Integer {
         self.inner
     }
 
-    /// 无符号幅度（**owning** clone；仅供确需 `Natural` 所有权的路径）。
+    /// 无符号幅度（可失败 owning 复制；仅供确需 `Natural` 所有权的路径）。
     ///
-    /// `Mode::Heap` 下会在 owner heap 上分配并复制。算术热路径请用
-    /// [`Self::magnitude_view`] / [`Self::as_limbs`]。
-    fn abs_natural(&self) -> Natural {
-        Natural::from_pair(self.inner.try_clone_clear_sign().unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")))
+    /// Living `19`/`24`：算术热路径请用 [`Self::magnitude_view`] / [`Self::as_limbs`]。
+    fn try_abs_natural(&self) -> athena_gc::Result<Natural> {
+        Ok(Natural::from_pair(self.inner.try_clone_clear_sign()?))
     }
 
     /// 借用小端幅度 limb（生命周期绑在 `&self`）。
@@ -210,7 +209,7 @@ impl Integer {
 
     /// 非负幅度（crate 内部；模内核用）。
     pub(crate) fn magnitude(&self) -> Natural {
-        self.abs_natural()
+        self.try_abs_natural().expect("portable default max_limbs unbounded")
     }
 
     /// 由非负 [`Natural`] 构造（crate 内部）。
@@ -278,7 +277,7 @@ impl Integer {
         Ok(match self.sign() {
             Sign::Zero => Self::zero(),
             Sign::Positive => {
-                let mut p = self.inner.try_clone().map_err(gc_alloc_error)?;
+                let p = self.inner.try_clone().map_err(gc_alloc_error)?;
                 Ok::<_, Diagnostic>(Self::from_pair(p.with_negative(true)))?
             }
             Sign::Negative => Self::from_pair(self.inner.try_clone_clear_sign().map_err(gc_alloc_error)?),
@@ -317,7 +316,7 @@ impl Integer {
 
     /// 消费 `self` 的加法：同号时经 [`Natural::try_add_owned`] 就地复用幅度缓冲；异号走减幅度。
     ///
-    /// 不经 [`Self::abs_natural`] 热路径；`rhs` 幅度仅在需要时做 clear-sign clone 以进入 `Natural` API。
+    /// 不经 owning 幅度复制热路径；`rhs` 幅度仅在需要时做 clear-sign clone 以进入 `Natural` API。
     pub fn try_add_owned(self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         if rhs.is_zero() {
@@ -646,7 +645,7 @@ impl Integer {
 
     /// 十进制调试字符串（非本地化用户文案）。
     ///
-    /// Living `19`：只借 `as_limbs()`，不经 [`Self::abs_natural`] / `Clone`。
+    /// Living `19`：只借 `as_limbs()`，不经 owning 幅度复制 / `Clone`。
     pub fn to_decimal_string(&self) -> String {
         match self.sign() {
             Sign::Zero => "0".to_string(),
@@ -771,9 +770,9 @@ impl Integer {
         }
     }
 
-    /// 二进制 wire 的无符号幅度字节。
+    /// 二进制 wire 的无符号幅度字节（只读 limb，不 owning 复制）。
     pub(crate) fn wire_magnitude_bytes(&self) -> Vec<u8> {
-        self.abs_natural().wire_encode_magnitude()
+        Natural::wire_encode_limbs(self.as_limbs())
     }
 
     /// 由符号码 + 幅度字节解码二进制 wire 整数。
