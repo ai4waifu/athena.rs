@@ -4,7 +4,7 @@ use athena_numeric::{
     AlgebraicNumber, AlgebraicRepresentation, BranchPolicy, Complex, FiniteFieldValue, Integer, Interval, IntervalDecoration, ModularValue,
     Modulus, NumericValue, NumericValueWire, PAdicValue, PolynomialFingerprint, Rational, Real,
 };
-use athena_types::{FieldId, NumericKind};
+use athena_types::{FieldId, ModulusId, NumericKind};
 use std::str::FromStr;
 
 fn mag_bytes(count: u32, limbs: &[u64]) -> Vec<u8> {
@@ -634,4 +634,86 @@ fn fuzz_padic_blob_mutations() {
             }
         }
     }
+}
+
+#[test]
+fn reject_real_decimal_zero_exp() {
+    let mut payload = vec![1u8];
+    payload.extend(mag_bytes(1, &[0]));
+    payload.extend_from_slice(&3i64.to_le_bytes());
+    payload.extend_from_slice(&53u32.to_le_bytes());
+    let err = real_decimal_wire(0, payload, 53).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("real_decimal_zero_exp"));
+}
+
+#[test]
+fn reject_interval_unknown_decoration() {
+    let err = interval_wire(vec![1, 9]).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("interval_unknown_decoration"));
+}
+
+#[test]
+fn reject_interval_trailing() {
+    let mut payload = vec![2u8, 0];
+    payload.push(0);
+    payload.push(0);
+    payload.extend_from_slice(&1.0f64.to_bits().to_le_bytes());
+    payload.push(0);
+    payload.push(0);
+    payload.extend_from_slice(&2.0f64.to_bits().to_le_bytes());
+    payload.push(0xAB);
+    let err = interval_wire(payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("interval_trailing"));
+}
+
+#[test]
+fn reject_algebraic_trailing() {
+    let mut payload = vec![0u8];
+    payload.extend_from_slice(&0u64.to_le_bytes());
+    payload.extend_from_slice(&0u32.to_le_bytes());
+    payload.push(0); // empty interval
+    payload.push(0xAB);
+    let err = algebraic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("algebraic_trailing"));
+}
+
+#[test]
+fn reject_padic_trailing() {
+    let mut payload = mag_bytes(1, &[5]);
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.push(0xAB);
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_trailing"));
+}
+
+#[test]
+fn reject_padic_digits_len() {
+    // precision=2 但 3 个非零 digit（未触发 trailing-zero unnormalized）
+    let mut payload = mag_bytes(1, &[5]);
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&3u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&3u32.to_le_bytes());
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_digits_len"));
+}
+
+#[test]
+fn reject_padic_digit_range() {
+    let mut payload = mag_bytes(1, &[5]);
+    payload.extend_from_slice(&3u32.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&7u32.to_le_bytes()); // 7 ≥ p=5
+    let err = padic_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("padic_digit_range"));
+}
+
+#[test]
+fn reject_modular_interned() {
+    let v = NumericValue::modular(ModularValue::new_interned(Integer::from_i64(3), ModulusId(1)));
+    let err = NumericValueWire::encode(&v).unwrap_err();
+    assert_eq!(reason_of(&err), Some("modular_interned"));
 }
