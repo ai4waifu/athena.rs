@@ -6,7 +6,7 @@ use core::ptr::NonNull;
 use crate::{
     batch::AllocationAccounting,
     error::{GcError, Result},
-    header::{AllocationHeader, BlockKind, MarkState, NumericOwnership},
+    header::{AllocationHeader, BlockKind, MarkState, ReclaimAuthority},
     ids::SegmentId,
     mode::GcMode,
     segment::SegmentKind,
@@ -79,7 +79,7 @@ impl GcHeap {
         block_kind: BlockKind,
         payload_bytes: usize,
         object_index: u32,
-        numeric_ownership: NumericOwnership,
+        reclaim_authority: ReclaimAuthority,
     ) -> Result<(SegmentId, NonNull<u8>)> {
         let total = AllocationHeader::size().checked_add(payload_bytes).ok_or(GcError::InvalidCapacity)?;
         let (seg_index, offset) = self.bump_allocate(kind, total)?;
@@ -96,7 +96,7 @@ impl GcHeap {
                 mark_state: MarkState::White,
                 pin_state: 0,
                 object_index,
-                numeric_ownership,
+                reclaim_authority,
             });
         }
         let payload = unsafe { NonNull::new_unchecked(seg.bytes.as_mut_ptr().add(offset + AllocationHeader::size())) };

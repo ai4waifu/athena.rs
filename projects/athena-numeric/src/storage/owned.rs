@@ -55,7 +55,7 @@ impl OwnedLimbBuffer {
         Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
     }
 
-    /// 经 `HeapId` 分配（Clone 同堆 · RustOwned）。
+    /// 经 `HeapId` 分配（Clone 同堆 · ExplicitRelease）。
     pub(crate) fn alloc_uninit_on(heap_id: HeapId, capacity: usize) -> athena_gc::Result<Self> {
         if capacity == 0 {
             return Err(GcError::InvalidCapacity);
@@ -66,7 +66,7 @@ impl OwnedLimbBuffer {
         })
     }
 
-    /// 在指定 heap 上分配并拷贝（RustOwned）。
+    /// 在指定 heap 上分配并拷贝（ExplicitRelease）。
     pub(crate) fn alloc_copy_in(heap: &Rc<RefCell<GcHeap>>, src: &[u64], capacity: usize) -> athena_gc::Result<Self> {
         Self::alloc_copy_in_with(heap, src, capacity, false)
     }

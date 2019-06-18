@@ -4,7 +4,7 @@ use core::ptr::NonNull;
 
 use crate::{
     error::{GcError, Result},
-    header::{BlockKind, NumericOwnership},
+    header::{BlockKind, ReclaimAuthority},
     ids::{HeapId, SegmentId},
     segment::SegmentKind,
 };
@@ -118,7 +118,7 @@ impl GcHeap {
         if payload_bytes == 0 {
             return Err(GcError::InvalidCapacity);
         }
-        let (segment_id, ptr) = self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, NumericOwnership::Unspecified)?;
+        let (segment_id, ptr) = self.allocate_payload(kind, block_kind, payload_bytes, u32::MAX, ReclaimAuthority::Unspecified)?;
         Ok(GraphDomainBlock { ptr, byte_len: payload_bytes, segment_id, heap_id: self.id, kind })
     }
 

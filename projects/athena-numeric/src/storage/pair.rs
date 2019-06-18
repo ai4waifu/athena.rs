@@ -350,9 +350,10 @@ impl MagnitudePair {
         tagged
     }
 
-    /// Steal heap buffer；仅独占 [`NumericOwnership::RustOwned`] 时成功。
+    /// 尝试接管 Heap buffer 供 destination reuse；仅 [`athena_gc::ReclaimAuthority::ExplicitRelease`] 时成功。
     ///
-    /// Living `19`：`GcOwned` / 未知 ownership 禁止 steal（可能被 root 别名）。
+    /// Living `24`：这是 unique mutable capability 判断，不是 ownership transfer。
+    /// TracingSweep / 未知 reclaim 禁止 reuse（可能被 root 别名）。
     pub(crate) fn steal_heap(&mut self) -> Option<OwnedLimbBuffer> {
         if !matches!(self.mode(), Mode::Heap) {
             return None;
@@ -360,8 +361,8 @@ impl MagnitudePair {
         // SAFETY: Heap mode → heap active。
         let payload = unsafe { self.magnitude.heap };
         let heap_id = heap_id_for_limbs(payload.ptr);
-        match GcHeap::numeric_ownership_registered(heap_id, payload.ptr) {
-            Ok(athena_gc::NumericOwnership::RustOwned) => {
+        match GcHeap::may_explicit_release_numeric_registered(heap_id, payload.ptr) {
+            Ok(true) => {
                 self.meta = encode_zero_meta();
                 self.magnitude = Magnitude { limb1: 0 };
                 Some(OwnedLimbBuffer::from_payload(payload))

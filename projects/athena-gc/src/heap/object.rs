@@ -4,7 +4,7 @@ use core::cell::Cell;
 
 use crate::{
     error::{GcError, Result},
-    header::{BlockKind, MarkState, NumericOwnership},
+    header::{BlockKind, MarkState, ReclaimAuthority},
     ids::GcObjectId,
     object::{ObjectBlock, ObjectSlot, resolve_slot},
     segment::SegmentKind,
@@ -28,7 +28,7 @@ impl GcHeap {
         };
         let generation = self.objects.get(index as usize).and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1))).unwrap_or(1);
         let (seg_id, ptr) =
-            self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index, NumericOwnership::Unspecified)?;
+            self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index, ReclaimAuthority::Unspecified)?;
         self.objects[index as usize] = Some(ObjectSlot {
             generation,
             mark: Cell::new(MarkState::White),
