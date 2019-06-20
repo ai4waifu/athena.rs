@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use athena_gc::{GcHeap, GcMode, HeapBudget, NumericBlock, ScratchArena, ScratchMark};
+use athena_gc::{GcHeap, GcMode, HeapBudget, ScratchArena, ScratchMark, TemporaryNumericBlock};
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
@@ -377,8 +377,8 @@ impl NumericContext {
         result
     }
 
-    /// 经 context 分配 numeric limb block（检查取消）。
-    pub fn allocate_numeric_block(&self, capacity_limbs: usize) -> Result<NumericBlock> {
+    /// 经 context 分配临时 numeric limb block（检查取消）。
+    pub fn allocate_numeric_block(&self, capacity_limbs: usize) -> Result<TemporaryNumericBlock> {
         self.check_entry()?;
         self.budget.check_limbs(capacity_limbs)?;
         self.heap.borrow_mut().allocate_numeric_block(capacity_limbs).map_err(|e| {

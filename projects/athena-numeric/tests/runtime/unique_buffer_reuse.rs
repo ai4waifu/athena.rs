@@ -1,4 +1,4 @@
-//! Living 17 步骤 6：destination reuse / `steal_heap` / `can_reuse_destination` 合同。
+//! Living 17/24：destination reuse / `try_reuse_unique_buffer` / `can_reuse_destination` 合同。
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{CapabilityBundle, ExecutionBudget, Integer, NumericContext, ResourceCapability, natural::Natural};
@@ -19,7 +19,7 @@ fn can_reuse_destination_false_still_matches_add() {
 }
 
 #[test]
-fn steal_heap_refuses_when_not_rust_owned_spare_path_still_correct() {
+fn try_reuse_unique_buffer_refuses_when_not_explicit_release_spare_path_still_correct() {
     let heap = GcHeap::new_shared(HeapBudget::default());
     let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
     // Tight capacity：owned 回退 try_add，结果仍正确。

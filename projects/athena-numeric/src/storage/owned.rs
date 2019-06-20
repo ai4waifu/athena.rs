@@ -35,15 +35,15 @@ impl OwnedLimbBuffer {
             return Err(GcError::InvalidCapacity);
         }
         let mut h = heap.borrow_mut();
-        let block = if gc_owned {
+        if gc_owned {
             let block = h.allocate_traced_numeric(capacity)?;
-            let _ = h.register_numeric_root(block.ptr, athena_gc::RootKind::Numeric)?;
-            block
+            let _ = h.register_numeric_root(&block, athena_gc::RootKind::Numeric)?;
+            Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
         }
         else {
-            h.allocate_numeric_block(capacity)?
-        };
-        Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
+            let block = h.allocate_numeric_block(capacity)?;
+            Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
+        }
     }
 
     /// 批内分配：已持有 `&mut GcHeap`（无 `RefCell`）。

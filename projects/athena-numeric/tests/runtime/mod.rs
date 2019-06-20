@@ -1,5 +1,5 @@
 mod backend;
-mod destination_reuse;
+mod unique_buffer_reuse;
 mod differential_pure;
 mod evidence;
 mod execution_budget;
