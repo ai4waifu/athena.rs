@@ -54,10 +54,6 @@ unsafe impl Send for TemporaryNumericBlock {}
 unsafe impl Send for PublishedNumericBlock {}
 
 impl GcHeap {
-    fn reclaim_authority(&self, limbs: NonNull<u64>) -> Result<ReclaimAuthority> {
-        Ok(self.header_for_limbs(limbs)?.reclaim_authority)
-    }
-
     /// 分配临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]）。
     pub fn allocate_numeric_block(&mut self, capacity_limbs: usize) -> Result<TemporaryNumericBlock> {
         if capacity_limbs == 0 {
@@ -229,21 +225,16 @@ impl GcHeap {
         self.release_or_pool_numeric(block.ptr.cast())
     }
 
-    /// 经注册表释放（`OwnedLimbBuffer::Drop` 过渡路径）。
+    /// 经注册表显式释放临时数值块（仅 [`ReclaimAuthority::ExplicitRelease`]）。
     ///
-    /// - [`ReclaimAuthority::ExplicitRelease`]：走 `release_or_pool_numeric`
-    /// - [`ReclaimAuthority::TracingSweep`]：撤一条 [`NumericRoot`]（不释放块）
-    ///
-    /// Living `24`：终局应拆成不同 RAII 句柄的 `Drop`，不再对裸 pointer 猜类别。
-    pub fn release_numeric_limbs_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
-        registry::with_heap(heap_id, |heap| match heap.reclaim_authority(limbs) {
-            Ok(ReclaimAuthority::ExplicitRelease) => heap.release_or_pool_numeric(limbs.cast()),
-            Ok(ReclaimAuthority::TracingSweep) => heap.unregister_one_numeric_root(limbs),
-            Ok(ReclaimAuthority::Unspecified) => {
+    /// Living `24`：禁止对裸 pointer 猜类别；已发布块请用 [`Self::unregister_one_numeric_root_registered`]。
+    pub fn release_temporary_numeric_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
+        registry::with_heap(heap_id, |heap| {
+            if !heap.may_explicit_release_numeric(limbs)? {
                 heap.stats.lifecycle_mismatch = heap.stats.lifecycle_mismatch.saturating_add(1);
-                Err(GcError::LifecycleMismatch)
+                return Err(GcError::LifecycleMismatch);
             }
-            Err(e) => Err(e),
+            heap.release_or_pool_numeric(limbs.cast())
         })?
     }
 

@@ -44,5 +44,5 @@ fn may_explicit_release_registered_matches_local() {
     };
     let ok = GcHeap::may_explicit_release_numeric_registered(block.heap_id, block.ptr).expect("query");
     assert!(ok);
-    GcHeap::release_numeric_limbs_registered(block.heap_id, block.ptr).expect("drop path");
+    GcHeap::release_temporary_numeric_registered(block.heap_id, block.ptr).expect("drop path");
 }

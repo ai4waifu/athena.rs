@@ -16,11 +16,15 @@ pub(crate) const MODE_HEAP: usize = 0b10;
 pub(crate) const MODE_RESERVED: usize = 0b11;
 /// sign 位（bit 2）；`Natural` 不解释；`Integer` 等有符号外层仅对**非零**解释。
 pub(crate) const META_SIGN_BIT: usize = 1 << 2;
+/// Heap 已发布 / rooted（bit 最高位）：`Drop` 只撤 root，不显式 free。
+///
+/// Living `24`：这是构造路径写入的 RAII 责任标记，不是从 GC header 反推的 ownership。
+pub(crate) const META_ROOTED_BIT: usize = 1 << (usize::BITS - 1);
 /// heap len 起始位移（bit 3..）。
 pub(crate) const LEN_SHIFT: usize = 3;
 
-/// `Natural` Eq/Hash/fingerprint 相关位：mode + heap_len（忽略 sign）。
-pub(crate) const NAT_RELEVANT_MASK: usize = !META_SIGN_BIT;
+/// `Natural` Eq/Hash/fingerprint 相关位：mode + heap_len（忽略 sign / rooted）。
+pub(crate) const NAT_RELEVANT_MASK: usize = !(META_SIGN_BIT | META_ROOTED_BIT);
 
 /// 宽度 / 表示 mode（无独立 Zero）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,18 +73,28 @@ pub(crate) fn encode_limb2_meta(negative: bool) -> usize {
     MODE_LIMB2 | if negative { META_SIGN_BIT } else { 0 }
 }
 
-/// Heap meta：`len >= 3`，可选符号。
+/// Heap meta：`len >= 3`，可选符号与 rooted 责任。
 #[inline]
-pub(crate) fn encode_heap_meta(len: usize, negative: bool) -> usize {
+pub(crate) fn encode_heap_meta(len: usize, negative: bool, rooted: bool) -> usize {
     debug_assert!(len >= 3, "heap len must be >= 3");
-    MODE_HEAP | if negative { META_SIGN_BIT } else { 0 } | (len << LEN_SHIFT)
+    debug_assert!(len < (1usize << (usize::BITS as usize - 1 - LEN_SHIFT)), "heap len overlaps META_ROOTED_BIT");
+    MODE_HEAP
+        | if negative { META_SIGN_BIT } else { 0 }
+        | if rooted { META_ROOTED_BIT } else { 0 }
+        | (len << LEN_SHIFT)
 }
 
-/// 读取 heap len；非 Heap mode 时 debug panic。
+/// 读取 heap len；非 Heap mode 时 debug panic。清除 rooted 位后再移位。
 #[inline]
 pub(crate) fn heap_len(meta: usize) -> usize {
     debug_assert_eq!(meta & MODE_MASK, MODE_HEAP);
-    meta >> LEN_SHIFT
+    (meta & !META_ROOTED_BIT) >> LEN_SHIFT
+}
+
+/// Heap 是否携带已发布 root 责任（仅 Heap mode 有意义）。
+#[inline]
+pub(crate) fn heap_is_rooted(meta: usize) -> bool {
+    meta & META_ROOTED_BIT != 0
 }
 
 /// 是否负号位（调用方须先排除 semantic zero）。

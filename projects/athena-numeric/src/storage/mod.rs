@@ -17,7 +17,7 @@ mod view;
 
 pub(crate) use gc_err::gc_alloc_error;
 pub(crate) use meta::Mode;
-pub(crate) use owned::OwnedLimbBuffer;
+pub(crate) use owned::{OwnedLimbBuffer, RootedLimbBuffer};
 pub(crate) use pair::MagnitudePair;
 use union::{HeapPayload, Magnitude};
 pub(crate) use view::{CheckedMagnitudeView, LimbWidth, decode_magnitude};

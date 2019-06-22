@@ -14,10 +14,10 @@ use athena_gc::{GcHeap, heap_id_for_limbs};
 
 use super::{
     meta::{
-        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, is_negative, mode_of,
-        try_mode_of,
+        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_is_rooted, heap_len,
+        is_negative, mode_of, try_mode_of,
     },
-    owned::OwnedLimbBuffer,
+    owned::{OwnedLimbBuffer, RootedLimbBuffer},
     union::{HeapPayload, Magnitude},
     view::LimbView,
 };
@@ -108,24 +108,34 @@ impl MagnitudePair {
             }
             _ => {
                 debug_assert!(limbs[el - 1] != 0);
-                let buf = if gc_owned {
-                    OwnedLimbBuffer::alloc_copy_gc_owned_in(heap, &limbs[..el], el)?
+                if gc_owned {
+                    let buf = RootedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
+                    Ok(Self::from_rooted_heap(buf, el))
                 }
                 else {
-                    OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?
-                };
-                Ok(Self::from_owned_heap(buf, el))
+                    let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
+                    Ok(Self::from_owned_heap(buf, el))
+                }
             }
         }
     }
 
-    /// 接管已写好的 heap 缓冲（`len >= 3`，且 `len <= capacity`）。
+    /// 接管临时 ExplicitRelease heap 缓冲（`len >= 3`，且 `len <= capacity`）。
     pub(crate) fn from_owned_heap(buf: OwnedLimbBuffer, len: usize) -> Self {
         debug_assert!(len >= 3);
         debug_assert!(len <= buf.capacity());
         debug_assert_ne!(buf.as_slice(len)[len - 1], 0);
         let payload = buf.into_payload();
-        Self { meta: encode_heap_meta(len, false), magnitude: Magnitude { heap: payload } }
+        Self { meta: encode_heap_meta(len, false, false), magnitude: Magnitude { heap: payload } }
+    }
+
+    /// 接管已发布 TracingSweep heap 缓冲（携带 root 责任）。
+    pub(crate) fn from_rooted_heap(buf: RootedLimbBuffer, len: usize) -> Self {
+        debug_assert!(len >= 3);
+        debug_assert!(len <= buf.capacity());
+        debug_assert_ne!(buf.as_slice(len)[len - 1], 0);
+        let payload = buf.into_payload();
+        Self { meta: encode_heap_meta(len, false, true), magnitude: Magnitude { heap: payload } }
     }
 
     /// Heap limb 指针（仅 Heap mode）。
@@ -305,6 +315,7 @@ impl MagnitudePair {
             }
             Mode::Heap => {
                 let len = heap_len(self.meta);
+                let negative = is_negative(self.meta);
                 // SAFETY: Heap active。
                 let (ptr, capacity, heap_id) = unsafe {
                     let heap = self.magnitude.heap;
@@ -313,9 +324,11 @@ impl MagnitudePair {
                 let n = len.min(capacity);
                 // SAFETY: n <= capacity。
                 let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
+                // Living `19`/`24`：深复制恒为临时 ExplicitRelease，不 adopt / 不复制 rooted 责任。
                 let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
                 let payload = buf.into_payload();
-                Ok(Self { meta: self.meta, magnitude: Magnitude { heap: payload } })
+                debug_assert!(n >= 3);
+                Ok(Self { meta: encode_heap_meta(n, negative, false), magnitude: Magnitude { heap: payload } })
             }
         }
     }
@@ -355,7 +368,7 @@ impl MagnitudePair {
     /// Living `24`：这是 unique mutable capability 判断，不是 ownership transfer。
     /// TracingSweep / 未知 reclaim 禁止 reuse（可能被 root 别名）。
     pub(crate) fn try_reuse_unique_buffer(&mut self) -> Option<OwnedLimbBuffer> {
-        if !matches!(self.mode(), Mode::Heap) {
+        if !matches!(self.mode(), Mode::Heap) || heap_is_rooted(self.meta) {
             return None;
         }
         // SAFETY: Heap mode → heap active。
@@ -415,11 +428,18 @@ impl Drop for MagnitudePair {
         else {
             return;
         };
+        let rooted = heap_is_rooted(self.meta);
         // SAFETY: Heap mode → heap active。
         let payload = unsafe { self.magnitude.heap };
         self.meta = encode_zero_meta();
         self.magnitude = Magnitude { limb1: 0 };
-        OwnedLimbBuffer::dealloc_heap(payload);
+        // Living `24`：按构造时写入的 meta 责任分流，不对 GC header 猜类别。
+        if rooted {
+            RootedLimbBuffer::dealloc_heap(payload);
+        }
+        else {
+            OwnedLimbBuffer::dealloc_heap(payload);
+        }
     }
 }
 
@@ -454,6 +474,11 @@ pub(crate) fn replace_with(slot: &mut MagnitudePair, new: MagnitudePair) {
     if mode_of(old_meta) == Mode::Heap {
         // SAFETY: 旧 mode 为 Heap。
         let payload = unsafe { old_mag.heap };
-        OwnedLimbBuffer::dealloc_heap(payload);
+        if heap_is_rooted(old_meta) {
+            RootedLimbBuffer::dealloc_heap(payload);
+        }
+        else {
+            OwnedLimbBuffer::dealloc_heap(payload);
+        }
     }
 }

@@ -86,7 +86,7 @@ impl fmt::Display for GcError {
             Self::UnknownAllocation => write!(f, "unknown allocation"),
             Self::HeapBusy => write!(f, "heap busy"),
             Self::RegistryUnavailable => write!(f, "gc registry unavailable"),
-            Self::LifecycleMismatch => write!(f, "numeric ownership lifecycle mismatch"),
+            Self::LifecycleMismatch => write!(f, "numeric reclaim authority mismatch"),
             Self::WrongHeap => write!(f, "graph domain block belongs to a different heap"),
         }
     }

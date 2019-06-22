@@ -167,3 +167,16 @@ fn portable_default_does_not_publish_gc_owned() {
     let ctx = NumericContext::portable_default();
     assert!(!ctx.publishes_gc_owned());
 }
+
+#[test]
+fn session_rooted_drop_unregisters_without_free_mismatch() {
+    use athena_numeric::natural::Natural;
+
+    let ctx = NumericContext::session_default();
+    let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
+    let roots_before = ctx.heap().borrow().roots().numeric_len();
+    assert_eq!(roots_before, 1);
+    drop(n);
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), 0);
+    assert_eq!(ctx.heap().borrow().stats().lifecycle_mismatch, 0);
+}
