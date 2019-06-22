@@ -1,13 +1,18 @@
-//! 执行层 — KernelIR 编译 + 栈式 VM。
+//! 执行层 — 终态为 typed [`ir::ExecutionIR`] + backends。
 //!
-//! 符号树只在编译期遍历一次；运行期唯一执行形态是线性 [`ExecUnit`]。
-//! 符号规则改写（Own / Delayed / DownValues）是语义数据操作，位于 [`builtins::rewriting`]；
-//! 求值驱动、分派与控制流全部落在编译单元与 VM。
+//! 合同已冻结：[`compiler`] · [`ir`] · [`reference`] · [`backend`] · [`provider`]。
+//! 旧 `compile` / `kernel_ir` / `vm` 路径仍暂存于树中，cutover 时整段删除，禁止
+//! 适配层或双执行入口。符号规则改写仍位于 [`builtins::rewriting`]。
 
+pub mod backend;
 pub mod builtins;
 pub mod compile;
+pub mod compiler;
 pub mod environment;
+pub mod ir;
 pub mod kernel_ir;
+pub mod provider;
+pub mod reference;
 pub mod vm;
 
 use athena_numeric::Number;
