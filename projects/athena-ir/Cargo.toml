@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "athena Core CAS IR — arena, nodes, builder, verifier"
+description = "athena Core CAS IR — TermStore, nodes, builder, verifier"
 publish = false
 
 [dependencies]
