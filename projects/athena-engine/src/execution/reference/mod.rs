@@ -174,12 +174,19 @@ impl ReferenceExecutor {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
-                let term = match slots.get(value) {
-                    Some(Slot::Term(term)) => *term,
-                    Some(Slot::Boolean(v)) => session.builder().boolean(*v, Default::default()),
+                match slots.get(value) {
+                    Some(Slot::Unit) => {
+                        session.defs.clear_symbol(symbol);
+                    }
+                    Some(Slot::Term(term)) => {
+                        session.defs.define_own(symbol, *term);
+                    }
+                    Some(Slot::Boolean(v)) => {
+                        let term = session.builder().boolean(*v, Default::default());
+                        session.defs.define_own(symbol, term);
+                    }
                     _ => return Err(diag("write_value_unsupported")),
-                };
-                session.defs.define_own(symbol, term);
+                }
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {

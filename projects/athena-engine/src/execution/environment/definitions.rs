@@ -55,6 +55,13 @@ impl DefinitionLayer {
         self.downs.get(&symbol).map(Vec::as_slice)
     }
 
+    /// 清除该符号的 Own / Delayed / DownValues。
+    pub fn clear_symbol(&mut self, symbol: SymbolId) {
+        self.owns.remove(&symbol);
+        self.delayed.remove(&symbol);
+        self.downs.remove(&symbol);
+    }
+
     /// 清空层内全部定义。
     pub fn clear(&mut self) {
         self.owns.clear();

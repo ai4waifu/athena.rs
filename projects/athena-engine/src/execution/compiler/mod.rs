@@ -186,9 +186,45 @@ impl ExecutionCompiler {
                 });
                 Ok(unit)
             }
-            SessionCommand::ClearDefinition { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "ExecutionCompiler")
-                .detail("status", "clear_definition_not_lowered")),
+            SessionCommand::ClearDefinition { symbol } => {
+                let key = builder.ssa();
+                let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
+                let unit_const = builder.push_constant(ConstantValue::Unit);
+                let unit_val = builder.ssa();
+                let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+                let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+                let result = builder.ssa();
+                blocks.push(BasicBlock {
+                    id: block_id,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            result: Some(key),
+                            result_type: ExecutionValueType::Symbol,
+                            kind: OperationKind::Constant { constant: key_constant },
+                            effect_in: None,
+                            effect_out: None,
+                        },
+                        Operation {
+                            result: Some(unit_val),
+                            result_type: ExecutionValueType::Unit,
+                            kind: OperationKind::Constant { constant: unit_const },
+                            effect_in: None,
+                            effect_out: None,
+                        },
+                        Operation {
+                            result: Some(result),
+                            result_type: ExecutionValueType::Unit,
+                            // Unit rhs means clear binding (not store Unit as Own).
+                            kind: OperationKind::WriteBinding { key, value: unit_val },
+                            effect_in: Some(effect_in),
+                            effect_out: Some(effect_out),
+                        },
+                    ],
+                    terminator: Terminator::return_value(result),
+                });
+                Ok(result)
+            }
         }
     }
 
@@ -201,40 +237,7 @@ impl ExecutionCompiler {
         plan: &ControlPlan,
     ) -> Result<SsaValueId> {
         match plan {
-            ControlPlan::Sequence { steps } => {
-                if steps.is_empty() {
-                    let value = builder.ssa();
-                    let constant = builder.push_constant(ConstantValue::Unit);
-                    blocks.push(BasicBlock {
-                        id: block_id,
-                        parameters: Vec::new(),
-                        operations: vec![Operation {
-                            result: Some(value),
-                            result_type: ExecutionValueType::Unit,
-                            kind: OperationKind::Constant { constant },
-                            effect_in: None,
-                            effect_out: None,
-                        }],
-                        terminator: Terminator::return_value(value),
-                    });
-                    return Ok(value);
-                }
-                // Bootstrap: only the last step is material; earlier steps must be pure atoms
-                // already represented as Term requests (no Session effects yet).
-                for step in &steps[..steps.len() - 1] {
-                    match step {
-                        AthenaRequest::Term(term) => {
-                            self.require_atom(session, *term)?;
-                        }
-                        _ => {
-                            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                .detail("component", "ExecutionCompiler")
-                                .detail("status", "sequence_step_not_lowered"));
-                        }
-                    }
-                }
-                self.lower_request(session, builder, blocks, block_id, steps.last().expect("non-empty"))
-            }
+            ControlPlan::Sequence { steps } => self.lower_sequence(session, builder, blocks, block_id, steps),
             ControlPlan::Branch {
                 condition,
                 then_branch,
@@ -244,6 +247,72 @@ impl ExecutionCompiler {
                 .detail("component", "ExecutionCompiler")
                 .detail("status", "control_plan_not_lowered")),
         }
+    }
+
+    fn lower_sequence(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        steps: &[AthenaRequest],
+    ) -> Result<SsaValueId> {
+        if steps.is_empty() {
+            let value = builder.ssa();
+            let constant = builder.push_constant(ConstantValue::Unit);
+            blocks.push(BasicBlock {
+                id: entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    result: Some(value),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::Constant { constant },
+                    effect_in: None,
+                    effect_out: None,
+                }],
+                terminator: Terminator::return_value(value),
+            });
+            return Ok(value);
+        }
+
+        let mut step_blocks = Vec::with_capacity(steps.len());
+        step_blocks.push(entry);
+        for _ in 1..steps.len() {
+            step_blocks.push(builder.block_id());
+        }
+
+        let mut last_value = SsaValueId(0);
+        for (index, step) in steps.iter().enumerate() {
+            let block_id = step_blocks[index];
+            last_value = self.lower_request(session, builder, blocks, block_id, step)?;
+            if index + 1 < steps.len() {
+                let next = step_blocks[index + 1];
+                let cond = builder.ssa();
+                let c = builder.push_constant(ConstantValue::boolean(true));
+                let block = blocks
+                    .iter_mut()
+                    .find(|b| b.id == block_id)
+                    .ok_or_else(|| {
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ExecutionCompiler")
+                            .detail("status", "sequence_block_missing")
+                    })?;
+                block.operations.push(Operation {
+                    result: Some(cond),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: c },
+                    effect_in: None,
+                    effect_out: None,
+                });
+                // Chain steps with explicit jumps (no demand queue).
+                block.terminator = Terminator::Branch {
+                    condition: cond,
+                    then_edge: BlockEdge::jump(next),
+                    else_edge: BlockEdge::jump(next),
+                };
+            }
+        }
+        Ok(last_value)
     }
 
     fn lower_branch(
@@ -545,6 +614,40 @@ mod tests {
         let result_id = ReferenceExecutor::new().execute(&mut session, &read_module).expect("read exec");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.symbolic_term, Some(value));
+    }
+
+    #[test]
+    fn compile_and_execute_sequence_define_read_clear() {
+        use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+
+        let mut session = Session::new();
+        let sym_term = session.builder().symbol("z", Default::default());
+        let symbol = match session.arena.get(sym_term) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol atom, got {other:?}"),
+        };
+        let value = session.builder().int(5, Default::default());
+        let request = AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value,
+                    timing: DefinitionEvaluationTiming::Immediate,
+                }),
+                AthenaRequest::Term(sym_term),
+                AthenaRequest::Command(SessionCommand::ClearDefinition { symbol }),
+            ],
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("sequence");
+        assert_eq!(module.regions[0].blocks.len(), 3);
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        // Last step clears; result is Unit → Null term.
+        match session.arena.get(loaded.symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Null)) => {}
+            other => panic!("expected Null after clear, got {other:?}"),
+        }
+        assert!(session.defs.own(symbol).is_none());
     }
 
     #[test]
