@@ -353,6 +353,28 @@ impl ExecutionCompiler {
                 });
                 Ok(ssa)
             }
+            Some(TermNode::Atom(Atom::Symbol(symbol))) => {
+                let key = builder.ssa();
+                let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
+                let effect_in = builder.push_effect(EffectKind::ReadBinding, None);
+                let effect_out = builder.push_effect(EffectKind::ReadBinding, Some(effect_in));
+                let ssa = builder.ssa();
+                operations.push(Operation {
+                    result: Some(key),
+                    result_type: ExecutionValueType::Symbol,
+                    kind: OperationKind::Constant { constant: key_constant },
+                    effect_in: None,
+                    effect_out: None,
+                });
+                operations.push(Operation {
+                    result: Some(ssa),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::ReadBinding { key },
+                    effect_in: Some(effect_in),
+                    effect_out: Some(effect_out),
+                });
+                Ok(ssa)
+            }
             Some(TermNode::Atom(_)) => {
                 let root = builder.push_term_root(term);
                 let ssa = builder.ssa();
@@ -497,6 +519,32 @@ mod tests {
         assert!(!module.effect_edges.is_empty());
         ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
         assert_eq!(session.defs.own(symbol), Some(value));
+    }
+
+    #[test]
+    fn compile_and_execute_define_then_read_binding() {
+        use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+
+        let mut session = Session::new();
+        let sym_term = session.builder().symbol("y", Default::default());
+        let symbol = match session.arena.get(sym_term) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol atom, got {other:?}"),
+        };
+        let value = session.builder().int(7, Default::default());
+        let define = AthenaRequest::Command(SessionCommand::Define {
+            symbol,
+            value,
+            timing: DefinitionEvaluationTiming::Immediate,
+        });
+        let define_module = ExecutionCompiler::new().compile(&session, &define).expect("define");
+        ReferenceExecutor::new().execute(&mut session, &define_module).expect("define exec");
+
+        let read = AthenaRequest::Term(sym_term);
+        let read_module = ExecutionCompiler::new().compile(&session, &read).expect("read");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &read_module).expect("read exec");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(value));
     }
 
     #[test]
