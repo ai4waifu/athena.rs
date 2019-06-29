@@ -1,6 +1,6 @@
 //! Static types carried by SSA values inside `ExecutionIR`.
 
-use athena_types::{OperatorId, ResultId, TermId, ValueId};
+use athena_types::{OperatorId, ResultId, SymbolId, TermId, ValueId};
 
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
 
@@ -14,6 +14,8 @@ pub enum ExecutionValueType {
     Unknown,
     /// Typed Boolean.
     Boolean,
+    /// Symbol binding key (`SymbolId` handle, not a Term).
+    Symbol,
     /// Symbolic term handle (`TermStore` identity).
     Term,
     /// Runtime value handle (`ValueStore` identity).
@@ -31,6 +33,8 @@ pub enum ExecutionValueType {
 pub enum ConstantValue {
     /// Boolean literal.
     Boolean(bool),
+    /// Binding key symbol.
+    Symbol(SymbolId),
     /// Interned term root already present in `TermStore`.
     Term(TermId),
     /// Unit constant.
@@ -77,6 +81,11 @@ impl ConstantValue {
     /// Boolean constant.
     pub fn boolean(value: bool) -> Self {
         Self::Boolean(value)
+    }
+
+    /// Symbol constant.
+    pub fn symbol(symbol: SymbolId) -> Self {
+        Self::Symbol(symbol)
     }
 
     /// Term constant.

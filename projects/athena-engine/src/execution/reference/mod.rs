@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, TermId};
+use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
 use crate::execution::ir::{
     BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module,
@@ -21,6 +21,8 @@ pub struct ReferenceExecutor {}
 enum Slot {
     /// Term handle from `TermStore`.
     Term(TermId),
+    /// Binding key.
+    Symbol(SymbolId),
     /// Typed Boolean.
     Boolean(bool),
     /// Unit.
@@ -45,6 +47,7 @@ impl ReferenceExecutor {
         let term = match returned {
             Some(Slot::Term(term)) => term,
             Some(Slot::Boolean(value)) => session.builder().boolean(value, Default::default()),
+            Some(Slot::Symbol(symbol)) => session.builder().symbol_id(symbol, Default::default()),
             Some(Slot::Unit) | None => session.builder().null(Default::default()),
         };
         let value = session.insert_symbolic_value(term);
@@ -55,7 +58,7 @@ impl ReferenceExecutor {
         Ok(session.insert_result(result))
     }
 
-    fn eval_region(&self, session: &Session, module: &ExecutionModule, region_id: RegionId) -> Result<Option<Slot>> {
+    fn eval_region(&self, session: &mut Session, module: &ExecutionModule, region_id: RegionId) -> Result<Option<Slot>> {
         let region = module
             .regions
             .iter()
@@ -127,7 +130,7 @@ impl ReferenceExecutor {
 
     fn eval_operation(
         &self,
-        _session: &Session,
+        session: &mut Session,
         module: &ExecutionModule,
         slots: &HashMap<SsaValueId, Slot>,
         kind: &OperationKind,
@@ -137,6 +140,7 @@ impl ReferenceExecutor {
                 let value = module.constants.get(constant.0 as usize).ok_or_else(|| diag("missing_constant"))?;
                 Ok(match value {
                     ConstantValue::Boolean(v) => Slot::Boolean(*v),
+                    ConstantValue::Symbol(symbol) => Slot::Symbol(*symbol),
                     ConstantValue::Term(term) => Slot::Term(*term),
                     ConstantValue::Unit => Slot::Unit,
                 })
@@ -148,10 +152,50 @@ impl ReferenceExecutor {
                     CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("root_not_term")),
                 }
             }
+            OperationKind::ApplySemanticOperator { operator, args } => {
+                let name = session.operators.name(*operator).ok_or_else(|| diag("unknown_operator"))?;
+                let bools = args
+                    .iter()
+                    .map(|id| match slots.get(id) {
+                        Some(Slot::Boolean(v)) => Ok(*v),
+                        _ => Err(diag("semantic_arg_not_boolean")),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let result = match (name, bools.as_slice()) {
+                    ("Not", [a]) => !*a,
+                    ("And", values) => values.iter().copied().all(|v| v),
+                    ("Or", values) => values.iter().copied().any(|v| v),
+                    _ => return Err(diag("semantic_operator_not_implemented")),
+                };
+                Ok(Slot::Boolean(result))
+            }
+            OperationKind::WriteBinding { key, value } => {
+                let symbol = match slots.get(key) {
+                    Some(Slot::Symbol(symbol)) => *symbol,
+                    _ => return Err(diag("write_key_not_symbol")),
+                };
+                let term = match slots.get(value) {
+                    Some(Slot::Term(term)) => *term,
+                    Some(Slot::Boolean(v)) => session.builder().boolean(*v, Default::default()),
+                    _ => return Err(diag("write_value_unsupported")),
+                };
+                session.defs.define_own(symbol, term);
+                Ok(Slot::Unit)
+            }
+            OperationKind::ReadBinding { key } => {
+                let symbol = match slots.get(key) {
+                    Some(Slot::Symbol(symbol)) => *symbol,
+                    _ => return Err(diag("read_key_not_symbol")),
+                };
+                match session.defs.own(symbol) {
+                    Some(term) => Ok(Slot::Term(term)),
+                    None => match session.defs.delayed(symbol) {
+                        Some(term) => Ok(Slot::Term(term)),
+                        None => Err(diag("binding_missing")),
+                    },
+                }
+            }
             OperationKind::LoadInput { .. }
-            | OperationKind::ApplySemanticOperator { .. }
-            | OperationKind::ReadBinding { .. }
-            | OperationKind::WriteBinding { .. }
             | OperationKind::EnterScope { .. }
             | OperationKind::ExitScope { .. }
             | OperationKind::CallProvider { .. }
