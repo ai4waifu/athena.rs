@@ -24,6 +24,8 @@ pub enum ExecutionValueType {
     Result,
     /// Opaque provider payload handle.
     ProviderPayload,
+    /// Runtime scope frame handle (from `EnterScope`).
+    Scope,
     /// Unit / void (side-effect-only operations).
     Unit,
 }
