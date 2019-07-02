@@ -47,6 +47,11 @@ pub enum OperationKind {
         /// Operand SSA values.
         args: Vec<SsaValueId>,
     },
+    /// Build a `TermNode::List` from evaluated element SSA values.
+    MakeList {
+        /// Element SSA values (order preserved).
+        elements: Vec<SsaValueId>,
+    },
     /// Read a Session / scope binding.
     ReadBinding {
         /// Binding key SSA value (symbol / slot handle).

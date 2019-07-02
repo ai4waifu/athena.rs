@@ -27,9 +27,16 @@ pub use kernel_ir::{ExecUnit, HandlerId, Instr};
 /// Compile and run one request on the `ExecutionIR` path only.
 ///
 /// This is the cutover entry for backends. It must not call the stack VM.
-pub fn execute_ir_request(session: &mut Session, request: &AthenaRequest) -> AthenaResult<ResultId> {
-    let module = compiler::ExecutionCompiler::new().compile(session, request)?;
-    reference::ReferenceExecutor::new().execute(session, &module)
+/// `Goal::Dispatch` carries the `DomainRequest` into `CallProvider` at runtime.
+pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
+    use crate::api::request::DomainGoal;
+
+    let module = compiler::ExecutionCompiler::new().compile(session, &request)?;
+    let domain = match request {
+        AthenaRequest::Goal(DomainGoal::Dispatch(domain)) => Some(domain),
+        _ => None,
+    };
+    reference::ReferenceExecutor::new().execute(session, &module, domain)
 }
 
 /// handler 统一签名：接收已求值或原始操作数（由指令决定），返回结果。
@@ -288,7 +295,7 @@ mod tests {
     fn execute_ir_request_atom_term() {
         let mut session = Session::new();
         let term = session.builder().int(4, Default::default());
-        let result_id = execute_ir_request(&mut session, &AthenaRequest::Term(term)).expect("ir");
+        let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("ir");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.symbolic_term, Some(term));
     }

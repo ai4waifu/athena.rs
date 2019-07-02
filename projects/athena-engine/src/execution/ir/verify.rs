@@ -137,6 +137,7 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
     match kind {
         OperationKind::LoadInput { .. } | OperationKind::LoadTerm { .. } | OperationKind::Constant { .. } => Vec::new(),
         OperationKind::ApplySemanticOperator { args, .. } => args.clone(),
+        OperationKind::MakeList { elements } => elements.clone(),
         OperationKind::ReadBinding { key } => vec![*key],
         OperationKind::WriteBinding { key, value } => vec![*key, *value],
         OperationKind::EnterScope { parent } => parent.iter().copied().collect(),
