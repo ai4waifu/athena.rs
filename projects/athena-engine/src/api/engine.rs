@@ -6,10 +6,7 @@ use crate::{
     api::request::{AthenaRequest, DomainGoal, LoweringOutcome},
     domains::dispatch::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     execution,
-    runtime::{
-        results::{ComputationResult, CoverageStatus, ResultProvenance},
-        session::Session,
-    },
+    runtime::session::Session,
 };
 
 /// 求值选项（占位；随后随模式 / Session 扩展）。
@@ -48,41 +45,17 @@ impl AthenaEngine {
 
     /// 经中性 [`AthenaRequest`] 边界执行（Living `26`）。
     ///
-    /// - `Term`：现有 VM 求值，结果写入 [`crate::runtime::results::ResultStore`]
-    /// - `Goal::Dispatch`：现有域分派，结果写入 ResultStore
-    /// - `Command` / `Control`：本切片尚未接入，写入显式 unsupported 结果（禁止静默成功）
+    /// - `Term` / `Command` / `Control`：唯一 `ExecutionIR` 路径（[`execution::execute_ir_request`]）
+    /// - `Goal::Dispatch`：域分派写入 ResultStore（provider ABI 接线前仍走此口）
     pub fn execute_request(&self, session: &mut Session, request: AthenaRequest) -> Result<ResultId> {
         match request {
-            AthenaRequest::Term(term) => {
-                let outcome = execution::vm::evaluate_session(session, term);
-                let value = session.insert_symbolic_value(outcome.term);
-                let coverage = match outcome.kind {
-                    execution::EvalKind::Value => CoverageStatus::Full,
-                    execution::EvalKind::Unevaluated => CoverageStatus::Unknown,
-                };
-                let mut result = ComputationResult::with_status(outcome.status, coverage)
-                    .with_value(value)
-                    .with_symbolic_term(outcome.term)
-                    .with_provenance(ResultProvenance { request_kind: "Term" });
-                for diagnostic in outcome.diagnostics {
-                    result = result.with_diagnostic(diagnostic);
-                }
-                Ok(session.insert_result(result))
+            AthenaRequest::Term(_) | AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
+                execution::execute_ir_request(session, &request)
             }
             AthenaRequest::Goal(DomainGoal::Dispatch(domain_request)) => {
                 let domain_result = self.execute_domain(session, domain_request)?;
                 let result = crate::runtime::results::computation_from_domain(session, domain_result);
                 Ok(session.insert_result(result))
-            }
-            AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
-                let operation = request.kind_name();
-                let diagnostic =
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("phase", "request_boundary").detail("operation", operation);
-                let result = ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
-                    .with_diagnostic(diagnostic.clone())
-                    .with_provenance(ResultProvenance { request_kind: operation });
-                let _ = session.insert_result(result);
-                Err(diagnostic)
             }
         }
     }
