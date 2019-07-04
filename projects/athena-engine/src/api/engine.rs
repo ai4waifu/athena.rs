@@ -27,15 +27,22 @@ impl AthenaEngine {
         Self {}
     }
 
-    /// 在内建定义下求值（KernelIR + VM）。返回归约后的 [`TermId`]（内部投影，非正式公共结果）。
+    /// 在内建定义下求值（唯一 `ExecutionIR` 路径）。返回归约后的 [`TermId`]（内部投影，非正式公共结果）。
     pub fn evaluate(&self, session: &mut Session, term: TermId) -> TermId {
-        execution::vm::evaluate_session(session, term).term
+        match execution::execute_ir_request(session, AthenaRequest::Term(term)) {
+            Ok(result_id) => session
+                .results
+                .get(result_id)
+                .and_then(|r| r.symbolic_term)
+                .unwrap_or(term),
+            Err(_) => term,
+        }
     }
 
-    /// 先求导再求值（session arena）。
+    /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。
     pub fn differentiate(&self, session: &mut Session, term: TermId, var: &str) -> TermId {
         let d = crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), term, var);
-        execution::vm::evaluate_session(session, d).term
+        self.evaluate(session, d)
     }
 
     /// 域分派 — 返回按域区分的 [`DomainResult`]。
