@@ -1644,6 +1644,39 @@ mod tests {
     }
 
     #[test]
+    fn compile_and_execute_times_zero_and_cos_pi() {
+        let mut session = Session::new();
+        let zero = session.builder().int(0, Default::default());
+        let x = session.builder().symbol("x", Default::default());
+        let times = session.operators.intern("Times");
+        let term = session.builder().application(times, vec![zero, x], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(term))
+            .expect("times0");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0) => {}
+            other => panic!("expected Times[0,x] == 0, got {other:?}"),
+        }
+
+        let pi = session.builder().symbol("Pi", Default::default());
+        let cos = session.operators.intern("Cos");
+        let term = session.builder().application(cos, vec![pi], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(term))
+            .expect("cos");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-1) => {}
+            other => panic!("expected Cos[Pi] == -1, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn compile_application_rejected() {
         let mut session = Session::new();
         let x = session.builder().symbol("x", Default::default());

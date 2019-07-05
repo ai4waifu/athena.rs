@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use athena_numeric::{
     Number, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
-    mul as num_mul, pow as num_pow, sqrt as num_sqrt,
+    mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
@@ -463,6 +463,25 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
+        if terms.len() == 1 && matches!(name, "Sin" | "Cos" | "Tan" | "Exp" | "Log") {
+            let arg = terms[0];
+            if let Some(exact) = eval_trig_exact_session(session, name, arg) {
+                return Ok(Slot::Term(exact));
+            }
+            if let Some(x) = term_as_f64_session(session, arg) {
+                let y = match name {
+                    "Sin" => x.sin(),
+                    "Cos" => x.cos(),
+                    "Tan" => x.tan(),
+                    "Exp" => x.exp(),
+                    "Log" => x.ln(),
+                    _ => f64::NAN,
+                };
+                if y.is_finite() {
+                    return Ok(Slot::Term(push_number(session, Number::machine(y))));
+                }
+            }
+        }
         Ok(Slot::Term(push_application(session, name, terms)))
     }
 
@@ -894,8 +913,12 @@ impl ReferenceExecutor {
             };
             return Ok(Slot::Term(push_number(session, folded)));
         }
-        // Symbolic residual: rebuild the head with evaluated arguments.
-        Ok(Slot::Term(push_application(session, name, terms)))
+        // Symbolic residual with zero/one identity folding for Plus/Times.
+        Ok(Slot::Term(match name {
+            "Plus" => fold_plus_symbolic(session, terms),
+            "Times" => fold_times_symbolic(session, terms),
+            _ => push_application(session, name, terms),
+        }))
     }
 
     fn slot_as_term(&self, session: &mut Session, slot: Slot) -> Result<TermId> {
@@ -913,6 +936,99 @@ fn diag(reason: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
         .detail("component", "ReferenceExecutor")
         .detail("reason", reason)
+}
+
+fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
+    let mut out = Vec::with_capacity(terms.len());
+    for term in terms {
+        if number_of(session, term).is_some_and(Number::is_zero) {
+            continue;
+        }
+        out.push(term);
+    }
+    match out.as_slice() {
+        [] => session.builder().int(0, Default::default()),
+        [only] => *only,
+        _ => push_application(session, "Plus", out),
+    }
+}
+
+fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
+    if terms.iter().any(|t| number_of(session, *t).is_some_and(Number::is_zero)) {
+        return session.builder().int(0, Default::default());
+    }
+    let mut out = Vec::with_capacity(terms.len());
+    for term in terms {
+        if number_of(session, term).is_some_and(Number::is_one) {
+            continue;
+        }
+        out.push(term);
+    }
+    match out.as_slice() {
+        [] => session.builder().int(1, Default::default()),
+        [only] => *only,
+        _ => push_application(session, "Times", out),
+    }
+}
+
+fn eval_trig_exact_session(session: &mut Session, name: &str, arg: TermId) -> Option<TermId> {
+    let angle = normalize_pi_angle_session(session, arg)?;
+    match name {
+        "Sin" => Some(session.builder().int(0, Default::default())),
+        "Cos" => Some(session.builder().int(if angle % 2 == 0 { 1 } else { -1 }, Default::default())),
+        "Tan" if angle % 2 == 0 => Some(session.builder().int(0, Default::default())),
+        _ => None,
+    }
+}
+
+fn term_as_f64_session(session: &Session, arg: TermId) -> Option<f64> {
+    if let Some(k) = normalize_pi_angle_session(session, arg) {
+        return Some((k as f64) * std::f64::consts::PI);
+    }
+    if head_name_session(session, arg).as_deref() == Some("E") {
+        return Some(std::f64::consts::E);
+    }
+    number_of(session, arg).and_then(num_to_f64_lossy)
+}
+
+fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Option<i64> {
+    if let Some(n) = number_of(session, arg).and_then(|n| n.as_exact_integer()) {
+        if n == 0 {
+            return Some(0);
+        }
+    }
+    if head_name_session(session, arg).as_deref() == Some("Pi") {
+        return Some(1);
+    }
+    if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(arg) {
+        if session.operators.name(*head) == Some("Times") {
+            if let [a, b] = arguments.as_slice() {
+                if head_name_session(session, *a).as_deref() == Some("Pi") {
+                    return number_of(session, *b).and_then(|n| n.as_exact_integer());
+                }
+                if head_name_session(session, *b).as_deref() == Some("Pi") {
+                    return number_of(session, *a).and_then(|n| n.as_exact_integer());
+                }
+            }
+        }
+        if session.operators.name(*head) == Some("Plus")
+            && arguments.len() == 1
+            && head_name_session(session, arguments[0]).as_deref() == Some("Pi")
+        {
+            return Some(1);
+        }
+    }
+    None
+}
+
+fn head_name_session(session: &Session, id: TermId) -> Option<String> {
+    match session.arena.get(id)? {
+        athena_ir::TermNode::Application { head, .. } => session.operators.name(*head).map(str::to_string),
+        athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol)) => {
+            session.arena.symbols().resolve(*symbol).map(str::to_string)
+        }
+        _ => None,
+    }
 }
 
 fn expand_span_2(a: i64, b: i64) -> Option<Vec<i64>> {
