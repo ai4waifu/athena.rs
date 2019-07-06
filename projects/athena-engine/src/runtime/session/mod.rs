@@ -8,6 +8,7 @@ use athena_numeric::{ExecutionBudget, NumericContext};
 use athena_types::{TermId, ValueId};
 
 use crate::{
+    api::request::AthenaRequest,
     domains::{
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
@@ -118,12 +119,14 @@ impl Session {
         self.results.insert(result)
     }
 
-    /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。
+    /// 在本 Session 定义表上求值（唯一 `ExecutionIR` 路径）。
     ///
-    /// 返回归约后的 [`TermId`]。完整内部报告见 [`crate::execution::vm::evaluate_session`]，
-    /// 正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
+    /// 返回归约后的 [`TermId`]。正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
     pub fn evaluate(&mut self, expr: TermId) -> TermId {
-        execution::vm::evaluate_session(self, expr).term
+        match execution::execute_ir_request(self, AthenaRequest::Term(expr)) {
+            Ok(result_id) => self.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr),
+            Err(_) => expr,
+        }
     }
 
     /// 清除符号定义（不触及 heap / rings）。
