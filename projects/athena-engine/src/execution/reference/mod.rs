@@ -270,10 +270,7 @@ impl ReferenceExecutor {
                     "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
                     "ReplaceAll" => self.eval_replace_all(session, args, slots),
                     "Simplify" => self.eval_simplify(session, args, slots),
-                    "Sin" | "Cos" | "Tan" | "Exp" | "Log" => {
-                        self.eval_residual_app(session, name.as_str(), args, slots)
-                    }
-                    _ => Err(diag("semantic_operator_not_implemented")),
+                    _ => self.eval_residual_app(session, name.as_str(), args, slots),
                 }
             }
             OperationKind::MakeList { elements } => {
@@ -886,37 +883,54 @@ impl ReferenceExecutor {
             .collect::<Option<Vec<_>>>();
         if let Some(nums) = numbers {
             let folded = match (name, nums.as_slice()) {
-                ("Plus", []) => Number::small_int(0),
+                ("Plus", []) => Some(Number::small_int(0)),
                 ("Plus", values) => {
                     let mut acc = clone_number(&values[0]);
+                    let mut ok = true;
                     for n in &values[1..] {
-                        acc = num_add(acc, clone_number(n))?;
+                        match num_add(clone_number(&acc), clone_number(n)) {
+                            Ok(v) => acc = v,
+                            Err(_) => {
+                                ok = false;
+                                break;
+                            }
+                        }
                     }
-                    acc
+                    ok.then_some(acc)
                 }
-                ("Times", []) => Number::small_int(1),
+                ("Times", []) => Some(Number::small_int(1)),
                 ("Times", values) => {
                     let mut acc = clone_number(&values[0]);
+                    let mut ok = true;
                     for n in &values[1..] {
-                        acc = num_mul(acc, clone_number(n))?;
+                        match num_mul(clone_number(&acc), clone_number(n)) {
+                            Ok(v) => acc = v,
+                            Err(_) => {
+                                ok = false;
+                                break;
+                            }
+                        }
                     }
-                    acc
+                    ok.then_some(acc)
                 }
-                ("Subtract", [a]) => num_mul(Number::small_int(-1), clone_number(a))?,
-                ("Subtract", [a, b]) => {
-                    let neg = num_mul(Number::small_int(-1), clone_number(b))?;
-                    num_add(clone_number(a), neg)?
-                }
-                ("Divide", [a, b]) => num_div(clone_number(a), clone_number(b))?,
-                ("Power", [a, b]) => num_pow(a, b)?,
+                ("Subtract", [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
+                ("Subtract", [a, b]) => num_mul(Number::small_int(-1), clone_number(b))
+                    .and_then(|neg| num_add(clone_number(a), neg))
+                    .ok(),
+                ("Divide", [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
+                ("Power", [a, b]) => num_pow(a, b).ok(),
                 _ => return Err(diag("semantic_operator_arity")),
             };
-            return Ok(Slot::Term(push_number(session, folded)));
+            if let Some(folded) = folded {
+                return Ok(Slot::Term(push_number(session, folded)));
+            }
+            // Numeric fold failed (e.g. `0^-1`) — keep symbolic residual.
         }
-        // Symbolic residual with zero/one identity folding for Plus/Times.
+        // Symbolic residual with identity folding for Plus/Times/Power.
         Ok(Slot::Term(match name {
             "Plus" => fold_plus_symbolic(session, terms),
             "Times" => fold_times_symbolic(session, terms),
+            "Power" => fold_power_symbolic(session, terms),
             _ => push_application(session, name, terms),
         }))
     }
@@ -954,21 +968,120 @@ fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
 }
 
 fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
-    if terms.iter().any(|t| number_of(session, *t).is_some_and(Number::is_zero)) {
+    // Flatten one level of nested `Times`.
+    let mut flat = Vec::with_capacity(terms.len());
+    for term in terms {
+        match session.arena.get(term) {
+            Some(athena_ir::TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Times") =>
+            {
+                flat.extend_from_slice(arguments);
+            }
+            _ => flat.push(term),
+        }
+    }
+    if flat.iter().any(|t| number_of(session, *t).is_some_and(Number::is_zero)) {
         return session.builder().int(0, Default::default());
     }
-    let mut out = Vec::with_capacity(terms.len());
-    for term in terms {
+    let mut out = Vec::with_capacity(flat.len());
+    for term in flat {
         if number_of(session, term).is_some_and(Number::is_one) {
             continue;
         }
         out.push(term);
     }
+    let out = combine_like_powers_session(session, out);
     match out.as_slice() {
         [] => session.builder().int(1, Default::default()),
         [only] => *only,
         _ => push_application(session, "Times", out),
     }
+}
+
+/// Merge `Power[b,e1] * Power[b,e2]` (bare symbol as `Power[b,1]`).
+fn combine_like_powers_session(session: &mut Session, factors: Vec<TermId>) -> Vec<TermId> {
+    let mut groups: Vec<(TermId, TermId)> = Vec::new();
+    let mut rest = Vec::new();
+    for f in factors {
+        let base_exp = match session.arena.get(f) {
+            Some(athena_ir::TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Power") && arguments.len() == 2 =>
+            {
+                Some((arguments[0], arguments[1]))
+            }
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_))) => {
+                Some((f, session.builder().int(1, Default::default())))
+            }
+            _ => None,
+        };
+        match base_exp {
+            Some((base, exp)) => {
+                let mut merged = false;
+                for (b, e) in groups.iter_mut() {
+                    if session.arena.structural_eq(*b, base) {
+                        let combined = match (number_of(session, *e), number_of(session, exp)) {
+                            (Some(a), Some(b)) => match num_add(clone_number(a), clone_number(b)) {
+                                Ok(v) => push_number(session, v),
+                                Err(_) => push_application(session, "Plus", vec![*e, exp]),
+                            },
+                            _ => push_application(session, "Plus", vec![*e, exp]),
+                        };
+                        *e = combined;
+                        merged = true;
+                        break;
+                    }
+                }
+                if !merged {
+                    groups.push((base, exp));
+                }
+            }
+            None => rest.push(f),
+        }
+    }
+    let mut merged = Vec::new();
+    for (base, exp) in groups {
+        let p = fold_power_symbolic(session, vec![base, exp]);
+        if number_of(session, p).is_some_and(Number::is_one) {
+            continue;
+        }
+        merged.push(p);
+    }
+    merged.extend(rest);
+    merged
+}
+
+fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
+    if terms.len() != 2 {
+        return push_application(session, "Power", terms);
+    }
+    let (base, exp) = (terms[0], terms[1]);
+    if let Some(e) = number_of(session, exp) {
+        if e.is_zero() {
+            // Scalar `x^0 → 1`; list bases stay residual (elementwise is `DotPower`).
+            if matches!(session.arena.get(base), Some(athena_ir::TermNode::List(_))) {
+                return push_application(session, "Power", terms);
+            }
+            return session.builder().int(1, Default::default());
+        }
+        if e.is_one() {
+            return base;
+        }
+        // `(u^a)^b → u^(a*b)` when `a`,`b` are numbers (matches VM `power`).
+        if e.as_integer_exp().is_some() {
+            if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(base) {
+                if session.operators.name(*head) == Some("Power") && arguments.len() == 2 {
+                    let inner_base = arguments[0];
+                    if let Some(inner_exp) = number_of(session, arguments[1]) {
+                        if let Ok(combined) = num_mul(clone_number(inner_exp), clone_number(e)) {
+                            let combined_id = push_number(session, combined);
+                            return fold_power_symbolic(session, vec![inner_base, combined_id]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    push_application(session, "Power", terms)
 }
 
 fn eval_trig_exact_session(session: &mut Session, name: &str, arg: TermId) -> Option<TermId> {

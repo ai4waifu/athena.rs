@@ -1088,20 +1088,11 @@ impl ExecutionCompiler {
                         .detail("component", "ExecutionCompiler")
                         .detail("status", "unknown_operator")
                 })?;
+                // Known semantic ops + unknown heads as Term residuals (CAS stays symbolic).
                 let result_type = match name {
                     "Not" | "And" | "Or" | "TrueQ" | "SameQ" | "Equal" | "Unequal"
                     | "Less" | "Greater" | "LessEqual" | "GreaterEqual" => ExecutionValueType::Boolean,
-                    "Plus" | "Times" | "Subtract" | "Divide" | "Power" | "Abs" | "Length"
-                    | "First" | "Rest" | "Join" | "Factorial" | "Part" | "Span" | "Range" | "Sqrt"
-                    | "Apply" | "Size" | "Map" | "Zeros" | "Ones" | "Eye"
-                    | "ReplaceAll" | "Rule" | "RuleDeferred" | "Simplify"
-                    | "Sin" | "Cos" | "Tan" | "Exp" | "Log" => ExecutionValueType::Term,
-                    _ => {
-                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                            .detail("component", "ExecutionCompiler")
-                            .detail("status", "compound_term_not_lowered")
-                            .detail("operator", name));
-                    }
+                    _ => ExecutionValueType::Term,
                 };
                 let mut args = Vec::with_capacity(arguments.len());
                 for arg in arguments {
@@ -1677,15 +1668,86 @@ mod tests {
     }
 
     #[test]
-    fn compile_application_rejected() {
+    fn compile_and_execute_power_zero_and_times_one_residual() {
+        let mut session = Session::new();
+        let x = session.builder().symbol("x", Default::default());
+        let zero = session.builder().int(0, Default::default());
+        let two = session.builder().int(2, Default::default());
+        let power = session.operators.intern("Power");
+        let times = session.operators.intern("Times");
+        let pow = session.builder().application(power, vec![x, zero], Default::default());
+        let term = session.builder().application(times, vec![two, pow], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(term))
+            .expect("power0");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+            other => panic!("expected Times[2, Power[x,0]] == 2, got {other:?}"),
+        }
+
+        let one = session.builder().int(1, Default::default());
+        let cosh = session.operators.intern("Cosh");
+        let cosh_x = session.builder().application(cosh, vec![x], Default::default());
+        let term = session.builder().application(times, vec![cosh_x, one], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(term))
+            .expect("cosh");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Cosh")
+                    && arguments.len() == 1
+                    && session.arena.structural_eq(arguments[0], x) => {}
+            other => panic!("expected Times[Cosh[x], 1] == Cosh[x], got {other:?}"),
+        }
+
+        let neg1 = session.builder().int(-1, Default::default());
+        let two = session.builder().int(2, Default::default());
+        let inner = session.builder().application(power, vec![x, neg1], Default::default());
+        let nested = session.builder().application(power, vec![inner, two], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(nested))
+            .expect("nested power");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Power")
+                    && arguments.len() == 2
+                    && session.arena.structural_eq(arguments[0], x)
+                    && matches!(
+                        session.arena.get(arguments[1]),
+                        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)
+                    ) => {}
+            other => panic!("expected (x^-1)^2 == x^-2, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_unknown_head_stays_residual() {
         let mut session = Session::new();
         let x = session.builder().symbol("x", Default::default());
         let head = session.operators.intern("Foo");
         let term = session.builder().application(head, vec![x], Default::default());
-        let err = ExecutionCompiler::new()
+        let module = ExecutionCompiler::new()
             .compile(&session, &AthenaRequest::Term(term))
-            .expect_err("compound");
-        assert_eq!(err.code, DiagnosticCode::UnsupportedOperation);
+            .expect("foo");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Foo")
+                    && arguments.len() == 1
+                    && session.arena.structural_eq(arguments[0], x) => {}
+            other => panic!("expected Foo[x] residual, got {other:?}"),
+        }
     }
 
     #[test]
