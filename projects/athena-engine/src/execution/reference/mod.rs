@@ -926,11 +926,13 @@ impl ReferenceExecutor {
             }
             // Numeric fold failed (e.g. `0^-1`) — keep symbolic residual.
         }
-        // Symbolic residual with identity folding for Plus/Times/Power.
+        // Symbolic residual with identity folding for Plus/Times/Power/Divide.
         Ok(Slot::Term(match name {
             "Plus" => fold_plus_symbolic(session, terms),
             "Times" => fold_times_symbolic(session, terms),
             "Power" => fold_power_symbolic(session, terms),
+            "Divide" => fold_divide_symbolic(session, terms),
+            "Subtract" => fold_subtract_symbolic(session, terms),
             _ => push_application(session, name, terms),
         }))
     }
@@ -953,18 +955,116 @@ fn diag(reason: &str) -> Diagnostic {
 }
 
 fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
-    let mut out = Vec::with_capacity(terms.len());
+    // Flatten one level of nested `Plus` and coalesce numeric summands.
+    let mut flat = Vec::with_capacity(terms.len());
+    let mut sum: Option<Number> = None;
     for term in terms {
-        if number_of(session, term).is_some_and(Number::is_zero) {
-            continue;
+        match session.arena.get(term) {
+            Some(athena_ir::TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Plus") =>
+            {
+                for arg in arguments.clone() {
+                    push_plus_summand_session(session, arg, &mut flat, &mut sum);
+                }
+            }
+            _ => push_plus_summand_session(session, term, &mut flat, &mut sum),
         }
-        out.push(term);
     }
-    match out.as_slice() {
+    if let Some(s) = sum {
+        if !s.is_zero() {
+            flat.insert(0, push_number(session, s));
+        }
+    }
+    let flat = combine_like_plus_session(session, flat);
+    match flat.as_slice() {
         [] => session.builder().int(0, Default::default()),
         [only] => *only,
-        _ => push_application(session, "Plus", out),
+        _ => push_application(session, "Plus", flat),
     }
+}
+
+fn push_plus_summand_session(
+    session: &mut Session,
+    term: TermId,
+    flat: &mut Vec<TermId>,
+    sum: &mut Option<Number>,
+) {
+    if let Some(n) = number_of(session, term) {
+        let n = clone_number(n);
+        *sum = Some(match sum.take() {
+            Some(s) => num_add(clone_number(&s), n).unwrap_or(s),
+            None => n,
+        });
+    } else {
+        flat.push(term);
+    }
+}
+
+/// Merge `c1·k + c2·k` (bare `k` as coefficient 1).
+fn combine_like_plus_session(session: &mut Session, terms: Vec<TermId>) -> Vec<TermId> {
+    let mut groups: Vec<(TermId, Number)> = Vec::new();
+    for t in terms {
+        let (coef, kernel) = split_numeric_coeff_session(session, t);
+        let mut matched = false;
+        for (k, acc) in groups.iter_mut() {
+            if session.arena.structural_eq(*k, kernel) {
+                match num_add(clone_number(acc), clone_number(&coef)) {
+                    Ok(v) => *acc = v,
+                    Err(_) => return groups_to_plus_terms_session(session, groups),
+                }
+                matched = true;
+                break;
+            }
+        }
+        if !matched {
+            groups.push((kernel, coef));
+        }
+    }
+    groups_to_plus_terms_session(session, groups)
+}
+
+fn split_numeric_coeff_session(session: &mut Session, term: TermId) -> (Number, TermId) {
+    if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(term) {
+        if session.operators.name(*head) == Some("Times") && !arguments.is_empty() {
+            let args = arguments.clone();
+            let mut coef = Number::small_int(1);
+            let mut rest = Vec::new();
+            for a in args {
+                if let Some(n) = number_of(session, a) {
+                    coef = num_mul(clone_number(&coef), clone_number(n)).unwrap_or(coef);
+                } else {
+                    rest.push(a);
+                }
+            }
+            let kernel = match rest.as_slice() {
+                [] => session.builder().int(1, Default::default()),
+                [only] => *only,
+                _ => push_application(session, "Times", rest),
+            };
+            return (coef, kernel);
+        }
+    }
+    if let Some(n) = number_of(session, term) {
+        return (clone_number(n), session.builder().int(1, Default::default()));
+    }
+    (Number::small_int(1), term)
+}
+
+fn groups_to_plus_terms_session(session: &mut Session, groups: Vec<(TermId, Number)>) -> Vec<TermId> {
+    let mut out = Vec::new();
+    for (kernel, coef) in groups {
+        if coef.is_zero() {
+            continue;
+        } else if number_of(session, kernel).is_some_and(Number::is_one) {
+            out.push(push_number(session, coef));
+        } else if coef.is_one() {
+            out.push(kernel);
+        } else {
+            let coef_id = push_number(session, coef);
+            out.push(fold_times_symbolic(session, vec![coef_id, kernel]));
+        }
+    }
+    out
 }
 
 fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
@@ -991,11 +1091,50 @@ fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
         out.push(term);
     }
     let out = combine_like_powers_session(session, out);
+    let out = canonicalize_times_factors_session(session, out);
+    // One-level distribute: `c * (a + b) → c*a + c*b`.
+    if let Some(idx) = out.iter().position(|t| {
+        matches!(
+            session.arena.get(*t),
+            Some(athena_ir::TermNode::Application { head, .. })
+                if session.operators.name(*head) == Some("Plus")
+        )
+    }) {
+        let plus_id = out[idx];
+        let mut factors = out.clone();
+        factors.remove(idx);
+        if let Some(athena_ir::TermNode::Application { arguments, .. }) = session.arena.get(plus_id) {
+            let summands = arguments.clone();
+            let parts: Vec<TermId> = summands
+                .into_iter()
+                .map(|s| {
+                    let mut f = factors.clone();
+                    f.push(s);
+                    fold_times_symbolic(session, f)
+                })
+                .collect();
+            return fold_plus_symbolic(session, parts);
+        }
+    }
     match out.as_slice() {
         [] => session.builder().int(1, Default::default()),
         [only] => *only,
         _ => push_application(session, "Times", out),
     }
+}
+
+fn canonicalize_times_factors_session(session: &Session, factors: Vec<TermId>) -> Vec<TermId> {
+    let mut nums = Vec::new();
+    let mut rest = Vec::new();
+    for f in factors {
+        if number_of(session, f).is_some() {
+            nums.push(f);
+        } else {
+            rest.push(f);
+        }
+    }
+    nums.extend(rest);
+    nums
 }
 
 /// Merge `Power[b,e1] * Power[b,e2]` (bare symbol as `Power[b,1]`).
@@ -1050,6 +1189,31 @@ fn combine_like_powers_session(session: &mut Session, factors: Vec<TermId>) -> V
     merged
 }
 
+fn fold_divide_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
+    if terms.len() != 2 {
+        return push_application(session, "Divide", terms);
+    }
+    let (num, den) = (terms[0], terms[1]);
+    let neg1 = session.builder().int(-1, Default::default());
+    let inv = fold_power_symbolic(session, vec![den, neg1]);
+    fold_times_symbolic(session, vec![num, inv])
+}
+
+fn fold_subtract_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
+    match terms.as_slice() {
+        [a] => {
+            let neg1 = session.builder().int(-1, Default::default());
+            fold_times_symbolic(session, vec![neg1, *a])
+        }
+        [a, b] => {
+            let neg1 = session.builder().int(-1, Default::default());
+            let neg = fold_times_symbolic(session, vec![neg1, *b]);
+            fold_plus_symbolic(session, vec![*a, neg])
+        }
+        _ => push_application(session, "Subtract", terms),
+    }
+}
+
 fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     if terms.len() != 2 {
         return push_application(session, "Power", terms);
@@ -1066,15 +1230,31 @@ fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
         if e.is_one() {
             return base;
         }
-        // `(u^a)^b → u^(a*b)` when `a`,`b` are numbers (matches VM `power`).
+        // `(u^a)^b → u^(a*b)` and `(c*u)^n → c^n * u^n` when exponents are integers.
         if e.as_integer_exp().is_some() {
             if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(base) {
-                if session.operators.name(*head) == Some("Power") && arguments.len() == 2 {
+                let head_name = session.operators.name(*head);
+                if head_name == Some("Power") && arguments.len() == 2 {
                     let inner_base = arguments[0];
                     if let Some(inner_exp) = number_of(session, arguments[1]) {
                         if let Ok(combined) = num_mul(clone_number(inner_exp), clone_number(e)) {
                             let combined_id = push_number(session, combined);
                             return fold_power_symbolic(session, vec![inner_base, combined_id]);
+                        }
+                    }
+                }
+                if head_name == Some("Times") && arguments.len() >= 2 {
+                    let args = arguments.clone();
+                    if let Some(c) = number_of(session, args[0]) {
+                        if let Ok(cp) = num_pow(c, e) {
+                            let rest = if args.len() == 2 {
+                                args[1]
+                            } else {
+                                push_application(session, "Times", args[1..].to_vec())
+                            };
+                            let rest_pow = fold_power_symbolic(session, vec![rest, exp]);
+                            let cp_id = push_number(session, cp);
+                            return fold_times_symbolic(session, vec![cp_id, rest_pow]);
                         }
                     }
                 }

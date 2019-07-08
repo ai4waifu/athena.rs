@@ -1730,6 +1730,52 @@ mod tests {
     }
 
     #[test]
+    fn compile_and_execute_plus_like_terms_and_distribute() {
+        let mut session = Session::new();
+        let x = session.builder().symbol("x", Default::default());
+        let two = session.builder().int(2, Default::default());
+        let three = session.builder().int(3, Default::default());
+        let times = session.operators.intern("Times");
+        let plus = session.operators.intern("Plus");
+        let t1 = session.builder().application(times, vec![two, x], Default::default());
+        let t2 = session.builder().application(times, vec![three, x], Default::default());
+        let sum = session.builder().application(plus, vec![t1, t2], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(sum))
+            .expect("like plus");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Times")
+                    && arguments.len() == 2
+                    && matches!(
+                        session.arena.get(arguments[0]),
+                        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5)
+                    )
+                    && session.arena.structural_eq(arguments[1], x) => {}
+            other => panic!("expected 2x+3x == 5x, got {other:?}"),
+        }
+
+        let one = session.builder().int(1, Default::default());
+        let inner = session.builder().application(plus, vec![x, one], Default::default());
+        let dist = session.builder().application(times, vec![two, inner], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&session, &AthenaRequest::Term(dist))
+            .expect("distribute");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        // 2*(x+1) → 2x+2
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Application { head, arguments })
+                if session.operators.name(*head) == Some("Plus") && arguments.len() == 2 => {}
+            other => panic!("expected distribute to Plus, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn compile_unknown_head_stays_residual() {
         let mut session = Session::new();
         let x = session.builder().symbol("x", Default::default());
