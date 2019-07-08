@@ -15,6 +15,7 @@ use athena_types::{OperatorId, SymbolId, TermId};
 use std::marker::PhantomData;
 
 use crate::{
+    api::request::AthenaRequest,
     execution,
     execution::vm::Shape,
     runtime::{session::Session, values::numeric_clone::clone_number},
@@ -117,9 +118,17 @@ impl<'a> CalculusCtx<'a> {
 
     // ---- interp 求值 ----
 
-    /// 在内建定义下求值到稳定形。
+    /// 在内建定义下求值到稳定形（唯一 `ExecutionIR` 路径）。
     pub(crate) fn eval(&self, id: TermId) -> TermId {
-        execution::vm::evaluate_session(self.session_mut(), id).term
+        match execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id)) {
+            Ok(result_id) => self
+                .session()
+                .results
+                .get(result_id)
+                .and_then(|r| r.symbolic_term)
+                .unwrap_or(id),
+            Err(_) => id,
+        }
     }
 
     // ---- 构造 ----
