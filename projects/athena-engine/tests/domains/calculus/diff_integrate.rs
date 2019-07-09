@@ -552,11 +552,21 @@ fn cos_pi_is_exact_minus_one() {
     let h = H::new();
     let pi = h.symbol("Pi");
     let cos = h.ap("Cos", vec![pi]);
-    let cos_out = h.with_session(|s| athena_engine::execution::vm::evaluate_session(s, cos));
-    assert_eq!(h.dbg(cos_out.term), "-1");
+    let cos_out = h.with_session(|s| {
+        athena_engine::execution::execute_ir_request(s, athena_engine::api::request::AthenaRequest::Term(cos))
+            .ok()
+            .and_then(|rid| s.results.get(rid).and_then(|r| r.symbolic_term))
+            .unwrap_or(cos)
+    });
+    assert_eq!(h.dbg(cos_out), "-1");
     let sin = h.ap("Sin", vec![pi]);
-    let sin_out = h.with_session(|s| athena_engine::execution::vm::evaluate_session(s, sin));
-    assert_eq!(h.dbg(sin_out.term), "0");
+    let sin_out = h.with_session(|s| {
+        athena_engine::execution::execute_ir_request(s, athena_engine::api::request::AthenaRequest::Term(sin))
+            .ok()
+            .and_then(|rid| s.results.get(rid).and_then(|r| r.symbolic_term))
+            .unwrap_or(sin)
+    });
+    assert_eq!(h.dbg(sin_out), "0");
 }
 
 #[test]
@@ -1039,7 +1049,12 @@ fn evaluate_routes_d_through_domain() {
     let three = h.i(3);
     let cube = h.ap("Power", vec![x, three]);
     let d = h.ap("D", vec![cube, x]);
-    let out = h.with_session(|s| athena_engine::execution::vm::evaluate_session(s, d));
-    let text = h.dbg(out.term);
+    let out = h.with_session(|s| {
+        athena_engine::execution::execute_ir_request(s, athena_engine::api::request::AthenaRequest::Term(d))
+            .ok()
+            .and_then(|rid| s.results.get(rid).and_then(|r| r.symbolic_term))
+            .unwrap_or(d)
+    });
+    let text = h.dbg(out);
     assert!(text.contains('x'), "got {text}");
 }
