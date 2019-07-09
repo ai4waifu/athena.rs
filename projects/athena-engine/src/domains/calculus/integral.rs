@@ -15,14 +15,14 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
         return expr;
     };
     match shape {
-        crate::execution::vm::Shape::Number => {
+        crate::execution::shape::Shape::Number => {
             let n = cc.number_of(expr).map(|n| cc.copy(n)).expect("number");
             cc.apply("Times", vec![cc.num(n), cc.symbol(var)])
         }
-        crate::execution::vm::Shape::String(_) | crate::execution::vm::Shape::Bool(_) | crate::execution::vm::Shape::Null => {
+        crate::execution::shape::Shape::String(_) | crate::execution::shape::Shape::Bool(_) | crate::execution::shape::Shape::Null => {
             cc.apply("Integrate", vec![expr, cc.symbol(var)])
         }
-        crate::execution::vm::Shape::Symbol(s) => {
+        crate::execution::shape::Shape::Symbol(s) => {
             if cc.symbol_is(s, var) {
                 let x2 = cc.apply("Power", vec![cc.symbol(var), cc.in_(2)]);
                 cc.eval(cc.apply("Divide", vec![x2, cc.in_(2)]))
@@ -31,11 +31,11 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                 cc.apply("Times", vec![expr, cc.symbol(var)])
             }
         }
-        crate::execution::vm::Shape::List(items) => {
+        crate::execution::shape::Shape::List(items) => {
             let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
             cc.list(iss)
         }
-        crate::execution::vm::Shape::Application(_, _) => {
+        crate::execution::shape::Shape::Application(_, _) => {
             let Some((h, args)) = cc.application(expr)
             else {
                 return expr;

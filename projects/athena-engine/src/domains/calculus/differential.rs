@@ -10,7 +10,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, replace_symbol},
 };
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 候选 ODE 解是否已通过残差代入验证。
 #[derive(Debug, Clone, PartialEq)]

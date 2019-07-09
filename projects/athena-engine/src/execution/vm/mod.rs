@@ -22,6 +22,8 @@ use crate::execution::{
     kernel_ir::unit::ExecUnit,
 };
 
+pub(crate) use crate::execution::shape::Shape;
+
 /// 编译模式（决定 `Set` / 作用域形式的 env 语义变体）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompileMode {
@@ -454,17 +456,6 @@ impl<'a> Vm<'a> {
         let (term, kind, status) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
         TermEvaluation { term, kind, status, diagnostics: diags }
     }
-}
-
-/// 廉价结构快照（数字载荷只标记为 `Number`，不复制）。
-pub(crate) enum Shape {
-    Number,
-    String(String),
-    Symbol(SymbolId),
-    Bool(bool),
-    Null,
-    List(Vec<TermId>),
-    Application(OperatorId, Vec<TermId>),
 }
 
 /// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。

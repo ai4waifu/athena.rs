@@ -13,6 +13,7 @@ pub mod ir;
 pub mod kernel_ir;
 pub mod provider;
 pub mod reference;
+pub(crate) mod shape;
 pub mod vm;
 
 use athena_numeric::Number;

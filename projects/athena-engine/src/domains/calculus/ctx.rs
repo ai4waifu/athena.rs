@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 use crate::{
     api::request::AthenaRequest,
     execution,
-    execution::vm::Shape,
+    execution::shape::Shape,
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
 

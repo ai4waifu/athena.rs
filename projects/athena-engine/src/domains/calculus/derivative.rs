@@ -16,16 +16,16 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
         return expr;
     };
     match shape {
-        crate::execution::vm::Shape::Number
-        | crate::execution::vm::Shape::String(_)
-        | crate::execution::vm::Shape::Bool(_)
-        | crate::execution::vm::Shape::Null => cc.in_(0),
-        crate::execution::vm::Shape::Symbol(s) => cc.in_(if cc.symbol_is(s, var) { 1 } else { 0 }),
-        crate::execution::vm::Shape::List(items) => {
+        crate::execution::shape::Shape::Number
+        | crate::execution::shape::Shape::String(_)
+        | crate::execution::shape::Shape::Bool(_)
+        | crate::execution::shape::Shape::Null => cc.in_(0),
+        crate::execution::shape::Shape::Symbol(s) => cc.in_(if cc.symbol_is(s, var) { 1 } else { 0 }),
+        crate::execution::shape::Shape::List(items) => {
             let ds = items.iter().map(|i| differentiate(cc, *i, var)).collect();
             cc.list(ds)
         }
-        crate::execution::vm::Shape::Application(_, args) => {
+        crate::execution::shape::Shape::Application(_, args) => {
             let Some((h, args)) = cc.application(expr)
             else {
                 return expr;

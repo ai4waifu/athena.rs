@@ -4,7 +4,7 @@ use athena_numeric::{Number, abs as num_abs, compare as num_compare};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{ctx::CalculusCtx, request::TransformKind, result::CalculusResult};
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 收敛域 — 每个变换结果都必须携带。
 #[derive(Debug, PartialEq)]

@@ -8,7 +8,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, replace_symbol},
 };
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 截断级数的余项标注。
 #[derive(Debug, PartialEq)]

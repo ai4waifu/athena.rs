@@ -3,7 +3,7 @@
 use athena_types::TermId;
 
 use super::ctx::CalculusCtx;
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 将 `var`（符号名）的每次出现替换为 `with`；未命中路径按 arena 共享。
 pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with: TermId) -> TermId {

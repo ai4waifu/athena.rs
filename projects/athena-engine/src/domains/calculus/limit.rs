@@ -9,7 +9,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, replace_symbol},
 };
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 在假设下尝试求极限。
 pub fn limit_checked(

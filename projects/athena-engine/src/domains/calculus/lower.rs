@@ -6,7 +6,7 @@ use super::{
     ctx::CalculusCtx,
     request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection},
 };
-use crate::execution::vm::Shape;
+use crate::execution::shape::Shape;
 
 /// 若可识别，将微积分应用映射为域请求。
 ///
