@@ -45,6 +45,16 @@ enum Slot {
     Unit,
 }
 
+#[derive(Debug)]
+enum PartStep {
+    Next(TermId),
+    Residual,
+    Invalid {
+        echo: TermId,
+        diagnostic: Diagnostic,
+    },
+}
+
 impl ReferenceExecutor {
     /// Create a reference executor.
     pub fn new() -> Self {
@@ -68,7 +78,8 @@ impl ReferenceExecutor {
                 .detail("reason", "missing_entry_region")
         })?;
         let mut provider = domain;
-        let (returned, unsupported, unevaluated) = self.eval_region(session, module, region_id, &mut provider)?;
+        let (returned, unsupported, unevaluated, invalid) =
+            self.eval_region(session, module, region_id, &mut provider)?;
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
         }
@@ -81,7 +92,10 @@ impl ReferenceExecutor {
             }
         };
         let value = session.insert_symbolic_value(term);
-        let mut result = if unsupported {
+        let mut result = if let Some(diagnostic) = invalid {
+            ComputationResult::with_status(ComputationStatus::Invalid, CoverageStatus::Partial)
+                .with_diagnostic(diagnostic)
+        } else if unsupported {
             ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Unsupported)
                 .with_diagnostic(
                     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -106,7 +120,7 @@ impl ReferenceExecutor {
         module: &ExecutionModule,
         region_id: RegionId,
         provider: &mut Option<DomainRequest>,
-    ) -> Result<(Option<Slot>, bool, bool)> {
+    ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
         let region = module
             .regions
             .iter()
@@ -117,6 +131,7 @@ impl ReferenceExecutor {
         let mut frames: Vec<ScopeFrame> = Vec::new();
         let mut unsupported = false;
         let mut unevaluated = false;
+        let mut invalid: Option<Diagnostic> = None;
         let mut block_visits: HashMap<BlockId, u32> = HashMap::new();
         // Bootstrap: allow limited loop back-edges; cap per-block visits.
         for _ in 0..region.blocks.len().saturating_mul(64).max(64) {
@@ -124,7 +139,7 @@ impl ReferenceExecutor {
             *visits = visits.saturating_add(1);
             if *visits > 32 {
                 // Budget exhausted on a hot block — exit with Unit residual.
-                return Ok((Some(Slot::Unit), unsupported, unevaluated));
+                return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
             }
             let block = region
                 .blocks
@@ -139,6 +154,7 @@ impl ReferenceExecutor {
                     &mut frames,
                     &mut unsupported,
                     &mut unevaluated,
+                    &mut invalid,
                     provider,
                     &op.kind,
                 )?;
@@ -149,13 +165,14 @@ impl ReferenceExecutor {
             match &block.terminator {
                 Terminator::Return { values } => {
                     if values.is_empty() {
-                        return Ok((Some(Slot::Unit), unsupported, unevaluated));
+                        return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
                     }
                     let first = values[0];
                     return Ok((
                         Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?),
                         unsupported,
                         unevaluated,
+                        invalid,
                     ));
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
@@ -212,6 +229,7 @@ impl ReferenceExecutor {
         frames: &mut Vec<ScopeFrame>,
         unsupported: &mut bool,
         unevaluated: &mut bool,
+        invalid: &mut Option<Diagnostic>,
         provider: &mut Option<DomainRequest>,
         kind: &OperationKind,
     ) -> Result<Slot> {
@@ -286,7 +304,7 @@ impl ReferenceExecutor {
                         self.eval_unary_term_op(session, name.as_str(), args, slots)
                     }
                     "Join" => self.eval_join(session, args, slots),
-                    "Part" => self.eval_part(session, args, slots),
+                    "Part" => self.eval_part(session, args, slots, invalid),
                     "Span" => self.eval_span(session, args, slots),
                     "Range" => self.eval_range(session, args, slots),
                     "Apply" => self.eval_apply(session, args, slots),
@@ -788,6 +806,7 @@ impl ReferenceExecutor {
         session: &mut Session,
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
+        invalid: &mut Option<Diagnostic>,
     ) -> Result<Slot> {
         if args.len() < 2 {
             return Err(diag("semantic_operator_arity"));
@@ -799,43 +818,70 @@ impl ReferenceExecutor {
         }
         let mut cur = terms[0];
         for index in &terms[1..] {
-            cur = match self.part_one(session, cur, *index)? {
-                Some(next) => next,
-                None => return Ok(Slot::Term(push_application(session, "Part", terms))),
-            };
+            match self.part_one(session, cur, *index)? {
+                PartStep::Next(next) => cur = next,
+                PartStep::Residual => {
+                    return Ok(Slot::Term(push_application(session, "Part", terms)));
+                }
+                PartStep::Invalid { echo, diagnostic } => {
+                    *invalid = Some(diagnostic);
+                    return Ok(Slot::Term(echo));
+                }
+            }
         }
         Ok(Slot::Term(cur))
     }
 
-    /// Bootstrap `Part` step: list/app + integer / `End` / `All`. Returns `None` to residual.
-    fn part_one(&self, session: &mut Session, expr: TermId, index: TermId) -> Result<Option<TermId>> {
+    /// Bootstrap `Part` step: list/app + integer / `End` / `All` / index list.
+    fn part_one(&self, session: &mut Session, expr: TermId, index: TermId) -> Result<PartStep> {
+        // Index list (e.g. evaluated `Span`): extract each position into a list.
+        if let Some(athena_ir::TermNode::List(indices)) = session.arena.get(index) {
+            let indices = indices.clone();
+            let mut out = Vec::with_capacity(indices.len());
+            for idx in indices {
+                match self.part_one(session, expr, idx)? {
+                    PartStep::Next(item) => out.push(item),
+                    PartStep::Residual => {
+                        return Ok(PartStep::Residual);
+                    }
+                    PartStep::Invalid { echo, diagnostic } => {
+                        return Ok(PartStep::Invalid { echo, diagnostic });
+                    }
+                }
+            }
+            return Ok(PartStep::Next(push_list(session, out)));
+        }
+
         let items = match session.arena.get(expr) {
             Some(athena_ir::TermNode::List(items)) => items.clone(),
             Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.clone(),
-            _ => return Ok(None),
+            _ => return Ok(PartStep::Residual),
         };
         if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(index) {
             match session.arena.symbols().resolve(*symbol) {
                 Some("End") => {
-                    return Ok(items.last().copied());
+                    return Ok(match items.last().copied() {
+                        Some(item) => PartStep::Next(item),
+                        None => PartStep::Residual,
+                    });
                 }
                 Some("All") => {
-                    return Ok(Some(expr));
+                    return Ok(PartStep::Next(expr));
                 }
                 _ => {}
             }
         }
         let Some(idx) = number_of(session, index).and_then(|n| n.as_exact_integer()) else {
-            return Ok(None);
+            return Ok(PartStep::Residual);
         };
         if idx == 0 {
-            return Ok(Some(match session.arena.get(expr) {
+            return Ok(PartStep::Next(match session.arena.get(expr) {
                 Some(athena_ir::TermNode::List(_)) => session.builder().symbol("List", Default::default()),
                 Some(athena_ir::TermNode::Application { head, .. }) => {
                     let name = session.operators.name(*head).unwrap_or("").to_string();
                     session.builder().symbol(&name, Default::default())
                 }
-                _ => return Ok(None),
+                _ => return Ok(PartStep::Residual),
             }));
         }
         let len = items.len();
@@ -844,13 +890,23 @@ impl ReferenceExecutor {
         } else {
             let pos = len as i64 + idx;
             if pos < 0 {
-                return Err(diag("part_index_out_of_range"));
+                let echo = push_application(session, "Part", vec![expr, index]);
+                return Ok(PartStep::Invalid {
+                    echo,
+                    diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)),
+                });
             }
             pos as usize
         };
         match items.get(pos) {
-            Some(item) => Ok(Some(*item)),
-            None => Err(diag("part_index_out_of_range")),
+            Some(item) => Ok(PartStep::Next(*item)),
+            None => {
+                let echo = push_application(session, "Part", vec![expr, index]);
+                Ok(PartStep::Invalid {
+                    echo,
+                    diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)),
+                })
+            }
         }
     }
 
@@ -1846,6 +1902,58 @@ mod tests {
             Some(athena_ir::TermNode::Application { head, .. })
                 if session.operators.name(*head) == Some("FooBar") => {}
             other => panic!("expected residual FooBar[...], got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn part_oob_marks_invalid_index() {
+        let mut session = Session::new();
+        let part = session.operators.intern("Part");
+        let a = session.builder().int(1, Default::default());
+        let b = session.builder().int(2, Default::default());
+        let list = session.builder().list(vec![a, b], Default::default());
+        let idx = session.builder().int(9, Default::default());
+        let term = session.builder().application(part, vec![list, idx], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("compile");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.status, ComputationStatus::Invalid);
+        assert_eq!(loaded.diagnostics[0].code, DiagnosticCode::InvalidIndex);
+    }
+
+    #[test]
+    fn part_span_extracts_slice() {
+        let mut session = Session::new();
+        let part = session.operators.intern("Part");
+        let span = session.operators.intern("Span");
+        let a = session.builder().int(1, Default::default());
+        let b = session.builder().int(2, Default::default());
+        let c = session.builder().int(3, Default::default());
+        let list = session.builder().list(vec![a, b, c], Default::default());
+        let span_lo = session.builder().int(1, Default::default());
+        let span_hi = session.builder().int(2, Default::default());
+        let span_term = session
+            .builder()
+            .application(span, vec![span_lo, span_hi], Default::default());
+        let term = session.builder().application(part, vec![list, span_term], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("compile");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(athena_ir::TermNode::List(items)) if items.len() == 2 => {
+                assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(1));
+                assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(2));
+            }
+            other => panic!("expected List[1, 2], got {other:?}"),
         }
     }
 }
