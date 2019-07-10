@@ -68,7 +68,7 @@ impl ReferenceExecutor {
                 .detail("reason", "missing_entry_region")
         })?;
         let mut provider = domain;
-        let (returned, unsupported) = self.eval_region(session, module, region_id, &mut provider)?;
+        let (returned, unsupported, unevaluated) = self.eval_region(session, module, region_id, &mut provider)?;
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
         }
@@ -88,6 +88,8 @@ impl ReferenceExecutor {
                         .detail("component", "CallProvider")
                         .detail("status", "provider_bootstrap_unsupported"),
                 )
+        } else if unevaluated {
+            ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Partial)
         } else {
             ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
         };
@@ -104,7 +106,7 @@ impl ReferenceExecutor {
         module: &ExecutionModule,
         region_id: RegionId,
         provider: &mut Option<DomainRequest>,
-    ) -> Result<(Option<Slot>, bool)> {
+    ) -> Result<(Option<Slot>, bool, bool)> {
         let region = module
             .regions
             .iter()
@@ -114,6 +116,7 @@ impl ReferenceExecutor {
         let mut slots: HashMap<SsaValueId, Slot> = HashMap::new();
         let mut frames: Vec<ScopeFrame> = Vec::new();
         let mut unsupported = false;
+        let mut unevaluated = false;
         let mut block_visits: HashMap<BlockId, u32> = HashMap::new();
         // Bootstrap: allow limited loop back-edges; cap per-block visits.
         for _ in 0..region.blocks.len().saturating_mul(64).max(64) {
@@ -121,7 +124,7 @@ impl ReferenceExecutor {
             *visits = visits.saturating_add(1);
             if *visits > 32 {
                 // Budget exhausted on a hot block — exit with Unit residual.
-                return Ok((Some(Slot::Unit), unsupported));
+                return Ok((Some(Slot::Unit), unsupported, unevaluated));
             }
             let block = region
                 .blocks
@@ -129,8 +132,16 @@ impl ReferenceExecutor {
                 .find(|b| b.id == block_id)
                 .ok_or_else(|| diag("missing_block"))?;
             for op in &block.operations {
-                let produced =
-                    self.eval_operation(session, module, &slots, &mut frames, &mut unsupported, provider, &op.kind)?;
+                let produced = self.eval_operation(
+                    session,
+                    module,
+                    &slots,
+                    &mut frames,
+                    &mut unsupported,
+                    &mut unevaluated,
+                    provider,
+                    &op.kind,
+                )?;
                 if let Some(result) = op.result {
                     slots.insert(result, produced);
                 }
@@ -138,15 +149,24 @@ impl ReferenceExecutor {
             match &block.terminator {
                 Terminator::Return { values } => {
                     if values.is_empty() {
-                        return Ok((Some(Slot::Unit), unsupported));
+                        return Ok((Some(Slot::Unit), unsupported, unevaluated));
                     }
                     let first = values[0];
-                    return Ok((Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?), unsupported));
+                    return Ok((
+                        Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?),
+                        unsupported,
+                        unevaluated,
+                    ));
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
                     let pred = match slots.get(condition).ok_or_else(|| diag("branch_undefined"))? {
                         Slot::Boolean(v) => *v,
-                        _ => return Err(diag("branch_not_boolean")),
+                        Slot::Term(term) => coerce_branch_predicate(session, *term)?,
+                        _ => {
+                            return Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+                                .detail("component", "ReferenceExecutor")
+                                .detail("reason", "branch_not_boolean"));
+                        }
                     };
                     let edge = if pred { then_edge } else { else_edge };
                     self.bind_edge_args(&mut slots, region, edge.target, &edge.arguments)?;
@@ -191,6 +211,7 @@ impl ReferenceExecutor {
         slots: &HashMap<SsaValueId, Slot>,
         frames: &mut Vec<ScopeFrame>,
         unsupported: &mut bool,
+        unevaluated: &mut bool,
         provider: &mut Option<DomainRequest>,
         kind: &OperationKind,
     ) -> Result<Slot> {
@@ -219,13 +240,18 @@ impl ReferenceExecutor {
                     .to_string();
                 match name.as_str() {
                     "Not" | "And" | "Or" | "TrueQ" => {
-                        let bools = args
+                        let bools: Vec<Option<bool>> = args
                             .iter()
-                            .map(|id| match slots.get(id) {
-                                Some(Slot::Boolean(v)) => Ok(*v),
-                                _ => Err(diag("semantic_arg_not_boolean")),
+                            .map(|id| {
+                                let slot = slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                                Ok(slot_as_boolean_like(session, *slot))
                             })
                             .collect::<Result<Vec<_>>>()?;
+                        if bools.iter().any(|b| b.is_none()) {
+                            // Non-boolean-like args stay as residual logic forms (VM parity).
+                            return self.eval_residual_app(session, name.as_str(), args, slots);
+                        }
+                        let bools: Vec<bool> = bools.into_iter().map(|b| b.expect("checked")).collect();
                         let result = match (name.as_str(), bools.as_slice()) {
                             ("Not", [a]) => !*a,
                             ("TrueQ", [a]) => *a,
@@ -270,7 +296,12 @@ impl ReferenceExecutor {
                     "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
                     "ReplaceAll" => self.eval_replace_all(session, args, slots),
                     "Simplify" => self.eval_simplify(session, args, slots),
-                    _ => self.eval_residual_app(session, name.as_str(), args, slots),
+                    _ => {
+                        if !is_known_residual_head(name.as_str()) {
+                            *unevaluated = true;
+                        }
+                        self.eval_residual_app(session, name.as_str(), args, slots)
+                    }
                 }
             }
             OperationKind::MakeList { elements } => {
@@ -776,18 +807,36 @@ impl ReferenceExecutor {
         Ok(Slot::Term(cur))
     }
 
-    /// Bootstrap `Part` step: list + exact integer index only. Returns `None` to residual.
+    /// Bootstrap `Part` step: list/app + integer / `End` / `All`. Returns `None` to residual.
     fn part_one(&self, session: &mut Session, expr: TermId, index: TermId) -> Result<Option<TermId>> {
         let items = match session.arena.get(expr) {
             Some(athena_ir::TermNode::List(items)) => items.clone(),
             Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.clone(),
             _ => return Ok(None),
         };
+        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(index) {
+            match session.arena.symbols().resolve(*symbol) {
+                Some("End") => {
+                    return Ok(items.last().copied());
+                }
+                Some("All") => {
+                    return Ok(Some(expr));
+                }
+                _ => {}
+            }
+        }
         let Some(idx) = number_of(session, index).and_then(|n| n.as_exact_integer()) else {
             return Ok(None);
         };
         if idx == 0 {
-            return Ok(Some(session.builder().symbol("List", Default::default())));
+            return Ok(Some(match session.arena.get(expr) {
+                Some(athena_ir::TermNode::List(_)) => session.builder().symbol("List", Default::default()),
+                Some(athena_ir::TermNode::Application { head, .. }) => {
+                    let name = session.operators.name(*head).unwrap_or("").to_string();
+                    session.builder().symbol(&name, Default::default())
+                }
+                _ => return Ok(None),
+            }));
         }
         let len = items.len();
         let pos = if idx > 0 {
@@ -952,6 +1001,81 @@ fn diag(reason: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
         .detail("component", "ReferenceExecutor")
         .detail("reason", reason)
+}
+
+fn is_known_residual_head(name: &str) -> bool {
+    matches!(
+        name,
+        "Sin"
+            | "Cos"
+            | "Tan"
+            | "Exp"
+            | "Log"
+            | "Sinh"
+            | "Cosh"
+            | "Tanh"
+            | "ArcSin"
+            | "ArcCos"
+            | "ArcTan"
+            | "Erf"
+            | "Gamma"
+            | "D"
+            | "Integrate"
+            | "Hold"
+            | "HoldForm"
+    )
+}
+
+/// Logic ops: Boolean atoms · `True`/`False` · exact `0`/`1` (VM `as_boolean_id` parity).
+fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
+    match slot {
+        Slot::Boolean(v) => Some(v),
+        Slot::Term(term) => as_boolean_like_term(session, term),
+        _ => None,
+    }
+}
+
+fn as_boolean_like_term(session: &Session, term: TermId) -> Option<bool> {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Some(*v),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
+            match session.arena.symbols().resolve(*symbol) {
+                Some("True") => Some(true),
+                Some("False") => Some(false),
+                _ => None,
+            }
+        }
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
+            if n.is_zero() {
+                Some(false)
+            } else if *n == Number::small_int(1) {
+                Some(true)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn coerce_branch_predicate(session: &Session, term: TermId) -> Result<bool> {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Ok(*v),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
+            match session.arena.symbols().resolve(*symbol) {
+                Some("True") => Ok(true),
+                Some("False") => Ok(false),
+                _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+                    .detail("component", "ReferenceExecutor")
+                    .detail("reason", "branch_symbol_not_boolean")),
+            }
+        }
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => Ok(!n.is_zero()),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Null)) => Ok(false),
+        _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+            .detail("component", "ReferenceExecutor")
+            .detail("reason", "branch_term_not_boolean")),
+    }
 }
 
 fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
@@ -1574,7 +1698,7 @@ mod tests {
         let mut session = Session::new();
         let term = session.builder().int(9, Default::default());
         let module = ExecutionCompiler::new()
-            .compile(&session, &AthenaRequest::Term(term))
+            .compile(&mut session, &AthenaRequest::Term(term))
             .expect("compile");
         let result_id = ReferenceExecutor::new()
             .execute(&mut session, &module, None)
@@ -1663,6 +1787,65 @@ mod tests {
         match session.arena.get(term) {
             Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
             other => panic!("expected true boolean term, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn truthy_and_or_with_zero_one() {
+        let mut session = Session::new();
+        let and = session.operators.intern("And");
+        let or = session.operators.intern("Or");
+        let z = session.builder().int(0, Default::default());
+        let one = session.builder().int(1, Default::default());
+        let and_term = session.builder().application(and, vec![z, one], Default::default());
+        let or_term = session.builder().application(or, vec![z, one], Default::default());
+
+        let and_mod = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(and_term))
+            .expect("and");
+        let and_id = ReferenceExecutor::new()
+            .execute(&mut session, &and_mod, None)
+            .expect("and exec");
+        let and_out = session.results.get(and_id).expect("and result").symbolic_term.expect("term");
+        match session.arena.get(and_out) {
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
+            other => panic!("expected And[0,1] == False, got {other:?}"),
+        }
+
+        let or_mod = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(or_term))
+            .expect("or");
+        let or_id = ReferenceExecutor::new()
+            .execute(&mut session, &or_mod, None)
+            .expect("or exec");
+        let or_out = session.results.get(or_id).expect("or result").symbolic_term.expect("term");
+        match session.arena.get(or_out) {
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
+            other => panic!("expected Or[0,1] == True, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unknown_head_marks_partial_unknown() {
+        let mut session = Session::new();
+        let foo = session.operators.intern("FooBar");
+        let one = session.builder().int(1, Default::default());
+        let term = session.builder().application(foo, vec![one], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("compile");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.status, ComputationStatus::Unknown);
+        assert_eq!(loaded.coverage, CoverageStatus::Partial);
+        assert!(loaded.diagnostics.is_empty());
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(athena_ir::TermNode::Application { head, .. })
+                if session.operators.name(*head) == Some("FooBar") => {}
+            other => panic!("expected residual FooBar[...], got {other:?}"),
         }
     }
 }

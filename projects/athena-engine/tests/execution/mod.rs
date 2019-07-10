@@ -2,4 +2,5 @@
 
 mod compile;
 mod functions;
+mod ir_parity;
 mod vm;
