@@ -816,20 +816,65 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
+        // `Part[m, All, j, …]` — map remaining indices over each row (MATLAB `A(:,j)`).
+        if terms.len() >= 3 {
+            if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(terms[1]) {
+                if matches!(session.arena.symbols().resolve(*symbol), Some("All") | Some(":")) {
+                    if let Some(athena_ir::TermNode::List(rows)) = session.arena.get(terms[0]) {
+                        let rows = rows.clone();
+                        let rest = terms[2..].to_vec();
+                        let mut out = Vec::with_capacity(rows.len());
+                        for row in rows {
+                            let mut part_args = Vec::with_capacity(1 + rest.len());
+                            part_args.push(row);
+                            part_args.extend_from_slice(&rest);
+                            match self.part_n_terms(session, &part_args, invalid)? {
+                                PartStep::Next(item) => out.push(item),
+                                PartStep::Residual => {
+                                    return Ok(Slot::Term(push_application(session, "Part", terms)));
+                                }
+                                PartStep::Invalid { echo, diagnostic } => {
+                                    *invalid = Some(diagnostic);
+                                    return Ok(Slot::Term(echo));
+                                }
+                            }
+                        }
+                        return Ok(Slot::Term(push_list(session, out)));
+                    }
+                }
+            }
+        }
+        match self.part_n_terms(session, &terms, invalid)? {
+            PartStep::Next(term) => Ok(Slot::Term(term)),
+            PartStep::Residual => Ok(Slot::Term(push_application(session, "Part", terms))),
+            PartStep::Invalid { echo, diagnostic } => {
+                *invalid = Some(diagnostic);
+                Ok(Slot::Term(echo))
+            }
+        }
+    }
+
+    fn part_n_terms(
+        &self,
+        session: &mut Session,
+        terms: &[TermId],
+        invalid: &mut Option<Diagnostic>,
+    ) -> Result<PartStep> {
+        if terms.len() < 2 {
+            return Ok(PartStep::Residual);
+        }
         let mut cur = terms[0];
         for index in &terms[1..] {
             match self.part_one(session, cur, *index)? {
                 PartStep::Next(next) => cur = next,
-                PartStep::Residual => {
-                    return Ok(Slot::Term(push_application(session, "Part", terms)));
-                }
+                PartStep::Residual => return Ok(PartStep::Residual),
                 PartStep::Invalid { echo, diagnostic } => {
-                    *invalid = Some(diagnostic);
-                    return Ok(Slot::Term(echo));
+                    *invalid = Some(diagnostic.clone());
+                    return Ok(PartStep::Invalid { echo, diagnostic });
                 }
             }
         }
-        Ok(Slot::Term(cur))
+        Ok(PartStep::Next(cur))
     }
 
     /// Bootstrap `Part` step: list/app + integer / `End` / `All` / index list.
@@ -859,14 +904,14 @@ impl ReferenceExecutor {
         };
         if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(index) {
             match session.arena.symbols().resolve(*symbol) {
-                Some("End") => {
+                Some("End") | Some("end") => {
                     return Ok(match items.last().copied() {
                         Some(item) => PartStep::Next(item),
                         None => PartStep::Residual,
                     });
                 }
-                Some("All") => {
-                    return Ok(PartStep::Next(expr));
+                Some("All") | Some(":") => {
+                    return Ok(PartStep::Next(push_list(session, items)));
                 }
                 _ => {}
             }
@@ -1954,6 +1999,39 @@ mod tests {
                 assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(2));
             }
             other => panic!("expected List[1, 2], got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn part_column_all_then_index() {
+        let mut session = Session::new();
+        let part = session.operators.intern("Part");
+        let all = session.builder().symbol("All", Default::default());
+        let a = session.builder().int(1, Default::default());
+        let b = session.builder().int(2, Default::default());
+        let c = session.builder().int(3, Default::default());
+        let d = session.builder().int(4, Default::default());
+        let row0 = session.builder().list(vec![a, b], Default::default());
+        let row1 = session.builder().list(vec![c, d], Default::default());
+        let matrix = session.builder().list(vec![row0, row1], Default::default());
+        let col = session.builder().int(2, Default::default());
+        let term = session
+            .builder()
+            .application(part, vec![matrix, all, col], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("compile");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(athena_ir::TermNode::List(items)) if items.len() == 2 => {
+                assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(2));
+                assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(4));
+            }
+            other => panic!("expected List[2, 4], got {other:?}"),
         }
     }
 }

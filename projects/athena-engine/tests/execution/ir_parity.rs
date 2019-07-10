@@ -150,6 +150,48 @@ fn part_all_returns_list() {
 }
 
 #[test]
+fn part_oob_is_invalid_index() {
+    use athena_types::DiagnosticCode;
+    let mut c = C::new();
+    let e = apply(
+        "Part",
+        vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), i(9, &mut c)],
+        &mut c,
+    );
+    let o = result_of(e, &mut c);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::InvalidIndex);
+}
+
+#[test]
+fn part_span_extracts_slice() {
+    let mut c = C::new();
+    let e = apply(
+        "Part",
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c),
+            apply("Span", vec![i(1, &mut c), i(2, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "List[1, 2]");
+}
+
+#[test]
+fn part_column_all_then_index() {
+    let mut c = C::new();
+    let matrix = lst(
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c)], &mut c),
+            lst(vec![i(3, &mut c), i(4, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    let e = apply("Part", vec![matrix, symbol("All", &mut c), i(2, &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "List[2, 4]");
+}
+
+#[test]
 fn while_false_skips_body() {
     let mut c = C::new();
     let e = apply("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
