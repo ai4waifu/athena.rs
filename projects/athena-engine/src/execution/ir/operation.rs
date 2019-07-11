@@ -63,6 +63,8 @@ pub enum OperationKind {
         key: SsaValueId,
         /// Value written.
         value: SsaValueId,
+        /// When true, store as Delayed OwnValues (evaluate on read).
+        delayed: bool,
     },
     /// Enter a lexical or dynamic scope frame.
     EnterScope {

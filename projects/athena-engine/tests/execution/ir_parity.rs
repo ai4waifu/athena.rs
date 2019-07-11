@@ -48,6 +48,12 @@ fn boolean(v: bool, c: &mut C) -> Tid {
         .push(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v)), span)
 }
 
+fn str_(v: &str, c: &mut C) -> Tid {
+    let span = athena_ir::TermNode::default_span();
+    c.s.arena
+        .push(athena_ir::TermNode::Atom(athena_ir::Atom::String(v.into())), span)
+}
+
 fn lst(items: Vec<Tid>, c: &mut C) -> Tid {
     push_list(&mut c.s, items)
 }
@@ -211,6 +217,90 @@ fn compound_set_binds_for_later_stmts() {
 }
 
 #[test]
+fn session_setdelayed_evaluates_on_use() {
+    let mut c = C::new();
+    let delayed = apply(
+        "DefineDeferred",
+        vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(delayed, &mut c), "Null");
+    assert_eq!(t(symbol("a", &mut c), &mut c), "2");
+}
+
+#[test]
+fn with_module_block_local_bindings() {
+    let locals = |c: &mut C| {
+        let l = lst(vec![apply("Define", vec![symbol("x", c), i(1, c)], c)], c);
+        let b = apply("Plus", vec![symbol("x", c), i(1, c)], c);
+        (l, b)
+    };
+    let mut d = C::new();
+    let (l, b) = locals(&mut d);
+    assert_eq!(t(apply("LocalScope", vec![l, b], &mut d), &mut d), "2");
+    let mut d = C::new();
+    let (l, b) = locals(&mut d);
+    assert_eq!(t(apply("LexicalScope", vec![l, b], &mut d), &mut d), "2");
+    let mut d = C::new();
+    let (l, b) = locals(&mut d);
+    assert_eq!(t(apply("DynamicScope", vec![l, b], &mut d), &mut d), "2");
+}
+
+#[test]
+fn module_bare_local_is_renamed_unique() {
+    let mut c = C::new();
+    let e1 = apply(
+        "LexicalScope",
+        vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)],
+        &mut c,
+    );
+    let r1 = t(e1, &mut c);
+    let e2 = apply(
+        "LexicalScope",
+        vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)],
+        &mut c,
+    );
+    let r2 = t(e2, &mut c);
+    assert!(r1.starts_with("x$"), "got {r1}");
+    assert!(r2.starts_with("x$"), "got {r2}");
+    assert_ne!(r1, r2);
+}
+
+#[test]
+fn try_catch_on_error_and_success() {
+    let mut c = C::new();
+    let err = apply(
+        "Recover",
+        vec![apply("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(err, &mut c), "1");
+    let ok = apply("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
+    assert_eq!(t(ok, &mut c), "2");
+}
+
+#[test]
+fn session_set_persists_across_evaluate() {
+    let mut c = C::new();
+    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    assert_eq!(t(set, &mut c), "5");
+    let e = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "6");
+    let mut d = C::new();
+    let e = apply("Plus", vec![symbol("x", &mut d), i(1, &mut d)], &mut d);
+    let r = t(e, &mut d);
+    assert!(r.contains("x"), "expected free x, got {r}");
+}
+
+#[test]
+fn map_sin_list() {
+    let mut c = C::new();
+    let e = apply("Map", vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
+    let r = t(e, &mut c);
+    assert!(r.starts_with("List["), "got {r}");
+}
+
+#[test]
 fn for_span_last_value() {
     let mut c = C::new();
     let e = apply(
@@ -223,6 +313,31 @@ fn for_span_last_value() {
         &mut c,
     );
     assert_eq!(t(e, &mut c), "3");
+}
+
+#[test]
+fn for_accumulator_shares_compound_bindings() {
+    let mut c = C::new();
+    let set0 = apply("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
+    let body = apply(
+        "Define",
+        vec![
+            symbol("s", &mut c),
+            apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    let f = apply(
+        "CountedLoop",
+        vec![
+            symbol("i", &mut c),
+            apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c),
+            body,
+        ],
+        &mut c,
+    );
+    let e = apply("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "6");
 }
 
 #[test]

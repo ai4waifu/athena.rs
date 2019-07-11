@@ -347,7 +347,7 @@ impl ReferenceExecutor {
                 frames.pop();
                 Ok(Slot::Unit)
             }
-            OperationKind::WriteBinding { key, value } => {
+            OperationKind::WriteBinding { key, value, delayed } => {
                 let symbol = match slots.get(key) {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
@@ -361,7 +361,14 @@ impl ReferenceExecutor {
                         }
                     }
                     Some(Slot::Term(term)) => {
-                        if let Some(frame) = frames.last_mut() {
+                        if *delayed {
+                            if let Some(frame) = frames.last_mut() {
+                                // Bootstrap: local delayed stored as Own of captured rhs.
+                                frame.bind(symbol, LocalBinding::Own(*term));
+                            } else {
+                                session.defs.define_delayed(symbol, *term);
+                            }
+                        } else if let Some(frame) = frames.last_mut() {
                             frame.bind(symbol, LocalBinding::Own(*term));
                         } else {
                             session.defs.define_own(symbol, *term);
@@ -369,7 +376,13 @@ impl ReferenceExecutor {
                     }
                     Some(Slot::Boolean(v)) => {
                         let term = session.builder().boolean(*v, Default::default());
-                        if let Some(frame) = frames.last_mut() {
+                        if *delayed {
+                            if let Some(frame) = frames.last_mut() {
+                                frame.bind(symbol, LocalBinding::Own(term));
+                            } else {
+                                session.defs.define_delayed(symbol, term);
+                            }
+                        } else if let Some(frame) = frames.last_mut() {
                             frame.bind(symbol, LocalBinding::Own(term));
                         } else {
                             session.defs.define_own(symbol, term);
@@ -393,7 +406,16 @@ impl ReferenceExecutor {
                     return Ok(Slot::Term(term));
                 }
                 if let Some(term) = session.defs.delayed(symbol) {
-                    return Ok(Slot::Term(term));
+                    // Evaluate Delayed OwnValues on read (SetDelayed semantics).
+                    let module = ExecutionCompiler::new()
+                        .compile(session, &AthenaRequest::Term(term))?;
+                    let result_id = self.execute(session, &module, None)?;
+                    let out = session
+                        .results
+                        .get(result_id)
+                        .and_then(|r| r.symbolic_term)
+                        .unwrap_or(term);
+                    return Ok(Slot::Term(out));
                 }
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }

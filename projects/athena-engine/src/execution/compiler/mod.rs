@@ -209,6 +209,69 @@ impl ExecutionCompiler {
                         .detail("status", "define_arity_not_supported")),
                 };
             }
+            if name == Some("DefineDeferred") || name == Some("SetDelayed") {
+                return match arguments.as_slice() {
+                    [lhs, rhs] => {
+                        let symbol = match session.arena.get(*lhs) {
+                            Some(TermNode::Atom(Atom::Symbol(symbol))) => Some(*symbol),
+                            _ => None,
+                        };
+                        match symbol {
+                            Some(symbol) => self.lower_command(
+                                session,
+                                builder,
+                                blocks,
+                                block_id,
+                                &SessionCommand::Define {
+                                    symbol,
+                                    value: *rhs,
+                                    timing: DefinitionEvaluationTiming::Deferred,
+                                },
+                            ),
+                            None => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                .detail("component", "ExecutionCompiler")
+                                .detail("status", "define_deferred_lhs_not_symbol")),
+                        }
+                    }
+                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionCompiler")
+                        .detail("status", "define_deferred_arity_not_supported")),
+                };
+            }
+            if name == Some("LocalScope") || name == Some("LexicalScope") || name == Some("DynamicScope") {
+                return match arguments.as_slice() {
+                    [locals, body] => self.lower_term_scope(
+                        session,
+                        builder,
+                        blocks,
+                        block_id,
+                        name.unwrap_or("LocalScope"),
+                        *locals,
+                        *body,
+                    ),
+                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionCompiler")
+                        .detail("status", "scope_arity_not_supported")),
+                };
+            }
+            if name == Some("Recover") {
+                return match arguments.as_slice() {
+                    [body, handler] => self.lower_recover(
+                        session,
+                        builder,
+                        blocks,
+                        block_id,
+                        &AthenaRequest::Term(*body),
+                        &AthenaRequest::Term(*handler),
+                    ),
+                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionCompiler")
+                        .detail("status", "recover_arity_not_supported")),
+                };
+            }
+            if name == Some("error") || name == Some("Error") {
+                return self.lower_error_reject(builder, blocks, block_id);
+            }
             if name == Some("Cond") {
                 return self.lower_term_cond(session, builder, blocks, block_id, &arguments);
             }
@@ -277,6 +340,239 @@ impl ExecutionCompiler {
             terminator: Terminator::return_value(ssa),
         });
         Ok(ssa)
+    }
+
+    /// Lower `error`/`Error` as a hard `Reject` so `Recover` can catch it.
+    fn lower_error_reject(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+    ) -> Result<SsaValueId> {
+        let placeholder = builder.ssa();
+        let constant = builder.push_constant(ConstantValue::Unit);
+        blocks.push(BasicBlock {
+            id: block_id,
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                result: Some(placeholder),
+                result_type: ExecutionValueType::Unit,
+                kind: OperationKind::Constant { constant },
+                effect_in: None,
+                effect_out: None,
+            }],
+            terminator: Terminator::Reject { exit: None },
+        });
+        Ok(placeholder)
+    }
+
+    /// Capture rhs as `LoadTerm` then `WriteBinding` (atoms / Deferred compounds).
+    fn lower_define_capture(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+        symbol: athena_types::SymbolId,
+        value: TermId,
+        delayed: bool,
+    ) -> Result<SsaValueId> {
+        let _ = session;
+        let key = builder.ssa();
+        let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
+        let root = builder.push_term_root(value);
+        let rhs = builder.ssa();
+        let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+        let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+        let unit = builder.ssa();
+        // Immediate returns rhs; Deferred returns Null.
+        let returned = if delayed { unit } else { rhs };
+        blocks.push(BasicBlock {
+            id: block_id,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(key),
+                    result_type: ExecutionValueType::Symbol,
+                    kind: OperationKind::Constant { constant: key_constant },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(rhs),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::LoadTerm { root },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(unit),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::WriteBinding {
+                        key,
+                        value: rhs,
+                        delayed,
+                    },
+                    effect_in: Some(effect_in),
+                    effect_out: Some(effect_out),
+                },
+            ],
+            terminator: Terminator::return_value(returned),
+        });
+        Ok(returned)
+    }
+
+    /// Immediate `Define` with compound rhs: evaluate then bind the result.
+    fn lower_define_evaluated(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        symbol: athena_types::SymbolId,
+        rhs: TermId,
+    ) -> Result<SsaValueId> {
+        let eval_block = builder.block_id();
+        let bind_block = builder.block_id();
+        let entry_cond = builder.ssa();
+        let entry_true = builder.push_constant(ConstantValue::boolean(true));
+
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                result: Some(entry_cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: entry_true },
+                effect_in: None,
+                effect_out: None,
+            }],
+            terminator: Terminator::Branch {
+                condition: entry_cond,
+                then_edge: BlockEdge::jump(eval_block),
+                else_edge: BlockEdge::jump(eval_block),
+            },
+        });
+
+        let rhs_value = self.lower_request(session, builder, blocks, eval_block, &AthenaRequest::Term(rhs))?;
+        self.rewrite_returns_to_join(builder, blocks, bind_block, rhs_value)?;
+
+        let value_param = builder.ssa();
+        let key = builder.ssa();
+        let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
+        let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+        let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+        let unit = builder.ssa();
+        blocks.push(BasicBlock {
+            id: bind_block,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: value_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: vec![
+                Operation {
+                    result: Some(key),
+                    result_type: ExecutionValueType::Symbol,
+                    kind: OperationKind::Constant { constant: key_constant },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(unit),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::WriteBinding {
+                        key,
+                        value: value_param,
+                        delayed: false,
+                    },
+                    effect_in: Some(effect_in),
+                    effect_out: Some(effect_out),
+                },
+            ],
+            terminator: Terminator::return_value(value_param),
+        });
+        Ok(value_param)
+    }
+
+    /// Term `LocalScope` / `LexicalScope` / `DynamicScope`: locals list + body inside `EnterScope`.
+    fn lower_term_scope(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+        head: &str,
+        locals: TermId,
+        body: TermId,
+    ) -> Result<SsaValueId> {
+        let items = match session.arena.get(locals) {
+            Some(TermNode::List(items)) => items.clone(),
+            _ => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionCompiler")
+                    .detail("status", "scope_locals_not_list"));
+            }
+        };
+        let allow_bare = head == "LexicalScope";
+        let mut steps = Vec::with_capacity(items.len().saturating_add(1));
+        for item in items {
+            if let Some((symbol, rhs)) = self.match_define_term(session, item) {
+                steps.push(AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value: rhs,
+                    timing: DefinitionEvaluationTiming::Immediate,
+                }));
+                continue;
+            }
+            if allow_bare {
+                if let Some(TermNode::Atom(Atom::Symbol(symbol))) = session.arena.get(item) {
+                    let symbol = *symbol;
+                    let name = session
+                        .arena
+                        .symbols()
+                        .resolve(symbol)
+                        .unwrap_or("x")
+                        .to_string();
+                    session.module_counter = session.module_counter.saturating_add(1);
+                    let uniq = format!("{name}${}", session.module_counter);
+                    let uniq_term = session.builder().symbol(&uniq, Default::default());
+                    steps.push(AthenaRequest::Command(SessionCommand::Define {
+                        symbol,
+                        value: uniq_term,
+                        timing: DefinitionEvaluationTiming::Immediate,
+                    }));
+                    continue;
+                }
+            }
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "scope_local_not_supported"));
+        }
+        steps.push(AthenaRequest::Term(body));
+        self.lower_scope(
+            session,
+            builder,
+            blocks,
+            block_id,
+            &AthenaRequest::Control(ControlPlan::Sequence { steps }),
+        )
+    }
+
+    fn match_define_term(&self, session: &Session, term: TermId) -> Option<(athena_types::SymbolId, TermId)> {
+        let TermNode::Application { head, arguments } = session.arena.get(term)? else {
+            return None;
+        };
+        if arguments.len() != 2 {
+            return None;
+        }
+        let name = session.operators.name(*head)?;
+        if name != "Define" && name != "Set" {
+            return None;
+        }
+        match session.arena.get(arguments[0]) {
+            Some(TermNode::Atom(Atom::Symbol(symbol))) => Some((*symbol, arguments[1])),
+            _ => None,
+        }
     }
 
     fn lower_term_cond(
@@ -361,46 +657,22 @@ impl ExecutionCompiler {
             SessionCommand::Define {
                 symbol,
                 value,
-                timing: DefinitionEvaluationTiming::Immediate | DefinitionEvaluationTiming::Deferred,
+                timing,
             } => {
-                // Atom rhs only: Immediate and Deferred coincide for already-normalized atoms.
-                self.require_atom(session, *value)?;
-                let key = builder.ssa();
-                let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
-                let root = builder.push_term_root(*value);
-                let rhs = builder.ssa();
-                let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
-                let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
-                let unit = builder.ssa();
-                blocks.push(BasicBlock {
-                    id: block_id,
-                    parameters: Vec::new(),
-                    operations: vec![
-                        Operation {
-                            result: Some(key),
-                            result_type: ExecutionValueType::Symbol,
-                            kind: OperationKind::Constant { constant: key_constant },
-                            effect_in: None,
-                            effect_out: None,
-                        },
-                        Operation {
-                            result: Some(rhs),
-                            result_type: ExecutionValueType::Term,
-                            kind: OperationKind::LoadTerm { root },
-                            effect_in: None,
-                            effect_out: None,
-                        },
-                        Operation {
-                            result: Some(unit),
-                            result_type: ExecutionValueType::Unit,
-                            kind: OperationKind::WriteBinding { key, value: rhs },
-                            effect_in: Some(effect_in),
-                            effect_out: Some(effect_out),
-                        },
-                    ],
-                    terminator: Terminator::return_value(unit),
-                });
-                Ok(unit)
+                let delayed = matches!(timing, DefinitionEvaluationTiming::Deferred);
+                if delayed {
+                    return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, true);
+                }
+                // Immediate: atoms bind directly; compounds evaluate then bind (VM Set parity).
+                match session.arena.get(*value) {
+                    Some(TermNode::Atom(_)) => {
+                        self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, false)
+                    }
+                    Some(_) => self.lower_define_evaluated(session, builder, blocks, block_id, *symbol, *value),
+                    None => Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
+                        .detail("component", "ExecutionCompiler")
+                        .detail("reason", "missing_term")),
+                }
             }
             SessionCommand::ClearDefinition { symbol } => {
                 let key = builder.ssa();
@@ -432,7 +704,11 @@ impl ExecutionCompiler {
                             result: Some(result),
                             result_type: ExecutionValueType::Unit,
                             // Unit rhs means clear binding (not store Unit as Own).
-                            kind: OperationKind::WriteBinding { key, value: unit_val },
+                            kind: OperationKind::WriteBinding {
+                                key,
+                                value: unit_val,
+                                delayed: false,
+                            },
                             effect_in: Some(effect_in),
                             effect_out: Some(effect_out),
                         },
@@ -500,7 +776,6 @@ impl ExecutionCompiler {
                 .detail("component", "ExecutionCompiler")
                 .detail("status", "counted_loop_body_must_be_term"));
         };
-        self.require_atom(session, *body_term)?;
 
         if items.is_empty() {
             let value = builder.ssa();
@@ -1083,32 +1358,44 @@ impl ExecutionCompiler {
             last_value = self.lower_request(session, builder, blocks, block_id, step)?;
             if index + 1 < steps.len() {
                 let next = step_blocks[index + 1];
-                let cond = builder.ssa();
-                let c = builder.push_constant(ConstantValue::boolean(true));
-                let block = blocks
-                    .iter_mut()
-                    .find(|b| b.id == block_id)
-                    .ok_or_else(|| {
-                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                            .detail("component", "ExecutionCompiler")
-                            .detail("status", "sequence_block_missing")
-                    })?;
-                block.operations.push(Operation {
-                    result: Some(cond),
-                    result_type: ExecutionValueType::Boolean,
-                    kind: OperationKind::Constant { constant: c },
-                    effect_in: None,
-                    effect_out: None,
-                });
-                // Chain steps with explicit jumps (no demand queue).
-                block.terminator = Terminator::Branch {
-                    condition: cond,
-                    then_edge: BlockEdge::jump(next),
-                    else_edge: BlockEdge::jump(next),
-                };
+                // Rewrite every Return produced by this step (including nested eval/bind
+                // blocks from Immediate compound `Define`) into a jump to the next step.
+                self.rewrite_returns_to_continue(builder, blocks, next)?;
             }
         }
         Ok(last_value)
+    }
+
+    /// Chain sequence steps: turn outstanding `Return` terminators into jumps to `next`.
+    fn rewrite_returns_to_continue(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        next: BlockId,
+    ) -> Result<()> {
+        let return_block_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| matches!(b.terminator, Terminator::Return { .. }))
+            .map(|b| b.id)
+            .collect();
+        for block_id in return_block_ids {
+            let cond = builder.ssa();
+            let true_const = builder.push_constant(ConstantValue::boolean(true));
+            let block = blocks.iter_mut().find(|b| b.id == block_id).expect("block");
+            block.operations.push(Operation {
+                result: Some(cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: true_const },
+                effect_in: None,
+                effect_out: None,
+            });
+            block.terminator = Terminator::Branch {
+                condition: cond,
+                then_edge: BlockEdge::jump(next),
+                else_edge: BlockEdge::jump(next),
+            };
+        }
+        Ok(())
     }
 
     fn lower_branch(
@@ -2102,6 +2389,45 @@ mod tests {
     }
 
     #[test]
+    fn compile_and_execute_define_deferred_evaluates_on_read() {
+        let mut session = Session::new();
+        let plus = session.operators.intern("Plus");
+        let a = session.builder().int(1, Default::default());
+        let b = session.builder().int(1, Default::default());
+        let rhs = session.builder().application(plus, vec![a, b], Default::default());
+        let head = session.operators.intern("DefineDeferred");
+        let sym_term = session.builder().symbol("a", Default::default());
+        let term = session
+            .builder()
+            .application(head, vec![sym_term, rhs], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("define deferred");
+        ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("define exec");
+        let symbol = match session.arena.get(sym_term) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol, got {other:?}"),
+        };
+        assert!(session.defs.own(symbol).is_none());
+        assert_eq!(session.defs.delayed(symbol), Some(rhs));
+
+        let read_module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(sym_term))
+            .expect("read");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &read_module, None)
+            .expect("read exec");
+        let loaded = session.results.get(result_id).expect("result");
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+            other => panic!("expected delayed Plus[1,1] == 2, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn compile_and_execute_define_then_read_binding() {
         use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
 
@@ -2317,6 +2643,49 @@ mod tests {
     }
 
     #[test]
+    fn compile_and_execute_term_recover_error_and_success() {
+        let mut session = Session::new();
+        let recover = session.operators.intern("Recover");
+        let error = session.operators.intern("error");
+        let msg = session.builder().string("e", Default::default());
+        let err_body = session
+            .builder()
+            .application(error, vec![msg], Default::default());
+        let one = session.builder().int(1, Default::default());
+        let err_term = session
+            .builder()
+            .application(recover, vec![err_body, one], Default::default());
+        let err_mod = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(err_term))
+            .expect("recover err");
+        let err_id = ReferenceExecutor::new()
+            .execute(&mut session, &err_mod, None)
+            .expect("err exec");
+        let err_out = session.results.get(err_id).expect("result").symbolic_term.expect("term");
+        match session.arena.get(err_out) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
+            other => panic!("expected Recover[error,1] == 1, got {other:?}"),
+        }
+
+        let two = session.builder().int(2, Default::default());
+        let three = session.builder().int(3, Default::default());
+        let ok_term = session
+            .builder()
+            .application(recover, vec![two, three], Default::default());
+        let ok_mod = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(ok_term))
+            .expect("recover ok");
+        let ok_id = ReferenceExecutor::new()
+            .execute(&mut session, &ok_mod, None)
+            .expect("ok exec");
+        let ok_out = session.results.get(ok_id).expect("result").symbolic_term.expect("term");
+        match session.arena.get(ok_out) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+            other => panic!("expected Recover[2,3] == 2, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn compile_and_execute_cond_second_arm() {
         let mut session = Session::new();
         let c0 = session.builder().boolean(false, Default::default());
@@ -2384,6 +2753,70 @@ mod tests {
         assert_eq!(loaded.symbolic_term, Some(local));
         // Session Own unchanged after local scope exits.
         assert_eq!(session.defs.own(symbol), Some(global));
+    }
+
+    #[test]
+    fn compile_and_execute_term_local_scope_with_define() {
+        let mut session = Session::new();
+        let define = session.operators.intern("Define");
+        let plus = session.operators.intern("Plus");
+        let scope = session.operators.intern("LocalScope");
+        let x = session.builder().symbol("x", Default::default());
+        let one = session.builder().int(1, Default::default());
+        let def = session
+            .builder()
+            .application(define, vec![x, one], Default::default());
+        let locals = session.builder().list(vec![def], Default::default());
+        let one2 = session.builder().int(1, Default::default());
+        let body = session
+            .builder()
+            .application(plus, vec![x, one2], Default::default());
+        let term = session
+            .builder()
+            .application(scope, vec![locals, body], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("local scope");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+            other => panic!("expected LocalScope Define body == 2, got {other:?}"),
+        }
+        let symbol = match session.arena.get(x) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol, got {other:?}"),
+        };
+        assert!(session.defs.own(symbol).is_none());
+    }
+
+    #[test]
+    fn compile_and_execute_term_lexical_scope_bare_unique() {
+        let mut session = Session::new();
+        let scope = session.operators.intern("LexicalScope");
+        let x = session.builder().symbol("x", Default::default());
+        let locals = session.builder().list(vec![x], Default::default());
+        let term = session
+            .builder()
+            .application(scope, vec![locals, x], Default::default());
+        let module = ExecutionCompiler::new()
+            .compile(&mut session, &AthenaRequest::Term(term))
+            .expect("lexical");
+        let result_id = ReferenceExecutor::new()
+            .execute(&mut session, &module, None)
+            .expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        let out = loaded.symbolic_term.expect("term");
+        match session.arena.get(out) {
+            Some(TermNode::Atom(Atom::Symbol(sym))) => {
+                let name = session.arena.symbols().resolve(*sym).unwrap_or("");
+                assert!(name.starts_with("x$"), "got {name}");
+            }
+            other => panic!("expected unique x$N, got {other:?}"),
+        }
     }
 
     #[test]
