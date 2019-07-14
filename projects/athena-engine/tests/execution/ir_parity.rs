@@ -341,6 +341,63 @@ fn for_accumulator_shares_compound_bindings() {
 }
 
 #[test]
+fn compare_chain_less_expands_to_and() {
+    let mut c = C::new();
+    let nested = apply("Less", vec![i(1, &mut c), i(2, &mut c)], &mut c);
+    let e = apply("Less", vec![nested, i(3, &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "True");
+    let nested = apply("Less", vec![i(1, &mut c), i(0, &mut c)], &mut c);
+    let e2 = apply("Less", vec![nested, i(3, &mut c)], &mut c);
+    assert_eq!(t(e2, &mut c), "False");
+}
+
+#[test]
+fn compare_list_scalar_broadcasts() {
+    let mut c = C::new();
+    let e = apply(
+        "Less",
+        vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(2, &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "List[True, False, False]");
+}
+
+#[test]
+fn replace_all_literal() {
+    let mut c = C::new();
+    let rule = apply("Rule", vec![symbol("x", &mut c), i(9, &mut c)], &mut c);
+    let e = apply(
+        "ReplaceAll",
+        vec![apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c), rule],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "10");
+}
+
+#[test]
+fn apply_and_join_and_length() {
+    let mut c = C::new();
+    let e = apply(
+        "Apply",
+        vec![symbol("Plus", &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "6");
+    let e = apply(
+        "Join",
+        vec![lst(vec![i(1, &mut c)], &mut c), lst(vec![i(2, &mut c), i(3, &mut c)], &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "List[1, 2, 3]");
+    let e = apply(
+        "Length",
+        vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "3");
+}
+
+#[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
     assert_eq!(

@@ -1597,14 +1597,21 @@ impl ExecutionCompiler {
                         .detail("component", "ExecutionCompiler")
                         .detail("status", "unknown_operator")
                 })?;
+                // Flatten left-nested compare chains before arg eval (`Less[Less[1,2],3]` → `Less[1,2,3]`).
+                let compare_args = if matches!(name, "Less" | "Greater" | "LessEqual" | "GreaterEqual") {
+                    flatten_compare_chain_args(session, name, term)
+                } else {
+                    None
+                };
+                let arg_terms = compare_args.unwrap_or(arguments);
                 // Known semantic ops + unknown heads as Term residuals (CAS stays symbolic).
                 let result_type = match name {
                     "Not" | "And" | "Or" | "TrueQ" | "SameQ" | "Equal" | "Unequal"
                     | "Less" | "Greater" | "LessEqual" | "GreaterEqual" => ExecutionValueType::Boolean,
                     _ => ExecutionValueType::Term,
                 };
-                let mut args = Vec::with_capacity(arguments.len());
-                for arg in arguments {
+                let mut args = Vec::with_capacity(arg_terms.len());
+                for arg in arg_terms {
                     args.push(self.lower_pure_expr(session, builder, operations, arg)?);
                 }
                 let ssa = builder.ssa();
@@ -1706,6 +1713,34 @@ fn expand_span_range(start: i64, step: i64, end: i64) -> Option<Vec<i64>> {
         }
     }
     Some(out)
+}
+
+/// Collect left-nested compare operands: `Less[Less[a,b],c]` → `[a,b,c]`.
+fn flatten_compare_chain_args(session: &Session, op: &str, term: TermId) -> Option<Vec<TermId>> {
+    let mut out = Vec::new();
+    if !collect_compare_chain_args(session, op, term, &mut out) {
+        return None;
+    }
+    if out.len() < 2 {
+        return None;
+    }
+    Some(out)
+}
+
+fn collect_compare_chain_args(session: &Session, op: &str, term: TermId, out: &mut Vec<TermId>) -> bool {
+    let Some(TermNode::Application { head, arguments }) = session.arena.get(term) else {
+        return false;
+    };
+    if session.operators.name(*head) != Some(op) || arguments.len() != 2 {
+        return false;
+    }
+    let left = arguments[0];
+    let right = arguments[1];
+    if !collect_compare_chain_args(session, op, left, out) {
+        out.push(left);
+    }
+    out.push(right);
+    true
 }
 
 #[cfg(test)]
