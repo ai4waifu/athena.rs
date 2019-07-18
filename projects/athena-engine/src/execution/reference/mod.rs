@@ -309,6 +309,7 @@ impl ReferenceExecutor {
                     "Range" => self.eval_range(session, args, slots),
                     "Apply" => self.eval_apply(session, args, slots),
                     "Size" => self.eval_size(session, args, slots),
+                    "Sum" => self.eval_sum(session, args, slots),
                     "Map" => self.eval_map(session, args, slots),
                     "Zeros" | "Ones" | "Eye" => self.eval_matrix_constructor(session, name.as_str(), args, slots),
                     "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
@@ -751,6 +752,57 @@ impl ReferenceExecutor {
         let r = session.builder().int(rows as i64, Default::default());
         let c = session.builder().int(cols as i64, Default::default());
         Ok(Slot::Term(push_list(session, vec![r, c])))
+    }
+
+    /// `Sum[list]` — vector scalar sum / matrix column sums (VM `array_sum` parity).
+    fn eval_sum(
+        &self,
+        session: &mut Session,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
+        if args.len() != 1 {
+            return Ok(Slot::Term({
+                let mut terms = Vec::with_capacity(args.len());
+                for id in args {
+                    let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                    terms.push(self.slot_as_term(session, slot)?);
+                }
+                push_application(session, "Sum", terms)
+            }));
+        }
+        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let Some(athena_ir::TermNode::List(items)) = session.arena.get(term) else {
+            return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+        };
+        let items = items.clone();
+        if items.is_empty() {
+            return Ok(Slot::Term(session.builder().int(0, Default::default())));
+        }
+        if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::List(_))) {
+            // Matrix: sum each column into a row vector.
+            let Some((_, cols)) = nested_list_shape(session, term) else {
+                return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+            };
+            let mut out = Vec::with_capacity(cols as usize);
+            for j in 0..cols as usize {
+                let mut col = Vec::with_capacity(items.len());
+                for row in &items {
+                    let cell = match session.arena.get(*row) {
+                        Some(athena_ir::TermNode::List(cells)) => cells.get(j).copied(),
+                        _ => None,
+                    };
+                    let Some(cell) = cell else {
+                        return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+                    };
+                    col.push(cell);
+                }
+                out.push(fold_plus_symbolic(session, col));
+            }
+            return Ok(Slot::Term(push_list(session, out)));
+        }
+        // Vector: scalar sum via Plus fold.
+        Ok(Slot::Term(fold_plus_symbolic(session, items)))
     }
 
     fn eval_range(

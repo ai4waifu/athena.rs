@@ -398,6 +398,58 @@ fn apply_and_join_and_length() {
 }
 
 #[test]
+fn module_local_does_not_clobber_session() {
+    let mut c = C::new();
+    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let _ = c.s.evaluate(set);
+    let locals = lst(vec![apply("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let body = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    let e = apply("LexicalScope", vec![locals, body], &mut c);
+    assert_eq!(t(e, &mut c), "2");
+    assert_eq!(t(symbol("x", &mut c), &mut c), "5");
+}
+
+#[test]
+fn nested_module_names_do_not_collide() {
+    let mut c = C::new();
+    let inner_locals = lst(vec![symbol("x", &mut c)], &mut c);
+    let inner = apply("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
+    let outer_locals = lst(vec![symbol("x", &mut c)], &mut c);
+    let e = apply("LexicalScope", vec![outer_locals, inner], &mut c);
+    let r = t(e, &mut c);
+    assert!(r.starts_with("x$"), "got {r}");
+}
+
+#[test]
+fn array_sum_vector_and_matrix() {
+    let mut c = C::new();
+    let e = apply("Sum", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "6");
+    let m = lst(
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c)], &mut c),
+            lst(vec![i(3, &mut c), i(4, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    assert_eq!(t(apply("Sum", vec![m], &mut c), &mut c), "List[4, 6]");
+}
+
+#[test]
+fn size_of_matrix() {
+    let mut c = C::new();
+    let m = lst(
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c)], &mut c),
+            lst(vec![i(3, &mut c), i(4, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    let r = t(apply("Size", vec![m], &mut c), &mut c);
+    assert!(r.contains("List[2, 2]"), "got {r}");
+}
+
+#[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
     assert_eq!(
