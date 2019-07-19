@@ -6,13 +6,16 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use athena_numeric::{
-    Number, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
-    mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
+    Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div,
+    factorial as num_factorial, mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
 use crate::api::request::AthenaRequest;
 use crate::domains::dispatch::{DomainRequest, execute_domain};
+use crate::domains::linear_algebra::{
+    MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact,
+};
 use crate::execution::compiler::ExecutionCompiler;
 use crate::execution::environment::{LocalBinding, ScopeFrame};
 use crate::execution::ir::{
@@ -22,7 +25,7 @@ use crate::execution::{number_of, push_application, push_number};
 use crate::runtime::results::{computation_from_domain, ComputationResult, CoverageStatus, ResultProvenance};
 use crate::runtime::session::Session;
 use crate::runtime::values::arena::push_list;
-use crate::runtime::values::numeric_clone::clone_number;
+use crate::runtime::values::numeric_clone::{clone_integer, clone_number, clone_rational};
 
 /// Semantic oracle backend shared by parity tests and deterministic replay.
 #[derive(Debug, Default)]
@@ -310,6 +313,8 @@ impl ReferenceExecutor {
                     "Apply" => self.eval_apply(session, args, slots),
                     "Size" => self.eval_size(session, args, slots),
                     "Sum" => self.eval_sum(session, args, slots),
+                    "Det" => self.eval_det(session, args, slots, invalid),
+                    "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
                     "Map" => self.eval_map(session, args, slots),
                     "Zeros" | "Ones" | "Eye" => self.eval_matrix_constructor(session, name.as_str(), args, slots),
                     "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
@@ -803,6 +808,87 @@ impl ReferenceExecutor {
         }
         // Vector: scalar sum via Plus fold.
         Ok(Slot::Term(fold_plus_symbolic(session, items)))
+    }
+
+    fn eval_det(
+        &self,
+        session: &mut Session,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+        invalid: &mut Option<Diagnostic>,
+    ) -> Result<Slot> {
+        if args.len() != 1 {
+            return Err(diag("semantic_operator_arity"));
+        }
+        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let echo = push_application(session, "Det", vec![term]);
+        let Some(matrix) = term_to_rational_matrix_session(session, term) else {
+            return Ok(Slot::Term(echo));
+        };
+        match det_bareiss(&matrix) {
+            Ok(result) => Ok(Slot::Term(rational_to_term_session(session, &result.det))),
+            Err(diagnostic) => {
+                *invalid = Some(diagnostic);
+                Ok(Slot::Term(echo))
+            }
+        }
+    }
+
+    fn eval_linear_solve(
+        &self,
+        session: &mut Session,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+        invalid: &mut Option<Diagnostic>,
+    ) -> Result<Slot> {
+        if args.len() != 2 {
+            return Err(diag("semantic_operator_arity"));
+        }
+        let a = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let b = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let echo = push_application(session, "LinearSolve", vec![a, b]);
+        let Some(am) = term_to_rational_matrix_session(session, a) else {
+            return Ok(Slot::Term(echo));
+        };
+        let Some(bm) = term_to_rational_matrix_session(session, b) else {
+            return Ok(Slot::Term(echo));
+        };
+        match solve_exact(&am, &bm) {
+            Ok(sol) if sol.disposition == SolveDisposition::Unique => match sol.particular {
+                Some(x) => match matrix_to_nested_list_session(session, &x) {
+                    Ok(term) => Ok(Slot::Term(term)),
+                    Err(diagnostic) => {
+                        *invalid = Some(diagnostic);
+                        Ok(Slot::Term(echo))
+                    }
+                },
+                None => {
+                    *invalid = Some(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve"),
+                    );
+                    Ok(Slot::Term(echo))
+                }
+            },
+            Ok(sol) => {
+                let detail = match sol.disposition {
+                    SolveDisposition::Inconsistent => "inconsistent",
+                    SolveDisposition::Infinite { .. } => "underdetermined",
+                    SolveDisposition::Unique => "unique",
+                    SolveDisposition::Singular => "singular",
+                    SolveDisposition::ResourceLimited => "resource_limited",
+                };
+                *invalid = Some(
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("operation", "LinearSolve")
+                        .detail("reason", detail),
+                );
+                Ok(Slot::Term(echo))
+            }
+            Err(diagnostic) => {
+                *invalid = Some(diagnostic);
+                Ok(Slot::Term(echo))
+            }
+        }
     }
 
     fn eval_range(
@@ -1940,6 +2026,89 @@ fn nested_list_shape(session: &Session, term: TermId) -> Option<(u64, u64)> {
     } else {
         Some((1, rows.len() as u64))
     }
+}
+
+fn term_scalar_rational_session(session: &Session, term: TermId) -> Option<Rational> {
+    let n = number_of(session, term)?;
+    if let Some(i) = n.as_exact_integer() {
+        return Some(Rational::new(Integer::from_i64(i), Integer::one()));
+    }
+    if let Some(i) = n.as_integer() {
+        return Some(Rational::new(clone_integer(i), Integer::one()));
+    }
+    n.as_rational().map(clone_rational)
+}
+
+fn term_to_rational_matrix_session(session: &Session, term: TermId) -> Option<MatrixValue> {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::List(rows)) if !rows.is_empty() => {
+            if matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::List(_))) {
+                let mut data = Vec::new();
+                let mut cols: Option<u64> = None;
+                for row in rows {
+                    let cells = match session.arena.get(*row) {
+                        Some(athena_ir::TermNode::List(cells)) => cells.clone(),
+                        _ => return None,
+                    };
+                    let c = cells.len() as u64;
+                    match cols {
+                        Some(prev) if prev != c => return None,
+                        None => cols = Some(c),
+                        _ => {}
+                    }
+                    for cell in cells {
+                        data.push(term_scalar_rational_session(session, cell)?);
+                    }
+                }
+                MatrixValue::from_rationals_row_major(rows.len() as u64, cols.unwrap_or(0), data).ok()
+            } else {
+                let mut data = Vec::with_capacity(rows.len());
+                for cell in rows {
+                    data.push(term_scalar_rational_session(session, *cell)?);
+                }
+                MatrixValue::from_rationals_row_major(1, data.len() as u64, data).ok()
+            }
+        }
+        _ => {
+            let r = term_scalar_rational_session(session, term)?;
+            MatrixValue::from_rationals_row_major(1, 1, vec![r]).ok()
+        }
+    }
+}
+
+fn rational_to_term_session(session: &mut Session, r: &Rational) -> TermId {
+    if r.is_integer() {
+        if let Some(i) = r.numerator().to_i64() {
+            return session.builder().int(i, Default::default());
+        }
+    }
+    push_number(
+        session,
+        Number::from_rational_normalized(clone_rational(r)),
+    )
+}
+
+fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
+    let (rows, cols) = (m.shape().rows, m.shape().cols);
+    let mut out = Vec::with_capacity(rows as usize);
+    for i in 0..rows {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            match m.get(i, j)? {
+                MatrixEntry::Rational(r) => row.push(rational_to_term_session(session, &r)),
+                MatrixEntry::Integer(n) => {
+                    if let Some(i64v) = n.to_i64() {
+                        row.push(session.builder().int(i64v, Default::default()));
+                    } else {
+                        row.push(push_number(session, Number::integer(clone_integer(&n))));
+                    }
+                }
+                MatrixEntry::MachineF64(x) => row.push(push_number(session, Number::machine(x))),
+            }
+        }
+        out.push(push_list(session, row));
+    }
+    Ok(push_list(session, out))
 }
 
 #[cfg(test)]

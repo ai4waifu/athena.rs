@@ -450,6 +450,42 @@ fn size_of_matrix() {
 }
 
 #[test]
+fn det_and_size() {
+    let mut c = C::new();
+    let m = lst(
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c)], &mut c),
+            lst(vec![i(3, &mut c), i(4, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    assert_eq!(t(apply("Det", vec![m.clone()], &mut c), &mut c), "-2");
+    let r = t(apply("Size", vec![m], &mut c), &mut c);
+    assert!(r.contains("List[2, 2]"), "got {r}");
+}
+
+#[test]
+fn linear_solve_column_vector() {
+    let mut c = C::new();
+    let m = lst(
+        vec![
+            lst(vec![i(2, &mut c), i(0, &mut c)], &mut c),
+            lst(vec![i(0, &mut c), i(2, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    let b = lst(
+        vec![
+            lst(vec![i(4, &mut c)], &mut c),
+            lst(vec![i(6, &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    let r = t(apply("LinearSolve", vec![m, b], &mut c), &mut c);
+    assert!(r.contains("List[2]"), "got {r}");
+}
+
+#[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
     assert_eq!(
