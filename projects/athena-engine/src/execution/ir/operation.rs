@@ -66,6 +66,15 @@ pub enum OperationKind {
         /// When true, store as Delayed OwnValues (evaluate on read).
         delayed: bool,
     },
+    /// Append a DownValue rule (`f[pat] := rhs`).
+    WriteDownValue {
+        /// Head symbol key.
+        key: SsaValueId,
+        /// Full pattern lhs term (usually `f[…]`).
+        pattern: SsaValueId,
+        /// Deferred rhs term (not evaluated at write).
+        value: SsaValueId,
+    },
     /// Enter a lexical or dynamic scope frame.
     EnterScope {
         /// Optional parent scope SSA handle.

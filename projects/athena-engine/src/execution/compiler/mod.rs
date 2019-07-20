@@ -211,28 +211,35 @@ impl ExecutionCompiler {
             }
             if name == Some("DefineDeferred") || name == Some("SetDelayed") {
                 return match arguments.as_slice() {
-                    [lhs, rhs] => {
-                        let symbol = match session.arena.get(*lhs) {
-                            Some(TermNode::Atom(Atom::Symbol(symbol))) => Some(*symbol),
-                            _ => None,
-                        };
-                        match symbol {
-                            Some(symbol) => self.lower_command(
-                                session,
-                                builder,
-                                blocks,
-                                block_id,
-                                &SessionCommand::Define {
-                                    symbol,
-                                    value: *rhs,
-                                    timing: DefinitionEvaluationTiming::Deferred,
-                                },
-                            ),
-                            None => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                .detail("component", "ExecutionCompiler")
-                                .detail("status", "define_deferred_lhs_not_symbol")),
+                    [lhs, rhs] => match session.arena.get(*lhs) {
+                        Some(TermNode::Atom(Atom::Symbol(symbol))) => self.lower_command(
+                            session,
+                            builder,
+                            blocks,
+                            block_id,
+                            &SessionCommand::Define {
+                                symbol: *symbol,
+                                value: *rhs,
+                                timing: DefinitionEvaluationTiming::Deferred,
+                            },
+                        ),
+                        Some(TermNode::Application { head: op, .. }) => {
+                            let head_name = session.operators.name(*op).unwrap_or("").to_string();
+                            if head_name.is_empty() || head_name == "Application" {
+                                Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                    .detail("component", "ExecutionCompiler")
+                                    .detail("status", "define_deferred_lhs_not_supported"))
+                            } else {
+                                let symbol = session.arena.symbols_mut().intern(&head_name);
+                                self.lower_define_down_value(
+                                    session, builder, blocks, block_id, symbol, *lhs, *rhs,
+                                )
+                            }
                         }
-                    }
+                        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ExecutionCompiler")
+                            .detail("status", "define_deferred_lhs_not_supported")),
+                    },
                     _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                         .detail("component", "ExecutionCompiler")
                         .detail("status", "define_deferred_arity_not_supported")),
@@ -364,6 +371,69 @@ impl ExecutionCompiler {
             terminator: Terminator::Reject { exit: None },
         });
         Ok(placeholder)
+    }
+
+    /// Capture pattern lhs + deferred rhs then `WriteDownValue`.
+    fn lower_define_down_value(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+        symbol: athena_types::SymbolId,
+        pattern: TermId,
+        value: TermId,
+    ) -> Result<SsaValueId> {
+        let _ = session;
+        let key = builder.ssa();
+        let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
+        let pattern_root = builder.push_term_root(pattern);
+        let pattern_ssa = builder.ssa();
+        let value_root = builder.push_term_root(value);
+        let value_ssa = builder.ssa();
+        let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+        let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+        let unit = builder.ssa();
+        blocks.push(BasicBlock {
+            id: block_id,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(key),
+                    result_type: ExecutionValueType::Symbol,
+                    kind: OperationKind::Constant { constant: key_constant },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(pattern_ssa),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::LoadTerm { root: pattern_root },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(value_ssa),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::LoadTerm { root: value_root },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(unit),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::WriteDownValue {
+                        key,
+                        pattern: pattern_ssa,
+                        value: value_ssa,
+                    },
+                    effect_in: Some(effect_in),
+                    effect_out: Some(effect_out),
+                },
+            ],
+            terminator: Terminator::return_value(unit),
+        });
+        Ok(unit)
     }
 
     /// Capture rhs as `LoadTerm` then `WriteBinding` (atoms / Deferred compounds).
@@ -1610,9 +1680,28 @@ impl ExecutionCompiler {
                     | "Less" | "Greater" | "LessEqual" | "GreaterEqual" => ExecutionValueType::Boolean,
                     _ => ExecutionValueType::Term,
                 };
+                // `Table` / iterator `Sum`/`Product`: HoldAll-ish body (first arg), evaluate iterator.
+                // `CollectMatches` / `Matches`: HoldAll-ish pattern (second arg).
+                let hold_first = matches!(name, "Table" | "Product")
+                    || (name == "Sum" && arg_terms.len() == 2);
+                let hold_second = matches!(name, "CollectMatches" | "Matches" | "Cases")
+                    && arg_terms.len() >= 2;
                 let mut args = Vec::with_capacity(arg_terms.len());
-                for arg in arg_terms {
-                    args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                for (index, arg) in arg_terms.into_iter().enumerate() {
+                    if (hold_first && index == 0) || (hold_second && index == 1) {
+                        let root = builder.push_term_root(arg);
+                        let ssa = builder.ssa();
+                        operations.push(Operation {
+                            result: Some(ssa),
+                            result_type: ExecutionValueType::Term,
+                            kind: OperationKind::LoadTerm { root },
+                            effect_in: None,
+                            effect_out: None,
+                        });
+                        args.push(ssa);
+                    } else {
+                        args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                    }
                 }
                 let ssa = builder.ssa();
                 operations.push(Operation {

@@ -537,3 +537,142 @@ fn span_expands_to_list() {
     let mut c = C::new();
     assert_eq!(t(apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), &mut c), "List[1, 2, 3]");
 }
+
+#[test]
+fn session_setdelayed_pattern_down_value() {
+    let mut c = C::new();
+    let lhs = apply(
+        "f",
+        vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)],
+        &mut c,
+    );
+    let rhs = apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
+    let define = apply("DefineDeferred", vec![lhs, rhs], &mut c);
+    assert_eq!(t(define, &mut c), "Null");
+    assert_eq!(t(apply("f", vec![i(3, &mut c)], &mut c), &mut c), "9");
+    let mut d = C::new();
+    let lhs = apply(
+        "f",
+        vec![apply("Bind", vec![symbol("x", &mut d), apply("Any", vec![], &mut d)], &mut d)],
+        &mut d,
+    );
+    let rhs = apply("Power", vec![symbol("x", &mut d), i(2, &mut d)], &mut d);
+    let define = apply("DefineDeferred", vec![lhs, rhs], &mut d);
+    let call = apply("f", vec![i(3, &mut d)], &mut d);
+    let e = apply("Sequence", vec![define, call], &mut d);
+    assert_eq!(t(e, &mut d), "9");
+}
+
+#[test]
+fn down_value_literal_pattern_and_fallback() {
+    let mut c = C::new();
+    let lhs1 = apply("f", vec![i(1, &mut c)], &mut c);
+    let def1 = apply("DefineDeferred", vec![lhs1, i(10, &mut c)], &mut c);
+    assert_eq!(t(def1, &mut c), "Null");
+    let lhs2 = apply(
+        "f",
+        vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)],
+        &mut c,
+    );
+    let rhs2 = apply("Times", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
+    let def2 = apply("DefineDeferred", vec![lhs2, rhs2], &mut c);
+    assert_eq!(t(def2, &mut c), "Null");
+    assert_eq!(t(apply("f", vec![i(1, &mut c)], &mut c), &mut c), "10");
+    assert_eq!(t(apply("f", vec![i(5, &mut c)], &mut c), &mut c), "10");
+}
+
+#[test]
+fn sum_over_iterator_folds() {
+    let mut c = C::new();
+    let iter = lst(vec![symbol("k", &mut c), i(1, &mut c), i(4, &mut c)], &mut c);
+    let e = apply(
+        "Sum",
+        vec![apply("Power", vec![symbol("k", &mut c), i(2, &mut c)], &mut c), iter],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "30");
+}
+
+#[test]
+fn table_with_single_bound() {
+    let mut c = C::new();
+    let iter = lst(vec![symbol("i", &mut c), i(3, &mut c)], &mut c);
+    let e = apply("Table", vec![symbol("i", &mut c), iter], &mut c);
+    assert_eq!(t(e, &mut c), "List[1, 2, 3]");
+}
+
+#[test]
+fn cases_filters_by_pattern() {
+    let mut c = C::new();
+    let pat = apply("Any", vec![symbol("Integer", &mut c)], &mut c);
+    let e = apply(
+        "CollectMatches",
+        vec![lst(vec![i(1, &mut c), symbol("y", &mut c), i(3, &mut c)], &mut c), pat],
+        &mut c,
+    );
+    let r = t(e, &mut c);
+    assert!(r.contains("List[1, 3]"), "got {r}");
+}
+
+#[test]
+fn machine_trig_at_real_points() {
+    let mut c = C::new();
+    let zero = {
+        let span = athena_ir::TermNode::default_span();
+        c.s.arena.push(
+            athena_ir::TermNode::Atom(athena_ir::Atom::Number(athena_numeric::NumericValue::machine(0.0))),
+            span,
+        )
+    };
+    let e = apply("Sin", vec![zero], &mut c);
+    assert_eq!(t(e, &mut c), "0");
+    let e = apply("Cos", vec![symbol("Pi", &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "-1");
+}
+
+#[test]
+fn d_power() {
+    let mut c = C::new();
+    let e = apply(
+        "D",
+        vec![
+            apply("Power", vec![symbol("x", &mut c), i(3, &mut c)], &mut c),
+            symbol("x", &mut c),
+        ],
+        &mut c,
+    );
+    let r = t(e, &mut c);
+    assert!(r.contains("x"), "got {r}");
+}
+
+#[test]
+fn integrate_power() {
+    let mut c = C::new();
+    let e = apply(
+        "Integrate",
+        vec![
+            apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c),
+            symbol("x", &mut c),
+        ],
+        &mut c,
+    );
+    let r = t(e, &mut c);
+    assert!(r.contains("x"), "got {r}");
+}
+
+#[test]
+fn pythagorean() {
+    let mut c = C::new();
+    let sin2 = apply(
+        "Power",
+        vec![apply("Sin", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)],
+        &mut c,
+    );
+    let cos2 = apply(
+        "Power",
+        vec![apply("Cos", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)],
+        &mut c,
+    );
+    let e = apply("Simplify", vec![apply("Plus", vec![sin2, cos2], &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "1");
+}
