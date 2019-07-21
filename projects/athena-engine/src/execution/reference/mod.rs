@@ -183,12 +183,17 @@ impl ReferenceExecutor {
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
                     let pred = match slots.get(condition).ok_or_else(|| diag("branch_undefined"))? {
-                        Slot::Boolean(v) => *v,
-                        Slot::Term(term) => coerce_branch_predicate(session, *term)?,
-                        _ => {
-                            return Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
-                                .detail("component", "ReferenceExecutor")
-                                .detail("reason", "branch_not_boolean"));
+                        Slot::Boolean(v) => Ok(*v),
+                        Slot::Term(term) => coerce_branch_predicate(session, *term),
+                        _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+                            .detail("component", "ReferenceExecutor")
+                            .detail("reason", "branch_not_boolean")),
+                    };
+                    let pred = match pred {
+                        Ok(v) => v,
+                        Err(diagnostic) => {
+                            // Soft-fail like VM: Invalid + unevaluated (Null residual).
+                            return Ok((Some(Slot::Unit), unsupported, true, Some(diagnostic)));
                         }
                     };
                     let edge = if pred { then_edge } else { else_edge };
@@ -329,6 +334,14 @@ impl ReferenceExecutor {
                     "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic"
                     | "Residue" | "DSolve" | "LaplaceTransform" | "FourierTransform" | "ZTransform"
                     | "Divergence" | "Curl" => self.eval_calculus(session, name.as_str(), args, slots),
+                    "Import" | "Export" | "Timing" => {
+                        *invalid = Some(
+                            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                .detail("component", "ReferenceExecutor")
+                                .detail("operation", name.as_str()),
+                        );
+                        self.eval_residual_app(session, name.as_str(), args, slots)
+                    }
                     _ => {
                         if let Some(slot) = self.try_apply_down_values(session, name.as_str(), args, slots)? {
                             return Ok(slot);

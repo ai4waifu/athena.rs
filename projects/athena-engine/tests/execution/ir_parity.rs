@@ -676,3 +676,53 @@ fn pythagorean() {
     let e = apply("Simplify", vec![apply("Plus", vec![sin2, cos2], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "1");
 }
+
+#[test]
+fn unsupported_import_is_not_silent_value() {
+    use athena_types::DiagnosticCode;
+    let mut c = C::new();
+    let e = apply("Import", vec![str_("x.csv", &mut c)], &mut c);
+    let o = result_of(e, &mut c);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
+}
+
+#[test]
+fn if_false_and_null_and_non_boolean() {
+    use athena_types::DiagnosticCode;
+    let mut c = C::new();
+    assert_eq!(
+        t(
+            apply("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c),
+            &mut c
+        ),
+        "8"
+    );
+    assert_eq!(
+        t(apply("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c),
+        "Null"
+    );
+    let e = apply("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
+    let o = result_of(e, &mut c);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::NonBooleanCondition);
+}
+
+#[test]
+fn branch_true_skips_else_import() {
+    use athena_types::DiagnosticCode;
+    let mut c = C::new();
+    let e = apply(
+        "Branch",
+        vec![
+            symbol("True", &mut c),
+            i(7, &mut c),
+            apply("Import", vec![str_("x.csv", &mut c)], &mut c),
+        ],
+        &mut c,
+    );
+    assert_eq!(t(e, &mut c), "7");
+    let o = result_of(e, &mut c);
+    assert_eq!(o.status, ComputationStatus::Exact);
+    assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
+}
