@@ -32,7 +32,7 @@ pub(crate) fn table(vm: &mut Vm<'_>, args: &[TermId]) -> (TermEvaluation, Option
     let mut out = Vec::with_capacity(values.len());
     for value in values {
         let body = match var {
-            Some(sym) => crate::execution::builtins::patterns::substitute_symbol(vm, args[0], sym, value),
+            Some(sym) => crate::execution::builtins::patterns::substitute_symbol(vm.session, args[0], sym, value),
             None => args[0],
         };
         let body_o = vm.eval_value(body);
@@ -162,7 +162,7 @@ pub(crate) fn h_match_q(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     }
     let expr_o = vm.eval_value(args[0]);
     // 模式参数保持未求值（Any / Bind 等）。
-    let matched = crate::execution::builtins::patterns::pattern_matches(vm, expr_o.term, args[1]);
+    let matched = crate::execution::builtins::patterns::pattern_matches(vm.session, expr_o.term, args[1]);
     let term = vm.push_bool(matched);
     TermEvaluation { term, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: expr_o.diagnostics }
 }
@@ -180,7 +180,7 @@ pub(crate) fn h_cases(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
         let term = vm.push_application("CollectMatches", vec![list_o.term, args[1]]);
         return TermEvaluation::unevaluated(term).with_diagnostics(list_o.diagnostics);
     };
-    let out: Vec<TermId> = items.into_iter().filter(|item| crate::execution::builtins::patterns::pattern_matches(vm, *item, args[1])).collect();
+    let out: Vec<TermId> = items.into_iter().filter(|item| crate::execution::builtins::patterns::pattern_matches(vm.session, *item, args[1])).collect();
     TermEvaluation {
         term: vm.push_list(out),
         kind: crate::execution::EvalKind::Value,

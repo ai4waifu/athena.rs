@@ -966,7 +966,6 @@ impl ExecutionCompiler {
         condition: TermId,
         body: &AthenaRequest,
     ) -> Result<SsaValueId> {
-        let cond_bool = self.require_boolean_atom(session, condition)?;
         let header = builder.block_id();
         let body_block = builder.block_id();
         let exit = builder.block_id();
@@ -1012,21 +1011,30 @@ impl ExecutionCompiler {
             },
         });
 
-        let loop_cond = builder.ssa();
-        let loop_const = builder.push_constant(ConstantValue::boolean(cond_bool));
+        // Header re-evaluates the predicate each iteration (ReadBinding / compares).
+        let mut header_ops = Vec::new();
+        let loop_cond = match self.require_boolean_atom(session, condition) {
+            Ok(cond_bool) => {
+                let loop_cond = builder.ssa();
+                let loop_const = builder.push_constant(ConstantValue::boolean(cond_bool));
+                header_ops.push(Operation {
+                    result: Some(loop_cond),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: loop_const },
+                    effect_in: None,
+                    effect_out: None,
+                });
+                loop_cond
+            }
+            Err(_) => self.lower_pure_expr(session, builder, &mut header_ops, condition)?,
+        };
         blocks.push(BasicBlock {
             id: header,
             parameters: vec![crate::execution::ir::BlockParameter {
                 value: acc_param,
                 ty: ExecutionValueType::Term,
             }],
-            operations: vec![Operation {
-                result: Some(loop_cond),
-                result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant { constant: loop_const },
-                effect_in: None,
-                effect_out: None,
-            }],
+            operations: header_ops,
             terminator: Terminator::Branch {
                 condition: loop_cond,
                 then_edge: BlockEdge::jump(body_block),
@@ -1178,9 +1186,22 @@ impl ExecutionCompiler {
         let otherwise_block = builder.block_id();
 
         for (index, (condition, arm)) in arms.iter().enumerate() {
-            let cond_bool = self.require_boolean_atom(session, *condition)?;
-            let cond_value = builder.ssa();
-            let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
+            let mut operations = Vec::new();
+            let cond_value = match self.require_boolean_atom(session, *condition) {
+                Ok(cond_bool) => {
+                    let cond_value = builder.ssa();
+                    let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
+                    operations.push(Operation {
+                        result: Some(cond_value),
+                        result_type: ExecutionValueType::Boolean,
+                        kind: OperationKind::Constant { constant: cond_constant },
+                        effect_in: None,
+                        effect_out: None,
+                    });
+                    cond_value
+                }
+                Err(_) => self.lower_pure_expr(session, builder, &mut operations, *condition)?,
+            };
             let arm_block = builder.block_id();
             let else_target = if index + 1 < arms.len() {
                 test_blocks[index + 1]
@@ -1190,13 +1211,7 @@ impl ExecutionCompiler {
             blocks.push(BasicBlock {
                 id: test_blocks[index],
                 parameters: Vec::new(),
-                operations: vec![Operation {
-                    result: Some(cond_value),
-                    result_type: ExecutionValueType::Boolean,
-                    kind: OperationKind::Constant { constant: cond_constant },
-                    effect_in: None,
-                    effect_out: None,
-                }],
+                operations,
                 terminator: Terminator::Branch {
                     condition: cond_value,
                     then_edge: BlockEdge::jump(arm_block),
@@ -1682,13 +1697,18 @@ impl ExecutionCompiler {
                 };
                 // `Table` / iterator `Sum`/`Product`: HoldAll-ish body (first arg), evaluate iterator.
                 // `CollectMatches` / `Matches`: HoldAll-ish pattern (second arg).
+                // `Function`: HoldAll args (formal + body).
+                let hold_all = name == "Function";
                 let hold_first = matches!(name, "Table" | "Product")
                     || (name == "Sum" && arg_terms.len() == 2);
                 let hold_second = matches!(name, "CollectMatches" | "Matches" | "Cases")
                     && arg_terms.len() >= 2;
                 let mut args = Vec::with_capacity(arg_terms.len());
                 for (index, arg) in arg_terms.into_iter().enumerate() {
-                    if (hold_first && index == 0) || (hold_second && index == 1) {
+                    if hold_all
+                        || (hold_first && index == 0)
+                        || (hold_second && index == 1)
+                    {
                         let root = builder.push_term_root(arg);
                         let ssa = builder.ssa();
                         operations.push(Operation {

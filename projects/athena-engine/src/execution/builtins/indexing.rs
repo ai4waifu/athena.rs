@@ -212,7 +212,7 @@ pub(crate) fn h_replace_all(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation 
     };
     let mut cur = args[0];
     for (lhs, rhs) in rule_list {
-        cur = crate::execution::builtins::patterns::replace_literal(vm, cur, lhs, rhs);
+        cur = crate::execution::builtins::patterns::replace_literal(vm.session, cur, lhs, rhs);
     }
     let o = vm.eval_value(cur);
     o
@@ -251,13 +251,13 @@ fn map_one(vm: &mut Vm<'_>, func: TermId, item: TermId) -> TermId {
     }
     if is_function_arity(vm, func, 1) {
         let body = vm.application_arguments(func).unwrap_or_default()[0];
-        return crate::execution::builtins::patterns::substitute_slot(vm, body, item);
+        return crate::execution::builtins::patterns::substitute_slot(vm.session, body, item);
     }
     if is_function_arity(vm, func, 2) {
         let fargs = vm.application_arguments(func).unwrap_or_default();
         if let Some(var) = symbol_name(vm, fargs[0]) {
             let sym = vm.session.arena.symbols_mut().intern(var);
-            return crate::execution::builtins::patterns::substitute_symbol(vm, fargs[1], sym, item);
+            return crate::execution::builtins::patterns::substitute_symbol(vm.session, fargs[1], sym, item);
         }
     }
     vm.push_application("Map", vec![func, item])

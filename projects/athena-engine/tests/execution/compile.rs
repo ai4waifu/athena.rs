@@ -1,9 +1,9 @@
-//! Interp 执行层语义验收（Living `25` L2 · KernelIR + VM）。
+//! Interp 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_session`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,
     execution,
-    execution::vm::evaluate_session,
+    execution::evaluate_session,
     runtime::{
         Session,
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},
@@ -166,15 +166,13 @@ fn table_sum_and_module() {
     let e = apply("LexicalScope", vec![locals, symbol("x", &mut s)], &mut s);
     let r = eval(&mut s, e);
     assert!(r.contains("x$"), "got {r}");
-    // LexicalScope[{x}, x = 1; x + 1]：fresh-env quirk — x=1 写入 fresh env，
-    // 体中 x 先被物化为唯一化符号，结果保持 `Plus[1, x$N]` 形态。
+    // LexicalScope[{x}, x = 1; x + 1] → 2（局部 Define 写入当前 ScopeFrame）。
     let locals = list(vec![symbol("x", &mut s)], &mut s);
     let set = apply("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
     let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
     let body = apply("Sequence", vec![set, body], &mut s);
     let e = apply("LexicalScope", vec![locals, body], &mut s);
-    let r = eval(&mut s, e);
-    assert!(r.contains("Plus[1, x$"), "got {r}");
+    assert_eq!(eval(&mut s, e), "2");
     // LexicalScope[{x = 1}, x + 1] → 2（初始化局部）
     let locals = list(vec![apply("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s)], &mut s);
     let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);

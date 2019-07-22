@@ -6,11 +6,11 @@
 
 pub mod backend;
 pub mod builtins;
-pub mod compile;
+pub(crate) mod compile;
 pub mod compiler;
 pub mod environment;
 pub mod ir;
-pub mod kernel_ir;
+pub(crate) mod kernel_ir;
 pub mod provider;
 pub mod reference;
 pub(crate) mod shape;
@@ -23,7 +23,7 @@ use crate::api::request::AthenaRequest;
 use crate::runtime::session::Session;
 
 pub use environment::{DefinitionLayer, LocalBinding, ScopeFrame};
-pub use kernel_ir::{ExecUnit, HandlerId, Instr};
+pub(crate) use kernel_ir::{ExecUnit, HandlerId, Instr};
 
 /// Compile and run one request on the `ExecutionIR` path only.
 ///
@@ -38,6 +38,38 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
         _ => None,
     };
     reference::ReferenceExecutor::new().execute(session, &module, domain)
+}
+
+/// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。
+///
+/// Cutover：经 [`execute_ir_request`]，不再走栈式 VM。
+/// 仍返回 [`TermEvaluation`] 以兼容尚未迁完的验收测试。
+pub fn evaluate_session(session: &mut Session, expr: TermId) -> TermEvaluation {
+    match execute_ir_request(session, AthenaRequest::Term(expr)) {
+        Ok(result_id) => {
+            let Some(result) = session.results.get(result_id) else {
+                return TermEvaluation::unevaluated(expr);
+            };
+            let term = result.symbolic_term.unwrap_or(expr);
+            let diagnostics = result.diagnostics.clone();
+            let status = result.status;
+            let has_error = diagnostics
+                .iter()
+                .any(|d| d.severity == Severity::Error);
+            let kind = if status == ComputationStatus::Exact && !has_error {
+                EvalKind::Value
+            } else {
+                EvalKind::Unevaluated
+            };
+            TermEvaluation {
+                term,
+                kind,
+                status,
+                diagnostics,
+            }
+        }
+        Err(diagnostic) => TermEvaluation::invalid(expr, diagnostic),
+    }
 }
 
 /// handler 统一签名：接收已求值或原始操作数（由指令决定），返回结果。
@@ -122,8 +154,7 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
 
 /// 会话级符号替换（`Table` / `CountedLoop` / `Function` 具化）。
 pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
-    let mut machine = vm::Vm::new(session);
-    builtins::patterns::substitute_symbol(&mut machine, expr, symbol, value)
+    builtins::patterns::substitute_symbol(session, expr, symbol, value)
 }
 
 /// handler 表下标（与 [`HANDLERS`] 顺序一一对应）。

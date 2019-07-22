@@ -124,8 +124,8 @@ fn apply_down_values(vm: &mut Vm<'_>, app: TermId) -> TermId {
             continue;
         }
         let mut binds: HashMap<SymbolId, TermId> = HashMap::new();
-        if pat_args.iter().zip(args.iter()).all(|(p, a)| crate::execution::builtins::patterns::pattern_bind(vm, *a, *p, &mut binds)) {
-            let substituted = crate::execution::builtins::patterns::substitute_binds(vm, rhs, &binds);
+        if pat_args.iter().zip(args.iter()).all(|(p, a)| crate::execution::builtins::patterns::pattern_bind(vm.session, *a, *p, &mut binds)) {
+            let substituted = crate::execution::builtins::patterns::substitute_binds(vm.session, rhs, &binds);
             return rewrite_bindings(vm, substituted);
         }
     }

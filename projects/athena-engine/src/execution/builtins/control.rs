@@ -234,7 +234,7 @@ fn for_loop(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     };
     let mut last = vm.push_null();
     for value in values {
-        let body = crate::execution::builtins::patterns::substitute_symbol(vm, args[2], var_sym, value);
+        let body = crate::execution::builtins::patterns::substitute_symbol(vm.session, args[2], var_sym, value);
         let body_o = vm.eval_stmt(body);
         diags.extend(body_o.diagnostics);
         last = body_o.term;
@@ -435,7 +435,7 @@ fn module_local(vm: &Vm<'_>, term: TermId) -> Option<(athena_types::SymbolId, Op
 pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[TermId], args: &[TermId]) -> TermEvaluation {
     match fargs {
         [body] if args.len() == 1 => {
-            let substituted = crate::execution::builtins::patterns::substitute_slot(vm, *body, args[0]);
+            let substituted = crate::execution::builtins::patterns::substitute_slot(vm.session, *body, args[0]);
             vm.eval_value(substituted)
         }
         [var, body] if args.len() == 1 => {
@@ -443,7 +443,7 @@ pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[TermId], args: &[TermId])
                 Some(TermNode::Atom(Atom::Symbol(s))) => Some(*s),
                 _ => None,
             } {
-                let substituted = crate::execution::builtins::patterns::substitute_symbol(vm, *body, sym, args[0]);
+                let substituted = crate::execution::builtins::patterns::substitute_symbol(vm.session, *body, sym, args[0]);
                 vm.eval_value(substituted)
             }
             else {

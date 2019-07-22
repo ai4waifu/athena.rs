@@ -7,7 +7,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use athena_ir::{Atom, TermNode};
 use athena_numeric::{Number, NumericContext};
-use athena_types::{Diagnostic, DiagnosticCode, OperatorId, SymbolId, TermId};
+use athena_types::{Diagnostic, OperatorId, SymbolId, TermId};
 
 use crate::runtime::{
     session::Session,
@@ -264,15 +264,7 @@ impl<'a> Vm<'a> {
 
     /// 廉价结构快照（不复制数字载荷）。
     pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
-        match self.session.arena.get(id)? {
-            TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
-            TermNode::Atom(Atom::String(s)) => Some(Shape::String(s.clone())),
-            TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
-            TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
-            TermNode::Atom(Atom::Null) => Some(Shape::Null),
-            TermNode::List(items) => Some(Shape::List(items.clone())),
-            TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
-        }
+        crate::execution::shape::term_shape(self.session, id)
     }
 
     /// 唯一化局部符号（`name$N` 物化）。
@@ -456,14 +448,4 @@ impl<'a> Vm<'a> {
         let (term, kind, status) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
         TermEvaluation { term, kind, status, diagnostics: diags }
     }
-}
-
-/// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。
-pub fn evaluate_session(session: &mut Session, expr: TermId) -> TermEvaluation {
-    Vm::evaluate_top(session, expr)
-}
-
-/// handler 求值错误捷径。
-pub(crate) fn invalid_echo(echo: TermId, operation: &str) -> TermEvaluation {
-    TermEvaluation::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", operation))
 }

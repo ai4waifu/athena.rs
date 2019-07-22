@@ -1,9 +1,9 @@
-//! Interp 执行层 `evaluate_session` 覆盖（Living `25` L2 · 原 legacy `evaluate` 桥合同）。
+//! Interp 执行层覆盖（Living `25` L2 · 现经 `evaluate_session` → `ExecutionIR`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,
     execution,
-    execution::vm::evaluate_session,
+    execution::evaluate_session,
     runtime::{
         Session,
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},

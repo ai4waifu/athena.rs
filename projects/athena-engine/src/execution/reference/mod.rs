@@ -319,6 +319,7 @@ impl ReferenceExecutor {
                     "Span" => self.eval_span(session, args, slots),
                     "Range" => self.eval_range(session, args, slots),
                     "Apply" => self.eval_apply(session, args, slots),
+                    "Application" => self.eval_application_form(session, args, slots),
                     "Size" => self.eval_size(session, args, slots),
                     "Sum" => self.eval_sum(session, args, slots),
                     "Table" => self.eval_table(session, args, slots),
@@ -619,22 +620,23 @@ impl ReferenceExecutor {
             terms.push(self.slot_as_term(session, slot)?);
         }
         let substituted = {
-            let mut vm = crate::execution::vm::Vm::new(session);
             let mut matched = None;
             for (lhs, rhs) in rules {
-                let Some(crate::execution::shape::Shape::Application(_, pat_args)) = vm.shape(lhs) else {
+                let Some(crate::execution::shape::Shape::Application(_, pat_args)) =
+                    crate::execution::shape::term_shape(session, lhs)
+                else {
                     continue;
                 };
                 if pat_args.len() != terms.len() {
                     continue;
                 }
                 let mut binds = HashMap::new();
-                if pat_args
-                    .iter()
-                    .zip(terms.iter())
-                    .all(|(p, a)| crate::execution::builtins::patterns::pattern_bind(&mut vm, *a, *p, &mut binds))
-                {
-                    matched = Some(crate::execution::builtins::patterns::substitute_binds(&mut vm, rhs, &binds));
+                if pat_args.iter().zip(terms.iter()).all(|(p, a)| {
+                    crate::execution::builtins::patterns::pattern_bind(session, *a, *p, &mut binds)
+                }) {
+                    matched = Some(crate::execution::builtins::patterns::substitute_binds(
+                        session, rhs, &binds,
+                    ));
                     break;
                 }
             }
@@ -774,12 +776,9 @@ impl ReferenceExecutor {
         };
         let items = items.clone();
         let mut out = Vec::new();
-        {
-            let mut vm = crate::execution::vm::Vm::new(session);
-            for item in items {
-                if crate::execution::builtins::patterns::pattern_matches(&mut vm, item, pat) {
-                    out.push(item);
-                }
+        for item in items {
+            if crate::execution::builtins::patterns::pattern_matches(session, item, pat) {
+                out.push(item);
             }
         }
         Ok(Slot::Term(push_list(session, out)))
@@ -797,10 +796,7 @@ impl ReferenceExecutor {
         }
         let expr = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let matched = {
-            let mut vm = crate::execution::vm::Vm::new(session);
-            crate::execution::builtins::patterns::pattern_matches(&mut vm, expr, pat)
-        };
+        let matched = crate::execution::builtins::patterns::pattern_matches(session, expr, pat);
         Ok(Slot::Boolean(matched))
     }
 
@@ -909,6 +905,71 @@ impl ReferenceExecutor {
             }
             Err(_) => Ok(Slot::Term(app)),
         }
+    }
+
+    /// `Application[head, args…]` — apply `Function[var, body]` or symbol head.
+    fn eval_application_form(
+        &self,
+        session: &mut Session,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
+        if args.is_empty() {
+            return Err(diag("semantic_operator_arity"));
+        }
+        let head = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let mut call_args = Vec::with_capacity(args.len().saturating_sub(1));
+        for id in &args[1..] {
+            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            call_args.push(self.slot_as_term(session, slot)?);
+        }
+        // Function[var, body][arg…] → substitute and re-eval.
+        if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
+            if session.operators.name(*op) == Some("Function") && arguments.len() == 2 && call_args.len() == 1 {
+                let var = arguments[0];
+                let body = arguments[1];
+                if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(var) {
+                    let sym = *sym;
+                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(
+                        session,
+                        body,
+                        sym,
+                        call_args[0],
+                    );
+                    match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
+                        Ok(module) => {
+                            let result_id = self.execute(session, &module, None)?;
+                            let term = session
+                                .results
+                                .get(result_id)
+                                .and_then(|r| r.symbolic_term)
+                                .unwrap_or(instantiated);
+                            return Ok(Slot::Term(term));
+                        }
+                        Err(_) => return Ok(Slot::Term(instantiated)),
+                    }
+                }
+            }
+        }
+        if let Some(name) = symbol_name(session, head) {
+            let app = push_application(session, &name, call_args);
+            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
+                Ok(module) => {
+                    let result_id = self.execute(session, &module, None)?;
+                    let term = session
+                        .results
+                        .get(result_id)
+                        .and_then(|r| r.symbolic_term)
+                        .unwrap_or(app);
+                    return Ok(Slot::Term(term));
+                }
+                Err(_) => return Ok(Slot::Term(app)),
+            }
+        }
+        let mut wrapped = Vec::with_capacity(call_args.len() + 1);
+        wrapped.push(head);
+        wrapped.extend(call_args);
+        Ok(Slot::Term(push_application(session, "Application", wrapped)))
     }
 
     fn eval_size(
@@ -1026,8 +1087,7 @@ impl ReferenceExecutor {
         for value in values {
             let instantiated = match var {
                 Some(sym) => {
-                    let mut vm = crate::execution::vm::Vm::new(session);
-                    crate::execution::builtins::patterns::substitute_symbol(&mut vm, body, sym, value)
+                    crate::execution::builtins::patterns::substitute_symbol(session, body, sym, value)
                 }
                 None => body,
             };
@@ -1605,6 +1665,7 @@ fn is_known_residual_head(name: &str) -> bool {
             | "Integrate"
             | "Hold"
             | "HoldForm"
+            | "Function"
     )
 }
 
@@ -1829,18 +1890,28 @@ fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     }
 }
 
-fn canonicalize_times_factors_session(session: &Session, factors: Vec<TermId>) -> Vec<TermId> {
-    let mut nums = Vec::new();
+fn canonicalize_times_factors_session(session: &mut Session, factors: Vec<TermId>) -> Vec<TermId> {
+    let mut product: Option<Number> = None;
     let mut rest = Vec::new();
     for f in factors {
-        if number_of(session, f).is_some() {
-            nums.push(f);
+        if let Some(n) = number_of(session, f) {
+            let n = clone_number(n);
+            product = Some(match product.take() {
+                Some(p) => num_mul(clone_number(&p), n).unwrap_or(p),
+                None => n,
+            });
         } else {
             rest.push(f);
         }
     }
-    nums.extend(rest);
-    nums
+    let mut out = Vec::new();
+    if let Some(p) = product {
+        if !p.is_one() {
+            out.push(push_number(session, p));
+        }
+    }
+    out.extend(rest);
+    out
 }
 
 /// Merge `Power[b,e1] * Power[b,e2]` (bare symbol as `Power[b,1]`).
