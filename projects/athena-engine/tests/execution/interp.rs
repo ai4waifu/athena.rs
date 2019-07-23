@@ -1,9 +1,9 @@
-//! Interp 执行层覆盖（Living `25` L2 · 现经 `evaluate_session` → `ExecutionIR`）。
+//! Interp 执行层覆盖（Living `25` L2 · `evaluate_term` → `ExecutionIR`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,
     execution,
-    execution::evaluate_session,
+    execution::evaluate_term,
     runtime::{
         Session,
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},
@@ -23,12 +23,12 @@ impl C {
 }
 
 fn out(e: Tid, c: &mut C) -> execution::TermEvaluation {
-    evaluate_session(&mut c.s, e)
+    evaluate_term(&mut c.s, e)
 }
 
 /// 求值并渲染为调试串。
 fn t(e: Tid, c: &mut C) -> String {
-    let o = evaluate_session(&mut c.s, e);
+    let o = evaluate_term(&mut c.s, e);
     term_debug(&c.s, o.term)
 }
 

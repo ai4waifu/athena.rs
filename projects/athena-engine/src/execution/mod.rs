@@ -33,10 +33,11 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
     reference::ReferenceExecutor::new().execute(session, &module, domain)
 }
 
-/// Session 顶层求值入口（语句语义 · Living `25` L2 公共门）。
+/// Project a term through [`execute_ir_request`] into a compact [`TermEvaluation`].
 ///
-/// 经 [`execute_ir_request`]。仍返回 [`TermEvaluation`] 以兼容验收测试。
-pub fn evaluate_session(session: &mut Session, expr: TermId) -> TermEvaluation {
+/// Test / internal helper only — not a second execution model. Product paths use
+/// [`execute_ir_request`] or [`crate::api::AthenaEngine::execute_request`].
+pub fn evaluate_term(session: &mut Session, expr: TermId) -> TermEvaluation {
     match execute_ir_request(session, AthenaRequest::Term(expr)) {
         Ok(result_id) => {
             let Some(result) = session.results.get(result_id)

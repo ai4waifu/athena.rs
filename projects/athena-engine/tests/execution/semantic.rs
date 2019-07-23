@@ -1,9 +1,9 @@
-//! Interp 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_session`）。
+//! Interp 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_term`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,
     execution,
-    execution::evaluate_session,
+    execution::evaluate_term,
     runtime::{
         Session,
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},
@@ -13,7 +13,7 @@ use athena_engine::{
 type Tid = athena_types::TermId;
 
 fn eval(s: &mut Session, expr: Tid) -> String {
-    let out = evaluate_session(s, expr);
+    let out = evaluate_term(s, expr);
     term_debug(s, out.term)
 }
 
@@ -242,7 +242,7 @@ fn linear_algebra_paths() {
 fn interp_outcome_exposed() {
     let mut s = Session::new();
     let e = apply("Plus", vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let out: execution::TermEvaluation = evaluate_session(&mut s, e);
+    let out: execution::TermEvaluation = evaluate_term(&mut s, e);
     assert!(matches!(out.kind, execution::EvalKind::Value));
     assert!(out.diagnostics.is_empty());
 }
