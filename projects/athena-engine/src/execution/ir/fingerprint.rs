@@ -27,6 +27,15 @@ impl ModuleFingerprint {
         module.effect_edges.len().hash(&mut hasher);
         module.exits.len().hash(&mut hasher);
         module.provider_calls.len().hash(&mut hasher);
+        for edge in &module.effect_edges {
+            edge.token.0.hash(&mut hasher);
+            edge.precedes_from.map(|t| t.0).hash(&mut hasher);
+            core::mem::discriminant(&edge.kind).hash(&mut hasher);
+        }
+        for exit in &module.exits {
+            exit.id.0.hash(&mut hasher);
+            core::mem::discriminant(&exit.kind).hash(&mut hasher);
+        }
         for region in &module.regions {
             region.id.0.hash(&mut hasher);
             region.entry.0.hash(&mut hasher);
@@ -35,6 +44,11 @@ impl ModuleFingerprint {
                 block.id.0.hash(&mut hasher);
                 block.parameters.len().hash(&mut hasher);
                 block.operations.len().hash(&mut hasher);
+                for op in &block.operations {
+                    core::mem::discriminant(&op.kind).hash(&mut hasher);
+                    op.effect_in.map(|t| t.0).hash(&mut hasher);
+                    op.effect_out.map(|t| t.0).hash(&mut hasher);
+                }
             }
         }
         Self(hasher.finish())

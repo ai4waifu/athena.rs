@@ -1,8 +1,8 @@
 //! Structural verifiers for [`ExecutionModule`](super::ExecutionModule).
 //!
-//! Bootstrap covers definition uniqueness, same-block SSA order, control edges,
-//! and fingerprint recomputation. Full dominance / effect-order proofs follow in
-//! later cutover commits.
+//! Covers definition uniqueness, same-block SSA order, control edges, effect-token
+//! pairing / chain membership, guard exit tables, and fingerprint recomputation.
+//! Full dominance proofs remain a later hardening pass.
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -10,7 +10,7 @@ use super::{
     ModuleFingerprint,
     ids::{BlockId, RegionId, SsaValueId},
     module::ExecutionModule,
-    operation::OperationKind,
+    operation::{GuardFailure, OperationKind},
     terminator::Terminator,
 };
 
@@ -21,8 +21,12 @@ pub fn verify_module(module: &ExecutionModule) -> Result<()> {
     if module.regions.is_empty() {
         return Err(diag("empty_regions"));
     }
+    verify_effect_edges(module)?;
+
     let mut defined = HashSet::new();
     let mut block_index: HashMap<(RegionId, BlockId), usize> = HashMap::new();
+    let effect_tokens: HashSet<_> = module.effect_edges.iter().map(|e| e.token).collect();
+    let exit_ids: HashSet<_> = module.exits.iter().map(|e| e.id).collect();
 
     for region in &module.regions {
         for (idx, block) in region.blocks.iter().enumerate() {
@@ -60,8 +64,19 @@ pub fn verify_module(module: &ExecutionModule) -> Result<()> {
                     }
                     local_defs.insert(result);
                 }
-                if op.effect_in.is_some() != op.effect_out.is_some() {
-                    return Err(diag("effect_token_pair_mismatch"));
+                match (op.effect_in, op.effect_out) {
+                    (None, None) => {}
+                    (Some(ein), Some(eout)) => {
+                        if !effect_tokens.contains(&ein) || !effect_tokens.contains(&eout) {
+                            return Err(diag("effect_token_unknown"));
+                        }
+                    }
+                    _ => return Err(diag("effect_token_pair_mismatch")),
+                }
+                if let OperationKind::Guard { on_failure: GuardFailure::Exit(exit), .. } = &op.kind {
+                    if !exit_ids.contains(exit) {
+                        return Err(diag("guard_exit_unknown"));
+                    }
                 }
             }
             verify_terminator(module, region.id, &block.terminator, &block_index, &defined)?;
@@ -71,6 +86,26 @@ pub fn verify_module(module: &ExecutionModule) -> Result<()> {
     let expected = ModuleFingerprint::of_module(module);
     if module.fingerprint != expected {
         return Err(diag("fingerprint_mismatch"));
+    }
+    Ok(())
+}
+
+fn verify_effect_edges(module: &ExecutionModule) -> Result<()> {
+    let mut seen = HashSet::new();
+    for edge in &module.effect_edges {
+        if !seen.insert(edge.token) {
+            return Err(diag("duplicate_effect_token"));
+        }
+    }
+    for edge in &module.effect_edges {
+        if let Some(prev) = edge.precedes_from {
+            if prev == edge.token {
+                return Err(diag("effect_self_predecessor"));
+            }
+            if !seen.contains(&prev) {
+                return Err(diag("effect_predecessor_unknown"));
+            }
+        }
     }
     Ok(())
 }
@@ -247,5 +282,100 @@ mod tests {
         };
         module.fingerprint = ModuleFingerprint::of_module(&module);
         assert!(verify_module(&module).is_err());
+    }
+
+    #[test]
+    fn fingerprint_mismatch_rejected() {
+        let mut module = ExecutionModule::empty();
+        module.fingerprint = ModuleFingerprint(0xdead_beef);
+        let err = verify_module(&module).expect_err("tampered fingerprint");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("fingerprint_mismatch"));
+    }
+
+    #[test]
+    fn effect_token_pair_mismatch_rejected() {
+        let v0 = SsaValueId(0);
+        let block = BasicBlock {
+            id: BlockId(0),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                result: Some(v0),
+                result_type: ExecutionValueType::Unit,
+                kind: crate::execution::ir::OperationKind::Constant { constant: ConstantId(0) },
+                effect_in: Some(crate::execution::ir::EffectToken(0)),
+                effect_out: None,
+            }],
+            terminator: Terminator::return_value(v0),
+        };
+        let region = Region::from_entry_block(RegionId(0), block, vec![ExecutionValueType::Unit]);
+        let mut module = ExecutionModule {
+            inputs: Vec::new(),
+            constants: vec![ConstantValue::Unit],
+            captured_roots: Vec::new(),
+            regions: vec![region],
+            effect_edges: Vec::new(),
+            exits: Vec::new(),
+            provider_calls: Vec::new(),
+            fingerprint: ModuleFingerprint(0),
+        };
+        module.fingerprint = ModuleFingerprint::of_module(&module);
+        let err = verify_module(&module).expect_err("unpaired effect");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("effect_token_pair_mismatch"));
+    }
+
+    #[test]
+    fn effect_predecessor_must_exist() {
+        use crate::execution::ir::{EffectEdge, EffectKind, EffectToken};
+
+        let mut module = ExecutionModule::empty();
+        module.effect_edges.push(EffectEdge::after(EffectToken(0), EffectToken(99), EffectKind::WriteBinding));
+        module.fingerprint = ModuleFingerprint::of_module(&module);
+        let err = verify_module(&module).expect_err("unknown predecessor");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("effect_predecessor_unknown"));
+    }
+
+    #[test]
+    fn guard_exit_must_be_declared() {
+        use crate::execution::ir::{GuardFailure, OperationKind};
+
+        let pred = SsaValueId(0);
+        let block = BasicBlock {
+            id: BlockId(0),
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(pred),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: ConstantId(0) },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: None,
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::Guard {
+                        predicate: pred,
+                        on_failure: GuardFailure::Exit(crate::execution::ir::ExitId(7)),
+                    },
+                    effect_in: None,
+                    effect_out: None,
+                },
+            ],
+            terminator: Terminator::return_value(pred),
+        };
+        let region = Region::from_entry_block(RegionId(0), block, vec![ExecutionValueType::Boolean]);
+        let mut module = ExecutionModule {
+            inputs: Vec::new(),
+            constants: vec![ConstantValue::boolean(true)],
+            captured_roots: Vec::new(),
+            regions: vec![region],
+            effect_edges: Vec::new(),
+            exits: Vec::new(),
+            provider_calls: Vec::new(),
+            fingerprint: ModuleFingerprint(0),
+        };
+        module.fingerprint = ModuleFingerprint::of_module(&module);
+        let err = verify_module(&module).expect_err("missing exit");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("guard_exit_unknown"));
     }
 }
