@@ -278,7 +278,8 @@ fn part_all_returns_list() {
 #[test]
 fn for_span_last_value() {
     let mut c = C::new();
-    let e = apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
+    let e =
+        apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 

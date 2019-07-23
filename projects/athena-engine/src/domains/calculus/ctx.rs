@@ -121,12 +121,7 @@ impl<'a> CalculusCtx<'a> {
     /// 在内建定义下求值到稳定形（唯一 `ExecutionIR` 路径）。
     pub(crate) fn eval(&self, id: TermId) -> TermId {
         match execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id)) {
-            Ok(result_id) => self
-                .session()
-                .results
-                .get(result_id)
-                .and_then(|r| r.symbolic_term)
-                .unwrap_or(id),
+            Ok(result_id) => self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id),
             Err(_) => id,
         }
     }

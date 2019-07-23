@@ -1,12 +1,6 @@
-//! 内建 handler 目录（算术 / 控制 / 索引 / 领域入口 / 矩阵构造）。
+//! 执行层共享工具：模式匹配与微积分函数表。
+//!
+//! 旧栈式 handler 目录已删除。语义算子在 [`super::reference::ReferenceExecutor`]。
 
-pub mod arithmetic;
-pub mod catalog;
-pub mod control;
-pub mod domains;
-pub mod indexing;
-pub mod iteration;
-pub mod matrix;
 pub mod patterns;
 pub mod registry;
-pub mod rewriting;

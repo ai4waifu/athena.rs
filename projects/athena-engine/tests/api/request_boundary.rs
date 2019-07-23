@@ -34,11 +34,13 @@ fn execute_request_term_records_computation_result() {
 
 #[test]
 fn execute_request_domain_goal_preserves_domain_payload() {
-    use athena_engine::domains::{
-        dispatch::DomainRequest,
-        number_theory::{NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue},
+    use athena_engine::{
+        domains::{
+            dispatch::DomainRequest,
+            number_theory::{NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue},
+        },
+        runtime::{ResultProviderId, RuntimeValue},
     };
-    use athena_engine::runtime::{ResultProviderId, RuntimeValue};
     use athena_numeric::Integer;
 
     let engine = AthenaEngine::new();
@@ -71,11 +73,7 @@ fn execute_request_command_define_via_execution_ir() {
         other => panic!("expected symbol, got {other:?}"),
     };
     let value = session.builder().int(1, Default::default());
-    let request = AthenaRequest::Command(SessionCommand::Define {
-        symbol,
-        value,
-        timing: DefinitionEvaluationTiming::Immediate,
-    });
+    let request = AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate });
     assert_eq!(request.kind_name(), "Command");
     let result_id = engine.execute_request(&mut session, request).expect("define");
     let stored = session.results.get(result_id).expect("stored");
@@ -104,14 +102,8 @@ fn control_plan_covers_neutral_loop_and_recover_shapes() {
     let one = session.builder().int(1, Default::default());
     let _ = ControlPlan::LoopWhile { condition: zero, body: Box::new(AthenaRequest::Term(zero)) };
     let _ = ControlPlan::CountedLoop { variable: zero, iterator: one, body: Box::new(AthenaRequest::Term(one)) };
-    let _ = ControlPlan::Recover {
-        body: Box::new(AthenaRequest::Term(zero)),
-        handler: Box::new(AthenaRequest::Term(one)),
-    };
-    let _ = ControlPlan::Cond {
-        arms: vec![(zero, Box::new(AthenaRequest::Term(one)))],
-        otherwise: Some(Box::new(AthenaRequest::Term(zero))),
-    };
+    let _ = ControlPlan::Recover { body: Box::new(AthenaRequest::Term(zero)), handler: Box::new(AthenaRequest::Term(one)) };
+    let _ = ControlPlan::Cond { arms: vec![(zero, Box::new(AthenaRequest::Term(one)))], otherwise: Some(Box::new(AthenaRequest::Term(zero))) };
     let _ = ControlPlan::LocalScope { body: Box::new(AthenaRequest::Term(zero)) };
 }
 

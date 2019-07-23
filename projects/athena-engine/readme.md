@@ -52,7 +52,7 @@ exact。
 抽象映射 `α` 提取可传播的 facts，具体化映射 `γ` 描述 facts 允许的具体状态。这个关系约束 transfer 和 verifier 的
 soundness，但不替代证书检查。
 
-M-Graph 的 verified 子图可以提取为 KernelIR 执行计划，再经过 guard 进入 JIT。JIT 不可用或 guard 失败时回退 eager
+M-Graph 的 verified 子图可以提取为 typed execution artifacts，再经过 guard 进入 JIT。JIT 不可用或 guard 失败时回退 eager
 执行，并保持数学语义不变。
 
 ```sh

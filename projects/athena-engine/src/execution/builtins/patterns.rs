@@ -19,19 +19,15 @@ pub(crate) fn pattern_matches(session: &mut Session, expr: TermId, pat: TermId) 
 }
 
 /// 结构匹配并收集绑定（模式项先降为中性 [`TermPattern`]）。
-pub(crate) fn pattern_bind(
-    session: &mut Session,
-    expr: TermId,
-    pat: TermId,
-    binds: &mut HashMap<SymbolId, TermId>,
-) -> bool {
+pub(crate) fn pattern_bind(session: &mut Session, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     let pattern = lower_pattern_term(session, pat);
     match_term_pattern(session, expr, &pattern, binds)
 }
 
 /// 将模式项降为中性 [`TermPattern`]。
 pub(crate) fn lower_pattern_term(session: &Session, pat: TermId) -> TermPattern {
-    let Some(shape) = term_shape(session, pat) else {
+    let Some(shape) = term_shape(session, pat)
+    else {
         return TermPattern::Exact(pat);
     };
     match shape {
@@ -47,33 +43,22 @@ pub(crate) fn lower_pattern_term(session: &Session, pat: TermId) -> TermPattern 
                     _ => TermPattern::Exact(pat),
                 },
                 "Bind" if args.len() == 2 => {
-                    let Some(Shape::Symbol(name_sym)) = term_shape(session, args[0]) else {
+                    let Some(Shape::Symbol(name_sym)) = term_shape(session, args[0])
+                    else {
                         return TermPattern::Exact(pat);
                     };
-                    TermPattern::Bind {
-                        name: name_sym,
-                        inner: Box::new(lower_pattern_term(session, args[1])),
-                    }
+                    TermPattern::Bind { name: name_sym, inner: Box::new(lower_pattern_term(session, args[1])) }
                 }
-                _ => TermPattern::StructuralApplication(
-                    args.into_iter().map(|a| lower_pattern_term(session, a)).collect(),
-                ),
+                _ => TermPattern::StructuralApplication(args.into_iter().map(|a| lower_pattern_term(session, a)).collect()),
             }
         }
-        Shape::List(items) => {
-            TermPattern::Sequence(items.into_iter().map(|i| lower_pattern_term(session, i)).collect())
-        }
+        Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_pattern_term(session, i)).collect()),
         _ => TermPattern::Exact(pat),
     }
 }
 
 /// 对中性 [`TermPattern`] 做结构匹配并收集绑定。
-pub(crate) fn match_term_pattern(
-    session: &Session,
-    expr: TermId,
-    pattern: &TermPattern,
-    binds: &mut HashMap<SymbolId, TermId>,
-) -> bool {
+pub(crate) fn match_term_pattern(session: &Session, expr: TermId, pattern: &TermPattern, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     match pattern {
         TermPattern::Any => true,
         TermPattern::HeadConstraint { head_name } => head_constraint_holds(session, expr, head_name),
@@ -81,19 +66,22 @@ pub(crate) fn match_term_pattern(
             if match_term_pattern(session, expr, inner, binds) {
                 binds.insert(*name, expr);
                 true
-            } else {
+            }
+            else {
                 false
             }
         }
         TermPattern::Exact(literal) => session.arena.structural_eq(expr, *literal),
         TermPattern::Sequence(items) => {
-            let Some(Shape::List(expr_items)) = term_shape(session, expr) else {
+            let Some(Shape::List(expr_items)) = term_shape(session, expr)
+            else {
                 return false;
             };
             zip_match(session, &expr_items, items, binds)
         }
         TermPattern::StructuralApplication(items) => {
-            let Some(Shape::Application(_, args)) = term_shape(session, expr) else {
+            let Some(Shape::Application(_, args)) = term_shape(session, expr)
+            else {
                 return false;
             };
             zip_match(session, &args, items, binds)
@@ -101,28 +89,18 @@ pub(crate) fn match_term_pattern(
     }
 }
 
-fn zip_match(
-    session: &Session,
-    exprs: &[TermId],
-    patterns: &[TermPattern],
-    binds: &mut HashMap<SymbolId, TermId>,
-) -> bool {
+fn zip_match(session: &Session, exprs: &[TermId], patterns: &[TermPattern], binds: &mut HashMap<SymbolId, TermId>) -> bool {
     if exprs.len() != patterns.len() {
         return false;
     }
-    exprs
-        .iter()
-        .zip(patterns.iter())
-        .all(|(e, p)| match_term_pattern(session, *e, p, binds))
+    exprs.iter().zip(patterns.iter()).all(|(e, p)| match_term_pattern(session, *e, p, binds))
 }
 
 fn head_constraint_holds(session: &Session, expr: TermId, head_name: &str) -> bool {
     match head_name {
         "Integer" => match term_shape(session, expr) {
             Some(Shape::Number) => match session.arena.get(expr) {
-                Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
-                    n.as_exact_integer().is_some() || n.as_integer().is_some()
-                }
+                Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => n.as_exact_integer().is_some() || n.as_integer().is_some(),
                 _ => false,
             },
             _ => false,
@@ -136,22 +114,20 @@ fn head_constraint_holds(session: &Session, expr: TermId, head_name: &str) -> bo
 
 /// head 约束判定（经中性 `HeadConstraint`）。
 pub(crate) fn expr_has_head(session: &Session, expr: TermId, head_pat: TermId) -> bool {
-    let Some(head_name) = term_head_name(session, head_pat) else {
+    let Some(head_name) = term_head_name(session, head_pat)
+    else {
         return false;
     };
     match_term_pattern(session, expr, &TermPattern::HeadConstraint { head_name }, &mut HashMap::new())
 }
 
 /// `Pattern` 名下的绑定替换：符号原子替换，未命中共享。
-pub(crate) fn substitute_binds(
-    session: &mut Session,
-    expr: TermId,
-    binds: &HashMap<SymbolId, TermId>,
-) -> TermId {
+pub(crate) fn substitute_binds(session: &mut Session, expr: TermId, binds: &HashMap<SymbolId, TermId>) -> TermId {
     if binds.is_empty() {
         return expr;
     }
-    let Some(s) = term_shape(session, expr) else {
+    let Some(s) = term_shape(session, expr)
+    else {
         return expr;
     };
     match s {
@@ -165,26 +141,16 @@ pub(crate) fn substitute_binds(
                 changed |= r != i;
                 out.push(r);
             }
-            if changed {
-                push_list(session, out)
-            } else {
-                expr
-            }
+            if changed { push_list(session, out) } else { expr }
         }
-        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| {
-            substitute_binds(session, a, binds)
-        }),
+        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| substitute_binds(session, a, binds)),
     }
 }
 
 /// 符号替换：`Table` / `CountedLoop` / `Function` 具化。
-pub(crate) fn substitute_symbol(
-    session: &mut Session,
-    expr: TermId,
-    symbol: SymbolId,
-    value: TermId,
-) -> TermId {
-    let Some(s) = term_shape(session, expr) else {
+pub(crate) fn substitute_symbol(session: &mut Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
+    let Some(s) = term_shape(session, expr)
+    else {
         return expr;
     };
     match s {
@@ -198,21 +164,16 @@ pub(crate) fn substitute_symbol(
                 changed |= r != i;
                 out.push(r);
             }
-            if changed {
-                push_list(session, out)
-            } else {
-                expr
-            }
+            if changed { push_list(session, out) } else { expr }
         }
-        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| {
-            substitute_symbol(session, a, symbol, value)
-        }),
+        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| substitute_symbol(session, a, symbol, value)),
     }
 }
 
 /// `Slot` / `#` / `#1` 替换。
 pub(crate) fn substitute_slot(session: &mut Session, expr: TermId, value: TermId) -> TermId {
-    let Some(s) = term_shape(session, expr) else {
+    let Some(s) = term_shape(session, expr)
+    else {
         return expr;
     };
     match s {
@@ -239,15 +200,9 @@ pub(crate) fn substitute_slot(session: &mut Session, expr: TermId, value: TermId
                 changed |= r != i;
                 out.push(r);
             }
-            if changed {
-                push_list(session, out)
-            } else {
-                expr
-            }
+            if changed { push_list(session, out) } else { expr }
         }
-        Shape::Application(op, args) => {
-            rewrite_app(session, expr, op, args, |session, a| substitute_slot(session, a, value))
-        }
+        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| substitute_slot(session, a, value)),
     }
 }
 
@@ -260,7 +215,8 @@ pub(crate) fn replace_literal(session: &mut Session, expr: TermId, lhs: TermId, 
     if session.arena.structural_eq(expr, lhs) {
         return rhs;
     }
-    let Some(s) = term_shape(session, expr) else {
+    let Some(s) = term_shape(session, expr)
+    else {
         return expr;
     };
     match s {
@@ -273,15 +229,9 @@ pub(crate) fn replace_literal(session: &mut Session, expr: TermId, lhs: TermId, 
                 changed |= r != i;
                 out.push(r);
             }
-            if changed {
-                push_list(session, out)
-            } else {
-                expr
-            }
+            if changed { push_list(session, out) } else { expr }
         }
-        Shape::Application(op, args) => {
-            rewrite_app(session, expr, op, args, |session, a| replace_literal(session, a, lhs, rhs))
-        }
+        Shape::Application(op, args) => rewrite_app(session, expr, op, args, |session, a| replace_literal(session, a, lhs, rhs)),
     }
 }
 
@@ -299,9 +249,5 @@ fn rewrite_app(
         changed |= r != a;
         out.push(r);
     }
-    if changed {
-        push_application_op(session, op, out)
-    } else {
-        expr
-    }
+    if changed { push_application_op(session, op, out) } else { expr }
 }

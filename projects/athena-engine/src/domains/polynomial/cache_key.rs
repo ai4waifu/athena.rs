@@ -5,10 +5,10 @@ use std::hash::{Hash, Hasher};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
-    object::Polynomial,
     fingerprint::{PolynomialFingerprint, RingFingerprint},
     groebner::GroebnerLimits,
     hash::canonical_hash as polynomial_canonical_hash,
+    object::Polynomial,
     request::PolynomialRequest,
     ring_table::RingTable,
 };

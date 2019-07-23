@@ -46,9 +46,10 @@ fn relation_index_groups_by_scope() {
     assert_eq!(rec.provider, Some(POLYNOMIAL_PROVIDER_ID));
     assert_eq!(
         rec.subjects,
-        vec![athena_engine::reasoning::mgraph::SemanticRef::Object(
-            athena_engine::reasoning::mgraph::ObjectRef::new(athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL, 10)
-        )]
+        vec![athena_engine::reasoning::mgraph::SemanticRef::Object(athena_engine::reasoning::mgraph::ObjectRef::new(
+            athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL,
+            10
+        ))]
     );
 }
 
@@ -168,9 +169,9 @@ fn sample_claim(fingerprint: u64) -> Claim {
         scope: Scope::Unconditional,
         guarantee: Guarantee::ProvenExact,
         evidence: Evidence::TrustedKernel {
-                provider: POLYNOMIAL_PROVIDER_ID,
-                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
-                summary: "test".into(),
-            },
+            provider: POLYNOMIAL_PROVIDER_ID,
+            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            summary: "test".into(),
+        },
     }
 }

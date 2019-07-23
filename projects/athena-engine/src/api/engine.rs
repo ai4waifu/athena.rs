@@ -30,11 +30,7 @@ impl AthenaEngine {
     /// 在内建定义下求值（唯一 `ExecutionIR` 路径）。返回归约后的 [`TermId`]（内部投影，非正式公共结果）。
     pub fn evaluate(&self, session: &mut Session, term: TermId) -> TermId {
         match execution::execute_ir_request(session, AthenaRequest::Term(term)) {
-            Ok(result_id) => session
-                .results
-                .get(result_id)
-                .and_then(|r| r.symbolic_term)
-                .unwrap_or(term),
+            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term),
             Err(_) => term,
         }
     }
@@ -69,11 +65,7 @@ impl AthenaEngine {
     pub fn simplify(&self, session: &mut Session, term: TermId) -> TermId {
         let wrapped = execution::push_application(session, "Simplify", vec![term]);
         match execution::execute_ir_request(session, AthenaRequest::Term(wrapped)) {
-            Ok(result_id) => session
-                .results
-                .get(result_id)
-                .and_then(|r| r.symbolic_term)
-                .unwrap_or(wrapped),
+            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(wrapped),
             Err(_) => wrapped,
         }
     }

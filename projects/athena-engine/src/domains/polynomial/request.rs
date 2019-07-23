@@ -1,6 +1,6 @@
 //! 多项式域请求。
 
-use super::{object::Polynomial, factor::PolynomialFactorLimits, groebner::GroebnerLimits, ring::DivisionPolicy};
+use super::{factor::PolynomialFactorLimits, groebner::GroebnerLimits, object::Polynomial, ring::DivisionPolicy};
 
 /// 多项式域请求 — 骨架变体，算法逐步填充。
 #[derive(Debug, Clone, PartialEq)]

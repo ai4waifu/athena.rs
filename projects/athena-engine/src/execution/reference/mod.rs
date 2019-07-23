@@ -2,33 +2,36 @@
 //!
 //! Executes SSA blocks without an operand stack. Not a wrapper around the old VM.
 
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use athena_numeric::{
-    Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div,
-    factorial as num_factorial, mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
+    Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
+    mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
-use crate::api::request::AthenaRequest;
-use crate::domains::dispatch::{DomainRequest, execute_domain};
-use crate::domains::linear_algebra::{
-    MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact,
+use crate::{
+    api::request::AthenaRequest,
+    domains::{
+        calculus::{CalculusCtx, execute_calculus, materialize_calculus_result_term, try_calculus_request},
+        dispatch::{DomainRequest, execute_domain},
+        linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact},
+    },
+    execution::{
+        compiler::ExecutionCompiler,
+        environment::{LocalBinding, ScopeFrame},
+        ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
+        number_of, push_application, push_number,
+    },
+    runtime::{
+        results::{ComputationResult, CoverageStatus, ResultProvenance, computation_from_domain},
+        session::Session,
+        values::{
+            arena::push_list,
+            numeric_clone::{clone_integer, clone_number, clone_rational},
+        },
+    },
 };
-use crate::domains::calculus::{
-    CalculusCtx, execute_calculus, materialize_calculus_result_term, try_calculus_request,
-};
-use crate::execution::compiler::ExecutionCompiler;
-use crate::execution::environment::{LocalBinding, ScopeFrame};
-use crate::execution::ir::{
-    BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module,
-};
-use crate::execution::{number_of, push_application, push_number};
-use crate::runtime::results::{computation_from_domain, ComputationResult, CoverageStatus, ResultProvenance};
-use crate::runtime::session::Session;
-use crate::runtime::values::arena::push_list;
-use crate::runtime::values::numeric_clone::{clone_integer, clone_number, clone_rational};
 
 /// Semantic oracle backend shared by parity tests and deterministic replay.
 #[derive(Debug, Default)]
@@ -55,10 +58,7 @@ enum Slot {
 enum PartStep {
     Next(TermId),
     Residual,
-    Invalid {
-        echo: TermId,
-        diagnostic: Diagnostic,
-    },
+    Invalid { echo: TermId, diagnostic: Diagnostic },
 }
 
 impl ReferenceExecutor {
@@ -71,12 +71,7 @@ impl ReferenceExecutor {
     ///
     /// When `domain` is `Some`, the first `CallProvider` edge runs `execute_domain`
     /// and returns that materialized `ResultId` (IR-shaped Goal path).
-    pub fn execute(
-        &self,
-        session: &mut Session,
-        module: &ExecutionModule,
-        domain: Option<DomainRequest>,
-    ) -> Result<ResultId> {
+    pub fn execute(&self, session: &mut Session, module: &ExecutionModule, domain: Option<DomainRequest>) -> Result<ResultId> {
         verify_module(module)?;
         let region_id = module.entry_region().ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -84,8 +79,7 @@ impl ReferenceExecutor {
                 .detail("reason", "missing_entry_region")
         })?;
         let mut provider = domain;
-        let (returned, unsupported, unevaluated, invalid) =
-            self.eval_region(session, module, region_id, &mut provider)?;
+        let (returned, unsupported, unevaluated, invalid) = self.eval_region(session, module, region_id, &mut provider)?;
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
         }
@@ -93,30 +87,26 @@ impl ReferenceExecutor {
             Some(Slot::Term(term)) => term,
             Some(Slot::Boolean(value)) => session.builder().boolean(value, Default::default()),
             Some(Slot::Symbol(symbol)) => session.builder().symbol_id(symbol, Default::default()),
-            Some(Slot::Scope(_)) | Some(Slot::Unit) | Some(Slot::Result(_)) | None => {
-                session.builder().null(Default::default())
-            }
+            Some(Slot::Scope(_)) | Some(Slot::Unit) | Some(Slot::Result(_)) | None => session.builder().null(Default::default()),
         };
         let value = session.insert_symbolic_value(term);
         let mut result = if let Some(diagnostic) = invalid {
-            ComputationResult::with_status(ComputationStatus::Invalid, CoverageStatus::Partial)
-                .with_diagnostic(diagnostic)
-        } else if unsupported {
-            ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Unsupported)
-                .with_diagnostic(
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "CallProvider")
-                        .detail("status", "provider_bootstrap_unsupported"),
-                )
-        } else if unevaluated {
+            ComputationResult::with_status(ComputationStatus::Invalid, CoverageStatus::Partial).with_diagnostic(diagnostic)
+        }
+        else if unsupported {
+            ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Unsupported).with_diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "CallProvider")
+                    .detail("status", "provider_bootstrap_unsupported"),
+            )
+        }
+        else if unevaluated {
             ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Partial)
-        } else {
+        }
+        else {
             ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
         };
-        result = result
-            .with_value(value)
-            .with_symbolic_term(term)
-            .with_provenance(ResultProvenance { request_kind: "ExecutionIR" });
+        result = result.with_value(value).with_symbolic_term(term).with_provenance(ResultProvenance { request_kind: "ExecutionIR" });
         Ok(session.insert_result(result))
     }
 
@@ -127,11 +117,7 @@ impl ReferenceExecutor {
         region_id: RegionId,
         provider: &mut Option<DomainRequest>,
     ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
-        let region = module
-            .regions
-            .iter()
-            .find(|r| r.id == region_id)
-            .ok_or_else(|| diag("missing_region"))?;
+        let region = module.regions.iter().find(|r| r.id == region_id).ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
         let mut slots: HashMap<SsaValueId, Slot> = HashMap::new();
         let mut frames: Vec<ScopeFrame> = Vec::new();
@@ -147,11 +133,7 @@ impl ReferenceExecutor {
                 // Budget exhausted on a hot block — exit with Unit residual.
                 return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
             }
-            let block = region
-                .blocks
-                .iter()
-                .find(|b| b.id == block_id)
-                .ok_or_else(|| diag("missing_block"))?;
+            let block = region.blocks.iter().find(|b| b.id == block_id).ok_or_else(|| diag("missing_block"))?;
             for op in &block.operations {
                 let produced = self.eval_operation(
                     session,
@@ -174,12 +156,7 @@ impl ReferenceExecutor {
                         return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
                     }
                     let first = values[0];
-                    return Ok((
-                        Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?),
-                        unsupported,
-                        unevaluated,
-                        invalid,
-                    ));
+                    return Ok((Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?), unsupported, unevaluated, invalid));
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
                     let pred = match slots.get(condition).ok_or_else(|| diag("branch_undefined"))? {
@@ -262,11 +239,7 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
-                let name = session
-                    .operators
-                    .name(*operator)
-                    .ok_or_else(|| diag("unknown_operator"))?
-                    .to_string();
+                let name = session.operators.name(*operator).ok_or_else(|| diag("unknown_operator"))?.to_string();
                 match name.as_str() {
                     "Not" | "And" | "Or" | "TrueQ" => {
                         let bools: Vec<Option<bool>> = args
@@ -305,15 +278,9 @@ impl ReferenceExecutor {
                         };
                         Ok(Slot::Boolean(if name == "Unequal" { !same } else { same }))
                     }
-                    "Less" | "Greater" | "LessEqual" | "GreaterEqual" => {
-                        self.eval_compare_chain(session, name.as_str(), args, slots)
-                    }
-                    "Plus" | "Times" | "Subtract" | "Divide" | "Power" => {
-                        self.eval_arithmetic(session, name.as_str(), args, slots)
-                    }
-                    "Abs" | "Length" | "First" | "Rest" | "Factorial" | "Sqrt" => {
-                        self.eval_unary_term_op(session, name.as_str(), args, slots)
-                    }
+                    "Less" | "Greater" | "LessEqual" | "GreaterEqual" => self.eval_compare_chain(session, name.as_str(), args, slots),
+                    "Plus" | "Times" | "Subtract" | "Divide" | "Power" => self.eval_arithmetic(session, name.as_str(), args, slots),
+                    "Abs" | "Length" | "First" | "Rest" | "Factorial" | "Sqrt" => self.eval_unary_term_op(session, name.as_str(), args, slots),
                     "Join" => self.eval_join(session, args, slots),
                     "Part" => self.eval_part(session, args, slots, invalid),
                     "Span" => self.eval_span(session, args, slots),
@@ -332,9 +299,8 @@ impl ReferenceExecutor {
                     "CollectMatches" | "Cases" => self.eval_collect_matches(session, args, slots),
                     "Matches" => self.eval_matches(session, args, slots),
                     "Simplify" => self.eval_simplify(session, args, slots),
-                    "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic"
-                    | "Residue" | "DSolve" | "LaplaceTransform" | "FourierTransform" | "ZTransform"
-                    | "Divergence" | "Curl" => self.eval_calculus(session, name.as_str(), args, slots),
+                    "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic" | "Residue" | "DSolve" | "LaplaceTransform"
+                    | "FourierTransform" | "ZTransform" | "Divergence" | "Curl" => self.eval_calculus(session, name.as_str(), args, slots),
                     "Import" | "Export" | "Timing" => {
                         *invalid = Some(
                             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -388,7 +354,8 @@ impl ReferenceExecutor {
                     Some(Slot::Unit) => {
                         if let Some(frame) = frames.last_mut() {
                             frame.unbind(symbol);
-                        } else {
+                        }
+                        else {
                             session.defs.clear_symbol(symbol);
                         }
                     }
@@ -397,12 +364,15 @@ impl ReferenceExecutor {
                             if let Some(frame) = frames.last_mut() {
                                 // Bootstrap: local delayed stored as Own of captured rhs.
                                 frame.bind(symbol, LocalBinding::Own(*term));
-                            } else {
+                            }
+                            else {
                                 session.defs.define_delayed(symbol, *term);
                             }
-                        } else if let Some(frame) = frames.last_mut() {
+                        }
+                        else if let Some(frame) = frames.last_mut() {
                             frame.bind(symbol, LocalBinding::Own(*term));
-                        } else {
+                        }
+                        else {
                             session.defs.define_own(symbol, *term);
                         }
                     }
@@ -411,12 +381,15 @@ impl ReferenceExecutor {
                         if *delayed {
                             if let Some(frame) = frames.last_mut() {
                                 frame.bind(symbol, LocalBinding::Own(term));
-                            } else {
+                            }
+                            else {
                                 session.defs.define_delayed(symbol, term);
                             }
-                        } else if let Some(frame) = frames.last_mut() {
+                        }
+                        else if let Some(frame) = frames.last_mut() {
                             frame.bind(symbol, LocalBinding::Own(term));
-                        } else {
+                        }
+                        else {
                             session.defs.define_own(symbol, term);
                         }
                     }
@@ -456,14 +429,9 @@ impl ReferenceExecutor {
                 }
                 if let Some(term) = session.defs.delayed(symbol) {
                     // Evaluate Delayed OwnValues on read (SetDelayed semantics).
-                    let module = ExecutionCompiler::new()
-                        .compile(session, &AthenaRequest::Term(term))?;
+                    let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
                     let result_id = self.execute(session, &module, None)?;
-                    let out = session
-                        .results
-                        .get(result_id)
-                        .and_then(|r| r.symbolic_term)
-                        .unwrap_or(term);
+                    let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
                     return Ok(Slot::Term(out));
                 }
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
@@ -482,22 +450,14 @@ impl ReferenceExecutor {
                     }
                 }
             }
-            OperationKind::PublishResult { source } => {
-                Ok(*slots.get(source).ok_or_else(|| diag("publish_source_undefined"))?)
-            }
+            OperationKind::PublishResult { source } => Ok(*slots.get(source).ok_or_else(|| diag("publish_source_undefined"))?),
             OperationKind::LoadInput { .. } | OperationKind::Guard { .. } | OperationKind::MaterializeValue { .. } => {
                 Err(diag("operation_not_implemented"))
             }
         }
     }
 
-    fn eval_unary_term_op(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_unary_term_op(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -507,7 +467,8 @@ impl ReferenceExecutor {
             "Abs" => {
                 if let Some(n) = number_of(session, term) {
                     Ok(Slot::Term(push_number(session, num_abs(clone_number(n)))))
-                } else {
+                }
+                else {
                     Ok(Slot::Term(push_application(session, "Abs", vec![term])))
                 }
             }
@@ -517,7 +478,8 @@ impl ReferenceExecutor {
                         Ok(v) => Ok(Slot::Term(push_number(session, v))),
                         Err(_) => Ok(Slot::Term(push_application(session, "Factorial", vec![term]))),
                     }
-                } else {
+                }
+                else {
                     Ok(Slot::Term(push_application(session, "Factorial", vec![term])))
                 }
             }
@@ -527,7 +489,8 @@ impl ReferenceExecutor {
                         Ok(Some(v)) => Ok(Slot::Term(push_number(session, v))),
                         _ => Ok(Slot::Term(push_application(session, "Sqrt", vec![term]))),
                     }
-                } else {
+                }
+                else {
                     Ok(Slot::Term(push_application(session, "Sqrt", vec![term])))
                 }
             }
@@ -541,12 +504,8 @@ impl ReferenceExecutor {
             }
             "First" => match session.arena.get(term) {
                 Some(athena_ir::TermNode::List(items)) if !items.is_empty() => Ok(Slot::Term(items[0])),
-                Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => {
-                    Ok(Slot::Term(arguments[0]))
-                }
-                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => {
-                    Err(diag("first_empty"))
-                }
+                Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => Ok(Slot::Term(arguments[0])),
+                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
                 _ => Ok(Slot::Term(push_application(session, "First", vec![term]))),
             },
             "Rest" => match session.arena.get(term) {
@@ -559,22 +518,14 @@ impl ReferenceExecutor {
                     let rest = arguments[1..].to_vec();
                     Ok(Slot::Term(session.builder().application(head, rest, Default::default())))
                 }
-                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => {
-                    Err(diag("rest_empty"))
-                }
+                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
                 _ => Ok(Slot::Term(push_application(session, "Rest", vec![term]))),
             },
             _ => Err(diag("semantic_operator_not_implemented")),
         }
     }
 
-    fn eval_residual_app(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_residual_app(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -611,7 +562,8 @@ impl ReferenceExecutor {
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
         let symbol = session.arena.symbols_mut().intern(name);
-        let Some(rules) = session.defs.down_values(symbol).map(<[(TermId, TermId)]>::to_vec) else {
+        let Some(rules) = session.defs.down_values(symbol).map(<[(TermId, TermId)]>::to_vec)
+        else {
             return Ok(None);
         };
         let mut terms = Vec::with_capacity(args.len());
@@ -622,8 +574,7 @@ impl ReferenceExecutor {
         let substituted = {
             let mut matched = None;
             for (lhs, rhs) in rules {
-                let Some(crate::execution::shape::Shape::Application(_, pat_args)) =
-                    crate::execution::shape::term_shape(session, lhs)
+                let Some(crate::execution::shape::Shape::Application(_, pat_args)) = crate::execution::shape::term_shape(session, lhs)
                 else {
                     continue;
                 };
@@ -631,36 +582,28 @@ impl ReferenceExecutor {
                     continue;
                 }
                 let mut binds = HashMap::new();
-                if pat_args.iter().zip(terms.iter()).all(|(p, a)| {
-                    crate::execution::builtins::patterns::pattern_bind(session, *a, *p, &mut binds)
-                }) {
-                    matched = Some(crate::execution::builtins::patterns::substitute_binds(
-                        session, rhs, &binds,
-                    ));
+                if pat_args
+                    .iter()
+                    .zip(terms.iter())
+                    .all(|(p, a)| crate::execution::builtins::patterns::pattern_bind(session, *a, *p, &mut binds))
+                {
+                    matched = Some(crate::execution::builtins::patterns::substitute_binds(session, rhs, &binds));
                     break;
                 }
             }
             matched
         };
-        let Some(substituted) = substituted else {
+        let Some(substituted) = substituted
+        else {
             return Ok(None);
         };
         let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(substituted))?;
         let result_id = self.execute(session, &module, None)?;
-        let out = session
-            .results
-            .get(result_id)
-            .and_then(|r| r.symbolic_term)
-            .unwrap_or(substituted);
+        let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(substituted);
         Ok(Some(Slot::Term(out)))
     }
 
-    fn eval_simplify(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_simplify(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -668,11 +611,7 @@ impl ReferenceExecutor {
         let evaluated = match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term)) {
             Ok(module) => {
                 let result_id = self.execute(session, &module, None)?;
-                session
-                    .results
-                    .get(result_id)
-                    .and_then(|r| r.symbolic_term)
-                    .unwrap_or(term)
+                session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term)
             }
             Err(_) => term,
         };
@@ -683,13 +622,7 @@ impl ReferenceExecutor {
     }
 
     /// Domain calculus heads (`D` / `Integrate` / …) via `try_calculus_request`.
-    fn eval_calculus(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_calculus(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -711,13 +644,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(echo))
     }
 
-    fn eval_rule(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_rule(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -726,12 +653,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_application(session, name, vec![lhs, rhs])))
     }
 
-    fn eval_replace_all(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_replace_all(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -748,11 +670,7 @@ impl ReferenceExecutor {
         match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(cur)) {
             Ok(module) => {
                 let result_id = self.execute(session, &module, None)?;
-                let term = session
-                    .results
-                    .get(result_id)
-                    .and_then(|r| r.symbolic_term)
-                    .unwrap_or(cur);
+                let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(cur);
                 Ok(Slot::Term(term))
             }
             Err(_) => Ok(Slot::Term(cur)),
@@ -760,18 +678,14 @@ impl ReferenceExecutor {
     }
 
     /// `CollectMatches[list, pat]` / `Cases` — filter list items by pattern.
-    fn eval_collect_matches(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_collect_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
         let list = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some(athena_ir::TermNode::List(items)) = session.arena.get(list) else {
+        let Some(athena_ir::TermNode::List(items)) = session.arena.get(list)
+        else {
             return Ok(Slot::Term(push_application(session, "CollectMatches", vec![list, pat])));
         };
         let items = items.clone();
@@ -785,12 +699,7 @@ impl ReferenceExecutor {
     }
 
     /// `Matches[expr, pat]` — boolean pattern test.
-    fn eval_matches(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -812,7 +721,8 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let Some((rows, cols)) = parse_matrix_dims(session, &terms) else {
+        let Some((rows, cols)) = parse_matrix_dims(session, &terms)
+        else {
             return Ok(Slot::Term(push_application(session, name, terms)));
         };
         let n = match rows.checked_mul(cols) {
@@ -839,12 +749,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, rows_out)))
     }
 
-    fn eval_map(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -855,7 +760,8 @@ impl ReferenceExecutor {
             _ => return Ok(Slot::Term(push_application(session, "Map", vec![func, list]))),
         };
         // Bootstrap: symbol heads only (`Map[Abs, List[…]]`). Function/`Slot` later.
-        let Some(name) = symbol_name(session, func) else {
+        let Some(name) = symbol_name(session, func)
+        else {
             return Ok(Slot::Term(push_application(session, "Map", vec![func, list])));
         };
         let mut out = Vec::with_capacity(items.len());
@@ -864,11 +770,7 @@ impl ReferenceExecutor {
             match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(mapped)) {
                 Ok(module) => {
                     let result_id = self.execute(session, &module, None)?;
-                    let term = session
-                        .results
-                        .get(result_id)
-                        .and_then(|r| r.symbolic_term)
-                        .unwrap_or(mapped);
+                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(mapped);
                     out.push(term);
                 }
                 Err(_) => out.push(mapped),
@@ -877,12 +779,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    fn eval_apply(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_apply(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -896,11 +793,7 @@ impl ReferenceExecutor {
         match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
             Ok(module) => {
                 let result_id = self.execute(session, &module, None)?;
-                let term = session
-                    .results
-                    .get(result_id)
-                    .and_then(|r| r.symbolic_term)
-                    .unwrap_or(app);
+                let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app);
                 Ok(Slot::Term(term))
             }
             Err(_) => Ok(Slot::Term(app)),
@@ -908,12 +801,7 @@ impl ReferenceExecutor {
     }
 
     /// `Application[head, args…]` — apply `Function[var, body]` or symbol head.
-    fn eval_application_form(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_application_form(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.is_empty() {
             return Err(diag("semantic_operator_arity"));
         }
@@ -930,20 +818,11 @@ impl ReferenceExecutor {
                 let body = arguments[1];
                 if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(var) {
                     let sym = *sym;
-                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(
-                        session,
-                        body,
-                        sym,
-                        call_args[0],
-                    );
+                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, body, sym, call_args[0]);
                     match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
                         Ok(module) => {
                             let result_id = self.execute(session, &module, None)?;
-                            let term = session
-                                .results
-                                .get(result_id)
-                                .and_then(|r| r.symbolic_term)
-                                .unwrap_or(instantiated);
+                            let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
                             return Ok(Slot::Term(term));
                         }
                         Err(_) => return Ok(Slot::Term(instantiated)),
@@ -956,11 +835,7 @@ impl ReferenceExecutor {
             match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
                 Ok(module) => {
                     let result_id = self.execute(session, &module, None)?;
-                    let term = session
-                        .results
-                        .get(result_id)
-                        .and_then(|r| r.symbolic_term)
-                        .unwrap_or(app);
+                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app);
                     return Ok(Slot::Term(term));
                 }
                 Err(_) => return Ok(Slot::Term(app)),
@@ -972,17 +847,13 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_application(session, "Application", wrapped)))
     }
 
-    fn eval_size(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some((rows, cols)) = nested_list_shape(session, term) else {
+        let Some((rows, cols)) = nested_list_shape(session, term)
+        else {
             return Ok(Slot::Term(push_application(session, "Size", vec![term])));
         };
         let r = session.builder().int(rows as i64, Default::default());
@@ -992,12 +863,7 @@ impl ReferenceExecutor {
 
     /// `Sum[list]` — vector scalar sum / matrix column sums (VM `array_sum` parity).
     /// `Sum[body, iterator]` — Table then Plus-fold.
-    fn eval_sum(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() == 2 {
             let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
             let iter = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
@@ -1005,7 +871,8 @@ impl ReferenceExecutor {
                 Some(values) => {
                     if values.is_empty() {
                         Ok(Slot::Term(session.builder().int(0, Default::default())))
-                    } else {
+                    }
+                    else {
                         Ok(Slot::Term(fold_plus_symbolic(session, values)))
                     }
                 }
@@ -1023,7 +890,8 @@ impl ReferenceExecutor {
             }));
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some(athena_ir::TermNode::List(items)) = session.arena.get(term) else {
+        let Some(athena_ir::TermNode::List(items)) = session.arena.get(term)
+        else {
             return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
         };
         let items = items.clone();
@@ -1032,7 +900,8 @@ impl ReferenceExecutor {
         }
         if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::List(_))) {
             // Matrix: sum each column into a row vector.
-            let Some((_, cols)) = nested_list_shape(session, term) else {
+            let Some((_, cols)) = nested_list_shape(session, term)
+            else {
                 return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
             };
             let mut out = Vec::with_capacity(cols as usize);
@@ -1043,7 +912,8 @@ impl ReferenceExecutor {
                         Some(athena_ir::TermNode::List(cells)) => cells.get(j).copied(),
                         _ => None,
                     };
-                    let Some(cell) = cell else {
+                    let Some(cell) = cell
+                    else {
                         return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
                     };
                     col.push(cell);
@@ -1057,12 +927,7 @@ impl ReferenceExecutor {
     }
 
     /// `Table[body, iterator]` — HoldAll-ish body with iterator expansion.
-    fn eval_table(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_table(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -1074,31 +939,21 @@ impl ReferenceExecutor {
         }
     }
 
-    fn table_values(
-        &self,
-        session: &mut Session,
-        body: TermId,
-        iter: TermId,
-    ) -> Result<Option<Vec<TermId>>> {
-        let Some((var, values)) = expand_iterator_session(session, iter) else {
+    fn table_values(&self, session: &mut Session, body: TermId, iter: TermId) -> Result<Option<Vec<TermId>>> {
+        let Some((var, values)) = expand_iterator_session(session, iter)
+        else {
             return Ok(None);
         };
         let mut out = Vec::with_capacity(values.len());
         for value in values {
             let instantiated = match var {
-                Some(sym) => {
-                    crate::execution::builtins::patterns::substitute_symbol(session, body, sym, value)
-                }
+                Some(sym) => crate::execution::builtins::patterns::substitute_symbol(session, body, sym, value),
                 None => body,
             };
             match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
                 Ok(module) => {
                     let result_id = self.execute(session, &module, None)?;
-                    let term = session
-                        .results
-                        .get(result_id)
-                        .and_then(|r| r.symbolic_term)
-                        .unwrap_or(instantiated);
+                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
                     out.push(term);
                 }
                 Err(_) => out.push(instantiated),
@@ -1119,7 +974,8 @@ impl ReferenceExecutor {
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let echo = push_application(session, "Det", vec![term]);
-        let Some(matrix) = term_to_rational_matrix_session(session, term) else {
+        let Some(matrix) = term_to_rational_matrix_session(session, term)
+        else {
             return Ok(Slot::Term(echo));
         };
         match det_bareiss(&matrix) {
@@ -1144,10 +1000,12 @@ impl ReferenceExecutor {
         let a = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let b = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let echo = push_application(session, "LinearSolve", vec![a, b]);
-        let Some(am) = term_to_rational_matrix_session(session, a) else {
+        let Some(am) = term_to_rational_matrix_session(session, a)
+        else {
             return Ok(Slot::Term(echo));
         };
-        let Some(bm) = term_to_rational_matrix_session(session, b) else {
+        let Some(bm) = term_to_rational_matrix_session(session, b)
+        else {
             return Ok(Slot::Term(echo));
         };
         match solve_exact(&am, &bm) {
@@ -1160,9 +1018,7 @@ impl ReferenceExecutor {
                     }
                 },
                 None => {
-                    *invalid = Some(
-                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve"),
-                    );
+                    *invalid = Some(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve"));
                     Ok(Slot::Term(echo))
                 }
             },
@@ -1174,11 +1030,8 @@ impl ReferenceExecutor {
                     SolveDisposition::Singular => "singular",
                     SolveDisposition::ResourceLimited => "resource_limited",
                 };
-                *invalid = Some(
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("operation", "LinearSolve")
-                        .detail("reason", detail),
-                );
+                *invalid =
+                    Some(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve").detail("reason", detail));
                 Ok(Slot::Term(echo))
             }
             Err(diagnostic) => {
@@ -1188,22 +1041,15 @@ impl ReferenceExecutor {
         }
     }
 
-    fn eval_range(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_range(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let ints = terms
-            .iter()
-            .map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer()))
-            .collect::<Option<Vec<_>>>();
-        let Some(ints) = ints else {
+        let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
+        let Some(ints) = ints
+        else {
             return Ok(Slot::Term(push_application(session, "Range", terms)));
         };
         let bounds = match ints.as_slice() {
@@ -1212,35 +1058,27 @@ impl ReferenceExecutor {
             [a, b, step] => Some((*a, *b, *step)),
             _ => None,
         };
-        let Some((a, b, step)) = bounds else {
+        let Some((a, b, step)) = bounds
+        else {
             return Ok(Slot::Term(push_application(session, "Range", terms)));
         };
-        let Some(values) = expand_span_3(a, step, b) else {
+        let Some(values) = expand_span_3(a, step, b)
+        else {
             return Ok(Slot::Term(push_application(session, "Range", terms)));
         };
-        let out: Vec<TermId> = values
-            .into_iter()
-            .map(|v| session.builder().int(v, Default::default()))
-            .collect();
+        let out: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    fn eval_span(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_span(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let ints = terms
-            .iter()
-            .map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer()))
-            .collect::<Option<Vec<_>>>();
-        let Some(ints) = ints else {
+        let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
+        let Some(ints) = ints
+        else {
             return Ok(Slot::Term(push_application(session, "Span", terms)));
         };
         let items = match ints.as_slice() {
@@ -1248,13 +1086,11 @@ impl ReferenceExecutor {
             [a, step, b] => expand_span_3(*a, *step, *b),
             _ => return Ok(Slot::Term(push_application(session, "Span", terms))),
         };
-        let Some(values) = items else {
+        let Some(values) = items
+        else {
             return Ok(Slot::Term(push_application(session, "Span", terms)));
         };
-        let terms: Vec<TermId> = values
-            .into_iter()
-            .map(|v| session.builder().int(v, Default::default()))
-            .collect();
+        let terms: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
         Ok(Slot::Term(push_list(session, terms)))
     }
 
@@ -1311,12 +1147,7 @@ impl ReferenceExecutor {
         }
     }
 
-    fn part_n_terms(
-        &self,
-        session: &mut Session,
-        terms: &[TermId],
-        invalid: &mut Option<Diagnostic>,
-    ) -> Result<PartStep> {
+    fn part_n_terms(&self, session: &mut Session, terms: &[TermId], invalid: &mut Option<Diagnostic>) -> Result<PartStep> {
         if terms.len() < 2 {
             return Ok(PartStep::Residual);
         }
@@ -1373,7 +1204,8 @@ impl ReferenceExecutor {
                 _ => {}
             }
         }
-        let Some(idx) = number_of(session, index).and_then(|n| n.as_exact_integer()) else {
+        let Some(idx) = number_of(session, index).and_then(|n| n.as_exact_integer())
+        else {
             return Ok(PartStep::Residual);
         };
         if idx == 0 {
@@ -1389,14 +1221,12 @@ impl ReferenceExecutor {
         let len = items.len();
         let pos = if idx > 0 {
             (idx - 1) as usize
-        } else {
+        }
+        else {
             let pos = len as i64 + idx;
             if pos < 0 {
                 let echo = push_application(session, "Part", vec![expr, index]);
-                return Ok(PartStep::Invalid {
-                    echo,
-                    diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)),
-                });
+                return Ok(PartStep::Invalid { echo, diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)) });
             }
             pos as usize
         };
@@ -1404,20 +1234,12 @@ impl ReferenceExecutor {
             Some(item) => Ok(PartStep::Next(*item)),
             None => {
                 let echo = push_application(session, "Part", vec![expr, index]);
-                Ok(PartStep::Invalid {
-                    echo,
-                    diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)),
-                })
+                Ok(PartStep::Invalid { echo, diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)) })
             }
         }
     }
 
-    fn eval_join(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut out = Vec::new();
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
@@ -1432,13 +1254,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    fn eval_compare_chain(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_compare_chain(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() < 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -1460,11 +1276,9 @@ impl ReferenceExecutor {
                 return Ok(Slot::Term(broadcast));
             }
         }
-        let numbers = terms
-            .iter()
-            .map(|t| number_of(session, *t).map(clone_number))
-            .collect::<Option<Vec<_>>>();
-        let Some(nums) = numbers else {
+        let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
+        let Some(nums) = numbers
+        else {
             return Ok(Slot::Term(push_application(session, name, terms)));
         };
         let mut ok = true;
@@ -1478,22 +1292,13 @@ impl ReferenceExecutor {
         Ok(Slot::Boolean(ok))
     }
 
-    fn eval_arithmetic(
-        &self,
-        session: &mut Session,
-        name: &str,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-    ) -> Result<Slot> {
+    fn eval_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let numbers = terms
-            .iter()
-            .map(|t| number_of(session, *t).map(clone_number))
-            .collect::<Option<Vec<_>>>();
+        let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
         if let Some(nums) = numbers {
             let folded = match (name, nums.as_slice()) {
                 ("Plus", []) => Some(Number::small_int(0)),
@@ -1527,9 +1332,7 @@ impl ReferenceExecutor {
                     ok.then_some(acc)
                 }
                 ("Subtract", [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
-                ("Subtract", [a, b]) => num_mul(Number::small_int(-1), clone_number(b))
-                    .and_then(|neg| num_add(clone_number(a), neg))
-                    .ok(),
+                ("Subtract", [a, b]) => num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok(),
                 ("Divide", [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
                 ("Power", [a, b]) => num_pow(a, b).ok(),
                 _ => return Err(diag("semantic_operator_arity")),
@@ -1562,9 +1365,7 @@ impl ReferenceExecutor {
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "ReferenceExecutor")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "ReferenceExecutor").detail("reason", reason)
 }
 
 /// Binary list broadcast for compares. Returns `None` when neither side is a list.
@@ -1622,19 +1423,14 @@ fn compare_list_broadcast(
     }
 }
 
-fn compare_pair_term(
-    session: &mut Session,
-    name: &str,
-    left: TermId,
-    right: TermId,
-    pick: fn(Ordering) -> bool,
-) -> Result<TermId> {
+fn compare_pair_term(session: &mut Session, name: &str, left: TermId, right: TermId, pick: fn(Ordering) -> bool) -> Result<TermId> {
     // Nested lists recurse through broadcast.
     if matches!(session.arena.get(left), Some(athena_ir::TermNode::List(_)))
         || matches!(session.arena.get(right), Some(athena_ir::TermNode::List(_)))
     {
-        return Ok(compare_list_broadcast(session, name, left, right, pick)?
-            .unwrap_or_else(|| push_application(session, name, vec![left, right])));
+        return Ok(
+            compare_list_broadcast(session, name, left, right, pick)?.unwrap_or_else(|| push_application(session, name, vec![left, right]))
+        );
     }
     match (number_of(session, left).map(clone_number), number_of(session, right).map(clone_number)) {
         (Some(a), Some(b)) => {
@@ -1681,19 +1477,19 @@ fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
 fn as_boolean_like_term(session: &Session, term: TermId) -> Option<bool> {
     match session.arena.get(term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Some(*v),
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
-            match session.arena.symbols().resolve(*symbol) {
-                Some("True") => Some(true),
-                Some("False") => Some(false),
-                _ => None,
-            }
-        }
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => match session.arena.symbols().resolve(*symbol) {
+            Some("True") => Some(true),
+            Some("False") => Some(false),
+            _ => None,
+        },
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
             if n.is_zero() {
                 Some(false)
-            } else if *n == Number::small_int(1) {
+            }
+            else if *n == Number::small_int(1) {
                 Some(true)
-            } else {
+            }
+            else {
                 None
             }
         }
@@ -1704,15 +1500,13 @@ fn as_boolean_like_term(session: &Session, term: TermId) -> Option<bool> {
 fn coerce_branch_predicate(session: &Session, term: TermId) -> Result<bool> {
     match session.arena.get(term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Ok(*v),
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
-            match session.arena.symbols().resolve(*symbol) {
-                Some("True") => Ok(true),
-                Some("False") => Ok(false),
-                _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
-                    .detail("component", "ReferenceExecutor")
-                    .detail("reason", "branch_symbol_not_boolean")),
-            }
-        }
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => match session.arena.symbols().resolve(*symbol) {
+            Some("True") => Ok(true),
+            Some("False") => Ok(false),
+            _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+                .detail("component", "ReferenceExecutor")
+                .detail("reason", "branch_symbol_not_boolean")),
+        },
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => Ok(!n.is_zero()),
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Null)) => Ok(false),
         _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
@@ -1727,9 +1521,7 @@ fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     let mut sum: Option<Number> = None;
     for term in terms {
         match session.arena.get(term) {
-            Some(athena_ir::TermNode::Application { head, arguments })
-                if session.operators.name(*head) == Some("Plus") =>
-            {
+            Some(athena_ir::TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Plus") => {
                 for arg in arguments.clone() {
                     push_plus_summand_session(session, arg, &mut flat, &mut sum);
                 }
@@ -1750,19 +1542,15 @@ fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     }
 }
 
-fn push_plus_summand_session(
-    session: &mut Session,
-    term: TermId,
-    flat: &mut Vec<TermId>,
-    sum: &mut Option<Number>,
-) {
+fn push_plus_summand_session(session: &mut Session, term: TermId, flat: &mut Vec<TermId>, sum: &mut Option<Number>) {
     if let Some(n) = number_of(session, term) {
         let n = clone_number(n);
         *sum = Some(match sum.take() {
             Some(s) => num_add(clone_number(&s), n).unwrap_or(s),
             None => n,
         });
-    } else {
+    }
+    else {
         flat.push(term);
     }
 }
@@ -1799,7 +1587,8 @@ fn split_numeric_coeff_session(session: &mut Session, term: TermId) -> (Number, 
             for a in args {
                 if let Some(n) = number_of(session, a) {
                     coef = num_mul(clone_number(&coef), clone_number(n)).unwrap_or(coef);
-                } else {
+                }
+                else {
                     rest.push(a);
                 }
             }
@@ -1822,11 +1611,14 @@ fn groups_to_plus_terms_session(session: &mut Session, groups: Vec<(TermId, Numb
     for (kernel, coef) in groups {
         if coef.is_zero() {
             continue;
-        } else if number_of(session, kernel).is_some_and(Number::is_one) {
+        }
+        else if number_of(session, kernel).is_some_and(Number::is_one) {
             out.push(push_number(session, coef));
-        } else if coef.is_one() {
+        }
+        else if coef.is_one() {
             out.push(kernel);
-        } else {
+        }
+        else {
             let coef_id = push_number(session, coef);
             out.push(fold_times_symbolic(session, vec![coef_id, kernel]));
         }
@@ -1839,9 +1631,7 @@ fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     let mut flat = Vec::with_capacity(terms.len());
     for term in terms {
         match session.arena.get(term) {
-            Some(athena_ir::TermNode::Application { head, arguments })
-                if session.operators.name(*head) == Some("Times") =>
-            {
+            Some(athena_ir::TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Times") => {
                 flat.extend_from_slice(arguments);
             }
             _ => flat.push(term),
@@ -1900,7 +1690,8 @@ fn canonicalize_times_factors_session(session: &mut Session, factors: Vec<TermId
                 Some(p) => num_mul(clone_number(&p), n).unwrap_or(p),
                 None => n,
             });
-        } else {
+        }
+        else {
             rest.push(f);
         }
     }
@@ -1925,9 +1716,7 @@ fn combine_like_powers_session(session: &mut Session, factors: Vec<TermId>) -> V
             {
                 Some((arguments[0], arguments[1]))
             }
-            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_))) => {
-                Some((f, session.builder().int(1, Default::default())))
-            }
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_))) => Some((f, session.builder().int(1, Default::default()))),
             _ => None,
         };
         match base_exp {
@@ -2024,11 +1813,7 @@ fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
                     let args = arguments.clone();
                     if let Some(c) = number_of(session, args[0]) {
                         if let Ok(cp) = num_pow(c, e) {
-                            let rest = if args.len() == 2 {
-                                args[1]
-                            } else {
-                                push_application(session, "Times", args[1..].to_vec())
-                            };
+                            let rest = if args.len() == 2 { args[1] } else { push_application(session, "Times", args[1..].to_vec()) };
                             let rest_pow = fold_power_symbolic(session, vec![rest, exp]);
                             let cp_id = push_number(session, cp);
                             return fold_times_symbolic(session, vec![cp_id, rest_pow]);
@@ -2094,9 +1879,7 @@ fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Option<i64> {
 fn head_name_session(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         athena_ir::TermNode::Application { head, .. } => session.operators.name(*head).map(str::to_string),
-        athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol)) => {
-            session.arena.symbols().resolve(*symbol).map(str::to_string)
-        }
+        athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
         _ => None,
     }
 }
@@ -2109,7 +1892,8 @@ fn expand_span_2(a: i64, b: i64) -> Option<Vec<i64>> {
             out.push(x);
             x += 1;
         }
-    } else {
+    }
+    else {
         let mut x = a;
         while x >= b {
             out.push(x);
@@ -2130,7 +1914,8 @@ fn expand_span_3(a: i64, step: i64, b: i64) -> Option<Vec<i64>> {
             out.push(x);
             x += step;
         }
-    } else {
+    }
+    else {
         while x >= b {
             out.push(x);
             x += step;
@@ -2140,10 +1925,7 @@ fn expand_span_3(a: i64, step: i64, b: i64) -> Option<Vec<i64>> {
 }
 
 /// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` for `Table` / iterator `Sum`.
-fn expand_iterator_session(
-    session: &mut Session,
-    spec: TermId,
-) -> Option<(Option<SymbolId>, Vec<TermId>)> {
+fn expand_iterator_session(session: &mut Session, spec: TermId) -> Option<(Option<SymbolId>, Vec<TermId>)> {
     let items = match session.arena.get(spec) {
         Some(athena_ir::TermNode::List(items)) => items.clone(),
         _ => return None,
@@ -2184,22 +1966,13 @@ fn term_symbol_id(session: &Session, id: TermId) -> Option<SymbolId> {
 
 fn range_int_terms(session: &mut Session, a: i64, b: i64, step: i64) -> Option<Vec<TermId>> {
     let ints = expand_span_3(a, step, b)?;
-    Some(
-        ints.into_iter()
-            .map(|n| session.builder().int(n, Default::default()))
-            .collect(),
-    )
+    Some(ints.into_iter().map(|n| session.builder().int(n, Default::default())).collect())
 }
 
 fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -> TermId {
     match session.arena.get(head) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
-            let name = session
-                .arena
-                .symbols()
-                .resolve(*symbol)
-                .unwrap_or("?")
-                .to_string();
+            let name = session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
             push_application(session, &name, args)
         }
         _ => {
@@ -2213,9 +1986,7 @@ fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -
 
 fn symbol_name(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id) {
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
-            session.arena.symbols().resolve(*symbol).map(str::to_string)
-        }
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => session.arena.symbols().resolve(*symbol).map(str::to_string),
         _ => None,
     }
 }
@@ -2223,11 +1994,7 @@ fn symbol_name(session: &Session, id: TermId) -> Option<String> {
 fn parse_matrix_dims(session: &Session, args: &[TermId]) -> Option<(u64, u64)> {
     let as_dim = |t: TermId| -> Option<u64> {
         let n = number_of(session, t)?.as_exact_integer()?;
-        if n < 0 {
-            None
-        } else {
-            Some(n as u64)
-        }
+        if n < 0 { None } else { Some(n as u64) }
     };
     match args {
         [n] => {
@@ -2241,27 +2008,21 @@ fn parse_matrix_dims(session: &Session, args: &[TermId]) -> Option<(u64, u64)> {
 
 fn collect_rule_pairs(session: &Session, rules_term: TermId) -> Vec<(TermId, TermId)> {
     match session.arena.get(rules_term) {
-        Some(athena_ir::TermNode::List(items)) => items
-            .iter()
-            .filter_map(|r| rule_pair(session, *r))
-            .collect(),
+        Some(athena_ir::TermNode::List(items)) => items.iter().filter_map(|r| rule_pair(session, *r)).collect(),
         _ => rule_pair(session, rules_term).into_iter().collect(),
     }
 }
 
 fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, TermId)> {
-    let athena_ir::TermNode::Application { head, arguments } = session.arena.get(expr)? else {
+    let athena_ir::TermNode::Application { head, arguments } = session.arena.get(expr)?
+    else {
         return None;
     };
     if arguments.len() != 2 {
         return None;
     }
     let name = session.operators.name(*head)?;
-    if matches!(name, "Rule" | "RuleDeferred") {
-        Some((arguments[0], arguments[1]))
-    } else {
-        None
-    }
+    if matches!(name, "Rule" | "RuleDeferred") { Some((arguments[0], arguments[1])) } else { None }
 }
 
 fn replace_literal_session(session: &mut Session, expr: TermId, lhs: TermId, rhs: TermId) -> TermId {
@@ -2278,11 +2039,7 @@ fn replace_literal_session(session: &mut Session, expr: TermId, lhs: TermId, rhs
                 changed |= replaced != item;
                 out.push(replaced);
             }
-            if changed {
-                push_list(session, out)
-            } else {
-                expr
-            }
+            if changed { push_list(session, out) } else { expr }
         }
         Some(athena_ir::TermNode::Application { head, arguments }) => {
             let head = *head;
@@ -2294,18 +2051,15 @@ fn replace_literal_session(session: &mut Session, expr: TermId, lhs: TermId, rhs
                 changed |= replaced != arg;
                 out.push(replaced);
             }
-            if changed {
-                session.builder().application(head, out, Default::default())
-            } else {
-                expr
-            }
+            if changed { session.builder().application(head, out, Default::default()) } else { expr }
         }
         _ => expr,
     }
 }
 
 fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {
-    let athena_ir::TermNode::Application { head, arguments } = session.arena.get(expr)? else {
+    let athena_ir::TermNode::Application { head, arguments } = session.arena.get(expr)?
+    else {
         return None;
     };
     if session.operators.name(*head) != Some("Plus") || arguments.len() != 2 {
@@ -2322,7 +2076,8 @@ fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId
 }
 
 fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) -> bool {
-    let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(expr) else {
+    let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(expr)
+    else {
         return false;
     };
     if arguments.len() != 2 || session.operators.name(*head) != Some("Power") {
@@ -2336,22 +2091,22 @@ fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) -> bool {
         return false;
     }
     match session.arena.get(arguments[0]) {
-        Some(athena_ir::TermNode::Application { head, arguments: inner }) if inner.len() == 1 => {
-            session.operators.name(*head) == Some(name)
-        }
+        Some(athena_ir::TermNode::Application { head, arguments: inner }) if inner.len() == 1 => session.operators.name(*head) == Some(name),
         _ => false,
     }
 }
 
 fn same_trig_arg_session(session: &Session, a: TermId, b: TermId) -> bool {
     let arg = |expr: TermId| -> Option<TermId> {
-        let athena_ir::TermNode::Application { arguments, .. } = session.arena.get(expr)? else {
+        let athena_ir::TermNode::Application { arguments, .. } = session.arena.get(expr)?
+        else {
             return None;
         };
         if arguments.len() != 2 {
             return None;
         }
-        let athena_ir::TermNode::Application { arguments: inner, .. } = session.arena.get(arguments[0])? else {
+        let athena_ir::TermNode::Application { arguments: inner, .. } = session.arena.get(arguments[0])?
+        else {
             return None;
         };
         (inner.len() == 1).then_some(inner[0])
@@ -2363,7 +2118,8 @@ fn same_trig_arg_session(session: &Session, a: TermId, b: TermId) -> bool {
 }
 
 fn nested_list_shape(session: &Session, term: TermId) -> Option<(u64, u64)> {
-    let athena_ir::TermNode::List(rows) = session.arena.get(term)? else {
+    let athena_ir::TermNode::List(rows) = session.arena.get(term)?
+    else {
         return None;
     };
     if rows.is_empty() {
@@ -2383,7 +2139,8 @@ fn nested_list_shape(session: &Session, term: TermId) -> Option<(u64, u64)> {
             }
         }
         Some((rows.len() as u64, cols.unwrap_or(0)))
-    } else {
+    }
+    else {
         Some((1, rows.len() as u64))
     }
 }
@@ -2421,7 +2178,8 @@ fn term_to_rational_matrix_session(session: &Session, term: TermId) -> Option<Ma
                     }
                 }
                 MatrixValue::from_rationals_row_major(rows.len() as u64, cols.unwrap_or(0), data).ok()
-            } else {
+            }
+            else {
                 let mut data = Vec::with_capacity(rows.len());
                 for cell in rows {
                     data.push(term_scalar_rational_session(session, *cell)?);
@@ -2442,10 +2200,7 @@ fn rational_to_term_session(session: &mut Session, r: &Rational) -> TermId {
             return session.builder().int(i, Default::default());
         }
     }
-    push_number(
-        session,
-        Number::from_rational_normalized(clone_rational(r)),
-    )
+    push_number(session, Number::from_rational_normalized(clone_rational(r)))
 }
 
 fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
@@ -2459,7 +2214,8 @@ fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Resu
                 MatrixEntry::Integer(n) => {
                     if let Some(i64v) = n.to_i64() {
                         row.push(session.builder().int(i64v, Default::default()));
-                    } else {
+                    }
+                    else {
                         row.push(push_number(session, Number::integer(clone_integer(&n))));
                     }
                 }
@@ -2474,23 +2230,23 @@ fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::request::AthenaRequest;
-    use crate::execution::compiler::ExecutionCompiler;
-    use crate::execution::ir::{
-        BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionValueType, ModuleFingerprint, Operation, Region,
-        RegionId, Terminator,
+    use crate::{
+        api::request::AthenaRequest,
+        execution::{
+            compiler::ExecutionCompiler,
+            ir::{
+                BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionValueType, ModuleFingerprint, Operation, Region, RegionId,
+                Terminator,
+            },
+        },
     };
 
     #[test]
     fn execute_compiled_atom_term() {
         let mut session = Session::new();
         let term = session.builder().int(9, Default::default());
-        let module = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(term))
-            .expect("compile");
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("execute");
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.symbolic_term, Some(term));
         assert_eq!(loaded.status, ComputationStatus::Exact);
@@ -2508,17 +2264,11 @@ mod tests {
             operations: vec![Operation {
                 result: Some(cond),
                 result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant {
-                    constant: ConstantId(0),
-                },
+                kind: OperationKind::Constant { constant: ConstantId(0) },
                 effect_in: None,
                 effect_out: None,
             }],
-            terminator: Terminator::Branch {
-                condition: cond,
-                then_edge: BlockEdge::jump(BlockId(1)),
-                else_edge: BlockEdge::jump(BlockId(2)),
-            },
+            terminator: Terminator::Branch { condition: cond, then_edge: BlockEdge::jump(BlockId(1)), else_edge: BlockEdge::jump(BlockId(2)) },
         };
         let then_block = BasicBlock {
             id: BlockId(1),
@@ -2526,9 +2276,7 @@ mod tests {
             operations: vec![Operation {
                 result: Some(then_v),
                 result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant {
-                    constant: ConstantId(1),
-                },
+                kind: OperationKind::Constant { constant: ConstantId(1) },
                 effect_in: None,
                 effect_out: None,
             }],
@@ -2540,9 +2288,7 @@ mod tests {
             operations: vec![Operation {
                 result: Some(else_v),
                 result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant {
-                    constant: ConstantId(2),
-                },
+                kind: OperationKind::Constant { constant: ConstantId(2) },
                 effect_in: None,
                 effect_out: None,
             }],
@@ -2567,9 +2313,7 @@ mod tests {
         module.fingerprint = ModuleFingerprint::of_module(&module);
 
         let mut session = Session::new();
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("branch");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("branch");
         let loaded = session.results.get(result_id).expect("result");
         let term = loaded.symbolic_term.expect("term");
         match session.arena.get(term) {
@@ -2588,24 +2332,16 @@ mod tests {
         let and_term = session.builder().application(and, vec![z, one], Default::default());
         let or_term = session.builder().application(or, vec![z, one], Default::default());
 
-        let and_mod = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(and_term))
-            .expect("and");
-        let and_id = ReferenceExecutor::new()
-            .execute(&mut session, &and_mod, None)
-            .expect("and exec");
+        let and_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(and_term)).expect("and");
+        let and_id = ReferenceExecutor::new().execute(&mut session, &and_mod, None).expect("and exec");
         let and_out = session.results.get(and_id).expect("and result").symbolic_term.expect("term");
         match session.arena.get(and_out) {
             Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
             other => panic!("expected And[0,1] == False, got {other:?}"),
         }
 
-        let or_mod = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(or_term))
-            .expect("or");
-        let or_id = ReferenceExecutor::new()
-            .execute(&mut session, &or_mod, None)
-            .expect("or exec");
+        let or_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(or_term)).expect("or");
+        let or_id = ReferenceExecutor::new().execute(&mut session, &or_mod, None).expect("or exec");
         let or_out = session.results.get(or_id).expect("or result").symbolic_term.expect("term");
         match session.arena.get(or_out) {
             Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
@@ -2619,20 +2355,15 @@ mod tests {
         let foo = session.operators.intern("FooBar");
         let one = session.builder().int(1, Default::default());
         let term = session.builder().application(foo, vec![one], Default::default());
-        let module = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(term))
-            .expect("compile");
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("execute");
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.status, ComputationStatus::Unknown);
         assert_eq!(loaded.coverage, CoverageStatus::Partial);
         assert!(loaded.diagnostics.is_empty());
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
-            Some(athena_ir::TermNode::Application { head, .. })
-                if session.operators.name(*head) == Some("FooBar") => {}
+            Some(athena_ir::TermNode::Application { head, .. }) if session.operators.name(*head) == Some("FooBar") => {}
             other => panic!("expected residual FooBar[...], got {other:?}"),
         }
     }
@@ -2646,12 +2377,8 @@ mod tests {
         let list = session.builder().list(vec![a, b], Default::default());
         let idx = session.builder().int(9, Default::default());
         let term = session.builder().application(part, vec![list, idx], Default::default());
-        let module = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(term))
-            .expect("compile");
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("execute");
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.status, ComputationStatus::Invalid);
         assert_eq!(loaded.diagnostics[0].code, DiagnosticCode::InvalidIndex);
@@ -2668,16 +2395,10 @@ mod tests {
         let list = session.builder().list(vec![a, b, c], Default::default());
         let span_lo = session.builder().int(1, Default::default());
         let span_hi = session.builder().int(2, Default::default());
-        let span_term = session
-            .builder()
-            .application(span, vec![span_lo, span_hi], Default::default());
+        let span_term = session.builder().application(span, vec![span_lo, span_hi], Default::default());
         let term = session.builder().application(part, vec![list, span_term], Default::default());
-        let module = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(term))
-            .expect("compile");
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("execute");
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
@@ -2702,15 +2423,9 @@ mod tests {
         let row1 = session.builder().list(vec![c, d], Default::default());
         let matrix = session.builder().list(vec![row0, row1], Default::default());
         let col = session.builder().int(2, Default::default());
-        let term = session
-            .builder()
-            .application(part, vec![matrix, all, col], Default::default());
-        let module = ExecutionCompiler::new()
-            .compile(&mut session, &AthenaRequest::Term(term))
-            .expect("compile");
-        let result_id = ReferenceExecutor::new()
-            .execute(&mut session, &module, None)
-            .expect("execute");
+        let term = session.builder().application(part, vec![matrix, all, col], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {

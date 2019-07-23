@@ -1,4 +1,4 @@
-//! 1D 采样合同测试（KernelIR 路径 · Living `25`）。
+//! 1D 采样合同测试（`ExecutionIR` 路径 · Living `25`）。
 
 use std::sync::{
     Arc,

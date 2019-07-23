@@ -6,11 +6,13 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use super::ids::{BlockId, RegionId, SsaValueId};
-use super::module::ExecutionModule;
-use super::operation::OperationKind;
-use super::terminator::Terminator;
-use super::ModuleFingerprint;
+use super::{
+    ModuleFingerprint,
+    ids::{BlockId, RegionId, SsaValueId},
+    module::ExecutionModule,
+    operation::OperationKind,
+    terminator::Terminator,
+};
 
 use std::collections::{HashMap, HashSet};
 
@@ -81,7 +83,8 @@ fn verify_terminator(
     defined: &HashSet<SsaValueId>,
 ) -> Result<()> {
     let check_edge = |target: BlockId, arguments: &[SsaValueId]| -> Result<()> {
-        let Some(idx) = block_index.get(&(region, target)).copied() else {
+        let Some(idx) = block_index.get(&(region, target)).copied()
+        else {
             return Err(diag("terminator_unknown_target"));
         };
         let block = &module.regions.iter().find(|r| r.id == region).expect("region").blocks[idx];
@@ -150,17 +153,15 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "ExecutionIR.verifier")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "ExecutionIR.verifier").detail("reason", reason)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::execution::ir::{
-        BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, Operation,
-        Region, RegionId, SsaValueId, Terminator,
+        BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, Operation, Region, RegionId,
+        SsaValueId, Terminator,
     };
 
     #[test]
@@ -178,9 +179,7 @@ mod tests {
             operations: vec![Operation {
                 result: Some(v0),
                 result_type: ExecutionValueType::Boolean,
-                kind: crate::execution::ir::OperationKind::Constant {
-                    constant: ConstantId(0),
-                },
+                kind: crate::execution::ir::OperationKind::Constant { constant: ConstantId(0) },
                 effect_in: None,
                 effect_out: None,
             }],
@@ -203,12 +202,8 @@ mod tests {
 
     #[test]
     fn use_before_def_rejected() {
-        let block = BasicBlock {
-            id: BlockId(0),
-            parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: Terminator::return_value(SsaValueId(99)),
-        };
+        let block =
+            BasicBlock { id: BlockId(0), parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::return_value(SsaValueId(99)) };
         let region = Region::from_entry_block(RegionId(0), block, Vec::new());
         let mut module = ExecutionModule {
             inputs: Vec::new(),
@@ -233,24 +228,13 @@ mod tests {
             operations: vec![Operation {
                 result: Some(cond),
                 result_type: ExecutionValueType::Boolean,
-                kind: crate::execution::ir::OperationKind::Constant {
-                    constant: ConstantId(0),
-                },
+                kind: crate::execution::ir::OperationKind::Constant { constant: ConstantId(0) },
                 effect_in: None,
                 effect_out: None,
             }],
-            terminator: Terminator::Branch {
-                condition: cond,
-                then_edge: BlockEdge::jump(BlockId(1)),
-                else_edge: BlockEdge::jump(BlockId(2)),
-            },
+            terminator: Terminator::Branch { condition: cond, then_edge: BlockEdge::jump(BlockId(1)), else_edge: BlockEdge::jump(BlockId(2)) },
         };
-        let region = Region {
-            id: RegionId(0),
-            entry: BlockId(0),
-            blocks: vec![entry],
-            result_types: Vec::new(),
-        };
+        let region = Region { id: RegionId(0), entry: BlockId(0), blocks: vec![entry], result_types: Vec::new() };
         let mut module = ExecutionModule {
             inputs: Vec::new(),
             constants: vec![ConstantValue::boolean(true)],

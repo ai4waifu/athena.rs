@@ -1,9 +1,11 @@
 //! Basic blocks with explicit block arguments (no implicit stack parameters).
 
-use super::ids::{BlockId, SsaValueId};
-use super::operation::Operation;
-use super::terminator::Terminator;
-use super::types::ExecutionValueType;
+use super::{
+    ids::{BlockId, SsaValueId},
+    operation::Operation,
+    terminator::Terminator,
+    types::ExecutionValueType,
+};
 
 /// One SSA basic block.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,21 +32,11 @@ pub struct BlockParameter {
 impl BasicBlock {
     /// Empty block that immediately returns no values (placeholder / freeze).
     pub fn empty_return(id: BlockId) -> Self {
-        Self {
-            id,
-            parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: Terminator::Return { values: Vec::new() },
-        }
+        Self { id, parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::Return { values: Vec::new() } }
     }
 
     /// Block that returns a single preexisting SSA value.
     pub fn return_value(id: BlockId, value: SsaValueId) -> Self {
-        Self {
-            id,
-            parameters: Vec::new(),
-            operations: Vec::new(),
-            terminator: Terminator::return_value(value),
-        }
+        Self { id, parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::return_value(value) }
     }
 }

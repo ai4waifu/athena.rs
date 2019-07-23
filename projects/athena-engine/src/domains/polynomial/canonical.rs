@@ -20,12 +20,7 @@ pub fn canonicalize_polynomial(poly: Polynomial, rings: &RingTable) -> Result<Po
     canonicalize_terms(ring, desc, terms, rings)
 }
 
-pub(crate) fn canonicalize_terms(
-    ring: RingId,
-    desc: &RingDescriptor,
-    raw: Vec<MonomialTerm>,
-    rings: &RingTable,
-) -> Result<Polynomial> {
+pub(crate) fn canonicalize_terms(ring: RingId, desc: &RingDescriptor, raw: Vec<MonomialTerm>, rings: &RingTable) -> Result<Polynomial> {
     let n = desc.variable_count();
     let coeff_ring = rings.coefficient_kernel(ring).ok();
     let mut acc: HashMap<Vec<u32>, Number> = HashMap::new();

@@ -78,10 +78,7 @@ pub(crate) fn encode_limb2_meta(negative: bool) -> usize {
 pub(crate) fn encode_heap_meta(len: usize, negative: bool, rooted: bool) -> usize {
     debug_assert!(len >= 3, "heap len must be >= 3");
     debug_assert!(len < (1usize << (usize::BITS as usize - 1 - LEN_SHIFT)), "heap len overlaps META_ROOTED_BIT");
-    MODE_HEAP
-        | if negative { META_SIGN_BIT } else { 0 }
-        | if rooted { META_ROOTED_BIT } else { 0 }
-        | (len << LEN_SHIFT)
+    MODE_HEAP | if negative { META_SIGN_BIT } else { 0 } | if rooted { META_ROOTED_BIT } else { 0 } | (len << LEN_SHIFT)
 }
 
 /// 读取 heap len；非 Heap mode 时 debug panic。清除 rooted 位后再移位。

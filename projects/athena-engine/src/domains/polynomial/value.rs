@@ -2,9 +2,9 @@
 
 use super::{
     certificate::{GroebnerCertificate, GroebnerStatus},
-    object::Polynomial,
     factor::PolynomialFactorization,
     groebner::GroebnerComputation,
+    object::Polynomial,
 };
 use athena_types::RingId;
 

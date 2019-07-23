@@ -1,8 +1,7 @@
 //! Typed `ExecutionIR` — region-based SSA for reference / JIT / WASM backends.
 //!
-//! This module freezes the executable IR contract. It is **not** a rename of
-//! `KernelIR` / `ExecUnit` / stack VM instructions. Dialect surface names must
-//! not appear in opcodes or descriptors.
+//! This module freezes the executable IR contract. It is **not** a stack bytecode
+//! or operand-stack VM. Dialect surface names must not appear in opcodes or descriptors.
 
 pub mod block;
 pub mod effect;
@@ -20,9 +19,7 @@ pub use block::{BasicBlock, BlockParameter};
 pub use effect::{EffectEdge, EffectKind};
 pub use exit::{DeclaredExit, ExitKind};
 pub use fingerprint::ModuleFingerprint;
-pub use ids::{
-    BlockId, CapturedRootId, ConstantId, EffectToken, ExitId, InputId, ProviderCallId, RegionId, SsaValueId,
-};
+pub use ids::{BlockId, CapturedRootId, ConstantId, EffectToken, ExitId, InputId, ProviderCallId, RegionId, SsaValueId};
 pub use module::{ExecutionIR, ExecutionModule};
 pub use operation::{GuardFailure, Operation, OperationKind};
 pub use region::Region;

@@ -71,7 +71,7 @@ impl SolveRelationKind {
         }
     }
 
-    /// 是否可驱动 exact rewrite / KernelIR specialization。
+    /// 是否可驱动 exact rewrite / execution specialization。
     pub fn drives_exact_rewrite(&self) -> bool {
         matches!(self, Self::CompleteFor { .. } | Self::EquivalentConstraint { .. } | Self::UniqueSolution { .. })
     }

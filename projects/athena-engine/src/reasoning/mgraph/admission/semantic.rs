@@ -6,7 +6,10 @@ use crate::reasoning::mgraph::{
         claim::VerifiedClaim,
         journal::{AdmissionJournal, FactId},
     },
-    relations::{derived::DerivedIndexes, index::RelationIndex, index::RelationRecord},
+    relations::{
+        derived::DerivedIndexes,
+        index::{RelationIndex, RelationRecord},
+    },
 };
 
 /// 数学语义状态（admission journal + scoped relation index + 派生索引）。

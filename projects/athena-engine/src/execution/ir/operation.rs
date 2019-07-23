@@ -2,8 +2,10 @@
 
 use athena_types::OperatorId;
 
-use super::ids::{CapturedRootId, ConstantId, EffectToken, InputId, ProviderCallId, SsaValueId};
-use super::types::ExecutionValueType;
+use super::{
+    ids::{CapturedRootId, ConstantId, EffectToken, InputId, ProviderCallId, SsaValueId},
+    types::ExecutionValueType,
+};
 
 /// One SSA operation definition.
 #[derive(Debug, Clone, PartialEq, Eq)]

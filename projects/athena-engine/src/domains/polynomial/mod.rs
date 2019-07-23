@@ -11,7 +11,6 @@ mod certificate;
 mod coefficient_kernel;
 mod coefficient_ring_table;
 mod exponent;
-mod object;
 mod factor;
 mod fingerprint;
 mod groebner;
@@ -20,6 +19,7 @@ mod ideal;
 mod jit_gate;
 mod mgraph;
 mod monomial_layout;
+mod object;
 mod operations;
 mod order;
 mod repr;
@@ -39,7 +39,6 @@ pub use coefficient_kernel::{
     CoefficientRing, FpBigKernel, FpWordKernel, QCoefficientKernel, SpecializedCoefficientKernel, ZCoefficientKernel,
 };
 pub use coefficient_ring_table::{CoefficientRingDescriptor, CoefficientRingTable};
-pub use object::{MonomialTerm, Polynomial};
 pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,
@@ -56,6 +55,7 @@ pub use ideal::Ideal;
 pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};
 pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
 pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout, PackedMonomial};
+pub use object::{MonomialTerm, Polynomial};
 pub use operations::{add_polynomial, mul_polynomial, sub_polynomial};
 pub use order::MonomialOrder;
 pub use repr::{PolynomialRepr, PolynomialReprBody, ReprTarget, reprs_mathematically_equal};

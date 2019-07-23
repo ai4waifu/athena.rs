@@ -1,11 +1,13 @@
 //! Top-level `ExecutionModule` — the only executable IR unit.
 
-use super::effect::EffectEdge;
-use super::exit::DeclaredExit;
-use super::fingerprint::ModuleFingerprint;
-use super::ids::RegionId;
-use super::region::Region;
-use super::types::{CapturedRoot, ConstantValue, ModuleInput, ProviderCallDescriptor};
+use super::{
+    effect::EffectEdge,
+    exit::DeclaredExit,
+    fingerprint::ModuleFingerprint,
+    ids::RegionId,
+    region::Region,
+    types::{CapturedRoot, ConstantValue, ModuleInput, ProviderCallDescriptor},
+};
 
 /// Verified executable module produced by [`crate::execution::compiler::ExecutionCompiler`].
 ///
@@ -35,8 +37,7 @@ pub struct ExecutionModule {
 impl ExecutionModule {
     /// Empty module with a single empty entry region (contract freeze placeholder).
     pub fn empty() -> Self {
-        use super::block::BasicBlock;
-        use super::ids::BlockId;
+        use super::{block::BasicBlock, ids::BlockId};
 
         let entry = BasicBlock::empty_return(BlockId(0));
         let region = Region::from_entry_block(RegionId(0), entry, Vec::new());

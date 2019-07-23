@@ -14,7 +14,7 @@ use crate::{
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
         polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
     },
-    execution::{self, environment::DefinitionLayer, vm::UnitCache},
+    execution::{self, environment::DefinitionLayer},
     reasoning::mgraph::MGraphState,
     runtime::{
         results::{ComputationResult, ResultStore},
@@ -31,8 +31,6 @@ pub struct Session {
     pub operators: OperatorRegistry,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
-    /// KernelIR 编译缓存（canonical hash → `ExecUnit`）。
-    pub units: UnitCache,
     /// `LexicalScope` 局部唯一化计数器。
     pub module_counter: u64,
     /// 多项式环 intern 表。
@@ -83,7 +81,6 @@ impl Session {
             arena: TermStore::new(),
             operators: OperatorRegistry::new(),
             defs: DefinitionLayer::new(),
-            units: UnitCache::new(),
             module_counter: 0,
             rings: RingTable::default(),
             mgraph: MGraphState::default(),

@@ -7,9 +7,9 @@
 use athena_types::TermId;
 
 use crate::{
-    store::TermStore,
     node::{Atom, TermNode},
     operator::OperatorRegistry,
+    store::TermStore,
 };
 
 /// FNV-1a 64 offset basis。

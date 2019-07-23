@@ -223,7 +223,10 @@ fn map_optimization(result: &OptimizationResult) -> DomainMeta {
         | OptimizationResult::NumericalCandidate { status, .. } => {
             let coverage = match status {
                 ComputationStatus::Exact | ComputationStatus::Verified => CoverageStatus::Full,
-                ComputationStatus::Partial | ComputationStatus::Conditional | ComputationStatus::Probable | ComputationStatus::Candidate
+                ComputationStatus::Partial
+                | ComputationStatus::Conditional
+                | ComputationStatus::Probable
+                | ComputationStatus::Candidate
                 | ComputationStatus::ResourceLimited => CoverageStatus::Partial,
                 ComputationStatus::Unknown | ComputationStatus::Invalid => CoverageStatus::Unknown,
             };

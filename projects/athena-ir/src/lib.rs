@@ -4,21 +4,21 @@
 
 #![deny(missing_docs)]
 
-pub mod store;
 pub mod build;
 pub mod canonical;
 pub mod node;
 pub mod operator;
+pub mod store;
 pub mod symbol;
 pub mod trace;
 
 /// 数值塔再导出。
 pub use athena_numeric as numeric;
 
-pub use store::TermStore;
 pub use build::TermBuilder;
 pub use canonical::{canonical_hash, canonical_hash_named, fnv1a64};
 pub use node::{Atom, TermNode};
 pub use operator::OperatorRegistry;
+pub use store::TermStore;
 pub use symbol::SymbolTable;
 pub use trace::trace_term_node;

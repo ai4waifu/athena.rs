@@ -113,13 +113,7 @@ impl CapturedRoot {
 impl ProviderCallDescriptor {
     /// Minimal provider descriptor.
     pub fn new(id: ProviderCallId, operator: OperatorId, result_type: ExecutionValueType) -> Self {
-        Self {
-            id,
-            operator,
-            argument_types: Vec::new(),
-            result_type,
-            safepoint: true,
-        }
+        Self { id, operator, argument_types: Vec::new(), result_type, safepoint: true }
     }
 }
 

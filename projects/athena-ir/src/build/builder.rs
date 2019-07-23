@@ -4,9 +4,9 @@ use athena_numeric::NumericValue;
 use athena_types::{OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 use crate::{
-    store::TermStore,
     node::{Atom, TermNode},
     operator::OperatorRegistry,
+    store::TermStore,
     symbol::SymbolTable,
 };
 

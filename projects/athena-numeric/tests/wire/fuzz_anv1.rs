@@ -70,11 +70,7 @@ fn fuzz_anv1_multi_kind_lcg_mutations() {
         (0xA004, encode_blob(&NumericValue::decimal(Decimal::from_f64(1.25).unwrap()))),
         (
             0xA005,
-            encode_blob(&NumericValue::complex(Complex {
-                re: Real::machine(1.25),
-                im: Real::machine(-2.5),
-                branch: BranchPolicy::Principal,
-            })),
+            encode_blob(&NumericValue::complex(Complex { re: Real::machine(1.25), im: Real::machine(-2.5), branch: BranchPolicy::Principal })),
         ),
         (
             0xA006,
@@ -82,10 +78,7 @@ fn fuzz_anv1_multi_kind_lcg_mutations() {
                 Interval::try_bounded(Real::machine(-1.0), Real::machine(2.5), IntervalDecoration::Certain).unwrap(),
             )),
         ),
-        (
-            0xA007,
-            encode_blob(&NumericValue::modular(ModularValue::new(Integer::from_i64(10), Modulus::new(Integer::from_i64(7)).unwrap()))),
-        ),
+        (0xA007, encode_blob(&NumericValue::modular(ModularValue::new(Integer::from_i64(10), Modulus::new(Integer::from_i64(7)).unwrap())))),
         (
             0xA008,
             encode_blob(&NumericValue::algebraic(
@@ -104,10 +97,7 @@ fn fuzz_anv1_multi_kind_lcg_mutations() {
                     .unwrap(),
             )),
         ),
-        (
-            0xA00A,
-            encode_blob(&NumericValue::padic(PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap())),
-        ),
+        (0xA00A, encode_blob(&NumericValue::padic(PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap()))),
     ];
 
     for (seed, base) in bases {

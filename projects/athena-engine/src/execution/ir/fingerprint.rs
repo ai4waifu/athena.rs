@@ -1,7 +1,9 @@
 //! Source-independent module fingerprint (not `TermId` indices or renderer text).
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 use super::module::ExecutionModule;
 

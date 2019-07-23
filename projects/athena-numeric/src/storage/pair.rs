@@ -14,8 +14,8 @@ use athena_gc::{GcHeap, heap_id_for_limbs};
 
 use super::{
     meta::{
-        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_is_rooted, heap_len,
-        is_negative, mode_of, try_mode_of,
+        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_is_rooted, heap_len, is_negative,
+        mode_of, try_mode_of,
     },
     owned::{OwnedLimbBuffer, RootedLimbBuffer},
     union::{HeapPayload, Magnitude},

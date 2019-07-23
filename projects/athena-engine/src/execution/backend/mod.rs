@@ -2,8 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result, ResultId};
 
-use crate::execution::ir::ExecutionModule;
-use crate::runtime::session::Session;
+use crate::{execution::ir::ExecutionModule, runtime::session::Session};
 
 /// Capability / ABI fingerprint used in code-cache keys (not `TermId` indices).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

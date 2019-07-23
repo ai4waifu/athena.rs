@@ -1,8 +1,10 @@
 //! Regions group basic blocks that share a control-flow graph.
 
-use super::block::BasicBlock;
-use super::ids::{BlockId, RegionId};
-use super::types::ExecutionValueType;
+use super::{
+    block::BasicBlock,
+    ids::{BlockId, RegionId},
+    types::ExecutionValueType,
+};
 
 /// One region inside an [`super::ExecutionModule`].
 #[derive(Debug, Clone, PartialEq, Eq)]

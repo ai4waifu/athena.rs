@@ -1,7 +1,9 @@
 //! Declared guard / failure / deoptimization exits.
 
-use super::ids::{BlockId, ExitId};
-use super::types::ExecutionValueType;
+use super::{
+    ids::{BlockId, ExitId},
+    types::ExecutionValueType,
+};
 
 /// Why an exit edge may be taken.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,11 +38,6 @@ pub struct DeclaredExit {
 impl DeclaredExit {
     /// Guard rejection without in-module continuation.
     pub fn guard_reject(id: ExitId) -> Self {
-        Self {
-            id,
-            kind: ExitKind::GuardRejected,
-            continuation: None,
-            result_types: Vec::new(),
-        }
+        Self { id, kind: ExitKind::GuardRejected, continuation: None, result_types: Vec::new() }
     }
 }
