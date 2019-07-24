@@ -665,7 +665,7 @@ impl ReferenceExecutor {
         }
         let mut cur = expr;
         for (lhs, rhs) in rules {
-            cur = replace_literal_session(session, cur, lhs, rhs);
+            cur = crate::execution::builtins::patterns::replace_literal(session, cur, lhs, rhs);
         }
         match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(cur)) {
             Ok(module) => {
@@ -2023,38 +2023,6 @@ fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, TermId)> {
     }
     let name = session.operators.name(*head)?;
     if matches!(name, "Rule" | "RuleDeferred") { Some((arguments[0], arguments[1])) } else { None }
-}
-
-fn replace_literal_session(session: &mut Session, expr: TermId, lhs: TermId, rhs: TermId) -> TermId {
-    if session.arena.structural_eq(expr, lhs) {
-        return rhs;
-    }
-    match session.arena.get(expr) {
-        Some(athena_ir::TermNode::List(items)) => {
-            let items = items.clone();
-            let mut changed = false;
-            let mut out = Vec::with_capacity(items.len());
-            for item in items {
-                let replaced = replace_literal_session(session, item, lhs, rhs);
-                changed |= replaced != item;
-                out.push(replaced);
-            }
-            if changed { push_list(session, out) } else { expr }
-        }
-        Some(athena_ir::TermNode::Application { head, arguments }) => {
-            let head = *head;
-            let arguments = arguments.clone();
-            let mut changed = false;
-            let mut out = Vec::with_capacity(arguments.len());
-            for arg in arguments {
-                let replaced = replace_literal_session(session, arg, lhs, rhs);
-                changed |= replaced != arg;
-                out.push(replaced);
-            }
-            if changed { session.builder().application(head, out, Default::default()) } else { expr }
-        }
-        _ => expr,
-    }
 }
 
 fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {
