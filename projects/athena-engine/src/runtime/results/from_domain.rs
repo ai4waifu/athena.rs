@@ -28,7 +28,7 @@ pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> C
     let value_id = session.insert_value(RuntimeValue::Domain(domain));
     let mut result = ComputationResult::with_status(mapped.status, mapped.coverage)
         .with_value(value_id)
-        .with_provenance(ResultProvenance { request_kind: "DomainGoal" });
+        .with_provenance(ResultProvenance::kind("DomainGoal"));
     if let Some(provider) = mapped.provider {
         result = result.with_provider(provider);
     }

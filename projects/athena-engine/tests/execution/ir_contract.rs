@@ -80,11 +80,13 @@ fn loop_while_emits_budget_check_effect() {
 #[test]
 fn goal_provider_call_publishes_with_effect_pair() {
     let mut session = Session::new();
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
-        a: Integer::from_i64(12),
-        b: Integer::from_i64(8),
-    })));
-    let module = compile(&mut session, request);
+    let make_request = || {
+        AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
+            a: Integer::from_i64(12),
+            b: Integer::from_i64(8),
+        })))
+    };
+    let module = compile(&mut session, make_request());
     assert_eq!(module.provider_calls.len(), 1);
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::CallProvider)));
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::PublishResult)));
@@ -92,6 +94,12 @@ fn goal_provider_call_publishes_with_effect_pair() {
         b.operations.iter().any(|op| matches!(op.kind, OperationKind::CallProvider { .. }) && op.effect_in.is_some())
     }));
     verify_module(&module).expect("provider effects");
+
+    let result_id = athena_engine::execution::execute_ir_request(&mut session, make_request()).expect("execute");
+    let loaded = session.results.get(result_id).expect("result");
+    let provenance = loaded.provenance.as_ref().expect("provenance");
+    assert_eq!(provenance.request_kind, "CallProvider");
+    assert!(provenance.capability_fingerprint.is_some());
 }
 
 #[test]

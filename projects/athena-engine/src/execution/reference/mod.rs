@@ -106,7 +106,7 @@ impl ReferenceExecutor {
         else {
             ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
         };
-        result = result.with_value(value).with_symbolic_term(term).with_provenance(ResultProvenance { request_kind: "ExecutionIR" });
+        result = result.with_value(value).with_symbolic_term(term).with_provenance(ResultProvenance::kind("ExecutionIR"));
         Ok(session.insert_result(result))
     }
 
@@ -437,14 +437,21 @@ impl ReferenceExecutor {
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }
             OperationKind::CallProvider { call, .. } => {
-                let _ = module.provider_calls.get(call.0 as usize).ok_or_else(|| diag("missing_provider_call"))?;
+                let descriptor = module.provider_calls.get(call.0 as usize).ok_or_else(|| diag("missing_provider_call"))?.clone();
+                if descriptor.id != *call {
+                    return Err(diag("provider_call_id_mismatch"));
+                }
+                let handoff = crate::execution::provider::ProviderCallHandoff::from_descriptor(descriptor);
                 match provider.take() {
                     Some(domain) => {
                         let domain_result = execute_domain(session, domain)?;
-                        let computation = computation_from_domain(session, domain_result);
+                        let mut computation = computation_from_domain(session, domain_result);
+                        computation =
+                            computation.with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
                         Ok(Slot::Result(session.insert_result(computation)))
                     }
                     None => {
+                        let _ = handoff;
                         *unsupported = true;
                         Ok(Slot::Unit)
                     }

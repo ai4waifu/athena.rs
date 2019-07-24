@@ -48,6 +48,20 @@ pub enum ResultEvidence {
 pub struct ResultProvenance {
     /// 请求种类名（`Term` / `DomainGoal` / `Command` / …）。
     pub request_kind: &'static str,
+    /// `ExecutionIR` provider capability fingerprint（无 provider 边时为 `None`）。
+    pub capability_fingerprint: Option<u64>,
+}
+
+impl ResultProvenance {
+    /// Provenance without a provider capability edge.
+    pub fn kind(request_kind: &'static str) -> Self {
+        Self { request_kind, capability_fingerprint: None }
+    }
+
+    /// Provenance for a `CallProvider` edge.
+    pub fn call_provider(capability_fingerprint: u64) -> Self {
+        Self { request_kind: "CallProvider", capability_fingerprint: Some(capability_fingerprint) }
+    }
 }
 
 /// 一次计算的可观察结果。
