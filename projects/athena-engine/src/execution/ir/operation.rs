@@ -24,7 +24,7 @@ pub struct Operation {
 
 /// Closed semantic opcode set for `ExecutionIR`.
 ///
-/// Dialect surface names (`Hold`, `RuleDelayed`, `Plus`, …) must not appear here.
+/// Dialect surface names must not appear here. Closed semantic operators only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     /// Load a module input into an SSA value.

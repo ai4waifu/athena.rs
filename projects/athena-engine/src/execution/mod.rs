@@ -1,7 +1,7 @@
 //! 执行层 — typed [`ir::ExecutionIR`] + backends（Living `25` 终态）。
 //!
 //! 合同：[`compiler`] · [`ir`] · [`reference`] · [`backend`] · [`provider`]。
-//! 栈式 bytecode / `ExecUnit` 路径已删除。Pattern 工具在 [`builtins::patterns`]。
+//! Pattern 工具在 [`builtins::patterns`]。
 
 pub mod backend;
 pub mod builtins;

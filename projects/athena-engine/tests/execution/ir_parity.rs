@@ -1,4 +1,4 @@
-//! `ExecutionIR` interp parity (green subset of VM suite · Living `25` L2).
+//! `ExecutionIR` reference parity (Living `25` L2).
 
 use athena_engine::{
     api::request::AthenaRequest,

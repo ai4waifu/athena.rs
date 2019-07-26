@@ -1,4 +1,4 @@
-//! Interp 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_term`）。
+//! 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_term`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,
@@ -231,7 +231,7 @@ fn linear_algebra_paths() {
     let e = apply("LinearSolve", vec![m, rhs], &mut s);
     let r = eval(&mut s, e);
     assert!(r.contains("List[List[2], List[3]]"), "got {r}");
-    // 行向量 b 为 legacy 合同下的未求值回显形态
+    // 行向量 b 为未求值回显形态
     let rhs_row = list(vec![int(4, &mut s), int(6, &mut s)], &mut s);
     let e = apply("LinearSolve", vec![m, rhs_row], &mut s);
     let r = eval(&mut s, e);
@@ -239,7 +239,7 @@ fn linear_algebra_paths() {
 }
 
 #[test]
-fn interp_outcome_exposed() {
+fn term_evaluation_exposed() {
     let mut s = Session::new();
     let e = apply("Plus", vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let out: execution::TermEvaluation = evaluate_term(&mut s, e);

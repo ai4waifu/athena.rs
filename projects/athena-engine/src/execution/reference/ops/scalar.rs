@@ -237,7 +237,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// `CollectMatches[list, pat]` / `Cases` — filter list items by pattern.
+    /// `CollectMatches[list, pat]` — filter list items by pattern.
     pub(crate) fn eval_collect_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));

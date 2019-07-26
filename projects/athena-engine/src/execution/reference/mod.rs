@@ -301,7 +301,7 @@ impl ReferenceExecutor {
                     "Zeros" | "Ones" | "Eye" => self.eval_matrix_constructor(session, name.as_str(), args, slots),
                     "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
                     "ReplaceAll" => self.eval_replace_all(session, args, slots),
-                    "CollectMatches" | "Cases" => self.eval_collect_matches(session, args, slots),
+                    "CollectMatches" => self.eval_collect_matches(session, args, slots),
                     "Matches" => self.eval_matches(session, args, slots),
                     "Simplify" => self.eval_simplify(session, args, slots),
                     "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic" | "Residue" | "DSolve" | "LaplaceTransform"
@@ -433,7 +433,7 @@ impl ReferenceExecutor {
                     return Ok(Slot::Term(term));
                 }
                 if let Some(term) = session.defs.delayed(symbol) {
-                    // Evaluate Delayed OwnValues on read (SetDelayed semantics).
+                    // Evaluate Delayed OwnValues on read (`DefineDeferred` semantics).
                     let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
                     let result_id = self.execute(session, &module, None)?;
                     let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);

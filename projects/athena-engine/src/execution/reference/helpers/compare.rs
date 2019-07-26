@@ -103,12 +103,11 @@ pub(crate) fn is_known_residual_head(name: &str) -> bool {
             | "D"
             | "Integrate"
             | "Hold"
-            | "HoldForm"
             | "Function"
     )
 }
 
-/// Logic ops: Boolean atoms · `True`/`False` · exact `0`/`1` (VM `as_boolean_id` parity).
+/// Logic ops: Boolean atoms · `True`/`False` · exact `0`/`1`.
 pub(crate) fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
     match slot {
         Slot::Boolean(v) => Some(v),

@@ -21,7 +21,7 @@ impl DefinitionLayer {
         Self::default()
     }
 
-    /// 写 Own 定义（替换同符号的 Delayed / DownValues，与 legacy 单一定义槽一致）。
+    /// 写 Own 定义（替换同符号的 Delayed / DownValues）。
     pub fn define_own(&mut self, symbol: SymbolId, value: TermId) {
         self.owns.insert(symbol, value);
         self.delayed.remove(&symbol);

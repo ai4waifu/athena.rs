@@ -1,4 +1,4 @@
-//! Interp 执行层覆盖（Living `25` L2 · `evaluate_term` → `ExecutionIR`）。
+//! 执行层覆盖（Living `25` L2 · `evaluate_term` → `ExecutionIR`）。
 
 use athena_engine::{
     diagnostics::term_summary::term_debug,

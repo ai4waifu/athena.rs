@@ -2,7 +2,7 @@
 //!
 //! Bootstrap lowering: atom terms, typed Boolean constants, `ControlPlan::Branch` /
 //! `Sequence`, and effectful `SessionCommand::Define` via `WriteBinding`.
-//! No bridge to a legacy stack interpreter.
+//! No bridge to a deleted stack interpreter.
 
 use athena_ir::{Atom, TermNode};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
@@ -162,7 +162,7 @@ impl ExecutionCompiler {
                         .detail("status", "if_arity_not_supported")),
                 };
             }
-            if name == Some("Define") || name == Some("Set") {
+            if name == Some("Define") {
                 return match arguments.as_slice() {
                     [lhs, rhs] => {
                         let symbol = match session.arena.get(*lhs) {
@@ -187,7 +187,7 @@ impl ExecutionCompiler {
                         .detail("status", "define_arity_not_supported")),
                 };
             }
-            if name == Some("DefineDeferred") || name == Some("SetDelayed") {
+            if name == Some("DefineDeferred") {
                 return match arguments.as_slice() {
                     [lhs, rhs] => match session.arena.get(*lhs) {
                         Some(TermNode::Atom(Atom::Symbol(symbol))) => self.lower_command(
@@ -260,11 +260,11 @@ impl ExecutionCompiler {
                         .detail("status", "loop_while_arity_not_supported")),
                 };
             }
-            if name == Some("Sequence") || name == Some("CompoundExpression") {
+            if name == Some("Sequence") {
                 let steps: Vec<AthenaRequest> = arguments.iter().copied().map(AthenaRequest::Term).collect();
                 return self.lower_sequence(session, builder, blocks, block_id, &steps);
             }
-            if name == Some("Hold") || name == Some("HoldForm") {
+            if name == Some("Hold") {
                 // Capture the whole held term without evaluating arguments.
                 return self.lower_held_term(builder, blocks, block_id, term);
             }
@@ -553,7 +553,7 @@ impl ExecutionCompiler {
             return None;
         }
         let name = session.operators.name(*head)?;
-        if name != "Define" && name != "Set" {
+        if name != "Define" {
             return None;
         }
         match session.arena.get(arguments[0]) {
@@ -1502,7 +1502,7 @@ impl ExecutionCompiler {
                 // `Function`: HoldAll args (formal + body).
                 let hold_all = name == "Function";
                 let hold_first = matches!(name, "Table" | "Product") || (name == "Sum" && arg_terms.len() == 2);
-                let hold_second = matches!(name, "CollectMatches" | "Matches" | "Cases") && arg_terms.len() >= 2;
+                let hold_second = matches!(name, "CollectMatches" | "Matches") && arg_terms.len() >= 2;
                 let mut args = Vec::with_capacity(arg_terms.len());
                 for (index, arg) in arg_terms.into_iter().enumerate() {
                     if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
@@ -1575,7 +1575,7 @@ impl ExecutionCompiler {
                     .detail("component", "ExecutionCompiler")
                     .detail("status", "branch_condition_not_boolean_atom")),
             },
-            // Exact `0`/`1` truthiness (VM `as_boolean_id` parity). Other numbers fail so
+            // Exact `0`/`1` truthiness. Other numbers fail so
             // `Branch` can fall back to runtime predicate lowering.
             Some(TermNode::Atom(Atom::Number(n))) => {
                 if n.is_zero() {

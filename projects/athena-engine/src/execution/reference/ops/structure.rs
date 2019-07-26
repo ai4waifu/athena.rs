@@ -21,7 +21,7 @@ use crate::{
 };
 
 impl ReferenceExecutor {
-    /// `Sum[list]` — vector scalar sum / matrix column sums (VM `array_sum` parity).
+    /// `Sum[list]` — vector scalar sum / matrix column sums.
     /// `Sum[body, iterator]` — Table then Plus-fold.
     pub(crate) fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() == 2 {
@@ -430,7 +430,7 @@ impl ReferenceExecutor {
             "GreaterEqual" => |o: Ordering| o != Ordering::Less,
             _ => return Err(diag("semantic_operator_not_implemented")),
         };
-        // Binary list broadcast (VM `eval_compare` parity).
+        // Binary list broadcast for compares.
         if terms.len() == 2 {
             if let Some(broadcast) = compare_list_broadcast(session, name, terms[0], terms[1], pick)? {
                 return Ok(Slot::Term(broadcast));
