@@ -18,7 +18,7 @@ pub use athena_engine::api;
 pub use athena_engine::diagnostics;
 /// 数学领域 providers 与顶层域分派。
 pub use athena_engine::domains;
-/// KernelIR 编译、VM 与 builtins。
+/// `ExecutionIR` 编译、reference / JIT backends 与 builtins。
 pub use athena_engine::execution;
 /// 采样合同（非方言 render）。
 pub use athena_engine::plot;

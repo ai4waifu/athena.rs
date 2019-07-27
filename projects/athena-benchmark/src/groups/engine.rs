@@ -1,6 +1,6 @@
 //! `engine` 分组种子 fixture。
 
-use athena_engine::{execution::vm::evaluate_session, runtime::Session};
+use athena_engine::{execution::evaluate_term, runtime::Session};
 
 fn push_int(n: i64, session: &mut Session) -> athena_types::TermId {
     athena_engine::runtime::values::arena::push_int(session, n)
@@ -27,7 +27,7 @@ impl Fixture for EvalPowerFixture {
     fn validate(&self) -> Result<ValidationSummary, String> {
         let mut session = Session::new();
         let expr = push_application_named("Power", vec![push_int(2, &mut session), push_int(10, &mut session)], &mut session);
-        let v = evaluate_session(&mut session, expr).term;
+        let v = evaluate_term(&mut session, expr).term;
         let Some(x) = execution::number_of(&session, v).and_then(athena_numeric::to_f64_lossy)
         else {
             return Err("eval did not yield f64".into());
@@ -41,7 +41,7 @@ impl Fixture for EvalPowerFixture {
     fn run_once(&self) {
         let mut session = Session::new();
         let expr = push_application_named("Power", vec![push_int(3, &mut session), push_int(8, &mut session)], &mut session);
-        let _ = evaluate_session(&mut session, expr);
+        let _ = evaluate_term(&mut session, expr);
     }
 }
 

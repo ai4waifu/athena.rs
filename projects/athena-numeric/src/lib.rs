@@ -25,8 +25,6 @@ pub(crate) mod storage;
 pub mod value;
 
 // —— 稳定模块路径（真实模块，不是别名文件）——
-#[allow(deprecated)]
-pub use crate::certificate::NumericProvenance;
 pub use crate::{
     arithmetic::{
         comparison,

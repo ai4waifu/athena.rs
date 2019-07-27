@@ -109,7 +109,3 @@ impl PartialEq for NumericBinding {
 }
 
 impl Eq for NumericBinding {}
-
-/// 自嵌入 provenance 迁移用的弃用别名。
-#[deprecated(note = "use NumericEvidenceRecord with NumericEvidenceArena")]
-pub type NumericProvenance = NumericEvidenceRecord;
