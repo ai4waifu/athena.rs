@@ -25,4 +25,4 @@ pub use lifecycle::{
     allocate_array_revision_id, allocate_array_snapshot_id, finish_array_on_heap, publish_array_snapshot,
 };
 pub use shape::{Axis, ChunkPlan, LogicalShape, MemoryBudget};
-pub use storage::{ArrayStorage, ChunkStore, InMemoryStorage, StorageCapabilities};
+pub use storage::{ArrayStorage, InMemoryStorage, StorageCapabilities};

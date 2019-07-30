@@ -36,7 +36,7 @@ impl GcHeap {
         Ok(hdr)
     }
 
-    /// 兼容旧名。
+    /// Limb payload → allocation header。
     pub fn header_for_limbs(&self, limbs: NonNull<u64>) -> Result<&AllocationHeader> {
         self.header_for_payload(limbs.cast())
     }

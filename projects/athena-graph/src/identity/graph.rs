@@ -210,7 +210,7 @@ impl<N, E> MutableGraph<N, E> {
         }
     }
 
-    /// 邻接（兼容旧 API：有向=出边；无向=无向邻接）。
+    /// 邻接迭代（有向图取出发邻接；无向图取无向邻接）。
     pub fn neighbors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
         self.out_neighbors(node)
     }

@@ -69,7 +69,7 @@ cargo test -p athena-numeric --test main promotion
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo llvm-cov --workspace --summary-only
-cargo run -p athena-benchmark --release -- --groups numeric,ir --json
+cargo run -p athena-benchmark --release -- --groups numeric,ir --format json
 ```
 
 迭代单个 crate：

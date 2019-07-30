@@ -115,7 +115,7 @@ impl Ord for Integer {
     }
 }
 
-/// 稳定别名（与 [`NumericValue`] 同义迁移期命名）。
+/// 精确整数的稳定公开名（与 [`Integer`] 同义）。
 pub type ExactInteger = Integer;
 
 impl Integer {

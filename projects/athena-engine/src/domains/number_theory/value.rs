@@ -137,11 +137,6 @@ impl Factorization {
             CofactorStatus::One => FactorizationCompleteness::Partial,
         }
     }
-
-    /// 兼容旧字段名：未分解余因子。
-    pub fn remainder(&self) -> &Integer {
-        &self.cofactor
-    }
 }
 
 /// extended Euclidean：`s·a + t·b = g`。

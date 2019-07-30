@@ -35,10 +35,6 @@ struct Args {
     /// 写入报告文件（`.json` → JSON，其它 → Markdown）；省略则打印到 stdout
     #[arg(long)]
     write: Option<PathBuf>,
-
-    /// 兼容旧开关：等价于 `--format json`
-    #[arg(long)]
-    json: bool,
 }
 
 fn main() -> ExitCode {
@@ -64,7 +60,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let format = if args.json { "json" } else { args.format.as_str() };
+    let format = args.format.as_str();
 
     let config = RunConfig { groups: groups.clone(), smoke_iters: args.smoke_iters, report_tier };
 

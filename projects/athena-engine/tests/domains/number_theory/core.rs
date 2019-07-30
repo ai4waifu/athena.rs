@@ -83,7 +83,7 @@ fn factor_integer_complete_small() {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Factorization(f) } => {
             assert_eq!(f.unit, Integer::from_i64(-1));
             assert_eq!(f.completeness(), FactorizationCompleteness::Complete);
-            assert_eq!(f.remainder(), &Integer::from_i64(1));
+            assert_eq!(&f.cofactor, &Integer::from_i64(1));
             assert_eq!(f.factors.len(), 3);
             assert_eq!(f.factors[0].base, Integer::from_i64(2));
             assert_eq!(f.factors[0].exponent, 3);

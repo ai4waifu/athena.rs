@@ -81,7 +81,3 @@ pub enum GaloisDomainValue {
     /// 占位。
     Placeholder,
 }
-
-/// 向后兼容别名（迁移期）。
-#[allow(dead_code)]
-pub type Automorphism = FieldAutomorphism;

@@ -54,7 +54,7 @@ impl GcHeap {
         rc
     }
 
-    /// 兼容旧测试名：等价于 [`Self::new_shared`]。
+    /// 构造共享堆（`Rc<RefCell<GcHeap>>`）。
     pub fn new(budget: HeapBudget) -> Rc<RefCell<Self>> {
         Self::new_shared(budget)
     }

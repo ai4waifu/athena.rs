@@ -38,10 +38,6 @@ pub trait ArrayStorage<T> {
     fn write_range(&mut self, offset: u64, values: &[T]) -> Result<(), Self::Error>;
 }
 
-/// 历史别名。
-pub trait ChunkStore<T>: ArrayStorage<T> {}
-impl<T, S: ArrayStorage<T>> ChunkStore<T> for S {}
-
 /// 进程内 [`Vec`] 承载的 storage（小数组 / 测试 / 便利路径，不是规模上限）。
 #[derive(Debug, Clone)]
 pub struct InMemoryStorage<T> {

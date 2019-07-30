@@ -14,4 +14,4 @@ mod value;
 pub use compute::execute_galois_with_tables;
 pub use request::GaloisRequest;
 pub use result::{GaloisResult, execute_galois};
-pub use value::{FieldAutomorphism, FieldAutomorphism as Automorphism, GaloisComputation, GaloisDomainValue, GaloisGroup};
+pub use value::{FieldAutomorphism, GaloisComputation, GaloisDomainValue, GaloisGroup};

@@ -26,7 +26,7 @@ pub struct Rational {
     denom: MagnitudePair,
 }
 
-/// 稳定别名（与 [`NumericValue`] 同义迁移期命名）。
+/// 精确有理的稳定公开名（与 [`Rational`] 同义）。
 pub type ExactRational = Rational;
 
 #[cfg(target_pointer_width = "64")]

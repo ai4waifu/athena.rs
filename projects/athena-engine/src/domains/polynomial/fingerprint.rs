@@ -73,7 +73,7 @@ pub fn polynomial_fingerprint(poly: &Polynomial, rings: &RingTable) -> Result<Po
     PolynomialFingerprint::from_polynomial(poly, rings)
 }
 
-/// 兼容旧 API：返回 [`PolynomialFingerprint`] 的 `u64` 载荷。
+/// 返回 [`PolynomialFingerprint`] 的 `u64` 载荷。
 pub fn polynomial_fingerprint_u64(poly: &Polynomial, rings: &RingTable) -> Result<u64> {
     Ok(polynomial_fingerprint(poly, rings)?.0)
 }
