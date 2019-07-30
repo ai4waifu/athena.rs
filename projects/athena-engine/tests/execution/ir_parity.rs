@@ -245,6 +245,35 @@ fn map_sin_list() {
 }
 
 #[test]
+fn map_function_var_body() {
+    let mut c = C::new();
+    let body = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    let f = apply("Function", vec![symbol("x", &mut c), body], &mut c);
+    let e = apply("Map", vec![f, lst(vec![i(1, &mut c), i(2, &mut c)], &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "List[2, 3]");
+}
+
+#[test]
+fn map_pure_function_slot() {
+    let mut c = C::new();
+    let slot = symbol("#", &mut c);
+    let body = apply("Times", vec![slot, i(2, &mut c)], &mut c);
+    let f = apply("Function", vec![body], &mut c);
+    let e = apply("Map", vec![f, lst(vec![i(3, &mut c), i(4, &mut c)], &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "List[6, 8]");
+}
+
+#[test]
+fn application_pure_function_slot() {
+    let mut c = C::new();
+    let slot = apply("Slot", vec![], &mut c);
+    let body = apply("Plus", vec![slot, i(10, &mut c)], &mut c);
+    let f = apply("Function", vec![body], &mut c);
+    let e = apply("Application", vec![f, i(7, &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "17");
+}
+
+#[test]
 fn for_span_last_value() {
     let mut c = C::new();
     let e =

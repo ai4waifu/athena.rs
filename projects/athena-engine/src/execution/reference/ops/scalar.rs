@@ -319,24 +319,62 @@ impl ReferenceExecutor {
             Some(athena_ir::TermNode::List(items)) => items.clone(),
             _ => return Ok(Slot::Term(push_application(session, "Map", vec![func, list]))),
         };
-        // Bootstrap: symbol heads only (`Map[Abs, List[…]]`). Function/`Slot` later.
-        let Some(name) = symbol_name(session, func)
-        else {
+        if !self.map_func_supported(session, func) {
             return Ok(Slot::Term(push_application(session, "Map", vec![func, list])));
-        };
+        }
         let mut out = Vec::with_capacity(items.len());
         for item in items {
-            let mapped = push_application(session, &name, vec![item]);
-            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(mapped)) {
-                Ok(module) => {
-                    let result_id = self.execute(session, &module, None)?;
-                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(mapped);
-                    out.push(term);
-                }
-                Err(_) => out.push(mapped),
-            }
+            out.push(self.map_apply_one(session, func, item)?);
         }
         Ok(Slot::Term(push_list(session, out)))
+    }
+
+    fn map_func_supported(&self, session: &Session, func: TermId) -> bool {
+        if symbol_name(session, func).is_some() {
+            return true;
+        }
+        matches!(
+            session.arena.get(func),
+            Some(athena_ir::TermNode::Application { head: op, arguments })
+                if session.operators.name(*op) == Some("Function") && matches!(arguments.len(), 1 | 2)
+        )
+    }
+
+    /// Apply `func` to one list element: symbol head, `Function[var, body]`, or pure `Function[body]` / `Slot`.
+    fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
+        if let Some(name) = symbol_name(session, func) {
+            let mapped = push_application(session, &name, vec![item]);
+            return self.re_eval_term(session, mapped);
+        }
+        if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(func) {
+            if session.operators.name(*op) == Some("Function") {
+                let arguments = arguments.clone();
+                match arguments.as_slice() {
+                    [var, body] => {
+                        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
+                            let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
+                            return self.re_eval_term(session, instantiated);
+                        }
+                    }
+                    [body] => {
+                        let instantiated = crate::execution::builtins::patterns::substitute_slot(session, *body, item);
+                        return self.re_eval_term(session, instantiated);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Err(diag("map_func_unsupported"))
+    }
+
+    fn re_eval_term(&self, session: &mut Session, term: TermId) -> Result<TermId> {
+        match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term)) {
+            Ok(module) => {
+                let result_id = self.execute(session, &module, None)?;
+                Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
+            }
+            Err(_) => Ok(term),
+        }
     }
 
     pub(crate) fn eval_apply(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
@@ -372,21 +410,37 @@ impl ReferenceExecutor {
             call_args.push(self.slot_as_term(session, slot)?);
         }
         // Function[var, body][arg…] → substitute and re-eval.
+        // Function[body][arg…] → Slot / `#` substitution.
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
-            if session.operators.name(*op) == Some("Function") && arguments.len() == 2 && call_args.len() == 1 {
-                let var = arguments[0];
-                let body = arguments[1];
-                if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(var) {
-                    let sym = *sym;
-                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, body, sym, call_args[0]);
-                    match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
-                        Ok(module) => {
-                            let result_id = self.execute(session, &module, None)?;
-                            let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
-                            return Ok(Slot::Term(term));
+            if session.operators.name(*op) == Some("Function") && call_args.len() == 1 {
+                let arguments = arguments.clone();
+                match arguments.as_slice() {
+                    [var, body] => {
+                        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
+                            let sym = *sym;
+                            let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
+                            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
+                                Ok(module) => {
+                                    let result_id = self.execute(session, &module, None)?;
+                                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
+                                    return Ok(Slot::Term(term));
+                                }
+                                Err(_) => return Ok(Slot::Term(instantiated)),
+                            }
                         }
-                        Err(_) => return Ok(Slot::Term(instantiated)),
                     }
+                    [body] => {
+                        let instantiated = crate::execution::builtins::patterns::substitute_slot(session, *body, call_args[0]);
+                        match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
+                            Ok(module) => {
+                                let result_id = self.execute(session, &module, None)?;
+                                let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
+                                return Ok(Slot::Term(term));
+                            }
+                            Err(_) => return Ok(Slot::Term(instantiated)),
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
