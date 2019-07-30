@@ -141,9 +141,6 @@ impl GroebnerComputation {
     }
 }
 
-/// 兼容旧名称：完整计算的已验证基。
-pub type GroebnerBasis = VerifiedGroebnerBasis;
-
 /// 计算 Gröbner 基（Buchberger；系数域须为域）。
 ///
 /// 仅 [`GroebnerComputation::Complete`] 可作 exact membership / 消元定理 / M-Graph exact witness。

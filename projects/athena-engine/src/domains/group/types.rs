@@ -76,6 +76,3 @@ pub struct GroupElement {
     /// 表示。
     pub repr: GroupElementRepr,
 }
-
-/// 向后兼容别名（迁移期；新代码用 [`GroupDescriptor`]）。
-pub type GroupKind = GroupDescriptor;

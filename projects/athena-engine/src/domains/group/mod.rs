@@ -15,5 +15,5 @@ pub use canonical::{
 };
 pub use request::GroupRequest;
 pub use result::{GroupResult, execute_group, execute_group_with_table, execute_group_with_table_mut};
-pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, GroupKind, Permutation, Subgroup};
+pub use types::{Group, GroupDescriptor, GroupElement, GroupElementRepr, Permutation, Subgroup};
 pub use value::GroupDomainValue;

@@ -15,6 +15,3 @@ pub use column::{ChunkedColumn, Column, RecordBatch, Table, column_from_store};
 pub use error::TableError;
 pub use plan::{LazyTable, LogicalPlan, TableExpr};
 pub use schema::{Absence, Field, LogicalType, Schema};
-
-/// Compatibility alias —— **不是**架构真相源。
-pub type DataFrame = Table;

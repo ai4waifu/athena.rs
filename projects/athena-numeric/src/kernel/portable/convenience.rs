@@ -1,4 +1,4 @@
-//! Non-hot-path `Vec` convenience wrappers (tests / legacy callers).
+//! Non-hot-path `Vec` convenience wrappers (tests and non-executor callers).
 
 use athena_types::Result;
 

@@ -76,9 +76,6 @@ pub enum FieldDescriptor {
     },
 }
 
-/// 向后兼容别名（迁移期；新代码用 [`FieldDescriptor`]）。
-pub type FieldKind = FieldDescriptor;
-
 impl FieldDescriptor {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {

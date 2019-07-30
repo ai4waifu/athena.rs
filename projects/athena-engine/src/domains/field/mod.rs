@@ -17,5 +17,5 @@ pub use canonical::{
 };
 pub use request::FieldRequest;
 pub use result::{FieldResult, execute_field, execute_field_with_table, execute_field_with_table_mut};
-pub use types::{Field, FieldDescriptor, FieldElement, FieldElementRepr, FieldKind};
+pub use types::{Field, FieldDescriptor, FieldElement, FieldElementRepr};
 pub use value::FieldDomainValue;

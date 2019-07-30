@@ -15,9 +15,6 @@ pub struct StorageCapabilities {
     pub persistent: bool,
 }
 
-/// 历史别名。
-pub type StoreCapabilities = StorageCapabilities;
-
 /// 领域无关的分块存储合同。
 pub trait ArrayStorage<T> {
     /// 存储错误。

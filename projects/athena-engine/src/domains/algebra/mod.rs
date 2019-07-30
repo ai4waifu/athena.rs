@@ -25,7 +25,7 @@ pub use athena_types::{FieldPresentationId, GroupPresentationId};
 pub use bsgs::BsgsChain;
 pub use element::{AlgebraElement, ElementProvenance};
 pub use extension::FieldExtension;
-pub use fingerprint::{FieldFingerprint, FieldPresentationFingerprint, GroupFingerprint, GroupPresentationFingerprint};
+pub use fingerprint::{FieldFingerprint, GroupFingerprint};
 pub use finite_field_poly::{
     FiniteFieldPolySpec, add_coords, canonical_coords, frobenius_coords, frobenius_power_coords, inv_coords, mul_coords,
 };

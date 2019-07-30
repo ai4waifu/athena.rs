@@ -20,12 +20,6 @@ pub struct FieldFingerprint(pub u64);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GroupFingerprint(pub u64);
 
-/// 域 presentation 内容指纹别名。
-pub type FieldPresentationFingerprint = FieldFingerprint;
-
-/// 群 presentation 内容指纹别名。
-pub type GroupPresentationFingerprint = GroupFingerprint;
-
 impl FieldFingerprint {
     /// ℚ。
     pub fn rationals() -> Self {

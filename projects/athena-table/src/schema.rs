@@ -98,7 +98,7 @@ impl Schema {
 /// 缺失 / 未知 / 掩码等语义（不得压成同一 sentinel）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Absence {
-    /// Arrow/DataFrame 式字段无值。
+    /// 字段无值（Arrow 式 null / missing）。
     Null,
     /// 带原因的数据缺失。
     Missing(&'static str),
