@@ -112,15 +112,6 @@ fn head_constraint_holds(session: &Session, expr: TermId, head_name: &str) -> bo
     }
 }
 
-/// head 约束判定（经中性 `HeadConstraint`）。
-pub(crate) fn expr_has_head(session: &Session, expr: TermId, head_pat: TermId) -> bool {
-    let Some(head_name) = term_head_name(session, head_pat)
-    else {
-        return false;
-    };
-    match_term_pattern(session, expr, &TermPattern::HeadConstraint { head_name }, &mut HashMap::new())
-}
-
 /// `Pattern` 名下的绑定替换：符号原子替换，未命中共享。
 pub(crate) fn substitute_binds(session: &mut Session, expr: TermId, binds: &HashMap<SymbolId, TermId>) -> TermId {
     if binds.is_empty() {
