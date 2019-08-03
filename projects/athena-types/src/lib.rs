@@ -5,15 +5,23 @@
 #![deny(missing_docs)]
 
 mod assumption;
+mod binding;
+mod collection;
 mod diagnostic;
 mod ids;
+mod index_spec;
 mod numeric_kind;
+mod pattern_ids;
 mod scope;
 mod status;
 /// 过渡期宿主 wire（十进制字符串）；执行路径请用 `athena_numeric::NumericValue`。
 pub mod wire;
 
 pub use assumption::{AssumptionSet, Condition, Predicate};
+pub use binding::{BindingEvaluationPolicy, BindingKind};
+pub use collection::{CollectionKind, CollectionKindId};
+pub use index_spec::{IndexSpec, IndexSpecId, IntegerIndex, IntegerOffset};
+pub use pattern_ids::{CompiledRuleId, DispatchTableId, PredicateId, ValueTypeId};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId, FieldPresentationId,
