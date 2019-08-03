@@ -21,77 +21,12 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct ExecutionCompiler {}
 
-#[derive(Default)]
-struct ModuleBuilder {
-    constants: Vec<ConstantValue>,
-    captured_roots: Vec<CapturedRoot>,
-    effect_edges: Vec<EffectEdge>,
-    provider_calls: Vec<ProviderCallDescriptor>,
-    next_ssa: u32,
-    next_block: u32,
-    next_effect: u32,
-}
 
-impl ModuleBuilder {
-    fn ssa(&mut self) -> SsaValueId {
-        let id = SsaValueId(self.next_ssa);
-        self.next_ssa = self.next_ssa.saturating_add(1);
-        id
-    }
+mod builder;
+mod helpers;
 
-    fn block_id(&mut self) -> BlockId {
-        let id = BlockId(self.next_block);
-        self.next_block = self.next_block.saturating_add(1);
-        id
-    }
-
-    fn push_constant(&mut self, value: ConstantValue) -> ConstantId {
-        let id = ConstantId(self.constants.len() as u32);
-        self.constants.push(value);
-        id
-    }
-
-    fn push_term_root(&mut self, term: TermId) -> CapturedRootId {
-        let id = CapturedRootId(self.captured_roots.len() as u32);
-        self.captured_roots.push(CapturedRoot::term(term));
-        id
-    }
-
-    fn push_effect(&mut self, kind: EffectKind, precedes_from: Option<EffectToken>) -> EffectToken {
-        let token = EffectToken(self.next_effect);
-        self.next_effect = self.next_effect.saturating_add(1);
-        self.effect_edges.push(match precedes_from {
-            Some(prev) => EffectEdge::after(token, prev, kind),
-            None => EffectEdge::entry(token, kind),
-        });
-        token
-    }
-
-    fn push_provider_call(&mut self, descriptor: ProviderCallDescriptor) -> ProviderCallId {
-        let id = ProviderCallId(self.provider_calls.len() as u32);
-        let mut descriptor = descriptor;
-        descriptor.id = id;
-        self.provider_calls.push(descriptor);
-        id
-    }
-
-    fn finish(self, blocks: Vec<BasicBlock>, entry: BlockId) -> Result<ExecutionModule> {
-        let region = Region { id: RegionId(0), entry, blocks, result_types: vec![ExecutionValueType::Term] };
-        let mut module = ExecutionModule {
-            inputs: Vec::new(),
-            constants: self.constants,
-            captured_roots: self.captured_roots,
-            regions: vec![region],
-            effect_edges: self.effect_edges,
-            exits: Vec::new(),
-            provider_calls: self.provider_calls,
-            fingerprint: ModuleFingerprint(0),
-        };
-        module.fingerprint = ModuleFingerprint::of_module(&module);
-        verify_module(&module)?;
-        Ok(module)
-    }
-}
+use builder::ModuleBuilder;
+use helpers::{collect_compare_chain_args, expand_span_range, flatten_compare_chain_args};
 
 impl ExecutionCompiler {
     /// Create a compiler instance.
@@ -1601,55 +1536,6 @@ impl ExecutionCompiler {
     }
 }
 
-fn expand_span_range(start: i64, step: i64, end: i64) -> Option<Vec<i64>> {
-    if step == 0 {
-        return None;
-    }
-    let mut out = Vec::new();
-    let mut cur = start;
-    if step > 0 {
-        while cur <= end {
-            out.push(cur);
-            cur = cur.checked_add(step)?;
-        }
-    }
-    else {
-        while cur >= end {
-            out.push(cur);
-            cur = cur.checked_add(step)?;
-        }
-    }
-    Some(out)
-}
-
-/// Collect left-nested compare operands: `Less[Less[a,b],c]` → `[a,b,c]`.
-fn flatten_compare_chain_args(session: &Session, op: &str, term: TermId) -> Option<Vec<TermId>> {
-    let mut out = Vec::new();
-    if !collect_compare_chain_args(session, op, term, &mut out) {
-        return None;
-    }
-    if out.len() < 2 {
-        return None;
-    }
-    Some(out)
-}
-
-fn collect_compare_chain_args(session: &Session, op: &str, term: TermId, out: &mut Vec<TermId>) -> bool {
-    let Some(TermNode::Application { head, arguments }) = session.arena.get(term)
-    else {
-        return false;
-    };
-    if session.operators.name(*head) != Some(op) || arguments.len() != 2 {
-        return false;
-    }
-    let left = arguments[0];
-    let right = arguments[1];
-    if !collect_compare_chain_args(session, op, left, out) {
-        out.push(left);
-    }
-    out.push(right);
-    true
-}
 
 #[cfg(test)]
 mod tests;
