@@ -5,10 +5,10 @@
 //! No bridge to a deleted stack interpreter.
 
 use athena_ir::{Atom, TermNode};
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
 
 use crate::{
-    api::request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, SessionCommand},
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
     execution::ir::{
         BasicBlock, BlockEdge, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken,
         ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind, ProviderCallDescriptor, ProviderCallId, Region,
@@ -112,7 +112,12 @@ impl ExecutionCompiler {
                                 builder,
                                 blocks,
                                 block_id,
-                                &SessionCommand::Define { symbol, value: *rhs, timing: DefinitionEvaluationTiming::Immediate },
+                                &SessionCommand::Define {
+                                    symbol,
+                                    value: *rhs,
+                                    kind: BindingKind::Session,
+                                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                                },
                             ),
                             None => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                                 .detail("component", "ExecutionCompiler")
@@ -132,7 +137,12 @@ impl ExecutionCompiler {
                             builder,
                             blocks,
                             block_id,
-                            &SessionCommand::Define { symbol: *symbol, value: *rhs, timing: DefinitionEvaluationTiming::Deferred },
+                            &SessionCommand::Define {
+                                symbol: *symbol,
+                                value: *rhs,
+                                kind: BindingKind::Session,
+                                evaluation: BindingEvaluationPolicy::StoreResidualTerm,
+                            },
                         ),
                         Some(TermNode::Application { head: op, .. }) => {
                             let head_name = session.operators.name(*op).unwrap_or("").to_string();
@@ -301,12 +311,11 @@ impl ExecutionCompiler {
         command: &SessionCommand,
     ) -> Result<SsaValueId> {
         match command {
-            SessionCommand::Define { symbol, value, timing } => {
-                let delayed = matches!(timing, DefinitionEvaluationTiming::Deferred);
-                if delayed {
+            SessionCommand::Define { symbol, value, kind: _, evaluation } => {
+                let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
+                if residual {
                     return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, true);
                 }
-                // Immediate: atoms bind directly; compounds evaluate then bind (VM Set parity).
                 match session.arena.get(*value) {
                     Some(TermNode::Atom(_)) => self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, false),
                     Some(_) => self.lower_define_evaluated(session, builder, blocks, block_id, *symbol, *value),
@@ -315,6 +324,9 @@ impl ExecutionCompiler {
                         .detail("reason", "missing_term")),
                 }
             }
+            SessionCommand::RegisterRuleDispatch { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "register_rule_dispatch_pending_opcode")),
             SessionCommand::ClearDefinition { symbol } => {
                 let key = builder.ssa();
                 let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));

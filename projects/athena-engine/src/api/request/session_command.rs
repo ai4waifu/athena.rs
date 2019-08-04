@@ -1,29 +1,31 @@
-//! 会话状态变更命令（中性语义 · 非方言表面名）。
+//! 会话状态变更命令（中性语义 · Living `27` · 非方言表面名）。
 
-use athena_types::{SymbolId, TermId};
-
-/// 定义何时求值。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DefinitionEvaluationTiming {
-    /// 写入时立即求值右值（对应方言立即赋值一类语义，名称不进本枚举）。
-    Immediate,
-    /// 使用时再求值右值（对应方言延迟赋值一类语义）。
-    Deferred,
-}
+use athena_types::{
+    BindingEvaluationPolicy, BindingKind, CompiledRuleId, DispatchTableId, SymbolId, TermId,
+};
 
 /// Session 级状态变更。定义、清除、导入环境等走此路径，不得伪装成普通 `Application`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionCommand {
-    /// 绑定符号定义。
+    /// 写入绑定。
     Define {
         /// 被定义符号。
         symbol: SymbolId,
         /// 右值 term。
         value: TermId,
-        /// 求值时机。
-        timing: DefinitionEvaluationTiming,
+        /// 绑定类别。
+        kind: BindingKind,
+        /// 求值策略。
+        evaluation: BindingEvaluationPolicy,
     },
-    /// 清除符号的 Own / Delayed / DownValues。
+    /// 注册已编译规则到分派表。
+    RegisterRuleDispatch {
+        /// 目标分派表。
+        table: DispatchTableId,
+        /// 已编译规则。
+        rule: CompiledRuleId,
+    },
+    /// 清除符号的 session / residual / dispatch 绑定。
     ClearDefinition {
         /// 目标符号。
         symbol: SymbolId,

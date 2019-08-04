@@ -1,12 +1,12 @@
 //! Control-plan and scope lowering for [`super::ExecutionCompiler`].
 
 use athena_ir::{Atom, TermNode};
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::{ExecutionCompiler, ModuleBuilder};
 use super::helpers::expand_span_range;
 use crate::{
-    api::request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, SessionCommand},
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
     execution::ir::{
         BasicBlock, BlockEdge, BlockId, ConstantValue, EffectKind, ExecutionValueType, Operation, OperationKind, SsaValueId, Terminator,
     },
@@ -35,6 +35,9 @@ impl ExecutionCompiler {
             ControlPlan::LoopWhile { condition, body } => self.lower_loop_while(session, builder, blocks, block_id, *condition, body),
             ControlPlan::CountedLoop { variable, iterator, body } => {
                 self.lower_counted_loop(session, builder, blocks, block_id, *variable, *iterator, body)
+            }
+            ControlPlan::Iterate { binder, range, body, evaluation: _ } => {
+                self.lower_counted_loop(session, builder, blocks, block_id, *binder, *range, body)
             }
         }
     }
@@ -79,7 +82,12 @@ impl ExecutionCompiler {
         // Bootstrap: unroll constant atom lists into Define + body Term steps.
         let mut steps = Vec::with_capacity(items.len().saturating_mul(2));
         for item in items {
-            steps.push(AthenaRequest::Command(SessionCommand::Define { symbol, value: item, timing: DefinitionEvaluationTiming::Immediate }));
+            steps.push(AthenaRequest::Command(SessionCommand::Define {
+                symbol,
+                value: item,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }));
             steps.push(AthenaRequest::Term(*body_term));
         }
         let budget_in = builder.push_effect(EffectKind::BudgetCheck, None);

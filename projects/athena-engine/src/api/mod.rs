@@ -6,4 +6,4 @@ mod engine;
 pub mod request;
 
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, DomainGoal, LoweringOutcome, SessionCommand};
+pub use request::{AthenaRequest, ControlPlan, DomainGoal, LoweringOutcome, SessionCommand};

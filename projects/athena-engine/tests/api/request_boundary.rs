@@ -1,10 +1,10 @@
 //! 中性请求边界合同测试（Living `26`）。
 
 use athena_engine::{
-    api::{AthenaEngine, AthenaRequest, ControlPlan, DefinitionEvaluationTiming, LoweringOutcome, SessionCommand},
+    api::{AthenaEngine, AthenaRequest, ControlPlan, LoweringOutcome, SessionCommand},
     runtime::{CoverageStatus, Session},
 };
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode};
 
 #[test]
 fn lowering_outcome_accepted_term_kind() {
@@ -73,7 +73,12 @@ fn execute_request_command_define_via_execution_ir() {
         other => panic!("expected symbol, got {other:?}"),
     };
     let value = session.builder().int(1, Default::default());
-    let request = AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate });
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
     assert_eq!(request.kind_name(), "Command");
     let result_id = engine.execute_request(&mut session, request).expect("define");
     let stored = session.results.get(result_id).expect("stored");

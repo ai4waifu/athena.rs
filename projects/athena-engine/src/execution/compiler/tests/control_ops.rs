@@ -23,7 +23,8 @@ fn compile_and_execute_boolean_branch() {
 
 #[test]
 fn compile_and_execute_define_write_binding() {
-    use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use crate::api::request::SessionCommand;
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("x", Default::default());
@@ -32,7 +33,12 @@ fn compile_and_execute_define_write_binding() {
         other => panic!("expected symbol atom, got {other:?}"),
     };
     let value = session.builder().int(42, Default::default());
-    let request = AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate });
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define");
     assert!(!module.effect_edges.is_empty());
     ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -70,7 +76,8 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
 
 #[test]
 fn compile_and_execute_define_then_read_binding() {
-    use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use crate::api::request::SessionCommand;
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("y", Default::default());
@@ -79,7 +86,12 @@ fn compile_and_execute_define_then_read_binding() {
         other => panic!("expected symbol atom, got {other:?}"),
     };
     let value = session.builder().int(7, Default::default());
-    let define = AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate });
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
     let define_module = ExecutionCompiler::new().compile(&mut session, &define).expect("define");
     ReferenceExecutor::new().execute(&mut session, &define_module, None).expect("define exec");
 
@@ -92,7 +104,8 @@ fn compile_and_execute_define_then_read_binding() {
 
 #[test]
 fn compile_and_execute_sequence_define_read_clear() {
-    use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use crate::api::request::SessionCommand;
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("z", Default::default());
@@ -103,7 +116,12 @@ fn compile_and_execute_sequence_define_read_clear() {
     let value = session.builder().int(5, Default::default());
     let request = AthenaRequest::Control(ControlPlan::Sequence {
         steps: vec![
-            AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate }),
+            AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    }),
             AthenaRequest::Term(sym_term),
             AthenaRequest::Command(SessionCommand::ClearDefinition { symbol }),
         ],
@@ -321,7 +339,8 @@ fn compile_and_execute_local_scope_body() {
 
 #[test]
 fn compile_and_execute_local_scope_shadows_session() {
-    use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use crate::api::request::SessionCommand;
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("s", Default::default());
@@ -336,7 +355,12 @@ fn compile_and_execute_local_scope_shadows_session() {
     let request = AthenaRequest::Control(ControlPlan::LocalScope {
         body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
             steps: vec![
-                AthenaRequest::Command(SessionCommand::Define { symbol, value: local, timing: DefinitionEvaluationTiming::Immediate }),
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value: local,
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
                 AthenaRequest::Term(sym_term),
             ],
         })),

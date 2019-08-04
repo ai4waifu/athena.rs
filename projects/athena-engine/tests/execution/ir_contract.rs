@@ -1,7 +1,7 @@
 //! `ExecutionIR` compile-time contracts: effects, fingerprints, and re-verify.
 
 use athena_engine::{
-    api::request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, DomainGoal, SessionCommand},
+    api::request::{AthenaRequest, ControlPlan, DomainGoal, SessionCommand},
     domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
     execution::{
         compiler::ExecutionCompiler,
@@ -10,6 +10,7 @@ use athena_engine::{
     runtime::Session,
 };
 use athena_numeric::Integer;
+use athena_types::{BindingEvaluationPolicy, BindingKind};
 
 fn compile(session: &mut Session, request: AthenaRequest) -> athena_engine::execution::ir::ExecutionModule {
     ExecutionCompiler::new().compile(session, &request).expect("compile")
@@ -35,7 +36,12 @@ fn define_emits_write_binding_effect_chain() {
     let value = session.builder().int(3, Default::default());
     let module = compile(
         &mut session,
-        AthenaRequest::Command(SessionCommand::Define { symbol, value, timing: DefinitionEvaluationTiming::Immediate }),
+        AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    }),
     );
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::WriteBinding)));
     assert!(module.regions[0].blocks.iter().any(|b| {

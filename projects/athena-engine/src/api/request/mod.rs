@@ -11,7 +11,7 @@ use athena_types::{Diagnostic, TermId};
 
 pub use control_plan::ControlPlan;
 pub use domain_goal::DomainGoal;
-pub use session_command::{DefinitionEvaluationTiming, SessionCommand};
+pub use session_command::SessionCommand;
 
 /// 一次后端请求（方言 lowering 的目标合同）。
 #[derive(Debug, PartialEq)]

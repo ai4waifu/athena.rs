@@ -44,6 +44,17 @@ pub enum ControlPlan {
         /// 循环体。
         body: Box<AthenaRequest>,
     },
+    /// 中性迭代计划（方言 `Table` / comprehension 等 lowering 目标）。
+    Iterate {
+        /// 绑定变量（符号项）。
+        binder: TermId,
+        /// 迭代范围项（已由方言规范化）。
+        range: TermId,
+        /// 循环体。
+        body: Box<AthenaRequest>,
+        /// 体求值策略（残余项 vs 逐步求值由 lowering 选定）。
+        evaluation: athena_types::BindingEvaluationPolicy,
+    },
     /// 错误恢复（对齐语义算子 `Recover`）。
     Recover {
         /// 受保护主体。

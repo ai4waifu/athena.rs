@@ -1,11 +1,11 @@
 //! Define / binding lowering for [`super::ExecutionCompiler`].
 
 use athena_ir::{Atom, TermNode};
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::{ExecutionCompiler, ModuleBuilder};
 use crate::{
-    api::request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, SessionCommand},
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
     execution::ir::{
         BasicBlock, BlockEdge, BlockId, ConstantValue, EffectKind, ExecutionValueType, Operation, OperationKind, SsaValueId, Terminator,
     },
@@ -215,7 +215,8 @@ impl ExecutionCompiler {
                 steps.push(AthenaRequest::Command(SessionCommand::Define {
                     symbol,
                     value: rhs,
-                    timing: DefinitionEvaluationTiming::Immediate,
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
                 }));
                 continue;
             }
@@ -229,7 +230,8 @@ impl ExecutionCompiler {
                     steps.push(AthenaRequest::Command(SessionCommand::Define {
                         symbol,
                         value: uniq_term,
-                        timing: DefinitionEvaluationTiming::Immediate,
+                        kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
                     }));
                     continue;
                 }
