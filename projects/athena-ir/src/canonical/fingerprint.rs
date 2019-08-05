@@ -4,7 +4,7 @@
 //! 算子默认按 [`OperatorId`](athena_types::OperatorId)（session 内稳定）；
 //! 跨注册表稳定键用 [`canonical_hash_named`]（按注册名）。
 
-use athena_types::TermId;
+use athena_types::{CollectionKind, TermId};
 
 use crate::{
     node::{Atom, TermNode},
@@ -39,6 +39,20 @@ fn mix_u64(state: &mut u64, v: u64) {
 
 fn mix_len(state: &mut u64, len: usize) {
     mix_u64(state, len as u64);
+}
+
+fn collection_kind_tag(kind: CollectionKind) -> u64 {
+    match kind {
+        CollectionKind::StructuralSequence => 1,
+        CollectionKind::Tuple => 2,
+        CollectionKind::OrderedCollection => 3,
+        CollectionKind::SetLikeCollection => 4,
+        CollectionKind::Vector => 5,
+        CollectionKind::MatrixRow => 6,
+        CollectionKind::MatrixColumn => 7,
+        CollectionKind::Matrix => 8,
+        CollectionKind::DomainCollection(id) => 0x1000 | u64::from(id.0),
+    }
 }
 
 /// 对 term 子树求规范结构 hash（算子按 [`OperatorId`]）。
@@ -97,8 +111,9 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
             mix_u64(&mut s.state, u64::from(*b));
         }
         TermNode::Atom(Atom::Null) => mix_tag(&mut s.state, b"null"),
-        TermNode::List(items) => {
-            mix_tag(&mut s.state, b"list");
+        TermNode::Collection { kind, elements: items } => {
+            mix_tag(&mut s.state, b"collection");
+            mix_u64(&mut s.state, collection_kind_tag(*kind));
             mix_len(&mut s.state, items.len());
             for c in items {
                 hash_term(s, *c);

@@ -201,7 +201,7 @@ impl ExecutionCompiler {
         body: TermId,
     ) -> Result<SsaValueId> {
         let items = match session.arena.get(locals) {
-            Some(TermNode::List(items)) => items.clone(),
+            Some(TermNode::Collection { elements: items, .. }) => items.clone(),
             _ => {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionCompiler")

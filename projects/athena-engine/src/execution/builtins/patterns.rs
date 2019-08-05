@@ -52,7 +52,7 @@ pub(crate) fn lower_pattern_term(session: &Session, pat: TermId) -> TermPattern 
                 _ => TermPattern::StructuralApplication(args.into_iter().map(|a| lower_pattern_term(session, a)).collect()),
             }
         }
-        Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_pattern_term(session, i)).collect()),
+        Shape::Collection(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_pattern_term(session, i)).collect()),
         _ => TermPattern::Exact(pat),
     }
 }
@@ -73,7 +73,7 @@ pub(crate) fn match_term_pattern(session: &Session, expr: TermId, pattern: &Term
         }
         TermPattern::Exact(literal) => session.arena.structural_eq(expr, *literal),
         TermPattern::Sequence(items) => {
-            let Some(Shape::List(expr_items)) = term_shape(session, expr)
+            let Some(Shape::Collection(expr_items)) = term_shape(session, expr)
             else {
                 return false;
             };
@@ -106,7 +106,7 @@ fn head_constraint_holds(session: &Session, expr: TermId, head_name: &str) -> bo
             _ => false,
         },
         "Symbol" => matches!(term_shape(session, expr), Some(Shape::Symbol(_))),
-        "List" => matches!(term_shape(session, expr), Some(Shape::List(_))),
+        "List" => matches!(term_shape(session, expr), Some(Shape::Collection(_))),
         "String" => matches!(term_shape(session, expr), Some(Shape::String(_))),
         other => term_head_name(session, expr).is_some_and(|h| h == other),
     }
@@ -124,7 +124,7 @@ pub(crate) fn substitute_binds(session: &mut Session, expr: TermId, binds: &Hash
     match s {
         Shape::Symbol(symbol) => binds.get(&symbol).copied().unwrap_or(expr),
         Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {
@@ -147,7 +147,7 @@ pub(crate) fn substitute_symbol(session: &mut Session, expr: TermId, symbol: Sym
     match s {
         Shape::Symbol(x) if x == symbol => value,
         Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {
@@ -183,7 +183,7 @@ pub(crate) fn substitute_slot(session: &mut Session, expr: TermId, value: TermId
             value
         }
         Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {
@@ -212,7 +212,7 @@ pub(crate) fn replace_literal(session: &mut Session, expr: TermId, lhs: TermId, 
     };
     match s {
         Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {

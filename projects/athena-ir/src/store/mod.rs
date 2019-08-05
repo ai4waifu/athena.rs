@@ -79,9 +79,10 @@ fn structural_eq_walk(arena: &TermStore, x: TermId, y: TermId, seen: &mut std::c
     }
     match (arena.get(x), arena.get(y)) {
         (Some(TermNode::Atom(p)), Some(TermNode::Atom(q))) => p == q,
-        (Some(TermNode::List(xs)), Some(TermNode::List(ys))) => {
-            xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
-        }
+        (
+            Some(TermNode::Collection { kind: kx, elements: xs }),
+            Some(TermNode::Collection { kind: ky, elements: ys }),
+        ) => kx == ky && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen)),
         (Some(TermNode::Application { head: op_x, arguments: xs }), Some(TermNode::Application { head: op_y, arguments: ys })) => {
             op_x == op_y && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
         }
@@ -100,7 +101,7 @@ fn verify_term(arena: &TermStore, id: TermId, stack: &mut Vec<TermId>) -> Result
     stack.push(id);
     match kind {
         TermNode::Atom(_) => {}
-        TermNode::List(items) | TermNode::Application { arguments: items, .. } => {
+        TermNode::Collection { elements: items, .. } | TermNode::Application { arguments: items, .. } => {
             for child in items {
                 verify_term(arena, *child, stack)?;
             }

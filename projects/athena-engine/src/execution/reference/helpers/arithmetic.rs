@@ -284,7 +284,7 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     if let Some(e) = number_of(session, exp) {
         if e.is_zero() {
             // Scalar `x^0 → 1`; list bases stay residual (elementwise is `DotPower`).
-            if matches!(session.arena.get(base), Some(athena_ir::TermNode::List(_))) {
+            if matches!(session.arena.get(base), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
                 return push_application(session, "Power", terms);
             }
             return session.builder().int(1, Default::default());

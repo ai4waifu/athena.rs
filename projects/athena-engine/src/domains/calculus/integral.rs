@@ -31,7 +31,7 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                 cc.apply("Times", vec![expr, cc.symbol(var)])
             }
         }
-        crate::execution::shape::Shape::List(items) => {
+        crate::execution::shape::Shape::Collection(items) => {
             let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
             cc.list(iss)
         }

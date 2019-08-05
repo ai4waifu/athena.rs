@@ -43,7 +43,7 @@ fn lower_d(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest>
                     assumptions: AssumptionSet::empty(),
                 });
             }
-            if let Some(Shape::List(items)) = cc.shape(*var) {
+            if let Some(Shape::Collection(items)) = cc.shape(*var) {
                 if items.len() == 2 {
                     let v = symbol_name(cc, items[0])?;
                     let n = cc.int_exp(items[1])?;
@@ -68,7 +68,7 @@ fn lower_integrate(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<Calculus
             if let Some(v) = symbol_name(cc, *var) {
                 return Some(CalculusRequest::Integral { expression: *expr, variable: v, assumptions: AssumptionSet::empty() });
             }
-            if let Some(Shape::List(items)) = cc.shape(*var) {
+            if let Some(Shape::Collection(items)) = cc.shape(*var) {
                 if items.len() == 3 {
                     let v = symbol_name(cc, items[0])?;
                     return Some(CalculusRequest::DefiniteIntegral {
@@ -113,7 +113,7 @@ fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: TermId) -> Option<(String, L
             return Some((v, approach_from_term(cc, args[1])));
         }
     }
-    if let Some(Shape::List(items)) = cc.shape(spec) {
+    if let Some(Shape::Collection(items)) = cc.shape(spec) {
         if items.len() == 2 {
             let v = symbol_name(cc, items[0])?;
             return Some((v, approach_from_term(cc, items[1])));
@@ -139,7 +139,7 @@ fn lower_series(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusReq
     else {
         return None;
     };
-    let Some(Shape::List(items)) = cc.shape(*spec)
+    let Some(Shape::Collection(items)) = cc.shape(*spec)
     else {
         return None;
     };
@@ -163,7 +163,7 @@ fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRe
     else {
         return None;
     };
-    let Some(Shape::List(items)) = cc.shape(*spec)
+    let Some(Shape::Collection(items)) = cc.shape(*spec)
     else {
         return None;
     };
@@ -185,7 +185,7 @@ fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRe
 fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
-            let Some(Shape::List(items)) = cc.shape(*spec)
+            let Some(Shape::Collection(items)) = cc.shape(*spec)
             else {
                 return None;
             };
@@ -218,7 +218,7 @@ fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<Calculu
 fn lower_residue(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
-            let Some(Shape::List(items)) = cc.shape(*spec)
+            let Some(Shape::Collection(items)) = cc.shape(*spec)
             else {
                 return None;
             };
@@ -293,11 +293,11 @@ fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<Calculu
     else {
         return None;
     };
-    let Some(Shape::List(components)) = cc.shape(*comps)
+    let Some(Shape::Collection(components)) = cc.shape(*comps)
     else {
         return None;
     };
-    let Some(Shape::List(var_terms)) = cc.shape(*vars)
+    let Some(Shape::Collection(var_terms)) = cc.shape(*vars)
     else {
         return None;
     };
@@ -310,11 +310,11 @@ fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusReque
     else {
         return None;
     };
-    let Some(Shape::List(components)) = cc.shape(*comps)
+    let Some(Shape::Collection(components)) = cc.shape(*comps)
     else {
         return None;
     };
-    let Some(Shape::List(var_terms)) = cc.shape(*vars)
+    let Some(Shape::Collection(var_terms)) = cc.shape(*vars)
     else {
         return None;
     };

@@ -117,7 +117,7 @@ pub(crate) fn expand_span_3(a: i64, step: i64, b: i64) -> Option<Vec<i64>> {
 /// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` for `Table` / iterator `Sum`.
 pub(crate) fn expand_iterator_session(session: &mut Session, spec: TermId) -> Option<(Option<SymbolId>, Vec<TermId>)> {
     let items = match session.arena.get(spec) {
-        Some(athena_ir::TermNode::List(items)) => items.clone(),
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
         _ => return None,
     };
     match items.as_slice() {
@@ -198,7 +198,7 @@ pub(crate) fn parse_matrix_dims(session: &Session, args: &[TermId]) -> Option<(u
 
 pub(crate) fn collect_rule_pairs(session: &Session, rules_term: TermId) -> Vec<(TermId, TermId)> {
     match session.arena.get(rules_term) {
-        Some(athena_ir::TermNode::List(items)) => items.iter().filter_map(|r| rule_pair(session, *r)).collect(),
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.iter().filter_map(|r| rule_pair(session, *r)).collect(),
         _ => rule_pair(session, rules_term).into_iter().collect(),
     }
 }
@@ -276,18 +276,18 @@ pub(crate) fn same_trig_arg_session(session: &Session, a: TermId, b: TermId) -> 
 }
 
 pub(crate) fn nested_list_shape(session: &Session, term: TermId) -> Option<(u64, u64)> {
-    let athena_ir::TermNode::List(rows) = session.arena.get(term)?
+    let athena_ir::TermNode::Collection { elements: rows, .. } = session.arena.get(term)?
     else {
         return None;
     };
     if rows.is_empty() {
         return Some((0, 0));
     }
-    if matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::List(_))) {
+    if matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
         let mut cols: Option<u64> = None;
         for row in rows {
             let cells = match session.arena.get(*row) {
-                Some(athena_ir::TermNode::List(cells)) => cells.len() as u64,
+                Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.len() as u64,
                 _ => return None,
             };
             match cols {
@@ -316,13 +316,13 @@ pub(crate) fn term_scalar_rational_session(session: &Session, term: TermId) -> O
 
 pub(crate) fn term_to_rational_matrix_session(session: &Session, term: TermId) -> Option<MatrixValue> {
     match session.arena.get(term) {
-        Some(athena_ir::TermNode::List(rows)) if !rows.is_empty() => {
-            if matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::List(_))) {
+        Some(athena_ir::TermNode::Collection { elements: rows, .. }) if !rows.is_empty() => {
+            if matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
                 let mut data = Vec::new();
                 let mut cols: Option<u64> = None;
                 for row in rows {
                     let cells = match session.arena.get(*row) {
-                        Some(athena_ir::TermNode::List(cells)) => cells.clone(),
+                        Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.clone(),
                         _ => return None,
                     };
                     let c = cells.len() as u64;

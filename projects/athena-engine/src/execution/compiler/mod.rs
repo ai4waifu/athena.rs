@@ -536,7 +536,7 @@ impl ExecutionCompiler {
                 });
                 Ok(ssa)
             }
-            Some(TermNode::List(items)) => {
+            Some(TermNode::Collection { elements: items, .. }) => {
                 let items = items.clone();
                 let mut elements = Vec::with_capacity(items.len());
                 for item in items {

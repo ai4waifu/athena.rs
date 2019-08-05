@@ -109,7 +109,7 @@ impl ExecutionCompiler {
 
     pub(crate) fn require_atom_list(&self, session: &mut Session, term: TermId) -> Result<Vec<TermId>> {
         let list_items = match session.arena.get(term) {
-            Some(TermNode::List(items)) => Some(items.clone()),
+            Some(TermNode::Collection { elements: items, .. }) => Some(items.clone()),
             _ => None,
         };
         if let Some(items) = list_items {

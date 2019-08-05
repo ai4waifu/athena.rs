@@ -51,7 +51,7 @@ fn fold_constants(arena: &mut TermStore, id: TermId) -> Result<bool> {
     // 只拷贝 `TermId` 子列表，避免复制含 `NumericValue` 的 `Atom`（Living `19`：无隐式 Clone）。
     let children: Option<Vec<TermId>> = match arena.get(id) {
         None => return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)),
-        Some(TermNode::List(items)) => Some(items.clone()),
+        Some(TermNode::Collection { elements: items, .. }) => Some(items.clone()),
         Some(TermNode::Application { arguments: args, .. }) => Some(args.clone()),
         Some(TermNode::Atom(_)) => None,
     };

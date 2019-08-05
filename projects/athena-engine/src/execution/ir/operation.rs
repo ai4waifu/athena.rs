@@ -49,7 +49,7 @@ pub enum OperationKind {
         /// Operand SSA values.
         args: Vec<SsaValueId>,
     },
-    /// Build a `TermNode::List` from evaluated element SSA values.
+    /// Build a `TermNode::Collection` from evaluated element SSA values.
     MakeList {
         /// Element SSA values (order preserved).
         elements: Vec<SsaValueId>,

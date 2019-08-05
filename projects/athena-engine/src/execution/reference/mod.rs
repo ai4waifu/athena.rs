@@ -648,7 +648,7 @@ mod tests {
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
-            Some(athena_ir::TermNode::List(items)) if items.len() == 2 => {
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
                 assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(1));
                 assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(2));
             }
@@ -675,7 +675,7 @@ mod tests {
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
-            Some(athena_ir::TermNode::List(items)) if items.len() == 2 => {
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
                 assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(2));
                 assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(4));
             }

@@ -1,7 +1,7 @@
 //! Core CAS IR term 种类（arena 持有，由 [`TermId`](athena_types::TermId) 引用）。
 
 use athena_numeric::{NumericContext, NumericValue};
-use athena_types::{OperatorId, Result, SourceSpan, SymbolId, TermId};
+use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 /// 原子 term 载荷。
 ///
@@ -36,12 +36,18 @@ impl Atom {
 /// Core IR 中的 term 节点。
 ///
 /// Living `19`：不实现 [`Clone`]。节点经 arena `TermId` 引用；载荷复制用 [`Self::try_clone_in`]。
+/// Living `27`：集合必须带显式 [`CollectionKind`]，禁止万能 `List`。
 #[derive(Debug, PartialEq)]
 pub enum TermNode {
     /// 原子值。
     Atom(Atom),
-    /// 有序序列（列表 / 向量表面）。
-    List(Vec<TermId>),
+    /// 显式种类的有序元素集合。
+    Collection {
+        /// 集合种类。
+        kind: CollectionKind,
+        /// 元素 term。
+        elements: Vec<TermId>,
+    },
     /// 算子应用。
     Application {
         /// 注册算子。
@@ -56,7 +62,7 @@ impl TermNode {
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         Ok(match self {
             Self::Atom(a) => Self::Atom(a.try_clone_in(ctx)?),
-            Self::List(xs) => Self::List(xs.clone()),
+            Self::Collection { kind, elements } => Self::Collection { kind: *kind, elements: elements.clone() },
             Self::Application { head: op, arguments: args } => Self::Application { head: *op, arguments: args.clone() },
         })
     }

@@ -268,7 +268,7 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) 
     match cc.shape(expr)? {
         Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
         Shape::Symbol(s) if cc.symbol_is(s, var) => Some((1, Number::small_int(1))),
-        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::List(_) => None,
+        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Collection(_) => None,
         Shape::Application(_, _) => {
             let (h, args) = cc.application(expr)?;
             match h.as_str() {

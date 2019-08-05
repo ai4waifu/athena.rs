@@ -67,7 +67,7 @@ fn compile_and_execute_list_with_plus() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.len() == 2 => {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
             match session.arena.get(items[0]) {
                 Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5) => {}
                 other => panic!("expected first element 5, got {other:?}"),
@@ -127,7 +127,7 @@ fn compile_and_execute_first_rest_join() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.as_slice() == [b, c] => {}
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [b, c] => {}
         other => panic!("expected Rest == List[2,3], got {other:?}"),
     }
 }
@@ -178,7 +178,7 @@ fn compile_and_execute_span() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.len() == 3 => {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
             for (i, expected) in [1i64, 2, 3].into_iter().enumerate() {
                 match session.arena.get(items[i]) {
                     Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
@@ -200,7 +200,7 @@ fn compile_and_execute_range_and_sqrt() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.len() == 3 => {}
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {}
         other => panic!("expected Range[3] length 3, got {other:?}"),
     }
 
@@ -239,7 +239,7 @@ fn compile_and_execute_apply_and_size() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.len() == 2 => {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
             for (i, expected) in [2i64, 2].into_iter().enumerate() {
                 match session.arena.get(items[i]) {
                     Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
@@ -264,7 +264,7 @@ fn compile_and_execute_map_symbol() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(items)) if items.len() == 2 => {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
             match session.arena.get(items[0]) {
                 Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
                 other => panic!("expected Abs[-1]==1, got {other:?}"),
@@ -288,10 +288,10 @@ fn compile_and_execute_zeros_eye() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(rows)) if rows.len() == 2 => {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
             for row in rows {
                 match session.arena.get(*row) {
-                    Some(TermNode::List(cells)) if cells.len() == 2 => {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
                         for cell in cells {
                             match session.arena.get(*cell) {
                                 Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0) => {}
@@ -312,11 +312,11 @@ fn compile_and_execute_zeros_eye() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::List(rows)) if rows.len() == 2 => {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
             let expected = [[1i64, 0], [0, 1]];
             for (i, row) in rows.iter().enumerate() {
                 match session.arena.get(*row) {
-                    Some(TermNode::List(cells)) if cells.len() == 2 => {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
                         for (j, cell) in cells.iter().enumerate() {
                             match session.arena.get(*cell) {
                                 Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected[i][j]) => {}

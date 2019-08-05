@@ -291,7 +291,7 @@ fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
     match cc.shape(expr)? {
         Shape::Symbol(s) if cc.symbol_is(s, var) => Some(1),
         Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => Some(0),
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut m = i64::MAX;
             for i in items {
                 m = m.min(valuation(cc, i, var)?);

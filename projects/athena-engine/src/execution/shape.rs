@@ -13,7 +13,7 @@ pub(crate) enum Shape {
     Symbol(SymbolId),
     Bool(bool),
     Null,
-    List(Vec<TermId>),
+    Collection(Vec<TermId>),
     Application(OperatorId, Vec<TermId>),
 }
 
@@ -25,7 +25,7 @@ pub(crate) fn term_shape(session: &Session, id: TermId) -> Option<Shape> {
         TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
         TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
         TermNode::Atom(Atom::Null) => Some(Shape::Null),
-        TermNode::List(items) => Some(Shape::List(items.clone())),
+        TermNode::Collection { elements: items, .. } => Some(Shape::Collection(items.clone())),
         TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
     }
 }
@@ -34,7 +34,7 @@ pub(crate) fn term_shape(session: &Session, id: TermId) -> Option<Shape> {
 pub(crate) fn term_head_name(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         TermNode::Application { head: op, .. } => session.operators.name(*op).map(str::to_string),
-        TermNode::List(_) => Some("List".into()),
+        TermNode::Collection { .. } => Some("OrderedCollection".into()),
         TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
         _ => None,
     }

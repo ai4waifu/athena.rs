@@ -21,7 +21,7 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
         | crate::execution::shape::Shape::Bool(_)
         | crate::execution::shape::Shape::Null => cc.in_(0),
         crate::execution::shape::Shape::Symbol(s) => cc.in_(if cc.symbol_is(s, var) { 1 } else { 0 }),
-        crate::execution::shape::Shape::List(items) => {
+        crate::execution::shape::Shape::Collection(items) => {
             let ds = items.iter().map(|i| differentiate(cc, *i, var)).collect();
             cc.list(ds)
         }

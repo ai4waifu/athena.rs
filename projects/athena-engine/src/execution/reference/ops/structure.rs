@@ -50,7 +50,7 @@ impl ReferenceExecutor {
             }));
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some(athena_ir::TermNode::List(items)) = session.arena.get(term)
+        let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
         else {
             return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
         };
@@ -58,7 +58,7 @@ impl ReferenceExecutor {
         if items.is_empty() {
             return Ok(Slot::Term(session.builder().int(0, Default::default())));
         }
-        if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::List(_))) {
+        if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
             // Matrix: sum each column into a row vector.
             let Some((_, cols)) = nested_list_shape(session, term)
             else {
@@ -69,7 +69,7 @@ impl ReferenceExecutor {
                 let mut col = Vec::with_capacity(items.len());
                 for row in &items {
                     let cell = match session.arena.get(*row) {
-                        Some(athena_ir::TermNode::List(cells)) => cells.get(j).copied(),
+                        Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.get(j).copied(),
                         _ => None,
                     };
                     let Some(cell) = cell
@@ -273,7 +273,7 @@ impl ReferenceExecutor {
         if terms.len() >= 3 {
             if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(terms[1]) {
                 if matches!(session.arena.symbols().resolve(*symbol), Some("All") | Some(":")) {
-                    if let Some(athena_ir::TermNode::List(rows)) = session.arena.get(terms[0]) {
+                    if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(terms[0]) {
                         let rows = rows.clone();
                         let rest = terms[2..].to_vec();
                         let mut out = Vec::with_capacity(rows.len());
@@ -328,7 +328,7 @@ impl ReferenceExecutor {
     /// Bootstrap `Part` step: list/app + integer / `End` / `All` / index list.
     pub(crate) fn part_one(&self, session: &mut Session, expr: TermId, index: TermId) -> Result<PartStep> {
         // Index list (e.g. evaluated `Span`): extract each position into a list.
-        if let Some(athena_ir::TermNode::List(indices)) = session.arena.get(index) {
+        if let Some(athena_ir::TermNode::Collection { elements: indices, .. }) = session.arena.get(index) {
             let indices = indices.clone();
             let mut out = Vec::with_capacity(indices.len());
             for idx in indices {
@@ -346,7 +346,7 @@ impl ReferenceExecutor {
         }
 
         let items = match session.arena.get(expr) {
-            Some(athena_ir::TermNode::List(items)) => items.clone(),
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.clone(),
             _ => return Ok(PartStep::Residual),
         };
@@ -370,7 +370,7 @@ impl ReferenceExecutor {
         };
         if idx == 0 {
             return Ok(PartStep::Next(match session.arena.get(expr) {
-                Some(athena_ir::TermNode::List(_)) => session.builder().symbol("List", Default::default()),
+                Some(athena_ir::TermNode::Collection { elements: _, .. }) => session.builder().symbol("List", Default::default()),
                 Some(athena_ir::TermNode::Application { head, .. }) => {
                     let name = session.operators.name(*head).unwrap_or("").to_string();
                     session.builder().symbol(&name, Default::default())
@@ -407,7 +407,7 @@ impl ReferenceExecutor {
             let term = self.slot_as_term(session, slot)?;
             terms.push(term);
             match session.arena.get(term) {
-                Some(athena_ir::TermNode::List(items)) => out.extend_from_slice(items),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) => out.extend_from_slice(items),
                 _ => return Ok(Slot::Term(push_application(session, "Join", terms))),
             }
         }

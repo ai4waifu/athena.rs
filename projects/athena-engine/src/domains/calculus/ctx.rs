@@ -55,7 +55,7 @@ impl<'a> CalculusCtx<'a> {
             athena_ir::TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
             athena_ir::TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
             athena_ir::TermNode::Atom(Atom::Null) => Some(Shape::Null),
-            athena_ir::TermNode::List(items) => Some(Shape::List(items.clone())),
+            athena_ir::TermNode::Collection { elements: items, .. } => Some(Shape::Collection(items.clone())),
             athena_ir::TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
         }
     }
@@ -77,7 +77,7 @@ impl<'a> CalculusCtx<'a> {
     pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.shape(id)? {
             Shape::Application(op, _) => Some(self.op_name(op).to_string()),
-            Shape::List(_) => Some("List".into()),
+            Shape::Collection(_) => Some("List".into()),
             Shape::Symbol(s) => Some(self.symbol_name(s).to_string()),
             _ => None,
         }

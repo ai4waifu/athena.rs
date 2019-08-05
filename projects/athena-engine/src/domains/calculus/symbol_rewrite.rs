@@ -21,7 +21,7 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
             }
         }
         Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
-        Shape::List(items) => {
+        Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {
@@ -54,7 +54,7 @@ pub(crate) fn contains_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> 
     match shape {
         Shape::Symbol(s) => cc.symbol_is(s, var),
         Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => false,
-        Shape::List(items) => items.iter().any(|i| contains_symbol(cc, *i, var)),
+        Shape::Collection(items) => items.iter().any(|i| contains_symbol(cc, *i, var)),
         Shape::Application(_, args) => args.iter().any(|a| contains_symbol(cc, *a, var)),
     }
 }

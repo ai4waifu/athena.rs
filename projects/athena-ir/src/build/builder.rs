@@ -1,7 +1,7 @@
 //! 受控 IR 构造 API。
 
 use athena_numeric::NumericValue;
-use athena_types::{OperatorId, Result, SourceSpan, SymbolId, TermId};
+use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 use crate::{
     node::{Atom, TermNode},
@@ -43,9 +43,14 @@ impl<'a> TermBuilder<'a> {
         self.arena.push(TermNode::Atom(Atom::Symbol(symbol)), span)
     }
 
-    /// 列表 term。
+    /// 有序集合 term（显式 [`CollectionKind::OrderedCollection`]）。
     pub fn list(&mut self, items: Vec<TermId>, span: SourceSpan) -> TermId {
-        self.arena.push(TermNode::List(items), span)
+        self.collection(CollectionKind::OrderedCollection, items, span)
+    }
+
+    /// 带显式种类的集合 term。
+    pub fn collection(&mut self, kind: CollectionKind, elements: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Collection { kind, elements }, span)
     }
 
     /// 算子应用 term。

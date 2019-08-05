@@ -56,20 +56,20 @@ impl ReferenceExecutor {
             }
             "Length" => {
                 let len = match session.arena.get(term) {
-                    Some(athena_ir::TermNode::List(items)) => items.len() as i64,
+                    Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.len() as i64,
                     Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.len() as i64,
                     _ => return Ok(Slot::Term(push_application(session, "Length", vec![term]))),
                 };
                 Ok(Slot::Term(session.builder().int(len, Default::default())))
             }
             "First" => match session.arena.get(term) {
-                Some(athena_ir::TermNode::List(items)) if !items.is_empty() => Ok(Slot::Term(items[0])),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => Ok(Slot::Term(items[0])),
                 Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => Ok(Slot::Term(arguments[0])),
-                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
+                Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
                 _ => Ok(Slot::Term(push_application(session, "First", vec![term]))),
             },
             "Rest" => match session.arena.get(term) {
-                Some(athena_ir::TermNode::List(items)) if !items.is_empty() => {
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => {
                     let rest = items[1..].to_vec();
                     Ok(Slot::Term(push_list(session, rest)))
                 }
@@ -78,7 +78,7 @@ impl ReferenceExecutor {
                     let rest = arguments[1..].to_vec();
                     Ok(Slot::Term(session.builder().application(head, rest, Default::default())))
                 }
-                Some(athena_ir::TermNode::List(_) | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
+                Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
                 _ => Ok(Slot::Term(push_application(session, "Rest", vec![term]))),
             },
             _ => Err(diag("semantic_operator_not_implemented")),
@@ -244,7 +244,7 @@ impl ReferenceExecutor {
         }
         let list = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some(athena_ir::TermNode::List(items)) = session.arena.get(list)
+        let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
         else {
             return Ok(Slot::Term(push_application(session, "CollectMatches", vec![list, pat])));
         };
@@ -316,7 +316,7 @@ impl ReferenceExecutor {
         let func = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let list = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(list) {
-            Some(athena_ir::TermNode::List(items)) => items.clone(),
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             _ => return Ok(Slot::Term(push_application(session, "Map", vec![func, list]))),
         };
         if !self.map_func_supported(session, func) {
@@ -384,7 +384,7 @@ impl ReferenceExecutor {
         let head = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let second = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(second) {
-            Some(athena_ir::TermNode::List(items)) => items.clone(),
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             _ => return Ok(Slot::Term(push_application(session, "Apply", vec![head, second]))),
         };
         let app = rebuild_application(session, head, items);

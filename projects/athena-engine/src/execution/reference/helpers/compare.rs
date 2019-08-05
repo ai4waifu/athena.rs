@@ -19,17 +19,17 @@ pub(crate) fn compare_list_broadcast(
     right: TermId,
     pick: fn(Ordering) -> bool,
 ) -> Result<Option<TermId>> {
-    let l_list = matches!(session.arena.get(left), Some(athena_ir::TermNode::List(_)));
-    let r_list = matches!(session.arena.get(right), Some(athena_ir::TermNode::List(_)));
+    let l_list = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { elements: _, .. }));
+    let r_list = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { elements: _, .. }));
     match (l_list, r_list) {
         (false, false) => Ok(None),
         (true, true) => {
             let xs = match session.arena.get(left) {
-                Some(athena_ir::TermNode::List(items)) => items.clone(),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
                 _ => return Ok(None),
             };
             let ys = match session.arena.get(right) {
-                Some(athena_ir::TermNode::List(items)) => items.clone(),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
                 _ => return Ok(None),
             };
             if xs.len() != ys.len() {
@@ -43,7 +43,7 @@ pub(crate) fn compare_list_broadcast(
         }
         (true, false) => {
             let xs = match session.arena.get(left) {
-                Some(athena_ir::TermNode::List(items)) => items.clone(),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
                 _ => return Ok(None),
             };
             let mut out = Vec::with_capacity(xs.len());
@@ -54,7 +54,7 @@ pub(crate) fn compare_list_broadcast(
         }
         (false, true) => {
             let ys = match session.arena.get(right) {
-                Some(athena_ir::TermNode::List(items)) => items.clone(),
+                Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
                 _ => return Ok(None),
             };
             let mut out = Vec::with_capacity(ys.len());
@@ -68,8 +68,8 @@ pub(crate) fn compare_list_broadcast(
 
 pub(crate) fn compare_pair_term(session: &mut Session, name: &str, left: TermId, right: TermId, pick: fn(Ordering) -> bool) -> Result<TermId> {
     // Nested lists recurse through broadcast.
-    if matches!(session.arena.get(left), Some(athena_ir::TermNode::List(_)))
-        || matches!(session.arena.get(right), Some(athena_ir::TermNode::List(_)))
+    if matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { elements: _, .. }))
+        || matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { elements: _, .. }))
     {
         return Ok(
             compare_list_broadcast(session, name, left, right, pick)?.unwrap_or_else(|| push_application(session, name, vec![left, right]))
