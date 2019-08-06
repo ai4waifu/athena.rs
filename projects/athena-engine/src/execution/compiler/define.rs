@@ -13,7 +13,7 @@ use crate::{
 };
 
 impl ExecutionCompiler {
-    /// Capture pattern lhs + deferred rhs then `WriteDownValue`.
+    /// Capture pattern lhs + residual rhs then `RegisterRuleDispatch`.
     pub(crate) fn lower_define_down_value(
         &self,
         session: &mut Session,
@@ -62,7 +62,7 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::WriteDownValue { key, pattern: pattern_ssa, value: value_ssa },
+                    kind: OperationKind::RegisterRuleDispatch { head: key, pattern: pattern_ssa, replacement: value_ssa },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },
@@ -81,7 +81,7 @@ impl ExecutionCompiler {
         block_id: BlockId,
         symbol: athena_types::SymbolId,
         value: TermId,
-        delayed: bool,
+        evaluation: BindingEvaluationPolicy,
     ) -> Result<SsaValueId> {
         let _ = session;
         let key = builder.ssa();
@@ -91,8 +91,8 @@ impl ExecutionCompiler {
         let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
         let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
         let unit = builder.ssa();
-        // Immediate returns rhs; Deferred returns Null.
-        let returned = if delayed { unit } else { rhs };
+        let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
+        let returned = if residual { unit } else { rhs };
         blocks.push(BasicBlock {
             id: block_id,
             parameters: Vec::new(),
@@ -114,7 +114,12 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::WriteBinding { key, value: rhs, delayed },
+                    kind: OperationKind::WriteBinding {
+                        key,
+                        value: rhs,
+                        kind: BindingKind::Session,
+                        evaluation,
+                    },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },
@@ -179,7 +184,12 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::WriteBinding { key, value: value_param, delayed: false },
+                    kind: OperationKind::WriteBinding {
+                        key,
+                        value: value_param,
+                        kind: BindingKind::Session,
+                        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                    },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },

@@ -325,14 +325,19 @@ impl ReferenceExecutor {
                     }
                 }
             }
-            OperationKind::MakeList { elements } => {
+            OperationKind::ConstructCollection { kind, elements } => {
                 let mut items = Vec::with_capacity(elements.len());
                 for id in elements {
-                    let slot = *slots.get(id).ok_or_else(|| diag("list_element_undefined"))?;
+                    let slot = *slots.get(id).ok_or_else(|| diag("collection_element_undefined"))?;
                     items.push(self.slot_as_term(session, slot)?);
                 }
-                Ok(Slot::Term(push_list(session, items)))
+                let span = athena_ir::TermNode::default_span();
+                Ok(Slot::Term(session.arena.push(
+                    athena_ir::TermNode::Collection { kind: *kind, elements: items },
+                    span,
+                )))
             }
+            OperationKind::Index { .. } => Err(diag("index_opcode_pending_executor")),
             OperationKind::EnterScope { .. } => {
                 let depth = frames.len() as u32;
                 frames.push(ScopeFrame::new());
@@ -350,11 +355,15 @@ impl ReferenceExecutor {
                 frames.pop();
                 Ok(Slot::Unit)
             }
-            OperationKind::WriteBinding { key, value, delayed } => {
+            OperationKind::WriteBinding { key, value, kind: _, evaluation } => {
                 let symbol = match slots.get(key) {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
+                let residual = !matches!(
+                    evaluation,
+                    athena_types::BindingEvaluationPolicy::EvaluateBeforeStore
+                );
                 match slots.get(value) {
                     Some(Slot::Unit) => {
                         if let Some(frame) = frames.last_mut() {
@@ -365,9 +374,8 @@ impl ReferenceExecutor {
                         }
                     }
                     Some(Slot::Term(term)) => {
-                        if *delayed {
+                        if residual {
                             if let Some(frame) = frames.last_mut() {
-                                // Bootstrap: local delayed stored as Own of captured rhs.
                                 frame.bind(symbol, LocalBinding::Own(*term));
                             }
                             else {
@@ -383,7 +391,7 @@ impl ReferenceExecutor {
                     }
                     Some(Slot::Boolean(v)) => {
                         let term = session.builder().boolean(*v, Default::default());
-                        if *delayed {
+                        if residual {
                             if let Some(frame) = frames.last_mut() {
                                 frame.bind(symbol, LocalBinding::Own(term));
                             }
@@ -402,8 +410,8 @@ impl ReferenceExecutor {
                 }
                 Ok(Slot::Unit)
             }
-            OperationKind::WriteDownValue { key, pattern, value } => {
-                let symbol = match slots.get(key) {
+            OperationKind::RegisterRuleDispatch { head, pattern, replacement } => {
+                let symbol = match slots.get(head) {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
@@ -411,11 +419,10 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => *term,
                     _ => return Err(diag("write_pattern_not_term")),
                 };
-                let value_term = match slots.get(value) {
+                let value_term = match slots.get(replacement) {
                     Some(Slot::Term(term)) => *term,
                     _ => return Err(diag("write_value_unsupported")),
                 };
-                // Bootstrap: DownValues attach to Session defs (not local ScopeFrame).
                 session.defs.define_down_value(symbol, pattern_term, value_term);
                 Ok(Slot::Unit)
             }

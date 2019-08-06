@@ -175,10 +175,11 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
     match kind {
         OperationKind::LoadInput { .. } | OperationKind::LoadTerm { .. } | OperationKind::Constant { .. } => Vec::new(),
         OperationKind::ApplySemanticOperator { args, .. } => args.clone(),
-        OperationKind::MakeList { elements } => elements.clone(),
+        OperationKind::ConstructCollection { elements, .. } => elements.clone(),
+        OperationKind::Index { target, .. } => vec![*target],
         OperationKind::ReadBinding { key } => vec![*key],
         OperationKind::WriteBinding { key, value, .. } => vec![*key, *value],
-        OperationKind::WriteDownValue { key, pattern, value } => vec![*key, *pattern, *value],
+        OperationKind::RegisterRuleDispatch { head, pattern, replacement } => vec![*head, *pattern, *replacement],
         OperationKind::EnterScope { parent } => parent.iter().copied().collect(),
         OperationKind::ExitScope { scope } => vec![*scope],
         OperationKind::CallProvider { args, .. } => args.clone(),

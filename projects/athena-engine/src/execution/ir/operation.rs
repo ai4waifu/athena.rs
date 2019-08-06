@@ -1,6 +1,6 @@
 //! Typed SSA operations (closed opcode family — no string handler lookup).
 
-use athena_types::OperatorId;
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, IndexSpec, OperatorId};
 
 use super::{
     ids::{CapturedRootId, ConstantId, EffectToken, InputId, ProviderCallId, SsaValueId},
@@ -49,10 +49,19 @@ pub enum OperationKind {
         /// Operand SSA values.
         args: Vec<SsaValueId>,
     },
-    /// Build a `TermNode::Collection` from evaluated element SSA values.
-    MakeList {
+    /// Build a typed collection from evaluated element SSA values.
+    ConstructCollection {
+        /// Collection kind (never an implicit dialect `List`).
+        kind: CollectionKind,
         /// Element SSA values (order preserved).
         elements: Vec<SsaValueId>,
+    },
+    /// Index into a value / collection.
+    Index {
+        /// Target SSA value.
+        target: SsaValueId,
+        /// Per-axis index specs.
+        axes: Vec<IndexSpec>,
     },
     /// Read a Session / scope binding.
     ReadBinding {
@@ -65,17 +74,19 @@ pub enum OperationKind {
         key: SsaValueId,
         /// Value written.
         value: SsaValueId,
-        /// When true, store as Delayed OwnValues (evaluate on read).
-        delayed: bool,
+        /// Binding category.
+        kind: BindingKind,
+        /// Evaluation policy.
+        evaluation: BindingEvaluationPolicy,
     },
-    /// Append a DownValue rule (`f[pat] := rhs`).
-    WriteDownValue {
+    /// Register a pattern → replacement dispatch rule on a head binding.
+    RegisterRuleDispatch {
         /// Head symbol key.
-        key: SsaValueId,
-        /// Full pattern lhs term (usually `f[…]`).
+        head: SsaValueId,
+        /// Pattern term (already neutral / compiled at lowering).
         pattern: SsaValueId,
-        /// Deferred rhs term (not evaluated at write).
-        value: SsaValueId,
+        /// Replacement template term.
+        replacement: SsaValueId,
     },
     /// Enter a lexical or dynamic scope frame.
     EnterScope {

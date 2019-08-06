@@ -314,10 +314,10 @@ impl ExecutionCompiler {
             SessionCommand::Define { symbol, value, kind: _, evaluation } => {
                 let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
                 if residual {
-                    return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, true);
+                    return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, *evaluation);
                 }
                 match session.arena.get(*value) {
-                    Some(TermNode::Atom(_)) => self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, false),
+                    Some(TermNode::Atom(_)) => self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, BindingEvaluationPolicy::EvaluateBeforeStore),
                     Some(_) => self.lower_define_evaluated(session, builder, blocks, block_id, *symbol, *value),
                     None => Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
                         .detail("component", "ExecutionCompiler")
@@ -357,7 +357,12 @@ impl ExecutionCompiler {
                             result: Some(result),
                             result_type: ExecutionValueType::Unit,
                             // Unit rhs means clear binding (not store Unit as Own).
-                            kind: OperationKind::WriteBinding { key, value: unit_val, delayed: false },
+                            kind: OperationKind::WriteBinding {
+                                key,
+                                value: unit_val,
+                                kind: BindingKind::Session,
+                                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                            },
                             effect_in: Some(effect_in),
                             effect_out: Some(effect_out),
                         },
@@ -536,7 +541,8 @@ impl ExecutionCompiler {
                 });
                 Ok(ssa)
             }
-            Some(TermNode::Collection { elements: items, .. }) => {
+            Some(TermNode::Collection { kind: coll_kind, elements: items }) => {
+                let coll_kind = *coll_kind;
                 let items = items.clone();
                 let mut elements = Vec::with_capacity(items.len());
                 for item in items {
@@ -546,7 +552,7 @@ impl ExecutionCompiler {
                 operations.push(Operation {
                     result: Some(ssa),
                     result_type: ExecutionValueType::Term,
-                    kind: OperationKind::MakeList { elements },
+                    kind: OperationKind::ConstructCollection { kind: coll_kind, elements },
                     effect_in: None,
                     effect_out: None,
                 });
