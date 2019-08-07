@@ -440,7 +440,7 @@ impl ReferenceExecutor {
                     return Ok(Slot::Term(term));
                 }
                 if let Some(term) = session.defs.residual_binding(symbol) {
-                    // Evaluate Delayed OwnValues on read (`DefineDeferred` semantics).
+                    // Evaluate residual bindings on read.
                     let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
                     let result_id = self.execute(session, &module, None)?;
                     let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);

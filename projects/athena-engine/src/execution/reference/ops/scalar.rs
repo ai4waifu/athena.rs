@@ -113,7 +113,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_application(session, name, terms)))
     }
 
-    /// Apply the first matching Session DownValue rule and re-evaluate the rhs.
+    /// Apply the first matching Session dispatch rule and re-evaluate the replacement.
     pub(crate) fn try_apply_down_values(
         &self,
         session: &mut Session,
