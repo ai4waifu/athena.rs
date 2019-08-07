@@ -376,34 +376,34 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => {
                         if residual {
                             if let Some(frame) = frames.last_mut() {
-                                frame.bind(symbol, LocalBinding::Own(*term));
+                                frame.bind(symbol, LocalBinding::Value(*term));
                             }
                             else {
-                                session.defs.define_delayed(symbol, *term);
+                                session.defs.write_residual_binding(symbol, *term);
                             }
                         }
                         else if let Some(frame) = frames.last_mut() {
-                            frame.bind(symbol, LocalBinding::Own(*term));
+                            frame.bind(symbol, LocalBinding::Value(*term));
                         }
                         else {
-                            session.defs.define_own(symbol, *term);
+                            session.defs.write_binding(symbol, *term);
                         }
                     }
                     Some(Slot::Boolean(v)) => {
                         let term = session.builder().boolean(*v, Default::default());
                         if residual {
                             if let Some(frame) = frames.last_mut() {
-                                frame.bind(symbol, LocalBinding::Own(term));
+                                frame.bind(symbol, LocalBinding::Value(term));
                             }
                             else {
-                                session.defs.define_delayed(symbol, term);
+                                session.defs.write_residual_binding(symbol, term);
                             }
                         }
                         else if let Some(frame) = frames.last_mut() {
-                            frame.bind(symbol, LocalBinding::Own(term));
+                            frame.bind(symbol, LocalBinding::Value(term));
                         }
                         else {
-                            session.defs.define_own(symbol, term);
+                            session.defs.write_binding(symbol, term);
                         }
                     }
                     _ => return Err(diag("write_value_unsupported")),
@@ -423,7 +423,7 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => *term,
                     _ => return Err(diag("write_value_unsupported")),
                 };
-                session.defs.define_down_value(symbol, pattern_term, value_term);
+                session.defs.register_rule(symbol, pattern_term, value_term);
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {
@@ -432,14 +432,14 @@ impl ReferenceExecutor {
                     _ => return Err(diag("read_key_not_symbol")),
                 };
                 for frame in frames.iter().rev() {
-                    if let Some(LocalBinding::Own(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
+                    if let Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
                         return Ok(Slot::Term(term));
                     }
                 }
-                if let Some(term) = session.defs.own(symbol) {
+                if let Some(term) = session.defs.binding(symbol) {
                     return Ok(Slot::Term(term));
                 }
-                if let Some(term) = session.defs.delayed(symbol) {
+                if let Some(term) = session.defs.residual_binding(symbol) {
                     // Evaluate Delayed OwnValues on read (`DefineDeferred` semantics).
                     let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
                     let result_id = self.execute(session, &module, None)?;

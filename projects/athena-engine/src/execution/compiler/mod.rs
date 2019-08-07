@@ -153,7 +153,7 @@ impl ExecutionCompiler {
                             }
                             else {
                                 let symbol = session.arena.symbols_mut().intern(&head_name);
-                                self.lower_define_down_value(session, builder, blocks, block_id, symbol, *lhs, *rhs)
+                                self.lower_register_rule(session, builder, blocks, block_id, symbol, *lhs, *rhs)
                             }
                         }
                         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

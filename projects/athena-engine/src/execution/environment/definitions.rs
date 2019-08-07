@@ -1,18 +1,18 @@
-//! 分层定义表与作用域帧（Living `25` L2 · `SymbolId` 键）。
+//! 分层定义表与作用域帧（Living `25` / `27` · `SymbolId` 键）。
 //!
-//! - [`DefinitionLayer`]：语句层 Own / Delayed / DownValues（Session 全局为底层）。
+//! - [`DefinitionLayer`]：语句层立即绑定 / 残余绑定 / 规则分派（Session 全局为底层）。
 //! - [`ScopeFrame`]：`LocalScope` / `LexicalScope` / `DynamicScope` 局部遮蔽（读取优先，不写回全局）。
 
 use std::collections::HashMap;
 
 use athena_types::{SymbolId, TermId};
 
-/// 语句层定义（立即 / 延迟 / DownValues）。
+/// 语句层定义（立即绑定 / 残余绑定 / 规则分派）。
 #[derive(Debug, Default)]
 pub struct DefinitionLayer {
-    owns: HashMap<SymbolId, TermId>,
-    delayed: HashMap<SymbolId, TermId>,
-    downs: HashMap<SymbolId, Vec<(TermId, TermId)>>,
+    bindings: HashMap<SymbolId, TermId>,
+    residual_bindings: HashMap<SymbolId, TermId>,
+    dispatch_rules: HashMap<SymbolId, Vec<(TermId, TermId)>>,
 }
 
 impl DefinitionLayer {
@@ -21,57 +21,59 @@ impl DefinitionLayer {
         Self::default()
     }
 
-    /// 写 Own 定义（替换同符号的 Delayed / DownValues）。
-    pub fn define_own(&mut self, symbol: SymbolId, value: TermId) {
-        self.owns.insert(symbol, value);
-        self.delayed.remove(&symbol);
-        self.downs.remove(&symbol);
+    /// 写入立即求值绑定（替换同符号的残余绑定与分派规则）。
+    pub fn write_binding(&mut self, symbol: SymbolId, value: TermId) {
+        self.bindings.insert(symbol, value);
+        self.residual_bindings.remove(&symbol);
+        self.dispatch_rules.remove(&symbol);
     }
 
-    /// 写 Delayed 定义。
-    pub fn define_delayed(&mut self, symbol: SymbolId, value: TermId) {
-        self.delayed.insert(symbol, value);
-        self.owns.remove(&symbol);
+    /// 写入残余项绑定（读取 / 应用时再求值）。
+    pub fn write_residual_binding(&mut self, symbol: SymbolId, value: TermId) {
+        self.residual_bindings.insert(symbol, value);
+        self.bindings.remove(&symbol);
     }
 
-    /// 追加 DownValue 规则（`f[x_] := rhs`）。
-    pub fn define_down_value(&mut self, symbol: SymbolId, lhs: TermId, rhs: TermId) {
-        self.downs.entry(symbol).or_default().push((lhs, rhs));
-        self.owns.remove(&symbol);
+    /// 追加规则分派条目（pattern → replacement）。
+    pub fn register_rule(&mut self, symbol: SymbolId, pattern: TermId, replacement: TermId) {
+        self.dispatch_rules.entry(symbol).or_default().push((pattern, replacement));
+        self.bindings.remove(&symbol);
     }
 
-    /// 查 Own 值（沿层链由调用方自顶向下查）。
-    pub fn own(&self, symbol: SymbolId) -> Option<TermId> {
-        self.owns.get(&symbol).copied()
+    /// 查立即绑定。
+    pub fn binding(&self, symbol: SymbolId) -> Option<TermId> {
+        self.bindings.get(&symbol).copied()
     }
 
-    /// 查 Delayed 值。
-    pub fn delayed(&self, symbol: SymbolId) -> Option<TermId> {
-        self.delayed.get(&symbol).copied()
+    /// 查残余绑定。
+    pub fn residual_binding(&self, symbol: SymbolId) -> Option<TermId> {
+        self.residual_bindings.get(&symbol).copied()
     }
 
-    /// 查 DownValues 规则表。
-    pub fn down_values(&self, symbol: SymbolId) -> Option<&[(TermId, TermId)]> {
-        self.downs.get(&symbol).map(Vec::as_slice)
+    /// 查规则分派表。
+    pub fn dispatch_rules(&self, symbol: SymbolId) -> Option<&[(TermId, TermId)]> {
+        self.dispatch_rules.get(&symbol).map(Vec::as_slice)
     }
 
-    /// 清除该符号的 Own / Delayed / DownValues。
+    /// 清除该符号的全部绑定与分派规则。
     pub fn clear_symbol(&mut self, symbol: SymbolId) {
-        self.owns.remove(&symbol);
-        self.delayed.remove(&symbol);
-        self.downs.remove(&symbol);
+        self.bindings.remove(&symbol);
+        self.residual_bindings.remove(&symbol);
+        self.dispatch_rules.remove(&symbol);
     }
 
     /// 清空层内全部定义。
     pub fn clear(&mut self) {
-        self.owns.clear();
-        self.delayed.clear();
-        self.downs.clear();
+        self.bindings.clear();
+        self.residual_bindings.clear();
+        self.dispatch_rules.clear();
     }
 
     /// 层内是否存在该符号的任何定义。
     pub fn defines(&self, symbol: SymbolId) -> bool {
-        self.owns.contains_key(&symbol) || self.delayed.contains_key(&symbol) || self.downs.contains_key(&symbol)
+        self.bindings.contains_key(&symbol)
+            || self.residual_bindings.contains_key(&symbol)
+            || self.dispatch_rules.contains_key(&symbol)
     }
 }
 
@@ -79,12 +81,12 @@ impl DefinitionLayer {
 #[derive(Debug, Clone, Copy)]
 pub enum LocalBinding {
     /// 已初始化值。
-    Own(TermId),
-    /// 未初始化局部的唯一化符号（`name$N`）。
+    Value(TermId),
+    /// 未初始化局部的唯一化符号。
     Unique(TermId),
 }
 
-/// 作用域帧：`LocalScope` / `LexicalScope` / `DynamicScope` 局部符号 → 绑定。
+/// 作用域帧：局部符号 → 绑定。
 #[derive(Debug, Clone, Default)]
 pub struct ScopeFrame {
     locals: HashMap<SymbolId, LocalBinding>,

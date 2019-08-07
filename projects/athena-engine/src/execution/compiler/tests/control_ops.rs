@@ -42,7 +42,7 @@ fn compile_and_execute_define_write_binding() {
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define");
     assert!(!module.effect_edges.is_empty());
     ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    assert_eq!(session.defs.own(symbol), Some(value));
+    assert_eq!(session.defs.binding(symbol), Some(value));
 }
 
 #[test]
@@ -61,8 +61,8 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    assert!(session.defs.own(symbol).is_none());
-    assert_eq!(session.defs.delayed(symbol), Some(rhs));
+    assert!(session.defs.binding(symbol).is_none());
+    assert_eq!(session.defs.residual_binding(symbol), Some(rhs));
 
     let read_module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(sym_term)).expect("read");
     let result_id = ReferenceExecutor::new().execute(&mut session, &read_module, None).expect("read exec");
@@ -135,7 +135,7 @@ fn compile_and_execute_sequence_define_read_clear() {
         Some(TermNode::Atom(Atom::Null)) => {}
         other => panic!("expected Null after clear, got {other:?}"),
     }
-    assert!(session.defs.own(symbol).is_none());
+    assert!(session.defs.binding(symbol).is_none());
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn compile_and_execute_counted_loop_unroll() {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    assert_eq!(session.defs.own(symbol), Some(c));
+    assert_eq!(session.defs.binding(symbol), Some(c));
 }
 
 #[test]
@@ -350,7 +350,7 @@ fn compile_and_execute_local_scope_shadows_session() {
     };
     let global = session.builder().int(1, Default::default());
     let local = session.builder().int(2, Default::default());
-    session.defs.define_own(symbol, global);
+    session.defs.write_binding(symbol, global);
 
     let request = AthenaRequest::Control(ControlPlan::LocalScope {
         body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
@@ -370,7 +370,7 @@ fn compile_and_execute_local_scope_shadows_session() {
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(local));
     // Session Own unchanged after local scope exits.
-    assert_eq!(session.defs.own(symbol), Some(global));
+    assert_eq!(session.defs.binding(symbol), Some(global));
 }
 
 #[test]
@@ -398,7 +398,7 @@ fn compile_and_execute_term_local_scope_with_define() {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    assert!(session.defs.own(symbol).is_none());
+    assert!(session.defs.binding(symbol).is_none());
 }
 
 #[test]

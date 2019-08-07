@@ -122,7 +122,7 @@ impl ReferenceExecutor {
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
         let symbol = session.arena.symbols_mut().intern(name);
-        let Some(rules) = session.defs.down_values(symbol).map(<[(TermId, TermId)]>::to_vec)
+        let Some(rules) = session.defs.dispatch_rules(symbol).map(<[(TermId, TermId)]>::to_vec)
         else {
             return Ok(None);
         };

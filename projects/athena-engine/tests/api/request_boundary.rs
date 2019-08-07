@@ -83,7 +83,7 @@ fn execute_request_command_define_via_execution_ir() {
     let result_id = engine.execute_request(&mut session, request).expect("define");
     let stored = session.results.get(result_id).expect("stored");
     assert_eq!(stored.coverage, CoverageStatus::Full);
-    assert_eq!(session.defs.own(symbol), Some(value));
+    assert_eq!(session.defs.binding(symbol), Some(value));
 }
 
 #[test]

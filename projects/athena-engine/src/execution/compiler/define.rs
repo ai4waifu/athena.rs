@@ -14,7 +14,7 @@ use crate::{
 
 impl ExecutionCompiler {
     /// Capture pattern lhs + residual rhs then `RegisterRuleDispatch`.
-    pub(crate) fn lower_define_down_value(
+    pub(crate) fn lower_register_rule(
         &self,
         session: &mut Session,
         builder: &mut ModuleBuilder,
