@@ -4,4 +4,4 @@
 
 mod pattern;
 
-pub use pattern::TermPattern;
+pub use pattern::{PatternConstraint, TermPattern};

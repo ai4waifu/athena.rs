@@ -336,11 +336,11 @@ impl ReferenceExecutor {
         matches!(
             session.arena.get(func),
             Some(athena_ir::TermNode::Application { head: op, arguments })
-                if session.operators.name(*op) == Some("Function") && matches!(arguments.len(), 1 | 2)
+                if session.operators.name(*op) == Some("Function") && arguments.len() == 2
         )
     }
 
-    /// Apply `func` to one list element: symbol head, `Function[var, body]`, or pure `Function[body]` / `Slot`.
+    /// Apply `func` to one list element: symbol head or `Function[var, body]`.
     fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
         if let Some(name) = symbol_name(session, func) {
             let mapped = push_application(session, &name, vec![item]);
@@ -349,18 +349,11 @@ impl ReferenceExecutor {
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(func) {
             if session.operators.name(*op) == Some("Function") {
                 let arguments = arguments.clone();
-                match arguments.as_slice() {
-                    [var, body] => {
-                        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
-                            let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
-                            return self.re_eval_term(session, instantiated);
-                        }
-                    }
-                    [body] => {
-                        let instantiated = crate::execution::builtins::patterns::substitute_slot(session, *body, item);
+                if let [var, body] = arguments.as_slice() {
+                    if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
+                        let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
                         return self.re_eval_term(session, instantiated);
                     }
-                    _ => {}
                 }
             }
         }
@@ -410,27 +403,14 @@ impl ReferenceExecutor {
             call_args.push(self.slot_as_term(session, slot)?);
         }
         // Function[var, body][arg…] → substitute and re-eval.
-        // Function[body][arg…] → Slot / `#` substitution.
+        // Pure Function[body] requires AnonymousArgument from dialect lowering (not string Slot).
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
             if session.operators.name(*op) == Some("Function") && call_args.len() == 1 {
                 let arguments = arguments.clone();
-                match arguments.as_slice() {
-                    [var, body] => {
-                        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
-                            let sym = *sym;
-                            let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
-                            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
-                                Ok(module) => {
-                                    let result_id = self.execute(session, &module, None)?;
-                                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(instantiated);
-                                    return Ok(Slot::Term(term));
-                                }
-                                Err(_) => return Ok(Slot::Term(instantiated)),
-                            }
-                        }
-                    }
-                    [body] => {
-                        let instantiated = crate::execution::builtins::patterns::substitute_slot(session, *body, call_args[0]);
+                if let [var, body] = arguments.as_slice() {
+                    if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
+                        let sym = *sym;
+                        let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
                         match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(instantiated)) {
                             Ok(module) => {
                                 let result_id = self.execute(session, &module, None)?;
@@ -440,7 +420,6 @@ impl ReferenceExecutor {
                             Err(_) => return Ok(Slot::Term(instantiated)),
                         }
                     }
-                    _ => {}
                 }
             }
         }
