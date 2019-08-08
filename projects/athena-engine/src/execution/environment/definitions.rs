@@ -1,18 +1,20 @@
 //! 分层定义表与作用域帧（Living `25` / `27` · `SymbolId` 键）。
 //!
 //! - [`DefinitionLayer`]：语句层立即绑定 / 残余绑定 / 规则分派（Session 全局为底层）。
-//! - [`ScopeFrame`]：`LocalScope` / `LexicalScope` / `DynamicScope` 局部遮蔽（读取优先，不写回全局）。
+//! - [`ScopeFrame`]：局部遮蔽（读取优先，不写回全局）。
 
 use std::collections::HashMap;
 
 use athena_types::{SymbolId, TermId};
+
+use crate::reasoning::trs::TermPattern;
 
 /// 语句层定义（立即绑定 / 残余绑定 / 规则分派）。
 #[derive(Debug, Default)]
 pub struct DefinitionLayer {
     bindings: HashMap<SymbolId, TermId>,
     residual_bindings: HashMap<SymbolId, TermId>,
-    dispatch_rules: HashMap<SymbolId, Vec<(TermId, TermId)>>,
+    dispatch_rules: HashMap<SymbolId, Vec<(TermPattern, TermId)>>,
 }
 
 impl DefinitionLayer {
@@ -34,8 +36,8 @@ impl DefinitionLayer {
         self.bindings.remove(&symbol);
     }
 
-    /// 追加规则分派条目（pattern → replacement）。
-    pub fn register_rule(&mut self, symbol: SymbolId, pattern: TermId, replacement: TermId) {
+    /// 追加规则分派条目（已编译 [`TermPattern`] → replacement）。
+    pub fn register_rule(&mut self, symbol: SymbolId, pattern: TermPattern, replacement: TermId) {
         self.dispatch_rules.entry(symbol).or_default().push((pattern, replacement));
         self.bindings.remove(&symbol);
     }
@@ -51,7 +53,7 @@ impl DefinitionLayer {
     }
 
     /// 查规则分派表。
-    pub fn dispatch_rules(&self, symbol: SymbolId) -> Option<&[(TermId, TermId)]> {
+    pub fn dispatch_rules(&self, symbol: SymbolId) -> Option<&[(TermPattern, TermId)]> {
         self.dispatch_rules.get(&symbol).map(Vec::as_slice)
     }
 

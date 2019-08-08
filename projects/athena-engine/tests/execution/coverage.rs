@@ -373,21 +373,27 @@ fn session_setdelayed_evaluates_on_use() {
 }
 
 #[test]
-fn session_setdelayed_pattern_down_value() {
+fn session_pattern_dispatch_rule() {
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_ir::{Atom, TermNode};
     let mut c = C::new();
-    let lhs = apply("f", vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)], &mut c);
+    let x_term = symbol("x", &mut c);
+    let x_sym = match c.s.arena.get(x_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let f_op = c.s.operators.intern("f");
+    let f_sym = c.s.arena.symbols_mut().intern("f");
     let rhs = apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    let define = apply("DefineDeferred", vec![lhs, rhs], &mut c);
-    assert_eq!(t(define, &mut c), "Null");
+    c.s.defs.register_rule(
+        f_sym,
+        TermPattern::Application {
+            operator: f_op,
+            arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
+        },
+        rhs,
+    );
     assert_eq!(t(apply("f", vec![i(3, &mut c)], &mut c), &mut c), "9");
-    // 同一 compound 内定义 + 调用。
-    let mut d = C::new();
-    let lhs = apply("f", vec![apply("Bind", vec![symbol("x", &mut d), apply("Any", vec![], &mut d)], &mut d)], &mut d);
-    let rhs = apply("Power", vec![symbol("x", &mut d), i(2, &mut d)], &mut d);
-    let define = apply("DefineDeferred", vec![lhs, rhs], &mut d);
-    let call = apply("f", vec![i(3, &mut d)], &mut d);
-    let e = apply("Sequence", vec![define, call], &mut d);
-    assert_eq!(t(e, &mut d), "9");
 }
 
 #[test]
@@ -434,16 +440,36 @@ fn nested_module_names_do_not_collide() {
 }
 
 #[test]
-fn down_value_literal_pattern_and_fallback() {
+fn dispatch_literal_then_bind_fallback() {
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_ir::{Atom, TermNode};
     let mut c = C::new();
-    // f[1] := 10 ; f[x_] := x * 2
-    let lhs1 = apply("f", vec![i(1, &mut c)], &mut c);
-    let def1 = apply("DefineDeferred", vec![lhs1, i(10, &mut c)], &mut c);
-    out(def1, &mut c);
-    let lhs2 = apply("f", vec![apply("Bind", vec![symbol("x", &mut c), apply("Any", vec![], &mut c)], &mut c)], &mut c);
+    let f_op = c.s.operators.intern("f");
+    let f_sym = c.s.arena.symbols_mut().intern("f");
+    let one = i(1, &mut c);
+    let ten = i(10, &mut c);
+    c.s.defs.register_rule(
+        f_sym,
+        TermPattern::Application {
+            operator: f_op,
+            arguments: vec![TermPattern::Exact(one)],
+        },
+        ten,
+    );
+    let x_term = symbol("x", &mut c);
+    let x_sym = match c.s.arena.get(x_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
     let rhs2 = apply("Times", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    let def2 = apply("DefineDeferred", vec![lhs2, rhs2], &mut c);
-    out(def2, &mut c);
+    c.s.defs.register_rule(
+        f_sym,
+        TermPattern::Application {
+            operator: f_op,
+            arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
+        },
+        rhs2,
+    );
     assert_eq!(t(apply("f", vec![i(1, &mut c)], &mut c), &mut c), "10");
     assert_eq!(t(apply("f", vec![i(5, &mut c)], &mut c), &mut c), "10");
 }
@@ -468,12 +494,26 @@ fn apply_and_join_and_length() {
 }
 
 #[test]
-fn cases_filters_by_pattern() {
+fn cases_filters_by_value_type_pattern() {
+    use athena_engine::execution::builtins::patterns::match_term_pattern;
+    use athena_engine::reasoning::trs::{PatternConstraint, TermPattern};
+    use athena_types::ValueTypeId;
     let mut c = C::new();
-    let pat = apply("Any", vec![symbol("Integer", &mut c)], &mut c);
-    let e = apply("CollectMatches", vec![lst(vec![i(1, &mut c), symbol("y", &mut c), i(3, &mut c)], &mut c), pat], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.contains("List[1, 3]"), "got {r}");
+    let pat = TermPattern::Constrained {
+        pattern: Box::new(TermPattern::Any),
+        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
+    };
+    let items = [i(1, &mut c), symbol("y", &mut c), i(3, &mut c)];
+    let mut out = Vec::new();
+    for item in items {
+        let mut binds = std::collections::HashMap::new();
+        if match_term_pattern(&c.s, item, &pat, &mut binds) {
+            out.push(item);
+        }
+    }
+    assert_eq!(out.len(), 2);
+    assert_eq!(t(out[0], &mut c), "1");
+    assert_eq!(t(out[1], &mut c), "3");
 }
 
 #[test]

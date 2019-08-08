@@ -182,22 +182,36 @@ fn table_sum_and_module() {
 
 #[test]
 fn downvalues_and_match_q() {
+    use athena_engine::reasoning::trs::{PatternConstraint, TermPattern};
+    use athena_ir::Atom;
+    use athena_types::ValueTypeId;
+
     let mut s = Session::new();
-    // f[x_] := x^2
-    let xv = symbol("x", &mut s);
-    let blank = apply("Any", vec![], &mut s);
-    let pat = apply("Bind", vec![xv, blank], &mut s);
-    let lhs = apply("f", vec![pat], &mut s);
+    let x_term = symbol("x", &mut s);
+    let x_sym = match s.arena.get(x_term) {
+        Some(athena_ir::TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let f_op = s.operators.intern("f");
+    let f_sym = s.arena.symbols_mut().intern("f");
     let rhs = apply("Power", vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
-    let def = apply("DefineDeferred", vec![lhs, rhs], &mut s);
-    assert_eq!(eval(&mut s, def), "Null");
-    // f[3] → 9
+    let pattern = TermPattern::Application {
+        operator: f_op,
+        arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
+    };
+    s.defs.register_rule(f_sym, pattern, rhs);
     let call = apply("f", vec![int(3, &mut s)], &mut s);
     assert_eq!(eval(&mut s, call), "9");
-    // Matches[3, Any[Integer]] → True
-    let blank_int = apply("Any", vec![symbol("Integer", &mut s)], &mut s);
-    let e = apply("Matches", vec![int(3, &mut s), blank_int], &mut s);
-    assert_eq!(eval(&mut s, e), "True");
+
+    let constrained = TermPattern::Constrained {
+        pattern: Box::new(TermPattern::Any),
+        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
+    };
+    let mut binds = std::collections::HashMap::new();
+    let three = int(3, &mut s);
+    let y = symbol("y", &mut s);
+    assert!(athena_engine::execution::builtins::patterns::match_term_pattern(&s, three, &constrained, &mut binds));
+    assert!(!athena_engine::execution::builtins::patterns::match_term_pattern(&s, y, &constrained, &mut binds));
 }
 
 #[test]

@@ -423,7 +423,9 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => *term,
                     _ => return Err(diag("write_value_unsupported")),
                 };
-                session.defs.register_rule(symbol, pattern_term, value_term);
+                // Structure-only compile from term. Wildcards must arrive as typed `TermPattern` via API.
+                let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
+                session.defs.register_rule(symbol, compiled, value_term);
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {

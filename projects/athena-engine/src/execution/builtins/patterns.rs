@@ -44,7 +44,7 @@ pub(crate) fn structural_pattern_from_term(session: &Session, pat: TermId) -> Te
 }
 
 /// 对中性 [`TermPattern`] 做结构匹配并收集绑定。
-pub(crate) fn match_term_pattern(session: &Session, expr: TermId, pattern: &TermPattern, binds: &mut HashMap<SymbolId, TermId>) -> bool {
+pub fn match_term_pattern(session: &Session, expr: TermId, pattern: &TermPattern, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     match pattern {
         TermPattern::Any => true,
         TermPattern::Bind { name, inner } => {

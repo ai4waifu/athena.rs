@@ -122,10 +122,11 @@ impl ReferenceExecutor {
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
         let symbol = session.arena.symbols_mut().intern(name);
-        let Some(rules) = session.defs.dispatch_rules(symbol).map(<[(TermId, TermId)]>::to_vec)
+        let Some(rules) = session.defs.dispatch_rules(symbol).map(|r| r.to_vec())
         else {
             return Ok(None);
         };
+        let call_op = session.operators.intern(name);
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -133,20 +134,25 @@ impl ReferenceExecutor {
         }
         let substituted = {
             let mut matched = None;
-            for (lhs, rhs) in rules {
-                let Some(crate::execution::shape::Shape::Application(_, pat_args)) = crate::execution::shape::term_shape(session, lhs)
-                else {
-                    continue;
-                };
-                if pat_args.len() != terms.len() {
-                    continue;
-                }
+            for (pattern, rhs) in rules {
                 let mut binds = HashMap::new();
-                if pat_args
-                    .iter()
-                    .zip(terms.iter())
-                    .all(|(p, a)| crate::execution::builtins::patterns::pattern_bind(session, *a, *p, &mut binds))
-                {
+                let ok = match &pattern {
+                    crate::reasoning::trs::TermPattern::Application { operator, arguments } => {
+                        *operator == call_op && arguments.len() == terms.len() && {
+                            arguments.iter().zip(terms.iter()).all(|(p, a)| {
+                                crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds)
+                            })
+                        }
+                    }
+                    crate::reasoning::trs::TermPattern::StructuralApplication(arguments) => {
+                        arguments.len() == terms.len()
+                            && arguments.iter().zip(terms.iter()).all(|(p, a)| {
+                                crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds)
+                            })
+                    }
+                    _ => false,
+                };
+                if ok {
                     matched = Some(crate::execution::builtins::patterns::substitute_binds(session, rhs, &binds));
                     break;
                 }
