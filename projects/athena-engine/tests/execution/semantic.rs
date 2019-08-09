@@ -1,6 +1,7 @@
 //! 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_term`）。
 
 use athena_engine::{
+    api::request::{AthenaRequest, ControlPlan},
     diagnostics::term_summary::term_debug,
     execution,
     execution::evaluate_term,
@@ -9,6 +10,7 @@ use athena_engine::{
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},
     },
 };
+use athena_types::BindingEvaluationPolicy;
 
 type Tid = athena_types::TermId;
 
@@ -143,16 +145,30 @@ fn while_accumulator() {
     assert_eq!(eval(&mut s, e), "9");
 }
 
+fn eval_request(s: &mut Session, request: AthenaRequest) -> String {
+    let result_id = execution::execute_ir_request(s, request).expect("ir");
+    let term = s.results.get(result_id).and_then(|r| r.symbolic_term).expect("term");
+    term_debug(s, term)
+}
+
+#[test]
+fn iterate_collects_ordered_collection() {
+    let mut s = Session::new();
+    let binder = symbol("i", &mut s);
+    let range = list(vec![int(1, &mut s), int(2, &mut s), int(3, &mut s), int(4, &mut s)], &mut s);
+    let body = apply("Power", vec![binder, int(2, &mut s)], &mut s);
+    let request = AthenaRequest::Control(ControlPlan::Iterate {
+        binder,
+        range,
+        body: Box::new(AthenaRequest::Term(body)),
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    assert_eq!(eval_request(&mut s, request), "List[1, 4, 9, 16]");
+}
+
 #[test]
 fn table_sum_and_module() {
     let mut s = Session::new();
-    // Table[i^2, {i, 1, 4}] → {1, 4, 9, 16}
-    let sq = apply("Power", vec![symbol("i", &mut s), int(2, &mut s)], &mut s);
-    let iter = list(vec![symbol("i", &mut s), int(1, &mut s), int(4, &mut s)], &mut s);
-    let e = apply("Table", vec![sq, iter], &mut s);
-    let r = eval(&mut s, e);
-    assert!(r.contains("List[1, 4, 9, 16]"), "got {r}");
-    // Sum[k, {k, 1, 10}] → 55
     let iter = list(vec![symbol("k", &mut s), int(1, &mut s), int(10, &mut s)], &mut s);
     let e = apply("Sum", vec![symbol("k", &mut s), iter], &mut s);
     assert_eq!(eval(&mut s, e), "55");

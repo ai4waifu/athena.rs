@@ -1,12 +1,13 @@
 //! Control-plan and scope lowering for [`super::ExecutionCompiler`].
 
 use athena_ir::{Atom, TermNode};
-use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::{ExecutionCompiler, ModuleBuilder};
 use super::helpers::expand_span_range;
 use crate::{
     api::request::{AthenaRequest, ControlPlan, SessionCommand},
+    execution::builtins::patterns::substitute_symbol,
     execution::ir::{
         BasicBlock, BlockEdge, BlockId, ConstantValue, EffectKind, ExecutionValueType, Operation, OperationKind, SsaValueId, Terminator,
     },
@@ -37,9 +38,36 @@ impl ExecutionCompiler {
                 self.lower_counted_loop(session, builder, blocks, block_id, *variable, *iterator, body)
             }
             ControlPlan::Iterate { binder, range, body, evaluation: _ } => {
-                self.lower_counted_loop(session, builder, blocks, block_id, *binder, *range, body)
+                self.lower_iterate(session, builder, blocks, block_id, *binder, *range, body)
             }
         }
+    }
+
+    /// Compile-time expand a constant range, substitute the binder, then lower a collection of bodies.
+    pub(crate) fn lower_iterate(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        binder: TermId,
+        range: TermId,
+        body: &AthenaRequest,
+    ) -> Result<SsaValueId> {
+        let symbol = self.require_symbol_atom(session, binder)?;
+        let items = self.require_atom_list(session, range)?;
+        let AthenaRequest::Term(body_term) = body
+        else {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "iterate_body_must_be_term"));
+        };
+        let mut elements = Vec::with_capacity(items.len());
+        for item in items {
+            elements.push(substitute_symbol(session, *body_term, symbol, item));
+        }
+        let collection = session.builder().collection(CollectionKind::OrderedCollection, elements, Default::default());
+        self.lower_term(session, builder, blocks, entry, collection)
     }
 
     pub(crate) fn lower_counted_loop(

@@ -22,7 +22,7 @@ use crate::{
 
 impl ReferenceExecutor {
     /// `Sum[list]` — vector scalar sum / matrix column sums.
-    /// `Sum[body, iterator]` — Table then Plus-fold.
+    /// `Sum[body, iterator]` — expand iterator then Plus-fold.
     pub(crate) fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() == 2 {
             let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
@@ -84,19 +84,6 @@ impl ReferenceExecutor {
         }
         // Vector: scalar sum via Plus fold.
         Ok(Slot::Term(fold_plus_symbolic(session, items)))
-    }
-
-    /// `Table[body, iterator]` — HoldAll-ish body with iterator expansion.
-    pub(crate) fn eval_table(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
-        if args.len() != 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let iter = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        match self.table_values(session, body, iter)? {
-            Some(values) => Ok(Slot::Term(push_list(session, values))),
-            None => Ok(Slot::Term(push_application(session, "Table", vec![body, iter]))),
-        }
     }
 
     pub(crate) fn table_values(&self, session: &mut Session, body: TermId, iter: TermId) -> Result<Option<Vec<TermId>>> {

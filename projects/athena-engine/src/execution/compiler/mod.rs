@@ -69,7 +69,7 @@ impl ExecutionCompiler {
     }
 
     /// Lower a term request: `If` / `Sequence` / `Hold` get special forms, others fill one block.
-    fn lower_term(
+    pub(crate) fn lower_term(
         &self,
         session: &mut Session,
         builder: &mut ModuleBuilder,
@@ -507,11 +507,11 @@ impl ExecutionCompiler {
                     }
                     _ => ExecutionValueType::Term,
                 };
-                // `Table` / iterator `Sum`/`Product`: HoldAll-ish body (first arg), evaluate iterator.
+                // iterator `Sum`/`Product`: HoldAll-ish body (first arg), evaluate iterator.
                 // `CollectMatches` / `Matches`: HoldAll-ish pattern (second arg).
                 // `Function`: HoldAll args (formal + body).
                 let hold_all = name == "Function";
-                let hold_first = matches!(name, "Table" | "Product") || (name == "Sum" && arg_terms.len() == 2);
+                let hold_first = name == "Product" || (name == "Sum" && arg_terms.len() == 2);
                 let hold_second = matches!(name, "CollectMatches" | "Matches") && arg_terms.len() >= 2;
                 let mut args = Vec::with_capacity(arg_terms.len());
                 for (index, arg) in arg_terms.into_iter().enumerate() {

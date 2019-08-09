@@ -1,7 +1,7 @@
 //! `ExecutionIR` reference parity (Living `25` L2).
 
 use athena_engine::{
-    api::request::AthenaRequest,
+    api::request::{AthenaRequest, ControlPlan},
     diagnostics::term_summary::term_debug,
     execution::execute_ir_request,
     runtime::{
@@ -10,7 +10,7 @@ use athena_engine::{
         values::arena::{push_application_named, push_int, push_list, push_symbol_name},
     },
 };
-use athena_types::{ComputationStatus, TermId};
+use athena_types::{BindingEvaluationPolicy, ComputationStatus, TermId};
 
 type Tid = TermId;
 
@@ -492,11 +492,19 @@ fn sum_over_iterator_folds() {
 }
 
 #[test]
-fn table_with_single_bound() {
+fn iterate_with_explicit_range() {
     let mut c = C::new();
-    let iter = lst(vec![symbol("i", &mut c), i(3, &mut c)], &mut c);
-    let e = apply("Table", vec![symbol("i", &mut c), iter], &mut c);
-    assert_eq!(t(e, &mut c), "List[1, 2, 3]");
+    let binder = symbol("i", &mut c);
+    let range = lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
+    let request = AthenaRequest::Control(ControlPlan::Iterate {
+        binder,
+        range,
+        body: Box::new(AthenaRequest::Term(binder)),
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let result_id = execute_ir_request(&mut c.s, request).expect("ir");
+    let term = c.s.results.get(result_id).and_then(|r| r.symbolic_term).expect("term");
+    assert_eq!(term_debug(&c.s, term), "List[1, 2, 3]");
 }
 
 #[test]

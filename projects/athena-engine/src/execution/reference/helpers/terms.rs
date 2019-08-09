@@ -114,7 +114,7 @@ pub(crate) fn expand_span_3(a: i64, step: i64, b: i64) -> Option<Vec<i64>> {
     Some(out)
 }
 
-/// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` for `Table` / iterator `Sum`.
+/// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` for iterator `Sum`.
 pub(crate) fn expand_iterator_session(session: &mut Session, spec: TermId) -> Option<(Option<SymbolId>, Vec<TermId>)> {
     let items = match session.arena.get(spec) {
         Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),

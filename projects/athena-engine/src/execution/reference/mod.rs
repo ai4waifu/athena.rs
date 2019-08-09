@@ -294,7 +294,6 @@ impl ReferenceExecutor {
                     "Application" => self.eval_application_form(session, args, slots),
                     "Size" => self.eval_size(session, args, slots),
                     "Sum" => self.eval_sum(session, args, slots),
-                    "Table" => self.eval_table(session, args, slots),
                     "Det" => self.eval_det(session, args, slots, invalid),
                     "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
                     "Map" => self.eval_map(session, args, slots),

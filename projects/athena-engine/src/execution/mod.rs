@@ -132,7 +132,7 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
     }
 }
 
-/// 会话级符号替换（`Table` / `CountedLoop` / `Function` 具化）。
+/// 会话级符号替换（迭代 / 作用域具化）。
 pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
     builtins::patterns::substitute_symbol(session, expr, symbol, value)
 }

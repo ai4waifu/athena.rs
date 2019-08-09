@@ -160,6 +160,33 @@ fn compile_and_execute_counted_loop_unroll() {
 }
 
 #[test]
+fn compile_and_execute_iterate_collects_collection() {
+    use athena_types::BindingEvaluationPolicy;
+
+    let mut session = Session::new();
+    let var = session.builder().symbol("i", Default::default());
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let range = session.builder().list(vec![a, b, c], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Iterate {
+        binder: var,
+        range,
+        body: Box::new(AthenaRequest::Term(var)),
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("iterate");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements, .. }) => {
+            assert_eq!(elements.len(), 3);
+        }
+        other => panic!("expected collection, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_term_counted_loop_span() {
     let mut session = Session::new();
     let var = session.builder().symbol("i", Default::default());
