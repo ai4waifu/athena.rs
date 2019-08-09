@@ -117,3 +117,41 @@ fn tampered_fingerprint_fails_reverify() {
     let err = verify_module(&module).expect_err("tampered");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("fingerprint_mismatch"));
 }
+
+#[test]
+fn collection_term_emits_construct_collection() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let list = session.builder().collection(CollectionKind::OrderedCollection, vec![a, b], Default::default());
+    let module = compile(&mut session, AthenaRequest::Term(list));
+    assert!(module.regions.iter().flat_map(|r| &r.blocks).any(|block| {
+        block.operations.iter().any(|op| {
+            matches!(
+                op.kind,
+                OperationKind::ConstructCollection {
+                    kind: CollectionKind::OrderedCollection,
+                    ..
+                }
+            )
+        })
+    }));
+}
+
+#[test]
+fn typed_pattern_constraint_rejects_non_integer() {
+    use athena_engine::execution::builtins::patterns::match_term_pattern;
+    use athena_engine::reasoning::trs::{PatternConstraint, TermPattern};
+    use athena_types::ValueTypeId;
+    let mut session = Session::new();
+    let n = session.builder().int(7, Default::default());
+    let sym = session.builder().symbol("x", Default::default());
+    let pat = TermPattern::Constrained {
+        pattern: Box::new(TermPattern::Any),
+        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
+    };
+    let mut binds = std::collections::HashMap::new();
+    assert!(match_term_pattern(&session, n, &pat, &mut binds));
+    assert!(!match_term_pattern(&session, sym, &pat, &mut binds));
+}
