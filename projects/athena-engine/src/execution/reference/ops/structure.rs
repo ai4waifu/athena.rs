@@ -8,7 +8,7 @@ use athena_numeric::{
 };
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use super::super::{PartStep, ReferenceExecutor, Slot};
+use super::super::{IndexStep, ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
@@ -217,172 +217,143 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    pub(crate) fn eval_span(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
-        let Some(ints) = ints
-        else {
-            return Ok(Slot::Term(push_application(session, "Span", terms)));
-        };
-        let items = match ints.as_slice() {
-            [a, b] => expand_span_2(*a, *b),
-            [a, step, b] => expand_span_3(*a, *step, *b),
-            _ => return Ok(Slot::Term(push_application(session, "Span", terms))),
-        };
-        let Some(values) = items
-        else {
-            return Ok(Slot::Term(push_application(session, "Span", terms)));
-        };
-        let terms: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
-        Ok(Slot::Term(push_list(session, terms)))
-    }
-
-    pub(crate) fn eval_part(
+    /// Execute neutral [`IndexSpec`] axes against a target SSA value.
+    pub(crate) fn eval_index(
         &self,
         session: &mut Session,
-        args: &[SsaValueId],
+        target: SsaValueId,
+        axes: &[athena_types::IndexSpec],
         slots: &HashMap<SsaValueId, Slot>,
         invalid: &mut Option<Diagnostic>,
     ) -> Result<Slot> {
-        if args.len() < 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        // `Part[m, All, j, …]` — map remaining indices over each row (MATLAB `A(:,j)`).
-        if terms.len() >= 3 {
-            if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(terms[1]) {
-                if matches!(session.arena.symbols().resolve(*symbol), Some("All") | Some(":")) {
-                    if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(terms[0]) {
-                        let rows = rows.clone();
-                        let rest = terms[2..].to_vec();
-                        let mut out = Vec::with_capacity(rows.len());
-                        for row in rows {
-                            let mut part_args = Vec::with_capacity(1 + rest.len());
-                            part_args.push(row);
-                            part_args.extend_from_slice(&rest);
-                            match self.part_n_terms(session, &part_args, invalid)? {
-                                PartStep::Next(item) => out.push(item),
-                                PartStep::Residual => {
-                                    return Ok(Slot::Term(push_application(session, "Part", terms)));
-                                }
-                                PartStep::Invalid { echo, diagnostic } => {
+        use athena_types::IndexSpec;
+
+        let slot = *slots.get(&target).ok_or_else(|| diag("index_target_undefined"))?;
+        let mut cur = self.slot_as_term(session, slot)?;
+
+        // `All` then remaining axes over each row (column / nested selection).
+        if let [IndexSpec::All, rest @ ..] = axes {
+            if !rest.is_empty() {
+                if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(cur) {
+                    let rows = rows.clone();
+                    let mut out = Vec::with_capacity(rows.len());
+                    for row in rows {
+                        let mut cell = row;
+                        for axis in rest {
+                            match self.index_one(session, cell, axis)? {
+                                IndexStep::Next(next) => cell = next,
+                                IndexStep::Residual => return Ok(Slot::Term(cur)),
+                                IndexStep::Invalid { echo, diagnostic } => {
                                     *invalid = Some(diagnostic);
                                     return Ok(Slot::Term(echo));
                                 }
                             }
                         }
-                        return Ok(Slot::Term(push_list(session, out)));
+                        out.push(cell);
                     }
+                    return Ok(Slot::Term(push_list(session, out)));
                 }
             }
         }
-        match self.part_n_terms(session, &terms, invalid)? {
-            PartStep::Next(term) => Ok(Slot::Term(term)),
-            PartStep::Residual => Ok(Slot::Term(push_application(session, "Part", terms))),
-            PartStep::Invalid { echo, diagnostic } => {
-                *invalid = Some(diagnostic);
-                Ok(Slot::Term(echo))
+
+        for axis in axes {
+            match self.index_one(session, cur, axis)? {
+                IndexStep::Next(next) => cur = next,
+                IndexStep::Residual => return Ok(Slot::Term(cur)),
+                IndexStep::Invalid { echo, diagnostic } => {
+                    *invalid = Some(diagnostic);
+                    return Ok(Slot::Term(echo));
+                }
             }
         }
+        Ok(Slot::Term(cur))
     }
 
-    pub(crate) fn part_n_terms(&self, session: &mut Session, terms: &[TermId], invalid: &mut Option<Diagnostic>) -> Result<PartStep> {
-        if terms.len() < 2 {
-            return Ok(PartStep::Residual);
-        }
-        let mut cur = terms[0];
-        for index in &terms[1..] {
-            match self.part_one(session, cur, *index)? {
-                PartStep::Next(next) => cur = next,
-                PartStep::Residual => return Ok(PartStep::Residual),
-                PartStep::Invalid { echo, diagnostic } => {
-                    *invalid = Some(diagnostic.clone());
-                    return Ok(PartStep::Invalid { echo, diagnostic });
-                }
-            }
-        }
-        Ok(PartStep::Next(cur))
-    }
-
-    /// Bootstrap `Part` step: list/app + integer / `End` / `All` / index list.
-    pub(crate) fn part_one(&self, session: &mut Session, expr: TermId, index: TermId) -> Result<PartStep> {
-        // Index list (e.g. evaluated `Span`): extract each position into a list.
-        if let Some(athena_ir::TermNode::Collection { elements: indices, .. }) = session.arena.get(index) {
-            let indices = indices.clone();
-            let mut out = Vec::with_capacity(indices.len());
-            for idx in indices {
-                match self.part_one(session, expr, idx)? {
-                    PartStep::Next(item) => out.push(item),
-                    PartStep::Residual => {
-                        return Ok(PartStep::Residual);
-                    }
-                    PartStep::Invalid { echo, diagnostic } => {
-                        return Ok(PartStep::Invalid { echo, diagnostic });
-                    }
-                }
-            }
-            return Ok(PartStep::Next(push_list(session, out)));
-        }
+    /// Apply one [`IndexSpec`] axis (1-based scalar, All, EndRelative, Range).
+    pub(crate) fn index_one(&self, session: &mut Session, expr: TermId, spec: &athena_types::IndexSpec) -> Result<IndexStep> {
+        use athena_types::{IndexSpec, IntegerIndex, IntegerOffset};
 
         let items = match session.arena.get(expr) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.clone(),
-            _ => return Ok(PartStep::Residual),
+            _ => return Ok(IndexStep::Residual),
         };
-        if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = session.arena.get(index) {
-            match session.arena.symbols().resolve(*symbol) {
-                Some("End") | Some("end") => {
-                    return Ok(match items.last().copied() {
-                        Some(item) => PartStep::Next(item),
-                        None => PartStep::Residual,
+        let len = items.len();
+
+        match spec {
+            IndexSpec::All => Ok(IndexStep::Next(push_list(session, items))),
+            IndexSpec::EndRelative(IntegerOffset(off)) => {
+                let pos = len as i64 + *off - 1;
+                if pos < 0 || pos as usize >= len {
+                    return Ok(IndexStep::Invalid {
+                        echo: expr,
+                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*off, Some(len as u64)),
                     });
                 }
-                Some("All") | Some(":") => {
-                    return Ok(PartStep::Next(push_list(session, items)));
+                Ok(IndexStep::Next(items[pos as usize]))
+            }
+            IndexSpec::Scalar(IntegerIndex(idx)) => {
+                if *idx == 0 {
+                    return Ok(IndexStep::Next(match session.arena.get(expr) {
+                        Some(athena_ir::TermNode::Collection { .. }) => {
+                            session.builder().symbol("OrderedCollection", Default::default())
+                        }
+                        Some(athena_ir::TermNode::Application { head, .. }) => {
+                            let name = session.operators.name(*head).unwrap_or("").to_string();
+                            session.builder().symbol(&name, Default::default())
+                        }
+                        _ => return Ok(IndexStep::Residual),
+                    }));
                 }
-                _ => {}
-            }
-        }
-        let Some(idx) = number_of(session, index).and_then(|n| n.as_exact_integer())
-        else {
-            return Ok(PartStep::Residual);
-        };
-        if idx == 0 {
-            return Ok(PartStep::Next(match session.arena.get(expr) {
-                Some(athena_ir::TermNode::Collection { elements: _, .. }) => session.builder().symbol("List", Default::default()),
-                Some(athena_ir::TermNode::Application { head, .. }) => {
-                    let name = session.operators.name(*head).unwrap_or("").to_string();
-                    session.builder().symbol(&name, Default::default())
+                let pos = if *idx > 0 {
+                    (*idx - 1) as usize
                 }
-                _ => return Ok(PartStep::Residual),
-            }));
-        }
-        let len = items.len();
-        let pos = if idx > 0 {
-            (idx - 1) as usize
-        }
-        else {
-            let pos = len as i64 + idx;
-            if pos < 0 {
-                let echo = push_application(session, "Part", vec![expr, index]);
-                return Ok(PartStep::Invalid { echo, diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)) });
+                else {
+                    let pos = len as i64 + *idx;
+                    if pos < 0 {
+                        return Ok(IndexStep::Invalid {
+                            echo: expr,
+                            diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)),
+                        });
+                    }
+                    pos as usize
+                };
+                match items.get(pos) {
+                    Some(item) => Ok(IndexStep::Next(*item)),
+                    None => Ok(IndexStep::Invalid {
+                        echo: expr,
+                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)),
+                    }),
+                }
             }
-            pos as usize
-        };
-        match items.get(pos) {
-            Some(item) => Ok(PartStep::Next(*item)),
-            None => {
-                let echo = push_application(session, "Part", vec![expr, index]);
-                Ok(PartStep::Invalid { echo, diagnostic: crate::diagnostics::invalid_index_diagnostic(idx, Some(len as u64)) })
+            IndexSpec::Range { start, end, step } => {
+                let Some(values) = expand_span_3(start.0, *step, end.0)
+                else {
+                    return Ok(IndexStep::Residual);
+                };
+                let mut out = Vec::with_capacity(values.len());
+                for v in values {
+                    match self.index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(v)))? {
+                        IndexStep::Next(item) => out.push(item),
+                        IndexStep::Residual => return Ok(IndexStep::Residual),
+                        IndexStep::Invalid { echo, diagnostic } => {
+                            return Ok(IndexStep::Invalid { echo, diagnostic });
+                        }
+                    }
+                }
+                Ok(IndexStep::Next(push_list(session, out)))
             }
+            IndexSpec::Cartesian(axes) => {
+                let mut cur = expr;
+                for axis in axes {
+                    match self.index_one(session, cur, axis)? {
+                        IndexStep::Next(next) => cur = next,
+                        other => return Ok(other),
+                    }
+                }
+                Ok(IndexStep::Next(cur))
+            }
+            IndexSpec::DomainSpecific(_) => Ok(IndexStep::Residual),
         }
     }
 

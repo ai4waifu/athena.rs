@@ -60,7 +60,7 @@ enum Slot {
 }
 
 #[derive(Debug)]
-enum PartStep {
+pub(crate) enum IndexStep {
     Next(TermId),
     Residual,
     Invalid { echo: TermId, diagnostic: Diagnostic },
@@ -287,8 +287,6 @@ impl ReferenceExecutor {
                     "Plus" | "Times" | "Subtract" | "Divide" | "Power" => self.eval_arithmetic(session, name.as_str(), args, slots),
                     "Abs" | "Length" | "First" | "Rest" | "Factorial" | "Sqrt" => self.eval_unary_term_op(session, name.as_str(), args, slots),
                     "Join" => self.eval_join(session, args, slots),
-                    "Part" => self.eval_part(session, args, slots, invalid),
-                    "Span" => self.eval_span(session, args, slots),
                     "Range" => self.eval_range(session, args, slots),
                     "Apply" => self.eval_apply(session, args, slots),
                     "Application" => self.eval_application_form(session, args, slots),
@@ -336,7 +334,7 @@ impl ReferenceExecutor {
                     span,
                 )))
             }
-            OperationKind::Index { .. } => Err(diag("index_opcode_pending_executor")),
+            OperationKind::Index { target, axes } => self.eval_index(session, *target, axes, slots, invalid),
             OperationKind::EnterScope { .. } => {
                 let depth = frames.len() as u32;
                 frames.push(ScopeFrame::new());
@@ -622,16 +620,65 @@ mod tests {
         }
     }
 
+    fn index_module(target: TermId, axes: Vec<athena_types::IndexSpec>) -> crate::execution::ir::ExecutionModule {
+        use crate::execution::ir::{
+            BasicBlock, BlockId, CapturedRoot, CapturedRootId, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation,
+            OperationKind, Region, RegionId, SsaValueId, Terminator, verify_module,
+        };
+        let load = SsaValueId(0);
+        let indexed = SsaValueId(1);
+        let published = SsaValueId(2);
+        let block = BasicBlock {
+            id: BlockId(0),
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(load),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::LoadTerm { root: CapturedRootId(0) },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(indexed),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::Index { target: load, axes },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(published),
+                    result_type: ExecutionValueType::Result,
+                    kind: OperationKind::PublishResult { source: indexed },
+                    effect_in: None,
+                    effect_out: None,
+                },
+            ],
+            terminator: Terminator::return_value(published),
+        };
+        let mut module = ExecutionModule {
+            inputs: Vec::new(),
+            constants: Vec::new(),
+            captured_roots: vec![CapturedRoot::term(target)],
+            regions: vec![Region { id: RegionId(0), entry: BlockId(0), blocks: vec![block], result_types: vec![ExecutionValueType::Term] }],
+            effect_edges: Vec::new(),
+            exits: Vec::new(),
+            provider_calls: Vec::new(),
+            fingerprint: ModuleFingerprint(0),
+        };
+        module.fingerprint = ModuleFingerprint::of_module(&module);
+        verify_module(&module).expect("verify");
+        module
+    }
+
     #[test]
-    fn part_oob_marks_invalid_index() {
+    fn index_oob_marks_invalid_index() {
+        use athena_types::{IndexSpec, IntegerIndex};
         let mut session = Session::new();
-        let part = session.operators.intern("Part");
         let a = session.builder().int(1, Default::default());
         let b = session.builder().int(2, Default::default());
         let list = session.builder().list(vec![a, b], Default::default());
-        let idx = session.builder().int(9, Default::default());
-        let term = session.builder().application(part, vec![list, idx], Default::default());
-        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let module = index_module(list, vec![IndexSpec::Scalar(IntegerIndex(9))]);
         let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         assert_eq!(loaded.status, ComputationStatus::Invalid);
@@ -639,19 +686,17 @@ mod tests {
     }
 
     #[test]
-    fn part_span_extracts_slice() {
+    fn index_range_extracts_slice() {
+        use athena_types::{IndexSpec, IntegerIndex};
         let mut session = Session::new();
-        let part = session.operators.intern("Part");
-        let span = session.operators.intern("Span");
         let a = session.builder().int(1, Default::default());
         let b = session.builder().int(2, Default::default());
         let c = session.builder().int(3, Default::default());
         let list = session.builder().list(vec![a, b, c], Default::default());
-        let span_lo = session.builder().int(1, Default::default());
-        let span_hi = session.builder().int(2, Default::default());
-        let span_term = session.builder().application(span, vec![span_lo, span_hi], Default::default());
-        let term = session.builder().application(part, vec![list, span_term], Default::default());
-        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let module = index_module(
+            list,
+            vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }],
+        );
         let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
@@ -660,15 +705,14 @@ mod tests {
                 assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(1));
                 assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(2));
             }
-            other => panic!("expected List[1, 2], got {other:?}"),
+            other => panic!("expected OrderedCollection[1, 2], got {other:?}"),
         }
     }
 
     #[test]
-    fn part_column_all_then_index() {
+    fn index_all_then_scalar_selects_column() {
+        use athena_types::{IndexSpec, IntegerIndex};
         let mut session = Session::new();
-        let part = session.operators.intern("Part");
-        let all = session.builder().symbol("All", Default::default());
         let a = session.builder().int(1, Default::default());
         let b = session.builder().int(2, Default::default());
         let c = session.builder().int(3, Default::default());
@@ -676,9 +720,7 @@ mod tests {
         let row0 = session.builder().list(vec![a, b], Default::default());
         let row1 = session.builder().list(vec![c, d], Default::default());
         let matrix = session.builder().list(vec![row0, row1], Default::default());
-        let col = session.builder().int(2, Default::default());
-        let term = session.builder().application(part, vec![matrix, all, col], Default::default());
-        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let module = index_module(matrix, vec![IndexSpec::All, IndexSpec::Scalar(IntegerIndex(2))]);
         let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");
@@ -687,7 +729,7 @@ mod tests {
                 assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(2));
                 assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(4));
             }
-            other => panic!("expected List[2, 4], got {other:?}"),
+            other => panic!("expected OrderedCollection[2, 4], got {other:?}"),
         }
     }
 }

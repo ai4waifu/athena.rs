@@ -7,7 +7,7 @@ use athena_numeric::{
 };
 use athena_types::{Result, SymbolId, TermId};
 
-use super::super::{PartStep, ReferenceExecutor, Slot};
+use super::super::{ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
