@@ -134,24 +134,7 @@ fn truthy_via_and_or() {
     assert_eq!(t(apply("Not", vec![boolean(true, &mut c)], &mut c), &mut c), "False");
 }
 
-#[test]
-fn part_zero_returns_list_head() {
-    let mut c = C::new();
-    let e = apply("Part", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(0, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "List");
-}
 
-#[test]
-fn part_oob_is_invalid_index() {
-    use athena_types::{ComputationStatus, DiagnosticCode};
-    let mut c = C::new();
-    let e = apply("Part", vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), i(9, &mut c)], &mut c);
-    let o = out(e, &mut c);
-    assert!(o.has_error());
-    assert_eq!(o.kind, execution::EvalKind::Unevaluated);
-    assert_eq!(o.status, ComputationStatus::Invalid);
-    assert_eq!(o.diagnostics[0].code, DiagnosticCode::InvalidIndex);
-}
 
 #[test]
 fn unsupported_import_is_not_silent_value() {
@@ -230,23 +213,7 @@ fn cond_picks_first_true_branch() {
     assert_eq!(t(e, &mut c), "2");
 }
 
-#[test]
-fn span_expands_to_list() {
-    let mut c = C::new();
-    assert_eq!(t(apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), &mut c), "List[1, 2, 3]");
-    assert_eq!(t(apply("Span", vec![i(1, &mut c), i(2, &mut c), i(10, &mut c)], &mut c), &mut c), "List[1, 3, 5, 7, 9]");
-}
 
-#[test]
-fn part_span_slice() {
-    let mut c = C::new();
-    let e = apply(
-        "Part",
-        vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), apply("Span", vec![i(1, &mut c), i(2, &mut c)], &mut c)],
-        &mut c,
-    );
-    assert_eq!(t(e, &mut c), "List[1, 2]");
-}
 
 #[test]
 fn while_false_skips_body() {
@@ -263,19 +230,7 @@ fn compound_set_binds_for_later_stmts() {
     assert_eq!(t(e, &mut c), "6");
 }
 
-#[test]
-fn part_end_is_last_element() {
-    let mut c = C::new();
-    let e = apply("Part", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), symbol("End", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "3");
-}
 
-#[test]
-fn part_all_returns_list() {
-    let mut c = C::new();
-    let e = apply("Part", vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), symbol("All", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "List[1, 2]");
-}
 
 #[test]
 fn for_span_last_value() {
@@ -333,14 +288,6 @@ fn with_module_block_local_bindings() {
     assert_eq!(t(apply("DynamicScope", vec![l, b], &mut d), &mut d), "2");
 }
 
-#[test]
-fn part_column_all_then_index() {
-    // MATLAB A(:,2) as Part[matrix, All, 2]
-    let mut c = C::new();
-    let matrix = lst(vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), lst(vec![i(3, &mut c), i(4, &mut c)], &mut c)], &mut c);
-    let e = apply("Part", vec![matrix, symbol("All", &mut c), i(2, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "List[2, 4]");
-}
 
 #[test]
 fn session_set_persists_across_evaluate() {

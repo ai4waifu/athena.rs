@@ -230,23 +230,6 @@ fn downvalues_and_match_q() {
     assert!(!athena_engine::execution::builtins::patterns::match_term_pattern(&s, y, &constrained, &mut binds));
 }
 
-#[test]
-fn part_span_and_functions() {
-    let mut s = Session::new();
-    // Part[{a, b, c}, 2] → b
-    let l = list(vec![symbol("a", &mut s), symbol("b", &mut s), symbol("c", &mut s)], &mut s);
-    let e = apply("Part", vec![l, int(2, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "b");
-    // Span[1, 3] → {1, 2, 3}
-    let e = apply("Span", vec![int(1, &mut s), int(3, &mut s)], &mut s);
-    let r = eval(&mut s, e);
-    assert!(r.contains("List[1, 2, 3]"), "got {r}");
-    // Function[x, x + 1][4] → 5
-    let body = apply("Plus", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let f = apply("Function", vec![symbol("x", &mut s), body], &mut s);
-    let e = apply("Application", vec![f, int(4, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "5");
-}
 
 #[test]
 fn linear_algebra_paths() {
