@@ -134,9 +134,25 @@ fn compound_set_binds_for_later_stmts() {
 
 #[test]
 fn session_setdelayed_evaluates_on_use() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::execution::{compiler::ExecutionCompiler, reference::ReferenceExecutor};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
     let mut c = C::new();
-    let delayed = apply("DefineDeferred", vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c);
-    assert_eq!(t(delayed, &mut c), "Null");
+    let sym = symbol("a", &mut c);
+    let symbol_id = match c.s.arena.get(sym) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let rhs = apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c);
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol: symbol_id,
+        value: rhs,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::StoreResidualTerm,
+    });
+    let module = ExecutionCompiler::new().compile(&mut c.s, &request).expect("define residual");
+    ReferenceExecutor::new().execute(&mut c.s, &module, None).expect("exec");
     assert_eq!(t(symbol("a", &mut c), &mut c), "2");
 }
 

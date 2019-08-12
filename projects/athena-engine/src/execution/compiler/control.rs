@@ -146,12 +146,12 @@ impl ExecutionCompiler {
             }
             return Ok(items);
         }
-        let span_args = match session.arena.get(term) {
-            Some(TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Span") => Some(arguments.clone()),
+        let range_args = match session.arena.get(term) {
+            Some(TermNode::Application { arguments, .. }) => Some(arguments.clone()),
             _ => None,
         };
-        if let Some(arguments) = span_args {
-            return self.expand_span_iterator(session, &arguments);
+        if let Some(arguments) = range_args {
+            return self.expand_integer_range_iterator(session, &arguments);
         }
         match session.arena.get(term) {
             Some(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -163,7 +163,7 @@ impl ExecutionCompiler {
         }
     }
 
-    pub(crate) fn expand_span_iterator(&self, session: &mut Session, arguments: &[TermId]) -> Result<Vec<TermId>> {
+    pub(crate) fn expand_integer_range_iterator(&self, session: &mut Session, arguments: &[TermId]) -> Result<Vec<TermId>> {
         let ints: Option<Vec<i64>> = arguments
             .iter()
             .map(|t| match session.arena.get(*t) {

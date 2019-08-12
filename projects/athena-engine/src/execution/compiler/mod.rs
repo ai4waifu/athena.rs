@@ -129,42 +129,6 @@ impl ExecutionCompiler {
                         .detail("status", "define_arity_not_supported")),
                 };
             }
-            if name == Some("DefineDeferred") {
-                return match arguments.as_slice() {
-                    [lhs, rhs] => match session.arena.get(*lhs) {
-                        Some(TermNode::Atom(Atom::Symbol(symbol))) => self.lower_command(
-                            session,
-                            builder,
-                            blocks,
-                            block_id,
-                            &SessionCommand::Define {
-                                symbol: *symbol,
-                                value: *rhs,
-                                kind: BindingKind::Session,
-                                evaluation: BindingEvaluationPolicy::StoreResidualTerm,
-                            },
-                        ),
-                        Some(TermNode::Application { head: op, .. }) => {
-                            let head_name = session.operators.name(*op).unwrap_or("").to_string();
-                            if head_name.is_empty() || head_name == "Application" {
-                                Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                    .detail("component", "ExecutionCompiler")
-                                    .detail("status", "define_deferred_lhs_not_supported"))
-                            }
-                            else {
-                                let symbol = session.arena.symbols_mut().intern(&head_name);
-                                self.lower_register_rule(session, builder, blocks, block_id, symbol, *lhs, *rhs)
-                            }
-                        }
-                        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                            .detail("component", "ExecutionCompiler")
-                            .detail("status", "define_deferred_lhs_not_supported")),
-                    },
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "define_deferred_arity_not_supported")),
-                };
-            }
             if name == Some("LocalScope") || name == Some("LexicalScope") || name == Some("DynamicScope") {
                 return match arguments.as_slice() {
                     [locals, body] => self.lower_term_scope(session, builder, blocks, block_id, name.unwrap_or("LocalScope"), *locals, *body),

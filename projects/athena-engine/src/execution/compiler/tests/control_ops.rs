@@ -47,20 +47,27 @@ fn compile_and_execute_define_write_binding() {
 
 #[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use crate::api::request::SessionCommand;
+
     let mut session = Session::new();
     let plus = session.operators.intern("Plus");
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(1, Default::default());
     let rhs = session.builder().application(plus, vec![a, b], Default::default());
-    let head = session.operators.intern("DefineDeferred");
     let sym_term = session.builder().symbol("a", Default::default());
-    let term = session.builder().application(head, vec![sym_term, rhs], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("define deferred");
-    ReferenceExecutor::new().execute(&mut session, &module, None).expect("define exec");
     let symbol = match session.arena.get(sym_term) {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value: rhs,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::StoreResidualTerm,
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define residual");
+    ReferenceExecutor::new().execute(&mut session, &module, None).expect("define exec");
     assert!(session.defs.binding(symbol).is_none());
     assert_eq!(session.defs.residual_binding(symbol), Some(rhs));
 
@@ -70,7 +77,7 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
-        other => panic!("expected delayed Plus[1,1] == 2, got {other:?}"),
+        other => panic!("expected residual Plus[1,1] == 2, got {other:?}"),
     }
 }
 
