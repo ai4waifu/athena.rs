@@ -517,20 +517,14 @@ fn compile_and_execute_sequence_and_hold() {
     }
 }
 
+
+
 #[test]
-fn compile_and_execute_part_end_and_cond() {
+fn compile_and_execute_cond_picks_true_arm() {
     let mut session = Session::new();
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
     let three = session.builder().int(3, Default::default());
-    let list = session.builder().list(vec![one, two, three], Default::default());
-    let end = session.builder().symbol("End", Default::default());
-    let part = session.operators.intern("Part");
-    let term = session.builder().application(part, vec![list, end], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("part end");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(three));
-
     let fals = session.builder().symbol("False", Default::default());
     let tru = session.builder().symbol("True", Default::default());
     let cond = session.operators.intern("Cond");

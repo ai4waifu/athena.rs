@@ -146,49 +146,7 @@ fn compile_and_execute_factorial() {
     }
 }
 
-#[test]
-fn compile_and_execute_part_list() {
-    let mut session = Session::new();
-    let a = session.builder().int(10, Default::default());
-    let b = session.builder().int(20, Default::default());
-    let c = session.builder().int(30, Default::default());
-    let list = session.builder().list(vec![a, b, c], Default::default());
-    let idx = session.builder().int(2, Default::default());
-    let part = session.operators.intern("Part");
-    let term = session.builder().application(part, vec![list, idx], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("part");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(b));
 
-    let idx_neg = session.builder().int(-1, Default::default());
-    let term = session.builder().application(part, vec![list, idx_neg], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("part_neg");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(c));
-}
-
-#[test]
-fn compile_and_execute_span() {
-    let mut session = Session::new();
-    let a = session.builder().int(1, Default::default());
-    let b = session.builder().int(3, Default::default());
-    let span = session.operators.intern("Span");
-    let term = session.builder().application(span, vec![a, b], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("span");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
-    match session.arena.get(out) {
-        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
-            for (i, expected) in [1i64, 2, 3].into_iter().enumerate() {
-                match session.arena.get(items[i]) {
-                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
-                    other => panic!("expected Span element {expected}, got {other:?}"),
-                }
-            }
-        }
-        other => panic!("expected Span[1,3] == List[1,2,3], got {other:?}"),
-    }
-}
 
 #[test]
 fn compile_and_execute_range_and_sqrt() {
