@@ -244,10 +244,10 @@ fn application_named_function_binder() {
 }
 
 #[test]
-fn for_span_last_value() {
+fn for_range_last_value() {
     let mut c = C::new();
     let e =
-        apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
+        apply("CountedLoop", vec![symbol("i", &mut c), apply("Range", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
@@ -256,7 +256,7 @@ fn for_accumulator_shares_compound_bindings() {
     let mut c = C::new();
     let set0 = apply("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
     let body = apply("Define", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
-    let f = apply("CountedLoop", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
+    let f = apply("CountedLoop", vec![symbol("i", &mut c), apply("Range", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
     let e = apply("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }

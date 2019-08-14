@@ -194,20 +194,20 @@ fn compile_and_execute_iterate_collects_collection() {
 }
 
 #[test]
-fn compile_and_execute_term_counted_loop_span() {
+fn compile_and_execute_term_counted_loop_range() {
     let mut session = Session::new();
     let var = session.builder().symbol("i", Default::default());
     let one = session.builder().int(1, Default::default());
     let three = session.builder().int(3, Default::default());
-    let span = session.operators.intern("Span");
+    let range_op = session.operators.intern("Range");
     let loop_op = session.operators.intern("CountedLoop");
-    let iter = session.builder().application(span, vec![one, three], Default::default());
+    let iter = session.builder().application(range_op, vec![one, three], Default::default());
     let term = session.builder().application(loop_op, vec![var, iter, var], Default::default());
-    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("counted span");
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("counted range");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3) => {}
-        other => panic!("expected CountedLoop[i, Span[1,3], i] == 3, got {other:?}"),
+        other => panic!("expected CountedLoop[i, Range[1,3], i] == 3, got {other:?}"),
     }
 }
 
