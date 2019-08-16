@@ -19,7 +19,7 @@ pub enum BindingKind {
 
 /// 绑定值何时求值。
 ///
-/// 替代布尔 `delayed`。方言名（如 Set / SetDelayed）不得进入本枚举。
+/// 替代布尔 `delayed`。方言表面名不得进入本枚举。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BindingEvaluationPolicy {
     /// 写入前求值右值。

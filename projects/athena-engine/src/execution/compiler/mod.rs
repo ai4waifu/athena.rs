@@ -471,9 +471,9 @@ impl ExecutionCompiler {
                     }
                     _ => ExecutionValueType::Term,
                 };
-                // iterator `Sum`/`Product`: HoldAll-ish body (first arg), evaluate iterator.
-                // `CollectMatches` / `Matches`: HoldAll-ish pattern (second arg).
-                // `Function`: HoldAll args (formal + body).
+                // iterator `Sum`/`Product`: keep body unevaluated (first arg), evaluate iterator.
+                // `CollectMatches` / `Matches`: keep pattern unevaluated (second arg).
+                // `Function`: keep formal and body unevaluated.
                 let hold_all = name == "Function";
                 let hold_first = name == "Product" || (name == "Sum" && arg_terms.len() == 2);
                 let hold_second = matches!(name, "CollectMatches" | "Matches") && arg_terms.len() >= 2;

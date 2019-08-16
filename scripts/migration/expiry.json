@@ -231,6 +231,33 @@
       "expiry": "2026-09-04",
       "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "dialect_shaped_opcodes",
+      "pattern": "\\bWriteDownValue\\b|\\bMakeList\\b|DefinitionEvaluationTiming",
+      "replacement": "ConstructCollection / RegisterRuleDispatch / BindingEvaluationPolicy",
+      "owner": "Athena execution Living 27",
+      "status": "expired",
+      "expiry": "2026-09-05",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-*/**/*.rs"]
+    },
+    {
+      "id": "mathematica_surface_in_core_src",
+      "pattern": "DefineDeferred|OwnValues|DownValues|SetDelayed|RuleDelayed|HoldAll|BlankSequence",
+      "replacement": "SessionCommand / ControlPlan / TermPattern / IndexSpec (SXO only for surface names)",
+      "owner": "Athena execution Living 27",
+      "status": "expired",
+      "expiry": "2026-09-05",
+      "baseline_max_matches": 0,
+      "globs": [
+        "projects/athena-types/**/*.rs",
+        "projects/athena-gc/**/*.rs",
+        "projects/athena-numeric/**/*.rs",
+        "projects/athena-ir/**/*.rs",
+        "projects/athena-rewriter/**/*.rs",
+        "projects/athena-engine/src/**/*.rs"
+      ]
     }
   ]
 }
