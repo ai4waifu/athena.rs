@@ -194,6 +194,27 @@ fn compile_and_execute_iterate_collects_collection() {
 }
 
 #[test]
+fn compile_and_execute_control_index_scalar() {
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let a = session.builder().int(10, Default::default());
+    let b = session.builder().int(20, Default::default());
+    let c = session.builder().int(30, Default::default());
+    let list = session.builder().list(vec![a, b, c], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Index {
+        target: list,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("index");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
+        other => panic!("expected Index[..., 2] == 20, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_term_counted_loop_range() {
     let mut session = Session::new();
     let var = session.builder().symbol("i", Default::default());

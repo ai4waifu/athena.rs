@@ -40,7 +40,49 @@ impl ExecutionCompiler {
             ControlPlan::Iterate { binder, range, body, evaluation: _ } => {
                 self.lower_iterate(session, builder, blocks, block_id, *binder, *range, body)
             }
+            ControlPlan::Index { target, axes } => self.lower_index(session, builder, blocks, block_id, *target, axes),
         }
+    }
+
+    /// Load target term then emit neutral [`OperationKind::Index`].
+    pub(crate) fn lower_index(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        target: TermId,
+        axes: &[athena_types::IndexSpec],
+    ) -> Result<SsaValueId> {
+        let _ = session;
+        let root = builder.push_term_root(target);
+        let load = builder.ssa();
+        let indexed = builder.ssa();
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(load),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::LoadTerm { root },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(indexed),
+                    result_type: ExecutionValueType::Term,
+                    kind: OperationKind::Index {
+                        target: load,
+                        axes: axes.to_vec(),
+                    },
+                    effect_in: None,
+                    effect_out: None,
+                },
+            ],
+            terminator: Terminator::return_value(indexed),
+        });
+        Ok(indexed)
     }
 
     /// Compile-time expand a constant range, substitute the binder, then lower a collection of bodies.

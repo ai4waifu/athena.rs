@@ -77,4 +77,11 @@ pub enum ControlPlan {
         /// 主体。
         body: Box<AthenaRequest>,
     },
+    /// 中性索引（方言 `Part` / 下标 / `end` 等 lowering 目标 · Living `27`）。
+    Index {
+        /// 被索引目标。
+        target: TermId,
+        /// 各轴 [`athena_types::IndexSpec`]（已由方言规范化）。
+        axes: Vec<athena_types::IndexSpec>,
+    },
 }
