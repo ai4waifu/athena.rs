@@ -12,7 +12,7 @@ use super::super::{IndexStep, ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
-    domains::linear_algebra::{SolveDisposition, det_bareiss, solve_exact},
+    domains::linear_algebra::{SolveDisposition, det_bareiss, matmul, solve_exact},
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number},
     runtime::{
         session::Session,
@@ -571,6 +571,27 @@ impl ReferenceExecutor {
                 return Ok(Slot::Term(push_number(session, folded)));
             }
             // Numeric fold failed (e.g. `0^-1`) — keep symbolic residual.
+        }
+        // Matrix `Times` — exact rational matmul when both arguments are matrices.
+        if name == "Times" && terms.len() == 2 {
+            if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
+                // Require both sides to look like matrices (row collections), not bare scalars.
+                let left_matrixish = matches!(
+                    session.arena.get(terms[0]),
+                    Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
+                );
+                let right_matrixish = matches!(
+                    session.arena.get(terms[1]),
+                    Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
+                );
+                if left_matrixish && right_matrixish {
+                    if let Ok(product) = matmul(&a, &b) {
+                        if let Ok(term) = matrix_to_nested_list_session(session, &product) {
+                            return Ok(Slot::Term(term));
+                        }
+                    }
+                }
+            }
         }
         // Symbolic residual with identity folding for Plus/Times/Power/Divide.
         Ok(Slot::Term(match name {
