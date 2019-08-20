@@ -435,7 +435,7 @@ impl ReferenceExecutor {
         Ok(Slot::Boolean(ok))
     }
 
-    /// Elementwise `DotTimes` / `DotDivide` / `DotPower` on equal-length collections.
+    /// Elementwise `DotTimes` / `DotDivide` / `DotPower` with scalar broadcast.
     pub(crate) fn eval_dot_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
@@ -443,33 +443,83 @@ impl ReferenceExecutor {
         let left = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let right = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let echo = push_application(session, name, vec![left, right]);
-        let (Some(athena_ir::TermNode::Collection { elements: a, .. }), Some(athena_ir::TermNode::Collection { elements: b, .. })) =
-            (session.arena.get(left), session.arena.get(right))
-        else {
-            return Ok(Slot::Term(echo));
-        };
-        if a.len() != b.len() {
-            return Ok(Slot::Term(echo));
-        }
-        let pairs: Vec<(TermId, TermId)> = a.iter().copied().zip(b.iter().copied()).collect();
         let scalar_op = match name {
             "DotTimes" => "Times",
             "DotDivide" => "Divide",
             "DotPower" => "Power",
             _ => return Ok(Slot::Term(echo)),
         };
-        let mut out = Vec::with_capacity(pairs.len());
-        for (lhs, rhs) in pairs {
-            let app = push_application(session, scalar_op, vec![lhs, rhs]);
-            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
-                Ok(module) => {
-                    let result_id = self.execute(session, &module, None)?;
-                    out.push(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app));
+        match self.dot_zip_eval(session, scalar_op, left, right)? {
+            Some(term) => Ok(Slot::Term(term)),
+            None => Ok(Slot::Term(echo)),
+        }
+    }
+
+    /// Recursively zip collections (with scalar broadcast) then evaluate `scalar_op` pairwise.
+    fn dot_zip_eval(&self, session: &mut Session, scalar_op: &str, left: TermId, right: TermId) -> Result<Option<TermId>> {
+        let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
+        let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
+        match (left_is_collection, right_is_collection) {
+            (true, true) => {
+                let a = match session.arena.get(left) {
+                    Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                    _ => return Ok(None),
+                };
+                let b = match session.arena.get(right) {
+                    Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                    _ => return Ok(None),
+                };
+                if a.len() != b.len() {
+                    return Ok(None);
                 }
-                Err(_) => out.push(app),
+                let mut out = Vec::with_capacity(a.len());
+                for (lhs, rhs) in a.into_iter().zip(b.into_iter()) {
+                    match self.dot_zip_eval(session, scalar_op, lhs, rhs)? {
+                        Some(term) => out.push(term),
+                        None => return Ok(None),
+                    }
+                }
+                Ok(Some(push_list(session, out)))
+            }
+            (true, false) => {
+                let a = match session.arena.get(left) {
+                    Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                    _ => return Ok(None),
+                };
+                let mut out = Vec::with_capacity(a.len());
+                for lhs in a {
+                    match self.dot_zip_eval(session, scalar_op, lhs, right)? {
+                        Some(term) => out.push(term),
+                        None => return Ok(None),
+                    }
+                }
+                Ok(Some(push_list(session, out)))
+            }
+            (false, true) => {
+                let b = match session.arena.get(right) {
+                    Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                    _ => return Ok(None),
+                };
+                let mut out = Vec::with_capacity(b.len());
+                for rhs in b {
+                    match self.dot_zip_eval(session, scalar_op, left, rhs)? {
+                        Some(term) => out.push(term),
+                        None => return Ok(None),
+                    }
+                }
+                Ok(Some(push_list(session, out)))
+            }
+            (false, false) => {
+                let app = push_application(session, scalar_op, vec![left, right]);
+                match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
+                    Ok(module) => {
+                        let result_id = self.execute(session, &module, None)?;
+                        Ok(Some(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app)))
+                    }
+                    Err(_) => Ok(Some(app)),
+                }
             }
         }
-        Ok(Slot::Term(push_list(session, out)))
     }
 
     pub(crate) fn eval_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
