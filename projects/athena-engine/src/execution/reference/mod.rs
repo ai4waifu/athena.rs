@@ -285,6 +285,7 @@ impl ReferenceExecutor {
                     }
                     "Less" | "Greater" | "LessEqual" | "GreaterEqual" => self.eval_compare_chain(session, name.as_str(), args, slots),
                     "Plus" | "Times" | "Subtract" | "Divide" | "Power" => self.eval_arithmetic(session, name.as_str(), args, slots),
+                    "DotTimes" | "DotDivide" | "DotPower" => self.eval_dot_arithmetic(session, name.as_str(), args, slots),
                     "Abs" | "Length" | "First" | "Rest" | "Factorial" | "Sqrt" => self.eval_unary_term_op(session, name.as_str(), args, slots),
                     "Join" => self.eval_join(session, args, slots),
                     "Range" => self.eval_range(session, args, slots),
@@ -292,6 +293,7 @@ impl ReferenceExecutor {
                     "Application" => self.eval_application_form(session, args, slots),
                     "Size" => self.eval_size(session, args, slots),
                     "Sum" => self.eval_sum(session, args, slots),
+                    "Product" => self.eval_product(session, args, slots),
                     "Det" => self.eval_det(session, args, slots, invalid),
                     "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
                     "Map" => self.eval_map(session, args, slots),

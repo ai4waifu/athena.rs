@@ -86,6 +86,31 @@ impl ReferenceExecutor {
         Ok(Slot::Term(fold_plus_symbolic(session, items)))
     }
 
+    /// `Product[body, iterator]` — expand iterator then Times-fold.
+    pub(crate) fn eval_product(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+        if args.len() == 2 {
+            let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            let iter = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            return match self.table_values(session, body, iter)? {
+                Some(values) => {
+                    if values.is_empty() {
+                        Ok(Slot::Term(session.builder().int(1, Default::default())))
+                    }
+                    else {
+                        Ok(Slot::Term(fold_times_symbolic(session, values)))
+                    }
+                }
+                None => Ok(Slot::Term(push_application(session, "Product", vec![body, iter]))),
+            };
+        }
+        let mut terms = Vec::with_capacity(args.len());
+        for id in args {
+            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            terms.push(self.slot_as_term(session, slot)?);
+        }
+        Ok(Slot::Term(push_application(session, "Product", terms)))
+    }
+
     pub(crate) fn table_values(&self, session: &mut Session, body: TermId, iter: TermId) -> Result<Option<Vec<TermId>>> {
         let Some((var, values)) = expand_iterator_session(session, iter)
         else {
@@ -408,6 +433,43 @@ impl ReferenceExecutor {
             }
         }
         Ok(Slot::Boolean(ok))
+    }
+
+    /// Elementwise `DotTimes` / `DotDivide` / `DotPower` on equal-length collections.
+    pub(crate) fn eval_dot_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+        if args.len() != 2 {
+            return Err(diag("semantic_operator_arity"));
+        }
+        let left = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let right = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let echo = push_application(session, name, vec![left, right]);
+        let (Some(athena_ir::TermNode::Collection { elements: a, .. }), Some(athena_ir::TermNode::Collection { elements: b, .. })) =
+            (session.arena.get(left), session.arena.get(right))
+        else {
+            return Ok(Slot::Term(echo));
+        };
+        if a.len() != b.len() {
+            return Ok(Slot::Term(echo));
+        }
+        let pairs: Vec<(TermId, TermId)> = a.iter().copied().zip(b.iter().copied()).collect();
+        let scalar_op = match name {
+            "DotTimes" => "Times",
+            "DotDivide" => "Divide",
+            "DotPower" => "Power",
+            _ => return Ok(Slot::Term(echo)),
+        };
+        let mut out = Vec::with_capacity(pairs.len());
+        for (lhs, rhs) in pairs {
+            let app = push_application(session, scalar_op, vec![lhs, rhs]);
+            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
+                Ok(module) => {
+                    let result_id = self.execute(session, &module, None)?;
+                    out.push(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app));
+                }
+                Err(_) => out.push(app),
+            }
+        }
+        Ok(Slot::Term(push_list(session, out)))
     }
 
     pub(crate) fn eval_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
