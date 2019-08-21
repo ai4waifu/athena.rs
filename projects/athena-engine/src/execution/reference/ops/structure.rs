@@ -528,20 +528,6 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        if name == "Times" && terms.len() == 2 {
-            if let (Some(am), Some(bm)) = (
-                term_to_rational_matrix_session(session, terms[0]),
-                term_to_rational_matrix_session(session, terms[1]),
-            ) {
-                match crate::domains::linear_algebra::matmul(&am, &bm) {
-                    Ok(product) => match matrix_to_nested_list_session(session, &product) {
-                        Ok(term) => return Ok(Slot::Term(term)),
-                        Err(_) => {}
-                    },
-                    Err(_) => {}
-                }
-            }
-        }
         let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
         if let Some(nums) = numbers {
             let folded = match (name, nums.as_slice()) {
