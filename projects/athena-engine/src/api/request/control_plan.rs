@@ -84,4 +84,18 @@ pub enum ControlPlan {
         /// 各轴 [`athena_types::IndexSpec`]（已由方言规范化）。
         axes: Vec<athena_types::IndexSpec>,
     },
+    /// 中性模式测试（方言 `MatchQ` 等 lowering 目标 · Living `27`）。
+    Match {
+        /// 被测项（已物化）。
+        target: TermId,
+        /// 中性 [`crate::reasoning::trs::TermPattern`]。
+        pattern: crate::reasoning::trs::TermPattern,
+    },
+    /// 中性模式收集（方言 `Cases` 等 lowering 目标 · Living `27`）。
+    CollectMatches {
+        /// 源集合项。
+        source: TermId,
+        /// 中性模式。
+        pattern: crate::reasoning::trs::TermPattern,
+    },
 }
