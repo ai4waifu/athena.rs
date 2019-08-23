@@ -5,7 +5,7 @@ use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, Ter
 
 use crate::{
     node::{Atom, TermNode},
-    operator::OperatorRegistry,
+    operator::{ApplicationHead, OperatorRegistry, SemanticOperator},
     store::TermStore,
     symbol::SymbolTable,
 };
@@ -53,15 +53,31 @@ impl<'a> TermBuilder<'a> {
         self.arena.push(TermNode::Collection { kind, elements }, span)
     }
 
-    /// 算子应用 term。
-    pub fn application(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
-        self.arena.push(TermNode::Application { head: op, arguments: args }, span)
+    /// 算子应用 term（semantic or extension head）。
+    pub fn application(&mut self, head: ApplicationHead, args: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Application { head, arguments: args }, span)
     }
 
-    /// 经注册表解析 head 名的应用 term。
-    pub fn application_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
+    /// Core semantic operator application.
+    pub fn application_semantic(&mut self, op: SemanticOperator, args: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.application(ApplicationHead::Semantic(op), args, span)
+    }
+
+    /// Extension operator application (display name via registry — never maps to core semantics).
+    pub fn application_extension(
+        &mut self,
+        registry: &mut OperatorRegistry,
+        head: &str,
+        args: Vec<TermId>,
+        span: SourceSpan,
+    ) -> TermId {
         let op = registry.intern(head);
-        self.application(op, args, span)
+        self.application(ApplicationHead::Extension(op), args, span)
+    }
+
+    /// Extension application from an existing [`OperatorId`].
+    pub fn application_extension_id(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.application(ApplicationHead::Extension(op), args, span)
     }
 
     /// Typed Boolean 原子 term。

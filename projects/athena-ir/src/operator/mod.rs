@@ -1,13 +1,20 @@
-//! 算子注册表（结构身份 · 不含方言表面 catalog）。
+//! Operator identities for IR applications.
 //!
-//! Living `26`：`athena-ir` 只提供 [`OperatorId`] 分配与反查。
-//! Mathematica / MATLAB 等表面名由方言 lowering 注入，禁止在此预置方言表面 catalog。
+//! Core math / logic / structure ops use the closed [`SemanticOperator`] enum.
+//! [`OperatorRegistry`] is an **extension display-name registry only** — not a
+//! core semantic catalog. Dialect surface names are injected by product layers.
+
+mod semantic;
 
 use std::collections::HashMap;
 
 use athena_types::OperatorId;
 
-/// 字符串名 ↔ [`OperatorId`] 双向表。
+pub use semantic::{ApplicationHead, SemanticOperator};
+
+/// Extension display-name ↔ [`OperatorId`] bidirectional table.
+///
+/// Not a core operator catalog. Core ops use [`SemanticOperator`].
 #[derive(Debug, Clone, Default)]
 pub struct OperatorRegistry {
     names: Vec<String>,
@@ -15,12 +22,12 @@ pub struct OperatorRegistry {
 }
 
 impl OperatorRegistry {
-    /// 空注册表。
+    /// Empty registry.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// 分配或查找算子 id。
+    /// Allocate or look up an extension operator id.
     pub fn intern(&mut self, name: &str) -> OperatorId {
         if let Some(id) = self.by_name.get(name) {
             return *id;
@@ -31,22 +38,22 @@ impl OperatorRegistry {
         id
     }
 
-    /// 查找已有 id（不分配）。
+    /// Look up an existing id without allocating.
     pub fn lookup(&self, name: &str) -> Option<OperatorId> {
         self.by_name.get(name).copied()
     }
 
-    /// 反查算子名。
+    /// Resolve an extension operator display name.
     pub fn name(&self, id: OperatorId) -> Option<&str> {
         self.names.get(id.0 as usize).map(String::as_str)
     }
 
-    /// 已注册数量。
+    /// Registered extension count.
     pub fn len(&self) -> usize {
         self.names.len()
     }
 
-    /// 是否为空。
+    /// Whether the registry is empty.
     pub fn is_empty(&self) -> bool {
         self.names.is_empty()
     }

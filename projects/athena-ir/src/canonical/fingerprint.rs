@@ -1,14 +1,15 @@
 //! IR term 规范结构 hash（缓存键 · wire · JIT kernel key）。
 //!
 //! FNV-1a 64 稳定实现：同结构同 hash，与插入顺序、进程无关。
-//! 算子默认按 [`OperatorId`](athena_types::OperatorId)（session 内稳定）；
-//! 跨注册表稳定键用 [`canonical_hash_named`]（按注册名）。
+//! Semantic ops hash via [`SemanticOperator::discriminant`](crate::SemanticOperator::discriminant)
+//! (registry-independent). Extension ops hash by id, or by display name when using
+//! [`canonical_hash_named`].
 
 use athena_types::{CollectionKind, TermId};
 
 use crate::{
     node::{Atom, TermNode},
-    operator::OperatorRegistry,
+    operator::{ApplicationHead, OperatorRegistry},
     store::TermStore,
 };
 
@@ -55,12 +56,12 @@ fn collection_kind_tag(kind: CollectionKind) -> u64 {
     }
 }
 
-/// 对 term 子树求规范结构 hash（算子按 [`OperatorId`]）。
+/// 对 term 子树求规范结构 hash（semantic discriminant · extension id）。
 pub fn canonical_hash(arena: &TermStore, root: TermId) -> u64 {
     hash_walk(arena, None, root).state
 }
 
-/// 对 term 子树求跨注册表稳定 hash：算子按注册名（JIT kernel key / wire）。
+/// Cross-registry stable hash: semantic via discriminant, extension via display name.
 pub fn canonical_hash_named(arena: &TermStore, registry: &OperatorRegistry, root: TermId) -> u64 {
     hash_walk(arena, Some(registry), root).state
 }
@@ -119,11 +120,20 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
                 hash_term(s, *c);
             }
         }
-        TermNode::Application { head: op, arguments: args } => {
+        TermNode::Application { head, arguments: args } => {
             mix_tag(&mut s.state, b"app");
-            match s.registry.and_then(|r| r.name(*op)) {
-                Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
-                None => mix_u64(&mut s.state, u64::from(op.0)),
+            match *head {
+                ApplicationHead::Semantic(op) => {
+                    mix_tag(&mut s.state, b"sem");
+                    mix_u64(&mut s.state, u64::from(op.discriminant()));
+                }
+                ApplicationHead::Extension(op) => {
+                    mix_tag(&mut s.state, b"ext");
+                    match s.registry.and_then(|r| r.name(op)) {
+                        Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
+                        None => mix_u64(&mut s.state, u64::from(op.0)),
+                    }
+                }
             }
             mix_len(&mut s.state, args.len());
             for c in args {

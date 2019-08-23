@@ -18,7 +18,7 @@ pub use athena_numeric as numeric;
 pub use build::TermBuilder;
 pub use canonical::{canonical_hash, canonical_hash_named, fnv1a64};
 pub use node::{Atom, TermNode};
-pub use operator::OperatorRegistry;
+pub use operator::{ApplicationHead, OperatorRegistry, SemanticOperator};
 pub use store::TermStore;
 pub use symbol::SymbolTable;
 pub use trace::trace_term_node;

@@ -1,7 +1,9 @@
 //! Core CAS IR term 种类（arena 持有，由 [`TermId`](athena_types::TermId) 引用）。
 
 use athena_numeric::{NumericContext, NumericValue};
-use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, TermId};
+use athena_types::{CollectionKind, Result, SourceSpan, SymbolId, TermId};
+
+use crate::operator::ApplicationHead;
 
 /// 原子 term 载荷。
 ///
@@ -50,8 +52,8 @@ pub enum TermNode {
     },
     /// 算子应用。
     Application {
-        /// 注册算子。
-        head: OperatorId,
+        /// Semantic or extension head.
+        head: ApplicationHead,
         /// 参数 term。
         arguments: Vec<TermId>,
     },
