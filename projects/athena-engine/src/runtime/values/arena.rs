@@ -1,6 +1,6 @@
 //! Arena 读写辅助（求值与 lowering 共用）。
 
-use athena_ir::{Atom, TermBuilder, TermNode};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermBuilder, TermNode};
 use athena_numeric::Number;
 use athena_types::{SourceSpan, TermId, ValueId};
 
@@ -53,10 +53,22 @@ pub fn push_symbol_name(session: &mut Session, name: &str) -> TermId {
     b.symbol(name, default_span())
 }
 
-/// 构造命名应用节点。
+/// Construct a core semantic application.
+pub fn push_semantic(session: &mut Session, op: SemanticOperator, args: Vec<TermId>) -> TermId {
+    let mut b = TermBuilder::new(&mut session.arena);
+    b.application_semantic(op, args, default_span())
+}
+
+/// Construct an extension application (never maps a string onto core semantics).
 pub fn push_application_named(session: &mut Session, head: &str, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
-    b.application_named(&mut session.operators, head, args, default_span())
+    b.application_extension(&mut session.operators, head, args, default_span())
+}
+
+/// Construct an application from an explicit head.
+pub fn push_application_head(session: &mut Session, head: ApplicationHead, args: Vec<TermId>) -> TermId {
+    let mut b = TermBuilder::new(&mut session.arena);
+    b.application(head, args, default_span())
 }
 
 /// 构造列表节点。
@@ -70,13 +82,24 @@ pub fn get_kind<'a>(session: &'a Session, id: TermId) -> Option<&'a TermNode> {
     session.arena.get(id)
 }
 
-/// 应用节点的算子名。
+/// Application head (semantic label or extension display name).
 pub fn application_head_name(session: &Session, id: TermId) -> Option<String> {
-    let TermNode::Application { head: op, .. } = session.arena.get(id)?
+    let TermNode::Application { head, .. } = session.arena.get(id)?
     else {
         return None;
     };
-    session.operators.name(*op).map(str::to_string)
+    match *head {
+        ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
+        ApplicationHead::Extension(op) => session.operators.name(op).map(str::to_string),
+    }
+}
+
+/// Application head enum if present.
+pub fn application_head(session: &Session, id: TermId) -> Option<ApplicationHead> {
+    match session.arena.get(id)? {
+        TermNode::Application { head, .. } => Some(*head),
+        _ => None,
+    }
 }
 
 /// 应用节点的参数（拷贝 id 列表）。

@@ -4,9 +4,11 @@ use athena_numeric::{Integer, Number, Rational, to_f64_lossy as num_to_f64_lossy
 use athena_types::{Result, SymbolId, TermId};
 
 use super::diag;
+use athena_ir::{ApplicationHead, SemanticOperator};
+
 use crate::{
     domains::linear_algebra::{MatrixEntry, MatrixValue},
-    execution::{number_of, push_application, push_number},
+    execution::{number_of, push_application, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -15,6 +17,17 @@ use crate::{
         },
     },
 };
+
+fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
+    matches!(head, ApplicationHead::Semantic(o) if o == op)
+}
+
+fn head_label(session: &Session, head: ApplicationHead) -> Option<String> {
+    match head {
+        ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
+        ApplicationHead::Extension(id) => session.operators.name(id).map(str::to_string),
+    }
+}
 
 pub(crate) fn eval_trig_exact_session(session: &mut Session, name: &str, arg: TermId) -> Option<TermId> {
     let angle = normalize_pi_angle_session(session, arg)?;
@@ -46,7 +59,7 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
         return Some(1);
     }
     if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(arg) {
-        if session.operators.name(*head) == Some("Times") {
+        if is_sem(*head, SemanticOperator::Multiply) {
             if let [a, b] = arguments.as_slice() {
                 if head_name_session(session, *a).as_deref() == Some("Pi") {
                     return number_of(session, *b).and_then(|n| n.as_exact_integer());
@@ -56,7 +69,7 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
                 }
             }
         }
-        if session.operators.name(*head) == Some("Plus")
+        if is_sem(*head, SemanticOperator::Add)
             && arguments.len() == 1
             && head_name_session(session, arguments[0]).as_deref() == Some("Pi")
         {
@@ -68,7 +81,7 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
 
 pub(crate) fn head_name_session(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
-        athena_ir::TermNode::Application { head, .. } => session.operators.name(*head).map(str::to_string),
+        athena_ir::TermNode::Application { head, .. } => head_label(session, *head),
         athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
         _ => None,
     }
@@ -169,7 +182,7 @@ pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec
             let mut wrapped = Vec::with_capacity(args.len() + 1);
             wrapped.push(head);
             wrapped.extend(args);
-            push_application(session, "Application", wrapped)
+            push_semantic(session, SemanticOperator::ApplyHead, wrapped)
         }
     }
 }
@@ -211,8 +224,8 @@ pub(crate) fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, Term
     if arguments.len() != 2 {
         return None;
     }
-    let name = session.operators.name(*head)?;
-    if matches!(name, "Rule" | "RuleDeferred") { Some((arguments[0], arguments[1])) } else { None }
+    let name = head_label(session, *head)?;
+    if matches!(name.as_str(), "Rule" | "RuleDeferred") { Some((arguments[0], arguments[1])) } else { None }
 }
 
 pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {
@@ -220,7 +233,7 @@ pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Op
     else {
         return None;
     };
-    if session.operators.name(*head) != Some("Plus") || arguments.len() != 2 {
+    if !is_sem(*head, SemanticOperator::Add) || arguments.len() != 2 {
         return None;
     }
     let (a, b) = (arguments[0], arguments[1]);
@@ -238,7 +251,7 @@ pub(crate) fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) ->
     else {
         return false;
     };
-    if arguments.len() != 2 || session.operators.name(*head) != Some("Power") {
+    if arguments.len() != 2 || !is_sem(*head, SemanticOperator::Power) {
         return false;
     }
     let exp_is_two = matches!(
@@ -249,7 +262,7 @@ pub(crate) fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) ->
         return false;
     }
     match session.arena.get(arguments[0]) {
-        Some(athena_ir::TermNode::Application { head, arguments: inner }) if inner.len() == 1 => session.operators.name(*head) == Some(name),
+        Some(athena_ir::TermNode::Application { head, arguments: inner }) if inner.len() == 1 => head_label(session, *head).as_deref() == Some(name),
         _ => false,
     }
 }

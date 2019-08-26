@@ -4,7 +4,7 @@
 //! `Sequence`, and effectful `SessionCommand::Define` via `WriteBinding`.
 //! No bridge to a deleted stack interpreter.
 
-use athena_ir::{Atom, TermNode};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
 
 use crate::{
@@ -78,7 +78,13 @@ impl ExecutionCompiler {
         term: TermId,
     ) -> Result<SsaValueId> {
         let app = match session.arena.get(term) {
-            Some(TermNode::Application { head, arguments }) => Some((session.operators.name(*head).map(str::to_owned), arguments.clone())),
+            Some(TermNode::Application { head, arguments }) => {
+                let label = match *head {
+                    ApplicationHead::Semantic(op) => Some(op.debug_label().to_owned()),
+                    ApplicationHead::Extension(id) => session.operators.name(id).map(str::to_owned),
+                };
+                Some((label, arguments.clone()))
+            }
             _ => None,
         };
         if let Some((name, arguments)) = app {
@@ -451,59 +457,82 @@ impl ExecutionCompiler {
             Some(TermNode::Application { head, arguments }) => {
                 let head = *head;
                 let arguments = arguments.clone();
-                let name = session.operators.name(head).ok_or_else(|| {
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "unknown_operator")
-                })?;
-                // Flatten left-nested compare chains before arg eval (`Less[Less[1,2],3]` → `Less[1,2,3]`).
-                let compare_args = if matches!(name, "Less" | "Greater" | "LessEqual" | "GreaterEqual") {
-                    flatten_compare_chain_args(session, name, term)
-                }
-                else {
-                    None
-                };
-                let arg_terms = compare_args.unwrap_or(arguments);
-                // Known semantic ops + unknown heads as Term residuals (CAS stays symbolic).
-                let result_type = match name {
-                    "Not" | "And" | "Or" | "TrueQ" | "SameQ" | "Equal" | "Unequal" | "Less" | "Greater" | "LessEqual" | "GreaterEqual" => {
-                        ExecutionValueType::Boolean
+                match head {
+                    ApplicationHead::Semantic(op) => {
+                        let compare_args = if matches!(
+                            op,
+                            SemanticOperator::Less
+                                | SemanticOperator::Greater
+                                | SemanticOperator::LessEqual
+                                | SemanticOperator::GreaterEqual
+                        ) {
+                            flatten_compare_chain_args(session, op, term)
+                        } else {
+                            None
+                        };
+                        let arg_terms = compare_args.unwrap_or(arguments);
+                        let result_type = match op {
+                            SemanticOperator::Not
+                            | SemanticOperator::And
+                            | SemanticOperator::Or
+                            | SemanticOperator::TrueQ
+                            | SemanticOperator::Identical
+                            | SemanticOperator::Equal
+                            | SemanticOperator::Unequal
+                            | SemanticOperator::Less
+                            | SemanticOperator::Greater
+                            | SemanticOperator::LessEqual
+                            | SemanticOperator::GreaterEqual => ExecutionValueType::Boolean,
+                            _ => ExecutionValueType::Term,
+                        };
+                        let hold_all = op == SemanticOperator::Function;
+                        let hold_first = op == SemanticOperator::Product
+                            || (op == SemanticOperator::Sum && arg_terms.len() == 2);
+                        let hold_second = matches!(op, SemanticOperator::CollectMatches | SemanticOperator::Matches)
+                            && arg_terms.len() >= 2;
+                        let mut args = Vec::with_capacity(arg_terms.len());
+                        for (index, arg) in arg_terms.into_iter().enumerate() {
+                            if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
+                                let root = builder.push_term_root(arg);
+                                let ssa = builder.ssa();
+                                operations.push(Operation {
+                                    result: Some(ssa),
+                                    result_type: ExecutionValueType::Term,
+                                    kind: OperationKind::LoadTerm { root },
+                                    effect_in: None,
+                                    effect_out: None,
+                                });
+                                args.push(ssa);
+                            } else {
+                                args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                            }
+                        }
+                        let ssa = builder.ssa();
+                        operations.push(Operation {
+                            result: Some(ssa),
+                            result_type,
+                            kind: OperationKind::ApplySemanticOperator { operator: op, args },
+                            effect_in: None,
+                            effect_out: None,
+                        });
+                        Ok(ssa)
                     }
-                    _ => ExecutionValueType::Term,
-                };
-                // iterator `Sum`/`Product`: keep body unevaluated (first arg), evaluate iterator.
-                // `CollectMatches` / `Matches`: keep pattern unevaluated (second arg).
-                // `Function`: keep formal and body unevaluated.
-                let hold_all = name == "Function";
-                let hold_first = name == "Product" || (name == "Sum" && arg_terms.len() == 2);
-                let hold_second = matches!(name, "CollectMatches" | "Matches") && arg_terms.len() >= 2;
-                let mut args = Vec::with_capacity(arg_terms.len());
-                for (index, arg) in arg_terms.into_iter().enumerate() {
-                    if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
-                        let root = builder.push_term_root(arg);
+                    ApplicationHead::Extension(ext) => {
+                        let mut args = Vec::with_capacity(arguments.len());
+                        for arg in arguments {
+                            args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                        }
                         let ssa = builder.ssa();
                         operations.push(Operation {
                             result: Some(ssa),
                             result_type: ExecutionValueType::Term,
-                            kind: OperationKind::LoadTerm { root },
+                            kind: OperationKind::ApplyExtensionOperator { operator: ext, args },
                             effect_in: None,
                             effect_out: None,
                         });
-                        args.push(ssa);
-                    }
-                    else {
-                        args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                        Ok(ssa)
                     }
                 }
-                let ssa = builder.ssa();
-                operations.push(Operation {
-                    result: Some(ssa),
-                    result_type,
-                    kind: OperationKind::ApplySemanticOperator { operator: head, args },
-                    effect_in: None,
-                    effect_out: None,
-                });
-                Ok(ssa)
             }
             Some(TermNode::Collection { kind: coll_kind, elements: items }) => {
                 let coll_kind = *coll_kind;

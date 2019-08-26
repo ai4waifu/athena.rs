@@ -9,9 +9,9 @@
 
 #![allow(unsafe_code)]
 
-use athena_ir::Atom;
+use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 use athena_numeric::Number;
-use athena_types::{OperatorId, SymbolId, TermId};
+use athena_types::{SymbolId, TermId};
 use std::marker::PhantomData;
 
 use crate::{
@@ -60,24 +60,27 @@ impl<'a> CalculusCtx<'a> {
         }
     }
 
-    /// App 的算子名。
-    pub(crate) fn op_name(&self, op: OperatorId) -> &str {
-        self.session().operators.name(op).unwrap_or("")
+    /// App head label (semantic debug label or extension display name).
+    pub(crate) fn op_name(&self, head: ApplicationHead) -> String {
+        match head {
+            ApplicationHead::Semantic(op) => op.debug_label().to_string(),
+            ApplicationHead::Extension(id) => self.session().operators.name(id).unwrap_or("").to_string(),
+        }
     }
 
     /// App 形态：(head 名, 参数)。
     pub(crate) fn application(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
         match self.shape(id)? {
-            Shape::Application(op, args) => Some((self.op_name(op).to_string(), args)),
+            Shape::Application(op, args) => Some((self.op_name(op), args)),
             _ => None,
         }
     }
 
-    /// head 名（App 走注册表 · List → `List` · 符号 → 自身）。
+    /// head 名（App · OrderedCollection · 符号）。
     pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
         match self.shape(id)? {
-            Shape::Application(op, _) => Some(self.op_name(op).to_string()),
-            Shape::Collection(_) => Some("List".into()),
+            Shape::Application(op, _) => Some(self.op_name(op)),
+            Shape::Collection(_) => Some("OrderedCollection".into()),
             Shape::Symbol(s) => Some(self.symbol_name(s).to_string()),
             _ => None,
         }
@@ -158,8 +161,18 @@ impl<'a> CalculusCtx<'a> {
         crate::runtime::values::arena::push_list(self.session_mut(), items)
     }
 
-    /// 算子应用。
+    /// 算子应用（extension display name — not a core semantic map）。
     pub(crate) fn apply(&self, head: &str, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_application_named(self.session_mut(), head, args)
+    }
+
+    /// Preserve an existing [`ApplicationHead`] when rebuilding.
+    pub(crate) fn apply_head(&self, head: ApplicationHead, args: Vec<TermId>) -> TermId {
+        crate::runtime::values::arena::push_application_head(self.session_mut(), head, args)
+    }
+
+    /// Core semantic application.
+    pub(crate) fn apply_semantic(&self, op: SemanticOperator, args: Vec<TermId>) -> TermId {
+        crate::runtime::values::arena::push_semantic(self.session_mut(), op, args)
     }
 }

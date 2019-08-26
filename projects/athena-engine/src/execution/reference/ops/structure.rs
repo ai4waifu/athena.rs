@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use athena_numeric::{
     Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow,
 };
+use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::super::{IndexStep, ReferenceExecutor, Slot};
@@ -13,7 +14,7 @@ use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
     domains::linear_algebra::{SolveDisposition, det_bareiss, matmul, solve_exact},
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number},
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{arena::push_list, numeric_clone::{clone_number, clone_rational}},
@@ -36,7 +37,7 @@ impl ReferenceExecutor {
                         Ok(Slot::Term(fold_plus_symbolic(session, values)))
                     }
                 }
-                None => Ok(Slot::Term(push_application(session, "Sum", vec![body, iter]))),
+                None => Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![body, iter]))),
             };
         }
         if args.len() != 1 {
@@ -46,13 +47,13 @@ impl ReferenceExecutor {
                     let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
                     terms.push(self.slot_as_term(session, slot)?);
                 }
-                push_application(session, "Sum", terms)
+                push_semantic(session, SemanticOperator::Sum, terms)
             }));
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
         else {
-            return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![term])));
         };
         let items = items.clone();
         if items.is_empty() {
@@ -62,7 +63,7 @@ impl ReferenceExecutor {
             // Matrix: sum each column into a row vector.
             let Some((_, cols)) = nested_list_shape(session, term)
             else {
-                return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+                return Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![term])));
             };
             let mut out = Vec::with_capacity(cols as usize);
             for j in 0..cols as usize {
@@ -74,7 +75,7 @@ impl ReferenceExecutor {
                     };
                     let Some(cell) = cell
                     else {
-                        return Ok(Slot::Term(push_application(session, "Sum", vec![term])));
+                        return Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![term])));
                     };
                     col.push(cell);
                 }
@@ -100,7 +101,7 @@ impl ReferenceExecutor {
                         Ok(Slot::Term(fold_times_symbolic(session, values)))
                     }
                 }
-                None => Ok(Slot::Term(push_application(session, "Product", vec![body, iter]))),
+                None => Ok(Slot::Term(push_semantic(session, SemanticOperator::Product, vec![body, iter]))),
             };
         }
         let mut terms = Vec::with_capacity(args.len());
@@ -108,7 +109,7 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        Ok(Slot::Term(push_application(session, "Product", terms)))
+        Ok(Slot::Term(push_semantic(session, SemanticOperator::Product, terms)))
     }
 
     pub(crate) fn table_values(&self, session: &mut Session, body: TermId, iter: TermId) -> Result<Option<Vec<TermId>>> {
@@ -145,7 +146,7 @@ impl ReferenceExecutor {
             return Err(diag("semantic_operator_arity"));
         }
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let echo = push_application(session, "Det", vec![term]);
+        let echo = push_semantic(session, SemanticOperator::Determinant, vec![term]);
         let Some(matrix) = term_to_rational_matrix_session(session, term)
         else {
             return Ok(Slot::Term(echo));
@@ -222,7 +223,7 @@ impl ReferenceExecutor {
         let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
         let Some(ints) = ints
         else {
-            return Ok(Slot::Term(push_application(session, "Range", terms)));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
         };
         let bounds = match ints.as_slice() {
             [n] => Some((1, *n, 1)),
@@ -232,11 +233,11 @@ impl ReferenceExecutor {
         };
         let Some((a, b, step)) = bounds
         else {
-            return Ok(Slot::Term(push_application(session, "Range", terms)));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
         };
         let Some(values) = expand_span_3(a, step, b)
         else {
-            return Ok(Slot::Term(push_application(session, "Range", terms)));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
         };
         let out: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
         Ok(Slot::Term(push_list(session, out)))
@@ -324,7 +325,12 @@ impl ReferenceExecutor {
                             session.builder().symbol("OrderedCollection", Default::default())
                         }
                         Some(athena_ir::TermNode::Application { head, .. }) => {
-                            let name = session.operators.name(*head).unwrap_or("").to_string();
+                            let name = match *head {
+                                athena_ir::ApplicationHead::Semantic(op) => op.debug_label().to_string(),
+                                athena_ir::ApplicationHead::Extension(id) => {
+                                    session.operators.name(id).unwrap_or("").to_string()
+                                }
+                            };
                             session.builder().symbol(&name, Default::default())
                         }
                         _ => return Ok(IndexStep::Residual),
@@ -391,13 +397,13 @@ impl ReferenceExecutor {
             terms.push(term);
             match session.arena.get(term) {
                 Some(athena_ir::TermNode::Collection { elements: items, .. }) => out.extend_from_slice(items),
-                _ => return Ok(Slot::Term(push_application(session, "Join", terms))),
+                _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Join, terms))),
             }
         }
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    pub(crate) fn eval_compare_chain(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_compare_chain(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() < 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -406,23 +412,23 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let pick = match name {
-            "Less" => |o: Ordering| o == Ordering::Less,
-            "Greater" => |o: Ordering| o == Ordering::Greater,
-            "LessEqual" => |o: Ordering| o != Ordering::Greater,
-            "GreaterEqual" => |o: Ordering| o != Ordering::Less,
+        let pick = match op {
+            SemanticOperator::Less => |o: Ordering| o == Ordering::Less,
+            SemanticOperator::Greater => |o: Ordering| o == Ordering::Greater,
+            SemanticOperator::LessEqual => |o: Ordering| o != Ordering::Greater,
+            SemanticOperator::GreaterEqual => |o: Ordering| o != Ordering::Less,
             _ => return Err(diag("semantic_operator_not_implemented")),
         };
         // Binary list broadcast for compares.
         if terms.len() == 2 {
-            if let Some(broadcast) = compare_list_broadcast(session, name, terms[0], terms[1], pick)? {
+            if let Some(broadcast) = compare_list_broadcast(session, op.debug_label(), terms[0], terms[1], pick)? {
                 return Ok(Slot::Term(broadcast));
             }
         }
         let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
         let Some(nums) = numbers
         else {
-            return Ok(Slot::Term(push_application(session, name, terms)));
+            return Ok(Slot::Term(push_semantic(session, op, terms)));
         };
         let mut ok = true;
         for window in nums.windows(2) {
@@ -436,17 +442,17 @@ impl ReferenceExecutor {
     }
 
     /// Elementwise `DotTimes` / `DotDivide` / `DotPower` with scalar broadcast.
-    pub(crate) fn eval_dot_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_dot_arithmetic(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
         let left = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let right = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let echo = push_application(session, name, vec![left, right]);
-        let scalar_op = match name {
-            "DotTimes" => "Times",
-            "DotDivide" => "Divide",
-            "DotPower" => "Power",
+        let echo = push_semantic(session, op, vec![left, right]);
+        let scalar_op = match op {
+            SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
+            SemanticOperator::ElementwiseDivide => SemanticOperator::Divide,
+            SemanticOperator::ElementwisePower => SemanticOperator::Power,
             _ => return Ok(Slot::Term(echo)),
         };
         match self.dot_zip_eval(session, scalar_op, left, right)? {
@@ -456,7 +462,7 @@ impl ReferenceExecutor {
     }
 
     /// Recursively zip collections (with scalar broadcast) then evaluate `scalar_op` pairwise.
-    fn dot_zip_eval(&self, session: &mut Session, scalar_op: &str, left: TermId, right: TermId) -> Result<Option<TermId>> {
+    fn dot_zip_eval(&self, session: &mut Session, scalar_op: SemanticOperator, left: TermId, right: TermId) -> Result<Option<TermId>> {
         let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
         let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
         match (left_is_collection, right_is_collection) {
@@ -510,7 +516,7 @@ impl ReferenceExecutor {
                 Ok(Some(push_list(session, out)))
             }
             (false, false) => {
-                let app = push_application(session, scalar_op, vec![left, right]);
+                let app = push_semantic(session, scalar_op, vec![left, right]);
                 match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
                     Ok(module) => {
                         let result_id = self.execute(session, &module, None)?;
@@ -522,7 +528,7 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_arithmetic(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_arithmetic(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -530,9 +536,9 @@ impl ReferenceExecutor {
         }
         let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
         if let Some(nums) = numbers {
-            let folded = match (name, nums.as_slice()) {
-                ("Plus", []) => Some(Number::small_int(0)),
-                ("Plus", values) => {
+            let folded = match (op, nums.as_slice()) {
+                (SemanticOperator::Add, []) => Some(Number::small_int(0)),
+                (SemanticOperator::Add, values) => {
                     let mut acc = clone_number(&values[0]);
                     let mut ok = true;
                     for n in &values[1..] {
@@ -546,8 +552,8 @@ impl ReferenceExecutor {
                     }
                     ok.then_some(acc)
                 }
-                ("Times", []) => Some(Number::small_int(1)),
-                ("Times", values) => {
+                (SemanticOperator::Multiply, []) => Some(Number::small_int(1)),
+                (SemanticOperator::Multiply, values) => {
                     let mut acc = clone_number(&values[0]);
                     let mut ok = true;
                     for n in &values[1..] {
@@ -561,10 +567,12 @@ impl ReferenceExecutor {
                     }
                     ok.then_some(acc)
                 }
-                ("Subtract", [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
-                ("Subtract", [a, b]) => num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok(),
-                ("Divide", [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
-                ("Power", [a, b]) => num_pow(a, b).ok(),
+                (SemanticOperator::Subtract, [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
+                (SemanticOperator::Subtract, [a, b]) => {
+                    num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok()
+                }
+                (SemanticOperator::Divide, [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
+                (SemanticOperator::Power, [a, b]) => num_pow(a, b).ok(),
                 _ => return Err(diag("semantic_operator_arity")),
             };
             if let Some(folded) = folded {
@@ -572,8 +580,8 @@ impl ReferenceExecutor {
             }
             // Numeric fold failed (e.g. `0^-1`) — keep symbolic residual.
         }
-        // Matrix `Times` — exact rational matmul when both arguments are matrices.
-        if name == "Times" && terms.len() == 2 {
+        // Matrix `Multiply` — exact rational matmul when both arguments are matrices.
+        if op == SemanticOperator::Multiply && terms.len() == 2 {
             if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
                 // Require both sides to look like matrices (row collections), not bare scalars.
                 let left_matrixish = matches!(
@@ -593,14 +601,14 @@ impl ReferenceExecutor {
                 }
             }
         }
-        // Symbolic residual with identity folding for Plus/Times/Power/Divide.
-        Ok(Slot::Term(match name {
-            "Plus" => fold_plus_symbolic(session, terms),
-            "Times" => fold_times_symbolic(session, terms),
-            "Power" => fold_power_symbolic(session, terms),
-            "Divide" => fold_divide_symbolic(session, terms),
-            "Subtract" => fold_subtract_symbolic(session, terms),
-            _ => push_application(session, name, terms),
+        // Symbolic residual with identity folding.
+        Ok(Slot::Term(match op {
+            SemanticOperator::Add => fold_plus_symbolic(session, terms),
+            SemanticOperator::Multiply => fold_times_symbolic(session, terms),
+            SemanticOperator::Power => fold_power_symbolic(session, terms),
+            SemanticOperator::Divide => fold_divide_symbolic(session, terms),
+            SemanticOperator::Subtract => fold_subtract_symbolic(session, terms),
+            _ => push_semantic(session, op, terms),
         }))
     }
 

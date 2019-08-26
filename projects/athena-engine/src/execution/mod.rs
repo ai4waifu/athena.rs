@@ -119,7 +119,12 @@ pub fn push_number(session: &mut crate::runtime::session::Session, n: Number) ->
     session.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n)), span)
 }
 
-/// 会话级 App 构造（算子名 intern）。
+/// 会话级 App 构造（core semantic）。
+pub fn push_semantic(session: &mut crate::runtime::session::Session, op: athena_ir::SemanticOperator, args: Vec<TermId>) -> TermId {
+    crate::runtime::values::arena::push_semantic(session, op, args)
+}
+
+/// 会话级 extension App 构造（never maps string → core semantic）。
 pub fn push_application(session: &mut crate::runtime::session::Session, head: &str, args: Vec<TermId>) -> TermId {
     crate::runtime::values::arena::push_application_named(session, head, args)
 }

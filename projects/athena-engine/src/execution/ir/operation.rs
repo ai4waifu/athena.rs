@@ -1,6 +1,7 @@
 //! Typed SSA operations (closed opcode family — no string handler lookup).
 
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, IndexSpec, OperatorId};
+use athena_ir::SemanticOperator;
 
 use super::{
     ids::{CapturedRootId, ConstantId, EffectToken, InputId, ProviderCallId, SsaValueId},
@@ -44,7 +45,14 @@ pub enum OperationKind {
     },
     /// Apply a closed semantic operator to SSA arguments.
     ApplySemanticOperator {
-        /// Neutral operator identity.
+        /// Closed semantic operator identity.
+        operator: athena_ir::SemanticOperator,
+        /// Operand SSA values.
+        args: Vec<SsaValueId>,
+    },
+    /// Apply an extension operator (display name via registry — not core math).
+    ApplyExtensionOperator {
+        /// Extension identity.
         operator: OperatorId,
         /// Operand SSA values.
         args: Vec<SsaValueId>,

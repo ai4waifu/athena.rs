@@ -13,6 +13,7 @@ use athena_numeric::{
     Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
     mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
+use athena_ir::SemanticOperator;
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
 use crate::{
@@ -26,7 +27,7 @@ use crate::{
         compiler::ExecutionCompiler,
         environment::{LocalBinding, ScopeFrame},
         ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
-        number_of, push_application, push_number,
+        number_of, push_application, push_number, push_semantic,
     },
     runtime::{
         results::{ComputationResult, CoverageStatus, ResultProvenance, computation_from_domain},
@@ -244,9 +245,9 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
-                let name = session.operators.name(*operator).ok_or_else(|| diag("unknown_operator"))?.to_string();
-                match name.as_str() {
-                    "Not" | "And" | "Or" | "TrueQ" => {
+                let op = *operator;
+                match op {
+                    SemanticOperator::Not | SemanticOperator::And | SemanticOperator::Or | SemanticOperator::TrueQ => {
                         let bools: Vec<Option<bool>> = args
                             .iter()
                             .map(|id| {
@@ -255,20 +256,19 @@ impl ReferenceExecutor {
                             })
                             .collect::<Result<Vec<_>>>()?;
                         if bools.iter().any(|b| b.is_none()) {
-                            // Non-boolean-like args stay as residual logic forms (VM parity).
-                            return self.eval_residual_app(session, name.as_str(), args, slots);
+                            return self.eval_residual_semantic(session, op, args, slots);
                         }
                         let bools: Vec<bool> = bools.into_iter().map(|b| b.expect("checked")).collect();
-                        let result = match (name.as_str(), bools.as_slice()) {
-                            ("Not", [a]) => !*a,
-                            ("TrueQ", [a]) => *a,
-                            ("And", values) => values.iter().copied().all(|v| v),
-                            ("Or", values) => values.iter().copied().any(|v| v),
+                        let result = match (op, bools.as_slice()) {
+                            (SemanticOperator::Not, [a]) => !*a,
+                            (SemanticOperator::TrueQ, [a]) => *a,
+                            (SemanticOperator::And, values) => values.iter().copied().all(|v| v),
+                            (SemanticOperator::Or, values) => values.iter().copied().any(|v| v),
                             _ => return Err(diag("semantic_operator_arity")),
                         };
                         Ok(Slot::Boolean(result))
                     }
-                    "SameQ" | "Equal" | "Unequal" => {
+                    SemanticOperator::Identical | SemanticOperator::Equal | SemanticOperator::Unequal => {
                         if args.len() != 2 {
                             return Err(diag("semantic_operator_arity"));
                         }
@@ -281,30 +281,56 @@ impl ReferenceExecutor {
                             (Slot::Unit, Slot::Unit) => true,
                             _ => false,
                         };
-                        Ok(Slot::Boolean(if name == "Unequal" { !same } else { same }))
+                        Ok(Slot::Boolean(if op == SemanticOperator::Unequal { !same } else { same }))
                     }
-                    "Less" | "Greater" | "LessEqual" | "GreaterEqual" => self.eval_compare_chain(session, name.as_str(), args, slots),
-                    "Plus" | "Times" | "Subtract" | "Divide" | "Power" => self.eval_arithmetic(session, name.as_str(), args, slots),
-                    "DotTimes" | "DotDivide" | "DotPower" => self.eval_dot_arithmetic(session, name.as_str(), args, slots),
-                    "Abs" | "Length" | "First" | "Rest" | "Factorial" | "Sqrt" => self.eval_unary_term_op(session, name.as_str(), args, slots),
-                    "Join" => self.eval_join(session, args, slots),
-                    "Range" => self.eval_range(session, args, slots),
-                    "Apply" => self.eval_apply(session, args, slots),
-                    "Application" => self.eval_application_form(session, args, slots),
-                    "Size" => self.eval_size(session, args, slots),
-                    "Sum" => self.eval_sum(session, args, slots),
-                    "Product" => self.eval_product(session, args, slots),
-                    "Det" => self.eval_det(session, args, slots, invalid),
+                    SemanticOperator::Less
+                    | SemanticOperator::Greater
+                    | SemanticOperator::LessEqual
+                    | SemanticOperator::GreaterEqual => self.eval_compare_chain(session, op, args, slots),
+                    SemanticOperator::Add
+                    | SemanticOperator::Multiply
+                    | SemanticOperator::Subtract
+                    | SemanticOperator::Divide
+                    | SemanticOperator::Power => self.eval_arithmetic(session, op, args, slots),
+                    SemanticOperator::ElementwiseMultiply
+                    | SemanticOperator::ElementwiseDivide
+                    | SemanticOperator::ElementwisePower => self.eval_dot_arithmetic(session, op, args, slots),
+                    SemanticOperator::Abs
+                    | SemanticOperator::Length
+                    | SemanticOperator::First
+                    | SemanticOperator::Rest
+                    | SemanticOperator::Factorial
+                    | SemanticOperator::Sqrt => self.eval_unary_term_op(session, op, args, slots),
+                    SemanticOperator::Join => self.eval_join(session, args, slots),
+                    SemanticOperator::Range => self.eval_range(session, args, slots),
+                    SemanticOperator::Apply => self.eval_apply(session, args, slots),
+                    SemanticOperator::ApplyHead => self.eval_application_form(session, args, slots),
+                    SemanticOperator::Size => self.eval_size(session, args, slots),
+                    SemanticOperator::Sum => self.eval_sum(session, args, slots),
+                    SemanticOperator::Product => self.eval_product(session, args, slots),
+                    SemanticOperator::Determinant => self.eval_det(session, args, slots, invalid),
+                    SemanticOperator::Map => self.eval_map(session, args, slots),
+                    SemanticOperator::Zeros | SemanticOperator::Ones | SemanticOperator::Eye => {
+                        self.eval_matrix_constructor(session, op, args, slots)
+                    }
+                    SemanticOperator::Rule | SemanticOperator::RuleDeferred => self.eval_rule(session, op, args, slots),
+                    SemanticOperator::ReplaceAll => self.eval_replace_all(session, args, slots),
+                    SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),
+                    SemanticOperator::Matches => self.eval_matches(session, args, slots),
+                    SemanticOperator::Simplify => self.eval_simplify(session, args, slots),
+                    SemanticOperator::Hold | SemanticOperator::Function | SemanticOperator::Negate => {
+                        self.eval_residual_semantic(session, op, args, slots)
+                    }
+                }
+            }
+            OperationKind::ApplyExtensionOperator { operator, args } => {
+                let name = session.operators.name(*operator).unwrap_or("").to_string();
+                match name.as_str() {
                     "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
-                    "Map" => self.eval_map(session, args, slots),
-                    "Zeros" | "Ones" | "Eye" => self.eval_matrix_constructor(session, name.as_str(), args, slots),
-                    "Rule" | "RuleDeferred" => self.eval_rule(session, name.as_str(), args, slots),
-                    "ReplaceAll" => self.eval_replace_all(session, args, slots),
-                    "CollectMatches" => self.eval_collect_matches(session, args, slots),
-                    "Matches" => self.eval_matches(session, args, slots),
-                    "Simplify" => self.eval_simplify(session, args, slots),
-                    "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic" | "Residue" | "DSolve" | "LaplaceTransform"
-                    | "FourierTransform" | "ZTransform" | "Divergence" | "Curl" => self.eval_calculus(session, name.as_str(), args, slots),
+                    "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic" | "Residue" | "DSolve"
+                    | "LaplaceTransform" | "FourierTransform" | "ZTransform" | "Divergence" | "Curl" => {
+                        self.eval_calculus(session, name.as_str(), args, slots)
+                    }
                     "Import" | "Export" | "Timing" => {
                         *invalid = Some(
                             Diagnostic::new(DiagnosticCode::UnsupportedOperation)

@@ -174,7 +174,7 @@ fn verify_terminator(
 fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
     match kind {
         OperationKind::LoadInput { .. } | OperationKind::LoadTerm { .. } | OperationKind::Constant { .. } => Vec::new(),
-        OperationKind::ApplySemanticOperator { args, .. } => args.clone(),
+        OperationKind::ApplySemanticOperator { args, .. } | OperationKind::ApplyExtensionOperator { args, .. } => args.clone(),
         OperationKind::ConstructCollection { elements, .. } => elements.clone(),
         OperationKind::Index { target, .. } => vec![*target],
         OperationKind::ReadBinding { key } => vec![*key],

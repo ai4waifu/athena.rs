@@ -3,13 +3,19 @@
 use athena_numeric::{Number, add as num_add, mul as num_mul, pow as num_pow};
 use athena_types::TermId;
 
+use athena_ir::{ApplicationHead, SemanticOperator};
+
 use crate::{
-    execution::{number_of, push_application, push_number},
+    execution::{number_of, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{arena::push_list, numeric_clone::clone_number},
     },
 };
+
+fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
+    matches!(head, ApplicationHead::Semantic(o) if o == op)
+}
 
 pub(crate) fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     // Flatten one level of nested `Plus` and coalesce numeric summands.
@@ -17,7 +23,7 @@ pub(crate) fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> T
     let mut sum: Option<Number> = None;
     for term in terms {
         match session.arena.get(term) {
-            Some(athena_ir::TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Plus") => {
+            Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Add) => {
                 for arg in arguments.clone() {
                     push_plus_summand_session(session, arg, &mut flat, &mut sum);
                 }
@@ -34,7 +40,7 @@ pub(crate) fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> T
     match flat.as_slice() {
         [] => session.builder().int(0, Default::default()),
         [only] => *only,
-        _ => push_application(session, "Plus", flat),
+        _ => push_semantic(session, SemanticOperator::Add, flat),
     }
 }
 
@@ -76,7 +82,7 @@ pub(crate) fn combine_like_plus_session(session: &mut Session, terms: Vec<TermId
 
 pub(crate) fn split_numeric_coeff_session(session: &mut Session, term: TermId) -> (Number, TermId) {
     if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(term) {
-        if session.operators.name(*head) == Some("Times") && !arguments.is_empty() {
+        if is_sem(*head, SemanticOperator::Multiply) && !arguments.is_empty() {
             let args = arguments.clone();
             let mut coef = Number::small_int(1);
             let mut rest = Vec::new();
@@ -91,7 +97,7 @@ pub(crate) fn split_numeric_coeff_session(session: &mut Session, term: TermId) -
             let kernel = match rest.as_slice() {
                 [] => session.builder().int(1, Default::default()),
                 [only] => *only,
-                _ => push_application(session, "Times", rest),
+                _ => push_semantic(session, SemanticOperator::Multiply, rest),
             };
             return (coef, kernel);
         }
@@ -127,7 +133,7 @@ pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     let mut flat = Vec::with_capacity(terms.len());
     for term in terms {
         match session.arena.get(term) {
-            Some(athena_ir::TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Times") => {
+            Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Multiply) => {
                 flat.extend_from_slice(arguments);
             }
             _ => flat.push(term),
@@ -150,7 +156,7 @@ pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
         matches!(
             session.arena.get(*t),
             Some(athena_ir::TermNode::Application { head, .. })
-                if session.operators.name(*head) == Some("Plus")
+                if is_sem(*head, SemanticOperator::Add)
         )
     }) {
         let plus_id = out[idx];
@@ -172,7 +178,7 @@ pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     match out.as_slice() {
         [] => session.builder().int(1, Default::default()),
         [only] => *only,
-        _ => push_application(session, "Times", out),
+        _ => push_semantic(session, SemanticOperator::Multiply, out),
     }
 }
 
@@ -208,7 +214,7 @@ pub(crate) fn combine_like_powers_session(session: &mut Session, factors: Vec<Te
     for f in factors {
         let base_exp = match session.arena.get(f) {
             Some(athena_ir::TermNode::Application { head, arguments })
-                if session.operators.name(*head) == Some("Power") && arguments.len() == 2 =>
+                if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 =>
             {
                 Some((arguments[0], arguments[1]))
             }
@@ -223,9 +229,9 @@ pub(crate) fn combine_like_powers_session(session: &mut Session, factors: Vec<Te
                         let combined = match (number_of(session, *e), number_of(session, exp)) {
                             (Some(a), Some(b)) => match num_add(clone_number(a), clone_number(b)) {
                                 Ok(v) => push_number(session, v),
-                                Err(_) => push_application(session, "Plus", vec![*e, exp]),
+                                Err(_) => push_semantic(session, SemanticOperator::Add, vec![*e, exp]),
                             },
-                            _ => push_application(session, "Plus", vec![*e, exp]),
+                            _ => push_semantic(session, SemanticOperator::Add, vec![*e, exp]),
                         };
                         *e = combined;
                         merged = true;
@@ -253,7 +259,7 @@ pub(crate) fn combine_like_powers_session(session: &mut Session, factors: Vec<Te
 
 pub(crate) fn fold_divide_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     if terms.len() != 2 {
-        return push_application(session, "Divide", terms);
+        return push_semantic(session, SemanticOperator::Divide, terms);
     }
     let (num, den) = (terms[0], terms[1]);
     let neg1 = session.builder().int(-1, Default::default());
@@ -272,20 +278,20 @@ pub(crate) fn fold_subtract_symbolic(session: &mut Session, terms: Vec<TermId>) 
             let neg = fold_times_symbolic(session, vec![neg1, *b]);
             fold_plus_symbolic(session, vec![*a, neg])
         }
-        _ => push_application(session, "Subtract", terms),
+        _ => push_semantic(session, SemanticOperator::Subtract, terms),
     }
 }
 
 pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     if terms.len() != 2 {
-        return push_application(session, "Power", terms);
+        return push_semantic(session, SemanticOperator::Power, terms);
     }
     let (base, exp) = (terms[0], terms[1]);
     if let Some(e) = number_of(session, exp) {
         if e.is_zero() {
             // Scalar `x^0 → 1`; list bases stay residual (elementwise is `DotPower`).
             if matches!(session.arena.get(base), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
-                return push_application(session, "Power", terms);
+                return push_semantic(session, SemanticOperator::Power, terms);
             }
             return session.builder().int(1, Default::default());
         }
@@ -295,8 +301,8 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
         // `(u^a)^b → u^(a*b)` and `(c*u)^n → c^n * u^n` when exponents are integers.
         if e.as_integer_exp().is_some() {
             if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(base) {
-                let head_name = session.operators.name(*head);
-                if head_name == Some("Power") && arguments.len() == 2 {
+                let head = *head;
+                if is_sem(head, SemanticOperator::Power) && arguments.len() == 2 {
                     let inner_base = arguments[0];
                     if let Some(inner_exp) = number_of(session, arguments[1]) {
                         if let Ok(combined) = num_mul(clone_number(inner_exp), clone_number(e)) {
@@ -305,11 +311,11 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
                         }
                     }
                 }
-                if head_name == Some("Times") && arguments.len() >= 2 {
+                if is_sem(head, SemanticOperator::Multiply) && arguments.len() >= 2 {
                     let args = arguments.clone();
                     if let Some(c) = number_of(session, args[0]) {
                         if let Ok(cp) = num_pow(c, e) {
-                            let rest = if args.len() == 2 { args[1] } else { push_application(session, "Times", args[1..].to_vec()) };
+                            let rest = if args.len() == 2 { args[1] } else { push_semantic(session, SemanticOperator::Multiply, args[1..].to_vec()) };
                             let rest_pow = fold_power_symbolic(session, vec![rest, exp]);
                             let cp_id = push_number(session, cp);
                             return fold_times_symbolic(session, vec![cp_id, rest_pow]);
@@ -319,5 +325,5 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
             }
         }
     }
-    push_application(session, "Power", terms)
+    push_semantic(session, SemanticOperator::Power, terms)
 }

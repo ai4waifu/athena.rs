@@ -5,10 +5,11 @@
 
 use std::collections::HashMap;
 
-use athena_types::{OperatorId, SymbolId, TermId, ValueTypeId};
+use athena_ir::ApplicationHead;
+use athena_types::{SymbolId, TermId, ValueTypeId};
 
 use crate::{
-    execution::shape::{Shape, push_application_op, term_shape},
+    execution::shape::{Shape, push_application_head, term_shape},
     reasoning::trs::{PatternConstraint, TermPattern},
     runtime::{session::Session, values::arena::push_list},
 };
@@ -191,7 +192,7 @@ pub(crate) fn replace_literal(session: &mut Session, expr: TermId, lhs: TermId, 
 fn rewrite_app(
     session: &mut Session,
     expr: TermId,
-    op: OperatorId,
+    head: ApplicationHead,
     args: Vec<TermId>,
     mut map: impl FnMut(&mut Session, TermId) -> TermId,
 ) -> TermId {
@@ -202,5 +203,5 @@ fn rewrite_app(
         changed |= r != a;
         out.push(r);
     }
-    if changed { push_application_op(session, op, out) } else { expr }
+    if changed { push_application_head(session, head, out) } else { expr }
 }

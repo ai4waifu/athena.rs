@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use athena_numeric::{
     Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Result, SymbolId, TermId};
 
 use super::super::{ReferenceExecutor, Slot};
@@ -12,63 +13,63 @@ use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
     domains::calculus::{CalculusCtx, execute_calculus, materialize_calculus_result_term, try_calculus_request},
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number},
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number, push_semantic},
     runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
 };
 
 impl ReferenceExecutor {
-    pub(crate) fn eval_unary_term_op(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_unary_term_op(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
         let slot = *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
         let term = self.slot_as_term(session, slot)?;
-        match name {
-            "Abs" => {
+        match op {
+            SemanticOperator::Abs => {
                 if let Some(n) = number_of(session, term) {
                     Ok(Slot::Term(push_number(session, num_abs(clone_number(n)))))
                 }
                 else {
-                    Ok(Slot::Term(push_application(session, "Abs", vec![term])))
+                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Abs, vec![term])))
                 }
             }
-            "Factorial" => {
+            SemanticOperator::Factorial => {
                 if let Some(n) = number_of(session, term) {
                     match num_factorial(n) {
                         Ok(v) => Ok(Slot::Term(push_number(session, v))),
-                        Err(_) => Ok(Slot::Term(push_application(session, "Factorial", vec![term]))),
+                        Err(_) => Ok(Slot::Term(push_semantic(session, SemanticOperator::Factorial, vec![term]))),
                     }
                 }
                 else {
-                    Ok(Slot::Term(push_application(session, "Factorial", vec![term])))
+                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Factorial, vec![term])))
                 }
             }
-            "Sqrt" => {
+            SemanticOperator::Sqrt => {
                 if let Some(n) = number_of(session, term) {
                     match num_sqrt(n) {
                         Ok(Some(v)) => Ok(Slot::Term(push_number(session, v))),
-                        _ => Ok(Slot::Term(push_application(session, "Sqrt", vec![term]))),
+                        _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::Sqrt, vec![term]))),
                     }
                 }
                 else {
-                    Ok(Slot::Term(push_application(session, "Sqrt", vec![term])))
+                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Sqrt, vec![term])))
                 }
             }
-            "Length" => {
+            SemanticOperator::Length => {
                 let len = match session.arena.get(term) {
                     Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.len() as i64,
                     Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.len() as i64,
-                    _ => return Ok(Slot::Term(push_application(session, "Length", vec![term]))),
+                    _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Length, vec![term]))),
                 };
                 Ok(Slot::Term(session.builder().int(len, Default::default())))
             }
-            "First" => match session.arena.get(term) {
+            SemanticOperator::First => match session.arena.get(term) {
                 Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => Ok(Slot::Term(items[0])),
                 Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => Ok(Slot::Term(arguments[0])),
                 Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
-                _ => Ok(Slot::Term(push_application(session, "First", vec![term]))),
+                _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::First, vec![term]))),
             },
-            "Rest" => match session.arena.get(term) {
+            SemanticOperator::Rest => match session.arena.get(term) {
                 Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => {
                     let rest = items[1..].to_vec();
                     Ok(Slot::Term(push_list(session, rest)))
@@ -79,7 +80,7 @@ impl ReferenceExecutor {
                     Ok(Slot::Term(session.builder().application(head, rest, Default::default())))
                 }
                 Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
-                _ => Ok(Slot::Term(push_application(session, "Rest", vec![term]))),
+                _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::Rest, vec![term]))),
             },
             _ => Err(diag("semantic_operator_not_implemented")),
         }
@@ -114,6 +115,22 @@ impl ReferenceExecutor {
     }
 
     /// Apply the first matching Session dispatch rule and re-evaluate the replacement.
+
+    pub(crate) fn eval_residual_semantic(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
+        let mut terms = Vec::with_capacity(args.len());
+        for id in args {
+            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            terms.push(self.slot_as_term(session, slot)?);
+        }
+        Ok(Slot::Term(push_semantic(session, op, terms)))
+    }
+
     pub(crate) fn try_apply_down_values(
         &self,
         session: &mut Session,
@@ -126,7 +143,7 @@ impl ReferenceExecutor {
         else {
             return Ok(None);
         };
-        let call_op = session.operators.intern(name);
+        let call_op = ApplicationHead::Extension(session.operators.intern(name));
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -210,13 +227,13 @@ impl ReferenceExecutor {
         Ok(Slot::Term(echo))
     }
 
-    pub(crate) fn eval_rule(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_rule(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
         let lhs = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let rhs = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        Ok(Slot::Term(push_application(session, name, vec![lhs, rhs])))
+        Ok(Slot::Term(push_semantic(session, op, vec![lhs, rhs])))
     }
 
     pub(crate) fn eval_replace_all(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
@@ -227,7 +244,7 @@ impl ReferenceExecutor {
         let rules_term = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let rules = collect_rule_pairs(session, rules_term);
         if rules.is_empty() {
-            return Ok(Slot::Term(push_application(session, "ReplaceAll", vec![expr, rules_term])));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::ReplaceAll, vec![expr, rules_term])));
         }
         let mut cur = expr;
         for (lhs, rhs) in rules {
@@ -252,7 +269,7 @@ impl ReferenceExecutor {
         let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
         else {
-            return Ok(Slot::Term(push_application(session, "CollectMatches", vec![list, pat])));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::CollectMatches, vec![list, pat])));
         };
         let items = items.clone();
         let mut out = Vec::new();
@@ -278,7 +295,7 @@ impl ReferenceExecutor {
     pub(crate) fn eval_matrix_constructor(
         &self,
         session: &mut Session,
-        name: &str,
+        op: SemanticOperator,
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Slot> {
@@ -289,25 +306,25 @@ impl ReferenceExecutor {
         }
         let Some((rows, cols)) = parse_matrix_dims(session, &terms)
         else {
-            return Ok(Slot::Term(push_application(session, name, terms)));
+            return Ok(Slot::Term(push_semantic(session, op, terms)));
         };
         let n = match rows.checked_mul(cols) {
             Some(v) if v <= 4096 => v as usize,
-            _ => return Ok(Slot::Term(push_application(session, name, terms))),
+            _ => return Ok(Slot::Term(push_semantic(session, op, terms))),
         };
         if n == 0 {
             return Ok(Slot::Term(push_list(session, Vec::new())));
         }
-        let fill = match name {
-            "Ones" => 1i64,
-            "Zeros" | "Eye" => 0,
+        let fill = match op {
+            SemanticOperator::Ones => 1i64,
+            SemanticOperator::Zeros | SemanticOperator::Eye => 0,
             _ => return Err(diag("semantic_operator_not_implemented")),
         };
         let mut rows_out = Vec::with_capacity(rows as usize);
         for r in 0..rows {
             let mut row = Vec::with_capacity(cols as usize);
             for c in 0..cols {
-                let value = if name == "Eye" && r == c { 1 } else { fill };
+                let value = if op == SemanticOperator::Eye && r == c { 1 } else { fill };
                 row.push(session.builder().int(value, Default::default()));
             }
             rows_out.push(push_list(session, row));
@@ -323,10 +340,10 @@ impl ReferenceExecutor {
         let list = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(list) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
-            _ => return Ok(Slot::Term(push_application(session, "Map", vec![func, list]))),
+            _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Map, vec![func, list]))),
         };
         if !self.map_func_supported(session, func) {
-            return Ok(Slot::Term(push_application(session, "Map", vec![func, list])));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Map, vec![func, list])));
         }
         let mut out = Vec::with_capacity(items.len());
         for item in items {
@@ -342,7 +359,7 @@ impl ReferenceExecutor {
         matches!(
             session.arena.get(func),
             Some(athena_ir::TermNode::Application { head: op, arguments })
-                if session.operators.name(*op) == Some("Function") && arguments.len() == 2
+                if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) && arguments.len() == 2
         )
     }
 
@@ -353,7 +370,7 @@ impl ReferenceExecutor {
             return self.re_eval_term(session, mapped);
         }
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(func) {
-            if session.operators.name(*op) == Some("Function") {
+            if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) {
                 let arguments = arguments.clone();
                 if let [var, body] = arguments.as_slice() {
                     if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
@@ -384,7 +401,7 @@ impl ReferenceExecutor {
         let second = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(second) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
-            _ => return Ok(Slot::Term(push_application(session, "Apply", vec![head, second]))),
+            _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Apply, vec![head, second]))),
         };
         let app = rebuild_application(session, head, items);
         match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
@@ -411,7 +428,7 @@ impl ReferenceExecutor {
         // Function[var, body][arg…] → substitute and re-eval.
         // Pure Function[body] requires AnonymousArgument from dialect lowering (not string Slot).
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
-            if session.operators.name(*op) == Some("Function") && call_args.len() == 1 {
+            if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) && call_args.len() == 1 {
                 let arguments = arguments.clone();
                 if let [var, body] = arguments.as_slice() {
                     if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
@@ -443,7 +460,7 @@ impl ReferenceExecutor {
         let mut wrapped = Vec::with_capacity(call_args.len() + 1);
         wrapped.push(head);
         wrapped.extend(call_args);
-        Ok(Slot::Term(push_application(session, "Application", wrapped)))
+        Ok(Slot::Term(push_semantic(session, SemanticOperator::ApplyHead, wrapped)))
     }
 
     pub(crate) fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
@@ -453,7 +470,7 @@ impl ReferenceExecutor {
         let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some((rows, cols)) = nested_list_shape(session, term)
         else {
-            return Ok(Slot::Term(push_application(session, "Size", vec![term])));
+            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Size, vec![term])));
         };
         let r = session.builder().int(rows as i64, Default::default());
         let c = session.builder().int(cols as i64, Default::default());

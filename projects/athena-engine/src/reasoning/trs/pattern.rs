@@ -1,12 +1,13 @@
 //! [`TermPattern`]：内部 TRS 模式本体（Living `27` · 无方言表面名 · 无字符串 head）。
 
-use athena_types::{CollectionKind, DomainId, OperatorId, PredicateId, SymbolId, TermId, ValueTypeId};
+use athena_ir::ApplicationHead;
+use athena_types::{CollectionKind, DomainId, PredicateId, SymbolId, TermId, ValueTypeId};
 
 /// 模式约束（闭集身份，禁止 `head_name: String`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatternConstraint {
-    /// 算子身份。
-    Operator(OperatorId),
+    /// 算子身份（semantic or extension head）。
+    Operator(ApplicationHead),
     /// 值类型。
     ValueType(ValueTypeId),
     /// 集合种类。
@@ -35,8 +36,8 @@ pub enum TermPattern {
     Sequence(Vec<TermPattern>),
     /// 带算子身份的应用。
     Application {
-        /// 算子。
-        operator: OperatorId,
+        /// Semantic or extension head.
+        operator: ApplicationHead,
         /// 参数模式。
         arguments: Vec<TermPattern>,
     },

@@ -4,14 +4,14 @@ use athena_engine::domains::{
     linear_algebra::{MatrixValue, SolveDisposition},
     polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialFactorLimits, RingTable, factor_univariate},
     solve::{
-        BindingValue, BoundSymbol, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, RelationalOperators, SolveDomain,
-        SolveGoal, SolvePolicy, SolveProblem, adapt_univariate_factorization, assemble_solve_problem, execute_linear_system_goal,
-        normalize_relational_application, solve_linear_system_exact, solve_linear_system_machine, solve_univariate_polynomial_roots,
+        BindingValue, BoundSymbol, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, SolveDomain, SolveGoal, SolvePolicy,
+        SolveProblem, adapt_univariate_factorization, assemble_solve_problem, execute_linear_system_goal, normalize_relational_application,
+        solve_linear_system_exact, solve_linear_system_machine, solve_univariate_polynomial_roots,
     },
 };
-use athena_ir::{TermBuilder, TermNode, TermStore};
+use athena_ir::{SemanticOperator, TermBuilder, TermNode, TermStore};
 use athena_numeric::{Integer, Number, Rational};
-use athena_types::{AssumptionSetId, OperatorId, SourceSpan, SymbolId};
+use athena_types::{AssumptionSetId, SourceSpan, SymbolId};
 
 fn i(n: i64) -> Integer {
     Integer::from_i64(n)
@@ -128,9 +128,8 @@ fn normalize_equal_keeps_lhs_rhs() {
     let mut builder = TermBuilder::new(&mut arena);
     let lhs = builder.symbol_id(SymbolId(1), SourceSpan::default());
     let rhs = builder.number(Number::small_int(0), SourceSpan::default());
-    let eq = builder.application(OperatorId(0), vec![lhs, rhs], SourceSpan::default());
-    let ops = RelationalOperators::placeholder();
-    let c = normalize_relational_application(&arena, eq, &ops).unwrap();
+    let eq = builder.application_semantic(SemanticOperator::Equal, vec![lhs, rhs], SourceSpan::default());
+    let c = normalize_relational_application(&arena, eq).unwrap();
     match c {
         athena_engine::domains::solve::Constraint::Equation(e) => {
             assert_eq!(e.lhs, lhs);
@@ -148,13 +147,11 @@ fn assemble_problem_from_ir_and_dispatch_linear_goal() {
     let mut builder = TermBuilder::new(&mut arena);
     let x = builder.symbol_id(SymbolId(0), SourceSpan::default());
     let zero = builder.number(Number::small_int(0), SourceSpan::default());
-    let eq = builder.application(OperatorId(0), vec![x, zero], SourceSpan::default());
-    let ops = RelationalOperators::placeholder();
+    let eq = builder.application_semantic(SemanticOperator::Equal, vec![x, zero], SourceSpan::default());
     let unknowns = vec![BoundSymbol::free(SymbolId(0)), BoundSymbol::free(SymbolId(1))];
     let problem = assemble_solve_problem(
         &arena,
         &[eq],
-        &ops,
         unknowns.clone(),
         Vec::new(),
         SolveDomain::Rationals,

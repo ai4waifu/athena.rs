@@ -32,7 +32,6 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
             if changed { cc.list(out) } else { expr }
         }
         Shape::Application(op, args) => {
-            let head = cc.op_name(op).to_string();
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
             for a in args {
@@ -40,7 +39,7 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { cc.apply(&head, out) } else { expr }
+            if changed { cc.apply_head(op, out) } else { expr }
         }
     }
 }

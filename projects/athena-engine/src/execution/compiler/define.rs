@@ -262,7 +262,10 @@ impl ExecutionCompiler {
         if arguments.len() != 2 {
             return None;
         }
-        let name = session.operators.name(*head)?;
+        let name = match *head {
+            athena_ir::ApplicationHead::Extension(id) => session.operators.name(id)?,
+            athena_ir::ApplicationHead::Semantic(_) => return None,
+        };
         if name != "Define" {
             return None;
         }
