@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::ComputationStatus;
 
 #[test]
@@ -16,7 +17,7 @@ fn compile_and_execute_plus_integers() {
     let mut session = Session::new();
     let a = session.builder().int(2, Default::default());
     let b = session.builder().int(3, Default::default());
-    let plus = session.operators.intern("Plus");
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let term = session.builder().application(plus, vec![a, b], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("plus");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -34,7 +35,7 @@ fn compile_and_execute_less_chain() {
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(4, Default::default());
-    let less = session.operators.intern("Less");
+    let less = ApplicationHead::Semantic(SemanticOperator::Less);
     let term = session.builder().application(less, vec![a, b, c], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("less");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -59,7 +60,7 @@ fn compile_and_execute_list_with_plus() {
     let mut session = Session::new();
     let a = session.builder().int(2, Default::default());
     let b = session.builder().int(3, Default::default());
-    let plus = session.operators.intern("Plus");
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let sum = session.builder().application(plus, vec![a, b], Default::default());
     let c = session.builder().int(9, Default::default());
     let list = session.builder().list(vec![sum, c], Default::default());
@@ -82,7 +83,7 @@ fn compile_and_execute_list_with_plus() {
 fn compile_and_execute_abs_and_length() {
     let mut session = Session::new();
     let n = session.builder().int(-7, Default::default());
-    let abs = session.operators.intern("Abs");
+    let abs = ApplicationHead::Semantic(SemanticOperator::Abs);
     let abs_term = session.builder().application(abs, vec![n], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(abs_term)).expect("abs");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -94,7 +95,7 @@ fn compile_and_execute_abs_and_length() {
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
-    let length = session.operators.intern("Length");
+    let length = ApplicationHead::Semantic(SemanticOperator::Length);
     let length_term = session.builder().application(length, vec![list], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(length_term)).expect("length");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -112,10 +113,10 @@ fn compile_and_execute_first_rest_join() {
     let c = session.builder().int(3, Default::default());
     let left = session.builder().list(vec![a, b], Default::default());
     let right = session.builder().list(vec![c], Default::default());
-    let join = session.operators.intern("Join");
+    let join = ApplicationHead::Semantic(SemanticOperator::Join);
     let joined = session.builder().application(join, vec![left, right], Default::default());
-    let first = session.operators.intern("First");
-    let rest = session.operators.intern("Rest");
+    let first = ApplicationHead::Semantic(SemanticOperator::First);
+    let rest = ApplicationHead::Semantic(SemanticOperator::Rest);
     let first_term = session.builder().application(first, vec![joined], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(first_term)).expect("first");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -136,7 +137,7 @@ fn compile_and_execute_first_rest_join() {
 fn compile_and_execute_factorial() {
     let mut session = Session::new();
     let n = session.builder().int(5, Default::default());
-    let fact = session.operators.intern("Factorial");
+    let fact = ApplicationHead::Semantic(SemanticOperator::Factorial);
     let term = session.builder().application(fact, vec![n], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("factorial");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -152,7 +153,7 @@ fn compile_and_execute_factorial() {
 fn compile_and_execute_range_and_sqrt() {
     let mut session = Session::new();
     let n = session.builder().int(3, Default::default());
-    let range = session.operators.intern("Range");
+    let range = ApplicationHead::Semantic(SemanticOperator::Range);
     let term = session.builder().application(range, vec![n], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("range");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -163,7 +164,7 @@ fn compile_and_execute_range_and_sqrt() {
     }
 
     let four = session.builder().int(4, Default::default());
-    let sqrt = session.operators.intern("Sqrt");
+    let sqrt = ApplicationHead::Semantic(SemanticOperator::Sqrt);
     let term = session.builder().application(sqrt, vec![four], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sqrt");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -179,19 +180,19 @@ fn compile_and_execute_apply_and_size() {
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![one, two], Default::default());
-    let plus = session.builder().symbol("Plus", Default::default());
-    let apply = session.operators.intern("Apply");
+    let plus = session.builder().application_semantic(SemanticOperator::Add, vec![], Default::default());
+    let apply = ApplicationHead::Semantic(SemanticOperator::Apply);
     let term = session.builder().application(apply, vec![plus, list], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("apply");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3) => {}
-        other => panic!("expected Apply[Plus, List[1,2]] == 3, got {other:?}"),
+        other => panic!("expected Apply[Add, List[1,2]] == 3, got {other:?}"),
     }
 
     let row = session.builder().list(vec![one, two], Default::default());
     let matrix = session.builder().list(vec![row, row], Default::default());
-    let size = session.operators.intern("Size");
+    let size = ApplicationHead::Semantic(SemanticOperator::Size);
     let term = session.builder().application(size, vec![matrix], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("size");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -215,8 +216,8 @@ fn compile_and_execute_map_symbol() {
     let a = session.builder().int(-1, Default::default());
     let b = session.builder().int(4, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
-    let abs = session.builder().symbol("Abs", Default::default());
-    let map = session.operators.intern("Map");
+    let abs = session.builder().application_semantic(SemanticOperator::Abs, vec![], Default::default());
+    let map = ApplicationHead::Semantic(SemanticOperator::Map);
     let term = session.builder().application(map, vec![abs, list], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("map");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -240,7 +241,7 @@ fn compile_and_execute_map_symbol() {
 fn compile_and_execute_zeros_eye() {
     let mut session = Session::new();
     let two = session.builder().int(2, Default::default());
-    let zeros = session.operators.intern("Zeros");
+    let zeros = ApplicationHead::Semantic(SemanticOperator::Zeros);
     let term = session.builder().application(zeros, vec![two], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("zeros");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -264,7 +265,7 @@ fn compile_and_execute_zeros_eye() {
         other => panic!("expected Zeros[2] 2x2, got {other:?}"),
     }
 
-    let eye = session.operators.intern("Eye");
+    let eye = ApplicationHead::Semantic(SemanticOperator::Eye);
     let term = session.builder().application(eye, vec![two], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("eye");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -296,11 +297,11 @@ fn compile_and_execute_replace_all() {
     let x = session.builder().symbol("x", Default::default());
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
-    let plus = session.operators.intern("Plus");
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let expr = session.builder().application(plus, vec![x, one], Default::default());
-    let rule_op = session.operators.intern("Rule");
+    let rule_op = ApplicationHead::Semantic(SemanticOperator::Rule);
     let rule = session.builder().application(rule_op, vec![x, two], Default::default());
-    let replace = session.operators.intern("ReplaceAll");
+    let replace = ApplicationHead::Semantic(SemanticOperator::ReplaceAll);
     let term = session.builder().application(replace, vec![expr, rule], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("replace");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -314,17 +315,17 @@ fn compile_and_execute_replace_all() {
 fn compile_and_execute_simplify_pythagorean() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
-    let sin = session.operators.intern("Sin");
-    let cos = session.operators.intern("Cos");
-    let power = session.operators.intern("Power");
-    let plus = session.operators.intern("Plus");
+    let sin = ApplicationHead::Extension(session.operators.intern("Sin"));
+    let cos = ApplicationHead::Extension(session.operators.intern("Cos"));
+    let power = ApplicationHead::Semantic(SemanticOperator::Power);
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let two = session.builder().int(2, Default::default());
     let sin_x = session.builder().application(sin, vec![x], Default::default());
     let cos_x = session.builder().application(cos, vec![x], Default::default());
     let sin2 = session.builder().application(power, vec![sin_x, two], Default::default());
     let cos2 = session.builder().application(power, vec![cos_x, two], Default::default());
     let sum = session.builder().application(plus, vec![sin2, cos2], Default::default());
-    let simplify = session.operators.intern("Simplify");
+    let simplify = ApplicationHead::Semantic(SemanticOperator::Simplify);
     let term = session.builder().application(simplify, vec![sum], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("simplify");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -339,7 +340,7 @@ fn compile_and_execute_times_zero_and_cos_pi() {
     let mut session = Session::new();
     let zero = session.builder().int(0, Default::default());
     let x = session.builder().symbol("x", Default::default());
-    let times = session.operators.intern("Times");
+    let times = ApplicationHead::Semantic(SemanticOperator::Multiply);
     let term = session.builder().application(times, vec![zero, x], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("times0");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -349,7 +350,7 @@ fn compile_and_execute_times_zero_and_cos_pi() {
     }
 
     let pi = session.builder().symbol("Pi", Default::default());
-    let cos = session.operators.intern("Cos");
+    let cos = ApplicationHead::Extension(session.operators.intern("Cos"));
     let term = session.builder().application(cos, vec![pi], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cos");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -365,8 +366,8 @@ fn compile_and_execute_power_zero_and_times_one_residual() {
     let x = session.builder().symbol("x", Default::default());
     let zero = session.builder().int(0, Default::default());
     let two = session.builder().int(2, Default::default());
-    let power = session.operators.intern("Power");
-    let times = session.operators.intern("Times");
+    let power = ApplicationHead::Semantic(SemanticOperator::Power);
+    let times = ApplicationHead::Semantic(SemanticOperator::Multiply);
     let pow = session.builder().application(power, vec![x, zero], Default::default());
     let term = session.builder().application(times, vec![two, pow], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("power0");
@@ -377,14 +378,14 @@ fn compile_and_execute_power_zero_and_times_one_residual() {
     }
 
     let one = session.builder().int(1, Default::default());
-    let cosh = session.operators.intern("Cosh");
+    let cosh = ApplicationHead::Extension(session.operators.intern("Cosh"));
     let cosh_x = session.builder().application(cosh, vec![x], Default::default());
     let term = session.builder().application(times, vec![cosh_x, one], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cosh");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if session.operators.name(*head) == Some("Cosh") && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
+            if matches!(*head, ApplicationHead::Extension(id) if session.operators.name(id) == Some("Cosh")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
         other => panic!("expected Times[Cosh[x], 1] == Cosh[x], got {other:?}"),
     }
 
@@ -396,7 +397,7 @@ fn compile_and_execute_power_zero_and_times_one_residual() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if session.operators.name(*head) == Some("Power")
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Power))
                 && arguments.len() == 2
                 && session.arena.structural_eq(arguments[0], x)
                 && matches!(
@@ -413,8 +414,8 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
     let x = session.builder().symbol("x", Default::default());
     let two = session.builder().int(2, Default::default());
     let three = session.builder().int(3, Default::default());
-    let times = session.operators.intern("Times");
-    let plus = session.operators.intern("Plus");
+    let times = ApplicationHead::Semantic(SemanticOperator::Multiply);
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let t1 = session.builder().application(times, vec![two, x], Default::default());
     let t2 = session.builder().application(times, vec![three, x], Default::default());
     let sum = session.builder().application(plus, vec![t1, t2], Default::default());
@@ -422,7 +423,7 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if session.operators.name(*head) == Some("Times")
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Multiply))
                 && arguments.len() == 2
                 && matches!(
                     session.arena.get(arguments[0]),
@@ -439,7 +440,7 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     // 2*(x+1) → 2x+2
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
-        Some(TermNode::Application { head, arguments }) if session.operators.name(*head) == Some("Plus") && arguments.len() == 2 => {}
+        Some(TermNode::Application { head, arguments }) if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Add)) && arguments.len() == 2 => {}
         other => panic!("expected distribute to Plus, got {other:?}"),
     }
 }
@@ -448,13 +449,13 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
 fn compile_unknown_head_stays_residual() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
-    let head = session.operators.intern("Foo");
+    let head = ApplicationHead::Extension(session.operators.intern("Foo"));
     let term = session.builder().application(head, vec![x], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("foo");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if session.operators.name(*head) == Some("Foo") && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
+            if matches!(*head, ApplicationHead::Extension(id) if session.operators.name(id) == Some("Foo")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
         other => panic!("expected Foo[x] residual, got {other:?}"),
     }
 }

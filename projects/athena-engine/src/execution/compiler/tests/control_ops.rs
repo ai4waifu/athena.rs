@@ -1,5 +1,6 @@
 use super::super::*;
 use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::ComputationStatus;
 
 #[test]
@@ -51,7 +52,7 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
     use crate::api::request::SessionCommand;
 
     let mut session = Session::new();
-    let plus = session.operators.intern("Plus");
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(1, Default::default());
     let rhs = session.builder().application(plus, vec![a, b], Default::default());
@@ -220,8 +221,8 @@ fn compile_and_execute_term_counted_loop_range() {
     let var = session.builder().symbol("i", Default::default());
     let one = session.builder().int(1, Default::default());
     let three = session.builder().int(3, Default::default());
-    let range_op = session.operators.intern("Range");
-    let loop_op = session.operators.intern("CountedLoop");
+    let range_op = ApplicationHead::Semantic(SemanticOperator::Range);
+    let loop_op = ApplicationHead::Extension(session.operators.intern("CountedLoop"));
     let iter = session.builder().application(range_op, vec![one, three], Default::default());
     let term = session.builder().application(loop_op, vec![var, iter, var], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("counted range");
@@ -253,7 +254,7 @@ fn compile_and_execute_term_loop_while_zero() {
     let mut session = Session::new();
     let zero = session.builder().int(0, Default::default());
     let body = session.builder().int(1, Default::default());
-    let head = session.operators.intern("LoopWhile");
+    let head = ApplicationHead::Extension(session.operators.intern("LoopWhile"));
     let term = session.builder().application(head, vec![zero, body], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("loop term");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -335,8 +336,8 @@ fn compile_and_execute_recover_success_body() {
 #[test]
 fn compile_and_execute_term_recover_error_and_success() {
     let mut session = Session::new();
-    let recover = session.operators.intern("Recover");
-    let error = session.operators.intern("error");
+    let recover = ApplicationHead::Extension(session.operators.intern("Recover"));
+    let error = ApplicationHead::Extension(session.operators.intern("error"));
     let msg = session.builder().string("e", Default::default());
     let err_body = session.builder().application(error, vec![msg], Default::default());
     let one = session.builder().int(1, Default::default());
@@ -431,9 +432,9 @@ fn compile_and_execute_local_scope_shadows_session() {
 #[test]
 fn compile_and_execute_term_local_scope_with_define() {
     let mut session = Session::new();
-    let define = session.operators.intern("Define");
-    let plus = session.operators.intern("Plus");
-    let scope = session.operators.intern("LocalScope");
+    let define = ApplicationHead::Extension(session.operators.intern("Define"));
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
+    let scope = ApplicationHead::Extension(session.operators.intern("LocalScope"));
     let x = session.builder().symbol("x", Default::default());
     let one = session.builder().int(1, Default::default());
     let def = session.builder().application(define, vec![x, one], Default::default());
@@ -459,7 +460,7 @@ fn compile_and_execute_term_local_scope_with_define() {
 #[test]
 fn compile_and_execute_term_lexical_scope_bare_unique() {
     let mut session = Session::new();
-    let scope = session.operators.intern("LexicalScope");
+    let scope = ApplicationHead::Extension(session.operators.intern("LexicalScope"));
     let x = session.builder().symbol("x", Default::default());
     let locals = session.builder().list(vec![x], Default::default());
     let term = session.builder().application(scope, vec![locals, x], Default::default());
@@ -481,8 +482,8 @@ fn compile_and_execute_boolean_not_and() {
     let mut session = Session::new();
     let t = session.builder().boolean(true, Default::default());
     let f = session.builder().boolean(false, Default::default());
-    let and = session.operators.intern("And");
-    let not = session.operators.intern("Not");
+    let and = ApplicationHead::Semantic(SemanticOperator::And);
+    let not = ApplicationHead::Semantic(SemanticOperator::Not);
     let and_term = session.builder().application(and, vec![t, f], Default::default());
     let term = session.builder().application(not, vec![and_term], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("bool ops");
@@ -501,7 +502,7 @@ fn compile_and_execute_term_if() {
     let cond = session.builder().boolean(true, Default::default());
     let then_term = session.builder().int(11, Default::default());
     let else_term = session.builder().int(22, Default::default());
-    let if_op = session.operators.intern("If");
+    let if_op = ApplicationHead::Extension(session.operators.intern("If"));
     let term = session.builder().application(if_op, vec![cond, then_term, else_term], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("if");
     assert_eq!(module.regions[0].blocks.len(), 3);
@@ -516,14 +517,14 @@ fn compile_and_execute_sequence_and_hold() {
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
     let three = session.builder().int(3, Default::default());
-    let seq = session.operators.intern("Sequence");
+    let seq = ApplicationHead::Extension(session.operators.intern("Sequence"));
     let term = session.builder().application(seq, vec![one, two, three], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sequence");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(three));
 
-    let plus = session.operators.intern("Plus");
-    let hold = session.operators.intern("Hold");
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
+    let hold = ApplicationHead::Semantic(SemanticOperator::Hold);
     let inner = session.builder().application(plus, vec![one, one], Default::default());
     let held = session.builder().application(hold, vec![inner], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(held)).expect("hold");
@@ -531,7 +532,7 @@ fn compile_and_execute_sequence_and_hold() {
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Application { head, arguments })
-            if session.operators.name(*head) == Some("Hold")
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Hold))
                 && arguments.len() == 1
                 && session.arena.structural_eq(arguments[0], inner) => {}
         other => panic!("expected Hold[Plus[1,1]] unevaluated, got {other:?}"),
@@ -548,7 +549,7 @@ fn compile_and_execute_cond_picks_true_arm() {
     let three = session.builder().int(3, Default::default());
     let fals = session.builder().symbol("False", Default::default());
     let tru = session.builder().symbol("True", Default::default());
-    let cond = session.operators.intern("Cond");
+    let cond = ApplicationHead::Extension(session.operators.intern("Cond"));
     let term = session.builder().application(cond, vec![fals, one, tru, two, tru, three], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cond");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -561,9 +562,9 @@ fn compile_and_execute_term_define_in_sequence() {
     let x = session.builder().symbol("x", Default::default());
     let five = session.builder().int(5, Default::default());
     let one = session.builder().int(1, Default::default());
-    let define = session.operators.intern("Define");
-    let plus = session.operators.intern("Plus");
-    let seq = session.operators.intern("Sequence");
+    let define = ApplicationHead::Extension(session.operators.intern("Define"));
+    let plus = ApplicationHead::Semantic(SemanticOperator::Add);
+    let seq = ApplicationHead::Extension(session.operators.intern("Sequence"));
     let def = session.builder().application(define, vec![x, five], Default::default());
     let use_x = session.builder().application(plus, vec![x, one], Default::default());
     let term = session.builder().application(seq, vec![def, use_x], Default::default());
@@ -581,8 +582,8 @@ fn compile_and_execute_runtime_branch() {
     let one = session.builder().int(1, Default::default());
     let seven = session.builder().int(7, Default::default());
     let eight = session.builder().int(8, Default::default());
-    let equal = session.operators.intern("Equal");
-    let branch = session.operators.intern("Branch");
+    let equal = ApplicationHead::Semantic(SemanticOperator::Equal);
+    let branch = ApplicationHead::Extension(session.operators.intern("Branch"));
     let cond = session.builder().application(equal, vec![one, one], Default::default());
     let term = session.builder().application(branch, vec![cond, seven, eight], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("branch");
@@ -601,8 +602,8 @@ fn compile_and_execute_sameq_and_trueq() {
     let mut session = Session::new();
     let t = session.builder().boolean(true, Default::default());
     let f = session.builder().boolean(false, Default::default());
-    let same = session.operators.intern("SameQ");
-    let true_q = session.operators.intern("TrueQ");
+    let same = ApplicationHead::Semantic(SemanticOperator::Identical);
+    let true_q = ApplicationHead::Semantic(SemanticOperator::TrueQ);
     let same_term = session.builder().application(same, vec![t, f], Default::default());
     let term = session.builder().application(true_q, vec![same_term], Default::default());
     // TrueQ[SameQ[True,False]] == TrueQ[False] == False
@@ -616,7 +617,7 @@ fn compile_and_execute_sameq_and_trueq() {
 
     let a = session.builder().int(3, Default::default());
     let b = session.builder().int(3, Default::default());
-    let eq = session.operators.intern("Equal");
+    let eq = ApplicationHead::Semantic(SemanticOperator::Equal);
     let eq_term = session.builder().application(eq, vec![a, b], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(eq_term)).expect("equal");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");

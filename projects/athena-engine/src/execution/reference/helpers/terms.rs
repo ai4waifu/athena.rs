@@ -17,6 +17,7 @@ use crate::{
         },
     },
 };
+use athena_ir::TermBuilder;
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
     matches!(head, ApplicationHead::Semantic(o) if o == op)
@@ -174,6 +175,19 @@ pub(crate) fn range_int_terms(session: &mut Session, a: i64, b: i64, step: i64) 
 
 pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -> TermId {
     match session.arena.get(head) {
+        // 0-ary semantic / extension application used as an operator value (not a Symbol name).
+        Some(athena_ir::TermNode::Application {
+            head: ApplicationHead::Semantic(op),
+            arguments,
+        }) if arguments.is_empty() => push_semantic(session, *op, args),
+        Some(athena_ir::TermNode::Application {
+            head: ApplicationHead::Extension(id),
+            arguments,
+        }) if arguments.is_empty() => {
+            let id = *id;
+            let mut b = TermBuilder::new(&mut session.arena);
+            b.application_extension_id(id, args, athena_ir::TermNode::default_span())
+        }
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
             let name = session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
             push_application(session, &name, args)

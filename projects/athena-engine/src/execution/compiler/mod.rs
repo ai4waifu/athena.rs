@@ -487,7 +487,8 @@ impl ExecutionCompiler {
                         };
                         let hold_all = op == SemanticOperator::Function;
                         let hold_first = op == SemanticOperator::Product
-                            || (op == SemanticOperator::Sum && arg_terms.len() == 2);
+                            || (op == SemanticOperator::Sum && arg_terms.len() == 2)
+                            || matches!(op, SemanticOperator::Apply | SemanticOperator::Map);
                         let hold_second = matches!(op, SemanticOperator::CollectMatches | SemanticOperator::Matches)
                             && arg_terms.len() >= 2;
                         let mut args = Vec::with_capacity(arg_terms.len());

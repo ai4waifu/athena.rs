@@ -356,21 +356,33 @@ impl ReferenceExecutor {
         if symbol_name(session, func).is_some() {
             return true;
         }
-        matches!(
-            session.arena.get(func),
-            Some(athena_ir::TermNode::Application { head: op, arguments })
-                if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) && arguments.len() == 2
-        )
+        match session.arena.get(func) {
+            Some(athena_ir::TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Function),
+                arguments,
+            }) if arguments.len() == 2 => true,
+            Some(athena_ir::TermNode::Application {
+                head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_),
+                arguments,
+            }) if arguments.is_empty() => true,
+            _ => false,
+        }
     }
 
-    /// Apply `func` to one list element: symbol head or `Function[var, body]`.
+    /// Apply `func` to one list element: 0-ary operator value, symbol head, or `Function[var, body]`.
     fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
-        if let Some(name) = symbol_name(session, func) {
-            let mapped = push_application(session, &name, vec![item]);
-            return self.re_eval_term(session, mapped);
-        }
-        if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(func) {
-            if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) {
+        if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(func) {
+            if arguments.is_empty() {
+                let mapped = match *head {
+                    ApplicationHead::Semantic(op) => push_semantic(session, op, vec![item]),
+                    ApplicationHead::Extension(id) => {
+                        let mut b = athena_ir::TermBuilder::new(&mut session.arena);
+                        b.application_extension_id(id, vec![item], athena_ir::TermNode::default_span())
+                    }
+                };
+                return self.re_eval_term(session, mapped);
+            }
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Function)) {
                 let arguments = arguments.clone();
                 if let [var, body] = arguments.as_slice() {
                     if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
@@ -379,6 +391,10 @@ impl ReferenceExecutor {
                     }
                 }
             }
+        }
+        if let Some(name) = symbol_name(session, func) {
+            let mapped = push_application(session, &name, vec![item]);
+            return self.re_eval_term(session, mapped);
         }
         Err(diag("map_func_unsupported"))
     }

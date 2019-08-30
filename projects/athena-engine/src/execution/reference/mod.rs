@@ -605,8 +605,8 @@ mod tests {
     #[test]
     fn truthy_and_or_with_zero_one() {
         let mut session = Session::new();
-        let and = session.operators.intern("And");
-        let or = session.operators.intern("Or");
+        let and = athena_ir::ApplicationHead::Semantic(athena_ir::SemanticOperator::And);
+        let or = athena_ir::ApplicationHead::Semantic(athena_ir::SemanticOperator::Or);
         let z = session.builder().int(0, Default::default());
         let one = session.builder().int(1, Default::default());
         let and_term = session.builder().application(and, vec![z, one], Default::default());
@@ -632,7 +632,8 @@ mod tests {
     #[test]
     fn unknown_head_marks_partial_unknown() {
         let mut session = Session::new();
-        let foo = session.operators.intern("FooBar");
+        let foo_id = session.operators.intern("FooBar");
+        let foo = athena_ir::ApplicationHead::Extension(foo_id);
         let one = session.builder().int(1, Default::default());
         let term = session.builder().application(foo, vec![one], Default::default());
         let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
@@ -643,7 +644,10 @@ mod tests {
         assert!(loaded.diagnostics.is_empty());
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
-            Some(athena_ir::TermNode::Application { head, .. }) if session.operators.name(*head) == Some("FooBar") => {}
+            Some(athena_ir::TermNode::Application {
+                head: athena_ir::ApplicationHead::Extension(id),
+                ..
+            }) if session.operators.name(*id) == Some("FooBar") => {}
             other => panic!("expected residual FooBar[...], got {other:?}"),
         }
     }
