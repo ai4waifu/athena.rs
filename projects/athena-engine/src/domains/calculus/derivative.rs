@@ -1,5 +1,6 @@
 //! 会话 arena 上的符号求导（Living `25` L3 · `TermId` 进出）。
 
+use athena_ir::SemanticOperator;
 use athena_types::{Predicate, TermId};
 
 use crate::execution::builtins::registry::lookup_function;
@@ -33,30 +34,30 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
             match h.as_str() {
                 "Plus" => {
                     let ds = args.iter().map(|a| differentiate(cc, *a, var)).collect();
-                    cc.eval(cc.apply("Plus", ds))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Add, ds))
                 }
                 "Times" => {
                     let mut terms = Vec::new();
                     for i in 0..args.len() {
                         let mut factors = args.clone();
                         factors[i] = differentiate(cc, args[i], var);
-                        terms.push(cc.apply("Times", factors));
+                        terms.push(cc.apply_semantic(SemanticOperator::Multiply, factors));
                     }
-                    cc.eval(cc.apply("Plus", terms))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Add, terms))
                 }
                 "Power" if args.len() == 2 => {
                     let base = args[0];
                     let exp = args[1];
                     if let Some(n) = cc.int_exp(exp) {
                         let n1 = cc.in_(n - 1);
-                        let pow = cc.apply("Power", vec![base, n1]);
+                        let pow = cc.apply_semantic(SemanticOperator::Power, vec![base, n1]);
                         let d = differentiate(cc, base, var);
-                        cc.eval(cc.apply("Times", vec![cc.in_(n), pow, d]))
+                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(n), pow, d]))
                     }
                     else if let Some(nf) = cc.number_of(exp).map(|n| cc.copy(n)).and_then(|n| n.as_machine_f64()) {
-                        let base_pow = cc.apply("Power", vec![base, cc.real(nf - 1.0)]);
+                        let base_pow = cc.apply_semantic(SemanticOperator::Power, vec![base, cc.real(nf - 1.0)]);
                         let d = differentiate(cc, base, var);
-                        cc.eval(cc.apply("Times", vec![cc.real(nf), base_pow, d]))
+                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.real(nf), base_pow, d]))
                     }
                     else {
                         cc.apply("D", vec![expr, cc.symbol(var)])
@@ -65,18 +66,18 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
                 "Subtract" if args.len() == 2 => {
                     let d0 = differentiate(cc, args[0], var);
                     let d1 = differentiate(cc, args[1], var);
-                    let neg = cc.apply("Times", vec![cc.in_(-1), d1]);
-                    cc.eval(cc.apply("Plus", vec![d0, neg]))
+                    let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), d1]);
+                    cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![d0, neg]))
                 }
                 "Divide" if args.len() == 2 => {
                     let (a, b) = (args[0], args[1]);
                     let da = differentiate(cc, a, var);
                     let db = differentiate(cc, b, var);
-                    let t1 = cc.apply("Times", vec![da, b]);
-                    let t2 = cc.apply("Times", vec![cc.in_(-1), a, db]);
-                    let plus = cc.apply("Plus", vec![t1, t2]);
-                    let binv = cc.apply("Power", vec![b, cc.in_(-2)]);
-                    cc.eval(cc.apply("Times", vec![plus, binv]))
+                    let t1 = cc.apply_semantic(SemanticOperator::Multiply, vec![da, b]);
+                    let t2 = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), a, db]);
+                    let plus = cc.apply_semantic(SemanticOperator::Add, vec![t1, t2]);
+                    let binv = cc.apply_semantic(SemanticOperator::Power, vec![b, cc.in_(-2)]);
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![plus, binv]))
                 }
                 // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
                 "Abs" | "Sqrt" if args.len() == 1 => cc.apply("D", vec![expr, cc.symbol(var)]),
@@ -86,7 +87,7 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
                             if let Some(df) = def.unary_derivative {
                                 let outer = df(cc, args[0]);
                                 let inner = differentiate(cc, args[0], var);
-                                return cc.eval(cc.apply("Times", vec![outer, inner]));
+                                return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![outer, inner]));
                             }
                         }
                     }
@@ -108,10 +109,10 @@ pub fn differentiate_checked(
     if let Some((h, args)) = cc.application(expr) {
         if h == "Abs" && args.len() == 1 {
             let inner = args[0];
-            let abs = cc.apply("Abs", vec![inner]);
-            let binv = cc.apply("Power", vec![inner, cc.in_(-1)]);
+            let abs = cc.apply_semantic(SemanticOperator::Abs, vec![inner]);
+            let binv = cc.apply_semantic(SemanticOperator::Power, vec![inner, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
-            let candidate = cc.eval(cc.apply("Times", vec![abs, binv, d]));
+            let candidate = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![abs, binv, d]));
             let needs_nonzero = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
                 // `TermId(0)` 为桥接占位，直至 Abs 参数绑定落地。
@@ -121,11 +122,11 @@ pub fn differentiate_checked(
         }
         if h == "Sqrt" && args.len() == 1 {
             let inner = args[0];
-            let sqrt = cc.apply("Sqrt", vec![inner]);
-            let two_sqrt = cc.apply("Times", vec![cc.in_(2), sqrt]);
-            let binv = cc.apply("Power", vec![two_sqrt, cc.in_(-1)]);
+            let sqrt = cc.apply_semantic(SemanticOperator::Sqrt, vec![inner]);
+            let two_sqrt = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(2), sqrt]);
+            let binv = cc.apply_semantic(SemanticOperator::Power, vec![two_sqrt, cc.in_(-1)]);
             let d = differentiate(cc, inner, var);
-            let candidate = cc.eval(cc.apply("Times", vec![binv, d]));
+            let candidate = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![binv, d]));
             let needs_nonneg = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
             if needs_nonneg {
                 return ConditionalResult::with_unresolved(candidate, vec![unresolved(Predicate::NonNegative(athena_types::TermId(0)))]);

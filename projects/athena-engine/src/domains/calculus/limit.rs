@@ -1,5 +1,6 @@
 //! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · Living `25`）。
 
+use athena_ir::SemanticOperator;
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
@@ -140,8 +141,8 @@ fn try_lhopital_once(
     }
     let num_d = super::derivative::differentiate(cc, num, variable);
     let den_d = super::derivative::differentiate(cc, den, variable);
-    let inv = cc.apply("Power", vec![den_d, cc.in_(-1)]);
-    let ratio = cc.apply("Times", vec![num_d, inv]);
+    let inv = cc.apply_semantic(SemanticOperator::Power, vec![den_d, cc.in_(-1)]);
+    let ratio = cc.apply_semantic(SemanticOperator::Multiply, vec![num_d, inv]);
     let value = cc.eval(replace_symbol(cc, ratio, variable, point));
     if is_indeterminate_form(cc, value) || is_singular_form(cc, value) || contains_symbol(cc, value, variable) {
         return None;
@@ -206,10 +207,10 @@ fn try_onesided_simple_pole(
     if den_n.is_zero() && !num_n.is_zero() {
         let eps = cc.in_(1);
         let probe = match direction {
-            LimitDirection::FromAbove => cc.eval(cc.apply("Plus", vec![point, eps])),
+            LimitDirection::FromAbove => cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![point, eps])),
             LimitDirection::FromBelow => {
-                let neg = cc.apply("Times", vec![cc.in_(-1), eps]);
-                cc.eval(cc.apply("Plus", vec![point, neg]))
+                let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), eps]);
+                cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![point, neg]))
             }
             LimitDirection::TwoSided => return None,
         };
@@ -223,7 +224,7 @@ fn try_onesided_simple_pole(
             (Greater, Less) | (Less, Greater) => false,
             _ => return None,
         };
-        return Some(if positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) });
+        return Some(if positive { cc.symbol("Infinity") } else { cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")]) });
     }
     None
 }
@@ -252,7 +253,7 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
         if !positive && degree % 2 == 1 {
             sign_positive = !sign_positive;
         }
-        let value = if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
+        let value = if sign_positive { cc.symbol("Infinity") } else { cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")]) };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
     unevaluated_limit(
@@ -300,8 +301,8 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) 
                     Some((n, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => {
-                    let neg = cc.apply("Times", vec![cc.in_(-1), args[1]]);
-                    let rewritten = cc.apply("Plus", vec![args[0], neg]);
+                    let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), args[1]]);
+                    let rewritten = cc.apply_semantic(SemanticOperator::Add, vec![args[0], neg]);
                     polynomial_degree_leading(cc, rewritten, var)
                 }
                 _ => None,
@@ -318,7 +319,7 @@ fn limit_form(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, appr
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
         LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
-        LimitApproach::NegativeInfinity => cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]),
+        LimitApproach::NegativeInfinity => cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")]),
     };
     let spec = cc.list(vec![cc.symbol(variable), approach_term]);
     let mut args = vec![expression, spec];

@@ -1,5 +1,6 @@
 //! 常微分方程 — 带残差验证的一阶子集（arena 版 · Living `25`）。
 
+use athena_ir::SemanticOperator;
 use athena_numeric::{Number, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
@@ -45,7 +46,7 @@ impl DifferentialSolution {
     pub fn to_equal_term(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         let y = cc.symbol(&self.dependent);
         let lhs = cc.apply(&self.dependent, vec![y]);
-        cc.apply("Equal", vec![lhs, self.explicit])
+        cc.apply_semantic(SemanticOperator::Equal, vec![lhs, self.explicit])
     }
 }
 
@@ -79,11 +80,11 @@ pub fn solve_ode_checked(
     };
 
     let mut explicit = if let Some(a) = cc.number_of(rhs.f).map(|n| cc.copy(n)) {
-        let times = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
+        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
         cc.eval(times)
     }
     else if let Some(a) = match_times_const_y(cc, rhs.f, dependent) {
-        let times = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
+        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
         let exp = cc.apply("Exp", vec![cc.eval(times)]);
         exp
     }
@@ -94,7 +95,7 @@ pub fn solve_ode_checked(
                 reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),
             };
         }
-        cc.eval(cc.apply("Divide", vec![cc.num(q), cc.num(p)]))
+        cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![cc.num(q), cc.num(p)]))
     }
     else if let Some(sol) = try_rhs_independent_of_y(cc, rhs.f, dependent, independent) {
         sol
@@ -120,8 +121,8 @@ pub fn solve_ode_checked(
     let ivp_ok = match initial {
         Some((x0, y0)) => {
             let at = cc.eval(replace_symbol(cc, explicit, independent, x0));
-            let neg = cc.apply("Times", vec![cc.in_(-1), y0]);
-            let sum = cc.apply("Plus", vec![at, neg]);
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), y0]);
+            let sum = cc.apply_semantic(SemanticOperator::Add, vec![at, neg]);
             is_zero_term(cc, cc.eval(sum))
         }
         None => true,
@@ -154,23 +155,23 @@ pub fn solve_ode_checked(
 fn apply_ivp(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: TermId, particular: TermId, x0: TermId, y0: TermId) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
-        let ax0 = cc.eval(cc.apply("Times", vec![cc.num(cc.copy(&a)), x0]));
-        let c = cc.eval(cc.apply("Plus", vec![y0, cc.apply("Times", vec![cc.in_(-1), ax0])]));
-        let ax = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
-        return cc.eval(cc.apply("Plus", vec![ax, c]));
+        let ax0 = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&a)), x0]));
+        let c = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), ax0])]));
+        let ax = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
+        return cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![ax, c]));
     }
     // 解：y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(cc, f, dependent) {
-        let neg = cc.apply("Times", vec![cc.in_(-1), x0]);
-        let delta = cc.eval(cc.apply("Plus", vec![cc.symbol(independent), neg]));
-        let exp = cc.apply("Exp", vec![cc.apply("Times", vec![cc.num(a), delta])]);
-        return cc.eval(cc.apply("Times", vec![y0, exp]));
+        let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), x0]);
+        let delta = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(independent), neg]));
+        let exp = cc.apply("Exp", vec![cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), delta])]);
+        return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![y0, exp]));
     }
     // 仅含自变量：y' = g(x) → y = ∫g + C，C = y0 − F(x0)
     if !contains_symbol(cc, f, dependent) {
         let fx0 = cc.eval(replace_symbol(cc, particular, independent, x0));
-        let c = cc.eval(cc.apply("Plus", vec![y0, cc.apply("Times", vec![cc.in_(-1), fx0])]));
-        return cc.eval(cc.apply("Plus", vec![particular, c]));
+        let c = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), fx0])]));
+        return cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![particular, c]));
     }
     // 常数特解：必要时平移
     if cc.number_of(particular).is_some() {
@@ -183,8 +184,8 @@ fn residual_of(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: 
     let d = differentiate(cc, explicit, independent);
     let yp = cc.eval(d);
     let f_sub = cc.eval(replace_symbol(cc, f, dependent, explicit));
-    let neg = cc.apply("Times", vec![cc.in_(-1), f_sub]);
-    cc.eval(cc.apply("Plus", vec![yp, neg]))
+    let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), f_sub]);
+    cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![yp, neg]))
 }
 
 /// `y' = g(x)`：右端不含因变量。
@@ -207,21 +208,21 @@ fn try_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independ
     }
     if n == 2 {
         // 分离变量解：y = -1/(c·x)
-        let den = cc.eval(cc.apply("Times", vec![cc.num(c), cc.symbol(independent)]));
-        let inv = cc.apply("Power", vec![den, cc.in_(-1)]);
-        return Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), inv])));
+        let den = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), cc.symbol(independent)]));
+        let inv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
+        return Some(cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), inv])));
     }
     // 幂次分离：y = ((1−n)·c·x)^{1/(1−n)} — 仅当指数为 ±1 时构造，便于求值验证
     let one_minus_n = 1i64 - n;
     if one_minus_n == 0 {
         return None;
     }
-    let inner = cc.eval(cc.apply("Times", vec![cc.in_(one_minus_n), cc.num(c), cc.symbol(independent)]));
+    let inner = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(one_minus_n), cc.num(c), cc.symbol(independent)]));
     if one_minus_n == 1 {
         Some(inner)
     }
     else if one_minus_n == -1 {
-        Some(cc.eval(cc.apply("Power", vec![inner, cc.in_(-1)])))
+        Some(cc.eval(cc.apply_semantic(SemanticOperator::Power, vec![inner, cc.in_(-1)])))
     }
     else {
         None
@@ -237,7 +238,7 @@ fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, ind
     }
     if a.is_zero() {
         // 退化为 c y^n
-        let rhs = cc.apply("Times", vec![cc.num(b), cc.apply("Power", vec![cc.symbol(dependent), cc.in_(n)])]);
+        let rhs = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(b), cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(dependent), cc.in_(n)])]);
         let rhs = cc.eval(rhs);
         return try_power_of_y(cc, rhs, dependent, independent);
     }
@@ -246,8 +247,8 @@ fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, ind
     }
     if n == 2 {
         // 平衡解：y = -a/b
-        let div = cc.apply("Divide", vec![cc.num(a), cc.num(b)]);
-        return Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), div])));
+        let div = cc.apply_semantic(SemanticOperator::Divide, vec![cc.num(a), cc.num(b)]);
+        return Some(cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), div])));
     }
     None
 }
@@ -269,8 +270,8 @@ fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str,
     if cc.head_name(anti).is_some_and(|h| h == "Integrate") {
         return None;
     }
-    let inv = cc.apply("Power", vec![anti, cc.in_(-1)]);
-    Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), inv])))
+    let inv = cc.apply_semantic(SemanticOperator::Power, vec![anti, cc.in_(-1)]);
+    Some(cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), inv])))
 }
 
 fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, i64)> {
@@ -365,9 +366,9 @@ fn recognize_y_prime_equals(cc: &mut CalculusCtx<'_>, equation: TermId, dependen
     if h == "Equal" && args.len() == 2 {
         if let Some(p) = match_d_plus_p_y(cc, args[0], dependent, independent) {
             let q = cc.number_of(args[1]).map(|n| cc.copy(n)).unwrap_or_else(|| Number::small_int(0));
-            let py = cc.apply("Times", vec![cc.num(cc.copy(&p)), cc.symbol(dependent)]);
-            let neg = cc.apply("Times", vec![cc.in_(-1), py]);
-            let f = cc.eval(cc.apply("Plus", vec![cc.num(q), neg]));
+            let py = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&p)), cc.symbol(dependent)]);
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), py]);
+            let f = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![cc.num(q), neg]));
             return Some(FirstOrderRhs { f });
         }
     }

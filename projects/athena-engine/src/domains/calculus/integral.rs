@@ -1,5 +1,6 @@
 //! 会话 arena 上的不定 / 定积分（初等子集 · `TermId` 进出）。
 
+use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -17,18 +18,18 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
     match shape {
         crate::execution::shape::Shape::Number => {
             let n = cc.number_of(expr).map(|n| cc.copy(n)).expect("number");
-            cc.apply("Times", vec![cc.num(n), cc.symbol(var)])
+            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), cc.symbol(var)])
         }
         crate::execution::shape::Shape::String(_) | crate::execution::shape::Shape::Bool(_) | crate::execution::shape::Shape::Null => {
             cc.apply("Integrate", vec![expr, cc.symbol(var)])
         }
         crate::execution::shape::Shape::Symbol(s) => {
             if cc.symbol_is(s, var) {
-                let x2 = cc.apply("Power", vec![cc.symbol(var), cc.in_(2)]);
-                cc.eval(cc.apply("Divide", vec![x2, cc.in_(2)]))
+                let x2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(var), cc.in_(2)]);
+                cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![x2, cc.in_(2)]))
             }
             else {
-                cc.apply("Times", vec![expr, cc.symbol(var)])
+                cc.apply_semantic(SemanticOperator::Multiply, vec![expr, cc.symbol(var)])
             }
         }
         crate::execution::shape::Shape::Collection(items) => {
@@ -43,7 +44,7 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
             match h.as_str() {
                 "Plus" => {
                     let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
-                    cc.eval(cc.apply("Plus", iss))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Add, iss))
                 }
                 "Times" if args.len() == 2 => {
                     let (coeff, rest) = if cc.number_of(args[0]).is_some() {
@@ -56,20 +57,20 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                         return cc.apply("Integrate", vec![expr, cc.symbol(var)]);
                     };
                     let ir = integrate(cc, rest, var);
-                    cc.eval(cc.apply("Times", vec![coeff, ir]))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))
                 }
                 "Power" if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
                     if let Some(n) = cc.int_exp(args[1]) {
                         if n != -1 {
-                            let p = cc.apply("Power", vec![args[0], cc.in_(n + 1)]);
-                            return cc.eval(cc.apply("Divide", vec![p, cc.in_(n + 1)]));
+                            let p = cc.apply_semantic(SemanticOperator::Power, vec![args[0], cc.in_(n + 1)]);
+                            return cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![p, cc.in_(n + 1)]));
                         }
                     }
                     cc.apply("Integrate", vec![expr, cc.symbol(var)])
                 }
                 "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
                     let c = cc.apply("Cos", args.clone());
-                    cc.eval(cc.apply("Times", vec![cc.in_(-1), c]))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), c]))
                 }
                 "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Sin", args.clone()),
                 "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Exp", args.clone()),
@@ -103,15 +104,15 @@ pub fn definite_integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &
             if contains_symbol(cc, at_upper, var) || contains_symbol(cc, at_lower, var) {
                 return CalculusResult::Unevaluated { expression: echo(cc), reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid) };
             }
-            let neg = cc.apply("Times", vec![cc.in_(-1), at_lower]);
-            let value = cc.eval(cc.apply("Plus", vec![at_upper, neg]));
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![at_upper, neg]));
             CalculusResult::Exact { value, conditions }
         }
         CalculusResult::Conditional { value: antideriv, conditions } => {
             let at_upper = cc.eval(replace_symbol(cc, antideriv, var, upper));
             let at_lower = cc.eval(replace_symbol(cc, antideriv, var, lower));
-            let neg = cc.apply("Times", vec![cc.in_(-1), at_lower]);
-            let value = cc.eval(cc.apply("Plus", vec![at_upper, neg]));
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![at_upper, neg]));
             CalculusResult::Conditional { value, conditions }
         }
         CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated { expression: echo(cc), reason },

@@ -1,5 +1,6 @@
 //! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`）。
 
+use athena_ir::SemanticOperator;
 use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -202,7 +203,7 @@ pub fn divergence_checked(
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
         parts.push(cc.eval(part.value));
     }
-    let value = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
+    let value = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
     finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved)
 }
 
@@ -251,8 +252,8 @@ pub fn curl_checked(
 }
 
 fn sub_terms(cc: &mut CalculusCtx<'_>, a: TermId, b: TermId) -> TermId {
-    let neg = cc.apply("Times", vec![cc.in_(-1), b]);
-    cc.eval(cc.apply("Plus", vec![a, neg]))
+    let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), b]);
+    cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![a, neg]))
 }
 
 fn merge_conditions(conditions: &mut Vec<Condition>, unresolved: &mut Vec<Condition>, more_c: Vec<Condition>, more_u: Vec<Condition>) {

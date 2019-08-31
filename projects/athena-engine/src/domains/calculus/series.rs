@@ -1,5 +1,6 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
 
+use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -50,14 +51,14 @@ impl Series {
             if power == 1 {
                 return cc.symbol(&self.variable);
             }
-            return cc.apply("Power", vec![cc.symbol(&self.variable), cc.in_(power)]);
+            return cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(&self.variable), cc.in_(power)]);
         }
         let delta = if is_zero_term(cc, self.center) {
             cc.symbol(&self.variable)
         }
         else {
-            let neg = cc.apply("Times", vec![cc.in_(-1), self.center]);
-            let plus = cc.apply("Plus", vec![cc.symbol(&self.variable), neg]);
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), self.center]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(&self.variable), neg]);
             cc.eval(plus)
         };
         if power == 0 {
@@ -67,7 +68,7 @@ impl Series {
             delta
         }
         else {
-            cc.apply("Power", vec![delta, cc.in_(power)])
+            cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_(power)])
         }
     }
 
@@ -89,11 +90,11 @@ impl Series {
                 }
                 else {
                     let dp = self.delta_power(cc, *power);
-                    cc.eval(cc.apply("Times", vec![*coeff, dp]))
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![*coeff, dp]))
                 }
             })
             .collect();
-        if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) }
+        if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) }
     }
 }
 
@@ -110,7 +111,7 @@ pub fn taylor(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, cent
     else {
         // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
         let shifted_var = {
-            let plus = cc.apply("Plus", vec![cc.symbol(SHIFT), center]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(SHIFT), center]);
             cc.eval(plus)
         };
         replace_symbol(cc, expression, variable, shifted_var)
@@ -134,7 +135,7 @@ pub fn taylor(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, cent
                 reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
             };
         }
-        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.apply("Divide", vec![at_zero, cc.in_(factorial)])) };
+        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![at_zero, cc.in_(factorial)])) };
         if !is_zero_term(cc, coeff) {
             terms.push((coeff, n as i64));
         }
@@ -152,11 +153,11 @@ pub fn taylor(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, cent
             cc.symbol(variable)
         }
         else {
-            let neg = cc.apply("Times", vec![cc.in_(-1), center]);
-            let plus = cc.apply("Plus", vec![cc.symbol(variable), neg]);
+            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(variable), neg]);
             cc.eval(plus)
         };
-        let pow = cc.apply("Power", vec![delta, cc.in_((order + 1) as i64)]);
+        let pow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_((order + 1) as i64)]);
         Remainder::BigO(pow)
     };
 
@@ -172,8 +173,8 @@ pub fn laurent(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, cen
         cc.symbol(variable)
     }
     else {
-        let neg = cc.apply("Times", vec![cc.in_(-1), center]);
-        let plus = cc.apply("Plus", vec![cc.symbol(variable), neg]);
+        let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
+        let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(variable), neg]);
         cc.eval(plus)
     };
 
@@ -182,8 +183,8 @@ pub fn laurent(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, cen
             expression
         }
         else {
-            let dpow = cc.apply("Power", vec![delta, cc.in_(m as i64)]);
-            let times = cc.apply("Times", vec![expression, dpow]);
+            let dpow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_(m as i64)]);
+            let times = cc.apply_semantic(SemanticOperator::Multiply, vec![expression, dpow]);
             cc.eval(times)
         };
         match taylor(cc, cleared, variable, center, order.saturating_add(m)) {
@@ -214,7 +215,7 @@ fn remap_laurent_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &str
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            let pow = cc.apply("Power", vec![delta, cc.in_((order + 1) as i64)]);
+            let pow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_((order + 1) as i64)]);
             Remainder::BigO(pow)
         }
         Remainder::Unknown => Remainder::Unknown,
@@ -229,7 +230,7 @@ pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
     const T: &str = "__athena_asymp_t";
     let infinity = cc.symbol("Infinity");
     let t_sym = cc.symbol(T);
-    let inv = cc.apply("Power", vec![t_sym, cc.in_(-1)]);
+    let inv = cc.apply_semantic(SemanticOperator::Power, vec![t_sym, cc.in_(-1)]);
     let substituted = replace_symbol(cc, expression, variable, inv);
     let g = cc.eval(substituted);
     let g = clear_negative_powers_of_var(cc, g, T);
@@ -259,23 +260,23 @@ fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &st
             if cc.number_of(args[1]).is_some_and(|n| n.is_neg_one()) {
                 if let Some(k) = negative_valuation(cc, args[0], var) {
                     if k > 0 {
-                        let scale = cc.apply("Power", vec![cc.symbol(var), cc.in_(k as i64)]);
-                        let cleared_den = cc.eval(cc.apply("Times", vec![args[0], scale]));
-                        let den_inv = cc.apply("Power", vec![cleared_den, cc.in_(-1)]);
-                        return cc.eval(cc.apply("Times", vec![scale, den_inv]));
+                        let scale = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(var), cc.in_(k as i64)]);
+                        let cleared_den = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![args[0], scale]));
+                        let den_inv = cc.apply_semantic(SemanticOperator::Power, vec![cleared_den, cc.in_(-1)]);
+                        return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![scale, den_inv]));
                     }
                 }
             }
             let base = clear_negative_powers_of_var(cc, args[0], var);
-            cc.apply("Power", vec![base, args[1]])
+            cc.apply_semantic(SemanticOperator::Power, vec![base, args[1]])
         }
         "Plus" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.eval(cc.apply("Plus", parts))
+            cc.eval(cc.apply_semantic(SemanticOperator::Add, parts))
         }
         "Times" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.eval(cc.apply("Times", parts))
+            cc.eval(cc.apply_semantic(SemanticOperator::Multiply, parts))
         }
         _ => expr,
     }
@@ -338,7 +339,7 @@ fn remap_asymptotic_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            let pow = cc.apply("Power", vec![cc.symbol(variable), cc.in_(-(order as i64 + 1))]);
+            let pow = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(variable), cc.in_(-(order as i64 + 1))]);
             Remainder::BigO(pow)
         }
         Remainder::Unknown => Remainder::Unknown,
