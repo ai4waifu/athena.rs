@@ -7,10 +7,11 @@ use athena_engine::{
     execution::evaluate_term,
     runtime::{
         Session,
-        values::arena::{push_application_named, push_int, push_list, push_symbol_name},
+        values::arena::{push_application_named, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 use athena_types::BindingEvaluationPolicy;
+use athena_ir::SemanticOperator;
 
 type Tid = athena_types::TermId;
 
@@ -60,25 +61,33 @@ fn apply(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
     push_application_named(&mut c.s, head, args)
 }
 
+fn sem(op: SemanticOperator, args: Vec<Tid>, c: &mut C) -> Tid {
+    push_semantic(&mut c.s, op, args)
+}
+
+fn ext(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
+    push_application_named(&mut c.s, head, args)
+}
+
 #[test]
 fn plus_fold() {
     let mut c = C::new();
     let x = symbol("x", &mut c);
-    let e = apply("Plus", vec![i(1, &mut c), i(2, &mut c), x], &mut c);
-    assert_eq!(t(e, &mut c), "Plus[3, x]");
+    let e = sem(SemanticOperator::Add, vec![i(1, &mut c), i(2, &mut c), x], &mut c);
+    assert_eq!(t(e, &mut c), "Add[3, x]");
 }
 
 #[test]
 fn power_one() {
     let mut c = C::new();
-    let e = apply("Power", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    let e = sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "x");
 }
 
 #[test]
 fn list_eval() {
     let mut c = C::new();
-    let inner = apply("Plus", vec![i(2, &mut c), i(2, &mut c)], &mut c);
+    let inner = sem(SemanticOperator::Add, vec![i(2, &mut c), i(2, &mut c)], &mut c);
     let e = lst(vec![i(1, &mut c), inner], &mut c);
     assert_eq!(t(e, &mut c), "List[1, 4]");
 }
@@ -86,7 +95,7 @@ fn list_eval() {
 #[test]
 fn d_power() {
     let mut c = C::new();
-    let e = apply("D", vec![apply("Power", vec![symbol("x", &mut c), i(3, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e = ext("D", vec![sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(3, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r = t(e, &mut c);
     assert!(r.contains("x"), "got {r}");
 }
@@ -94,23 +103,23 @@ fn d_power() {
 #[test]
 fn pythagorean() {
     let mut c = C::new();
-    let sin2 = apply("Power", vec![apply("Sin", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
-    let cos2 = apply("Power", vec![apply("Cos", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
-    let e = apply("Simplify", vec![apply("Plus", vec![sin2, cos2], &mut c)], &mut c);
+    let sin2 = sem(SemanticOperator::Power, vec![ext("Sin", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
+    let cos2 = sem(SemanticOperator::Power, vec![ext("Cos", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
+    let e = sem(SemanticOperator::Simplify, vec![sem(SemanticOperator::Add, vec![sin2, cos2], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "1");
 }
 
 #[test]
 fn compound_expression_returns_last() {
     let mut c = C::new();
-    let e = apply("Sequence", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
+    let e = ext("Sequence", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
 #[test]
 fn integrate_power() {
     let mut c = C::new();
-    let e = apply("Integrate", vec![apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e = ext("Integrate", vec![sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(2, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r = t(e, &mut c);
     assert!(r.contains("x"), "got {r}");
 }
@@ -118,7 +127,7 @@ fn integrate_power() {
 #[test]
 fn map_sin_list() {
     let mut c = C::new();
-    let e = apply("Map", vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
+    let e = sem(SemanticOperator::Map, vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
     let r = t(e, &mut c);
     assert!(r.starts_with("List["), "got {r}");
 }
@@ -126,12 +135,12 @@ fn map_sin_list() {
 #[test]
 fn truthy_via_and_or() {
     let mut c = C::new();
-    assert_eq!(t(apply("And", vec![i(0, &mut c), i(1, &mut c)], &mut c), &mut c), "False");
-    assert_eq!(t(apply("And", vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
-    assert_eq!(t(apply("Or", vec![i(0, &mut c), i(0, &mut c)], &mut c), &mut c), "False");
-    assert_eq!(t(apply("Or", vec![i(0, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
-    assert_eq!(t(apply("And", vec![boolean(true, &mut c), boolean(false, &mut c)], &mut c), &mut c), "False");
-    assert_eq!(t(apply("Not", vec![boolean(true, &mut c)], &mut c), &mut c), "False");
+    assert_eq!(t(sem(SemanticOperator::And, vec![i(0, &mut c), i(1, &mut c)], &mut c), &mut c), "False");
+    assert_eq!(t(sem(SemanticOperator::And, vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
+    assert_eq!(t(sem(SemanticOperator::Or, vec![i(0, &mut c), i(0, &mut c)], &mut c), &mut c), "False");
+    assert_eq!(t(sem(SemanticOperator::Or, vec![i(0, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
+    assert_eq!(t(sem(SemanticOperator::And, vec![boolean(true, &mut c), boolean(false, &mut c)], &mut c), &mut c), "False");
+    assert_eq!(t(sem(SemanticOperator::Not, vec![boolean(true, &mut c)], &mut c), &mut c), "False");
 }
 
 
@@ -140,7 +149,7 @@ fn truthy_via_and_or() {
 fn unsupported_import_is_not_silent_value() {
     use athena_types::{ComputationStatus, DiagnosticCode};
     let mut c = C::new();
-    let e = apply("Import", vec![str_("x.csv", &mut c)], &mut c);
+    let e = ext("Import", vec![str_("x.csv", &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Invalid);
@@ -151,7 +160,7 @@ fn unsupported_import_is_not_silent_value() {
 fn unknown_head_is_unevaluated_not_exact_value() {
     use athena_types::ComputationStatus;
     let mut c = C::new();
-    let e = apply("FooBar", vec![i(1, &mut c)], &mut c);
+    let e = ext("FooBar", vec![i(1, &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Unknown);
@@ -162,11 +171,11 @@ fn unknown_head_is_unevaluated_not_exact_value() {
 fn if_true_branch_and_short_circuit() {
     use athena_types::DiagnosticCode;
     let mut c = C::new();
-    let cond = apply("Equal", vec![i(1, &mut c), i(1, &mut c)], &mut c);
-    let e = apply("Branch", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
+    let cond = sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c);
+    let e = ext("Branch", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "7");
     // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
-    let e = apply("Branch", vec![symbol("True", &mut c), i(7, &mut c), apply("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
+    let e = ext("Branch", vec![symbol("True", &mut c), i(7, &mut c), ext("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(term_debug(&c.s, o.term), "7");
     assert_eq!(o.kind, execution::EvalKind::Value);
@@ -177,9 +186,9 @@ fn if_true_branch_and_short_circuit() {
 fn if_false_and_null_and_non_boolean() {
     use athena_types::{ComputationStatus, DiagnosticCode};
     let mut c = C::new();
-    assert_eq!(t(apply("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
-    assert_eq!(t(apply("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
-    let e = apply("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
+    assert_eq!(t(ext("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
+    assert_eq!(t(ext("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
+    let e = ext("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Invalid);
@@ -192,14 +201,14 @@ fn symbol_true_false_null_canonicalize_to_typed_atoms() {
     assert_eq!(t(symbol("True", &mut c), &mut c), "True");
     assert_eq!(t(symbol("False", &mut c), &mut c), "False");
     assert_eq!(t(symbol("Null", &mut c), &mut c), "Null");
-    assert_eq!(t(apply("Equal", vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
+    assert_eq!(t(sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
 }
 
 #[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
-    assert_eq!(t(apply("Hold", vec![apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c), "Hold[Plus[1, 1]]");
-    assert_eq!(t(apply("Hold", vec![apply("Plus", vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c), "Hold[Plus[2, 3]]");
+    assert_eq!(t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c), "Hold[Add[1, 1]]");
+    assert_eq!(t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c), "Hold[Add[2, 3]]");
 }
 
 #[test]
@@ -218,15 +227,15 @@ fn cond_picks_first_true_branch() {
 #[test]
 fn while_false_skips_body() {
     let mut c = C::new();
-    let e = apply("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
+    let e = ext("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "Null");
 }
 
 #[test]
 fn compound_set_binds_for_later_stmts() {
     let mut c = C::new();
-    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    let e = apply("Sequence", vec![set, apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let e = ext("Sequence", vec![set, sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }
 
@@ -236,69 +245,69 @@ fn compound_set_binds_for_later_stmts() {
 fn for_range_last_value() {
     let mut c = C::new();
     let e =
-        apply("CountedLoop", vec![symbol("i", &mut c), apply("Range", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
+        ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
 #[test]
 fn for_accumulator_shares_compound_bindings() {
     let mut c = C::new();
-    let set0 = apply("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
-    let body = apply("Define", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
-    let f = apply("CountedLoop", vec![symbol("i", &mut c), apply("Range", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
-    let e = apply("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
+    let set0 = ext("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
+    let body = ext("Define", vec![symbol("s", &mut c), sem(SemanticOperator::Add, vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
+    let f = ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
+    let e = ext("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }
 
 #[test]
 fn compare_chain_less_expands_to_and() {
     let mut c = C::new();
-    let nested = apply("Less", vec![i(1, &mut c), i(2, &mut c)], &mut c);
-    let e = apply("Less", vec![nested, i(3, &mut c)], &mut c);
+    let nested = sem(SemanticOperator::Less, vec![i(1, &mut c), i(2, &mut c)], &mut c);
+    let e = sem(SemanticOperator::Less, vec![nested, i(3, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "True");
-    let nested = apply("Less", vec![i(1, &mut c), i(0, &mut c)], &mut c);
-    let e2 = apply("Less", vec![nested, i(3, &mut c)], &mut c);
+    let nested = sem(SemanticOperator::Less, vec![i(1, &mut c), i(0, &mut c)], &mut c);
+    let e2 = sem(SemanticOperator::Less, vec![nested, i(3, &mut c)], &mut c);
     assert_eq!(t(e2, &mut c), "False");
 }
 
 #[test]
 fn try_catch_on_error_and_success() {
     let mut c = C::new();
-    let err = apply("Recover", vec![apply("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
+    let err = ext("Recover", vec![ext("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(err, &mut c), "1");
-    let ok = apply("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
+    let ok = ext("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
     assert_eq!(t(ok, &mut c), "2");
 }
 
 #[test]
 fn with_module_block_local_bindings() {
     let locals = |c: &mut C| {
-        let l = lst(vec![apply("Define", vec![symbol("x", c), i(1, c)], c)], c);
-        let b = apply("Plus", vec![symbol("x", c), i(1, c)], c);
+        let l = lst(vec![ext("Define", vec![symbol("x", c), i(1, c)], c)], c);
+        let b = sem(SemanticOperator::Add, vec![symbol("x", c), i(1, c)], c);
         (l, b)
     };
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("LocalScope", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(ext("LocalScope", vec![l, b], &mut d), &mut d), "2");
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("LexicalScope", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(ext("LexicalScope", vec![l, b], &mut d), &mut d), "2");
     let mut d = C::new();
     let (l, b) = locals(&mut d);
-    assert_eq!(t(apply("DynamicScope", vec![l, b], &mut d), &mut d), "2");
+    assert_eq!(t(ext("DynamicScope", vec![l, b], &mut d), &mut d), "2");
 }
 
 
 #[test]
 fn session_set_persists_across_evaluate() {
     let mut c = C::new();
-    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
     assert_eq!(t(set, &mut c), "5");
-    let e = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
     // 无定义的新 session：x 保持自由符号。
     let mut d = C::new();
-    let e = apply("Plus", vec![symbol("x", &mut d), i(1, &mut d)], &mut d);
+    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut d), i(1, &mut d)], &mut d);
     let r = t(e, &mut d);
     assert!(r.contains("x"), "expected free x, got {r}");
 }
@@ -306,9 +315,9 @@ fn session_set_persists_across_evaluate() {
 #[test]
 fn session_compound_set_writes_definitions() {
     let mut c = C::new();
-    let set = apply("Define", vec![symbol("y", &mut c), i(3, &mut c)], &mut c);
-    let plus = apply("Plus", vec![symbol("y", &mut c), i(4, &mut c)], &mut c);
-    let e = apply("Sequence", vec![set, plus], &mut c);
+    let set = ext("Define", vec![symbol("y", &mut c), i(3, &mut c)], &mut c);
+    let plus = sem(SemanticOperator::Add, vec![symbol("y", &mut c), i(4, &mut c)], &mut c);
+    let e = ext("Sequence", vec![set, plus], &mut c);
     assert_eq!(t(e, &mut c), "7");
     assert_eq!(t(symbol("y", &mut c), &mut c), "3");
 }
@@ -325,7 +334,7 @@ fn session_setdelayed_evaluates_on_use() {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    let rhs = apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c);
+    let rhs = sem(SemanticOperator::Add, vec![i(1, &mut c), i(1, &mut c)], &mut c);
     let request = AthenaRequest::Command(SessionCommand::Define {
         symbol: symbol_id,
         value: rhs,
@@ -349,31 +358,31 @@ fn session_pattern_dispatch_rule() {
     };
     let f_op = c.s.operators.intern("f");
     let f_sym = c.s.arena.symbols_mut().intern("f");
-    let rhs = apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
+    let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
     c.s.defs.register_rule(
         f_sym,
         TermPattern::Application {
-            operator: f_op,
+            operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
         },
         rhs,
     );
-    assert_eq!(t(apply("f", vec![i(3, &mut c)], &mut c), &mut c), "9");
+    assert_eq!(t(ext("f", vec![i(3, &mut c)], &mut c), &mut c), "9");
 }
 
 #[test]
 fn compare_list_scalar_broadcasts() {
     let mut c = C::new();
-    let e = apply("Less", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(2, &mut c)], &mut c);
+    let e = sem(SemanticOperator::Less, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(2, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "List[True, False, False]");
 }
 
 #[test]
 fn module_bare_local_is_renamed_unique() {
     let mut c = C::new();
-    let e1 = apply("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e1 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r1 = t(e1, &mut c);
-    let e2 = apply("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e2 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r2 = t(e2, &mut c);
     assert!(r1.starts_with("x$"), "got {r1}");
     assert!(r2.starts_with("x$"), "got {r2}");
@@ -383,11 +392,11 @@ fn module_bare_local_is_renamed_unique() {
 #[test]
 fn module_local_does_not_clobber_session() {
     let mut c = C::new();
-    let set = apply("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
+    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
     out(set, &mut c);
-    let locals = lst(vec![apply("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
-    let body = apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    let e = apply("LexicalScope", vec![locals, body], &mut c);
+    let locals = lst(vec![ext("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let body = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
+    let e = ext("LexicalScope", vec![locals, body], &mut c);
     assert_eq!(t(e, &mut c), "2");
     // Session 级 x 仍为 5。
     assert_eq!(t(symbol("x", &mut c), &mut c), "5");
@@ -397,9 +406,9 @@ fn module_local_does_not_clobber_session() {
 fn nested_module_names_do_not_collide() {
     let mut c = C::new();
     let inner_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let inner = apply("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
+    let inner = ext("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
     let outer_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let e = apply("LexicalScope", vec![outer_locals, inner], &mut c);
+    let e = ext("LexicalScope", vec![outer_locals, inner], &mut c);
     let r = t(e, &mut c);
     assert!(r.starts_with("x$"), "got {r}");
 }
@@ -416,7 +425,7 @@ fn dispatch_literal_then_bind_fallback() {
     c.s.defs.register_rule(
         f_sym,
         TermPattern::Application {
-            operator: f_op,
+            operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Exact(one)],
         },
         ten,
@@ -426,35 +435,35 @@ fn dispatch_literal_then_bind_fallback() {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    let rhs2 = apply("Times", vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
+    let rhs2 = sem(SemanticOperator::Multiply, vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
     c.s.defs.register_rule(
         f_sym,
         TermPattern::Application {
-            operator: f_op,
+            operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
         },
         rhs2,
     );
-    assert_eq!(t(apply("f", vec![i(1, &mut c)], &mut c), &mut c), "10");
-    assert_eq!(t(apply("f", vec![i(5, &mut c)], &mut c), &mut c), "10");
+    assert_eq!(t(ext("f", vec![i(1, &mut c)], &mut c), &mut c), "10");
+    assert_eq!(t(ext("f", vec![i(5, &mut c)], &mut c), &mut c), "10");
 }
 
 #[test]
 fn replace_all_literal() {
     let mut c = C::new();
-    let rule = apply("Rule", vec![symbol("x", &mut c), i(9, &mut c)], &mut c);
-    let e = apply("ReplaceAll", vec![apply("Plus", vec![symbol("x", &mut c), i(1, &mut c)], &mut c), rule], &mut c);
+    let rule = sem(SemanticOperator::Rule, vec![symbol("x", &mut c), i(9, &mut c)], &mut c);
+    let e = sem(SemanticOperator::ReplaceAll, vec![sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c), rule], &mut c);
     assert_eq!(t(e, &mut c), "10");
 }
 
 #[test]
 fn apply_and_join_and_length() {
     let mut c = C::new();
-    let e = apply("Apply", vec![symbol("Plus", &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    let e = sem(SemanticOperator::Apply, vec![sem(SemanticOperator::Add, vec![], &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
-    let e = apply("Join", vec![lst(vec![i(1, &mut c)], &mut c), lst(vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    let e = sem(SemanticOperator::Join, vec![lst(vec![i(1, &mut c)], &mut c), lst(vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "List[1, 2, 3]");
-    let e = apply("Length", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    let e = sem(SemanticOperator::Length, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
 
@@ -484,7 +493,7 @@ fn cases_filters_by_value_type_pattern() {
 #[test]
 fn array_sum_vector_and_matrix() {
     let mut c = C::new();
-    let e = apply("Sum", vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    let e = sem(SemanticOperator::Sum, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
 }
 
@@ -492,8 +501,8 @@ fn array_sum_vector_and_matrix() {
 fn det_and_size() {
     let mut c = C::new();
     let m = lst(vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), lst(vec![i(3, &mut c), i(4, &mut c)], &mut c)], &mut c);
-    assert_eq!(t(apply("Det", vec![m.clone()], &mut c), &mut c), "-2");
-    let r = t(apply("Size", vec![m], &mut c), &mut c);
+    assert_eq!(t(sem(SemanticOperator::Determinant, vec![m.clone()], &mut c), &mut c), "-2");
+    let r = t(sem(SemanticOperator::Size, vec![m], &mut c), &mut c);
     assert!(r.contains("List[2, 2]"), "got {r}");
 }
 
@@ -502,7 +511,7 @@ fn linear_solve_column_vector() {
     let mut c = C::new();
     let m = lst(vec![lst(vec![i(2, &mut c), i(0, &mut c)], &mut c), lst(vec![i(0, &mut c), i(2, &mut c)], &mut c)], &mut c);
     let b = lst(vec![lst(vec![i(4, &mut c)], &mut c), lst(vec![i(6, &mut c)], &mut c)], &mut c);
-    let e = apply("LinearSolve", vec![m, b], &mut c);
+    let e = ext("LinearSolve", vec![m, b], &mut c);
     let r = t(e, &mut c);
     assert!(r.contains("List[2]"), "got {r}");
 }
@@ -515,9 +524,9 @@ fn machine_trig_at_real_points() {
         let span = athena_ir::TermNode::default_span();
         c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Number(athena_numeric::NumericValue::machine(0.0))), span)
     };
-    let e = apply("Sin", vec![zero], &mut c);
+    let e = ext("Sin", vec![zero], &mut c);
     assert_eq!(t(e, &mut c), "0");
-    let e = apply("Cos", vec![symbol("Pi", &mut c)], &mut c);
+    let e = ext("Cos", vec![symbol("Pi", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "-1");
 }
 
@@ -527,7 +536,7 @@ fn depth_limit_returns_unevaluated() {
     let mut c = C::new();
     let cond = i(0, &mut c);
     let body = i(1, &mut c);
-    let e = apply("LoopWhile", vec![cond, body], &mut c);
+    let e = ext("LoopWhile", vec![cond, body], &mut c);
     assert_eq!(t(e, &mut c), "Null");
 }
 
@@ -535,7 +544,7 @@ fn depth_limit_returns_unevaluated() {
 fn sum_over_iterator_folds() {
     let mut c = C::new();
     let iter = lst(vec![symbol("k", &mut c), i(1, &mut c), i(4, &mut c)], &mut c);
-    let e = apply("Sum", vec![apply("Power", vec![symbol("k", &mut c), i(2, &mut c)], &mut c), iter], &mut c);
+    let e = sem(SemanticOperator::Sum, vec![sem(SemanticOperator::Power, vec![symbol("k", &mut c), i(2, &mut c)], &mut c), iter], &mut c);
     assert_eq!(t(e, &mut c), "30");
 }
 
