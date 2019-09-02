@@ -42,11 +42,11 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                 return expr;
             };
             match h.as_str() {
-                "Plus" => {
+                "Add" => {
                     let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
                     cc.eval(cc.apply_semantic(SemanticOperator::Add, iss))
                 }
-                "Times" if args.len() == 2 => {
+                "Multiply" if args.len() == 2 => {
                     let (coeff, rest) = if cc.number_of(args[0]).is_some() {
                         (args[0], args[1])
                     }

@@ -209,7 +209,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
     }
     let (h, args) = cc.application(expr)?;
     match h.as_str() {
-        "Plus" => {
+        "Add" => {
             let mut parts = Vec::new();
             let mut roc_bound = Number::small_int(0);
             for a in args {
@@ -227,7 +227,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
             let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
             Some((body, RegionOfConvergence::re_s_greater(cc, s, roc_bound)))
         }
-        "Times" if args.len() == 2 => {
+        "Multiply" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = laplace_one(cc, args[1], t, s)?;
                 let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
@@ -287,7 +287,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
 fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     let (h, args) = cc.application(expr)?;
     match h.as_str() {
-        "Plus" => {
+        "Add" => {
             let mut parts = Vec::new();
             for a in args {
                 let (fa, roc) = fourier_one(cc, a, t, omega)?;
@@ -299,7 +299,7 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
             let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
             Some((body, RegionOfConvergence::real_line(cc, omega)))
         }
-        "Times" if args.len() == 2 => {
+        "Multiply" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = fourier_one(cc, args[1], t, omega)?;
                 let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
@@ -390,7 +390,7 @@ fn is_unit_step(cc: &CalculusCtx<'_>, term: TermId, t: &str) -> bool {
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
 fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
     let (h, args) = cc.application(term)?;
-    if h != "Times" || args.len() != 2 {
+    if h != "Multiply" || args.len() != 2 {
         return None;
     }
     let coeff = if is_abs_of(cc, args[1], var) {
@@ -420,7 +420,7 @@ fn is_abs_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
 /// `Times[-a, Power[t, 2]]`，返回 a>0。
 fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
     let (h, args) = cc.application(term)?;
-    if h != "Times" || args.len() != 2 {
+    if h != "Multiply" || args.len() != 2 {
         return None;
     }
     let coeff = if is_square_of(cc, args[1], var) {
@@ -462,7 +462,7 @@ fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> O
         return Some(Number::small_int(1));
     }
     let (h, args) = cc.application(term)?;
-    if h == "Times" && args.len() == 2 {
+    if h == "Multiply" && args.len() == 2 {
         if is_symbol_named(cc, args[1], var) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }
@@ -498,7 +498,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
     }
     let (h, args) = cc.application(expr)?;
     match h.as_str() {
-        "Plus" => {
+        "Add" => {
             let mut parts = Vec::new();
             let mut radius = Number::small_int(0);
             let mut all_entire = true;
@@ -528,7 +528,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
             let roc = if all_entire { RegionOfConvergence::entire_plane(cc, z) } else { RegionOfConvergence::abs_z_greater(cc, z, radius) };
             Some((body, roc))
         }
-        "Times" if args.len() == 2 => {
+        "Multiply" if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = z_one(cc, args[1], n, z)?;
                 let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));

@@ -101,7 +101,7 @@ fn is_sinc_form(cc: &CalculusCtx<'_>, expression: TermId, variable: &str) -> boo
     };
     match h.as_str() {
         "Divide" if args.len() == 2 => is_sin_of_var(cc, args[0], variable) && is_symbol_named(cc, args[1], variable),
-        "Times" if args.len() == 2 => {
+        "Multiply" if args.len() == 2 => {
             (is_sin_of_var(cc, args[0], variable) && is_reciprocal_var(cc, args[1], variable))
                 || (is_sin_of_var(cc, args[1], variable) && is_reciprocal_var(cc, args[0], variable))
         }
@@ -154,7 +154,7 @@ fn split_quotient(cc: &CalculusCtx<'_>, expression: TermId) -> Option<(TermId, T
     let (h, args) = cc.application(expression)?;
     match h.as_str() {
         "Divide" if args.len() == 2 => Some((args[0], args[1])),
-        "Times" if args.len() == 2 => {
+        "Multiply" if args.len() == 2 => {
             if is_reciprocal_power(cc, args[1]) {
                 Some((args[0], reciprocal_base(cc, args[1])?))
             }
@@ -273,7 +273,7 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) 
         Shape::Application(_, _) => {
             let (h, args) = cc.application(expr)?;
             match h.as_str() {
-                "Plus" => {
+                "Add" => {
                     let mut best: Option<(i64, Number)> = None;
                     for a in args {
                         let (d, c) = polynomial_degree_leading(cc, a, var)?;
@@ -286,7 +286,7 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) 
                     }
                     best
                 }
-                "Times" => {
+                "Multiply" => {
                     let mut deg = 0i64;
                     let mut coeff = Number::small_int(1);
                     for a in args {
@@ -353,7 +353,7 @@ fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     };
     match h.as_str() {
         "Divide" if args.len() == 2 => cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.number_of(args[1]).is_some_and(|n| n.is_zero()),
-        "Times" => {
+        "Multiply" => {
             let has_zero = args.iter().any(|a| cc.number_of(*a).is_some_and(|n| n.is_zero()));
             let has_singular_pow = args.iter().any(|a| {
                 matches!(

@@ -283,7 +283,7 @@ fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str)
         let n = cc.int_exp(args[1])?;
         return Some((Number::small_int(1), n));
     }
-    if h == "Times" && args.len() == 2 {
+    if h == "Multiply" && args.len() == 2 {
         if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
             let (one, n) = match_scaled_power_of_y(cc, args[1], dependent)?;
             if !one.is_one() {
@@ -305,7 +305,7 @@ fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str)
 fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number, i64)> {
     // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
     let (h, args) = cc.application(f)?;
-    if h != "Plus" || args.len() != 2 {
+    if h != "Add" || args.len() != 2 {
         return None;
     }
     let mut linear: Option<Number> = None;
@@ -337,7 +337,7 @@ fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &st
 
 fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(TermId, i64)> {
     let (h, args) = cc.application(f)?;
-    if h != "Times" || args.len() != 2 {
+    if h != "Multiply" || args.len() != 2 {
         return None;
     }
     if let Some((one, n)) = match_scaled_power_of_y(cc, args[0], dependent) {
@@ -377,7 +377,7 @@ fn recognize_y_prime_equals(cc: &mut CalculusCtx<'_>, equation: TermId, dependen
 
 fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> Option<Number> {
     let (h, args) = cc.application(term)?;
-    if h != "Plus" || args.len() != 2 {
+    if h != "Add" || args.len() != 2 {
         return None;
     }
     if is_d_of(cc, args[0], dependent, independent) {
@@ -392,7 +392,7 @@ fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, ind
 fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number)> {
     // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
     let (h, args) = cc.application(f)?;
-    if h != "Plus" || args.len() != 2 {
+    if h != "Add" || args.len() != 2 {
         return None;
     }
     let (q_term, py_term) = if cc.number_of(args[0]).is_some() {
@@ -406,7 +406,7 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) 
     };
     let q = cc.copy(cc.number_of(q_term)?);
     let (th, targs) = cc.application(py_term)?;
-    if th != "Times" {
+    if th != "Multiply" {
         return None;
     }
     let mut coef = Number::small_int(1);
@@ -446,7 +446,7 @@ fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str) 
     else {
         return None;
     };
-    if h == "Times" && args.len() == 2 {
+    if h == "Multiply" && args.len() == 2 {
         if is_symbol_named(cc, args[1], dependent) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }

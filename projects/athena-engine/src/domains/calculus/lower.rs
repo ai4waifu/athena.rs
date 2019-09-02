@@ -127,7 +127,7 @@ fn approach_from_term(cc: &CalculusCtx<'_>, term: TermId) -> LimitApproach {
         return LimitApproach::PositiveInfinity;
     }
     if let Some((h, args)) = cc.application(term) {
-        if h == "Times" && args.len() == 2 && cc.int_exp(args[0]) == Some(-1) && is_symbol_infinity(cc, args[1]) {
+        if h == "Multiply" && args.len() == 2 && cc.int_exp(args[0]) == Some(-1) && is_symbol_infinity(cc, args[1]) {
             return LimitApproach::NegativeInfinity;
         }
     }

@@ -32,11 +32,11 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
                 return expr;
             };
             match h.as_str() {
-                "Plus" => {
+                "Add" => {
                     let ds = args.iter().map(|a| differentiate(cc, *a, var)).collect();
                     cc.eval(cc.apply_semantic(SemanticOperator::Add, ds))
                 }
-                "Times" => {
+                "Multiply" => {
                     let mut terms = Vec::new();
                     for i in 0..args.len() {
                         let mut factors = args.clone();

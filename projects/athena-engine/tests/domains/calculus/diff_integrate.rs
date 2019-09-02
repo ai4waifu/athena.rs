@@ -4,6 +4,7 @@ use std::cell::RefCell;
 
 use athena_types::{AssumptionSet, DiagnosticCode, Predicate, TermId};
 
+use athena_ir::SemanticOperator;
 use athena_engine::{
     api::AthenaEngine,
     diagnostics::term_summary::term_debug,
@@ -16,7 +17,7 @@ use athena_engine::{
     },
     runtime::{
         Session,
-        values::arena::{push_application_named, push_int, push_list, push_symbol_name},
+        values::arena::{push_application_named, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 
@@ -40,7 +41,22 @@ impl H {
     }
 
     fn ap(&self, head: &str, args: Vec<Tid>) -> Tid {
-        push_application_named(&mut self.s.borrow_mut(), head, args)
+        let mut s = self.s.borrow_mut();
+        let op = match head {
+            "Plus" => Some(SemanticOperator::Add),
+            "Times" => Some(SemanticOperator::Multiply),
+            "Subtract" => Some(SemanticOperator::Subtract),
+            "Divide" => Some(SemanticOperator::Divide),
+            "Power" => Some(SemanticOperator::Power),
+            "Equal" => Some(SemanticOperator::Equal),
+            "Abs" => Some(SemanticOperator::Abs),
+            "Sqrt" => Some(SemanticOperator::Sqrt),
+            _ => None,
+        };
+        match op {
+            Some(op) => push_semantic(&mut s, op, args),
+            None => push_application_named(&mut s, head, args),
+        }
     }
 
     fn lst(&self, items: Vec<Tid>) -> Tid {
@@ -430,7 +446,7 @@ fn limit_poly_at_infinity() {
     );
     match out {
         CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
-            assert_eq!(h.dbg(value), "Times[-1, Infinity]");
+            assert_eq!(h.dbg(value), "Multiply[-1, Infinity]");
         }
         other => panic!("expected -Infinity, got {other:?}"),
     }
@@ -471,7 +487,7 @@ fn onesided_simple_pole() {
     );
     match below {
         CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => {
-            assert_eq!(h.dbg(value), "Times[-1, Infinity]");
+            assert_eq!(h.dbg(value), "Multiply[-1, Infinity]");
         }
         other => panic!("expected -Infinity, got {other:?}"),
     }
@@ -740,7 +756,7 @@ fn ode_y_prime_equals_const() {
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, VerificationStatus::Verified { .. }));
-            assert_eq!(h.dbg(sol.explicit), "Times[2, x]");
+            assert_eq!(h.dbg(sol.explicit), "Multiply[2, x]");
         }
         other => panic!("expected verified ODE solution, got {other:?}"),
     }
@@ -820,7 +836,7 @@ fn ode_power_y_squared() {
     match out {
         CalculusResult::Exact { value: CalculusValue::DifferentialSolution(sol), .. } => {
             assert!(matches!(sol.verified, VerificationStatus::Verified { .. }));
-            assert_eq!(h.dbg(sol.explicit), "Times[-1, Power[x, -1]]");
+            assert_eq!(h.dbg(sol.explicit), "Multiply[-1, Power[x, -1]]");
         }
         other => panic!("expected y=-1/x, got {other:?}"),
     }
@@ -945,7 +961,7 @@ fn fourier_exp_abs_decay() {
             let text = h.dbg(tr.expression);
             assert!(text.contains('w'), "got {text}");
             // 2 / (1 + w^2)
-            assert_eq!(h.dbg(tr.expression), "Times[2, Power[Plus[1, Power[w, 2]], -1]]");
+            assert_eq!(h.dbg(tr.expression), "Multiply[2, Power[Add[1, Power[w, 2]], -1]]");
         }
         other => panic!("expected Fourier Transform, got {other:?}"),
     }

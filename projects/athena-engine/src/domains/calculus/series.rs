@@ -270,11 +270,11 @@ fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &st
             let base = clear_negative_powers_of_var(cc, args[0], var);
             cc.apply_semantic(SemanticOperator::Power, vec![base, args[1]])
         }
-        "Plus" => {
+        "Add" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
             cc.eval(cc.apply_semantic(SemanticOperator::Add, parts))
         }
-        "Times" => {
+        "Multiply" => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
             cc.eval(cc.apply_semantic(SemanticOperator::Multiply, parts))
         }
@@ -305,14 +305,14 @@ fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
                 return None;
             };
             match h.as_str() {
-                "Plus" => {
+                "Add" => {
                     let mut m = i64::MAX;
                     for a in args {
                         m = m.min(valuation(cc, a, var)?);
                     }
                     if m == i64::MAX { Some(0) } else { Some(m) }
                 }
-                "Times" => {
+                "Multiply" => {
                     let mut s = 0i64;
                     for a in args {
                         s = s.saturating_add(valuation(cc, a, var)?);
