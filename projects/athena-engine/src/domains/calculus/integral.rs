@@ -1,6 +1,6 @@
 //! 会话 arena 上的不定 / 定积分（初等子集 · `TermId` 进出）。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -36,47 +36,49 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
             let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
             cc.list(iss)
         }
-        crate::execution::shape::Shape::Application(_, _) => {
-            let Some((h, args)) = cc.application(expr)
-            else {
-                return expr;
-            };
-            match h.as_str() {
-                "Add" => {
-                    let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
-                    cc.eval(cc.apply_semantic(SemanticOperator::Add, iss))
-                }
-                "Multiply" if args.len() == 2 => {
-                    let (coeff, rest) = if cc.number_of(args[0]).is_some() {
-                        (args[0], args[1])
-                    }
-                    else if cc.number_of(args[1]).is_some() {
-                        (args[1], args[0])
-                    }
-                    else {
-                        return cc.apply("Integrate", vec![expr, cc.symbol(var)]);
-                    };
-                    let ir = integrate(cc, rest, var);
-                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))
-                }
-                "Power" if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
-                    if let Some(n) = cc.int_exp(args[1]) {
-                        if n != -1 {
-                            let p = cc.apply_semantic(SemanticOperator::Power, vec![args[0], cc.in_(n + 1)]);
-                            return cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![p, cc.in_(n + 1)]));
-                        }
-                    }
-                    cc.apply("Integrate", vec![expr, cc.symbol(var)])
-                }
-                "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
-                    let c = cc.apply("Cos", args.clone());
-                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), c]))
-                }
-                "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Sin", args.clone()),
-                "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Exp", args.clone()),
-                _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
+        crate::execution::shape::Shape::Application(head, args) => match head {
+            ApplicationHead::Semantic(SemanticOperator::Add) => {
+                let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
+                cc.eval(cc.apply_semantic(SemanticOperator::Add, iss))
             }
-        }
+            ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
+                let (coeff, rest) = if cc.number_of(args[0]).is_some() {
+                    (args[0], args[1])
+                }
+                else if cc.number_of(args[1]).is_some() {
+                    (args[1], args[0])
+                }
+                else {
+                    return cc.apply("Integrate", vec![expr, cc.symbol(var)]);
+                };
+                let ir = integrate(cc, rest, var);
+                cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))
+            }
+            ApplicationHead::Semantic(SemanticOperator::Power)
+                if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) =>
+            {
+                if let Some(n) = cc.int_exp(args[1]) {
+                    if n != -1 {
+                        let p = cc.apply_semantic(SemanticOperator::Power, vec![args[0], cc.in_(n + 1)]);
+                        return cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![p, cc.in_(n + 1)]));
+                    }
+                }
+                cc.apply("Integrate", vec![expr, cc.symbol(var)])
+            }
+            ApplicationHead::Extension(_) => {
+                let h = cc.op_name(head);
+                match h.as_str() {
+                    "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
+                        let c = cc.apply("Cos", args.clone());
+                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), c]))
+                    }
+                    "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Sin", args.clone()),
+                    "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Exp", args.clone()),
+                    _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
+                }
+            }
+            _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
+        },
     }
 }
 

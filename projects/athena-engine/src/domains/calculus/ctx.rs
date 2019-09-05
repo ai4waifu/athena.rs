@@ -68,12 +68,18 @@ impl<'a> CalculusCtx<'a> {
         }
     }
 
-    /// App 形态：(head 名, 参数)。
-    pub(crate) fn application(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
+    /// App 形态：(head, 参数) — typed head，禁止用字符串猜核心语义。
+    pub(crate) fn application_head(&self, id: TermId) -> Option<(ApplicationHead, Vec<TermId>)> {
         match self.shape(id)? {
-            Shape::Application(op, args) => Some((self.op_name(op), args)),
+            Shape::Application(op, args) => Some((op, args)),
             _ => None,
         }
+    }
+
+    /// App 形态：(head 显示名, 参数) — 仅扩展 / 诊断；核心算子请用 [`Self::application_head`]。
+    pub(crate) fn application(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
+        let (head, args) = self.application_head(id)?;
+        Some((self.op_name(head), args))
     }
 
     /// head 名（App · OrderedCollection · 符号）。

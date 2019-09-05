@@ -1,6 +1,6 @@
 //! 会话 arena 上的符号求导（Living `25` L3 · `TermId` 进出）。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Predicate, TermId};
 
 use crate::execution::builtins::registry::lookup_function;
@@ -26,76 +26,73 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
             let ds = items.iter().map(|i| differentiate(cc, *i, var)).collect();
             cc.list(ds)
         }
-        crate::execution::shape::Shape::Application(_, args) => {
-            let Some((h, args)) = cc.application(expr)
-            else {
-                return expr;
-            };
-            match h.as_str() {
-                "Add" => {
-                    let ds = args.iter().map(|a| differentiate(cc, *a, var)).collect();
-                    cc.eval(cc.apply_semantic(SemanticOperator::Add, ds))
+        crate::execution::shape::Shape::Application(head, args) => match head {
+            ApplicationHead::Semantic(SemanticOperator::Add) => {
+                let ds = args.iter().map(|a| differentiate(cc, *a, var)).collect();
+                cc.eval(cc.apply_semantic(SemanticOperator::Add, ds))
+            }
+            ApplicationHead::Semantic(SemanticOperator::Multiply) => {
+                let mut terms = Vec::new();
+                for i in 0..args.len() {
+                    let mut factors = args.clone();
+                    factors[i] = differentiate(cc, args[i], var);
+                    terms.push(cc.apply_semantic(SemanticOperator::Multiply, factors));
                 }
-                "Multiply" => {
-                    let mut terms = Vec::new();
-                    for i in 0..args.len() {
-                        let mut factors = args.clone();
-                        factors[i] = differentiate(cc, args[i], var);
-                        terms.push(cc.apply_semantic(SemanticOperator::Multiply, factors));
-                    }
-                    cc.eval(cc.apply_semantic(SemanticOperator::Add, terms))
+                cc.eval(cc.apply_semantic(SemanticOperator::Add, terms))
+            }
+            ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 => {
+                let base = args[0];
+                let exp = args[1];
+                if let Some(n) = cc.int_exp(exp) {
+                    let n1 = cc.in_(n - 1);
+                    let pow = cc.apply_semantic(SemanticOperator::Power, vec![base, n1]);
+                    let d = differentiate(cc, base, var);
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(n), pow, d]))
                 }
-                "Power" if args.len() == 2 => {
-                    let base = args[0];
-                    let exp = args[1];
-                    if let Some(n) = cc.int_exp(exp) {
-                        let n1 = cc.in_(n - 1);
-                        let pow = cc.apply_semantic(SemanticOperator::Power, vec![base, n1]);
-                        let d = differentiate(cc, base, var);
-                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(n), pow, d]))
-                    }
-                    else if let Some(nf) = cc.number_of(exp).map(|n| cc.copy(n)).and_then(|n| n.as_machine_f64()) {
-                        let base_pow = cc.apply_semantic(SemanticOperator::Power, vec![base, cc.real(nf - 1.0)]);
-                        let d = differentiate(cc, base, var);
-                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.real(nf), base_pow, d]))
-                    }
-                    else {
-                        cc.apply("D", vec![expr, cc.symbol(var)])
-                    }
+                else if let Some(nf) = cc.number_of(exp).map(|n| cc.copy(n)).and_then(|n| n.as_machine_f64()) {
+                    let base_pow = cc.apply_semantic(SemanticOperator::Power, vec![base, cc.real(nf - 1.0)]);
+                    let d = differentiate(cc, base, var);
+                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.real(nf), base_pow, d]))
                 }
-                "Subtract" if args.len() == 2 => {
-                    let d0 = differentiate(cc, args[0], var);
-                    let d1 = differentiate(cc, args[1], var);
-                    let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), d1]);
-                    cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![d0, neg]))
-                }
-                "Divide" if args.len() == 2 => {
-                    let (a, b) = (args[0], args[1]);
-                    let da = differentiate(cc, a, var);
-                    let db = differentiate(cc, b, var);
-                    let t1 = cc.apply_semantic(SemanticOperator::Multiply, vec![da, b]);
-                    let t2 = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), a, db]);
-                    let plus = cc.apply_semantic(SemanticOperator::Add, vec![t1, t2]);
-                    let binv = cc.apply_semantic(SemanticOperator::Power, vec![b, cc.in_(-2)]);
-                    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![plus, binv]))
-                }
-                // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
-                "Abs" | "Sqrt" if args.len() == 1 => cc.apply("D", vec![expr, cc.symbol(var)]),
-                _ => {
-                    if let Some(def) = lookup_function(&h) {
-                        if def.arity == 1 && args.len() == 1 {
-                            if let Some(df) = def.unary_derivative {
-                                let outer = df(cc, args[0]);
-                                let inner = differentiate(cc, args[0], var);
-                                return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![outer, inner]));
-                            }
-                        }
-                    }
-                    // 未知头部：保留 D，禁止静默当成 0。
+                else {
                     cc.apply("D", vec![expr, cc.symbol(var)])
                 }
             }
-        }
+            ApplicationHead::Semantic(SemanticOperator::Subtract) if args.len() == 2 => {
+                let d0 = differentiate(cc, args[0], var);
+                let d1 = differentiate(cc, args[1], var);
+                let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), d1]);
+                cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![d0, neg]))
+            }
+            ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
+                let (a, b) = (args[0], args[1]);
+                let da = differentiate(cc, a, var);
+                let db = differentiate(cc, b, var);
+                let t1 = cc.apply_semantic(SemanticOperator::Multiply, vec![da, b]);
+                let t2 = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), a, db]);
+                let plus = cc.apply_semantic(SemanticOperator::Add, vec![t1, t2]);
+                let binv = cc.apply_semantic(SemanticOperator::Power, vec![b, cc.in_(-2)]);
+                cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![plus, binv]))
+            }
+            // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
+            ApplicationHead::Semantic(SemanticOperator::Abs | SemanticOperator::Sqrt) if args.len() == 1 => {
+                cc.apply("D", vec![expr, cc.symbol(var)])
+            }
+            other => {
+                let h = cc.op_name(other);
+                if let Some(def) = lookup_function(&h) {
+                    if def.arity == 1 && args.len() == 1 {
+                        if let Some(df) = def.unary_derivative {
+                            let outer = df(cc, args[0]);
+                            let inner = differentiate(cc, args[0], var);
+                            return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![outer, inner]));
+                        }
+                    }
+                }
+                // 未知头部：保留 D，禁止静默当成 0。
+                cc.apply("D", vec![expr, cc.symbol(var)])
+            }
+        },
     }
 }
 
@@ -106,8 +103,8 @@ pub fn differentiate_checked(
     var: &str,
     assumptions: &athena_types::AssumptionSet,
 ) -> ConditionalResult<TermId> {
-    if let Some((h, args)) = cc.application(expr) {
-        if h == "Abs" && args.len() == 1 {
+    if let Some((head, args)) = cc.application_head(expr) {
+        if matches!(head, ApplicationHead::Semantic(SemanticOperator::Abs)) && args.len() == 1 {
             let inner = args[0];
             let abs = cc.apply_semantic(SemanticOperator::Abs, vec![inner]);
             let binv = cc.apply_semantic(SemanticOperator::Power, vec![inner, cc.in_(-1)]);
@@ -120,7 +117,7 @@ pub fn differentiate_checked(
             }
             return ConditionalResult::exact(candidate);
         }
-        if h == "Sqrt" && args.len() == 1 {
+        if matches!(head, ApplicationHead::Semantic(SemanticOperator::Sqrt)) && args.len() == 1 {
             let inner = args[0];
             let sqrt = cc.apply_semantic(SemanticOperator::Sqrt, vec![inner]);
             let two_sqrt = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(2), sqrt]);
