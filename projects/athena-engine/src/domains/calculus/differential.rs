@@ -1,6 +1,6 @@
 //! 常微分方程 — 带残差验证的一阶子集（arena 版 · Living `25`）。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_numeric::{Number, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
@@ -275,15 +275,15 @@ fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str,
 }
 
 fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, i64)> {
-    let Some((h, args)) = cc.application(f)
+    let Some((h, args)) = cc.application_head(f)
     else {
         return None;
     };
-    if h == "Power" && args.len() == 2 && is_symbol_named(cc, args[0], dependent) {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Power)) && args.len() == 2 && is_symbol_named(cc, args[0], dependent) {
         let n = cc.int_exp(args[1])?;
         return Some((Number::small_int(1), n));
     }
-    if h == "Multiply" && args.len() == 2 {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
         if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
             let (one, n) = match_scaled_power_of_y(cc, args[1], dependent)?;
             if !one.is_one() {
@@ -304,8 +304,8 @@ fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str)
 
 fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number, i64)> {
     // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
-    let (h, args) = cc.application(f)?;
-    if h != "Add" || args.len() != 2 {
+    let (h, args) = cc.application_head(f)?;
+    if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
         return None;
     }
     let mut linear: Option<Number> = None;
@@ -336,8 +336,8 @@ fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &st
 }
 
 fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(TermId, i64)> {
-    let (h, args) = cc.application(f)?;
-    if h != "Multiply" || args.len() != 2 {
+    let (h, args) = cc.application_head(f)?;
+    if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) || args.len() != 2 {
         return None;
     }
     if let Some((one, n)) = match_scaled_power_of_y(cc, args[0], dependent) {
@@ -355,15 +355,15 @@ fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -
 
 fn recognize_y_prime_equals(cc: &mut CalculusCtx<'_>, equation: TermId, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
     // 形态：Equal[D[y,x], rhs]
-    let (h, args) = cc.application(equation)?;
-    if h == "Equal" && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
+    let (h, args) = cc.application_head(equation)?;
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
         return Some(FirstOrderRhs { f: args[1] });
     }
-    if h == "Equal" && args.len() == 2 && is_d_of(cc, args[1], dependent, independent) {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 && is_d_of(cc, args[1], dependent, independent) {
         return Some(FirstOrderRhs { f: args[0] });
     }
     // 形态：Equal[Plus[D[y,x], Times[p,y]], q]  ⇒  y' = q - p y
-    if h == "Equal" && args.len() == 2 {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 {
         if let Some(p) = match_d_plus_p_y(cc, args[0], dependent, independent) {
             let q = cc.number_of(args[1]).map(|n| cc.copy(n)).unwrap_or_else(|| Number::small_int(0));
             let py = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&p)), cc.symbol(dependent)]);
@@ -376,8 +376,8 @@ fn recognize_y_prime_equals(cc: &mut CalculusCtx<'_>, equation: TermId, dependen
 }
 
 fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> Option<Number> {
-    let (h, args) = cc.application(term)?;
-    if h != "Add" || args.len() != 2 {
+    let (h, args) = cc.application_head(term)?;
+    if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
         return None;
     }
     if is_d_of(cc, args[0], dependent, independent) {
@@ -391,8 +391,8 @@ fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, ind
 
 fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number)> {
     // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
-    let (h, args) = cc.application(f)?;
-    if h != "Add" || args.len() != 2 {
+    let (h, args) = cc.application_head(f)?;
+    if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
         return None;
     }
     let (q_term, py_term) = if cc.number_of(args[0]).is_some() {
@@ -405,8 +405,8 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) 
         return None;
     };
     let q = cc.copy(cc.number_of(q_term)?);
-    let (th, targs) = cc.application(py_term)?;
-    if th != "Multiply" {
+    let (th, targs) = cc.application_head(py_term)?;
+    if !matches!(th, ApplicationHead::Semantic(SemanticOperator::Multiply)) {
         return None;
     }
     let mut coef = Number::small_int(1);
@@ -430,11 +430,11 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) 
 }
 
 fn is_d_of(cc: &CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> bool {
-    let Some((h, args)) = cc.application(term)
+    let Some((h, args)) = cc.application_head(term)
     else {
         return false;
     };
-    h == "D" && args.len() == 2 && is_symbol_named(cc, args[0], dependent) && is_symbol_named(cc, args[1], independent)
+    cc.extension_named(h, "D") && args.len() == 2 && is_symbol_named(cc, args[0], dependent) && is_symbol_named(cc, args[1], independent)
 }
 
 fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
@@ -442,11 +442,11 @@ fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
 }
 
 fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str) -> Option<Number> {
-    let Some((h, args)) = cc.application(term)
+    let Some((h, args)) = cc.application_head(term)
     else {
         return None;
     };
-    if h == "Multiply" && args.len() == 2 {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
         if is_symbol_named(cc, args[1], dependent) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }

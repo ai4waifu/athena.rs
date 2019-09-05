@@ -92,6 +92,11 @@ impl<'a> CalculusCtx<'a> {
         }
     }
 
+    /// Extension head display-name check (never used for core semantic ops).
+    pub(crate) fn extension_named(&self, head: ApplicationHead, name: &str) -> bool {
+        matches!(head, ApplicationHead::Extension(id) if self.session().operators.name(id) == Some(name))
+    }
+
     /// 符号名。
     pub(crate) fn symbol_name(&self, symbol: SymbolId) -> &str {
         self.session().arena.symbols().resolve(symbol).unwrap_or("")
