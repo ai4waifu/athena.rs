@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use athena_types::OperatorId;
 
-pub use semantic::{ApplicationHead, SemanticOperator};
+pub use semantic::{ApplicationHead, SemanticOperator, UnaryFunction};
 
 /// Extension display-name ↔ [`OperatorId`] bidirectional table.
 ///

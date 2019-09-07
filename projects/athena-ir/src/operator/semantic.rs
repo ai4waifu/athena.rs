@@ -5,6 +5,89 @@
 
 use athena_types::OperatorId;
 
+/// Closed unary special-function identity (fingerprint-stable).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnaryFunction {
+    /// exponential.
+    Exp,
+    /// natural logarithm.
+    Log,
+    /// sine.
+    Sin,
+    /// cosine.
+    Cos,
+    /// tangent.
+    Tan,
+    /// hyperbolic sine.
+    Sinh,
+    /// hyperbolic cosine.
+    Cosh,
+    /// hyperbolic tangent.
+    Tanh,
+    /// inverse sine.
+    ArcSin,
+    /// inverse cosine.
+    ArcCos,
+    /// inverse tangent.
+    ArcTan,
+    /// square root.
+    Sqrt,
+    /// absolute value.
+    Abs,
+    /// signum.
+    Sign,
+    /// gamma.
+    Gamma,
+    /// error function.
+    Erf,
+}
+
+impl UnaryFunction {
+    /// Stable discriminant fragment (do not renumber lightly).
+    pub const fn discriminant(self) -> u32 {
+        match self {
+            Self::Exp => 1,
+            Self::Log => 2,
+            Self::Sin => 3,
+            Self::Cos => 4,
+            Self::Tan => 5,
+            Self::Sinh => 6,
+            Self::Cosh => 7,
+            Self::Tanh => 8,
+            Self::ArcSin => 9,
+            Self::ArcCos => 10,
+            Self::ArcTan => 11,
+            Self::Sqrt => 12,
+            Self::Abs => 13,
+            Self::Sign => 14,
+            Self::Gamma => 15,
+            Self::Erf => 16,
+        }
+    }
+
+    /// Neutral debug label.
+    pub const fn debug_label(self) -> &'static str {
+        match self {
+            Self::Exp => "Exp",
+            Self::Log => "Log",
+            Self::Sin => "Sin",
+            Self::Cos => "Cos",
+            Self::Tan => "Tan",
+            Self::Sinh => "Sinh",
+            Self::Cosh => "Cosh",
+            Self::Tanh => "Tanh",
+            Self::ArcSin => "ArcSin",
+            Self::ArcCos => "ArcCos",
+            Self::ArcTan => "ArcTan",
+            Self::Sqrt => "Sqrt",
+            Self::Abs => "Abs",
+            Self::Sign => "Sign",
+            Self::Gamma => "Gamma",
+            Self::Erf => "Erf",
+        }
+    }
+}
+
 /// Closed Athena core semantic operator identity (fingerprint-stable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemanticOperator {
@@ -51,7 +134,7 @@ pub enum SemanticOperator {
     /// true-query.
     TrueQ,
     // structure
-    /// absolute value.
+    /// absolute value (also [`UnaryFunction::Abs`]).
     Abs,
     /// collection length.
     Length,
@@ -61,7 +144,7 @@ pub enum SemanticOperator {
     Rest,
     /// factorial.
     Factorial,
-    /// square root.
+    /// square root (also [`UnaryFunction::Sqrt`]).
     Sqrt,
     /// join collections.
     Join,
@@ -103,6 +186,37 @@ pub enum SemanticOperator {
     Hold,
     /// anonymous function binder.
     Function,
+    /// closed unary special function.
+    Unary(UnaryFunction),
+    /// polygamma residual / special (`PolyGamma[n, z]`).
+    PolyGamma,
+    // calculus residual heads (entry is DomainGoal, not string lowering)
+    /// differentiation residual.
+    Differentiate,
+    /// integration residual.
+    Integrate,
+    /// limit residual.
+    Limit,
+    /// power series residual.
+    Series,
+    /// Laurent series residual.
+    LaurentSeries,
+    /// asymptotic expansion residual.
+    Asymptotic,
+    /// residue residual.
+    Residue,
+    /// ODE solve residual.
+    DSolve,
+    /// Laplace transform residual.
+    LaplaceTransform,
+    /// Fourier transform residual.
+    FourierTransform,
+    /// Z-transform residual.
+    ZTransform,
+    /// vector divergence residual.
+    Divergence,
+    /// vector curl residual.
+    Curl,
 }
 
 impl SemanticOperator {
@@ -155,6 +269,21 @@ impl SemanticOperator {
             Self::Simplify => 44,
             Self::Hold => 45,
             Self::Function => 46,
+            Self::Unary(f) => 100 + f.discriminant(),
+            Self::PolyGamma => 200,
+            Self::Differentiate => 201,
+            Self::Integrate => 202,
+            Self::Limit => 203,
+            Self::Series => 204,
+            Self::LaurentSeries => 205,
+            Self::Asymptotic => 206,
+            Self::Residue => 207,
+            Self::DSolve => 208,
+            Self::LaplaceTransform => 209,
+            Self::FourierTransform => 210,
+            Self::ZTransform => 211,
+            Self::Divergence => 212,
+            Self::Curl => 213,
         }
     }
 
@@ -207,6 +336,42 @@ impl SemanticOperator {
             Self::Simplify => "Simplify",
             Self::Hold => "Hold",
             Self::Function => "Function",
+            Self::Unary(f) => f.debug_label(),
+            Self::PolyGamma => "PolyGamma",
+            Self::Differentiate => "Differentiate",
+            Self::Integrate => "Integrate",
+            Self::Limit => "Limit",
+            Self::Series => "Series",
+            Self::LaurentSeries => "LaurentSeries",
+            Self::Asymptotic => "Asymptotic",
+            Self::Residue => "Residue",
+            Self::DSolve => "DSolve",
+            Self::LaplaceTransform => "LaplaceTransform",
+            Self::FourierTransform => "FourierTransform",
+            Self::ZTransform => "ZTransform",
+            Self::Divergence => "Divergence",
+            Self::Curl => "Curl",
+        }
+    }
+
+    /// Map a unary function to the preferred head used when constructing terms.
+    ///
+    /// `Abs` / `Sqrt` keep their dedicated variants for structure evaluation parity.
+    pub const fn from_unary(f: UnaryFunction) -> Self {
+        match f {
+            UnaryFunction::Abs => Self::Abs,
+            UnaryFunction::Sqrt => Self::Sqrt,
+            other => Self::Unary(other),
+        }
+    }
+
+    /// If this operator is a registered unary special (including Abs/Sqrt aliases).
+    pub const fn as_unary(self) -> Option<UnaryFunction> {
+        match self {
+            Self::Unary(f) => Some(f),
+            Self::Abs => Some(UnaryFunction::Abs),
+            Self::Sqrt => Some(UnaryFunction::Sqrt),
+            _ => None,
         }
     }
 }
