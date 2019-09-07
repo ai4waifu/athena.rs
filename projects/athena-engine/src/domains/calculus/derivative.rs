@@ -3,7 +3,7 @@
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Predicate, TermId};
 
-use crate::execution::builtins::registry::lookup_function;
+use crate::execution::builtins::registry::lookup_unary;
 
 use super::{
     ctx::CalculusCtx,
@@ -55,7 +55,7 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
                     cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.real(nf), base_pow, d]))
                 }
                 else {
-                    cc.apply("D", vec![expr, cc.symbol(var)])
+                    residual_diff(cc, expr, var)
                 }
             }
             ApplicationHead::Semantic(SemanticOperator::Subtract) if args.len() == 2 => {
@@ -74,26 +74,31 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermI
                 let binv = cc.apply_semantic(SemanticOperator::Power, vec![b, cc.in_(-2)]);
                 cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![plus, binv]))
             }
-            // Abs / Sqrt：无条件路径保留 D；条件路径见 [`differentiate_checked`]。
+            // Abs / Sqrt：无条件路径保留残差；条件路径见 [`differentiate_checked`]。
             ApplicationHead::Semantic(SemanticOperator::Abs | SemanticOperator::Sqrt) if args.len() == 1 => {
-                cc.apply("D", vec![expr, cc.symbol(var)])
+                residual_diff(cc, expr, var)
             }
-            other => {
-                let h = cc.op_name(other);
-                if let Some(def) = lookup_function(&h) {
-                    if def.arity == 1 && args.len() == 1 {
-                        if let Some(df) = def.unary_derivative {
-                            let outer = df(cc, args[0]);
-                            let inner = differentiate(cc, args[0], var);
-                            return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![outer, inner]));
+            ApplicationHead::Semantic(op) => {
+                if let Some(uf) = op.as_unary() {
+                    if let Some(def) = lookup_unary(uf) {
+                        if def.arity == 1 && args.len() == 1 {
+                            if let Some(df) = def.unary_derivative {
+                                let outer = df(cc, args[0]);
+                                let inner = differentiate(cc, args[0], var);
+                                return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![outer, inner]));
+                            }
                         }
                     }
                 }
-                // 未知头部：保留 D，禁止静默当成 0。
-                cc.apply("D", vec![expr, cc.symbol(var)])
+                residual_diff(cc, expr, var)
             }
+            ApplicationHead::Extension(_) => residual_diff(cc, expr, var),
         },
     }
+}
+
+fn residual_diff(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
+    cc.apply_semantic(SemanticOperator::Differentiate, vec![expr, cc.symbol(var)])
 }
 
 /// 在假设下求导，返回条件而非裸项。
@@ -112,7 +117,6 @@ pub fn differentiate_checked(
             let candidate = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![abs, binv, d]));
             let needs_nonzero = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
-                // `TermId(0)` 为桥接占位，直至 Abs 参数绑定落地。
                 return ConditionalResult::with_unresolved(candidate, vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))]);
             }
             return ConditionalResult::exact(candidate);
