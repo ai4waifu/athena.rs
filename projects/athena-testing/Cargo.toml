@@ -1,0 +1,25 @@
+[package]
+name = "athena-testing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Athena neutral semantic acceptance harness — no dialect / parser / named-head APIs"
+publish = false
+
+[dependencies]
+athena = { workspace = true }
+athena-types = { workspace = true }
+athena-gc = { workspace = true }
+athena-numeric = { workspace = true }
+athena-ir = { workspace = true }
+athena-rewriter = { workspace = true }
+athena-engine = { workspace = true }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
+
+[[test]]
+name = "main"
+path = "tests/main.rs"

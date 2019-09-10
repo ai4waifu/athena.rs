@@ -25,6 +25,7 @@ athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
 athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
+athena-testing = { path = "projects/athena-testing" }
 athena-benchmark = { path = "projects/athena-benchmark" }
 athena-jit = { path = "projects/athena-jit" }
 athena-ndarray = { path = "projects/athena-ndarray" }
