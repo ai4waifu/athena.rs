@@ -184,7 +184,7 @@ pub fn divergence_checked(
             expression: Divergence {
                 components: components.to_vec(),
                 variables: variables.to_vec(),
-                value: cc.apply("Divergence", vec![comps, vars]),
+                value: cc.apply_semantic(SemanticOperator::Divergence, vec![comps, vars]),
             },
             reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
         };

@@ -1,6 +1,6 @@
 //! 常微分方程 — 带残差验证的一阶子集（arena 版 · Living `25`）。
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
@@ -85,7 +85,7 @@ pub fn solve_ode_checked(
     }
     else if let Some(a) = match_times_const_y(cc, rhs.f, dependent) {
         let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
-        let exp = cc.apply("Exp", vec![cc.eval(times)]);
+        let exp = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![cc.eval(times)]);
         exp
     }
     else if let Some((p, q)) = match_as_linear_forced(cc, rhs.f, dependent) {
@@ -164,7 +164,10 @@ fn apply_ivp(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: Te
     if let Some(a) = match_times_const_y(cc, f, dependent) {
         let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), x0]);
         let delta = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(independent), neg]));
-        let exp = cc.apply("Exp", vec![cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), delta])]);
+        let exp = cc.apply_semantic(
+            SemanticOperator::from_unary(UnaryFunction::Exp),
+            vec![cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), delta])],
+        );
         return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![y0, exp]));
     }
     // 仅含自变量：y' = g(x) → y = ∫g + C，C = y0 − F(x0)
@@ -194,7 +197,7 @@ fn try_rhs_independent_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str
         return None;
     }
     let anti = integrate(cc, f, independent);
-    if cc.head_name(anti).is_some_and(|h| h == "Integrate") {
+    if is_integrate_residual(cc, anti) {
         return None;
     }
     Some(anti)
@@ -267,7 +270,7 @@ fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str,
         return None;
     }
     let anti = integrate(cc, g, independent);
-    if cc.head_name(anti).is_some_and(|h| h == "Integrate") {
+    if is_integrate_residual(cc, anti) {
         return None;
     }
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![anti, cc.in_(-1)]);
@@ -434,7 +437,17 @@ fn is_d_of(cc: &CalculusCtx<'_>, term: TermId, dependent: &str, independent: &st
     else {
         return false;
     };
-    cc.extension_named(h, "D") && args.len() == 2 && is_symbol_named(cc, args[0], dependent) && is_symbol_named(cc, args[1], independent)
+    matches!(h, ApplicationHead::Semantic(SemanticOperator::Differentiate))
+        && args.len() == 2
+        && is_symbol_named(cc, args[0], dependent)
+        && is_symbol_named(cc, args[1], independent)
+}
+
+fn is_integrate_residual(cc: &CalculusCtx<'_>, term: TermId) -> bool {
+    matches!(
+        cc.application_head(term),
+        Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _))
+    )
 }
 
 fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {

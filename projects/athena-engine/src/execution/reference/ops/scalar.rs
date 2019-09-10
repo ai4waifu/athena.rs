@@ -12,7 +12,6 @@ use super::super::{ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
-    domains::calculus::{CalculusCtx, execute_calculus, materialize_calculus_result_term, try_calculus_request},
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number, push_semantic},
     runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
 };
@@ -202,29 +201,6 @@ impl ReferenceExecutor {
             return Ok(Slot::Term(one));
         }
         Ok(Slot::Term(evaluated))
-    }
-
-    /// Domain calculus heads (`D` / `Integrate` / …) via `try_calculus_request`.
-    pub(crate) fn eval_calculus(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        let echo = push_application(session, name, terms);
-        let req = {
-            let mut cc = CalculusCtx::new(session);
-            try_calculus_request(&mut cc, echo)
-        };
-        if let Some(req) = req {
-            let result = execute_calculus(session, req);
-            let term = {
-                let mut cc = CalculusCtx::new(session);
-                materialize_calculus_result_term(&mut cc, &result)
-            };
-            return Ok(Slot::Term(term));
-        }
-        Ok(Slot::Term(echo))
     }
 
     pub(crate) fn eval_rule(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {

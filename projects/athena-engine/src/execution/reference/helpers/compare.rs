@@ -84,29 +84,6 @@ pub(crate) fn compare_pair_term(session: &mut Session, name: &str, left: TermId,
     }
 }
 
-pub(crate) fn is_known_residual_head(name: &str) -> bool {
-    matches!(
-        name,
-        "Sin"
-            | "Cos"
-            | "Tan"
-            | "Exp"
-            | "Log"
-            | "Sinh"
-            | "Cosh"
-            | "Tanh"
-            | "ArcSin"
-            | "ArcCos"
-            | "ArcTan"
-            | "Erf"
-            | "Gamma"
-            | "D"
-            | "Integrate"
-            | "Hold"
-            | "Function"
-    )
-}
-
 /// Logic ops: Boolean atoms · `True`/`False` · exact `0`/`1`.
 pub(crate) fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
     match slot {

@@ -19,7 +19,6 @@ use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, Result
 use crate::{
     api::request::AthenaRequest,
     domains::{
-        calculus::{CalculusCtx, execute_calculus, materialize_calculus_result_term, try_calculus_request},
         dispatch::{DomainRequest, execute_domain},
         linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact},
     },
@@ -318,19 +317,31 @@ impl ReferenceExecutor {
                     SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),
                     SemanticOperator::Matches => self.eval_matches(session, args, slots),
                     SemanticOperator::Simplify => self.eval_simplify(session, args, slots),
-                    SemanticOperator::Hold | SemanticOperator::Function | SemanticOperator::Negate => {
-                        self.eval_residual_semantic(session, op, args, slots)
-                    }
+                    SemanticOperator::Hold
+                    | SemanticOperator::Function
+                    | SemanticOperator::Negate
+                    | SemanticOperator::Unary(_)
+                    | SemanticOperator::PolyGamma
+                    | SemanticOperator::Differentiate
+                    | SemanticOperator::Integrate
+                    | SemanticOperator::Limit
+                    | SemanticOperator::Series
+                    | SemanticOperator::LaurentSeries
+                    | SemanticOperator::Asymptotic
+                    | SemanticOperator::Residue
+                    | SemanticOperator::DSolve
+                    | SemanticOperator::LaplaceTransform
+                    | SemanticOperator::FourierTransform
+                    | SemanticOperator::ZTransform
+                    | SemanticOperator::Divergence
+                    | SemanticOperator::Curl => self.eval_residual_semantic(session, op, args, slots),
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
+                // Extension display names are never core math / calculus dispatch (Living 27).
                 let name = session.operators.name(*operator).unwrap_or("").to_string();
                 match name.as_str() {
                     "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
-                    "D" | "Integrate" | "Limit" | "Series" | "LaurentSeries" | "Asymptotic" | "Residue" | "DSolve"
-                    | "LaplaceTransform" | "FourierTransform" | "ZTransform" | "Divergence" | "Curl" => {
-                        self.eval_calculus(session, name.as_str(), args, slots)
-                    }
                     "Import" | "Export" | "Timing" => {
                         *invalid = Some(
                             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -343,9 +354,7 @@ impl ReferenceExecutor {
                         if let Some(slot) = self.try_apply_down_values(session, name.as_str(), args, slots)? {
                             return Ok(slot);
                         }
-                        if !is_known_residual_head(name.as_str()) {
-                            *unevaluated = true;
-                        }
+                        *unevaluated = true;
                         self.eval_residual_app(session, name.as_str(), args, slots)
                     }
                 }

@@ -1,5 +1,6 @@
 //! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 Living `25`）。
 
+use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -78,7 +79,7 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &
 
 fn residue_echo(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
     let spec = cc.list(vec![cc.symbol(variable), point]);
-    cc.apply("Residue", vec![expression, spec])
+    cc.apply_semantic(SemanticOperator::Residue, vec![expression, spec])
 }
 
 fn is_zero_like(cc: &CalculusCtx<'_>, term: TermId) -> bool {

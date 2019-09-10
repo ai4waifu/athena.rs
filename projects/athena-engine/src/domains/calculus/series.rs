@@ -1,6 +1,6 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -251,12 +251,12 @@ pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
 
 /// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
 fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
-    let Some((h, args)) = cc.application(expr)
+    let Some((head, args)) = cc.application_head(expr)
     else {
         return expr;
     };
-    match h.as_str() {
-        "Power" if args.len() == 2 => {
+    match head {
+        ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 => {
             if cc.number_of(args[1]).is_some_and(|n| n.is_neg_one()) {
                 if let Some(k) = negative_valuation(cc, args[0], var) {
                     if k > 0 {
@@ -270,11 +270,11 @@ fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &st
             let base = clear_negative_powers_of_var(cc, args[0], var);
             cc.apply_semantic(SemanticOperator::Power, vec![base, args[1]])
         }
-        "Add" => {
+        ApplicationHead::Semantic(SemanticOperator::Add) => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
             cc.eval(cc.apply_semantic(SemanticOperator::Add, parts))
         }
-        "Multiply" => {
+        ApplicationHead::Semantic(SemanticOperator::Multiply) => {
             let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
             cc.eval(cc.apply_semantic(SemanticOperator::Multiply, parts))
         }
@@ -299,37 +299,31 @@ fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
             }
             if m == i64::MAX { Some(0) } else { Some(m) }
         }
-        Shape::Application(_, args) => {
-            let Some((h, args)) = cc.application(expr)
-            else {
-                return None;
-            };
-            match h.as_str() {
-                "Add" => {
-                    let mut m = i64::MAX;
-                    for a in args {
-                        m = m.min(valuation(cc, a, var)?);
-                    }
-                    if m == i64::MAX { Some(0) } else { Some(m) }
+        Shape::Application(head, args) => match head {
+            ApplicationHead::Semantic(SemanticOperator::Add) => {
+                let mut m = i64::MAX;
+                for a in args {
+                    m = m.min(valuation(cc, a, var)?);
                 }
-                "Multiply" => {
-                    let mut s = 0i64;
-                    for a in args {
-                        s = s.saturating_add(valuation(cc, a, var)?);
-                    }
-                    Some(s)
-                }
-                "Power" if args.len() == 2 => {
-                    let base_v = valuation(cc, args[0], var)?;
-                    let exp = cc.int_exp(args[1])?;
-                    Some(base_v.saturating_mul(exp))
-                }
-                _ => {
-                    // 未知头部：若参数含 var 则保守拒绝清除
-                    if args.iter().any(|a| contains_symbol(cc, *a, var)) { None } else { Some(0) }
-                }
+                if m == i64::MAX { Some(0) } else { Some(m) }
             }
-        }
+            ApplicationHead::Semantic(SemanticOperator::Multiply) => {
+                let mut s = 0i64;
+                for a in args {
+                    s = s.saturating_add(valuation(cc, a, var)?);
+                }
+                Some(s)
+            }
+            ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 => {
+                let base_v = valuation(cc, args[0], var)?;
+                let exp = cc.int_exp(args[1])?;
+                Some(base_v.saturating_mul(exp))
+            }
+            _ => {
+                // 未知头部：若参数含 var 则保守拒绝清除
+                if args.iter().any(|a| contains_symbol(cc, *a, var)) { None } else { Some(0) }
+            }
+        },
     }
 }
 
@@ -350,17 +344,16 @@ fn remap_asymptotic_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。
 fn term_has_singular_zero_power(cc: &CalculusCtx<'_>, term: TermId) -> bool {
-    let Some((h, args)) = cc.application(term)
-    else {
-        return false;
-    };
-    if h == "Power" && args.len() == 2 && is_zero_term(cc, args[0]) {
-        return !is_zero_term(cc, args[1]);
+    match cc.shape(term) {
+        Some(Shape::Collection(items)) => items.iter().any(|t| term_has_singular_zero_power(cc, *t)),
+        Some(Shape::Application(ApplicationHead::Semantic(SemanticOperator::Power), args))
+            if args.len() == 2 && is_zero_term(cc, args[0]) =>
+        {
+            !is_zero_term(cc, args[1])
+        }
+        Some(Shape::Application(_, args)) => args.iter().any(|t| term_has_singular_zero_power(cc, *t)),
+        _ => false,
     }
-    if h == "List" {
-        return args.iter().any(|t| term_has_singular_zero_power(cc, *t));
-    }
-    args.iter().any(|t| term_has_singular_zero_power(cc, *t))
 }
 
 fn is_zero_term(cc: &CalculusCtx<'_>, expr: TermId) -> bool {

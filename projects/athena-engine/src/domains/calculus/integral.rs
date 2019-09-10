@@ -1,6 +1,6 @@
 //! 会话 arena 上的不定 / 定积分（初等子集 · `TermId` 进出）。
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
@@ -8,6 +8,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, replace_symbol},
 };
+use crate::execution::shape::Shape;
 
 /// 在 arena 上做符号积分（多项式 / 初等子集）。
 pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
@@ -16,14 +17,12 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
         return expr;
     };
     match shape {
-        crate::execution::shape::Shape::Number => {
+        Shape::Number => {
             let n = cc.number_of(expr).map(|n| cc.copy(n)).expect("number");
             cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), cc.symbol(var)])
         }
-        crate::execution::shape::Shape::String(_) | crate::execution::shape::Shape::Bool(_) | crate::execution::shape::Shape::Null => {
-            cc.apply("Integrate", vec![expr, cc.symbol(var)])
-        }
-        crate::execution::shape::Shape::Symbol(s) => {
+        Shape::String(_) | Shape::Bool(_) | Shape::Null => residual_integrate(cc, expr, var),
+        Shape::Symbol(s) => {
             if cc.symbol_is(s, var) {
                 let x2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(var), cc.in_(2)]);
                 cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![x2, cc.in_(2)]))
@@ -32,11 +31,11 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                 cc.apply_semantic(SemanticOperator::Multiply, vec![expr, cc.symbol(var)])
             }
         }
-        crate::execution::shape::Shape::Collection(items) => {
+        Shape::Collection(items) => {
             let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
             cc.list(iss)
         }
-        crate::execution::shape::Shape::Application(head, args) => match head {
+        Shape::Application(head, args) => match head {
             ApplicationHead::Semantic(SemanticOperator::Add) => {
                 let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
                 cc.eval(cc.apply_semantic(SemanticOperator::Add, iss))
@@ -49,13 +48,13 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                     (args[1], args[0])
                 }
                 else {
-                    return cc.apply("Integrate", vec![expr, cc.symbol(var)]);
+                    return residual_integrate(cc, expr, var);
                 };
                 let ir = integrate(cc, rest, var);
                 cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))
             }
             ApplicationHead::Semantic(SemanticOperator::Power)
-                if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) =>
+                if args.len() == 2 && is_symbol_named(cc, args[0], var) =>
             {
                 if let Some(n) = cc.int_exp(args[1]) {
                     if n != -1 {
@@ -63,29 +62,52 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                         return cc.eval(cc.apply_semantic(SemanticOperator::Divide, vec![p, cc.in_(n + 1)]));
                     }
                 }
-                cc.apply("Integrate", vec![expr, cc.symbol(var)])
+                residual_integrate(cc, expr, var)
             }
-            ApplicationHead::Extension(_) => {
-                let h = cc.op_name(head);
-                match h.as_str() {
-                    "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
-                        let c = cc.apply("Cos", args.clone());
-                        cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), c]))
+            ApplicationHead::Semantic(op) => {
+                if let Some(uf) = op.as_unary() {
+                    if args.len() == 1 && is_symbol_named(cc, args[0], var) {
+                        match uf {
+                            UnaryFunction::Sin => {
+                                let c = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Cos), args.clone());
+                                return cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), c]));
+                            }
+                            UnaryFunction::Cos => {
+                                return cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Sin), args.clone());
+                            }
+                            UnaryFunction::Exp => {
+                                return cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), args.clone());
+                            }
+                            _ => {}
+                        }
                     }
-                    "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Sin", args.clone()),
-                    "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Exp", args.clone()),
-                    _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
                 }
+                residual_integrate(cc, expr, var)
             }
-            _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
+            ApplicationHead::Extension(_) => residual_integrate(cc, expr, var),
         },
     }
+}
+
+fn residual_integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
+    cc.apply_semantic(SemanticOperator::Integrate, vec![expr, cc.symbol(var)])
+}
+
+fn is_integrate_residual(cc: &CalculusCtx<'_>, value: TermId) -> bool {
+    matches!(
+        cc.application_head(value),
+        Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _))
+    )
+}
+
+fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, name))
 }
 
 /// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。
 pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> CalculusResult<TermId> {
     let value = integrate(cc, expr, var);
-    if cc.head_name(value).is_some_and(|h| h == "Integrate") {
+    if is_integrate_residual(cc, value) {
         CalculusResult::Unevaluated { expression: value, reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary) }
     }
     else {
@@ -97,7 +119,7 @@ pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> C
 pub fn definite_integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str, lower: TermId, upper: TermId) -> CalculusResult<TermId> {
     let echo = |cc: &mut CalculusCtx<'_>| {
         let iter = cc.list(vec![cc.symbol(var), lower, upper]);
-        cc.apply("Integrate", vec![expr, iter])
+        cc.apply_semantic(SemanticOperator::Integrate, vec![expr, iter])
     };
     match integrate_checked(cc, expr, var) {
         CalculusResult::Exact { value: antideriv, conditions } => {

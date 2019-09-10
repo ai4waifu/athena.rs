@@ -60,34 +60,10 @@ impl<'a> CalculusCtx<'a> {
         }
     }
 
-    /// App head label (semantic debug label or extension display name).
-    pub(crate) fn op_name(&self, head: ApplicationHead) -> String {
-        match head {
-            ApplicationHead::Semantic(op) => op.debug_label().to_string(),
-            ApplicationHead::Extension(id) => self.session().operators.name(id).unwrap_or("").to_string(),
-        }
-    }
-
     /// App 形态：(head, 参数) — typed head，禁止用字符串猜核心语义。
     pub(crate) fn application_head(&self, id: TermId) -> Option<(ApplicationHead, Vec<TermId>)> {
         match self.shape(id)? {
             Shape::Application(op, args) => Some((op, args)),
-            _ => None,
-        }
-    }
-
-    /// App 形态：(head 显示名, 参数) — 仅扩展 / 诊断；核心算子请用 [`Self::application_head`]。
-    pub(crate) fn application(&self, id: TermId) -> Option<(String, Vec<TermId>)> {
-        let (head, args) = self.application_head(id)?;
-        Some((self.op_name(head), args))
-    }
-
-    /// head 名（App · OrderedCollection · 符号）。
-    pub(crate) fn head_name(&self, id: TermId) -> Option<String> {
-        match self.shape(id)? {
-            Shape::Application(op, _) => Some(self.op_name(op)),
-            Shape::Collection(_) => Some("OrderedCollection".into()),
-            Shape::Symbol(s) => Some(self.symbol_name(s).to_string()),
             _ => None,
         }
     }
@@ -172,7 +148,7 @@ impl<'a> CalculusCtx<'a> {
         crate::runtime::values::arena::push_list(self.session_mut(), items)
     }
 
-    /// 算子应用（extension display name — not a core semantic map）。
+    /// Extension display-name application (non-core math only: `Re` / `Element` / `UnitStep` / …).
     pub(crate) fn apply(&self, head: &str, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_application_named(self.session_mut(), head, args)
     }
