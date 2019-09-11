@@ -9,9 +9,10 @@ use athena_engine::{
     plot::{SampleDomain, SamplingPolicy, sample_1d},
     runtime::{
         Session,
-        values::arena::{push_application_named, push_int, push_symbol_name},
+        values::arena::{push_int, push_semantic, push_symbol_name},
     },
 };
+use athena_ir::{SemanticOperator, UnaryFunction};
 
 type Tid = athena_types::TermId;
 
@@ -23,14 +24,18 @@ fn int(n: i64, s: &mut Session) -> Tid {
     push_int(s, n)
 }
 
-fn apply(head: &str, args: Vec<Tid>, s: &mut Session) -> Tid {
-    push_application_named(s, head, args)
+fn power(base: Tid, exp: Tid, s: &mut Session) -> Tid {
+    push_semantic(s, SemanticOperator::Power, vec![base, exp])
+}
+
+fn unary(f: UnaryFunction, arg: Tid, s: &mut Session) -> Tid {
+    push_semantic(s, SemanticOperator::from_unary(f), vec![arg])
 }
 
 #[test]
 fn sample_square_on_unit_interval() {
     let mut s = Session::new();
-    let expr = apply("Power", vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
+    let expr = power(symbol("x", &mut s), int(2, &mut s), &mut s);
     let curve = sample_1d(&mut s, expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(5)).expect("sample");
     assert_eq!(curve.points.len(), 5);
     assert!(curve.gaps.is_empty());
@@ -42,7 +47,7 @@ fn sample_square_on_unit_interval() {
 #[test]
 fn sample_sin_has_finite_points() {
     let mut s = Session::new();
-    let expr = apply("Sin", vec![symbol("x", &mut s)], &mut s);
+    let expr = unary(UnaryFunction::Sin, symbol("x", &mut s), &mut s);
     let curve = sample_1d(&mut s, expr, "x", SampleDomain::new(0.0, std::f64::consts::PI), SamplingPolicy::samples(17)).expect("sample");
     let valid = curve.points.iter().filter(|p| p.valid).count();
     assert!(valid >= 15);
@@ -63,7 +68,7 @@ fn invalid_domain_and_policy() {
 #[test]
 fn reciprocal_marks_gap_at_zero() {
     let mut s = Session::new();
-    let expr = apply("Power", vec![symbol("x", &mut s), int(-1, &mut s)], &mut s);
+    let expr = power(symbol("x", &mut s), int(-1, &mut s), &mut s);
     let curve = sample_1d(&mut s, expr, "x", SampleDomain::new(-1.0, 1.0), SamplingPolicy::samples(3)).expect("sample");
     assert!(!curve.points[1].valid);
     assert!(curve.gaps.contains(&1));
@@ -84,8 +89,7 @@ fn mid_loop_cancel() {
     let mut s = Session::new();
     let flag = Arc::new(AtomicBool::new(false));
     let flag2 = Arc::clone(&flag);
-    // 未取消时成功，取消后报 SamplingCancelled。
-    let expr = apply("Power", vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
+    let expr = power(symbol("x", &mut s), int(2, &mut s), &mut s);
     let ok = sample_1d(
         &mut s,
         expr,
@@ -110,7 +114,7 @@ fn mid_loop_cancel() {
 fn discontinuity_inserts_gap_on_jump() {
     // tan 在 [1, 2] 穿越 π/2 渐近线；相邻有限采样符号跳变且 |Δy| 很大。
     let mut s = Session::new();
-    let expr = apply("Tan", vec![symbol("x", &mut s)], &mut s);
+    let expr = unary(UnaryFunction::Tan, symbol("x", &mut s), &mut s);
     let curve = sample_1d(
         &mut s,
         expr,

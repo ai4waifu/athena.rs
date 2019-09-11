@@ -11,7 +11,7 @@ use athena_engine::{
     },
 };
 use athena_types::BindingEvaluationPolicy;
-use athena_ir::SemanticOperator;
+use athena_ir::{SemanticOperator, UnaryFunction};
 
 type Tid = athena_types::TermId;
 
@@ -35,6 +35,10 @@ fn list(items: Vec<Tid>, s: &mut Session) -> Tid {
 
 fn sem(op: SemanticOperator, args: Vec<Tid>, s: &mut Session) -> Tid {
     push_semantic(s, op, args)
+}
+
+fn unary(f: UnaryFunction, args: Vec<Tid>, s: &mut Session) -> Tid {
+    push_semantic(s, SemanticOperator::from_unary(f), args)
 }
 
 fn ext(head: &str, args: Vec<Tid>, s: &mut Session) -> Tid {
@@ -71,9 +75,9 @@ fn arithmetic_normalization() {
     let e = ext("Foo", vec![int(1, &mut s), symbol("y", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "Foo[1, y]");
     // 精确三角
-    let e = ext("Cos", vec![symbol("Pi", &mut s)], &mut s);
+    let e = unary(UnaryFunction::Cos, vec![symbol("Pi", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "-1");
-    let e = ext("Sin", vec![int(0, &mut s)], &mut s);
+    let e = unary(UnaryFunction::Sin, vec![int(0, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "0");
     // Sqrt[4] → 2
     let e = sem(SemanticOperator::Sqrt, vec![int(4, &mut s)], &mut s);

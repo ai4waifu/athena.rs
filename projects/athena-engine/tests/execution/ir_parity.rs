@@ -11,7 +11,7 @@ use athena_engine::{
     },
 };
 use athena_types::{BindingEvaluationPolicy, ComputationStatus, TermId};
-use athena_ir::SemanticOperator;
+use athena_ir::{SemanticOperator, UnaryFunction};
 
 type Tid = TermId;
 
@@ -57,12 +57,12 @@ fn lst(items: Vec<Tid>, c: &mut C) -> Tid {
     push_list(&mut c.s, items)
 }
 
-fn apply(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
-    push_application_named(&mut c.s, head, args)
-}
-
 fn sem(op: SemanticOperator, args: Vec<Tid>, c: &mut C) -> Tid {
     push_semantic(&mut c.s, op, args)
+}
+
+fn unary(f: UnaryFunction, args: Vec<Tid>, c: &mut C) -> Tid {
+    push_semantic(&mut c.s, SemanticOperator::from_unary(f), args)
 }
 
 fn ext(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
@@ -391,7 +391,7 @@ fn if_true_branch() {
 #[test]
 fn cond_picks_first_true_branch() {
     let mut c = C::new();
-    let e = apply(
+    let e = ext(
         "Cond",
         vec![symbol("False", &mut c), i(1, &mut c), symbol("True", &mut c), i(2, &mut c), symbol("True", &mut c), i(3, &mut c)],
         &mut c,
@@ -513,33 +513,17 @@ fn machine_trig_at_real_points() {
         let span = athena_ir::TermNode::default_span();
         c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Number(athena_numeric::NumericValue::machine(0.0))), span)
     };
-    let e = ext("Sin", vec![zero], &mut c);
+    let e = unary(UnaryFunction::Sin, vec![zero], &mut c);
     assert_eq!(t(e, &mut c), "0");
-    let e = ext("Cos", vec![symbol("Pi", &mut c)], &mut c);
+    let e = unary(UnaryFunction::Cos, vec![symbol("Pi", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "-1");
-}
-
-#[test]
-fn d_power() {
-    let mut c = C::new();
-    let e = ext("D", vec![sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(3, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.contains("x"), "got {r}");
-}
-
-#[test]
-fn integrate_power() {
-    let mut c = C::new();
-    let e = ext("Integrate", vec![sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(2, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.contains("x"), "got {r}");
 }
 
 #[test]
 fn pythagorean() {
     let mut c = C::new();
-    let sin2 = sem(SemanticOperator::Power, vec![ext("Sin", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
-    let cos2 = sem(SemanticOperator::Power, vec![ext("Cos", vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
+    let sin2 = sem(SemanticOperator::Power, vec![unary(UnaryFunction::Sin, vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
+    let cos2 = sem(SemanticOperator::Power, vec![unary(UnaryFunction::Cos, vec![symbol("x", &mut c)], &mut c), i(2, &mut c)], &mut c);
     let e = sem(SemanticOperator::Simplify, vec![sem(SemanticOperator::Add, vec![sin2, cos2], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "1");
 }

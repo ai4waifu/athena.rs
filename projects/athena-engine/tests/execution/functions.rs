@@ -1,10 +1,20 @@
-//! 内置函数注册表冒烟测试。
+//! Built-in unary function registry smoke.
 
-use athena_engine::execution::builtins::registry::lookup_function;
+use athena_engine::execution::builtins::registry::lookup_unary;
+use athena_ir::UnaryFunction;
 
 #[test]
-fn registry_contains_builtin_names() {
-    for name in ["Exp", "Sin", "Sinh", "ArcTan", "Gamma", "Erf", "Abs", "Sign"] {
-        assert!(lookup_function(name).is_some(), "missing {name}");
+fn registry_contains_closed_unary_functions() {
+    for f in [
+        UnaryFunction::Exp,
+        UnaryFunction::Sin,
+        UnaryFunction::Sinh,
+        UnaryFunction::ArcTan,
+        UnaryFunction::Gamma,
+        UnaryFunction::Erf,
+        UnaryFunction::Abs,
+        UnaryFunction::Sign,
+    ] {
+        assert!(lookup_unary(f).is_some(), "missing {f:?}");
     }
 }
