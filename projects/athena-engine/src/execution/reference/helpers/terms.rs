@@ -4,7 +4,7 @@ use athena_numeric::{Integer, Number, Rational, to_f64_lossy as num_to_f64_lossy
 use athena_types::{Result, SymbolId, TermId};
 
 use super::diag;
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 
 use crate::{
     domains::linear_algebra::{MatrixEntry, MatrixValue},
@@ -30,12 +30,12 @@ fn head_label(session: &Session, head: ApplicationHead) -> Option<String> {
     }
 }
 
-pub(crate) fn eval_trig_exact_session(session: &mut Session, name: &str, arg: TermId) -> Option<TermId> {
+pub(crate) fn eval_trig_exact_session(session: &mut Session, function: UnaryFunction, arg: TermId) -> Option<TermId> {
     let angle = normalize_pi_angle_session(session, arg)?;
-    match name {
-        "Sin" => Some(session.builder().int(0, Default::default())),
-        "Cos" => Some(session.builder().int(if angle % 2 == 0 { 1 } else { -1 }, Default::default())),
-        "Tan" if angle % 2 == 0 => Some(session.builder().int(0, Default::default())),
+    match function {
+        UnaryFunction::Sin => Some(session.builder().int(0, Default::default())),
+        UnaryFunction::Cos => Some(session.builder().int(if angle % 2 == 0 { 1 } else { -1 }, Default::default())),
+        UnaryFunction::Tan if angle % 2 == 0 => Some(session.builder().int(0, Default::default())),
         _ => None,
     }
 }
@@ -251,16 +251,16 @@ pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Op
         return None;
     }
     let (a, b) = (arguments[0], arguments[1]);
-    if is_trig_sq_session(session, a, "Sin") && is_trig_sq_session(session, b, "Cos") && same_trig_arg_session(session, a, b) {
+    if is_trig_sq_session(session, a, UnaryFunction::Sin) && is_trig_sq_session(session, b, UnaryFunction::Cos) && same_trig_arg_session(session, a, b) {
         return Some(session.builder().int(1, Default::default()));
     }
-    if is_trig_sq_session(session, a, "Cos") && is_trig_sq_session(session, b, "Sin") && same_trig_arg_session(session, a, b) {
+    if is_trig_sq_session(session, a, UnaryFunction::Cos) && is_trig_sq_session(session, b, UnaryFunction::Sin) && same_trig_arg_session(session, a, b) {
         return Some(session.builder().int(1, Default::default()));
     }
     None
 }
 
-pub(crate) fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) -> bool {
+pub(crate) fn is_trig_sq_session(session: &Session, expr: TermId, function: UnaryFunction) -> bool {
     let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(expr)
     else {
         return false;
@@ -276,7 +276,9 @@ pub(crate) fn is_trig_sq_session(session: &Session, expr: TermId, name: &str) ->
         return false;
     }
     match session.arena.get(arguments[0]) {
-        Some(athena_ir::TermNode::Application { head, arguments: inner }) if inner.len() == 1 => head_label(session, *head).as_deref() == Some(name),
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(op), arguments: inner }) if inner.len() == 1 => {
+            op.as_unary() == Some(function)
+        }
         _ => false,
     }
 }

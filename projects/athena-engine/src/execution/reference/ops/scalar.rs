@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use athena_numeric::{
     Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_types::{Result, SymbolId, TermId};
 
 use super::super::{ReferenceExecutor, Slot};
@@ -91,25 +91,7 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        if terms.len() == 1 && matches!(name, "Sin" | "Cos" | "Tan" | "Exp" | "Log") {
-            let arg = terms[0];
-            if let Some(exact) = eval_trig_exact_session(session, name, arg) {
-                return Ok(Slot::Term(exact));
-            }
-            if let Some(x) = term_as_f64_session(session, arg) {
-                let y = match name {
-                    "Sin" => x.sin(),
-                    "Cos" => x.cos(),
-                    "Tan" => x.tan(),
-                    "Exp" => x.exp(),
-                    "Log" => x.ln(),
-                    _ => f64::NAN,
-                };
-                if y.is_finite() {
-                    return Ok(Slot::Term(push_number(session, Number::machine(y))));
-                }
-            }
-        }
+        // Extension residuals only — core trig/specials evaluate via SemanticOperator::Unary.
         Ok(Slot::Term(push_application(session, name, terms)))
     }
 
@@ -126,6 +108,27 @@ impl ReferenceExecutor {
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
+        }
+        if let Some(uf) = op.as_unary() {
+            if terms.len() == 1 {
+                let arg = terms[0];
+                if let Some(exact) = eval_trig_exact_session(session, uf, arg) {
+                    return Ok(Slot::Term(exact));
+                }
+                if let Some(x) = term_as_f64_session(session, arg) {
+                    let y = match uf {
+                        UnaryFunction::Sin => x.sin(),
+                        UnaryFunction::Cos => x.cos(),
+                        UnaryFunction::Tan => x.tan(),
+                        UnaryFunction::Exp => x.exp(),
+                        UnaryFunction::Log => x.ln(),
+                        _ => f64::NAN,
+                    };
+                    if y.is_finite() {
+                        return Ok(Slot::Term(push_number(session, Number::machine(y))));
+                    }
+                }
+            }
         }
         Ok(Slot::Term(push_semantic(session, op, terms)))
     }
