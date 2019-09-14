@@ -68,7 +68,8 @@ impl ExecutionCompiler {
         }
     }
 
-    /// Lower a term request: `If` / `Sequence` / `Hold` get special forms, others fill one block.
+    /// Lower a term request. Control / binding forms are only via [`AthenaRequest::Control`]
+    /// / [`AthenaRequest::Command`] — never Extension surface names (Living `27`).
     pub(crate) fn lower_term(
         &self,
         session: &mut Session,
@@ -77,114 +78,14 @@ impl ExecutionCompiler {
         block_id: BlockId,
         term: TermId,
     ) -> Result<SsaValueId> {
-        let app = match session.arena.get(term) {
-            Some(TermNode::Application { head, arguments }) => {
-                let label = match *head {
-                    ApplicationHead::Semantic(op) => Some(op.debug_label().to_owned()),
-                    ApplicationHead::Extension(id) => session.operators.name(id).map(str::to_owned),
-                };
-                Some((label, arguments.clone()))
-            }
-            _ => None,
-        };
-        if let Some((name, arguments)) = app {
-            let name = name.as_deref();
-            if name == Some("If") || name == Some("Branch") {
-                return match arguments.as_slice() {
-                    [condition, then_branch] => {
-                        let then_req = AthenaRequest::Term(*then_branch);
-                        self.lower_branch(session, builder, blocks, block_id, *condition, &then_req, None)
-                    }
-                    [condition, then_branch, else_branch] => {
-                        let then_req = AthenaRequest::Term(*then_branch);
-                        let else_req = AthenaRequest::Term(*else_branch);
-                        self.lower_branch(session, builder, blocks, block_id, *condition, &then_req, Some(&else_req))
-                    }
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "if_arity_not_supported")),
-                };
-            }
-            if name == Some("Define") {
-                return match arguments.as_slice() {
-                    [lhs, rhs] => {
-                        let symbol = match session.arena.get(*lhs) {
-                            Some(TermNode::Atom(Atom::Symbol(symbol))) => Some(*symbol),
-                            _ => None,
-                        };
-                        match symbol {
-                            Some(symbol) => self.lower_command(
-                                session,
-                                builder,
-                                blocks,
-                                block_id,
-                                &SessionCommand::Define {
-                                    symbol,
-                                    value: *rhs,
-                                    kind: BindingKind::Session,
-                                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
-                                },
-                            ),
-                            None => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                .detail("component", "ExecutionCompiler")
-                                .detail("status", "define_lhs_not_symbol")),
-                        }
-                    }
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "define_arity_not_supported")),
-                };
-            }
-            if name == Some("LocalScope") || name == Some("LexicalScope") || name == Some("DynamicScope") {
-                return match arguments.as_slice() {
-                    [locals, body] => self.lower_term_scope(session, builder, blocks, block_id, name.unwrap_or("LocalScope"), *locals, *body),
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "scope_arity_not_supported")),
-                };
-            }
-            if name == Some("Recover") {
-                return match arguments.as_slice() {
-                    [body, handler] => {
-                        self.lower_recover(session, builder, blocks, block_id, &AthenaRequest::Term(*body), &AthenaRequest::Term(*handler))
-                    }
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "recover_arity_not_supported")),
-                };
-            }
-            if name == Some("error") || name == Some("Error") {
-                return self.lower_error_reject(builder, blocks, block_id);
-            }
-            if name == Some("Cond") {
-                return self.lower_term_cond(session, builder, blocks, block_id, &arguments);
-            }
-            if name == Some("CountedLoop") {
-                return match arguments.as_slice() {
-                    [variable, iterator, body] => {
-                        self.lower_counted_loop(session, builder, blocks, block_id, *variable, *iterator, &AthenaRequest::Term(*body))
-                    }
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "counted_loop_arity_not_supported")),
-                };
-            }
-            if name == Some("LoopWhile") {
-                return match arguments.as_slice() {
-                    [condition, body] => self.lower_loop_while(session, builder, blocks, block_id, *condition, &AthenaRequest::Term(*body)),
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionCompiler")
-                        .detail("status", "loop_while_arity_not_supported")),
-                };
-            }
-            if name == Some("Sequence") {
-                let steps: Vec<AthenaRequest> = arguments.iter().copied().map(AthenaRequest::Term).collect();
-                return self.lower_sequence(session, builder, blocks, block_id, &steps);
-            }
-            if name == Some("Hold") {
-                // Capture the whole held term without evaluating arguments.
-                return self.lower_held_term(builder, blocks, block_id, term);
-            }
+        if matches!(
+            session.arena.get(term),
+            Some(TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Hold),
+                ..
+            })
+        ) {
+            return self.lower_held_term(builder, blocks, block_id, term);
         }
         self.lower_term_into_block(session, builder, blocks, block_id, term)
     }
@@ -211,25 +112,6 @@ impl ExecutionCompiler {
             terminator: Terminator::return_value(ssa),
         });
         Ok(ssa)
-    }
-
-    /// Lower `error`/`Error` as a hard `Reject` so `Recover` can catch it.
-    fn lower_error_reject(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, block_id: BlockId) -> Result<SsaValueId> {
-        let placeholder = builder.ssa();
-        let constant = builder.push_constant(ConstantValue::Unit);
-        blocks.push(BasicBlock {
-            id: block_id,
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                result: Some(placeholder),
-                result_type: ExecutionValueType::Unit,
-                kind: OperationKind::Constant { constant },
-                effect_in: None,
-                effect_out: None,
-            }],
-            terminator: Terminator::Reject { exit: None },
-        });
-        Ok(placeholder)
     }
 }
 

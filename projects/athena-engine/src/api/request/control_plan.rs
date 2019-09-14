@@ -62,6 +62,8 @@ pub enum ControlPlan {
         /// 失败时执行的恢复分支。
         handler: Box<AthenaRequest>,
     },
+    /// 立即拒绝当前区域（供 `Recover` 捕获；非 Extension 表面名）。
+    Reject,
     /// 代换式局部作用域（对齐语义算子 `LocalScope`）。
     LocalScope {
         /// 主体。

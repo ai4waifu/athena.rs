@@ -33,6 +33,7 @@ impl ExecutionCompiler {
             }
             ControlPlan::Cond { arms, otherwise } => self.lower_cond(session, builder, blocks, block_id, arms, otherwise.as_deref()),
             ControlPlan::Recover { body, handler } => self.lower_recover(session, builder, blocks, block_id, body, handler),
+            ControlPlan::Reject => self.lower_reject(builder, blocks, block_id),
             ControlPlan::LoopWhile { condition, body } => self.lower_loop_while(session, builder, blocks, block_id, *condition, body),
             ControlPlan::CountedLoop { variable, iterator, body } => {
                 self.lower_counted_loop(session, builder, blocks, block_id, *variable, *iterator, body)
@@ -373,6 +374,29 @@ impl ExecutionCompiler {
             terminator: Terminator::return_value(exit_param),
         });
         Ok(exit_param)
+    }
+
+    pub(crate) fn lower_reject(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+    ) -> Result<SsaValueId> {
+        let placeholder = builder.ssa();
+        let constant = builder.push_constant(ConstantValue::Unit);
+        blocks.push(BasicBlock {
+            id: block_id,
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                result: Some(placeholder),
+                result_type: ExecutionValueType::Unit,
+                kind: OperationKind::Constant { constant },
+                effect_in: None,
+                effect_out: None,
+            }],
+            terminator: Terminator::Reject { exit: None },
+        });
+        Ok(placeholder)
     }
 
     pub(crate) fn lower_recover(
