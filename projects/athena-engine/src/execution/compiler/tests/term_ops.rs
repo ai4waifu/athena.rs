@@ -1,6 +1,6 @@
 use super::super::*;
 use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
-use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::ComputationStatus;
 
 #[test]
@@ -315,8 +315,8 @@ fn compile_and_execute_replace_all() {
 fn compile_and_execute_simplify_pythagorean() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
-    let sin = ApplicationHead::Extension(session.operators.intern("Sin"));
-    let cos = ApplicationHead::Extension(session.operators.intern("Cos"));
+    let sin = ApplicationHead::Semantic(SemanticOperator::from_unary(UnaryFunction::Sin));
+    let cos = ApplicationHead::Semantic(SemanticOperator::from_unary(UnaryFunction::Cos));
     let power = ApplicationHead::Semantic(SemanticOperator::Power);
     let plus = ApplicationHead::Semantic(SemanticOperator::Add);
     let two = session.builder().int(2, Default::default());
@@ -350,7 +350,7 @@ fn compile_and_execute_times_zero_and_cos_pi() {
     }
 
     let pi = session.builder().symbol("Pi", Default::default());
-    let cos = ApplicationHead::Extension(session.operators.intern("Cos"));
+    let cos = ApplicationHead::Semantic(SemanticOperator::from_unary(UnaryFunction::Cos));
     let term = session.builder().application(cos, vec![pi], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cos");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
@@ -378,14 +378,18 @@ fn compile_and_execute_power_zero_and_times_one_residual() {
     }
 
     let one = session.builder().int(1, Default::default());
-    let cosh = ApplicationHead::Extension(session.operators.intern("Cosh"));
+    let cosh = ApplicationHead::Semantic(SemanticOperator::from_unary(UnaryFunction::Cosh));
     let cosh_x = session.builder().application(cosh, vec![x], Default::default());
     let term = session.builder().application(times, vec![cosh_x, one], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cosh");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if matches!(*head, ApplicationHead::Extension(id) if session.operators.name(id) == Some("Cosh")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
+            if matches!(
+                *head,
+                ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Cosh)
+            ) && arguments.len() == 1
+                && session.arena.structural_eq(arguments[0], x) => {}
         other => panic!("expected Times[Cosh[x], 1] == Cosh[x], got {other:?}"),
     }
 

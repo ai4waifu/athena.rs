@@ -108,6 +108,7 @@ fn control_plan_covers_neutral_loop_and_recover_shapes() {
     let _ = ControlPlan::LoopWhile { condition: zero, body: Box::new(AthenaRequest::Term(zero)) };
     let _ = ControlPlan::CountedLoop { variable: zero, iterator: one, body: Box::new(AthenaRequest::Term(one)) };
     let _ = ControlPlan::Recover { body: Box::new(AthenaRequest::Term(zero)), handler: Box::new(AthenaRequest::Term(one)) };
+    let _ = ControlPlan::Reject;
     let _ = ControlPlan::Cond { arms: vec![(zero, Box::new(AthenaRequest::Term(one)))], otherwise: Some(Box::new(AthenaRequest::Term(zero))) };
     let _ = ControlPlan::LocalScope { body: Box::new(AthenaRequest::Term(zero)) };
 }
