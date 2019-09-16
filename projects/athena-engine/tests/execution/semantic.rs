@@ -112,48 +112,128 @@ fn comparisons_and_logic() {
 fn if_and_which() {
     let mut s = Session::new();
     let cond = sem(SemanticOperator::Less, vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let e = ext("Branch", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "10");
+    let request = AthenaRequest::Control(ControlPlan::Branch {
+        condition: cond,
+        then_branch: Box::new(AthenaRequest::Term(int(10, &mut s))),
+        else_branch: Some(Box::new(AthenaRequest::Term(int(20, &mut s)))),
+    });
+    assert_eq!(eval_request(&mut s, request), "10");
     let cond = sem(SemanticOperator::Greater, vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let e = ext("Branch", vec![cond, int(10, &mut s), int(20, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "20");
+    let request = AthenaRequest::Control(ControlPlan::Branch {
+        condition: cond,
+        then_branch: Box::new(AthenaRequest::Term(int(10, &mut s))),
+        else_branch: Some(Box::new(AthenaRequest::Term(int(20, &mut s)))),
+    });
+    assert_eq!(eval_request(&mut s, request), "20");
     let c1 = sem(SemanticOperator::Equal, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let c2 = sem(SemanticOperator::Equal, vec![int(3, &mut s), int(3, &mut s)], &mut s);
-    let e = ext("Cond", vec![c1, int(0, &mut s), c2, int(42, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "42");
+    let request = AthenaRequest::Control(ControlPlan::Cond {
+        arms: vec![
+            (c1, Box::new(AthenaRequest::Term(int(0, &mut s)))),
+            (c2, Box::new(AthenaRequest::Term(int(42, &mut s)))),
+        ],
+        otherwise: None,
+    });
+    assert_eq!(eval_request(&mut s, request), "42");
 }
 
 #[test]
 fn set_and_compound_persist_across_evaluations() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
     let mut s = Session::new();
     let x = symbol("x", &mut s);
-    let set = ext("Define", vec![x, int(5, &mut s)], &mut s);
-    assert_eq!(eval(&mut s, set), "5");
+    let x_sym = match s.arena.get(x) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol: x_sym,
+        value: int(5, &mut s),
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    assert_eq!(eval_request(&mut s, request), "5");
     let e = sem(SemanticOperator::Add, vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "6");
-    // Compound 语句序列：y = 2; y + 40
     let y = symbol("y", &mut s);
-    let set = ext("Define", vec![y, int(2, &mut s)], &mut s);
+    let y_sym = match s.arena.get(y) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
     let plus = sem(SemanticOperator::Add, vec![symbol("y", &mut s), int(40, &mut s)], &mut s);
-    let e = ext("Sequence", vec![set, plus], &mut s);
-    assert_eq!(eval(&mut s, e), "42");
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: y_sym,
+                value: int(2, &mut s),
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Term(plus),
+        ],
+    });
+    assert_eq!(eval_request(&mut s, request), "42");
 }
 
 #[test]
 fn while_accumulator() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
     let mut s = Session::new();
-    // s = 0; i = 1; While[i <= 3, i = i + 1; s = s + i]; s  → 9
-    let set0 = ext("Define", vec![symbol("s", &mut s), int(0, &mut s)], &mut s);
-    let set_i_init = ext("Define", vec![symbol("i", &mut s), int(1, &mut s)], &mut s);
+    let s_term = symbol("s", &mut s);
+    let i_term = symbol("i", &mut s);
+    let s_sym = match s.arena.get(s_term) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let i_sym = match s.arena.get(i_term) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
     let cond = sem(SemanticOperator::LessEqual, vec![symbol("i", &mut s), int(3, &mut s)], &mut s);
     let plus1 = sem(SemanticOperator::Add, vec![symbol("i", &mut s), int(1, &mut s)], &mut s);
-    let set_i = ext("Define", vec![symbol("i", &mut s), plus1], &mut s);
     let plus2 = sem(SemanticOperator::Add, vec![symbol("s", &mut s), symbol("i", &mut s)], &mut s);
-    let set_s = ext("Define", vec![symbol("s", &mut s), plus2], &mut s);
-    let body = ext("Sequence", vec![set_i, set_s], &mut s);
-    let wh = ext("LoopWhile", vec![cond, body], &mut s);
-    let e = ext("Sequence", vec![set0, set_i_init, wh, symbol("s", &mut s)], &mut s);
-    assert_eq!(eval(&mut s, e), "9");
+    let body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: plus1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: s_sym,
+                value: plus2,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+        ],
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: s_sym,
+                value: int(0, &mut s),
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: int(1, &mut s),
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Control(ControlPlan::LoopWhile {
+                condition: cond,
+                body: Box::new(body),
+            }),
+            AthenaRequest::Term(symbol("s", &mut s)),
+        ],
+    });
+    assert_eq!(eval_request(&mut s, request), "9");
 }
 
 fn eval_request(s: &mut Session, request: AthenaRequest) -> String {
@@ -179,32 +259,33 @@ fn iterate_collects_ordered_collection() {
 
 #[test]
 fn table_sum_and_module() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
     let mut s = Session::new();
     let iter = list(vec![symbol("k", &mut s), int(1, &mut s), int(10, &mut s)], &mut s);
     let e = sem(SemanticOperator::Sum, vec![symbol("k", &mut s), iter], &mut s);
     assert_eq!(eval(&mut s, e), "55");
-    // LocalScope[{x = 3}, x + 1] → 4
-    let locals = list(vec![ext("Define", vec![symbol("x", &mut s), int(3, &mut s)], &mut s)], &mut s);
+    let x = symbol("x", &mut s);
+    let x_sym = match s.arena.get(x) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
     let body = sem(SemanticOperator::Add, vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let e = ext("LocalScope", vec![locals, body], &mut s);
-    assert_eq!(eval(&mut s, e), "4");
-    // LexicalScope[{x}, x] → 唯一化符号（含 `$`）
-    let locals = list(vec![symbol("x", &mut s)], &mut s);
-    let e = ext("LexicalScope", vec![locals, symbol("x", &mut s)], &mut s);
-    let r = eval(&mut s, e);
-    assert!(r.contains("x$"), "got {r}");
-    // LexicalScope[{x}, x = 1; x + 1] → 2（局部 Define 写入当前 ScopeFrame）。
-    let locals = list(vec![symbol("x", &mut s)], &mut s);
-    let set = ext("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let body = sem(SemanticOperator::Add, vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let body = ext("Sequence", vec![set, body], &mut s);
-    let e = ext("LexicalScope", vec![locals, body], &mut s);
-    assert_eq!(eval(&mut s, e), "2");
-    // LexicalScope[{x = 1}, x + 1] → 2（初始化局部）
-    let locals = list(vec![ext("Define", vec![symbol("x", &mut s), int(1, &mut s)], &mut s)], &mut s);
-    let body = sem(SemanticOperator::Add, vec![symbol("x", &mut s), int(1, &mut s)], &mut s);
-    let e = ext("LexicalScope", vec![locals, body], &mut s);
-    assert_eq!(eval(&mut s, e), "2");
+    let request = AthenaRequest::Control(ControlPlan::LocalScope {
+        body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: x_sym,
+                    value: int(3, &mut s),
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Term(body),
+            ],
+        })),
+    });
+    assert_eq!(eval_request(&mut s, request), "4");
 }
 
 #[test]

@@ -93,13 +93,6 @@ fn list_eval() {
 }
 
 #[test]
-fn compound_expression_returns_last() {
-    let mut c = C::new();
-    let e = ext("Sequence", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "3");
-}
-
-#[test]
 fn truthy_via_and_or() {
     let mut c = C::new();
     assert_eq!(t(sem(SemanticOperator::And, vec![i(0, &mut c), i(1, &mut c)], &mut c), &mut c), "False");
@@ -127,21 +120,6 @@ fn unknown_head_is_unevaluated_not_exact_value() {
 
 
 #[test]
-fn while_false_skips_body() {
-    let mut c = C::new();
-    let e = ext("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "Null");
-}
-
-#[test]
-fn compound_set_binds_for_later_stmts() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    let e = ext("Sequence", vec![set, sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-}
-
-#[test]
 fn session_setdelayed_evaluates_on_use() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::execution::{compiler::ExecutionCompiler, reference::ReferenceExecutor};
@@ -163,58 +141,6 @@ fn session_setdelayed_evaluates_on_use() {
     let module = ExecutionCompiler::new().compile(&mut c.s, &request).expect("define residual");
     ReferenceExecutor::new().execute(&mut c.s, &module, None).expect("exec");
     assert_eq!(t(symbol("a", &mut c), &mut c), "2");
-}
-
-#[test]
-fn with_module_block_local_bindings() {
-    let locals = |c: &mut C| {
-        let l = lst(vec![ext("Define", vec![symbol("x", c), i(1, c)], c)], c);
-        let b = sem(SemanticOperator::Add, vec![symbol("x", c), i(1, c)], c);
-        (l, b)
-    };
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("LocalScope", vec![l, b], &mut d), &mut d), "2");
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("LexicalScope", vec![l, b], &mut d), &mut d), "2");
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("DynamicScope", vec![l, b], &mut d), &mut d), "2");
-}
-
-#[test]
-fn module_bare_local_is_renamed_unique() {
-    let mut c = C::new();
-    let e1 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r1 = t(e1, &mut c);
-    let e2 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r2 = t(e2, &mut c);
-    assert!(r1.starts_with("x$"), "got {r1}");
-    assert!(r2.starts_with("x$"), "got {r2}");
-    assert_ne!(r1, r2);
-}
-
-#[test]
-fn try_catch_on_error_and_success() {
-    let mut c = C::new();
-    let err = ext("Recover", vec![ext("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(err, &mut c), "1");
-    let ok = ext("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
-    assert_eq!(t(ok, &mut c), "2");
-}
-
-#[test]
-fn session_set_persists_across_evaluate() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    assert_eq!(t(set, &mut c), "5");
-    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-    let mut d = C::new();
-    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut d), i(1, &mut d)], &mut d);
-    let r = t(e, &mut d);
-    assert!(r.contains("x"), "expected free x, got {r}");
 }
 
 #[test]
@@ -253,24 +179,6 @@ fn application_named_function_binder() {
 }
 
 #[test]
-fn for_range_last_value() {
-    let mut c = C::new();
-    let e =
-        ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "3");
-}
-
-#[test]
-fn for_accumulator_shares_compound_bindings() {
-    let mut c = C::new();
-    let set0 = ext("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
-    let body = ext("Define", vec![symbol("s", &mut c), sem(SemanticOperator::Add, vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
-    let f = ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
-    let e = ext("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-}
-
-#[test]
 fn compare_chain_less_expands_to_and() {
     let mut c = C::new();
     let nested = sem(SemanticOperator::Less, vec![i(1, &mut c), i(2, &mut c)], &mut c);
@@ -305,29 +213,6 @@ fn apply_and_join_and_length() {
     assert_eq!(t(e, &mut c), "List[1, 2, 3]");
     let e = sem(SemanticOperator::Length, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
-}
-
-#[test]
-fn module_local_does_not_clobber_session() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    let _ = c.s.evaluate(set);
-    let locals = lst(vec![ext("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
-    let body = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    let e = ext("LexicalScope", vec![locals, body], &mut c);
-    assert_eq!(t(e, &mut c), "2");
-    assert_eq!(t(symbol("x", &mut c), &mut c), "5");
-}
-
-#[test]
-fn nested_module_names_do_not_collide() {
-    let mut c = C::new();
-    let inner_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let inner = ext("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
-    let outer_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let e = ext("LexicalScope", vec![outer_locals, inner], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.starts_with("x$"), "got {r}");
 }
 
 #[test]
@@ -381,22 +266,19 @@ fn symbol_true_false_null_canonicalize() {
 }
 
 #[test]
-fn if_true_branch() {
-    let mut c = C::new();
-    let cond = sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c);
-    let e = ext("Branch", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "7");
-}
-
-#[test]
 fn cond_picks_first_true_branch() {
     let mut c = C::new();
-    let e = ext(
-        "Cond",
-        vec![symbol("False", &mut c), i(1, &mut c), symbol("True", &mut c), i(2, &mut c), symbol("True", &mut c), i(3, &mut c)],
-        &mut c,
-    );
-    assert_eq!(t(e, &mut c), "2");
+    let request = AthenaRequest::Control(ControlPlan::Cond {
+        arms: vec![
+            (boolean(false, &mut c), Box::new(AthenaRequest::Term(i(1, &mut c)))),
+            (boolean(true, &mut c), Box::new(AthenaRequest::Term(i(2, &mut c)))),
+            (boolean(true, &mut c), Box::new(AthenaRequest::Term(i(3, &mut c)))),
+        ],
+        otherwise: None,
+    });
+    let result_id = execute_ir_request(&mut c.s, request).expect("cond");
+    let term = c.s.results.get(result_id).and_then(|r| r.symbolic_term).expect("term");
+    assert_eq!(term_debug(&c.s, term), "2");
 }
 
 
@@ -538,25 +420,3 @@ fn unsupported_import_is_not_silent_value() {
     assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
 }
 
-#[test]
-fn if_false_and_null_and_non_boolean() {
-    use athena_types::DiagnosticCode;
-    let mut c = C::new();
-    assert_eq!(t(ext("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
-    assert_eq!(t(ext("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
-    let e = ext("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
-    let o = result_of(e, &mut c);
-    assert_eq!(o.status, ComputationStatus::Invalid);
-    assert_eq!(o.diagnostics[0].code, DiagnosticCode::NonBooleanCondition);
-}
-
-#[test]
-fn branch_true_skips_else_import() {
-    use athena_types::DiagnosticCode;
-    let mut c = C::new();
-    let e = ext("Branch", vec![symbol("True", &mut c), i(7, &mut c), ext("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "7");
-    let o = result_of(e, &mut c);
-    assert_eq!(o.status, ComputationStatus::Exact);
-    assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
-}

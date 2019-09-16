@@ -102,13 +102,6 @@ fn pythagorean() {
 }
 
 #[test]
-fn compound_expression_returns_last() {
-    let mut c = C::new();
-    let e = ext("Sequence", vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "3");
-}
-
-#[test]
 fn map_sin_list() {
     let mut c = C::new();
     let e = sem(SemanticOperator::Map, vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
@@ -152,34 +145,6 @@ fn unknown_head_is_unevaluated_not_exact_value() {
 }
 
 #[test]
-fn if_true_branch_and_short_circuit() {
-    use athena_types::DiagnosticCode;
-    let mut c = C::new();
-    let cond = sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c);
-    let e = ext("Branch", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "7");
-    // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
-    let e = ext("Branch", vec![symbol("True", &mut c), i(7, &mut c), ext("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
-    let o = out(e, &mut c);
-    assert_eq!(term_debug(&c.s, o.term), "7");
-    assert_eq!(o.kind, execution::EvalKind::Value);
-    assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
-}
-
-#[test]
-fn if_false_and_null_and_non_boolean() {
-    use athena_types::{ComputationStatus, DiagnosticCode};
-    let mut c = C::new();
-    assert_eq!(t(ext("Branch", vec![symbol("False", &mut c), i(7, &mut c), i(8, &mut c)], &mut c), &mut c), "8");
-    assert_eq!(t(ext("Branch", vec![i(0, &mut c), i(7, &mut c)], &mut c), &mut c), "Null");
-    let e = ext("Branch", vec![symbol("x", &mut c), i(1, &mut c), i(2, &mut c)], &mut c);
-    let o = out(e, &mut c);
-    assert_eq!(o.kind, execution::EvalKind::Unevaluated);
-    assert_eq!(o.status, ComputationStatus::Invalid);
-    assert_eq!(o.diagnostics[0].code, DiagnosticCode::NonBooleanCondition);
-}
-
-#[test]
 fn symbol_true_false_null_canonicalize_to_typed_atoms() {
     let mut c = C::new();
     assert_eq!(t(symbol("True", &mut c), &mut c), "True");
@@ -198,50 +163,20 @@ fn hold_and_hold_form_do_not_eval_args() {
 #[test]
 fn cond_picks_first_true_branch() {
     let mut c = C::new();
-    let e = ext(
-        "Cond",
-        vec![symbol("False", &mut c), i(1, &mut c), symbol("True", &mut c), i(2, &mut c), symbol("True", &mut c), i(3, &mut c)],
-        &mut c,
-    );
-    assert_eq!(t(e, &mut c), "2");
+    let request = AthenaRequest::Control(ControlPlan::Cond {
+        arms: vec![
+            (boolean(false, &mut c), Box::new(AthenaRequest::Term(i(1, &mut c)))),
+            (boolean(true, &mut c), Box::new(AthenaRequest::Term(i(2, &mut c)))),
+            (boolean(true, &mut c), Box::new(AthenaRequest::Term(i(3, &mut c)))),
+        ],
+        otherwise: None,
+    });
+    let result_id = execution::execute_ir_request(&mut c.s, request).expect("cond");
+    let term = c.s.results.get(result_id).and_then(|r| r.symbolic_term).expect("term");
+    assert_eq!(term_debug(&c.s, term), "2");
 }
 
 
-
-#[test]
-fn while_false_skips_body() {
-    let mut c = C::new();
-    let e = ext("LoopWhile", vec![i(0, &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "Null");
-}
-
-#[test]
-fn compound_set_binds_for_later_stmts() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    let e = ext("Sequence", vec![set, sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-}
-
-
-
-#[test]
-fn for_range_last_value() {
-    let mut c = C::new();
-    let e =
-        ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "3");
-}
-
-#[test]
-fn for_accumulator_shares_compound_bindings() {
-    let mut c = C::new();
-    let set0 = ext("Define", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
-    let body = ext("Define", vec![symbol("s", &mut c), sem(SemanticOperator::Add, vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
-    let f = ext("CountedLoop", vec![symbol("i", &mut c), sem(SemanticOperator::Range, vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
-    let e = ext("Sequence", vec![set0, f, symbol("s", &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-}
 
 #[test]
 fn compare_chain_less_expands_to_and() {
@@ -252,58 +187,6 @@ fn compare_chain_less_expands_to_and() {
     let nested = sem(SemanticOperator::Less, vec![i(1, &mut c), i(0, &mut c)], &mut c);
     let e2 = sem(SemanticOperator::Less, vec![nested, i(3, &mut c)], &mut c);
     assert_eq!(t(e2, &mut c), "False");
-}
-
-#[test]
-fn try_catch_on_error_and_success() {
-    let mut c = C::new();
-    let err = ext("Recover", vec![ext("error", vec![str_("e", &mut c)], &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(err, &mut c), "1");
-    let ok = ext("Recover", vec![i(2, &mut c), i(3, &mut c)], &mut c);
-    assert_eq!(t(ok, &mut c), "2");
-}
-
-#[test]
-fn with_module_block_local_bindings() {
-    let locals = |c: &mut C| {
-        let l = lst(vec![ext("Define", vec![symbol("x", c), i(1, c)], c)], c);
-        let b = sem(SemanticOperator::Add, vec![symbol("x", c), i(1, c)], c);
-        (l, b)
-    };
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("LocalScope", vec![l, b], &mut d), &mut d), "2");
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("LexicalScope", vec![l, b], &mut d), &mut d), "2");
-    let mut d = C::new();
-    let (l, b) = locals(&mut d);
-    assert_eq!(t(ext("DynamicScope", vec![l, b], &mut d), &mut d), "2");
-}
-
-
-#[test]
-fn session_set_persists_across_evaluate() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    assert_eq!(t(set, &mut c), "5");
-    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "6");
-    // 无定义的新 session：x 保持自由符号。
-    let mut d = C::new();
-    let e = sem(SemanticOperator::Add, vec![symbol("x", &mut d), i(1, &mut d)], &mut d);
-    let r = t(e, &mut d);
-    assert!(r.contains("x"), "expected free x, got {r}");
-}
-
-#[test]
-fn session_compound_set_writes_definitions() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("y", &mut c), i(3, &mut c)], &mut c);
-    let plus = sem(SemanticOperator::Add, vec![symbol("y", &mut c), i(4, &mut c)], &mut c);
-    let e = ext("Sequence", vec![set, plus], &mut c);
-    assert_eq!(t(e, &mut c), "7");
-    assert_eq!(t(symbol("y", &mut c), &mut c), "3");
 }
 
 #[test]
@@ -359,42 +242,6 @@ fn compare_list_scalar_broadcasts() {
     let mut c = C::new();
     let e = sem(SemanticOperator::Less, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(2, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "List[True, False, False]");
-}
-
-#[test]
-fn module_bare_local_is_renamed_unique() {
-    let mut c = C::new();
-    let e1 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r1 = t(e1, &mut c);
-    let e2 = ext("LexicalScope", vec![lst(vec![symbol("x", &mut c)], &mut c), symbol("x", &mut c)], &mut c);
-    let r2 = t(e2, &mut c);
-    assert!(r1.starts_with("x$"), "got {r1}");
-    assert!(r2.starts_with("x$"), "got {r2}");
-    assert_ne!(r1, r2);
-}
-
-#[test]
-fn module_local_does_not_clobber_session() {
-    let mut c = C::new();
-    let set = ext("Define", vec![symbol("x", &mut c), i(5, &mut c)], &mut c);
-    out(set, &mut c);
-    let locals = lst(vec![ext("Define", vec![symbol("x", &mut c), i(1, &mut c)], &mut c)], &mut c);
-    let body = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
-    let e = ext("LexicalScope", vec![locals, body], &mut c);
-    assert_eq!(t(e, &mut c), "2");
-    // Session 级 x 仍为 5。
-    assert_eq!(t(symbol("x", &mut c), &mut c), "5");
-}
-
-#[test]
-fn nested_module_names_do_not_collide() {
-    let mut c = C::new();
-    let inner_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let inner = ext("LexicalScope", vec![inner_locals, symbol("x", &mut c)], &mut c);
-    let outer_locals = lst(vec![symbol("x", &mut c)], &mut c);
-    let e = ext("LexicalScope", vec![outer_locals, inner], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.starts_with("x$"), "got {r}");
 }
 
 #[test]
@@ -512,16 +359,6 @@ fn machine_trig_at_real_points() {
     assert_eq!(t(e, &mut c), "0");
     let e = unary(UnaryFunction::Cos, vec![symbol("Pi", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "-1");
-}
-
-#[test]
-fn depth_limit_returns_unevaluated() {
-    // 深度 256 上限：自引用 Through 深链走 While 计数上限路径即可覆盖 guard。
-    let mut c = C::new();
-    let cond = i(0, &mut c);
-    let body = i(1, &mut c);
-    let e = ext("LoopWhile", vec![cond, body], &mut c);
-    assert_eq!(t(e, &mut c), "Null");
 }
 
 #[test]
