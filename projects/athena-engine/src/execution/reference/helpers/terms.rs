@@ -238,8 +238,10 @@ pub(crate) fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, Term
     if arguments.len() != 2 {
         return None;
     }
-    let name = head_label(session, *head)?;
-    if matches!(name.as_str(), "Rule" | "RuleDeferred") { Some((arguments[0], arguments[1])) } else { None }
+    match *head {
+        ApplicationHead::Semantic(SemanticOperator::Rule | SemanticOperator::RuleDeferred) => Some((arguments[0], arguments[1])),
+        _ => None,
+    }
 }
 
 pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {
