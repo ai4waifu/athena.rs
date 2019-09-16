@@ -325,18 +325,54 @@ fn downvalues_and_match_q() {
 
 #[test]
 fn linear_algebra_paths() {
+    use athena_engine::{
+        api::request::DomainGoal,
+        domains::{
+            dispatch::{DomainRequest, DomainResult},
+            linear_algebra::{
+                ExactSolveResult, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEqualityKind, MatrixValue,
+                SolveDisposition, matrices_equal,
+            },
+        },
+        runtime::values::RuntimeValue,
+    };
+    use athena_numeric::{Integer, Rational};
+
     let mut s = Session::new();
-    // Determinant[{{1, 2}, {3, 4}}] → -2
     let m = list(vec![list(vec![int(1, &mut s), int(2, &mut s)], &mut s), list(vec![int(3, &mut s), int(4, &mut s)], &mut s)], &mut s);
     let e = sem(SemanticOperator::Determinant, vec![m], &mut s);
     assert_eq!(eval(&mut s, e), "-2");
-    // LinearSolve[{{2, 0}, {0, 2}}, {{4}, {6}}] → {{2}, {3}}（列向量形态）
+
+    let a = MatrixValue::from_integers_row_major(
+        2,
+        2,
+        vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
+    )
+    .unwrap();
+    let b = MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap();
+    let expected = MatrixValue::from_rationals_row_major(
+        2,
+        1,
+        vec![Rational::new(Integer::from_i64(2), Integer::from_i64(1)), Rational::new(Integer::from_i64(3), Integer::from_i64(1))],
+    )
+    .unwrap();
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a, b })));
+    let result_id = execution::execute_ir_request(&mut s, request).expect("goal");
+    let loaded = s.results.get(result_id).expect("result");
+    let value_id = loaded.value.expect("value");
+    match s.values.get(value_id).expect("runtime") {
+        RuntimeValue::Domain(DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+            value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
+                disposition: SolveDisposition::Unique,
+                particular: Some(x),
+                ..
+            }),
+        })) => assert!(matrices_equal(x, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
+        other => panic!("expected ExactSolve unique, got {other:?}"),
+    }
+
+    // Extension LinearSolve is residual display only — not core solve dispatch.
     let m = list(vec![list(vec![int(2, &mut s), int(0, &mut s)], &mut s), list(vec![int(0, &mut s), int(2, &mut s)], &mut s)], &mut s);
-    let rhs = list(vec![list(vec![int(4, &mut s)], &mut s), list(vec![int(6, &mut s)], &mut s)], &mut s);
-    let e = ext("LinearSolve", vec![m, rhs], &mut s);
-    let r = eval(&mut s, e);
-    assert!(r.contains("List[List[2], List[3]]"), "got {r}");
-    // 行向量 b 为未求值回显形态
     let rhs_row = list(vec![int(4, &mut s), int(6, &mut s)], &mut s);
     let e = ext("LinearSolve", vec![m, rhs_row], &mut s);
     let r = eval(&mut s, e);

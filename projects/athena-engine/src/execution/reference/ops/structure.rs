@@ -13,8 +13,8 @@ use super::super::{IndexStep, ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
-    domains::linear_algebra::{SolveDisposition, det_bareiss, matmul, solve_exact},
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number, push_semantic},
+    domains::linear_algebra::{det_bareiss, matmul},
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{arena::push_list, numeric_clone::{clone_number, clone_rational}},
@@ -153,60 +153,6 @@ impl ReferenceExecutor {
         };
         match det_bareiss(&matrix) {
             Ok(result) => Ok(Slot::Term(rational_to_term_session(session, &result.det))),
-            Err(diagnostic) => {
-                *invalid = Some(diagnostic);
-                Ok(Slot::Term(echo))
-            }
-        }
-    }
-
-    pub(crate) fn eval_linear_solve(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
-        invalid: &mut Option<Diagnostic>,
-    ) -> Result<Slot> {
-        if args.len() != 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let a = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let b = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let echo = push_application(session, "LinearSolve", vec![a, b]);
-        let Some(am) = term_to_rational_matrix_session(session, a)
-        else {
-            return Ok(Slot::Term(echo));
-        };
-        let Some(bm) = term_to_rational_matrix_session(session, b)
-        else {
-            return Ok(Slot::Term(echo));
-        };
-        match solve_exact(&am, &bm) {
-            Ok(sol) if sol.disposition == SolveDisposition::Unique => match sol.particular {
-                Some(x) => match matrix_to_nested_list_session(session, &x) {
-                    Ok(term) => Ok(Slot::Term(term)),
-                    Err(diagnostic) => {
-                        *invalid = Some(diagnostic);
-                        Ok(Slot::Term(echo))
-                    }
-                },
-                None => {
-                    *invalid = Some(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve"));
-                    Ok(Slot::Term(echo))
-                }
-            },
-            Ok(sol) => {
-                let detail = match sol.disposition {
-                    SolveDisposition::Inconsistent => "inconsistent",
-                    SolveDisposition::Infinite { .. } => "underdetermined",
-                    SolveDisposition::Unique => "unique",
-                    SolveDisposition::Singular => "singular",
-                    SolveDisposition::ResourceLimited => "resource_limited",
-                };
-                *invalid =
-                    Some(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "LinearSolve").detail("reason", detail));
-                Ok(Slot::Term(echo))
-            }
             Err(diagnostic) => {
                 *invalid = Some(diagnostic);
                 Ok(Slot::Term(echo))

@@ -338,26 +338,13 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
-                // Extension display names are never core math / calculus dispatch (Living 27).
+                // Extension names are display / user-dispatch only — never core math (Living 27).
                 let name = session.operators.name(*operator).unwrap_or("").to_string();
-                match name.as_str() {
-                    "LinearSolve" => self.eval_linear_solve(session, args, slots, invalid),
-                    "Import" | "Export" | "Timing" => {
-                        *invalid = Some(
-                            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                .detail("component", "ReferenceExecutor")
-                                .detail("operation", name.as_str()),
-                        );
-                        self.eval_residual_app(session, name.as_str(), args, slots)
-                    }
-                    _ => {
-                        if let Some(slot) = self.try_apply_down_values(session, name.as_str(), args, slots)? {
-                            return Ok(slot);
-                        }
-                        *unevaluated = true;
-                        self.eval_residual_app(session, name.as_str(), args, slots)
-                    }
+                if let Some(slot) = self.try_apply_down_values(session, name.as_str(), args, slots)? {
+                    return Ok(slot);
                 }
+                *unevaluated = true;
+                self.eval_residual_app(session, name.as_str(), args, slots)
             }
             OperationKind::ConstructCollection { kind, elements } => {
                 let mut items = Vec::with_capacity(elements.len());

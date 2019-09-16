@@ -124,13 +124,14 @@ fn truthy_via_and_or() {
 
 #[test]
 fn unsupported_import_is_not_silent_value() {
-    use athena_types::{ComputationStatus, DiagnosticCode};
+    use athena_types::ComputationStatus;
     let mut c = C::new();
+    // Import is an Extension residual until a typed SessionCommand/Goal exists (Living 27).
     let e = ext("Import", vec![str_("x.csv", &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
-    assert_eq!(o.status, ComputationStatus::Invalid);
-    assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
+    assert_eq!(o.status, ComputationStatus::Unknown);
+    assert!(!o.has_error());
 }
 
 #[test]
@@ -338,13 +339,48 @@ fn det_and_size() {
 }
 
 #[test]
-fn linear_solve_column_vector() {
+fn linear_solve_via_domain_goal() {
+    use athena_engine::{
+        api::request::DomainGoal,
+        domains::{
+            dispatch::{DomainRequest, DomainResult},
+            linear_algebra::{
+                ExactSolveResult, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEqualityKind, MatrixValue,
+                SolveDisposition, matrices_equal,
+            },
+        },
+        runtime::values::RuntimeValue,
+    };
+    use athena_numeric::{Integer, Rational};
+
     let mut c = C::new();
-    let m = lst(vec![lst(vec![i(2, &mut c), i(0, &mut c)], &mut c), lst(vec![i(0, &mut c), i(2, &mut c)], &mut c)], &mut c);
-    let b = lst(vec![lst(vec![i(4, &mut c)], &mut c), lst(vec![i(6, &mut c)], &mut c)], &mut c);
-    let e = ext("LinearSolve", vec![m, b], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.contains("List[2]"), "got {r}");
+    let a = MatrixValue::from_integers_row_major(
+        2,
+        2,
+        vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
+    )
+    .unwrap();
+    let b = MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap();
+    let expected = MatrixValue::from_rationals_row_major(
+        2,
+        1,
+        vec![Rational::new(Integer::from_i64(2), Integer::from_i64(1)), Rational::new(Integer::from_i64(3), Integer::from_i64(1))],
+    )
+    .unwrap();
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a, b })));
+    let result_id = execution::execute_ir_request(&mut c.s, request).expect("goal");
+    let loaded = c.s.results.get(result_id).expect("result");
+    let value_id = loaded.value.expect("value");
+    match c.s.values.get(value_id).expect("runtime") {
+        RuntimeValue::Domain(DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+            value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
+                disposition: SolveDisposition::Unique,
+                particular: Some(x),
+                ..
+            }),
+        })) => assert!(matrices_equal(x, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
+        other => panic!("expected ExactSolve unique, got {other:?}"),
+    }
 }
 
 #[test]
