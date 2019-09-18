@@ -2,19 +2,20 @@
 
 use std::cmp::Ordering;
 
+use athena_ir::SemanticOperator;
 use athena_numeric::{Number, compare as num_compare};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::diag;
 use super::super::Slot;
 use crate::{
-    execution::{number_of, push_application, push_number},
+    execution::{number_of, push_number, push_semantic},
     runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
 };
 
 pub(crate) fn compare_list_broadcast(
     session: &mut Session,
-    name: &str,
+    op: SemanticOperator,
     left: TermId,
     right: TermId,
     pick: fn(Ordering) -> bool,
@@ -33,11 +34,11 @@ pub(crate) fn compare_list_broadcast(
                 _ => return Ok(None),
             };
             if xs.len() != ys.len() {
-                return Ok(Some(push_application(session, name, vec![left, right])));
+                return Ok(Some(push_semantic(session, op, vec![left, right])));
             }
             let mut out = Vec::with_capacity(xs.len());
             for (a, b) in xs.into_iter().zip(ys.into_iter()) {
-                out.push(compare_pair_term(session, name, a, b, pick)?);
+                out.push(compare_pair_term(session, op, a, b, pick)?);
             }
             Ok(Some(push_list(session, out)))
         }
@@ -48,7 +49,7 @@ pub(crate) fn compare_list_broadcast(
             };
             let mut out = Vec::with_capacity(xs.len());
             for a in xs {
-                out.push(compare_pair_term(session, name, a, right, pick)?);
+                out.push(compare_pair_term(session, op, a, right, pick)?);
             }
             Ok(Some(push_list(session, out)))
         }
@@ -59,20 +60,26 @@ pub(crate) fn compare_list_broadcast(
             };
             let mut out = Vec::with_capacity(ys.len());
             for b in ys {
-                out.push(compare_pair_term(session, name, left, b, pick)?);
+                out.push(compare_pair_term(session, op, left, b, pick)?);
             }
             Ok(Some(push_list(session, out)))
         }
     }
 }
 
-pub(crate) fn compare_pair_term(session: &mut Session, name: &str, left: TermId, right: TermId, pick: fn(Ordering) -> bool) -> Result<TermId> {
+pub(crate) fn compare_pair_term(
+    session: &mut Session,
+    op: SemanticOperator,
+    left: TermId,
+    right: TermId,
+    pick: fn(Ordering) -> bool,
+) -> Result<TermId> {
     // Nested lists recurse through broadcast.
     if matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { elements: _, .. }))
         || matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { elements: _, .. }))
     {
         return Ok(
-            compare_list_broadcast(session, name, left, right, pick)?.unwrap_or_else(|| push_application(session, name, vec![left, right]))
+            compare_list_broadcast(session, op, left, right, pick)?.unwrap_or_else(|| push_semantic(session, op, vec![left, right])),
         );
     }
     match (number_of(session, left).map(clone_number), number_of(session, right).map(clone_number)) {
@@ -80,7 +87,7 @@ pub(crate) fn compare_pair_term(session: &mut Session, name: &str, left: TermId,
             let ord = num_compare(&a, &b).ok_or_else(|| diag("compare_failed"))?;
             Ok(session.builder().boolean(pick(ord), Default::default()))
         }
-        _ => Ok(push_application(session, name, vec![left, right])),
+        _ => Ok(push_semantic(session, op, vec![left, right])),
     }
 }
 

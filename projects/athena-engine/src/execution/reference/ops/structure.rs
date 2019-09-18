@@ -367,7 +367,7 @@ impl ReferenceExecutor {
         };
         // Binary list broadcast for compares.
         if terms.len() == 2 {
-            if let Some(broadcast) = compare_list_broadcast(session, op.debug_label(), terms[0], terms[1], pick)? {
+            if let Some(broadcast) = compare_list_broadcast(session, op, terms[0], terms[1], pick)? {
                 return Ok(Slot::Term(broadcast));
             }
         }
