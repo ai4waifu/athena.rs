@@ -21,6 +21,8 @@ jobs:
           node-version: "22"
       - name: Migration expiry gate
         run: node scripts/migration/check-expiry.mjs
+      - name: Neutral surface gate
+        run: node scripts/check-neutral-surface.mjs
       - name: Check
         run: cargo check --workspace --all-targets
       - name: Tests
