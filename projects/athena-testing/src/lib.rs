@@ -1,7 +1,8 @@
-//! Athena neutral semantic acceptance (Living `12` / `27`).
+//! Athena neutral **test helpers** (Living `12` / `27`).
 //!
-//! Cross-crate contract tests for typed Athena requests. No dialect, parser,
-//! or named-head construction APIs. Not `@sxo/harness`.
+//! Builders and typed asserts for use from other crates' `cargo test`
+//! (`athena-engine`, `athena`, …). This package is a library only — not a
+//! standalone test binary and not `@sxo/harness`.
 
 #![deny(missing_docs)]
 

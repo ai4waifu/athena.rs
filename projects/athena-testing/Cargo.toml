@@ -4,8 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena neutral semantic acceptance harness — no dialect / parser / named-head APIs"
+description = "Athena neutral test helpers — builders and asserts only (no test binary)"
 publish = false
+
+[lib]
+path = "src/lib.rs"
+test = false
+doctest = false
 
 [dependencies]
 athena = { workspace = true }
@@ -19,7 +24,3 @@ athena-engine = { workspace = true }
 [lints.rust]
 missing_docs = "warn"
 unsafe_code = "forbid"
-
-[[test]]
-name = "main"
-path = "tests/main.rs"
