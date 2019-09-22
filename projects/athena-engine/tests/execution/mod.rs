@@ -5,4 +5,5 @@ mod coverage;
 mod functions;
 mod ir_contract;
 mod ir_parity;
+mod neutral_request;
 mod semantic;

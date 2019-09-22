@@ -22,6 +22,9 @@ athena-jit = { workspace = true, optional = true }
 athena-graph = { workspace = true }
 athena-ndarray = { workspace = true }
 
+[dev-dependencies]
+athena-testing = { workspace = true }
+
 [lints.rust]
 missing_docs = "warn"
 # `deny`（非 `forbid`）：`calculus::ctx::Cc` 经独占生命周期裸指针消除嵌套 builder E0499。
