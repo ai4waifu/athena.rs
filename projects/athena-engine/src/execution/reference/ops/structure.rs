@@ -513,7 +513,9 @@ impl ReferenceExecutor {
                     }
                     ok.then_some(acc)
                 }
-                (SemanticOperator::Subtract, [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
+                (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => {
+                    num_mul(Number::small_int(-1), clone_number(a)).ok()
+                }
                 (SemanticOperator::Subtract, [a, b]) => {
                     num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok()
                 }
@@ -554,6 +556,7 @@ impl ReferenceExecutor {
             SemanticOperator::Power => fold_power_symbolic(session, terms),
             SemanticOperator::Divide => fold_divide_symbolic(session, terms),
             SemanticOperator::Subtract => fold_subtract_symbolic(session, terms),
+            SemanticOperator::Negate if terms.len() == 1 => fold_subtract_symbolic(session, terms),
             _ => push_semantic(session, op, terms),
         }))
     }

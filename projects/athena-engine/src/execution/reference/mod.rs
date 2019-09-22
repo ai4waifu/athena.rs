@@ -289,6 +289,7 @@ impl ReferenceExecutor {
                     SemanticOperator::Add
                     | SemanticOperator::Multiply
                     | SemanticOperator::Subtract
+                    | SemanticOperator::Negate
                     | SemanticOperator::Divide
                     | SemanticOperator::Power => self.eval_arithmetic(session, op, args, slots),
                     SemanticOperator::ElementwiseMultiply
@@ -319,7 +320,6 @@ impl ReferenceExecutor {
                     SemanticOperator::Simplify => self.eval_simplify(session, args, slots),
                     SemanticOperator::Hold
                     | SemanticOperator::Function
-                    | SemanticOperator::Negate
                     | SemanticOperator::Unary(_)
                     | SemanticOperator::PolyGamma
                     | SemanticOperator::Differentiate
