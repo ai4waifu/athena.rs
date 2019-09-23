@@ -82,8 +82,11 @@ pub fn get_kind<'a>(session: &'a Session, id: TermId) -> Option<&'a TermNode> {
     session.arena.get(id)
 }
 
-/// Application head (semantic label or extension display name).
-pub fn application_head_name(session: &Session, id: TermId) -> Option<String> {
+/// Display / diagnostics / render label for an application head.
+///
+/// **Not for semantic dispatch** (Living `27`). Prefer [`application_head`] +
+/// `match` on [`ApplicationHead`] / [`SemanticOperator`] in core paths.
+pub fn application_display_name(session: &Session, id: TermId) -> Option<String> {
     let TermNode::Application { head, .. } = session.arena.get(id)?
     else {
         return None;

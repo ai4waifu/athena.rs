@@ -7,7 +7,7 @@ use crate::runtime::{
     session::Session,
     values::{
         RuntimeValue,
-        arena::{application_arguments, application_head_name},
+        arena::{application_arguments, application_display_name},
     },
 };
 
@@ -33,7 +33,7 @@ pub fn term_debug(session: &Session, id: athena_types::TermId) -> String {
             format!("List[{}]", inner.join(", "))
         }
         Some(TermNode::Application { .. }) => {
-            let head = application_head_name(session, id).unwrap_or_else(|| "?".into());
+            let head = application_display_name(session, id).unwrap_or_else(|| "?".into());
             let args = application_arguments(session, id).unwrap_or_default();
             let inner: Vec<_> = args.iter().map(|c| term_debug(session, *c)).collect();
             format!("{head}[{}]", inner.join(", "))
