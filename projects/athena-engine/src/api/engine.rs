@@ -37,7 +37,7 @@ impl AthenaEngine {
 
     /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。
     pub fn differentiate(&self, session: &mut Session, term: TermId, var: &str) -> TermId {
-        let d = crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), term, var);
+        let d = crate::domains::calculus::differentiate(&mut crate::domains::DomainExecutionContext::new(session), term, var);
         self.evaluate(session, d)
     }
 

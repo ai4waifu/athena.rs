@@ -5,7 +5,7 @@
 use athena_ir::{SemanticOperator, UnaryFunction};
 use athena_types::TermId;
 
-use crate::domains::calculus::ctx::CalculusCtx;
+use crate::domains::context::DomainExecutionContext;
 
 /// 分支约定 — 复数主值与实数规则不得混用。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,7 +21,7 @@ pub enum BranchPolicy {
 }
 
 /// 一元函数形式导数：`f'(u)`，仍含自变量 `u`（链式法则外层再乘 `u'`）。
-pub type UnaryDerivative = fn(&mut CalculusCtx<'_>, TermId) -> TermId;
+pub type UnaryDerivative = fn(&mut DomainExecutionContext<'_>, TermId) -> TermId;
 
 /// 注册的函数语义。
 #[derive(Debug, Clone, Copy)]
@@ -72,86 +72,86 @@ static REGISTRY: &[FunctionDefinition] = &[
     FunctionDefinition { function: UnaryFunction::Erf, arity: 1, branch: BranchPolicy::Principal, unary_derivative: Some(deriv_erf) },
 ];
 
-fn unary(cc: &mut CalculusCtx<'_>, f: UnaryFunction, arg: TermId) -> TermId {
+fn unary(cc: &mut DomainExecutionContext<'_>, f: UnaryFunction, arg: TermId) -> TermId {
     cc.apply_semantic(SemanticOperator::from_unary(f), vec![arg])
 }
 
-fn deriv_exp(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_exp(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     unary(cc, UnaryFunction::Exp, arg)
 }
 
-fn deriv_log(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_log(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(-1)])
 }
 
-fn deriv_sin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_sin(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     unary(cc, UnaryFunction::Cos, arg)
 }
 
-fn deriv_cos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_cos(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let sin = unary(cc, UnaryFunction::Sin, arg);
     cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), sin])
 }
 
-fn deriv_tan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_tan(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let cos = unary(cc, UnaryFunction::Cos, arg);
     cc.apply_semantic(SemanticOperator::Power, vec![cos, cc.in_(-2)])
 }
 
-fn deriv_sinh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_sinh(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     unary(cc, UnaryFunction::Cosh, arg)
 }
 
-fn deriv_cosh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_cosh(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     unary(cc, UnaryFunction::Sinh, arg)
 }
 
-fn deriv_tanh(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_tanh(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let cosh = unary(cc, UnaryFunction::Cosh, arg);
     cc.apply_semantic(SemanticOperator::Power, vec![cosh, cc.in_(-2)])
 }
 
-fn deriv_arcsin(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_arcsin(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let u2 = cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(2)]);
     let one_minus = cc.apply_semantic(SemanticOperator::Add, vec![cc.in_(1), cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), u2])]);
     let sqrt = cc.apply_semantic(SemanticOperator::Sqrt, vec![one_minus]);
     cc.apply_semantic(SemanticOperator::Power, vec![sqrt, cc.in_(-1)])
 }
 
-fn deriv_arccos(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_arccos(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let s = deriv_arcsin(cc, arg);
     cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), s])
 }
 
-fn deriv_arctan(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_arctan(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let u2 = cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(2)]);
     let one_plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.in_(1), u2]);
     cc.apply_semantic(SemanticOperator::Power, vec![one_plus, cc.in_(-1)])
 }
 
-fn deriv_sqrt(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_sqrt(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let sqrt = cc.apply_semantic(SemanticOperator::Sqrt, vec![arg]);
     let two_sqrt = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(2), sqrt]);
     cc.apply_semantic(SemanticOperator::Power, vec![two_sqrt, cc.in_(-1)])
 }
 
-fn deriv_abs(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_abs(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let abs = cc.apply_semantic(SemanticOperator::Abs, vec![arg]);
     let uinv = cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(-1)]);
     cc.apply_semantic(SemanticOperator::Multiply, vec![abs, uinv])
 }
 
-fn deriv_sign(cc: &mut CalculusCtx<'_>, _arg: TermId) -> TermId {
+fn deriv_sign(cc: &mut DomainExecutionContext<'_>, _arg: TermId) -> TermId {
     cc.in_(0)
 }
 
-fn deriv_gamma(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_gamma(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let gamma = unary(cc, UnaryFunction::Gamma, arg);
     let poly = cc.apply_semantic(SemanticOperator::PolyGamma, vec![cc.in_(0), arg]);
     cc.apply_semantic(SemanticOperator::Multiply, vec![gamma, poly])
 }
 
-fn deriv_erf(cc: &mut CalculusCtx<'_>, arg: TermId) -> TermId {
+fn deriv_erf(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let pi = cc.symbol("Pi");
     let sqrt_pi = cc.apply_semantic(SemanticOperator::Sqrt, vec![pi]);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![sqrt_pi, cc.in_(-1)]);

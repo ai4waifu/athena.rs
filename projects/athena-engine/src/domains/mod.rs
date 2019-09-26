@@ -2,6 +2,7 @@
 
 pub mod algebra;
 pub mod calculus;
+pub mod context;
 pub mod dispatch;
 pub mod field;
 pub mod galois;
@@ -13,4 +14,5 @@ pub mod optimization;
 pub mod polynomial;
 pub mod solve;
 
+pub use context::DomainExecutionContext;
 pub use dispatch::{DomainRequest, DomainResult, execute_domain};

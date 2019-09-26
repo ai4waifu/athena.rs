@@ -41,9 +41,9 @@ use crate::runtime::session::Session;
 
 /// 将微积分域请求分派到对应子模块（读写调用方 session arena）。
 pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
-    let mut cc = CalculusCtx::new(session);
     match request {
         CalculusRequest::Derivative { expression, variable, order, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
             let times = match order {
                 DerivativeOrder::First => 1u32,
                 DerivativeOrder::Repeated(n) => n,
@@ -52,11 +52,11 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 return CalculusResult::Exact { value: CalculusValue::Expression(expression), conditions: Vec::new() };
             }
             let mut value = expression;
-            let mut last = differentiate_checked(&mut cc, value, &variable, &assumptions);
-            value = cc.eval(last.value);
+            let mut last = differentiate_checked(&mut dc, value, &variable, &assumptions);
+            value = dc.fold_term(last.value);
             for _ in 1..times {
-                last = differentiate_checked(&mut cc, value, &variable, &assumptions);
-                value = cc.eval(last.value);
+                last = differentiate_checked(&mut dc, value, &variable, &assumptions);
+                value = dc.fold_term(last.value);
             }
             map_term_result(CalculusResult::from_conditional(ConditionalResult {
                 value,
@@ -64,6 +64,9 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 unresolved: last.unresolved,
             }))
         }
+        other => {
+            let mut cc = CalculusCtx::new(session);
+            match other {
         CalculusRequest::Integral { expression, variable, assumptions: _ } => {
             map_term_result(integrate_checked(&mut cc, expression, &variable))
         }
@@ -112,6 +115,9 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             }
             TransformKind::Z => map_transform_result(z_checked(&mut cc, expression, &time_variable, &transform_variable, &assumptions)),
         },
+        CalculusRequest::Derivative { .. } => unreachable!("derivative handled above"),
+            }
+        }
     }
 }
 
