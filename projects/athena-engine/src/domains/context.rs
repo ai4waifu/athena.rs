@@ -8,7 +8,7 @@
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 use athena_numeric::Number;
-use athena_types::{CollectionKind, SymbolId, TermId};
+use athena_types::{CollectionKind, OperatorId, SymbolId, TermId};
 use std::marker::PhantomData;
 
 use crate::{
@@ -18,16 +18,39 @@ use crate::{
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
 
+/// Pre-interned residual extension identities (compare by [`OperatorId`], never by display name).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ResidualExtensionIds {
+    /// Residual indeterminate form marker.
+    pub indeterminate: OperatorId,
+}
+
 /// Shared term read/build capability for domain providers.
 pub struct DomainExecutionContext<'a> {
     s: *mut Session,
+    ext: ResidualExtensionIds,
     _marker: PhantomData<&'a mut Session>,
 }
 
 impl<'a> DomainExecutionContext<'a> {
     /// Bind an exclusive session borrow for the duration of a domain call.
     pub fn new(s: &'a mut Session) -> Self {
-        Self { s: s as *mut Session, _marker: PhantomData }
+        let indeterminate = s.operators.intern("Indeterminate");
+        Self {
+            s: s as *mut Session,
+            ext: ResidualExtensionIds { indeterminate },
+            _marker: PhantomData,
+        }
+    }
+
+    /// Residual extension id table for this session.
+    pub(crate) fn residual_extensions(&self) -> ResidualExtensionIds {
+        self.ext
+    }
+
+    /// Whether `head` is the pre-interned Indeterminate residual.
+    pub(crate) fn is_indeterminate_extension(&self, head: ApplicationHead) -> bool {
+        matches!(head, ApplicationHead::Extension(id) if id == self.ext.indeterminate)
     }
 
     #[inline]

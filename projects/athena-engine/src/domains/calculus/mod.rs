@@ -72,12 +72,13 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             let mut dc = crate::domains::DomainExecutionContext::new(session);
             map_term_result(definite_integrate_checked(&mut dc, expression, &variable, lower, upper))
         }
+        CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_term_result(limit_checked(&mut dc, expression, &variable, &approach, direction, &assumptions))
+        }
         other => {
             let mut cc = CalculusCtx::new(session);
             match other {
-        CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => {
-            map_term_result(limit_checked(&mut cc, expression, &variable, &approach, direction, &assumptions))
-        }
         CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
             map_series_result(taylor(&mut cc, expression, &variable, center, order))
         }
@@ -119,7 +120,8 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
         },
         CalculusRequest::Derivative { .. }
         | CalculusRequest::Integral { .. }
-        | CalculusRequest::DefiniteIntegral { .. } => unreachable!("handled above"),
+        | CalculusRequest::DefiniteIntegral { .. }
+        | CalculusRequest::Limit { .. } => unreachable!("handled above"),
             }
         }
     }
