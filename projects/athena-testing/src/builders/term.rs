@@ -1,8 +1,8 @@
 //! Typed term construction — only [`SemanticOperator`] / [`UnaryFunction`] / collections.
 
 use athena_engine::Session;
-use athena_engine::runtime::values::arena::{push_int, push_list, push_semantic, push_symbol_name};
-use athena_ir::{SemanticOperator, UnaryFunction};
+use athena_engine::runtime::values::arena::{push_int, push_semantic, push_symbol_name};
+use athena_ir::{SemanticOperator, TermNode, UnaryFunction};
 use athena_types::{CollectionKind, TermId};
 
 /// Session-bound term builder with **no** named-head API.
@@ -26,10 +26,16 @@ impl<'a> TermBuilder<'a> {
         push_symbol_name(self.session, name)
     }
 
-    /// Ordered collection.
+    /// Ordered collection with explicit [`CollectionKind::OrderedCollection`].
     pub fn ordered(&mut self, elements: impl IntoIterator<Item = TermId>) -> TermId {
-        let _ = CollectionKind::OrderedCollection;
-        push_list(self.session, elements.into_iter().collect())
+        let span = TermNode::default_span();
+        self.session.arena.push(
+            TermNode::Collection {
+                kind: CollectionKind::OrderedCollection,
+                elements: elements.into_iter().collect(),
+            },
+            span,
+        )
     }
 
     /// `SemanticOperator::Add`.
