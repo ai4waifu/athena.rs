@@ -64,15 +64,17 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 unresolved: last.unresolved,
             }))
         }
+        CalculusRequest::Integral { expression, variable, assumptions: _ } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_term_result(integrate_checked(&mut dc, expression, &variable))
+        }
+        CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_term_result(definite_integrate_checked(&mut dc, expression, &variable, lower, upper))
+        }
         other => {
             let mut cc = CalculusCtx::new(session);
             match other {
-        CalculusRequest::Integral { expression, variable, assumptions: _ } => {
-            map_term_result(integrate_checked(&mut cc, expression, &variable))
-        }
-        CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => {
-            map_term_result(definite_integrate_checked(&mut cc, expression, &variable, lower, upper))
-        }
         CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => {
             map_term_result(limit_checked(&mut cc, expression, &variable, &approach, direction, &assumptions))
         }
@@ -115,7 +117,9 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             }
             TransformKind::Z => map_transform_result(z_checked(&mut cc, expression, &time_variable, &transform_variable, &assumptions)),
         },
-        CalculusRequest::Derivative { .. } => unreachable!("derivative handled above"),
+        CalculusRequest::Derivative { .. }
+        | CalculusRequest::Integral { .. }
+        | CalculusRequest::DefiniteIntegral { .. } => unreachable!("handled above"),
             }
         }
     }
