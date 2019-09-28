@@ -1,8 +1,5 @@
-//! Temporary calculus facade over [`DomainExecutionContext`] (Living `27`).
-//!
-//! **Delete this module** once integral / limit / series / vector / ODE / transform
-//! no longer need string extension helpers. New code must use
-//! [`DomainExecutionContext`] only.
+//! **债务**：仅残留于 residue / ODE / transform。Living `28` 禁止此模型回潮。
+//! 不得新增对 `apply` / `extension_named` / `symbol_is` 的依赖。
 
 #![allow(unsafe_code)]
 
@@ -13,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 use crate::domains::context::DomainExecutionContext;
 use crate::runtime::session::Session;
 
-/// Calculus-local wrapper. Prefer [`DomainExecutionContext`] for new paths.
+/// 待删债务壳。新代码只用 [`DomainExecutionContext`]。
 pub struct CalculusCtx<'a> {
     domain: DomainExecutionContext<'a>,
 }
@@ -24,12 +21,12 @@ impl<'a> CalculusCtx<'a> {
         Self { domain: DomainExecutionContext::new(s) }
     }
 
-    /// Extension display-name check (legacy · delete with this module).
+    /// Extension display-name check（债务 · 仅 transform/ODE 残留）。
     pub(crate) fn extension_named(&self, head: ApplicationHead, name: &str) -> bool {
         matches!(head, ApplicationHead::Extension(id) if self.domain.session().operators.name(id) == Some(name))
     }
 
-    /// Symbol display-name equality (legacy · prefer [`SymbolId`] compare).
+    /// Symbol display-name equality（债务）。
     pub(crate) fn symbol_is(&self, symbol: athena_types::SymbolId, name: &str) -> bool {
         self.domain.symbol_resolve(symbol) == name
     }
@@ -39,12 +36,12 @@ impl<'a> CalculusCtx<'a> {
         self.domain.fold_term(id)
     }
 
-    /// Ordered collection (legacy name · use [`DomainExecutionContext::ordered`]).
+    /// Ordered collection（债务名）。
     pub(crate) fn list(&self, items: Vec<TermId>) -> TermId {
         self.domain.ordered(items)
     }
 
-    /// Extension application by display name (legacy · delete with this module).
+    /// Extension application by display name（债务 · 仅 transform 残留）。
     pub(crate) fn apply(&self, head: &str, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_application_named(self.domain.session_mut(), head, args)
     }

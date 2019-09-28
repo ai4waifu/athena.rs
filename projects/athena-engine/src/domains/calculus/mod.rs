@@ -76,35 +76,43 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             let mut dc = crate::domains::DomainExecutionContext::new(session);
             map_term_result(limit_checked(&mut dc, expression, &variable, &approach, direction, &assumptions))
         }
+        CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_series_result(taylor(&mut dc, expression, &variable, center, order))
+        }
+        CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_series_result(laurent(&mut dc, expression, &variable, center, order))
+        }
+        CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_series_result(asymptotic(&mut dc, expression, &variable, order))
+        }
+        CalculusRequest::Gradient { expression, variables, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_gradient_result(gradient_checked(&mut dc, expression, &variables, &assumptions))
+        }
+        CalculusRequest::Jacobian { expressions, variables, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_jacobian_result(jacobian_checked(&mut dc, &expressions, &variables, &assumptions))
+        }
+        CalculusRequest::Hessian { expression, variables, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_hessian_result(hessian_checked(&mut dc, expression, &variables, &assumptions))
+        }
+        CalculusRequest::Divergence { components, variables, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_divergence_result(divergence_checked(&mut dc, &components, &variables, &assumptions))
+        }
+        CalculusRequest::Curl { components, variables, assumptions } => {
+            let mut dc = crate::domains::DomainExecutionContext::new(session);
+            map_curl_result(curl_checked(&mut dc, &components, &variables, &assumptions))
+        }
         other => {
             let mut cc = CalculusCtx::new(session);
             match other {
-        CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
-            map_series_result(taylor(&mut cc, expression, &variable, center, order))
-        }
-        CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
-            map_series_result(laurent(&mut cc, expression, &variable, center, order))
-        }
-        CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
-            map_series_result(asymptotic(&mut cc, expression, &variable, order))
-        }
         CalculusRequest::Residue { expression, variable, point, assumptions: _ } => {
             map_residue_result(residue_checked(&mut cc, expression, &variable, point))
-        }
-        CalculusRequest::Gradient { expression, variables, assumptions } => {
-            map_gradient_result(gradient_checked(&mut cc, expression, &variables, &assumptions))
-        }
-        CalculusRequest::Jacobian { expressions, variables, assumptions } => {
-            map_jacobian_result(jacobian_checked(&mut cc, &expressions, &variables, &assumptions))
-        }
-        CalculusRequest::Hessian { expression, variables, assumptions } => {
-            map_hessian_result(hessian_checked(&mut cc, expression, &variables, &assumptions))
-        }
-        CalculusRequest::Divergence { components, variables, assumptions } => {
-            map_divergence_result(divergence_checked(&mut cc, &components, &variables, &assumptions))
-        }
-        CalculusRequest::Curl { components, variables, assumptions } => {
-            map_curl_result(curl_checked(&mut cc, &components, &variables, &assumptions))
         }
         CalculusRequest::SolveOde { equation, dependent, independent, initial, assumptions } => {
             map_ode_result(solve_ode_checked(&mut cc, equation, &dependent, &independent, initial, &assumptions))
@@ -121,7 +129,15 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
         CalculusRequest::Derivative { .. }
         | CalculusRequest::Integral { .. }
         | CalculusRequest::DefiniteIntegral { .. }
-        | CalculusRequest::Limit { .. } => unreachable!("handled above"),
+        | CalculusRequest::Limit { .. }
+        | CalculusRequest::Series { .. }
+        | CalculusRequest::Laurent { .. }
+        | CalculusRequest::Asymptotic { .. }
+        | CalculusRequest::Gradient { .. }
+        | CalculusRequest::Jacobian { .. }
+        | CalculusRequest::Hessian { .. }
+        | CalculusRequest::Divergence { .. }
+        | CalculusRequest::Curl { .. } => unreachable!("handled above"),
             }
         }
     }

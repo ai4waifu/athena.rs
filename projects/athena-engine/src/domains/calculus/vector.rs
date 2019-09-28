@@ -1,13 +1,13 @@
-//! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`）。
+//! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`/`28`）。
 
 use athena_ir::SemanticOperator;
 use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
-    ctx::CalculusCtx,
     derivative::differentiate_checked,
     result::{CalculusResult, ConditionalResult},
 };
+use crate::domains::context::DomainExecutionContext;
 
 /// 标量场梯度：带有序分量的独立对象。
 #[derive(Debug, PartialEq)]
@@ -22,8 +22,8 @@ pub struct Gradient {
 
 impl Gradient {
     /// 桥接列表形态，供仍需要列表的宿主。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        cc.list(self.components.clone())
+    pub fn materialize_list_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+        cc.ordered(self.components.clone())
     }
 }
 
@@ -40,9 +40,9 @@ pub struct Jacobian {
 
 impl Jacobian {
     /// 嵌套列表项 `{{…},…}` 桥接。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        let rows = self.rows.iter().map(|r| cc.list(r.clone())).collect();
-        cc.list(rows)
+    pub fn materialize_list_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+        let rows = self.rows.iter().map(|r| cc.ordered(r.clone())).collect();
+        cc.ordered(rows)
     }
 }
 
@@ -59,15 +59,15 @@ pub struct Hessian {
 
 impl Hessian {
     /// 嵌套列表项桥接。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        let rows = self.entries.iter().map(|r| cc.list(r.clone())).collect();
-        cc.list(rows)
+    pub fn materialize_list_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+        let rows = self.entries.iter().map(|r| cc.ordered(r.clone())).collect();
+        cc.ordered(rows)
     }
 }
 
 /// 关于 `variables` 的 ∇f。
 pub fn gradient_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     variables: &[String],
     assumptions: &AssumptionSet,
@@ -81,14 +81,14 @@ pub fn gradient_checked(
     for v in variables {
         let part = differentiate_checked(cc, expression, v, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-        components.push(cc.eval(part.value));
+        components.push(cc.fold_term(part.value));
     }
     finish_vector(Gradient { expression, variables: variables.to_vec(), components }, conditions, unresolved)
 }
 
 /// `expressions` 关于 `variables` 的 Jacobian。
 pub fn jacobian_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expressions: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
@@ -101,7 +101,7 @@ pub fn jacobian_checked(
         for v in variables {
             let part = differentiate_checked(cc, *expr, v, assumptions);
             merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-            row.push(cc.eval(part.value));
+            row.push(cc.fold_term(part.value));
         }
         rows.push(row);
     }
@@ -110,7 +110,7 @@ pub fn jacobian_checked(
 
 /// 标量 Hessian：先 ∂/∂xᵢ 再对 (∂f/∂xⱼ)，保持变量顺序。
 pub fn hessian_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     variables: &[String],
     assumptions: &AssumptionSet,
@@ -121,13 +121,13 @@ pub fn hessian_checked(
     for vi in variables {
         let first = differentiate_checked(cc, expression, vi, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, first.conditions.clone(), first.unresolved.clone());
-        let first_val = cc.eval(first.value);
+        let first_val = cc.fold_term(first.value);
         let mut row = Vec::with_capacity(variables.len());
         for vj in variables {
             // 顺序：先对 vi 求导，再对 vj（不做交换改写）。
             let second = differentiate_checked(cc, first_val, vj, assumptions);
             merge_conditions(&mut conditions, &mut unresolved, second.conditions, second.unresolved);
-            row.push(cc.eval(second.value));
+            row.push(cc.fold_term(second.value));
         }
         entries.push(row);
     }
@@ -165,21 +165,21 @@ pub struct Curl {
 
 impl Curl {
     /// 桥接列表形态。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        cc.list(self.curl_components.clone())
+    pub fn materialize_list_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+        cc.ordered(self.curl_components.clone())
     }
 }
 
 /// `div F = Σᵢ ∂Fᵢ/∂xᵢ`。分量个数必须等于变量个数。
 pub fn divergence_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     components: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Divergence> {
     if components.len() != variables.len() {
-        let comps = cc.list(components.to_vec());
-        let vars = cc.list(variables.iter().map(|v| cc.symbol(v)).collect());
+        let comps = cc.ordered(components.to_vec());
+        let vars = cc.ordered(variables.iter().map(|v| cc.symbol(v)).collect());
         return CalculusResult::Unevaluated {
             expression: Divergence {
                 components: components.to_vec(),
@@ -201,15 +201,15 @@ pub fn divergence_checked(
     for (comp, var) in components.iter().zip(variables.iter()) {
         let part = differentiate_checked(cc, *comp, var, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-        parts.push(cc.eval(part.value));
+        parts.push(cc.fold_term(part.value));
     }
-    let value = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
+    let value = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) };
     finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved)
 }
 
 /// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
 pub fn curl_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     components: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
@@ -240,9 +240,9 @@ pub fn curl_checked(
     let d_fx_dy = differentiate_checked(cc, fx, y, assumptions);
     merge_conditions(&mut conditions, &mut unresolved, d_fx_dy.conditions, d_fx_dy.unresolved);
 
-    let cx = sub_terms(cc, cc.eval(d_fz_dy.value), cc.eval(d_fy_dz.value));
-    let cy = sub_terms(cc, cc.eval(d_fx_dz.value), cc.eval(d_fz_dx.value));
-    let cz = sub_terms(cc, cc.eval(d_fy_dx.value), cc.eval(d_fx_dy.value));
+    let cx = sub_terms(cc, cc.fold_term(d_fz_dy.value), cc.fold_term(d_fy_dz.value));
+    let cy = sub_terms(cc, cc.fold_term(d_fx_dz.value), cc.fold_term(d_fz_dx.value));
+    let cz = sub_terms(cc, cc.fold_term(d_fy_dx.value), cc.fold_term(d_fx_dy.value));
 
     finish_vector(
         Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: vec![cx, cy, cz] },
@@ -251,9 +251,9 @@ pub fn curl_checked(
     )
 }
 
-fn sub_terms(cc: &mut CalculusCtx<'_>, a: TermId, b: TermId) -> TermId {
+fn sub_terms(cc: &mut DomainExecutionContext<'_>, a: TermId, b: TermId) -> TermId {
     let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), b]);
-    cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![a, neg]))
+    cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![a, neg]))
 }
 
 fn merge_conditions(conditions: &mut Vec<Condition>, unresolved: &mut Vec<Condition>, more_c: Vec<Condition>, more_u: Vec<Condition>) {
