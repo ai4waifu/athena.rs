@@ -23,6 +23,18 @@ use crate::{
 pub(crate) struct ResidualExtensionIds {
     /// Residual indeterminate form marker.
     pub indeterminate: OperatorId,
+    /// Real-part residual used in ROC predicates.
+    pub re: OperatorId,
+    /// Element-of residual used in ROC / domain predicates.
+    pub element: OperatorId,
+    /// Unit step / Heaviside causal marker.
+    pub unit_step: OperatorId,
+    /// Alternate Heaviside name (same semantic residual family).
+    pub heaviside_theta: OperatorId,
+    /// Kronecker delta residual.
+    pub kronecker_delta: OperatorId,
+    /// Discrete delta residual.
+    pub discrete_delta: OperatorId,
 }
 
 /// Shared term read/build capability for domain providers.
@@ -35,12 +47,16 @@ pub struct DomainExecutionContext<'a> {
 impl<'a> DomainExecutionContext<'a> {
     /// Bind an exclusive session borrow for the duration of a domain call.
     pub fn new(s: &'a mut Session) -> Self {
-        let indeterminate = s.operators.intern("Indeterminate");
-        Self {
-            s: s as *mut Session,
-            ext: ResidualExtensionIds { indeterminate },
-            _marker: PhantomData,
-        }
+        let ext = ResidualExtensionIds {
+            indeterminate: s.operators.intern("Indeterminate"),
+            re: s.operators.intern("Re"),
+            element: s.operators.intern("Element"),
+            unit_step: s.operators.intern("UnitStep"),
+            heaviside_theta: s.operators.intern("HeavisideTheta"),
+            kronecker_delta: s.operators.intern("KroneckerDelta"),
+            discrete_delta: s.operators.intern("DiscreteDelta"),
+        };
+        Self { s: s as *mut Session, ext, _marker: PhantomData }
     }
 
     /// Residual extension id table for this session.
@@ -51,6 +67,37 @@ impl<'a> DomainExecutionContext<'a> {
     /// Whether `head` is the pre-interned Indeterminate residual.
     pub(crate) fn is_indeterminate_extension(&self, head: ApplicationHead) -> bool {
         matches!(head, ApplicationHead::Extension(id) if id == self.ext.indeterminate)
+    }
+
+    /// UnitStep or HeavisideTheta residual head.
+    pub(crate) fn is_unit_step_extension(&self, head: ApplicationHead) -> bool {
+        matches!(
+            head,
+            ApplicationHead::Extension(id) if id == self.ext.unit_step || id == self.ext.heaviside_theta
+        )
+    }
+
+    /// KroneckerDelta or DiscreteDelta residual head.
+    pub(crate) fn is_delta_extension(&self, head: ApplicationHead) -> bool {
+        matches!(
+            head,
+            ApplicationHead::Extension(id) if id == self.ext.kronecker_delta || id == self.ext.discrete_delta
+        )
+    }
+
+    /// Element residual head.
+    pub(crate) fn is_element_extension(&self, head: ApplicationHead) -> bool {
+        matches!(head, ApplicationHead::Extension(id) if id == self.ext.element)
+    }
+
+    /// Intern an extension operator id (ODE dependent head etc. · not core math).
+    pub(crate) fn intern_extension(&self, name: &str) -> OperatorId {
+        self.session_mut().operators.intern(name)
+    }
+
+    /// Extension application by [`OperatorId`].
+    pub(crate) fn apply_extension(&self, id: OperatorId, args: Vec<TermId>) -> TermId {
+        self.apply_head(ApplicationHead::Extension(id), args)
     }
 
     #[inline]
