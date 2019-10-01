@@ -4,10 +4,10 @@ use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
-    ctx::CalculusCtx,
     result::CalculusResult,
     series::{Remainder, laurent},
 };
+use crate::domains::context::DomainExecutionContext;
 
 /// 在 `point` 处的留数对象（非裸系数）。
 #[derive(Debug, PartialEq)]
@@ -34,7 +34,7 @@ impl Residue {
 /// 计算 `Res(expression, variable → point)`。
 ///
 /// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
-pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> CalculusResult<Residue> {
+pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, point: TermId) -> CalculusResult<Residue> {
     let zero = cc.in_(0);
     match laurent(cc, expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {
@@ -77,11 +77,11 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &
     }
 }
 
-fn residue_echo(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
-    let spec = cc.list(vec![cc.symbol(variable), point]);
+fn residue_echo(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
+    let spec = cc.ordered(vec![cc.symbol(variable), point]);
     cc.apply_semantic(SemanticOperator::Residue, vec![expression, spec])
 }
 
-fn is_zero_like(cc: &CalculusCtx<'_>, term: TermId) -> bool {
+fn is_zero_like(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
     cc.number_of(term).is_some_and(|n| n.is_zero())
 }

@@ -2,7 +2,7 @@
 
 use athena_types::TermId;
 
-use super::ctx::CalculusCtx;
+use crate::domains::context::DomainExecutionContext;
 
 use super::{
     differential::DifferentialSolution,
@@ -100,7 +100,7 @@ impl From<TransformResult> for CalculusValue {
 
 impl CalculusValue {
     /// 展平为单一表达式桥接项（Living `25`：仅余微积分内桥接用）。
-    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
+    pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
         match self {
             Self::Expression(t) => *t,
             Self::Series(s) => s.to_term(cc),
@@ -233,7 +233,7 @@ pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResul
 }
 
 /// 抽取 evaluate 风格 API 的主载荷（写回 session arena）。
-pub fn materialize_calculus_result_term(cc: &mut CalculusCtx<'_>, r: &CalculusResult<CalculusValue>) -> TermId {
+pub fn materialize_calculus_result_term(cc: &mut DomainExecutionContext<'_>, r: &CalculusResult<CalculusValue>) -> TermId {
     match r {
         CalculusResult::Exact { value, .. }
         | CalculusResult::Conditional { value, .. }

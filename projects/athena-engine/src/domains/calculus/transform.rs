@@ -4,7 +4,8 @@ use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
-use super::{ctx::CalculusCtx, request::TransformKind, result::CalculusResult};
+use super::{request::TransformKind, result::CalculusResult};
+use crate::domains::context::DomainExecutionContext;
 use crate::execution::shape::Shape;
 
 /// 收敛域 — 每个变换结果都必须携带。
@@ -18,28 +19,28 @@ pub struct RegionOfConvergence {
 
 impl RegionOfConvergence {
     /// 已知半平面 `Re[s] > a`（实数 `a`）。
-    pub fn re_s_greater(cc: &mut CalculusCtx<'_>, s: &str, a: Number) -> Self {
-        let re = cc.apply("Re", vec![cc.symbol(s)]);
+    pub fn re_s_greater(cc: &mut DomainExecutionContext<'_>, s: &str, a: Number) -> Self {
+        let re = cc.apply_extension(cc.residual_extensions().re, vec![cc.symbol(s)]);
         let greater = cc.apply_semantic(SemanticOperator::Greater, vec![re, cc.num(a)]);
         Self { predicate: Some(greater), known: true }
     }
 
     /// Fourier 频率在实轴上（经典 L¹ / Schwartz 像）。
-    pub fn real_line(cc: &mut CalculusCtx<'_>, omega: &str) -> Self {
-        let element = cc.apply("Element", vec![cc.symbol(omega), cc.symbol("Reals")]);
+    pub fn real_line(cc: &mut DomainExecutionContext<'_>, omega: &str) -> Self {
+        let element = cc.apply_extension(cc.residual_extensions().element, vec![cc.symbol(omega), cc.symbol("Reals")]);
         Self { predicate: Some(element), known: true }
     }
 
     /// Z 变换外半径 `Abs[z] > r`。
-    pub fn abs_z_greater(cc: &mut CalculusCtx<'_>, z: &str, r: Number) -> Self {
+    pub fn abs_z_greater(cc: &mut DomainExecutionContext<'_>, z: &str, r: Number) -> Self {
         let abs = cc.apply_semantic(SemanticOperator::Abs, vec![cc.symbol(z)]);
         let greater = cc.apply_semantic(SemanticOperator::Greater, vec![abs, cc.num(r)]);
         Self { predicate: Some(greater), known: true }
     }
 
     /// 全平面收敛（如 `KroneckerDelta[n]`）。
-    pub fn entire_plane(cc: &mut CalculusCtx<'_>, z: &str) -> Self {
-        let element = cc.apply("Element", vec![cc.symbol(z), cc.symbol("Complexes")]);
+    pub fn entire_plane(cc: &mut DomainExecutionContext<'_>, z: &str) -> Self {
+        let element = cc.apply_extension(cc.residual_extensions().element, vec![cc.symbol(z), cc.symbol("Complexes")]);
         Self { predicate: Some(element), known: true }
     }
 
@@ -66,8 +67,8 @@ pub struct TransformResult {
 
 impl TransformResult {
     /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`。
-    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        let vars = cc.list(vec![cc.symbol(&self.time_variable), cc.symbol(&self.transform_variable)]);
+    pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+        let vars = cc.ordered(vec![cc.symbol(&self.time_variable), cc.symbol(&self.transform_variable)]);
         let mut args = vec![self.expression, vars];
         if let Some(roc) = self.region_of_convergence.predicate {
             args.push(roc);
@@ -86,7 +87,7 @@ impl TransformResult {
 
 /// 已解码表达式的单边 Laplace 变换。
 pub fn laplace_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     time_variable: &str,
     transform_variable: &str,
@@ -120,7 +121,7 @@ pub fn laplace_checked(
 ///
 /// 引导实现：双边指数衰减、Gaussian、因果指数，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn fourier_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     time_variable: &str,
     transform_variable: &str,
@@ -154,7 +155,7 @@ pub fn fourier_checked(
 ///
 /// 引导实现：`KroneckerDelta`、单位阶跃 / 常数、`a^n`、`n a^n`，以及标量 / 加法线性组合。结果始终携带 ROC。
 pub fn z_checked(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     time_variable: &str,
     transform_variable: &str,
@@ -185,7 +186,7 @@ pub fn z_checked(
 }
 
 fn echo_transform(
-    cc: &mut CalculusCtx<'_>,
+    cc: &mut DomainExecutionContext<'_>,
     op: SemanticOperator,
     expression: TermId,
     time_variable: &str,
@@ -194,11 +195,11 @@ fn echo_transform(
     cc.apply_semantic(op, vec![expression, cc.symbol(time_variable), cc.symbol(transform_variable)])
 }
 
-fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Option<(TermId, RegionOfConvergence)> {
+fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: &str, s: &str) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(n) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Laplace：ℒ{c} = c/s，Re(s)>0
         let sinv = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(s), cc.in_(-1)]);
-        let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), sinv]));
+        let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), sinv]));
         return Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))));
     }
     if is_symbol_named(cc, expr, t) {
@@ -223,18 +224,18 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) };
             Some((body, RegionOfConvergence::re_s_greater(cc, s, roc_bound)))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = laplace_one(cc, args[1], t, s)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = laplace_one(cc, args[0], t, s)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             None
@@ -248,7 +249,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
             // Laplace：ℒ{tⁿ} = n!/sⁿ⁺¹
             let fact = factorial_u32(n_u)?;
             let spow = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(s), cc.in_(-(n_u as i64 + 1))]);
-            let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(fact), spow]));
+            let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(fact), spow]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Exp) && args.len() == 1 => {
@@ -257,7 +258,7 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
             // 1/(s-a), Re(s)>a（实数 a）
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(&a))]);
             let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(s), neg]);
-            let body = cc.eval(cc.apply_semantic(SemanticOperator::Power, vec![plus, cc.in_(-1)]));
+            let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Power, vec![plus, cc.in_(-1)]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, a)))
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Sin) && args.len() == 1 => {
@@ -265,25 +266,25 @@ fn laplace_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, s: &str) -> Opti
             // Laplace：w/(s²+w²)
             let s2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(s), cc.in_(2)]);
             let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&w)), cc.in_(2)]);
-            let den = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![s2, w2]));
+            let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![s2, w2]));
             let dinv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
-            let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(w), dinv]));
+            let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(w), dinv]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Cos) && args.len() == 1 => {
             let w = match_coeff_times_var(cc, args[0], t)?;
             let s2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(s), cc.in_(2)]);
             let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&w)), cc.in_(2)]);
-            let den = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![s2, w2]));
+            let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![s2, w2]));
             let dinv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
-            let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol(s), dinv]));
+            let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol(s), dinv]));
             Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))))
         }
         _ => None,
     }
 }
 
-fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
+fn fourier_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     let (head, args) = cc.application_head(expr)?;
     match head {
         ApplicationHead::Semantic(SemanticOperator::Add) => {
@@ -295,18 +296,18 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) };
             Some((body, RegionOfConvergence::real_line(cc, omega)))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = fourier_one(cc, args[1], t, omega)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = fourier_one(cc, args[0], t, omega)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             // 形态：UnitStep[t] * Exp[-a t] → 1/(a + I ω)，a>0
@@ -323,10 +324,10 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 }
                 let a2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&a)), cc.in_(2)]);
                 let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(omega), cc.in_(2)]);
-                let den = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![a2, w2]));
+                let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![a2, w2]));
                 let dinv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
                 let two_a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(2), cc.num(a)]);
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![two_a, dinv]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![two_a, dinv]));
                 return Some((body, RegionOfConvergence::real_line(cc, omega)));
             }
             if let Some(a) = match_neg_coeff_square_var(cc, args[0], t) {
@@ -341,9 +342,9 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
                 let four_a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(4), cc.num(cc.copy(&a))]);
                 let w24a = cc.apply_semantic(SemanticOperator::Power, vec![four_a, cc.in_(-1)]);
                 let neg_w24a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), w24a]);
-                let exp_arg = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![w2, neg_w24a]));
+                let exp_arg = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![w2, neg_w24a]));
                 let exp = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![exp_arg]);
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![scale, exp]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![scale, exp]));
                 return Some((body, RegionOfConvergence::real_line(cc, omega)));
             }
             None
@@ -352,7 +353,7 @@ fn fourier_one(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> 
     }
 }
 
-fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
+fn fourier_causal_exp(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: &str, omega: &str) -> Option<(TermId, RegionOfConvergence)> {
     // 形态：Exp[-a t]（a>0）→ 1/(a + I ω)
     let (head, args) = cc.application_head(expr)?;
     if !matches!(head, ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Exp)) || args.len() != 1 {
@@ -365,12 +366,12 @@ fn fourier_causal_exp(cc: &mut CalculusCtx<'_>, expr: TermId, t: &str, omega: &s
     }
     let a = evaluate_neg_number(cc, &a_signed)?;
     let iw = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol("I"), cc.symbol(omega)]);
-    let den = cc.eval(cc.apply_semantic(SemanticOperator::Add, vec![cc.num(a), iw]));
-    let body = cc.eval(cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]));
+    let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![cc.num(a), iw]));
+    let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]));
     Some((body, RegionOfConvergence::real_line(cc, omega)))
 }
 
-fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [TermId], t: &str) -> Option<TermId> {
+fn split_unit_step<'b>(cc: &DomainExecutionContext<'_>, args: &'b [TermId], t: &str) -> Option<TermId> {
     match args {
         [a, b] if is_unit_step(cc, *a, t) => Some(*b),
         [a, b] if is_unit_step(cc, *b, t) => Some(*a),
@@ -378,18 +379,18 @@ fn split_unit_step<'b>(cc: &CalculusCtx<'_>, args: &'b [TermId], t: &str) -> Opt
     }
 }
 
-fn is_unit_step(cc: &CalculusCtx<'_>, term: TermId, t: &str) -> bool {
+fn is_unit_step(cc: &DomainExecutionContext<'_>, term: TermId, t: &str) -> bool {
     let Some((head, args)) = cc.application_head(term)
     else {
         return false;
     };
-    (cc.extension_named(head, "UnitStep") || cc.extension_named(head, "HeavisideTheta"))
+    cc.is_unit_step_extension(head)
         && args.len() == 1
         && is_symbol_named(cc, args[0], t)
 }
 
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
-fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
+fn match_neg_coeff_abs_var(cc: &mut DomainExecutionContext<'_>, term: TermId, var: &str) -> Option<Number> {
     let (head, args) = cc.application_head(term)?;
     if !matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) || args.len() != 2 {
         return None;
@@ -410,7 +411,7 @@ fn match_neg_coeff_abs_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) ->
     evaluate_neg_number(cc, &coeff)
 }
 
-fn is_abs_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
+fn is_abs_of(cc: &DomainExecutionContext<'_>, term: TermId, var: &str) -> bool {
     matches!(
         cc.application_head(term),
         Some((ApplicationHead::Semantic(SemanticOperator::Abs), args))
@@ -419,7 +420,7 @@ fn is_abs_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
 }
 
 /// `Times[-a, Power[t, 2]]`，返回 a>0。
-fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
+fn match_neg_coeff_square_var(cc: &mut DomainExecutionContext<'_>, term: TermId, var: &str) -> Option<Number> {
     let (head, args) = cc.application_head(term)?;
     if !matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) || args.len() != 2 {
         return None;
@@ -440,7 +441,7 @@ fn match_neg_coeff_square_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str)
     evaluate_neg_number(cc, &coeff)
 }
 
-fn is_square_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
+fn is_square_of(cc: &DomainExecutionContext<'_>, term: TermId, var: &str) -> bool {
     matches!(
         cc.application_head(term),
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
@@ -450,9 +451,9 @@ fn is_square_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
     )
 }
 
-fn evaluate_neg_number(cc: &mut CalculusCtx<'_>, n: &Number) -> Option<Number> {
+fn evaluate_neg_number(cc: &mut DomainExecutionContext<'_>, n: &Number) -> Option<Number> {
     let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(n))]);
-    let t = cc.eval(neg);
+    let t = cc.fold_term(neg);
     cc.number_of(t).map(|v| cc.copy(v))
 }
 
@@ -460,7 +461,7 @@ fn number_is_positive(n: &Number) -> bool {
     num_compare(n, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater)
 }
 
-fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> Option<Number> {
+fn match_coeff_times_var(cc: &mut DomainExecutionContext<'_>, term: TermId, var: &str) -> Option<Number> {
     if is_symbol_named(cc, term, var) {
         return Some(Number::small_int(1));
     }
@@ -476,7 +477,7 @@ fn match_coeff_times_var(cc: &mut CalculusCtx<'_>, term: TermId, var: &str) -> O
     None
 }
 
-fn roc_half_plane_bound(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option<Number> {
+fn roc_half_plane_bound(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate?;
     // 形态：Greater[Re[s], a]
     let (head, args) = cc.application_head(pred)?;
@@ -486,11 +487,11 @@ fn roc_half_plane_bound(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> 
     None
 }
 
-fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(TermId, RegionOfConvergence)> {
+fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: &str, z: &str) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(c) = cc.number_of(expr).map(|n| cc.copy(n)) {
         // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let base = z_over_z_minus(cc, z, &Number::small_int(1));
-        let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), base]));
+        let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), base]));
         return Some((body, RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1))));
     }
     if is_kronecker_delta(cc, expr, n) {
@@ -515,7 +516,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 }
                 else if matches!(
                     roc.predicate,
-                    Some(pred) if cc.application_head(pred).is_some_and(|(ph, _)| cc.extension_named(ph, "Element"))
+                    Some(pred) if cc.application_head(pred).is_some_and(|(ph, _)| cc.is_element_extension(ph))
                 ) {
                     // 整平面收敛 — 半径保持不变
                 }
@@ -527,19 +528,19 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 }
                 parts.push(fa);
             }
-            let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply_semantic(SemanticOperator::Add, parts)) };
+            let body = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) };
             let roc = if all_entire { RegionOfConvergence::entire_plane(cc, z) } else { RegionOfConvergence::abs_z_greater(cc, z, radius) };
             Some((body, roc))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
             if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
                 let (inner, roc) = z_one(cc, args[1], n, z)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
                 let (inner, roc) = z_one(cc, args[0], n, z)?;
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]));
                 return Some((body, roc));
             }
             // Z 变换：n·aⁿ → a·z/(z-a)²
@@ -547,9 +548,9 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 let radius = num_abs(cc.copy(&a));
                 let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(&a))]);
                 let za = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(z), neg]);
-                let den = cc.eval(cc.apply_semantic(SemanticOperator::Power, vec![za, cc.in_(2)]));
+                let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Power, vec![za, cc.in_(2)]));
                 let dinv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
-                let body = cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(z), dinv]));
+                let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(z), dinv]));
                 return Some((body, RegionOfConvergence::abs_z_greater(cc, z, radius)));
             }
             // 形态：UnitStep[n] * Power[a,n]
@@ -568,24 +569,24 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
     }
 }
 
-fn z_over_z_minus(cc: &mut CalculusCtx<'_>, z: &str, a: &Number) -> TermId {
+fn z_over_z_minus(cc: &mut DomainExecutionContext<'_>, z: &str, a: &Number) -> TermId {
     let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(a))]);
     let za = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(z), neg]);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![za, cc.in_(-1)]);
-    cc.eval(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol(z), inv]))
+    cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol(z), inv]))
 }
 
-fn is_kronecker_delta(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> bool {
+fn is_kronecker_delta(cc: &DomainExecutionContext<'_>, term: TermId, n: &str) -> bool {
     let Some((head, args)) = cc.application_head(term)
     else {
         return false;
     };
-    (cc.extension_named(head, "KroneckerDelta") || cc.extension_named(head, "DiscreteDelta"))
+    cc.is_delta_extension(head)
         && args.len() == 1
         && is_symbol_named(cc, args[0], n)
 }
 
-fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[TermId], n: &str) -> Option<Number> {
+fn match_n_times_power(cc: &DomainExecutionContext<'_>, args: &[TermId], n: &str) -> Option<Number> {
     match args {
         [a, b] if is_symbol_named(cc, *a, n) => match_power_base(cc, *b, n),
         [a, b] if is_symbol_named(cc, *b, n) => match_power_base(cc, *a, n),
@@ -593,7 +594,7 @@ fn match_n_times_power(cc: &CalculusCtx<'_>, args: &[TermId], n: &str) -> Option
     }
 }
 
-fn match_power_base(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> Option<Number> {
+fn match_power_base(cc: &DomainExecutionContext<'_>, term: TermId, n: &str) -> Option<Number> {
     let (head, args) = cc.application_head(term)?;
     if matches!(head, ApplicationHead::Semantic(SemanticOperator::Power)) && args.len() == 2 && is_symbol_named(cc, args[1], n) {
         return cc.number_of(args[0]).map(|n| cc.copy(n));
@@ -601,7 +602,7 @@ fn match_power_base(cc: &CalculusCtx<'_>, term: TermId, n: &str) -> Option<Numbe
     None
 }
 
-fn roc_abs_radius(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option<Number> {
+fn roc_abs_radius(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConvergence) -> Option<Number> {
     let pred = roc.predicate?;
     // 形态：Greater[Abs[z], r]
     let (head, args) = cc.application_head(pred)?;
@@ -615,8 +616,8 @@ fn roc_abs_radius(cc: &mut CalculusCtx<'_>, roc: &RegionOfConvergence) -> Option
     None
 }
 
-fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, name))
+fn is_symbol_named(cc: &DomainExecutionContext<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_id_is(s, cc.intern(name)))
 }
 
 fn factorial_u32(n: u32) -> Option<i64> {
