@@ -27,5 +27,5 @@ athena-testing = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
-# `deny`（非 `forbid`）：`calculus::ctx::Cc` 经独占生命周期裸指针消除嵌套 builder E0499。
+# `deny`（非 `forbid`）：`DomainExecutionContext` 经独占生命周期裸指针消除嵌套 builder E0499。
 unsafe_code = "deny"

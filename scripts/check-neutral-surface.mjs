@@ -22,7 +22,9 @@ const scanRoots = [
 
 /** Patterns that must not appear in production src (dispatch / construction). */
 const banned = [
-  { re: /\btry_calculus_request\b/, why: "string calculus hub" },
+  { re: /\bCalculusCtx\b/, why: "CalculusCtx mini-evaluator (Living 28)" },
+  { re: /\bextension_named\s*\(/, why: "extension display-name semantic check" },
+  { re: /fn\s+apply\s*\(\s*&self,\s*head:\s*&str/, why: "string apply construction API" },
   { re: /\blookup_function\s*\(/, why: "string function registry" },
   { re: /\bhead_name\s*[:=(]/, why: "string head semantic hub" },
   {
