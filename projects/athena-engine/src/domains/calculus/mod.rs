@@ -33,16 +33,25 @@ pub use vector::{
     Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked, jacobian_checked,
 };
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 
 use crate::domains::context::DomainExecutionContext;
 use crate::runtime::session::Session;
+
+fn symbol_name(dc: &DomainExecutionContext<'_>, id: SymbolId) -> String {
+    dc.symbol_resolve(id).to_string()
+}
+
+fn symbol_names(dc: &DomainExecutionContext<'_>, ids: &[SymbolId]) -> Vec<String> {
+    ids.iter().copied().map(|id| symbol_name(dc, id)).collect()
+}
 
 /// 将微积分域请求分派到对应子模块（读写调用方 session arena）。
 pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
     let mut dc = DomainExecutionContext::new(session);
     match request {
         CalculusRequest::Derivative { expression, variable, order, assumptions } => {
+            let variable = symbol_name(&dc, variable);
             let times = match order {
                 DerivativeOrder::First => 1u32,
                 DerivativeOrder::Repeated(n) => n,
@@ -64,53 +73,71 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             }))
         }
         CalculusRequest::Integral { expression, variable, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_term_result(integrate_checked(&mut dc, expression, &variable))
         }
         CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_term_result(definite_integrate_checked(&mut dc, expression, &variable, lower, upper))
         }
         CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => {
+            let variable = symbol_name(&dc, variable);
             map_term_result(limit_checked(&mut dc, expression, &variable, &approach, direction, &assumptions))
         }
         CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_series_result(taylor(&mut dc, expression, &variable, center, order))
         }
         CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_series_result(laurent(&mut dc, expression, &variable, center, order))
         }
         CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_series_result(asymptotic(&mut dc, expression, &variable, order))
         }
         CalculusRequest::Residue { expression, variable, point, assumptions: _ } => {
+            let variable = symbol_name(&dc, variable);
             map_residue_result(residue_checked(&mut dc, expression, &variable, point))
         }
         CalculusRequest::Gradient { expression, variables, assumptions } => {
+            let variables = symbol_names(&dc, &variables);
             map_gradient_result(gradient_checked(&mut dc, expression, &variables, &assumptions))
         }
         CalculusRequest::Jacobian { expressions, variables, assumptions } => {
+            let variables = symbol_names(&dc, &variables);
             map_jacobian_result(jacobian_checked(&mut dc, &expressions, &variables, &assumptions))
         }
         CalculusRequest::Hessian { expression, variables, assumptions } => {
+            let variables = symbol_names(&dc, &variables);
             map_hessian_result(hessian_checked(&mut dc, expression, &variables, &assumptions))
         }
         CalculusRequest::Divergence { components, variables, assumptions } => {
+            let variables = symbol_names(&dc, &variables);
             map_divergence_result(divergence_checked(&mut dc, &components, &variables, &assumptions))
         }
         CalculusRequest::Curl { components, variables, assumptions } => {
+            let variables = symbol_names(&dc, &variables);
             map_curl_result(curl_checked(&mut dc, &components, &variables, &assumptions))
         }
         CalculusRequest::SolveOde { equation, dependent, independent, initial, assumptions } => {
+            let dependent = symbol_name(&dc, dependent);
+            let independent = symbol_name(&dc, independent);
             map_ode_result(solve_ode_checked(&mut dc, equation, &dependent, &independent, initial, &assumptions))
         }
-        CalculusRequest::Transform { kind, expression, time_variable, transform_variable, assumptions } => match kind {
-            TransformKind::Laplace => {
-                map_transform_result(laplace_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions))
+        CalculusRequest::Transform { kind, expression, time_variable, transform_variable, assumptions } => {
+            let time_variable = symbol_name(&dc, time_variable);
+            let transform_variable = symbol_name(&dc, transform_variable);
+            match kind {
+                TransformKind::Laplace => {
+                    map_transform_result(laplace_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions))
+                }
+                TransformKind::Fourier => {
+                    map_transform_result(fourier_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions))
+                }
+                TransformKind::Z => map_transform_result(z_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions)),
             }
-            TransformKind::Fourier => {
-                map_transform_result(fourier_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions))
-            }
-            TransformKind::Z => map_transform_result(z_checked(&mut dc, expression, &time_variable, &transform_variable, &assumptions)),
-        },
+        }
     }
 }
 

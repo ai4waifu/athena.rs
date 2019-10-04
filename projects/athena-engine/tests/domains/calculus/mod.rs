@@ -1,4 +1,4 @@
-//! Calculus domain goals via typed `DomainRequest` (Living `27`).
+//! Calculus domain goals via typed `DomainRequest` (Living `27`/`28`).
 //!
 //! No Mathematica-shaped `ap("Plus")` / `try_calculus_request` fixtures.
 
@@ -12,13 +12,14 @@ use athena_types::AssumptionSet;
 #[test]
 fn derivative_goal_power_rule() {
     let mut fx = SessionFixture::new();
-    let expression = {
+    let (expression, x) = {
         let mut t = fx.terms();
-        let x = t.symbol("x");
+        let x = t.intern("x");
+        let xs = t.symbol("x");
         let three = t.integer(3);
-        t.power(x, three)
+        (t.power(xs, three), x)
     };
-    let goal = fx.domain().derivative(expression, "x", DerivativeOrder::First, AssumptionSet::empty());
+    let goal = fx.domain().derivative(expression, x, DerivativeOrder::First, AssumptionSet::empty());
     let athena_engine::api::DomainGoal::Dispatch(DomainRequest::Calculus(req)) = goal
     else {
         unreachable!()
@@ -50,12 +51,13 @@ fn derivative_goal_power_rule() {
 #[test]
 fn unary_in_derivative_expression() {
     let mut fx = SessionFixture::new();
-    let expression = {
+    let (expression, x) = {
         let mut t = fx.terms();
-        let x = t.symbol("x");
-        t.unary_function(UnaryFunction::Sin, x)
+        let x = t.intern("x");
+        let xs = t.symbol("x");
+        (t.unary_function(UnaryFunction::Sin, xs), x)
     };
-    let goal = fx.domain().derivative_first(expression, "x");
+    let goal = fx.domain().derivative_first(expression, x);
     let athena_engine::api::DomainGoal::Dispatch(DomainRequest::Calculus(req)) = goal
     else {
         unreachable!()

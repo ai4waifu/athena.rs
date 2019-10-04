@@ -3,7 +3,7 @@
 use athena_engine::Session;
 use athena_engine::runtime::values::arena::{push_int, push_semantic, push_symbol_name};
 use athena_ir::{SemanticOperator, TermNode, UnaryFunction};
-use athena_types::{CollectionKind, TermId};
+use athena_types::{CollectionKind, SymbolId, TermId};
 
 /// Session-bound term builder with **no** named-head API.
 pub struct TermBuilder<'a> {
@@ -24,6 +24,11 @@ impl<'a> TermBuilder<'a> {
     /// Symbol atom by display name (`SymbolId`, not an operator).
     pub fn symbol(&mut self, name: &str) -> TermId {
         push_symbol_name(self.session, name)
+    }
+
+    /// Intern a user symbol name (for [`DomainRequest`] / [`CalculusRequest`] fields).
+    pub fn intern(&mut self, name: &str) -> SymbolId {
+        self.session.arena.symbols_mut().intern(name)
     }
 
     /// Ordered collection with explicit [`CollectionKind::OrderedCollection`].

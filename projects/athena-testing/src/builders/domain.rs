@@ -3,7 +3,7 @@
 use athena_engine::api::DomainGoal;
 use athena_engine::domains::DomainRequest;
 use athena_engine::domains::calculus::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
-use athena_types::{AssumptionSet, TermId};
+use athena_types::{AssumptionSet, SymbolId, TermId};
 
 /// Constructs [`DomainGoal`] values from typed calculus / domain requests.
 #[derive(Debug, Default, Clone, Copy)]
@@ -14,28 +14,28 @@ impl DomainRequestBuilder {
     pub fn derivative(
         self,
         expression: TermId,
-        variable: impl Into<String>,
+        variable: SymbolId,
         order: DerivativeOrder,
         assumptions: AssumptionSet,
     ) -> DomainGoal {
         DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
             expression,
-            variable: variable.into(),
+            variable,
             order,
             assumptions,
         }))
     }
 
     /// First-order derivative convenience.
-    pub fn derivative_first(self, expression: TermId, variable: impl Into<String>) -> DomainGoal {
+    pub fn derivative_first(self, expression: TermId, variable: SymbolId) -> DomainGoal {
         self.derivative(expression, variable, DerivativeOrder::First, AssumptionSet::empty())
     }
 
     /// Indefinite integral.
-    pub fn integral(self, expression: TermId, variable: impl Into<String>) -> DomainGoal {
+    pub fn integral(self, expression: TermId, variable: SymbolId) -> DomainGoal {
         DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Integral {
             expression,
-            variable: variable.into(),
+            variable,
             assumptions: AssumptionSet::empty(),
         }))
     }
@@ -44,13 +44,13 @@ impl DomainRequestBuilder {
     pub fn limit(
         self,
         expression: TermId,
-        variable: impl Into<String>,
+        variable: SymbolId,
         approach: LimitApproach,
         direction: LimitDirection,
     ) -> DomainGoal {
         DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Limit {
             expression,
-            variable: variable.into(),
+            variable,
             approach,
             direction,
             assumptions: AssumptionSet::empty(),

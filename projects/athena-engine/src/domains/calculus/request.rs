@@ -1,6 +1,8 @@
-//! 微积分域请求（面向宿主的稳定 wire 形态 · `TermId` 载荷 · Living `25`）。
+//! 微积分域请求（typed Goal wire · Living `27`/`28`）。
+//!
+//! 变量身份为 [`SymbolId`]。算法层若仍吃 `&str`，仅由 `execute_calculus` 解析显示名，不得反向猜 Goal。
 
-use athena_types::{AssumptionSet, TermId};
+use athena_types::{AssumptionSet, SymbolId, TermId};
 
 /// 求导阶数。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -51,15 +53,15 @@ pub enum TransformKind {
     Z,
 }
 
-/// 微积分域请求 — 宿主将方言形态映射至此。
+/// 微积分域请求 — 宿主将方言形态映射至此。变量身份为 SymbolId（Living 27/28）。
 #[derive(Debug, PartialEq)]
 pub enum CalculusRequest {
     /// 常导数 / 高阶导数。
     Derivative {
         /// 表达式（已解码）。
         expression: TermId,
-        /// 求导变量名（在 SymbolId 绑定落地前的桥接）。
-        variable: String,
+        /// 求导变量。
+        variable: SymbolId,
         /// 阶数。
         order: DerivativeOrder,
         /// 假设。
@@ -70,7 +72,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 变量。
-        variable: String,
+        variable: SymbolId,
         /// 趋近点。
         approach: LimitApproach,
         /// 侧向。
@@ -83,7 +85,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 积分变量。
-        variable: String,
+        variable: SymbolId,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -92,7 +94,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 积分变量。
-        variable: String,
+        variable: SymbolId,
         /// 下限（已解码）。
         lower: TermId,
         /// 上限（已解码）。
@@ -105,7 +107,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 展开变量。
-        variable: String,
+        variable: SymbolId,
         /// 展开中心（已解码）。
         center: TermId,
         /// 包含的最高幂次。
@@ -118,7 +120,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 展开变量。
-        variable: String,
+        variable: SymbolId,
         /// 展开中心（已解码）。
         center: TermId,
         /// 正则部分包含的最高幂次。
@@ -131,7 +133,7 @@ pub enum CalculusRequest {
         /// 表达式。
         expression: TermId,
         /// 展开变量。
-        variable: String,
+        variable: SymbolId,
         /// 保留的 `t=1/x` 最高幂次。
         order: u32,
         /// 假设。
@@ -142,7 +144,7 @@ pub enum CalculusRequest {
         /// 被积 / 被展表达式。
         expression: TermId,
         /// 复变量。
-        variable: String,
+        variable: SymbolId,
         /// 奇点 / 展开点（已解码）。
         point: TermId,
         /// 假设。
@@ -153,7 +155,7 @@ pub enum CalculusRequest {
         /// 标量表达式。
         expression: TermId,
         /// 按序变量。
-        variables: Vec<String>,
+        variables: Vec<SymbolId>,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -162,7 +164,7 @@ pub enum CalculusRequest {
         /// 分量表达式。
         expressions: Vec<TermId>,
         /// 自变量。
-        variables: Vec<String>,
+        variables: Vec<SymbolId>,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -171,7 +173,7 @@ pub enum CalculusRequest {
         /// 标量表达式。
         expression: TermId,
         /// 按序变量（混合偏导保持此顺序）。
-        variables: Vec<String>,
+        variables: Vec<SymbolId>,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -180,7 +182,7 @@ pub enum CalculusRequest {
         /// 分量 F₁…Fₙ。
         components: Vec<TermId>,
         /// 坐标变量（与分量同序）。
-        variables: Vec<String>,
+        variables: Vec<SymbolId>,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -189,7 +191,7 @@ pub enum CalculusRequest {
         /// 分量 (Fₓ, Fᵧ, F_z)。
         components: Vec<TermId>,
         /// 坐标 (x, y, z)。
-        variables: Vec<String>,
+        variables: Vec<SymbolId>,
         /// 假设。
         assumptions: AssumptionSet,
     },
@@ -198,9 +200,9 @@ pub enum CalculusRequest {
         /// 方程项（`Equal[…]`）。
         equation: TermId,
         /// 因变量。
-        dependent: String,
+        dependent: SymbolId,
         /// 自变量。
-        independent: String,
+        independent: SymbolId,
         /// 可选初值问题 `(x0, y0)`（已解码）。
         initial: Option<(TermId, TermId)>,
         /// 假设。
@@ -213,9 +215,9 @@ pub enum CalculusRequest {
         /// 时域表达式。
         expression: TermId,
         /// 时间 / 序列变量。
-        time_variable: String,
+        time_variable: SymbolId,
         /// 变换变量。
-        transform_variable: String,
+        transform_variable: SymbolId,
         /// 假设。
         assumptions: AssumptionSet,
     },
