@@ -5,15 +5,14 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
     result::CalculusResult,
-    symbol_rewrite::{contains_symbol, replace_symbol},
+    symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
 use crate::domains::context::DomainExecutionContext;
 use crate::execution::shape::Shape;
 
 /// 在 arena 上做符号积分（多项式 / 初等子集）。
-pub fn integrate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: &str) -> TermId {
-    let var_id = dc.intern(var);
-    integrate_symbol(dc, expr, var_id)
+pub fn integrate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
+    integrate_symbol(dc, expr, var)
 }
 
 fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
@@ -105,12 +104,8 @@ fn is_integrate_residual(dc: &DomainExecutionContext<'_>, value: TermId) -> bool
     )
 }
 
-fn is_symbol_id(dc: &DomainExecutionContext<'_>, term: TermId, var: SymbolId) -> bool {
-    matches!(dc.shape(term), Some(Shape::Symbol(s)) if dc.symbol_id_is(s, var))
-}
-
 /// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。
-pub fn integrate_checked(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: &str) -> CalculusResult<TermId> {
+pub fn integrate_checked(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> CalculusResult<TermId> {
     let value = integrate(dc, expr, var);
     if is_integrate_residual(dc, value) {
         CalculusResult::Unevaluated { expression: value, reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary) }
@@ -124,12 +119,12 @@ pub fn integrate_checked(dc: &mut DomainExecutionContext<'_>, expr: TermId, var:
 pub fn definite_integrate_checked(
     dc: &mut DomainExecutionContext<'_>,
     expr: TermId,
-    var: &str,
+    var: SymbolId,
     lower: TermId,
     upper: TermId,
 ) -> CalculusResult<TermId> {
     let echo = |dc: &mut DomainExecutionContext<'_>| {
-        let iter = dc.ordered(vec![dc.symbol(var), lower, upper]);
+        let iter = dc.ordered(vec![dc.symbol_id(var), lower, upper]);
         dc.apply_semantic(SemanticOperator::Integrate, vec![expr, iter])
     };
     match integrate_checked(dc, expr, var) {

@@ -2,12 +2,12 @@
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
     request::{LimitApproach, LimitDirection},
     result::CalculusResult,
-    symbol_rewrite::{contains_symbol, replace_symbol},
+    symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
 use crate::domains::context::DomainExecutionContext;
 use crate::execution::shape::Shape;
@@ -16,7 +16,7 @@ use crate::execution::shape::Shape;
 pub fn limit_checked(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variable: &str,
+    variable: SymbolId,
     approach: &LimitApproach,
     direction: LimitDirection,
     _assumptions: &AssumptionSet,
@@ -31,7 +31,7 @@ pub fn limit_checked(
 fn limit_finite(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variable: &str,
+    variable: SymbolId,
     point: TermId,
     direction: LimitDirection,
 ) -> CalculusResult<TermId> {
@@ -84,7 +84,7 @@ fn limit_finite(
     unevaluated_limit(cc, expression, variable, &LimitApproach::Finite(point), direction)
 }
 
-fn try_known_finite_limit(cc: &DomainExecutionContext<'_>, expression: TermId, variable: &str, point: TermId) -> Option<TermId> {
+fn try_known_finite_limit(cc: &DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> Option<TermId> {
     if !cc.number_of(point).is_some_and(|n| n.is_zero()) {
         return None;
     }
@@ -94,14 +94,14 @@ fn try_known_finite_limit(cc: &DomainExecutionContext<'_>, expression: TermId, v
     None
 }
 
-fn is_sinc_form(cc: &DomainExecutionContext<'_>, expression: TermId, variable: &str) -> bool {
+fn is_sinc_form(cc: &DomainExecutionContext<'_>, expression: TermId, variable: SymbolId) -> bool {
     let Some((head, args)) = cc.application_head(expression)
     else {
         return false;
     };
     match head {
         ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
-            is_sin_of_var(cc, args[0], variable) && is_symbol_named(cc, args[1], variable)
+            is_sin_of_var(cc, args[0], variable) && is_symbol_id(cc, args[1], variable)
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
             (is_sin_of_var(cc, args[0], variable) && is_reciprocal_var(cc, args[1], variable))
@@ -111,26 +111,26 @@ fn is_sinc_form(cc: &DomainExecutionContext<'_>, expression: TermId, variable: &
     }
 }
 
-fn is_sin_of_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: &str) -> bool {
+fn is_sin_of_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: SymbolId) -> bool {
     matches!(
         cc.application_head(expr),
         Some((ApplicationHead::Semantic(op), args))
-            if op.as_unary() == Some(UnaryFunction::Sin) && args.len() == 1 && is_symbol_named(cc, args[0], variable)
+            if op.as_unary() == Some(UnaryFunction::Sin) && args.len() == 1 && is_symbol_id(cc, args[0], variable)
     )
 }
 
-fn is_reciprocal_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: &str) -> bool {
+fn is_reciprocal_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: SymbolId) -> bool {
     matches!(
         cc.application_head(expr),
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
-            if args.len() == 2 && is_symbol_named(cc, args[0], variable) && cc.int_exp(args[1]) == Some(-1)
+            if args.len() == 2 && is_symbol_id(cc, args[0], variable) && cc.int_exp(args[1]) == Some(-1)
     )
 }
 
 fn try_lhopital_once(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variable: &str,
+    variable: SymbolId,
     point: TermId,
     _direction: LimitDirection,
 ) -> Option<TermId> {
@@ -191,7 +191,7 @@ fn reciprocal_base(cc: &DomainExecutionContext<'_>, expr: TermId) -> Option<Term
 fn try_onesided_simple_pole(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variable: &str,
+    variable: SymbolId,
     point: TermId,
     direction: LimitDirection,
 ) -> Option<TermId> {
@@ -241,7 +241,7 @@ fn try_onesided_simple_pole(
     None
 }
 
-fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, positive: bool) -> CalculusResult<TermId> {
+fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, positive: bool) -> CalculusResult<TermId> {
     if let Some((degree, leading)) = polynomial_degree_leading(cc, expression, variable) {
         if degree == 0 {
             return CalculusResult::Exact { value: cc.num(leading), conditions: Vec::new() };
@@ -281,10 +281,10 @@ fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
     )
 }
 
-fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: &str) -> Option<(i64, Number)> {
+fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Option<(i64, Number)> {
     match cc.shape(expr)? {
         Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
-        Shape::Symbol(s) if cc.symbol_id_is(s, cc.intern(var)) => Some((1, Number::small_int(1))),
+        Shape::Symbol(s) if cc.symbol_id_is(s, var) => Some((1, Number::small_int(1))),
         Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Collection(_) => None,
         Shape::Application(head, args) => match head {
             ApplicationHead::Semantic(SemanticOperator::Add) => {
@@ -310,7 +310,7 @@ fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, 
                 }
                 Some((deg, coeff))
             }
-            ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_named(cc, args[0], var) => {
+            ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_id(cc, args[0], var) => {
                 let n = cc.int_exp(args[1])?;
                 Some((n, Number::small_int(1)))
             }
@@ -332,13 +332,13 @@ fn is_open_limit_head(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
     }
 }
 
-fn limit_form(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, approach: &LimitApproach, direction: LimitDirection) -> TermId {
+fn limit_form(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, approach: &LimitApproach, direction: LimitDirection) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
         LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
         LimitApproach::NegativeInfinity => cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")]),
     };
-    let spec = cc.ordered(vec![cc.symbol(variable), approach_term]);
+    let spec = cc.ordered(vec![cc.symbol_id(variable), approach_term]);
     let mut args = vec![expression, spec];
     if direction != LimitDirection::TwoSided {
         args.push(cc.symbol(match direction {
@@ -353,7 +353,7 @@ fn limit_form(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
 fn unevaluated_limit(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variable: &str,
+    variable: SymbolId,
     approach: &LimitApproach,
     direction: LimitDirection,
 ) -> CalculusResult<TermId> {
@@ -406,6 +406,3 @@ fn is_singular_form(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
     }
 }
 
-fn is_symbol_named(cc: &DomainExecutionContext<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_id_is(s, cc.intern(name)))
-}

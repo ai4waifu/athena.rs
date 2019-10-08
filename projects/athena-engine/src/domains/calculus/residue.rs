@@ -1,7 +1,7 @@
 //! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 Living `25`）。
 
 use athena_ir::SemanticOperator;
-use athena_types::{Diagnostic, DiagnosticCode, TermId};
+use athena_types::{SymbolId, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     result::CalculusResult,
@@ -34,7 +34,7 @@ impl Residue {
 /// 计算 `Res(expression, variable → point)`。
 ///
 /// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
-pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, point: TermId) -> CalculusResult<Residue> {
+pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> CalculusResult<Residue> {
     let zero = cc.in_(0);
     match laurent(cc, expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {
@@ -45,7 +45,7 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
                 return CalculusResult::Unevaluated {
                     expression: Residue {
                         expression,
-                        variable: variable.to_string(),
+                        variable: cc.symbol_resolve(variable).to_string(),
                         point,
                         value: residue_echo(cc, expression, variable, point),
                         pole_order: 0,
@@ -55,19 +55,19 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
             }
             let _ = conditions;
             CalculusResult::Exact {
-                value: Residue { expression, variable: variable.to_string(), point, value, pole_order },
+                value: Residue { expression, variable: cc.symbol_resolve(variable).to_string(), point, value, pole_order },
                 conditions: Vec::new(),
             }
         }
         CalculusResult::Conditional { value: series, conditions } => {
             let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
             let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| *c).unwrap_or(zero);
-            CalculusResult::Conditional { value: Residue { expression, variable: variable.to_string(), point, value, pole_order }, conditions }
+            CalculusResult::Conditional { value: Residue { expression, variable: cc.symbol_resolve(variable).to_string(), point, value, pole_order }, conditions }
         }
         CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
             expression: Residue {
                 expression,
-                variable: variable.to_string(),
+                variable: cc.symbol_resolve(variable).to_string(),
                 point,
                 value: residue_echo(cc, expression, variable, point),
                 pole_order: 0,
@@ -77,8 +77,8 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
     }
 }
 
-fn residue_echo(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
-    let spec = cc.ordered(vec![cc.symbol(variable), point]);
+fn residue_echo(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> TermId {
+    let spec = cc.ordered(vec![cc.symbol_id(variable), point]);
     cc.apply_semantic(SemanticOperator::Residue, vec![expression, spec])
 }
 

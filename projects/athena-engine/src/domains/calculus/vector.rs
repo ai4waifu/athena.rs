@@ -1,7 +1,7 @@
 //! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`/`28`）。
 
 use athena_ir::SemanticOperator;
-use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
     derivative::differentiate_checked,
@@ -15,7 +15,7 @@ pub struct Gradient {
     /// 源标量表达式。
     pub expression: TermId,
     /// 求导变量顺序。
-    pub variables: Vec<String>,
+    pub variables: Vec<SymbolId>,
     /// ∂f/∂xᵢ 分量（与 `variables` 同序）。
     pub components: Vec<TermId>,
 }
@@ -33,7 +33,7 @@ pub struct Jacobian {
     /// 分量表达式 f₁…fₘ。
     pub expressions: Vec<TermId>,
     /// 自变量 x₁…xₙ。
-    pub variables: Vec<String>,
+    pub variables: Vec<SymbolId>,
     /// 行：`rows[i][j] = ∂fᵢ/∂xⱼ`。
     pub rows: Vec<Vec<TermId>>,
 }
@@ -52,7 +52,7 @@ pub struct Hessian {
     /// 源标量表达式。
     pub expression: TermId,
     /// 按序变量。
-    pub variables: Vec<String>,
+    pub variables: Vec<SymbolId>,
     /// `entries[i][j] = ∂²f / ∂xᵢ∂xⱼ`（保持变量顺序；不静默交换）。
     pub entries: Vec<Vec<TermId>>,
 }
@@ -69,7 +69,7 @@ impl Hessian {
 pub fn gradient_checked(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variables: &[String],
+    variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Gradient> {
     if variables.is_empty() {
@@ -79,7 +79,7 @@ pub fn gradient_checked(
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for v in variables {
-        let part = differentiate_checked(cc, expression, v, assumptions);
+        let part = differentiate_checked(cc, expression, *v, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
         components.push(cc.fold_term(part.value));
     }
@@ -90,7 +90,7 @@ pub fn gradient_checked(
 pub fn jacobian_checked(
     cc: &mut DomainExecutionContext<'_>,
     expressions: &[TermId],
-    variables: &[String],
+    variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Jacobian> {
     let mut rows = Vec::with_capacity(expressions.len());
@@ -99,7 +99,7 @@ pub fn jacobian_checked(
     for expr in expressions {
         let mut row = Vec::with_capacity(variables.len());
         for v in variables {
-            let part = differentiate_checked(cc, *expr, v, assumptions);
+            let part = differentiate_checked(cc, *expr, *v, assumptions);
             merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
             row.push(cc.fold_term(part.value));
         }
@@ -112,20 +112,20 @@ pub fn jacobian_checked(
 pub fn hessian_checked(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
-    variables: &[String],
+    variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Hessian> {
     let mut entries = Vec::with_capacity(variables.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for vi in variables {
-        let first = differentiate_checked(cc, expression, vi, assumptions);
+        let first = differentiate_checked(cc, expression, *vi, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, first.conditions.clone(), first.unresolved.clone());
         let first_val = cc.fold_term(first.value);
         let mut row = Vec::with_capacity(variables.len());
         for vj in variables {
             // 顺序：先对 vi 求导，再对 vj（不做交换改写）。
-            let second = differentiate_checked(cc, first_val, vj, assumptions);
+            let second = differentiate_checked(cc, first_val, *vj, assumptions);
             merge_conditions(&mut conditions, &mut unresolved, second.conditions, second.unresolved);
             row.push(cc.fold_term(second.value));
         }
@@ -140,7 +140,7 @@ pub struct Divergence {
     /// 向量场分量 F₁…Fₙ。
     pub components: Vec<TermId>,
     /// 坐标变量（与分量同序，`div = Σ ∂Fᵢ/∂xᵢ`）。
-    pub variables: Vec<String>,
+    pub variables: Vec<SymbolId>,
     /// 已求值的散度标量。
     pub value: TermId,
 }
@@ -158,7 +158,7 @@ pub struct Curl {
     /// 输入分量 (Fₓ, Fᵧ, F_z)。
     pub components: Vec<TermId>,
     /// 坐标 (x, y, z)。
-    pub variables: Vec<String>,
+    pub variables: Vec<SymbolId>,
     /// 旋度分量（与 `variables` 同序）。
     pub curl_components: Vec<TermId>,
 }
@@ -174,12 +174,12 @@ impl Curl {
 pub fn divergence_checked(
     cc: &mut DomainExecutionContext<'_>,
     components: &[TermId],
-    variables: &[String],
+    variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Divergence> {
     if components.len() != variables.len() {
         let comps = cc.ordered(components.to_vec());
-        let vars = cc.ordered(variables.iter().map(|v| cc.symbol(v)).collect());
+        let vars = cc.ordered(variables.iter().copied().map(|v| cc.symbol_id(v)).collect());
         return CalculusResult::Unevaluated {
             expression: Divergence {
                 components: components.to_vec(),
@@ -199,7 +199,7 @@ pub fn divergence_checked(
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for (comp, var) in components.iter().zip(variables.iter()) {
-        let part = differentiate_checked(cc, *comp, var, assumptions);
+        let part = differentiate_checked(cc, *comp, *var, assumptions);
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
         parts.push(cc.fold_term(part.value));
     }
@@ -211,7 +211,7 @@ pub fn divergence_checked(
 pub fn curl_checked(
     cc: &mut DomainExecutionContext<'_>,
     components: &[TermId],
-    variables: &[String],
+    variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Curl> {
     if components.len() != 3 || variables.len() != 3 {
@@ -221,7 +221,7 @@ pub fn curl_checked(
         };
     }
     let (fx, fy, fz) = (components[0], components[1], components[2]);
-    let (x, y, z) = (&variables[0], &variables[1], &variables[2]);
+    let (x, y, z) = (variables[0], variables[1], variables[2]);
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
 

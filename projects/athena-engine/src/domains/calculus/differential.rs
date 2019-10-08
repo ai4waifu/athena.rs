@@ -2,13 +2,13 @@
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{SymbolId, AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
         derivative::differentiate,
     integral::integrate,
     result::CalculusResult,
-    symbol_rewrite::{contains_symbol, replace_symbol},
+    symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
 use crate::domains::context::DomainExecutionContext;
 use crate::execution::shape::Shape;
@@ -70,8 +70,8 @@ struct FirstOrderRhs {
 pub fn solve_ode_checked(
     cc: &mut DomainExecutionContext<'_>,
     equation: TermId,
-    dependent: &str,
-    independent: &str,
+    dependent: SymbolId,
+    independent: SymbolId,
     initial: Option<(TermId, TermId)>,
     _assumptions: &AssumptionSet,
 ) -> CalculusResult<DifferentialSolution> {
@@ -81,11 +81,11 @@ pub fn solve_ode_checked(
     };
 
     let mut explicit = if let Some(a) = cc.number_of(rhs.f).map(|n| cc.copy(n)) {
-        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
+        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
         cc.fold_term(times)
     }
     else if let Some(a) = match_times_const_y(cc, rhs.f, dependent) {
-        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
+        let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
         let exp = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![cc.fold_term(times)]);
         exp
     }
@@ -132,8 +132,8 @@ pub fn solve_ode_checked(
     if is_zero_term(cc, residual) && ivp_ok {
         CalculusResult::Exact {
             value: DifferentialSolution {
-                dependent: dependent.to_string(),
-                independent: independent.to_string(),
+                dependent: cc.symbol_resolve(dependent).to_string(),
+                independent: cc.symbol_resolve(independent).to_string(),
                 explicit,
                 verified: VerificationStatus::Verified { residual },
             },
@@ -143,8 +143,8 @@ pub fn solve_ode_checked(
     else {
         CalculusResult::Unevaluated {
             expression: DifferentialSolution {
-                dependent: dependent.to_string(),
-                independent: independent.to_string(),
+                dependent: cc.symbol_resolve(dependent).to_string(),
+                independent: cc.symbol_resolve(independent).to_string(),
                 explicit,
                 verified: VerificationStatus::Failed { residual },
             },
@@ -153,18 +153,18 @@ pub fn solve_ode_checked(
     }
 }
 
-fn apply_ivp(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent: &str, f: TermId, particular: TermId, x0: TermId, y0: TermId) -> TermId {
+fn apply_ivp(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, f: TermId, particular: TermId, x0: TermId, y0: TermId) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
         let ax0 = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&a)), x0]));
         let c = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), ax0])]));
-        let ax = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol(independent)]);
+        let ax = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
         return cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![ax, c]));
     }
     // 解：y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(cc, f, dependent) {
         let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), x0]);
-        let delta = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(independent), neg]));
+        let delta = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(independent), neg]));
         let exp = cc.apply_semantic(
             SemanticOperator::from_unary(UnaryFunction::Exp),
             vec![cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), delta])],
@@ -184,7 +184,7 @@ fn apply_ivp(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent: 
     particular
 }
 
-fn residual_of(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent: &str, f: TermId, explicit: TermId) -> TermId {
+fn residual_of(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, f: TermId, explicit: TermId) -> TermId {
     let d = differentiate(cc, explicit, independent);
     let yp = cc.fold_term(d);
     let f_sub = cc.fold_term(replace_symbol(cc, f, dependent, explicit));
@@ -193,7 +193,7 @@ fn residual_of(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent
 }
 
 /// `y' = g(x)`：右端不含因变量。
-fn try_rhs_independent_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
+fn try_rhs_independent_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId, independent: SymbolId) -> Option<TermId> {
     if contains_symbol(cc, f, dependent) {
         return None;
     }
@@ -205,14 +205,14 @@ fn try_rhs_independent_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, depe
 }
 
 /// `y' = c y^n`（`n≠1`）。`n=2` ⇒ `y = -1/(c x)`。
-fn try_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
+fn try_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId, independent: SymbolId) -> Option<TermId> {
     let (c, n) = match_scaled_power_of_y(cc, f, dependent)?;
     if n == 1 {
         return None;
     }
     if n == 2 {
         // 分离变量解：y = -1/(c·x)
-        let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), cc.symbol(independent)]));
+        let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), cc.symbol_id(independent)]));
         let inv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
         return Some(cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), inv])));
     }
@@ -221,7 +221,7 @@ fn try_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &st
     if one_minus_n == 0 {
         return None;
     }
-    let inner = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(one_minus_n), cc.num(c), cc.symbol(independent)]));
+    let inner = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(one_minus_n), cc.num(c), cc.symbol_id(independent)]));
     if one_minus_n == 1 {
         Some(inner)
     }
@@ -235,14 +235,14 @@ fn try_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &st
 
 /// 常系数 Bernoulli：`y' = a y + b y^n`（`n≠0,1`）。
 /// `a≠0` ⇒ 常数特解 `y^{n-1} = -a/b`（优先 `n=2` ⇒ `y = -a/b`）。
-fn try_bernoulli_const(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
+fn try_bernoulli_const(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId, independent: SymbolId) -> Option<TermId> {
     let (a, b, n) = match_bernoulli_const_rhs(cc, f, dependent)?;
     if n == 0 || n == 1 {
         return None;
     }
     if a.is_zero() {
         // 退化为 c y^n
-        let rhs = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(b), cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(dependent), cc.in_(n)])]);
+        let rhs = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(b), cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(dependent), cc.in_(n)])]);
         let rhs = cc.fold_term(rhs);
         return try_power_of_y(cc, rhs, dependent, independent);
     }
@@ -258,7 +258,7 @@ fn try_bernoulli_const(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent
 }
 
 /// 可分离 `y' = g(x) y^n`（引导实现：`n=2` ⇒ `y = -1/∫g`）。
-fn try_separable_g_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str, independent: &str) -> Option<TermId> {
+fn try_separable_g_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId, independent: SymbolId) -> Option<TermId> {
     let (g, n) = match_g_times_y_power(cc, f, dependent)?;
     if n != 2 {
         return None;
@@ -278,12 +278,12 @@ fn try_separable_g_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, depen
     Some(cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), inv])))
 }
 
-fn match_scaled_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str) -> Option<(Number, i64)> {
+fn match_scaled_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId) -> Option<(Number, i64)> {
     let Some((h, args)) = cc.application_head(f)
     else {
         return None;
     };
-    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Power)) && args.len() == 2 && is_symbol_named(cc, args[0], dependent) {
+    if matches!(h, ApplicationHead::Semantic(SemanticOperator::Power)) && args.len() == 2 && is_symbol_id(cc, args[0], dependent) {
         let n = cc.int_exp(args[1])?;
         return Some((Number::small_int(1), n));
     }
@@ -306,7 +306,7 @@ fn match_scaled_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, depen
     None
 }
 
-fn match_bernoulli_const_rhs(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str) -> Option<(Number, Number, i64)> {
+fn match_bernoulli_const_rhs(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId) -> Option<(Number, Number, i64)> {
     // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
     let (h, args) = cc.application_head(f)?;
     if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
@@ -339,7 +339,7 @@ fn match_bernoulli_const_rhs(cc: &mut DomainExecutionContext<'_>, f: TermId, dep
     Some((a, b, n))
 }
 
-fn match_g_times_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str) -> Option<(TermId, i64)> {
+fn match_g_times_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId) -> Option<(TermId, i64)> {
     let (h, args) = cc.application_head(f)?;
     if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) || args.len() != 2 {
         return None;
@@ -357,7 +357,7 @@ fn match_g_times_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, depende
     None
 }
 
-fn recognize_y_prime_equals(cc: &mut DomainExecutionContext<'_>, equation: TermId, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
+fn recognize_y_prime_equals(cc: &mut DomainExecutionContext<'_>, equation: TermId, dependent: SymbolId, independent: SymbolId) -> Option<FirstOrderRhs> {
     // 形态：Equal[D[y,x], rhs]
     let (h, args) = cc.application_head(equation)?;
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
@@ -370,7 +370,7 @@ fn recognize_y_prime_equals(cc: &mut DomainExecutionContext<'_>, equation: TermI
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 {
         if let Some(p) = match_d_plus_p_y(cc, args[0], dependent, independent) {
             let q = cc.number_of(args[1]).map(|n| cc.copy(n)).unwrap_or_else(|| Number::small_int(0));
-            let py = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&p)), cc.symbol(dependent)]);
+            let py = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&p)), cc.symbol_id(dependent)]);
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), py]);
             let f = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![cc.num(q), neg]));
             return Some(FirstOrderRhs { f });
@@ -379,7 +379,7 @@ fn recognize_y_prime_equals(cc: &mut DomainExecutionContext<'_>, equation: TermI
     None
 }
 
-fn match_d_plus_p_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent: &str, independent: &str) -> Option<Number> {
+fn match_d_plus_p_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent: SymbolId, independent: SymbolId) -> Option<Number> {
     let (h, args) = cc.application_head(term)?;
     if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
         return None;
@@ -393,7 +393,7 @@ fn match_d_plus_p_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent
     None
 }
 
-fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: &str) -> Option<(Number, Number)> {
+fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent: SymbolId) -> Option<(Number, Number)> {
     // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
     let (h, args) = cc.application_head(f)?;
     if !matches!(h, ApplicationHead::Semantic(SemanticOperator::Add)) || args.len() != 2 {
@@ -416,7 +416,7 @@ fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, depend
     let mut coef = Number::small_int(1);
     let mut saw_y = false;
     for t in targs {
-        if is_symbol_named(cc, t, dependent) {
+        if is_symbol_id(cc, t, dependent) {
             saw_y = true;
         }
         else if let Some(n) = cc.number_of(t) {
@@ -433,15 +433,15 @@ fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, depend
     Some((p, q))
 }
 
-fn is_d_of(cc: &DomainExecutionContext<'_>, term: TermId, dependent: &str, independent: &str) -> bool {
+fn is_d_of(cc: &DomainExecutionContext<'_>, term: TermId, dependent: SymbolId, independent: SymbolId) -> bool {
     let Some((h, args)) = cc.application_head(term)
     else {
         return false;
     };
     matches!(h, ApplicationHead::Semantic(SemanticOperator::Differentiate))
         && args.len() == 2
-        && is_symbol_named(cc, args[0], dependent)
-        && is_symbol_named(cc, args[1], independent)
+        && is_symbol_id(cc, args[0], dependent)
+        && is_symbol_id(cc, args[1], independent)
 }
 
 fn is_integrate_residual(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
@@ -451,20 +451,17 @@ fn is_integrate_residual(cc: &DomainExecutionContext<'_>, term: TermId) -> bool 
     )
 }
 
-fn is_symbol_named(cc: &DomainExecutionContext<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_id_is(s, cc.intern(name)))
-}
 
-fn match_times_const_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent: &str) -> Option<Number> {
+fn match_times_const_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent: SymbolId) -> Option<Number> {
     let Some((h, args)) = cc.application_head(term)
     else {
         return None;
     };
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
-        if is_symbol_named(cc, args[1], dependent) {
+        if is_symbol_id(cc, args[1], dependent) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }
-        if is_symbol_named(cc, args[0], dependent) {
+        if is_symbol_id(cc, args[0], dependent) {
             return cc.number_of(args[1]).map(|n| cc.copy(n));
         }
         return None;
@@ -476,16 +473,16 @@ fn is_zero_term(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
     cc.number_of(expr).is_some_and(|n| n.is_zero())
 }
 
-fn placeholder(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent: &str, equation: TermId) -> DifferentialSolution {
+fn placeholder(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, equation: TermId) -> DifferentialSolution {
     DifferentialSolution {
-        dependent: dependent.to_string(),
-        independent: independent.to_string(),
+        dependent: cc.symbol_resolve(dependent).to_string(),
+        independent: cc.symbol_resolve(independent).to_string(),
         explicit: equation,
         verified: VerificationStatus::Failed { residual: cc.symbol("Unevaluated") },
     }
 }
 
-fn unsupported(cc: &mut DomainExecutionContext<'_>, dependent: &str, independent: &str, equation: TermId) -> CalculusResult<DifferentialSolution> {
+fn unsupported(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, equation: TermId) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(cc, dependent, independent, equation),
         reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),

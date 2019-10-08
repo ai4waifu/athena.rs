@@ -1,7 +1,7 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
-use athena_types::{Diagnostic, DiagnosticCode, TermId};
+use athena_types::{SymbolId, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     derivative::differentiate,
@@ -98,12 +98,12 @@ impl Series {
     }
 }
 
-fn residual_series(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, center: TermId, order: u32) -> Series {
-    Series { variable: variable.to_string(), center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
+fn residual_series(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> Series {
+    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
 }
 
 /// 关于 `center` 展开到 `order`（含该幂次）的 Taylor 展开。
-pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, center: TermId, order: u32) -> CalculusResult<Series> {
+pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> CalculusResult<Series> {
     const SHIFT: &str = "__athena_taylor_t";
     let working = if is_zero_term(cc, center) {
         expression
@@ -116,7 +116,7 @@ pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
         };
         replace_symbol(cc, expression, variable, shifted_var)
     };
-    let expand_var = if is_zero_term(cc, center) { variable } else { SHIFT };
+    let expand_var = if is_zero_term(cc, center) { variable } else { cc.intern(SHIFT) };
 
     let mut terms = Vec::new();
     let mut current = working;
@@ -150,31 +150,31 @@ pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
     }
     else {
         let delta = if is_zero_term(cc, center) {
-            cc.symbol(variable)
+            cc.symbol_id(variable)
         }
         else {
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
-            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(variable), neg]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(variable), neg]);
             cc.fold_term(plus)
         };
         let pow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_((order + 1) as i64)]);
         Remainder::BigO(pow)
     };
 
-    CalculusResult::Exact { value: Series { variable: variable.to_string(), center, terms, order, remainder }, conditions: Vec::new() }
+    CalculusResult::Exact { value: Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }, conditions: Vec::new() }
 }
 
 /// 关于 `center` 的 Laurent 展开：先清除有限阶极点，再 Taylor，再平移幂次。
 ///
 /// `order` 为正则部分（非负幂）截断的最高幂次。主部在可清除时完整保留。
-pub fn laurent(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, center: TermId, order: u32) -> CalculusResult<Series> {
+pub fn laurent(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> CalculusResult<Series> {
     const MAX_POLE: u32 = 8;
     let delta = if is_zero_term(cc, center) {
-        cc.symbol(variable)
+        cc.symbol_id(variable)
     }
     else {
         let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
-        let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(variable), neg]);
+        let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(variable), neg]);
         cc.fold_term(plus)
     };
 
@@ -210,7 +210,7 @@ pub fn laurent(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable
     }
 }
 
-fn remap_laurent_series(cc: &mut DomainExecutionContext<'_>, series: Series, variable: &str, center: TermId, order: u32, m: u32, delta: TermId) -> Series {
+fn remap_laurent_series(cc: &mut DomainExecutionContext<'_>, series: Series, variable: SymbolId, center: TermId, order: u32, m: u32, delta: TermId) -> Series {
     let terms: Vec<(TermId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
@@ -220,22 +220,23 @@ fn remap_laurent_series(cc: &mut DomainExecutionContext<'_>, series: Series, var
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    Series { variable: variable.to_string(), center, terms, order, remainder }
+    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }
 }
 
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
 ///
 /// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
-pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: &str, order: u32) -> CalculusResult<Series> {
+pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, order: u32) -> CalculusResult<Series> {
     const T: &str = "__athena_asymp_t";
     let infinity = cc.symbol("Infinity");
     let t_sym = cc.symbol(T);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![t_sym, cc.in_(-1)]);
     let substituted = replace_symbol(cc, expression, variable, inv);
     let g = cc.fold_term(substituted);
-    let g = clear_negative_powers_of_var(cc, g, T);
+    let t_sym = cc.intern(T);
+    let g = clear_negative_powers_of_var(cc, g, t_sym);
     let zero = cc.in_(0);
-    match laurent(cc, g, T, zero, order) {
+    match laurent(cc, g, t_sym, zero, order) {
         CalculusResult::Exact { value: series, conditions } => {
             CalculusResult::Exact { value: remap_asymptotic_series(cc, series, variable, order), conditions }
         }
@@ -250,7 +251,7 @@ pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
 }
 
 /// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
-fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: &str) -> TermId {
+fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
     let Some((head, args)) = cc.application_head(expr)
     else {
         return expr;
@@ -260,7 +261,7 @@ fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermI
             if cc.number_of(args[1]).is_some_and(|n| n.is_neg_one()) {
                 if let Some(k) = negative_valuation(cc, args[0], var) {
                     if k > 0 {
-                        let scale = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(var), cc.in_(k as i64)]);
+                        let scale = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(var), cc.in_(k as i64)]);
                         let cleared_den = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![args[0], scale]));
                         let den_inv = cc.apply_semantic(SemanticOperator::Power, vec![cleared_den, cc.in_(-1)]);
                         return cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![scale, den_inv]));
@@ -283,14 +284,14 @@ fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermI
 }
 
 /// `var` 在表达式中的最低整数幂次；若无负幂则 `None`。
-fn negative_valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: &str) -> Option<u32> {
+fn negative_valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Option<u32> {
     let v = valuation(cc, expr, var)?;
     if v < 0 { Some((-v) as u32) } else { None }
 }
 
-fn valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: &str) -> Option<i64> {
+fn valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Option<i64> {
     match cc.shape(expr)? {
-        Shape::Symbol(s) if cc.symbol_id_is(s, cc.intern(var)) => Some(1),
+        Shape::Symbol(s) if cc.symbol_id_is(s, var) => Some(1),
         Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => Some(0),
         Shape::Collection(items) => {
             let mut m = i64::MAX;
@@ -327,19 +328,19 @@ fn valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: &str) -> Option
     }
 }
 
-fn remap_asymptotic_series(cc: &mut DomainExecutionContext<'_>, series: Series, variable: &str, order: u32) -> Series {
+fn remap_asymptotic_series(cc: &mut DomainExecutionContext<'_>, series: Series, variable: SymbolId, order: u32) -> Series {
     // 无穷远处换元：g(t)=f(1/t) ~ Σ a_k tᵏ  ⇒  f(x) ~ Σ a_k x⁻ᵏ
     let terms: Vec<(TermId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, -power)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            let pow = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(variable), cc.in_(-(order as i64 + 1))]);
+            let pow = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(variable), cc.in_(-(order as i64 + 1))]);
             Remainder::BigO(pow)
         }
         Remainder::Unknown => Remainder::Unknown,
     };
     let center = cc.symbol("Infinity");
-    Series { variable: variable.to_string(), center, terms, order, remainder }
+    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }
 }
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。

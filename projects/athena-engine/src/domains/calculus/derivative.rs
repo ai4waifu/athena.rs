@@ -9,9 +9,8 @@ use crate::execution::builtins::registry::lookup_unary;
 use super::result::{ConditionalResult, unresolved};
 
 /// 在 arena 上做符号求导。
-pub fn differentiate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: &str) -> TermId {
-    let var_id = dc.intern(var);
-    differentiate_symbol(dc, expr, var_id)
+pub fn differentiate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
+    differentiate_symbol(dc, expr, var)
 }
 
 fn differentiate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
@@ -107,16 +106,15 @@ fn residual_diff(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolI
 pub fn differentiate_checked(
     dc: &mut DomainExecutionContext<'_>,
     expr: TermId,
-    var: &str,
+    var: SymbolId,
     assumptions: &athena_types::AssumptionSet,
 ) -> ConditionalResult<TermId> {
-    let var_id = dc.intern(var);
     if let Some((head, args)) = dc.application_head(expr) {
         if matches!(head, ApplicationHead::Semantic(SemanticOperator::Abs)) && args.len() == 1 {
             let inner = args[0];
             let abs = dc.apply_semantic(SemanticOperator::Abs, vec![inner]);
             let binv = dc.apply_semantic(SemanticOperator::Power, vec![inner, dc.in_(-1)]);
-            let d = differentiate_symbol(dc, inner, var_id);
+            let d = differentiate_symbol(dc, inner, var);
             let candidate = dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![abs, binv, d]));
             let needs_nonzero = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
@@ -129,7 +127,7 @@ pub fn differentiate_checked(
             let sqrt = dc.apply_semantic(SemanticOperator::Sqrt, vec![inner]);
             let two_sqrt = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(2), sqrt]);
             let binv = dc.apply_semantic(SemanticOperator::Power, vec![two_sqrt, dc.in_(-1)]);
-            let d = differentiate_symbol(dc, inner, var_id);
+            let d = differentiate_symbol(dc, inner, var);
             let candidate = dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![binv, d]));
             let needs_nonneg = !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonNegative(_) | Predicate::Positive(_)));
             if needs_nonneg {
@@ -138,6 +136,6 @@ pub fn differentiate_checked(
             return ConditionalResult::exact(candidate);
         }
     }
-    let d = differentiate_symbol(dc, expr, var_id);
+    let d = differentiate_symbol(dc, expr, var);
     ConditionalResult::exact(dc.fold_term(d))
 }
