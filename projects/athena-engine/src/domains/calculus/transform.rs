@@ -58,9 +58,9 @@ pub struct TransformResult {
     /// 变换变量下的像函数表达式。
     pub expression: TermId,
     /// 时间 / 序列变量。
-    pub time_variable: String,
+    pub time_variable: SymbolId,
     /// 变换变量（`s`、`ω`、`z` 等）。
-    pub transform_variable: String,
+    pub transform_variable: SymbolId,
     /// 收敛域。
     pub region_of_convergence: RegionOfConvergence,
 }
@@ -68,7 +68,7 @@ pub struct TransformResult {
 impl TransformResult {
     /// 桥接形态 `LaplaceTransform[F, {t,s}, ROC]`。
     pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
-        let vars = cc.ordered(vec![cc.symbol(&self.time_variable), cc.symbol(&self.transform_variable)]);
+        let vars = cc.ordered(vec![cc.symbol_id(self.time_variable), cc.symbol_id(self.transform_variable)]);
         let mut args = vec![self.expression, vars];
         if let Some(roc) = self.region_of_convergence.predicate {
             args.push(roc);
@@ -98,8 +98,8 @@ pub fn laplace_checked(
             value: TransformResult {
                 kind: TransformKind::Laplace,
                 expression: expr,
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: roc,
             },
             conditions: Vec::new(),
@@ -108,8 +108,8 @@ pub fn laplace_checked(
             expression: TransformResult {
                 kind: TransformKind::Laplace,
                 expression: echo_transform(cc, SemanticOperator::LaplaceTransform, expression, time_variable, transform_variable),
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
             reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),
@@ -132,8 +132,8 @@ pub fn fourier_checked(
             value: TransformResult {
                 kind: TransformKind::Fourier,
                 expression: expr,
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: roc,
             },
             conditions: Vec::new(),
@@ -142,8 +142,8 @@ pub fn fourier_checked(
             expression: TransformResult {
                 kind: TransformKind::Fourier,
                 expression: echo_transform(cc, SemanticOperator::FourierTransform, expression, time_variable, transform_variable),
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
             reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),
@@ -166,8 +166,8 @@ pub fn z_checked(
             value: TransformResult {
                 kind: TransformKind::Z,
                 expression: expr,
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: roc,
             },
             conditions: Vec::new(),
@@ -176,8 +176,8 @@ pub fn z_checked(
             expression: TransformResult {
                 kind: TransformKind::Z,
                 expression: echo_transform(cc, SemanticOperator::ZTransform, expression, time_variable, transform_variable),
-                time_variable: cc.symbol_resolve(time_variable).to_string(),
-                transform_variable: cc.symbol_resolve(transform_variable).to_string(),
+                time_variable,
+                transform_variable,
                 region_of_convergence: RegionOfConvergence::unknown(),
             },
             reason: Diagnostic::new(DiagnosticCode::TransformRocUnknown),

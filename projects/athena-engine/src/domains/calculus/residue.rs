@@ -15,7 +15,7 @@ pub struct Residue {
     /// 源表达式。
     pub expression: TermId,
     /// 复变量。
-    pub variable: String,
+    pub variable: SymbolId,
     /// 展开点（已解码）。
     pub point: TermId,
     /// 留数值（`(z-a)^{-1}` 系数；解析则多为 0）。
@@ -45,7 +45,7 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
                 return CalculusResult::Unevaluated {
                     expression: Residue {
                         expression,
-                        variable: cc.symbol_resolve(variable).to_string(),
+                        variable,
                         point,
                         value: residue_echo(cc, expression, variable, point),
                         pole_order: 0,
@@ -55,19 +55,19 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
             }
             let _ = conditions;
             CalculusResult::Exact {
-                value: Residue { expression, variable: cc.symbol_resolve(variable).to_string(), point, value, pole_order },
+                value: Residue { expression, variable, point, value, pole_order },
                 conditions: Vec::new(),
             }
         }
         CalculusResult::Conditional { value: series, conditions } => {
             let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
             let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| *c).unwrap_or(zero);
-            CalculusResult::Conditional { value: Residue { expression, variable: cc.symbol_resolve(variable).to_string(), point, value, pole_order }, conditions }
+            CalculusResult::Conditional { value: Residue { expression, variable, point, value, pole_order }, conditions }
         }
         CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
             expression: Residue {
                 expression,
-                variable: cc.symbol_resolve(variable).to_string(),
+                variable,
                 point,
                 value: residue_echo(cc, expression, variable, point),
                 pole_order: 0,

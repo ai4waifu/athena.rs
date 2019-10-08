@@ -32,9 +32,9 @@ pub enum VerificationStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentialSolution {
     /// 因变量名（桥接）。
-    pub dependent: String,
+    pub dependent: SymbolId,
     /// 自变量名。
-    pub independent: String,
+    pub independent: SymbolId,
     /// `y(x)` 的显式特解右端。
     pub explicit: TermId,
     /// 残差验证状态 — 发出解时必填。
@@ -42,11 +42,10 @@ pub struct DifferentialSolution {
 }
 
 impl DifferentialSolution {
-    /// 桥接项 `Equal[y[x], explicit]`。
+    /// 桥接项 `Equal[y[x], explicit]`（扩展头为因变量显示名 · 自变量为参量）。
     pub fn to_equal_term(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
-        let y = cc.symbol(&self.dependent);
-        let head = cc.intern_extension(&self.dependent);
-        let lhs = cc.apply_extension(head, vec![y]);
+        let head = cc.intern_extension(cc.symbol_resolve(self.dependent));
+        let lhs = cc.apply_extension(head, vec![cc.symbol_id(self.independent)]);
         cc.apply_semantic(SemanticOperator::Equal, vec![lhs, self.explicit])
     }
 }
@@ -132,8 +131,8 @@ pub fn solve_ode_checked(
     if is_zero_term(cc, residual) && ivp_ok {
         CalculusResult::Exact {
             value: DifferentialSolution {
-                dependent: cc.symbol_resolve(dependent).to_string(),
-                independent: cc.symbol_resolve(independent).to_string(),
+                dependent,
+                independent,
                 explicit,
                 verified: VerificationStatus::Verified { residual },
             },
@@ -143,8 +142,8 @@ pub fn solve_ode_checked(
     else {
         CalculusResult::Unevaluated {
             expression: DifferentialSolution {
-                dependent: cc.symbol_resolve(dependent).to_string(),
-                independent: cc.symbol_resolve(independent).to_string(),
+                dependent,
+                independent,
                 explicit,
                 verified: VerificationStatus::Failed { residual },
             },
@@ -475,8 +474,8 @@ fn is_zero_term(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
 
 fn placeholder(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, equation: TermId) -> DifferentialSolution {
     DifferentialSolution {
-        dependent: cc.symbol_resolve(dependent).to_string(),
-        independent: cc.symbol_resolve(independent).to_string(),
+        dependent,
+        independent,
         explicit: equation,
         verified: VerificationStatus::Failed { residual: cc.symbol("Unevaluated") },
     }

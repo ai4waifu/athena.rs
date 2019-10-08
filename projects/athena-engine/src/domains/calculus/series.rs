@@ -28,7 +28,7 @@ pub enum Remainder {
 #[derive(Debug, PartialEq)]
 pub struct Series {
     /// 展开变量。
-    pub variable: String,
+    pub variable: SymbolId,
     /// 展开中心（已解码；渐近于 ∞ 时为符号 `Infinity`）。
     pub center: TermId,
     /// 幂次项 `(coefficient, power)`：
@@ -49,16 +49,16 @@ impl Series {
                 return cc.in_(1);
             }
             if power == 1 {
-                return cc.symbol(&self.variable);
+                return cc.symbol_id(self.variable);
             }
-            return cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol(&self.variable), cc.in_(power)]);
+            return cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(self.variable), cc.in_(power)]);
         }
         let delta = if is_zero_term(cc, self.center) {
-            cc.symbol(&self.variable)
+            cc.symbol_id(self.variable)
         }
         else {
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), self.center]);
-            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(&self.variable), neg]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(self.variable), neg]);
             cc.fold_term(plus)
         };
         if power == 0 {
@@ -99,7 +99,7 @@ impl Series {
 }
 
 fn residual_series(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> Series {
-    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
+    Series { variable, center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
 }
 
 /// 关于 `center` 展开到 `order`（含该幂次）的 Taylor 展开。
@@ -161,7 +161,7 @@ pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
         Remainder::BigO(pow)
     };
 
-    CalculusResult::Exact { value: Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }, conditions: Vec::new() }
+    CalculusResult::Exact { value: Series { variable, center, terms, order, remainder }, conditions: Vec::new() }
 }
 
 /// 关于 `center` 的 Laurent 展开：先清除有限阶极点，再 Taylor，再平移幂次。
@@ -220,7 +220,7 @@ fn remap_laurent_series(cc: &mut DomainExecutionContext<'_>, series: Series, var
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }
+    Series { variable, center, terms, order, remainder }
 }
 
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
@@ -340,7 +340,7 @@ fn remap_asymptotic_series(cc: &mut DomainExecutionContext<'_>, series: Series, 
         Remainder::Unknown => Remainder::Unknown,
     };
     let center = cc.symbol("Infinity");
-    Series { variable: cc.symbol_resolve(variable).to_string(), center, terms, order, remainder }
+    Series { variable, center, terms, order, remainder }
 }
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。
