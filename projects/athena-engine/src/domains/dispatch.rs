@@ -1,8 +1,9 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
+//! Living `28`：`DomainRequest` → [`plan_domain`] → PlanIR → provider → `DomainResult`。
 //! 微积分、数论、多项式、群、域、伽罗瓦、图论、线性代数、优化经此入口进入 `athena-engine`。
 
-use athena_types::Diagnostic;
+use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
     domains::{
@@ -14,6 +15,7 @@ use crate::{
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
         number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
+        planner::{PlanStep, plan_domain},
         polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial},
     },
     runtime::session::Session,
@@ -65,10 +67,23 @@ pub enum DomainResult {
     Optimization(OptimizationResult),
 }
 
-/// 分派顶层 [`DomainRequest`]。
+/// 分派顶层 [`DomainRequest`]（经 DomainPlanner PlanIR）。
 ///
 /// 微积分分支读写 `session` arena；其余域暂不依赖 session。
 pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
+    let plan = plan_domain(&request);
+    if !plan.steps.iter().any(|s| matches!(s, PlanStep::CallDomainProvider)) {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "planner")
+            .detail("reason", "plan missing CallDomainProvider"));
+    }
+    // Bootstrap: Normalize / Verify / MaterializeResult are PlanIR markers only.
+    // Effectful work is CallDomainProvider → existing domain `execute_*`.
+    let _ = plan;
+    call_domain_provider(session, request)
+}
+
+fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),
