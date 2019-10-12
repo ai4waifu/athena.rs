@@ -1,4 +1,8 @@
-//! Reflector 合同。
+//! Reflector 合同（调度侧骨架）。
+//!
+//! Living [`29`]：语义缺口驱动请用 [`crate::reasoning::mgraph::SemanticReflector`] /
+//! [`crate::reasoning::mgraph::Reflection`]。本文件的 [`Reflector`] / [`ReflectionResult`]
+//! 是旧 solver 调度合同，不得直接写 admitted relation；后续切片迁入 SemanticReflector。
 
 use athena_types::{Diagnostic, TermId};
 
