@@ -54,7 +54,7 @@ pub enum TransformKind {
 }
 
 /// 微积分域请求 — 宿主将方言形态映射至此。变量身份为 SymbolId（Living 27/28）。
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CalculusRequest {
     /// 常导数 / 高阶导数。
     Derivative {

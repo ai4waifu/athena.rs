@@ -106,6 +106,15 @@ impl<'a> MGraphView<'a> {
         self.core.relation_index().get(id)
     }
 
+    /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Living `29` Reflector 短路）。
+    pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
+        self.relations_in_scope(scope).iter().copied().find(|&id| {
+            self.relation(id).is_some_and(|r| {
+                r.predicate == predicate && matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional)
+            })
+        })
+    }
+
     /// Scope 边。
     pub fn scope_edges(&self) -> &[crate::reasoning::mgraph::relations::scope::ScopeEdge] {
         self.core.scope_index().edges()

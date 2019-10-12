@@ -37,6 +37,8 @@ impl TheoryContextId {
     pub const CONGRUENCE: Self = Self(2);
     /// 重写 / 等价类上下文。
     pub const REWRITE: Self = Self(3);
+    /// 微积分 / 级数 / 极限上下文。
+    pub const CALCULUS: Self = Self(4);
 }
 
 /// 稳定语义谓词身份（禁止用任意 `String` 当关系标签）。
@@ -55,6 +57,12 @@ pub mod predicates {
     pub const REWRITE_EQUIVALENT: PredicateId = PredicateId(3);
     /// 求值结果关系。
     pub const EVALUATION_RESULT: PredicateId = PredicateId(4);
+    /// 导数关系 `DerivativeOf(expr, result)`。
+    pub const DERIVATIVE_OF: PredicateId = PredicateId(5);
+    /// 级数展开关系 `SeriesExpansion(expr, series)`。
+    pub const SERIES_EXPANSION: PredicateId = PredicateId(6);
+    /// 积分关系 `IntegralOf(expr, antiderivative)`。
+    pub const INTEGRAL_OF: PredicateId = PredicateId(7);
 }
 
 /// 稳定对象引用（跨 Session 用 fingerprint；非 `TermId` 下标）。
