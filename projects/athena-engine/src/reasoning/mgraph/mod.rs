@@ -8,6 +8,8 @@
 //! - [`closure`] — 闭包步进与 operational state
 //! - [`cache`] — 结果缓存
 //! - [`core`] — 实现层核心类型与状态
+//! - [`obligation`] — ProofObligation / SemanticReflector（Living `29`）
+//! - [`reflectors`] — 领域 Reflector 挂载（Living `29`）
 //! - [`polynomial`] — 多项式域 M-Graph 存储 / witness
 
 pub mod admission;
@@ -18,6 +20,7 @@ pub mod equivalence;
 pub mod facts;
 pub mod obligation;
 pub mod polynomial;
+pub mod reflectors;
 pub mod relations;
 
 pub use admission::{
@@ -40,4 +43,5 @@ pub use obligation::{ProofObligation, Reflection, SemanticReflector};
 pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,
 };
+pub use reflectors::{CalculusReflector, PolynomialReflector};
 pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex};
