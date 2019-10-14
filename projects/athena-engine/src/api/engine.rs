@@ -43,9 +43,22 @@ impl AthenaEngine {
         self.evaluate(session, d)
     }
 
-    /// 域分派 — 返回按域区分的 [`DomainResult`]。
+    /// 域分派 — **内部 provider 路径**（Living `29`）。
+    ///
+    /// 顶层语义请用 [`Self::execute_domain_goal`]（先查 M-Graph）。本方法仅供
+    /// Reflector `NeedComputation` / ExecutionIR `CallProvider` 使用。
     pub fn execute_domain(&self, session: &mut Session, request: DomainRequest) -> Result<DomainResult> {
         dispatch_domain(session, request)
+    }
+
+    /// Living `29` 语义入口：`DomainGoal` → Obligation → Reflector → Plan / Result。
+    pub fn execute_domain_goal(
+        &self,
+        session: &mut Session,
+        core: &crate::reasoning::mgraph::MGraphCore,
+        goal: crate::api::request::DomainGoal,
+    ) -> Result<crate::reasoning::mgraph::DomainSemanticOutcome> {
+        crate::reasoning::mgraph::execute_domain_goal(session, core, goal)
     }
 
     /// 经中性 [`AthenaRequest`] 边界执行（Living `26`）。

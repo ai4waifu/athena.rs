@@ -9,7 +9,7 @@
 //! - [`cache`] — 结果缓存
 //! - [`core`] — 实现层核心类型与状态
 //! - [`obligation`] — ProofObligation / SemanticReflector（Living `29`）
-//! - [`reflectors`] — 领域 Reflector 挂载（Living `29`）
+//! - [`semantic_entry`] — Living `29` 顶层 Goal → Reflector → Plan（非裸 `execute_domain`）
 //! - [`polynomial`] — 多项式域 M-Graph 存储 / witness
 
 pub mod admission;
@@ -22,6 +22,7 @@ pub mod obligation;
 pub mod polynomial;
 pub mod reflectors;
 pub mod relations;
+pub mod semantic_entry;
 
 pub use admission::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, EvidenceVerifier, OuterCandidate, SemanticCore, VerificationPolicy,
@@ -45,3 +46,4 @@ pub use polynomial::{
 };
 pub use reflectors::{CalculusReflector, PolynomialReflector};
 pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex};
+pub use semantic_entry::{DomainSemanticOutcome, execute_domain_goal, obligation_from_domain_request};
