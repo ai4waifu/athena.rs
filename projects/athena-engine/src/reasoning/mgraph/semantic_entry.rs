@@ -133,6 +133,40 @@ pub fn execute_domain_goal(
     }
 }
 
+/// Project a semantic outcome into [`DomainResult`] for host APIs that still expect provider payloads.
+///
+/// `AlreadyKnown` cannot materialize a payload until relation → DomainResult replay exists.
+pub fn domain_result_from_semantic_outcome(outcome: DomainSemanticOutcome) -> Result<DomainResult, Diagnostic> {
+    match outcome {
+        DomainSemanticOutcome::Computed(result) => Ok(result),
+        DomainSemanticOutcome::AlreadyKnown { relation } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "already_known_not_materialized")
+            .arg("relation", relation.0)),
+        DomainSemanticOutcome::NeedObject { object_kind } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "need_object")
+            .detail("object_kind", object_kind)),
+        DomainSemanticOutcome::NeedConversion { source, target } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "need_conversion")
+            .detail("source", source)
+            .detail("target", target)),
+        DomainSemanticOutcome::Inconclusive => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "inconclusive")),
+    }
+}
+
+/// Host convenience: ephemeral M-Graph + [`execute_domain_goal`] + project to [`DomainResult`].
+///
+/// Living `29`：公共宿主应走此路径，而不是直接调用 [`execute_domain`]。
+pub fn execute_domain_via_semantic_entry(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
+    let core = MGraphCore::new();
+    let outcome = execute_domain_goal(session, &core, DomainGoal::Dispatch(request))?;
+    domain_result_from_semantic_outcome(outcome)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

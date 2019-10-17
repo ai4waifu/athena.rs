@@ -46,4 +46,7 @@ pub use polynomial::{
 };
 pub use reflectors::{CalculusReflector, PolynomialReflector};
 pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex};
-pub use semantic_entry::{DomainSemanticOutcome, execute_domain_goal, obligation_from_domain_request};
+pub use semantic_entry::{
+    DomainSemanticOutcome, domain_result_from_semantic_outcome, execute_domain_goal, execute_domain_via_semantic_entry,
+    obligation_from_domain_request,
+};

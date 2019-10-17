@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, ResultId, TermId};
 
 use crate::{
     api::request::{AthenaRequest, LoweringOutcome},
-    domains::dispatch::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
+    domains::dispatch::{DomainRequest, DomainResult},
     execution,
     runtime::session::Session,
 };
@@ -43,12 +43,12 @@ impl AthenaEngine {
         self.evaluate(session, d)
     }
 
-    /// 域分派 — **内部 provider 路径**（Living `29`）。
+    /// 域请求经 Living `29` 语义入口（ephemeral M-Graph → Reflector → provider）。
     ///
-    /// 顶层语义请用 [`Self::execute_domain_goal`]（先查 M-Graph）。本方法仅供
-    /// Reflector `NeedComputation` / ExecutionIR `CallProvider` 使用。
+    /// Provider-only 分派仍在 [`crate::domains::dispatch::execute_domain`]，供
+    /// `NeedComputation` / ExecutionIR `CallProvider` 内部使用。
     pub fn execute_domain(&self, session: &mut Session, request: DomainRequest) -> Result<DomainResult> {
-        dispatch_domain(session, request)
+        crate::reasoning::mgraph::execute_domain_via_semantic_entry(session, request)
     }
 
     /// Living `29` 语义入口：`DomainGoal` → Obligation → Reflector → Plan / Result。
