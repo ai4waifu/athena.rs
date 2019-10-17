@@ -109,7 +109,15 @@ pub fn execute_domain_goal(
     };
     match reflection {
         Reflection::AlreadyKnown { relation } => Ok(DomainSemanticOutcome::AlreadyKnown { relation }),
-        Reflection::NeedObject { object_kind } => Ok(DomainSemanticOutcome::NeedObject { object_kind }),
+        Reflection::NeedObject { object_kind } => {
+            // Host already supplied a typed PolynomialRequest payload — DomainObjectRef
+            // store is still missing, but provider can run on the request body.
+            if matches!(request, DomainRequest::Polynomial(_)) {
+                let result = execute_domain(session, request)?;
+                return Ok(DomainSemanticOutcome::Computed(result));
+            }
+            Ok(DomainSemanticOutcome::NeedObject { object_kind })
+        }
         Reflection::NeedConversion { source, target } => Ok(DomainSemanticOutcome::NeedConversion { source, target }),
         Reflection::NeedRelation { .. } => Ok(DomainSemanticOutcome::Inconclusive),
         Reflection::Inconclusive => Ok(DomainSemanticOutcome::Inconclusive),
@@ -148,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn polynomial_goal_needs_object_when_empty() {
+    fn polynomial_goal_computes_when_request_carries_polynomial() {
         use crate::domains::polynomial::{Polynomial, PolynomialRequest};
         let mut session = Session::new();
         let core = MGraphCore::new();
@@ -156,8 +164,8 @@ mod tests {
             polynomial: Polynomial::zero(athena_types::RingId(0)),
         }));
         match execute_domain_goal(&mut session, &core, goal).expect("ok") {
-            DomainSemanticOutcome::NeedObject { object_kind } => assert_eq!(object_kind, "PolynomialRef"),
-            other => panic!("expected NeedObject, got {other:?}"),
+            DomainSemanticOutcome::Computed(DomainResult::Polynomial(_)) => {}
+            other => panic!("expected Computed polynomial, got {other:?}"),
         }
     }
 }
