@@ -1,11 +1,14 @@
 //! 多项式 SemanticReflector（Living `29`）。
 
-use crate::reasoning::mgraph::{
-    core::{predicates, MGraphView},
-    obligation::{ProofObligation, Reflection, SemanticReflector},
+use crate::{
+    domains::planner::{DomainPlan, PlanStep},
+    reasoning::mgraph::{
+        core::{predicates, MGraphView},
+        obligation::{ProofObligation, Reflection, SemanticReflector},
+    },
 };
 
-/// 多项式缺口 Reflector：先查 M-Graph，再声明缺少 `PolynomialRef`。
+/// 多项式缺口 Reflector：先查 M-Graph；有 `PolynomialRef` 指纹则 `NeedComputation`。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PolynomialReflector;
 
@@ -22,9 +25,10 @@ impl SemanticReflector for PolynomialReflector {
                 object_kind: "PolynomialRef",
             };
         }
-        // Object fingerprints present but DomainObject store / request lowering not wired yet.
-        Reflection::NeedObject {
-            object_kind: "PolynomialRef",
+        Reflection::NeedComputation {
+            plan: DomainPlan {
+                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+            },
         }
     }
 }
@@ -32,7 +36,7 @@ impl SemanticReflector for PolynomialReflector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reasoning::mgraph::core::{MGraphCore, ScopeRef};
+    use crate::reasoning::mgraph::{MGraphCore, ObjectRef, ScopeRef, TheoryContextId};
 
     #[test]
     fn polynomial_result_needs_object_when_empty() {
@@ -46,6 +50,23 @@ mod tests {
         match PolynomialReflector.reflect(&obligation, &view) {
             Reflection::NeedObject { object_kind } => assert_eq!(object_kind, "PolynomialRef"),
             other => panic!("expected NeedObject, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn polynomial_result_needs_computation_when_object_present() {
+        let core = MGraphCore::new();
+        let view = MGraphView::new(&core);
+        let obligation = ProofObligation {
+            predicate: predicates::POLYNOMIAL_RESULT,
+            scope: ScopeRef::UNCONDITIONAL,
+            known_objects: vec![ObjectRef::new(TheoryContextId::POLYNOMIAL, 1)],
+        };
+        match PolynomialReflector.reflect(&obligation, &view) {
+            Reflection::NeedComputation { plan } => {
+                assert!(plan.steps.iter().any(|s| matches!(s, PlanStep::CallDomainProvider)));
+            }
+            other => panic!("expected NeedComputation, got {other:?}"),
         }
     }
 }

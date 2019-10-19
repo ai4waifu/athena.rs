@@ -12,7 +12,10 @@ use crate::{
     domains::{
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
-        polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
+        polynomial::{
+            PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph,
+            execute_polynomial_with_rings,
+        },
     },
     execution::{self, environment::DefinitionLayer},
     reasoning::mgraph::MGraphState,
@@ -35,6 +38,8 @@ pub struct Session {
     pub module_counter: u64,
     /// 多项式环 intern 表。
     pub rings: RingTable,
+    /// Living `28` 多项式 DomainObject 仓（`PolynomialRef` → payload）。
+    pub polynomial_objects: PolynomialObjectStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
     /// 运行时值存储（`ValueId` → [`RuntimeValue`]）。
@@ -54,6 +59,7 @@ impl core::fmt::Debug for Session {
             .field("operators", &self.operators.len())
             .field("defs", &self.defs)
             .field("rings", &self.rings)
+            .field("polynomial_objects_len", &self.polynomial_objects.len())
             .field("mgraph", &self.mgraph)
             .field("values", &self.values)
             .field("results", &self.results)
@@ -83,6 +89,7 @@ impl Session {
             defs: DefinitionLayer::new(),
             module_counter: 0,
             rings: RingTable::default(),
+            polynomial_objects: PolynomialObjectStore::new(),
             mgraph: MGraphState::default(),
             values: ValueStore::default(),
             results: ResultStore::default(),

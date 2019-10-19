@@ -45,7 +45,9 @@ pub enum DomainSemanticOutcome {
 }
 
 /// 从 [`DomainRequest`] 构造缺口义务（无则返回 `None`，走通用 NeedComputation）。
-pub fn obligation_from_domain_request(request: &DomainRequest) -> Option<ProofObligation> {
+///
+/// 多项式请求会先 intern 进 [`Session::polynomial_objects`]，义务携带 `PolynomialRef` 对应的 [`ObjectRef`]。
+pub fn obligation_from_domain_request(session: &mut Session, request: &DomainRequest) -> Option<ProofObligation> {
     match request {
         DomainRequest::Calculus(CalculusRequest::Derivative { expression, variable, .. }) => Some(ProofObligation {
             predicate: predicates::DERIVATIVE_OF,
@@ -74,11 +76,19 @@ pub fn obligation_from_domain_request(request: &DomainRequest) -> Option<ProofOb
                 ObjectRef::new(TheoryContextId::CALCULUS, u64::from(variable.0)),
             ],
         }),
-        DomainRequest::Polynomial(_) => Some(ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: Vec::new(),
-        }),
+        DomainRequest::Polynomial(poly_req) => {
+            let known_objects = crate::domains::polynomial::intern_request_object_refs(
+                poly_req,
+                &session.rings,
+                &mut session.polynomial_objects,
+            )
+            .unwrap_or_default();
+            Some(ProofObligation {
+                predicate: predicates::POLYNOMIAL_RESULT,
+                scope: ScopeRef::UNCONDITIONAL,
+                known_objects,
+            })
+        }
         _ => None,
     }
 }
@@ -101,7 +111,7 @@ pub fn execute_domain_goal(
 ) -> Result<DomainSemanticOutcome, Diagnostic> {
     let DomainGoal::Dispatch(request) = goal;
     let view = MGraphView::new(core);
-    let reflection = match obligation_from_domain_request(&request) {
+    let reflection = match obligation_from_domain_request(session, &request) {
         Some(obligation) => reflect_domain(&request, &obligation, &view),
         None => Reflection::NeedComputation {
             plan: plan_domain(&request),
@@ -109,15 +119,7 @@ pub fn execute_domain_goal(
     };
     match reflection {
         Reflection::AlreadyKnown { relation } => Ok(DomainSemanticOutcome::AlreadyKnown { relation }),
-        Reflection::NeedObject { object_kind } => {
-            // Host already supplied a typed PolynomialRequest payload — DomainObjectRef
-            // store is still missing, but provider can run on the request body.
-            if matches!(request, DomainRequest::Polynomial(_)) {
-                let result = execute_domain(session, request)?;
-                return Ok(DomainSemanticOutcome::Computed(result));
-            }
-            Ok(DomainSemanticOutcome::NeedObject { object_kind })
-        }
+        Reflection::NeedObject { object_kind } => Ok(DomainSemanticOutcome::NeedObject { object_kind }),
         Reflection::NeedConversion { source, target } => Ok(DomainSemanticOutcome::NeedConversion { source, target }),
         Reflection::NeedRelation { .. } => Ok(DomainSemanticOutcome::Inconclusive),
         Reflection::Inconclusive => Ok(DomainSemanticOutcome::Inconclusive),
