@@ -10,6 +10,7 @@ use athena_types::{TermId, ValueId};
 use crate::{
     api::request::AthenaRequest,
     domains::{
+        calculus::SeriesObjectStore,
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
         polynomial::{
@@ -40,6 +41,8 @@ pub struct Session {
     pub rings: RingTable,
     /// Living `28` 多项式 DomainObject 仓（`PolynomialRef` → payload）。
     pub polynomial_objects: PolynomialObjectStore,
+    /// Living `28` 级数 DomainObject 仓（`SeriesRef` → payload）。
+    pub series_objects: SeriesObjectStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
     /// 运行时值存储（`ValueId` → [`RuntimeValue`]）。
@@ -60,6 +63,7 @@ impl core::fmt::Debug for Session {
             .field("defs", &self.defs)
             .field("rings", &self.rings)
             .field("polynomial_objects_len", &self.polynomial_objects.len())
+            .field("series_objects_len", &self.series_objects.len())
             .field("mgraph", &self.mgraph)
             .field("values", &self.values)
             .field("results", &self.results)
@@ -90,6 +94,7 @@ impl Session {
             module_counter: 0,
             rings: RingTable::default(),
             polynomial_objects: PolynomialObjectStore::new(),
+            series_objects: SeriesObjectStore::new(),
             mgraph: MGraphState::default(),
             values: ValueStore::default(),
             results: ResultStore::default(),
