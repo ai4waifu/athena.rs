@@ -1,6 +1,7 @@
 //! Living `29` 顶层语义入口：Goal → Obligation → Reflector → Plan / Result。
 //!
 //! `execute_domain` 只应出现在本模块的 `NeedComputation` 分支内，不得冒充顶层语义路径。
+//! 查询面绑定 [`Session::mgraph`] 的 semantic core，禁止每次宿主调用新建空 `MGraphCore`。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -12,8 +13,8 @@ use crate::{
         planner::{PlanStep, plan_domain},
     },
     reasoning::mgraph::{
-        CalculusReflector, MGraphCore, MGraphView, ObjectRef, PolynomialReflector, ProofObligation, Reflection, RelationRef,
-        ScopeRef, SemanticReflector, TheoryContextId, predicates,
+        CalculusReflector, MGraphView, ObjectRef, PolynomialReflector, ProofObligation, Reflection, RelationRef, ScopeRef,
+        SemanticReflector, TheoryContextId, predicates,
     },
     runtime::session::Session,
 };
@@ -103,19 +104,18 @@ fn reflect_domain(request: &DomainRequest, obligation: &ProofObligation, view: &
     }
 }
 
-/// Living `29` 语义入口：先查 M-Graph，再允许 `NeedComputation` → Living 28 Plan → provider。
-pub fn execute_domain_goal(
-    session: &mut Session,
-    core: &MGraphCore,
-    goal: DomainGoal,
-) -> Result<DomainSemanticOutcome, Diagnostic> {
+/// Living `29` 语义入口：先查 [`Session::mgraph`]，再允许 `NeedComputation` → Living 28 Plan → provider。
+pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<DomainSemanticOutcome, Diagnostic> {
     let DomainGoal::Dispatch(request) = goal;
-    let view = MGraphView::new(core);
-    let reflection = match obligation_from_domain_request(session, &request) {
-        Some(obligation) => reflect_domain(&request, &obligation, &view),
-        None => Reflection::NeedComputation {
-            plan: plan_domain(&request),
-        },
+    let obligation = obligation_from_domain_request(session, &request);
+    let reflection = {
+        let view = session.mgraph.semantic.view();
+        match &obligation {
+            Some(obligation) => reflect_domain(&request, obligation, &view),
+            None => Reflection::NeedComputation {
+                plan: plan_domain(&request),
+            },
+        }
     };
     match reflection {
         Reflection::AlreadyKnown { relation } => Ok(DomainSemanticOutcome::AlreadyKnown { relation }),
@@ -160,12 +160,11 @@ pub fn domain_result_from_semantic_outcome(outcome: DomainSemanticOutcome) -> Re
     }
 }
 
-/// Host convenience: ephemeral M-Graph + [`execute_domain_goal`] + project to [`DomainResult`].
+/// Host convenience：[`Session::mgraph`] + [`execute_domain_goal`] + project to [`DomainResult`]。
 ///
 /// Living `29`：公共宿主应走此路径，而不是直接调用 [`execute_domain`]。
 pub fn execute_domain_via_semantic_entry(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
-    let core = MGraphCore::new();
-    let outcome = execute_domain_goal(session, &core, DomainGoal::Dispatch(request))?;
+    let outcome = execute_domain_goal(session, DomainGoal::Dispatch(request))?;
     domain_result_from_semantic_outcome(outcome)
 }
 
@@ -176,16 +175,15 @@ mod tests {
     use athena_types::{AssumptionSet, SymbolId, TermId};
 
     #[test]
-    fn calculus_goal_computes_when_graph_empty() {
+    fn calculus_goal_computes_when_session_graph_empty() {
         let mut session = Session::new();
-        let core = MGraphCore::new();
         let goal = DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
             expression: TermId(0),
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
         }));
-        match execute_domain_goal(&mut session, &core, goal).expect("ok") {
+        match execute_domain_goal(&mut session, goal).expect("ok") {
             DomainSemanticOutcome::Computed(DomainResult::Calculus(_)) => {}
             other => panic!("expected Computed calculus, got {other:?}"),
         }
@@ -195,11 +193,10 @@ mod tests {
     fn polynomial_goal_computes_when_request_carries_polynomial() {
         use crate::domains::polynomial::{Polynomial, PolynomialRequest};
         let mut session = Session::new();
-        let core = MGraphCore::new();
         let goal = DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize {
             polynomial: Polynomial::zero(athena_types::RingId(0)),
         }));
-        match execute_domain_goal(&mut session, &core, goal).expect("ok") {
+        match execute_domain_goal(&mut session, goal).expect("ok") {
             DomainSemanticOutcome::Computed(DomainResult::Polynomial(_)) => {}
             other => panic!("expected Computed polynomial, got {other:?}"),
         }

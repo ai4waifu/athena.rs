@@ -43,7 +43,7 @@ impl AthenaEngine {
         self.evaluate(session, d)
     }
 
-    /// 域请求经 Living `29` 语义入口（ephemeral M-Graph → Reflector → provider）。
+    /// 域请求经 Living `29` 语义入口（[`Session::mgraph`] → Reflector → provider）。
     ///
     /// Provider-only 分派仍在 [`crate::domains::dispatch::execute_domain`]，供
     /// `NeedComputation` / ExecutionIR `CallProvider` 内部使用。
@@ -51,14 +51,13 @@ impl AthenaEngine {
         crate::reasoning::mgraph::execute_domain_via_semantic_entry(session, request)
     }
 
-    /// Living `29` 语义入口：`DomainGoal` → Obligation → Reflector → Plan / Result。
+    /// Living `29` 语义入口：`DomainGoal` → Obligation → Reflector → Plan / Result（绑定 session M-Graph）。
     pub fn execute_domain_goal(
         &self,
         session: &mut Session,
-        core: &crate::reasoning::mgraph::MGraphCore,
         goal: crate::api::request::DomainGoal,
     ) -> Result<crate::reasoning::mgraph::DomainSemanticOutcome> {
-        crate::reasoning::mgraph::execute_domain_goal(session, core, goal)
+        crate::reasoning::mgraph::execute_domain_goal(session, goal)
     }
 
     /// 经中性 [`AthenaRequest`] 边界执行（Living `26`）。
