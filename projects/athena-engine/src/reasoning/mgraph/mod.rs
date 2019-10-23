@@ -25,8 +25,8 @@ pub mod relations;
 pub mod semantic_entry;
 
 pub use admission::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, EvidenceVerifier, OuterCandidate, SemanticCore, VerificationPolicy,
-    admit_polynomial_exact, admit_polynomial_result, is_admitted,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, EvidenceVerifier, OuterCandidate, SemanticCore,
+    VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
 };
 pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, OperationalState, run_closure_step};
@@ -38,7 +38,8 @@ pub use core::{
 };
 pub use equivalence::ExactUnionFind;
 pub use facts::{
-    AdmissionJournal, Claim, Evidence, EvidenceCertificate, FactId, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key,
+    AdmissionJournal, CalculusRelationKind, Claim, Evidence, EvidenceCertificate, FactId, Guarantee, Proposition, Scope, VerifiedClaim,
+    proposition_from_cache_key,
 };
 pub use obligation::{ProofObligation, Reflection, SemanticReflector};
 pub use polynomial::{

@@ -38,7 +38,7 @@ impl DerivedIndexes {
             Proposition::PolynomialResult { .. } => {
                 self.rewrite_witnesses.push(RewriteWitness { provider: POLYNOMIAL_PROVIDER_ID, inputs: Vec::new(), outputs: Vec::new() });
             }
-            Proposition::Congruence { .. } => {}
+            Proposition::Congruence { .. } | Proposition::CalculusRelation { .. } => {}
         }
     }
 }

@@ -17,7 +17,7 @@ impl SemanticReflector for PolynomialReflector {
         if obligation.predicate != predicates::POLYNOMIAL_RESULT {
             return Reflection::Inconclusive;
         }
-        if let Some(relation) = view.find_accepted_by_predicate(obligation.scope, obligation.predicate) {
+        if let Some(relation) = view.find_accepted(obligation.scope, obligation.predicate, &obligation.known_objects) {
             return Reflection::AlreadyKnown { relation };
         }
         if obligation.known_objects.is_empty() {

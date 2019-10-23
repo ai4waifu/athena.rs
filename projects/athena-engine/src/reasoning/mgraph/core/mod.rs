@@ -108,9 +108,29 @@ impl<'a> MGraphView<'a> {
 
     /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Living `29` Reflector 短路）。
     pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
+        self.find_accepted(scope, predicate, &[])
+    }
+
+    /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
+    pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
         self.relations_in_scope(scope).iter().copied().find(|&id| {
             self.relation(id).is_some_and(|r| {
-                r.predicate == predicate && matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional)
+                if r.predicate != predicate || !matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional) {
+                    return false;
+                }
+                if known_objects.is_empty() {
+                    return true;
+                }
+                let object_subjects: Vec<ObjectRef> = r
+                    .subjects
+                    .iter()
+                    .filter_map(|s| match s {
+                        SemanticRef::Object(o) => Some(*o),
+                        _ => None,
+                    })
+                    .collect();
+                known_objects.len() <= object_subjects.len()
+                    && known_objects.iter().zip(object_subjects.iter()).all(|(want, got)| want == got)
             })
         })
     }

@@ -8,13 +8,13 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use crate::{
     api::request::DomainGoal,
     domains::{
-        calculus::CalculusRequest,
+        calculus::{CalculusRequest, CalculusResult, CalculusValue},
         dispatch::{DomainRequest, DomainResult, execute_domain},
         planner::{PlanStep, plan_domain},
     },
     reasoning::mgraph::{
-        CalculusReflector, MGraphView, ObjectRef, PolynomialReflector, ProofObligation, Reflection, RelationRef, ScopeRef,
-        SemanticReflector, TheoryContextId, predicates,
+        AdmissionGate, CalculusReflector, CalculusRelationKind, MGraphView, ObjectRef, PolynomialReflector, ProofObligation,
+        Reflection, RelationRef, ScopeRef, SemanticReflector, TheoryContextId, VerificationPolicy, predicates,
     },
     runtime::session::Session,
 };
@@ -104,6 +104,71 @@ fn reflect_domain(request: &DomainRequest, obligation: &ProofObligation, view: &
     }
 }
 
+fn calculus_kind_from_predicate(predicate: crate::reasoning::mgraph::PredicateId) -> Option<CalculusRelationKind> {
+    if predicate == predicates::DERIVATIVE_OF {
+        Some(CalculusRelationKind::DerivativeOf)
+    }
+    else if predicate == predicates::INTEGRAL_OF {
+        Some(CalculusRelationKind::IntegralOf)
+    }
+    else if predicate == predicates::SERIES_EXPANSION {
+        Some(CalculusRelationKind::SeriesExpansion)
+    }
+    else {
+        None
+    }
+}
+
+fn try_admit_calculus_exact(session: &mut Session, obligation: &ProofObligation, result: &DomainResult) {
+    let DomainResult::Calculus(CalculusResult::Exact {
+        value: CalculusValue::Expression(result_term),
+        conditions,
+    }) = result
+    else {
+        return;
+    };
+    if !conditions.is_empty() {
+        return;
+    }
+    let Some(kind) = calculus_kind_from_predicate(obligation.predicate) else {
+        return;
+    };
+    if obligation.known_objects.len() < 2 {
+        return;
+    }
+    let expression_fingerprint = obligation.known_objects[0].fingerprint;
+    let variable_fingerprint = obligation.known_objects[1].fingerprint;
+    let _ = AdmissionGate::admit_calculus_relation(
+        &mut session.mgraph.semantic,
+        kind,
+        expression_fingerprint,
+        variable_fingerprint,
+        *result_term,
+        &VerificationPolicy::default(),
+    );
+}
+
+fn materialize_already_known(session: &Session, relation: RelationRef) -> Result<DomainResult, Diagnostic> {
+    let Some(record) = session.mgraph.semantic.relation(relation) else {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "relation_missing")
+            .arg("relation", relation.0));
+    };
+    match &record.verified.claim.proposition {
+        crate::reasoning::mgraph::Proposition::CalculusRelation { result_term, .. } => {
+            Ok(DomainResult::Calculus(CalculusResult::Exact {
+                value: CalculusValue::Expression(*result_term),
+                conditions: Vec::new(),
+            }))
+        }
+        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "semantic_entry")
+            .detail("reason", "already_known_not_materialized")
+            .arg("relation", relation.0)),
+    }
+}
+
 /// Living `29` 语义入口：先查 [`Session::mgraph`]，再允许 `NeedComputation` → Living 28 Plan → provider。
 pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<DomainSemanticOutcome, Diagnostic> {
     let DomainGoal::Dispatch(request) = goal;
@@ -130,21 +195,19 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
                     .detail("reason", "plan missing CallDomainProvider"));
             }
             let result = execute_domain(session, request)?;
+            if let Some(obligation) = &obligation {
+                try_admit_calculus_exact(session, obligation, &result);
+            }
             Ok(DomainSemanticOutcome::Computed(result))
         }
     }
 }
 
 /// Project a semantic outcome into [`DomainResult`] for host APIs that still expect provider payloads.
-///
-/// `AlreadyKnown` cannot materialize a payload until relation → DomainResult replay exists.
-pub fn domain_result_from_semantic_outcome(outcome: DomainSemanticOutcome) -> Result<DomainResult, Diagnostic> {
+pub fn domain_result_from_semantic_outcome(session: &Session, outcome: DomainSemanticOutcome) -> Result<DomainResult, Diagnostic> {
     match outcome {
         DomainSemanticOutcome::Computed(result) => Ok(result),
-        DomainSemanticOutcome::AlreadyKnown { relation } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "semantic_entry")
-            .detail("reason", "already_known_not_materialized")
-            .arg("relation", relation.0)),
+        DomainSemanticOutcome::AlreadyKnown { relation } => materialize_already_known(session, relation),
         DomainSemanticOutcome::NeedObject { object_kind } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "semantic_entry")
             .detail("reason", "need_object")
@@ -165,13 +228,17 @@ pub fn domain_result_from_semantic_outcome(outcome: DomainSemanticOutcome) -> Re
 /// Living `29`：公共宿主应走此路径，而不是直接调用 [`execute_domain`]。
 pub fn execute_domain_via_semantic_entry(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     let outcome = execute_domain_goal(session, DomainGoal::Dispatch(request))?;
-    domain_result_from_semantic_outcome(outcome)
+    domain_result_from_semantic_outcome(session, outcome)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domains::calculus::{CalculusRequest, DerivativeOrder};
+    use crate::domains::{
+        calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder},
+        context::DomainExecutionContext,
+    };
+    use athena_ir::SemanticOperator;
     use athena_types::{AssumptionSet, SymbolId, TermId};
 
     #[test]
@@ -186,6 +253,51 @@ mod tests {
         match execute_domain_goal(&mut session, goal).expect("ok") {
             DomainSemanticOutcome::Computed(DomainResult::Calculus(_)) => {}
             other => panic!("expected Computed calculus, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn calculus_second_goal_is_already_known_after_exact_admit() {
+        let mut session = Session::new();
+        let (expression, variable) = {
+            let dc = DomainExecutionContext::new(&mut session);
+            let variable = dc.intern("x");
+            let xs = dc.symbol_id(variable);
+            let three = dc.in_(3);
+            let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, three]);
+            (expression, variable)
+        };
+        let make_goal = || {
+            DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
+                expression,
+                variable,
+                order: DerivativeOrder::First,
+                assumptions: AssumptionSet::empty(),
+            }))
+        };
+        let first = execute_domain_goal(&mut session, make_goal()).expect("first");
+        let DomainSemanticOutcome::Computed(DomainResult::Calculus(CalculusResult::Exact {
+            value: CalculusValue::Expression(term),
+            ..
+        })) = first
+        else {
+            panic!("expected Exact Expression first, got {first:?}");
+        };
+        assert!(session.mgraph.semantic.relation_count() >= 1);
+        let second = execute_domain_goal(&mut session, make_goal()).expect("second");
+        match second {
+            DomainSemanticOutcome::AlreadyKnown { relation } => {
+                let replayed = domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation })
+                    .expect("materialize");
+                assert_eq!(
+                    replayed,
+                    DomainResult::Calculus(CalculusResult::Exact {
+                        value: CalculusValue::Expression(term),
+                        conditions: Vec::new(),
+                    })
+                );
+            }
+            other => panic!("expected AlreadyKnown, got {other:?}"),
         }
     }
 

@@ -2,7 +2,7 @@
 //!
 //! 已验证事实的唯一语义入口；外围 solver 结果须经 admission gate 转为 [`VerifiedClaim`]。
 
-use athena_types::AssumptionSetId;
+use athena_types::{AssumptionSetId, TermId};
 
 use crate::{
     domains::polynomial::{PolynomialCacheKey, PolynomialCacheOp},
@@ -62,6 +62,17 @@ pub enum EvidenceCertificate {
     },
     /// 仅测试夹具（禁止生产路径）。
     TestHarness,
+    /// 微积分精确关系证书（表达式结果项）。
+    CalculusExact {
+        /// 关系种类。
+        kind: CalculusRelationKind,
+        /// 输入表达式指纹。
+        expression_fingerprint: u64,
+        /// 变量指纹。
+        variable_fingerprint: u64,
+        /// 结果项。
+        result_term: TermId,
+    },
 }
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
@@ -78,7 +89,18 @@ pub enum Evidence {
     },
 }
 
-/// 命题（当前覆盖多项式域；后续扩展等式 / hyper-predicate）。
+/// 微积分已接纳关系种类（闭合枚举，非前端名）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CalculusRelationKind {
+    /// `DerivativeOf`。
+    DerivativeOf,
+    /// `IntegralOf`。
+    IntegralOf,
+    /// `SeriesExpansion`。
+    SeriesExpansion,
+}
+
+/// 命题（当前覆盖多项式 / 微积分 / 同余；后续扩展等式 / hyper-predicate）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Proposition {
     /// 多项式域精确求值结果。
@@ -96,6 +118,17 @@ pub enum Proposition {
         left: u64,
         /// 右操作数 stable 指纹。
         right: u64,
+    },
+    /// 微积分精确关系（结果为表达式项）。
+    CalculusRelation {
+        /// 关系种类。
+        kind: CalculusRelationKind,
+        /// 输入表达式指纹。
+        expression_fingerprint: u64,
+        /// 变量指纹。
+        variable_fingerprint: u64,
+        /// 结果项（payload 仍在 TermStore）。
+        result_term: TermId,
     },
 }
 

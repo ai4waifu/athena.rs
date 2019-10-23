@@ -5,11 +5,17 @@
 use crate::{
     domains::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult},
     reasoning::mgraph::{
-        core::state::MGraphState,
-        facts::claim::{Claim, Evidence, Guarantee, Scope, VerifiedClaim, proposition_from_cache_key},
+        core::{state::MGraphState, types::CapabilityProviderId},
+        facts::claim::{
+            CalculusRelationKind, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerifiedClaim,
+            proposition_from_cache_key,
+        },
         polynomial::{POLYNOMIAL_PROVIDER_ID, PolynomialWitness, witness_from_exact},
     },
 };
+
+/// 微积分域 capability provider 身份。
+pub const CALCULUS_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(11);
 
 /// 拒绝接纳原因。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +124,38 @@ impl AdmissionGate {
         if let AdmissionOutcome::Admitted(vc) = outcome {
             state.semantic.commit(vc);
         }
+    }
+
+    /// 接纳微积分精确表达式关系（无条件 `ProvenExact`）。
+    pub fn admit_calculus_relation(
+        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        kind: CalculusRelationKind,
+        expression_fingerprint: u64,
+        variable_fingerprint: u64,
+        result_term: athena_types::TermId,
+        policy: &VerificationPolicy,
+    ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
+        let claim = Claim {
+            proposition: Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                result_term,
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CALCULUS_PROVIDER_ID,
+                certificate: EvidenceCertificate::CalculusExact {
+                    kind,
+                    expression_fingerprint,
+                    variable_fingerprint,
+                    result_term,
+                },
+                summary: format!("calculus:{kind:?}:{result_term:?}"),
+            },
+        };
+        Self::admit_claim(semantic, claim, policy)
     }
 }
 

@@ -6,7 +6,7 @@ pub mod semantic;
 
 pub use candidate::OuterCandidate;
 pub use gate::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, EvidenceVerifier, VerificationPolicy, admit_polynomial_exact,
-    admit_polynomial_result, is_admitted,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, EvidenceVerifier, VerificationPolicy,
+    admit_polynomial_exact, admit_polynomial_result, is_admitted,
 };
 pub use semantic::SemanticCore;
