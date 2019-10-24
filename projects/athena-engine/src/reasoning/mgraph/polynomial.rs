@@ -92,6 +92,14 @@ impl PolynomialMGraphStore {
         edge
     }
 
+    /// 按 request fingerprint 查找（verified 优先）。
+    pub fn get_by_request_fingerprint(&self, request_fingerprint: u64) -> Option<&PolynomialCacheEntry> {
+        self.verified
+            .values()
+            .chain(self.partial.values())
+            .find(|entry| entry.key.fingerprint() == request_fingerprint)
+    }
+
     /// 总缓存条目数。
     pub fn len(&self) -> usize {
         self.verified.len() + self.partial.len()
