@@ -12,7 +12,7 @@ use crate::{
     domains::{
         calculus::SeriesObjectStore,
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
-        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
+        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, execute_linear_algebra},
         polynomial::{
             PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph,
             execute_polynomial_with_rings,
@@ -43,6 +43,8 @@ pub struct Session {
     pub polynomial_objects: PolynomialObjectStore,
     /// Living `28` 级数 DomainObject 仓（`SeriesRef` → payload）。
     pub series_objects: SeriesObjectStore,
+    /// Living `28` 矩阵 DomainObject 仓（`MatrixRef` → payload · Living `07` `MatrixId` 语义）。
+    pub matrix_objects: MatrixObjectStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
     /// 运行时值存储（`ValueId` → [`RuntimeValue`]）。
@@ -64,6 +66,7 @@ impl core::fmt::Debug for Session {
             .field("rings", &self.rings)
             .field("polynomial_objects_len", &self.polynomial_objects.len())
             .field("series_objects_len", &self.series_objects.len())
+            .field("matrix_objects_len", &self.matrix_objects.len())
             .field("mgraph", &self.mgraph)
             .field("values", &self.values)
             .field("results", &self.results)
@@ -95,6 +98,7 @@ impl Session {
             rings: RingTable::default(),
             polynomial_objects: PolynomialObjectStore::new(),
             series_objects: SeriesObjectStore::new(),
+            matrix_objects: MatrixObjectStore::new(),
             mgraph: MGraphState::default(),
             values: ValueStore::default(),
             results: ResultStore::default(),

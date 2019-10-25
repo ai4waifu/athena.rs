@@ -39,6 +39,8 @@ impl TheoryContextId {
     pub const REWRITE: Self = Self(3);
     /// 微积分 / 级数 / 极限上下文。
     pub const CALCULUS: Self = Self(4);
+    /// 线性代数 / 矩阵上下文。
+    pub const MATRIX: Self = Self(5);
 }
 
 /// 稳定语义谓词身份（禁止用任意 `String` 当关系标签）。
