@@ -58,7 +58,7 @@ pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
 pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout, PackedMonomial};
 pub use object::{MonomialTerm, Polynomial};
 pub use object_ref::{
-    PolynomialObjectStore, PolynomialRef, intern_polynomial_request, intern_request_object_refs, object_refs_for,
+    PolynomialObjectStore, PolynomialRef, intern_request_object_refs, object_refs_for, refs_from_request,
 };
 pub use operations::{add_polynomial, mul_polynomial, sub_polynomial};
 pub use order::MonomialOrder;

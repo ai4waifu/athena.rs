@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::polynomial::{
-        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult, RingTable, canonicalize_polynomial,
-        execute_polynomial_with_rings, polynomial_canonical_hash,
+        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable,
+        canonicalize_polynomial, execute_polynomial_with_rings, polynomial_canonical_hash,
     },
     runtime::Session,
 };
@@ -90,7 +90,8 @@ fn session_normalize_via_execute_polynomial() {
     b.push_term(Number::small_int(1), vec![1]).unwrap();
     b.push_term(Number::small_int(1), vec![1]).unwrap();
     let raw = b.build(&session.rings).unwrap();
-    let out = session.execute_polynomial(PolynomialRequest::Normalize { polynomial: raw });
+    let poly = session.polynomial_objects.intern(raw, &session.rings);
+    let out = session.execute_polynomial(PolynomialRequest::Normalize { polynomial: poly });
     match out {
         PolynomialResult::Exact { value } => {
             let poly = match value {
@@ -107,9 +108,11 @@ fn session_normalize_via_execute_polynomial() {
 #[test]
 fn execute_polynomial_with_rings_normalize() {
     let (rings, ring) = xy_integer_ring(MonomialOrder::Lex);
+    let mut store = PolynomialObjectStore::new();
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(4), vec![0, 0]).unwrap();
     let raw = b.build(&rings).unwrap();
-    let out = execute_polynomial_with_rings(PolynomialRequest::Normalize { polynomial: raw }, &rings);
+    let poly = store.intern(raw, &rings);
+    let out = execute_polynomial_with_rings(PolynomialRequest::Normalize { polynomial: poly }, &rings, &store);
     assert!(matches!(out, PolynomialResult::Exact { .. }));
 }

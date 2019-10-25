@@ -201,14 +201,14 @@ impl Session {
         builder.finish_csr_on_heap(&mut self.heap.borrow_mut(), registry, budget)
     }
 
-    /// 在 session 环表上下文中执行多项式域请求。
+    /// 在 session 环表与多项式 DomainObject 仓中执行多项式域请求。
     pub fn execute_polynomial(&self, request: PolynomialRequest) -> PolynomialResult {
-        execute_polynomial_with_rings(request, &self.rings)
+        execute_polynomial_with_rings(request, &self.rings, &self.polynomial_objects)
     }
 
     /// 经 M-Graph 缓存与 witness 记录执行多项式请求。
     pub fn execute_polynomial_mgraph(&mut self, request: PolynomialRequest) -> PolynomialResult {
-        execute_polynomial_mgraph(request, &self.rings, &mut self.mgraph)
+        execute_polynomial_mgraph(request, &self.rings, &self.polynomial_objects, &mut self.mgraph)
     }
 
     /// 执行图论域请求（E0：与 [`crate::execute_domain`] 的 `GraphTheory` 分支等价）。

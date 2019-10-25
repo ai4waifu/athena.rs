@@ -84,7 +84,7 @@ pub fn obligation_from_domain_request(session: &mut Session, request: &DomainReq
                 &mut session.polynomial_objects,
             )
             .unwrap_or_default();
-            let known_objects = match crate::domains::polynomial::cache_key_for_request(poly_req, &session.rings) {
+            let known_objects = match crate::domains::polynomial::cache_key_for_request(poly_req, &session.rings, &session.polynomial_objects) {
                 Ok(key) => vec![ObjectRef::new(TheoryContextId::POLYNOMIAL, key.fingerprint())],
                 Err(_) => interned,
             };
@@ -215,7 +215,12 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
             }
             let result = match request {
                 DomainRequest::Polynomial(req) => {
-                    let poly = crate::domains::polynomial::execute_polynomial_mgraph(req, &session.rings, &mut session.mgraph);
+                    let poly = crate::domains::polynomial::execute_polynomial_mgraph(
+                        req,
+                        &session.rings,
+                        &session.polynomial_objects,
+                        &mut session.mgraph,
+                    );
                     DomainResult::Polynomial(poly)
                 }
                 other => {
@@ -333,9 +338,10 @@ mod tests {
     fn polynomial_goal_computes_when_request_carries_polynomial() {
         use crate::domains::polynomial::{Polynomial, PolynomialRequest};
         let mut session = Session::new();
-        let goal = DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize {
-            polynomial: Polynomial::zero(athena_types::RingId(0)),
-        }));
+        let poly = session
+            .polynomial_objects
+            .intern(Polynomial::zero(athena_types::RingId(0)), &session.rings);
+        let goal = DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly }));
         match execute_domain_goal(&mut session, goal).expect("ok") {
             DomainSemanticOutcome::Computed(DomainResult::Polynomial(_)) => {}
             other => panic!("expected Computed polynomial, got {other:?}"),
@@ -354,11 +360,8 @@ mod tests {
             .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
             .expect("ring");
         let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
-        let make_goal = || {
-            DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize {
-                polynomial: polynomial.owning_copy(),
-            }))
-        };
+        let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
+        let make_goal = || DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }));
         let first = execute_domain_goal(&mut session, make_goal()).expect("first");
         let DomainSemanticOutcome::Computed(DomainResult::Polynomial(PolynomialResult::Exact { value })) = first else {
             panic!("expected Exact polynomial first, got {first:?}");

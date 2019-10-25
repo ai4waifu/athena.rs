@@ -143,7 +143,9 @@ fn session_mul_via_execute_polynomial() {
     let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let a = build_univariate(&session.rings, ring, &[(1, 1)]);
     let b = build_univariate(&session.rings, ring, &[(1, 1)]);
-    let out = session.execute_polynomial(PolynomialRequest::Mul { lhs: a, rhs: b });
+    let lhs = session.polynomial_objects.intern(a, &session.rings);
+    let rhs = session.polynomial_objects.intern(b, &session.rings);
+    let out = session.execute_polynomial(PolynomialRequest::Mul { lhs, rhs });
     match out {
         PolynomialResult::Exact { value } => {
             let poly = match value {
@@ -158,10 +160,10 @@ fn session_mul_via_execute_polynomial() {
 
 #[test]
 fn stateless_execute_polynomial_mul_unevaluated() {
-    let (rings, ring) = z_x_ring();
-    let a = build_univariate(&rings, ring, &[(1, 0)]);
-    let b = build_univariate(&rings, ring, &[(1, 0)]);
-    let out = execute_polynomial(PolynomialRequest::Mul { lhs: a, rhs: b });
+    let out = execute_polynomial(PolynomialRequest::Mul {
+        lhs: athena_engine::domains::polynomial::PolynomialRef(0),
+        rhs: athena_engine::domains::polynomial::PolynomialRef(1),
+    });
     match out {
         PolynomialResult::Unevaluated { reason } => {
             assert_eq!(reason.code.as_str(), "ATHENA_UNSUPPORTED_OPERATION");

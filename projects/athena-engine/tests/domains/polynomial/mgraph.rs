@@ -28,7 +28,9 @@ fn mgraph_polynomial_cache_hit() {
     let mut b2 = PolynomialBuilder::new(ring);
     b2.push_term(Number::small_int(2), vec![0]).unwrap();
     let c = b2.build(&session.rings).unwrap();
-    let req = PolynomialRequest::Add { lhs: a.clone(), rhs: c.clone() };
+    let lhs = session.polynomial_objects.intern(a, &session.rings);
+    let rhs = session.polynomial_objects.intern(c, &session.rings);
+    let req = PolynomialRequest::Add { lhs, rhs };
     let r1 = session.execute_polynomial_mgraph(req.clone());
     assert!(matches!(r1, PolynomialResult::Exact { .. }));
     assert_eq!(session.mgraph.operational.result_cache.polynomial.len(), 1);
@@ -46,10 +48,14 @@ fn groebner_complete_admitted_to_claims() {
     b.push_term(Number::small_int(1), vec![1]).unwrap();
     b.push_term(Number::small_int(-1), vec![0]).unwrap();
     let g = b.build(&session.rings).unwrap();
-    let req = PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() };
+    let generator = session.polynomial_objects.intern(g, &session.rings);
+    let req = PolynomialRequest::Groebner {
+        generators: vec![generator],
+        limits: GroebnerLimits::default(),
+    };
     session.execute_polynomial_mgraph(req.clone());
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 1);
-    let key = cache_key_for_request(&req, &session.rings).unwrap();
+    let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();
     let vc = session.mgraph.semantic.admission_journal.get(athena_engine::reasoning::mgraph::FactId(0)).unwrap();
     assert_eq!(vc.claim.guarantee, Guarantee::ProvenExact);
     assert!(session.mgraph.operational.result_cache.polynomial.get(&key).unwrap().witness.is_some());
@@ -67,13 +73,24 @@ fn groebner_partial_cached_but_not_admitted() {
     b2.push_term(Number::small_int(1), vec![0, 1]).unwrap();
     b2.push_term(Number::small_int(-1), vec![0, 0]).unwrap();
     let g2 = b2.build(&session.rings).unwrap();
-    let req = PolynomialRequest::Groebner { generators: vec![g1, g2], limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 } };
+    let r1 = session.polynomial_objects.intern(g1, &session.rings);
+    let r2 = session.polynomial_objects.intern(g2, &session.rings);
+    let req = PolynomialRequest::Groebner {
+        generators: vec![r1, r2],
+        limits: GroebnerLimits {
+            max_s_pairs: 0,
+            max_basis_size: 128,
+        },
+    };
     session.execute_polynomial_mgraph(req.clone());
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 0);
     assert_eq!(session.mgraph.operational.result_cache.polynomial.partial_len(), 1);
-    let key = cache_key_for_request(&req, &session.rings).unwrap();
+    let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();
     match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
-        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::GroebnerIncomplete, guarantee: Guarantee::Partial } => {}
+        AdmissionOutcome::Rejected {
+            reason: AdmissionRejectReason::GroebnerIncomplete,
+            guarantee: Guarantee::Partial,
+        } => {}
         other => panic!("expected GroebnerIncomplete, got {other:?}"),
     }
 }
@@ -82,15 +99,23 @@ fn groebner_partial_cached_but_not_admitted() {
 fn placeholder_exact_result_not_admitted() {
     let mut session = Session::default();
     let ring = z_x_ring(&mut session);
+    let poly = session
+        .polynomial_objects
+        .intern(PolynomialBuilder::new(ring).build(&session.rings).unwrap(), &session.rings);
     let key = cache_key_for_request(
-        &PolynomialRequest::Normalize { polynomial: PolynomialBuilder::new(ring).build(&session.rings).unwrap() },
+        &PolynomialRequest::Normalize { polynomial: poly },
         &session.rings,
+        &session.polynomial_objects,
     )
     .unwrap();
-    record_polynomial_result(key.clone(), PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder }, &mut session.mgraph).unwrap();
+    record_polynomial_result(key.clone(), PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder }, &mut session.mgraph)
+        .unwrap();
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 0);
     match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
-        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::Placeholder, .. } => {}
+        AdmissionOutcome::Rejected {
+            reason: AdmissionRejectReason::Placeholder,
+            ..
+        } => {}
         other => panic!("expected Placeholder, got {other:?}"),
     }
 }
@@ -99,14 +124,13 @@ fn placeholder_exact_result_not_admitted() {
 fn probable_claim_blocked_by_verifier() {
     let mut session = Session::default();
     let ring = z_x_ring(&mut session);
-    let key = cache_key_for_request(
-        &PolynomialRequest::Add {
-            lhs: PolynomialBuilder::new(ring).build(&session.rings).unwrap(),
-            rhs: PolynomialBuilder::new(ring).build(&session.rings).unwrap(),
-        },
-        &session.rings,
-    )
-    .unwrap();
+    let lhs = session
+        .polynomial_objects
+        .intern(PolynomialBuilder::new(ring).build(&session.rings).unwrap(), &session.rings);
+    let rhs = session
+        .polynomial_objects
+        .intern(PolynomialBuilder::new(ring).build(&session.rings).unwrap(), &session.rings);
+    let key = cache_key_for_request(&PolynomialRequest::Add { lhs, rhs }, &session.rings, &session.polynomial_objects).unwrap();
     let claim = Claim {
         proposition: proposition_from_cache_key(&key),
         scope: Scope::Unconditional,
@@ -118,7 +142,10 @@ fn probable_claim_blocked_by_verifier() {
         },
     };
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
-        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: Guarantee::Probable } => {}
+        AdmissionOutcome::Rejected {
+            reason: AdmissionRejectReason::ProbableResult,
+            guarantee: Guarantee::Probable,
+        } => {}
         other => panic!("expected ProbableResult, got {other:?}"),
     }
 }

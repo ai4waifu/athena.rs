@@ -1,6 +1,6 @@
 //! Living `28` 多项式 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
 
-use athena_types::Result;
+use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::reasoning::mgraph::{ObjectRef, TheoryContextId};
 
@@ -61,6 +61,16 @@ impl PolynomialObjectStore {
         self.entries.get(r.0 as usize).map(|e| &e.poly)
     }
 
+    /// 解析为 owning 副本（算法入口）。
+    pub fn resolve_owning(&self, r: PolynomialRef) -> Result<Polynomial> {
+        self.get(r).map(Polynomial::owning_copy).ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "polynomial")
+                .detail("reason", "missing_polynomial_ref")
+                .arg("ref", r.0)
+        })
+    }
+
     /// 稳定（或 provisional）指纹。
     pub fn fingerprint(&self, r: PolynomialRef) -> Option<PolynomialFingerprint> {
         self.entries.get(r.0 as usize).map(|e| e.fingerprint)
@@ -85,45 +95,30 @@ fn fingerprint_or_provisional(poly: &Polynomial, rings: &RingTable) -> Polynomia
     }
 }
 
-/// Intern every polynomial payload in a request. Returns DomainObject handles in request order.
-pub fn intern_polynomial_request(request: &PolynomialRequest, rings: &RingTable, store: &mut PolynomialObjectStore) -> Vec<PolynomialRef> {
-    let mut out = Vec::new();
+/// Collect DomainObject handles already present on a typed request.
+pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
     match request {
-        PolynomialRequest::Normalize { polynomial }
-        | PolynomialRequest::Factor { polynomial, .. } => {
-            out.push(store.intern(polynomial.owning_copy(), rings));
+        PolynomialRequest::Normalize { polynomial } | PolynomialRequest::Factor { polynomial, .. } => vec![*polynomial],
+        PolynomialRequest::Add { lhs, rhs } | PolynomialRequest::Mul { lhs, rhs } | PolynomialRequest::Gcd { lhs, rhs } => {
+            vec![*lhs, *rhs]
         }
-        PolynomialRequest::Add { lhs, rhs }
-        | PolynomialRequest::Mul { lhs, rhs }
-        | PolynomialRequest::Gcd { lhs, rhs } => {
-            out.push(store.intern(lhs.owning_copy(), rings));
-            out.push(store.intern(rhs.owning_copy(), rings));
-        }
-        PolynomialRequest::Div { dividend, divisor, .. } => {
-            out.push(store.intern(dividend.owning_copy(), rings));
-            out.push(store.intern(divisor.owning_copy(), rings));
-        }
-        PolynomialRequest::Groebner { generators, .. } | PolynomialRequest::Eliminate { generators, .. } => {
-            for g in generators {
-                out.push(store.intern(g.owning_copy(), rings));
-            }
-        }
+        PolynomialRequest::Div { dividend, divisor, .. } => vec![*dividend, *divisor],
+        PolynomialRequest::Groebner { generators, .. } | PolynomialRequest::Eliminate { generators, .. } => generators.clone(),
     }
-    out
 }
 
-/// Build M-Graph [`ObjectRef`] list for interned handles (skips missing slots).
+/// Build M-Graph [`ObjectRef`] list for handles (skips missing slots).
 pub fn object_refs_for(store: &PolynomialObjectStore, refs: &[PolynomialRef]) -> Vec<ObjectRef> {
     refs.iter().filter_map(|r| store.object_ref(*r)).collect()
 }
 
-/// Convenience: intern request bodies and collect [`ObjectRef`]s.
+/// Convenience: collect [`ObjectRef`]s for a request's handles.
 pub fn intern_request_object_refs(
     request: &PolynomialRequest,
-    rings: &RingTable,
+    _rings: &RingTable,
     store: &mut PolynomialObjectStore,
 ) -> Result<Vec<ObjectRef>> {
-    let refs = intern_polynomial_request(request, rings, store);
+    let refs = refs_from_request(request);
     Ok(object_refs_for(store, &refs))
 }
 

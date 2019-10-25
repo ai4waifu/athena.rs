@@ -1,8 +1,8 @@
 //! 单变量除法 · GCD · Resultant（ℤ / ℚ / 𝔽_p）。
 
 use athena_engine::domains::polynomial::{
-    CoefficientDomain, DivisionPolicy, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult, RingTable,
-    execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
+    CoefficientDomain, DivisionPolicy, MonomialOrder, PolynomialBuilder, PolynomialObjectStore, PolynomialRequest, PolynomialResult,
+    RingTable, execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
 };
 use athena_numeric::{Integer, Number};
 use athena_types::SymbolId;
@@ -40,9 +40,18 @@ fn uni(
 #[test]
 fn rational_univariate_division() {
     let (rings, ring) = q_x();
-    let dividend = uni(&rings, ring, &[(1, 2), (-1, 0)]);
-    let divisor = uni(&rings, ring, &[(1, 1), (-1, 0)]);
-    let result = execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::FieldDivision }, &rings);
+    let mut store = PolynomialObjectStore::new();
+    let dividend = store.intern(uni(&rings, ring, &[(1, 2), (-1, 0)]), &rings);
+    let divisor = store.intern(uni(&rings, ring, &[(1, 1), (-1, 0)]), &rings);
+    let result = execute_polynomial_with_rings(
+        PolynomialRequest::Div {
+            dividend,
+            divisor,
+            policy: DivisionPolicy::FieldDivision,
+        },
+        &rings,
+        &store,
+    );
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::UnivariateDivision(d) => {
@@ -61,9 +70,18 @@ fn rational_univariate_division() {
 #[test]
 fn integer_exact_division_rejects_nonzero_remainder() {
     let (rings, ring) = z_x();
-    let dividend = uni(&rings, ring, &[(1, 1), (1, 0)]);
-    let divisor = uni(&rings, ring, &[(2, 1), (1, 0)]);
-    let err = execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly }, &rings);
+    let mut store = PolynomialObjectStore::new();
+    let dividend = store.intern(uni(&rings, ring, &[(1, 1), (1, 0)]), &rings);
+    let divisor = store.intern(uni(&rings, ring, &[(2, 1), (1, 0)]), &rings);
+    let err = execute_polynomial_with_rings(
+        PolynomialRequest::Div {
+            dividend,
+            divisor,
+            policy: DivisionPolicy::ExactOnly,
+        },
+        &rings,
+        &store,
+    );
     assert!(matches!(err, PolynomialResult::Unevaluated { .. }));
 }
 
@@ -111,9 +129,10 @@ fn resultant_symmetry_under_swap() {
 #[test]
 fn gcd_request_via_execute_polynomial() {
     let (rings, ring) = q_x();
-    let a = uni(&rings, ring, &[(1, 2), (1, 0)]);
-    let b = uni(&rings, ring, &[(1, 1), (1, 0)]);
-    let result = execute_polynomial_with_rings(PolynomialRequest::Gcd { lhs: a, rhs: b }, &rings);
+    let mut store = PolynomialObjectStore::new();
+    let a = store.intern(uni(&rings, ring, &[(1, 2), (1, 0)]), &rings);
+    let b = store.intern(uni(&rings, ring, &[(1, 1), (1, 0)]), &rings);
+    let result = execute_polynomial_with_rings(PolynomialRequest::Gcd { lhs: a, rhs: b }, &rings, &store);
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::Polynomial(p) => {

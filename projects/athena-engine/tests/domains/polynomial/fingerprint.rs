@@ -24,7 +24,9 @@ fn cache_key_uses_ring_fingerprint_not_handle() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let p = PolynomialBuilder::new(ring).build(&session.rings).unwrap();
-    let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: p }, &session.rings).unwrap();
+    let poly = session.polynomial_objects.intern(p, &session.rings);
+    let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: poly }, &session.rings, &session.polynomial_objects)
+        .unwrap();
     assert_eq!(key.ring_fingerprint, session.rings.ring_fingerprint(ring).unwrap());
     assert_eq!(key.input_fingerprints.len(), 1);
 }
@@ -52,8 +54,10 @@ fn cache_key_distinguishes_operations_with_fingerprints() {
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(1), vec![0]).unwrap();
     let q = b.build(&session.rings).unwrap();
-    let k_add = cache_key_for_request(&PolynomialRequest::Add { lhs: p.clone(), rhs: q.clone() }, &session.rings).unwrap();
-    let k_mul = cache_key_for_request(&PolynomialRequest::Mul { lhs: p, rhs: q }, &session.rings).unwrap();
+    let lhs = session.polynomial_objects.intern(p, &session.rings);
+    let rhs = session.polynomial_objects.intern(q, &session.rings);
+    let k_add = cache_key_for_request(&PolynomialRequest::Add { lhs, rhs }, &session.rings, &session.polynomial_objects).unwrap();
+    let k_mul = cache_key_for_request(&PolynomialRequest::Mul { lhs, rhs }, &session.rings, &session.polynomial_objects).unwrap();
     assert_ne!(k_add.operation, k_mul.operation);
     assert_eq!(k_add.operation, PolynomialCacheOp::Add);
     assert_eq!(k_add.ring_fingerprint, k_mul.ring_fingerprint);

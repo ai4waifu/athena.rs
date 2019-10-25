@@ -110,7 +110,11 @@ fn session_groebner_via_execute_polynomial() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let g = build(&session.rings, ring, &[(1, 1, vec![1]), (-1, 1, vec![0])]);
-    let out = session.execute_polynomial(PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() });
+    let generator = session.polynomial_objects.intern(g, &session.rings);
+    let out = session.execute_polynomial(PolynomialRequest::Groebner {
+        generators: vec![generator],
+        limits: GroebnerLimits::default(),
+    });
     match out {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(v) => {

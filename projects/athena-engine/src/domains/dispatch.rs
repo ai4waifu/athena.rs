@@ -16,7 +16,7 @@ use crate::{
         number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
         planner::{PlanStep, plan_domain},
-        polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial},
+        polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial_with_rings},
     },
     runtime::session::Session,
 };
@@ -87,7 +87,11 @@ fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),
-        DomainRequest::Polynomial(req) => Ok(DomainResult::Polynomial(execute_polynomial(req))),
+        DomainRequest::Polynomial(req) => Ok(DomainResult::Polynomial(execute_polynomial_with_rings(
+            req,
+            &session.rings,
+            &session.polynomial_objects,
+        ))),
         DomainRequest::GroupTheory(req) => Ok(DomainResult::GroupTheory(execute_group(req))),
         DomainRequest::FieldTheory(req) => Ok(DomainResult::FieldTheory(execute_field(req))),
         DomainRequest::GaloisTheory(req) => Ok(DomainResult::GaloisTheory(execute_galois(req))),

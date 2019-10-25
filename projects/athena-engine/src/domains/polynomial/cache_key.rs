@@ -9,6 +9,7 @@ use super::{
     groebner::GroebnerLimits,
     hash::canonical_hash as polynomial_canonical_hash,
     object::Polynomial,
+    object_ref::{PolynomialObjectStore, PolynomialRef},
     request::PolynomialRequest,
     ring_table::RingTable,
 };
@@ -88,22 +89,43 @@ impl PolynomialCacheKey {
     }
 }
 
-/// 从 [`PolynomialRequest`] 构造缓存键（输入须已 canonical 或将被 canonical 化后 miss）。
-pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable) -> Result<PolynomialCacheKey> {
+/// 从 [`PolynomialRequest`] 构造缓存键（经 DomainObject 仓解析）。
+pub fn cache_key_for_request(
+    request: &PolynomialRequest,
+    rings: &RingTable,
+    store: &PolynomialObjectStore,
+) -> Result<PolynomialCacheKey> {
     match request {
-        PolynomialRequest::Normalize { polynomial } => single_input_key(PolynomialCacheOp::Normalize, polynomial, rings, 0),
-        PolynomialRequest::Add { lhs, rhs } => two_input_key(PolynomialCacheOp::Add, lhs, rhs, rings, 0),
-        PolynomialRequest::Mul { lhs, rhs } => two_input_key(PolynomialCacheOp::Mul, lhs, rhs, rings, 0),
+        PolynomialRequest::Normalize { polynomial } => {
+            let poly = store.resolve_owning(*polynomial)?;
+            single_input_key(PolynomialCacheOp::Normalize, &poly, rings, 0)
+        }
+        PolynomialRequest::Add { lhs, rhs } => {
+            let lhs = store.resolve_owning(*lhs)?;
+            let rhs = store.resolve_owning(*rhs)?;
+            two_input_key(PolynomialCacheOp::Add, &lhs, &rhs, rings, 0)
+        }
+        PolynomialRequest::Mul { lhs, rhs } => {
+            let lhs = store.resolve_owning(*lhs)?;
+            let rhs = store.resolve_owning(*rhs)?;
+            two_input_key(PolynomialCacheOp::Mul, &lhs, &rhs, rings, 0)
+        }
         PolynomialRequest::Groebner { generators, limits } => {
-            many_input_key(PolynomialCacheOp::Groebner, generators, rings, limits_fingerprint(limits))
+            let generators = resolve_polys(store, generators)?;
+            many_input_key(PolynomialCacheOp::Groebner, &generators, rings, limits_fingerprint(limits))
         }
         PolynomialRequest::Eliminate { generators, limits } => {
-            many_input_key(PolynomialCacheOp::Eliminate, generators, rings, limits_fingerprint(limits))
+            let generators = resolve_polys(store, generators)?;
+            many_input_key(PolynomialCacheOp::Eliminate, &generators, rings, limits_fingerprint(limits))
         }
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_unsupported")),
     }
+}
+
+fn resolve_polys(store: &PolynomialObjectStore, refs: &[PolynomialRef]) -> Result<Vec<Polynomial>> {
+    refs.iter().map(|r| store.resolve_owning(*r)).collect()
 }
 
 fn ring_fingerprint_for(poly: &Polynomial, rings: &RingTable) -> Result<RingFingerprint> {
