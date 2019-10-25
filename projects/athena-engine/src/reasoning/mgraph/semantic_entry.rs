@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn polynomial_second_goal_is_already_known_after_mgraph_admit() {
         use crate::domains::polynomial::{
-            CoefficientDomain, MonomialOrder, Polynomial, PolynomialBuilder, PolynomialRequest, PolynomialResult,
+            CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult,
         };
         use athena_types::SymbolId;
         let mut session = Session::new();

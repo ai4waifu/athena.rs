@@ -6,6 +6,7 @@ use crate::domains::context::DomainExecutionContext;
 
 use super::{
     differential::DifferentialSolution,
+    object_ref::{SeriesObjectStore, SeriesRef},
     residue::Residue,
     result::CalculusResult,
     series::Series,
@@ -18,8 +19,8 @@ use super::{
 pub enum CalculusValue {
     /// 普通表达式。
     Expression(TermId),
-    /// 独立级数对象（保留余项）。
-    Series(Series),
+    /// 独立级数 DomainObject（Living `28` · `SeriesRef`）。
+    Series(SeriesRef),
     /// 梯度对象（非裸列表）。
     Gradient(Gradient),
     /// Jacobian 矩阵对象。
@@ -44,8 +45,8 @@ impl From<TermId> for CalculusValue {
     }
 }
 
-impl From<Series> for CalculusValue {
-    fn from(value: Series) -> Self {
+impl From<SeriesRef> for CalculusValue {
+    fn from(value: SeriesRef) -> Self {
         Self::Series(value)
     }
 }
@@ -103,7 +104,15 @@ impl CalculusValue {
     pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
         match self {
             Self::Expression(t) => *t,
-            Self::Series(s) => s.to_term(cc),
+            Self::Series(r) => {
+                let series = cc
+                    .session()
+                    .series_objects
+                    .get(*r)
+                    .cloned()
+                    .expect("SeriesRef must resolve in Session::series_objects");
+                series.to_term(cc)
+            }
             Self::Gradient(g) => g.materialize_list_expression(cc),
             Self::Jacobian(j) => j.materialize_list_expression(cc),
             Self::Hessian(h) => h.materialize_list_expression(cc),
@@ -129,13 +138,20 @@ pub fn map_term_result(r: CalculusResult<TermId>) -> CalculusResult<CalculusValu
     }
 }
 
-/// 将级数微积分结果映射为值结果。
-pub fn map_series_result(r: CalculusResult<Series>) -> CalculusResult<CalculusValue> {
+/// 将级数微积分结果 intern 为 [`SeriesRef`] 后映射为值结果。
+pub fn map_series_result(store: &mut SeriesObjectStore, r: CalculusResult<Series>) -> CalculusResult<CalculusValue> {
     match r {
-        CalculusResult::Exact { value, conditions } => CalculusResult::Exact { value: CalculusValue::Series(value), conditions },
-        CalculusResult::Conditional { value, conditions } => CalculusResult::Conditional { value: CalculusValue::Series(value), conditions },
+        CalculusResult::Exact { value, conditions } => {
+            let id = store.intern(value);
+            CalculusResult::Exact { value: CalculusValue::Series(id), conditions }
+        }
+        CalculusResult::Conditional { value, conditions } => {
+            let id = store.intern(value);
+            CalculusResult::Conditional { value: CalculusValue::Series(id), conditions }
+        }
         CalculusResult::Unevaluated { expression, reason } => {
-            CalculusResult::Unevaluated { expression: CalculusValue::Series(expression), reason }
+            let id = store.intern(expression);
+            CalculusResult::Unevaluated { expression: CalculusValue::Series(id), reason }
         }
     }
 }

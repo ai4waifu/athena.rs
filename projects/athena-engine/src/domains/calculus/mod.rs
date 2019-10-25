@@ -75,13 +75,16 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             map_term_result(limit_checked(&mut dc, expression, variable, &approach, direction, &assumptions))
         }
         CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
-            map_series_result(taylor(&mut dc, expression, variable, center, order))
+            let series_result = taylor(&mut dc, expression, variable, center, order);
+            map_series_result(&mut dc.session_mut().series_objects, series_result)
         }
         CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
-            map_series_result(laurent(&mut dc, expression, variable, center, order))
+            let series_result = laurent(&mut dc, expression, variable, center, order);
+            map_series_result(&mut dc.session_mut().series_objects, series_result)
         }
         CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
-            map_series_result(asymptotic(&mut dc, expression, variable, order))
+            let series_result = asymptotic(&mut dc, expression, variable, order);
+            map_series_result(&mut dc.session_mut().series_objects, series_result)
         }
         CalculusRequest::Residue { expression, variable, point, assumptions: _ } => {
             map_residue_result(residue_checked(&mut dc, expression, variable, point))
@@ -121,4 +124,53 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
 fn domain_unsupported(_name: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
         .detail("domain", "calculus")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domains::context::DomainExecutionContext;
+    use athena_ir::SemanticOperator;
+    use athena_types::AssumptionSet;
+
+    #[test]
+    fn series_goal_interns_series_ref_into_session() {
+        let mut session = Session::new();
+        let (expression, variable, center) = {
+            let dc = DomainExecutionContext::new(&mut session);
+            let variable = dc.intern("x");
+            let xs = dc.symbol_id(variable);
+            let center = dc.in_(0);
+            let expression = dc.apply_semantic(SemanticOperator::Unary(athena_ir::UnaryFunction::Sin), vec![xs]);
+            (expression, variable, center)
+        };
+        let result = execute_calculus(
+            &mut session,
+            CalculusRequest::Series {
+                expression,
+                variable,
+                center,
+                order: 2,
+                assumptions: AssumptionSet::empty(),
+            },
+        );
+        match result {
+            CalculusResult::Exact {
+                value: CalculusValue::Series(r),
+                ..
+            }
+            | CalculusResult::Conditional {
+                value: CalculusValue::Series(r),
+                ..
+            }
+            | CalculusResult::Unevaluated {
+                expression: CalculusValue::Series(r),
+                ..
+            } => {
+                assert!(session.series_objects.get(r).is_some());
+                assert_eq!(session.series_objects.len(), 1);
+            }
+            other => panic!("expected SeriesRef payload, got {other:?}"),
+        }
+    }
 }

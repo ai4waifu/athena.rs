@@ -12,7 +12,7 @@ use crate::domains::context::DomainExecutionContext;
 use crate::execution::shape::Shape;
 
 /// 截断级数的余项标注。
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Remainder {
     /// 精确截断（多项式次数 ≤ order）。
     ExactTruncation,
@@ -25,7 +25,7 @@ pub enum Remainder {
 }
 
 /// 独立级数值（非裸多项式列表）。
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Series {
     /// 展开变量。
     pub variable: SymbolId,
