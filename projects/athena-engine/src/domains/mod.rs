@@ -14,7 +14,11 @@ pub mod optimization;
 pub mod planner;
 pub mod polynomial;
 pub mod solve;
+pub mod views;
 
 pub use context::DomainExecutionContext;
 pub use dispatch::{DomainRequest, DomainResult, execute_domain};
 pub use planner::{DomainPlan, PlanStep, plan_domain};
+pub use views::{
+    LeaseSet, SeriesPolynomialView, TypedViewHeader, ViewFingerprint, ViewKind, ViewRevision,
+};
