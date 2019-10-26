@@ -96,7 +96,7 @@ fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result
         DomainRequest::FieldTheory(req) => Ok(DomainResult::FieldTheory(execute_field(req))),
         DomainRequest::GaloisTheory(req) => Ok(DomainResult::GaloisTheory(execute_galois(req))),
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
-        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req))),
+        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req, &session.matrix_objects))),
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
     }
 }

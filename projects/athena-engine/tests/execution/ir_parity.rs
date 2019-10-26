@@ -257,13 +257,18 @@ fn linear_solve_via_domain_goal() {
     use athena_numeric::{Integer, Rational};
 
     let mut c = C::new();
-    let a = MatrixValue::from_integers_row_major(
-        2,
-        2,
-        vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
-    )
-    .unwrap();
-    let b = MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap();
+    let a = c.s.matrix_objects.intern(
+        MatrixValue::from_integers_row_major(
+            2,
+            2,
+            vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
+        )
+        .unwrap(),
+    );
+    let b = c
+        .s
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
     let expected = MatrixValue::from_rationals_row_major(
         2,
         1,

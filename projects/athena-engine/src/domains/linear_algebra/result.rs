@@ -5,6 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use super::{
     exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact},
     machine::{MachineSolveResult, rank_machine, solve_machine},
+    object_ref::{MatrixObjectStore, MatrixRef},
     ops::{hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
@@ -67,21 +68,45 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
     }
 }
 
-/// 执行线性代数请求。
-pub fn execute_linear_algebra(request: LinearAlgebraRequest) -> LinearAlgebraResult {
-    match run(request) {
+/// 执行线性代数请求（经 [`MatrixObjectStore`] 解析 [`MatrixRef`]）。
+pub fn execute_linear_algebra(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> LinearAlgebraResult {
+    match run(request, store) {
         Ok(value) => LinearAlgebraResult::Ok { value },
         Err(diagnostic) => LinearAlgebraResult::Err { diagnostic },
     }
 }
 
-fn run(request: LinearAlgebraRequest) -> Result<LinearAlgebraValue, Diagnostic> {
+fn resolve(store: &MatrixObjectStore, r: MatrixRef) -> Result<MatrixValue, Diagnostic> {
+    store.resolve_owning(r).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "linear_algebra")
+            .detail("reason", "missing_matrix_ref")
+            .arg("ref", r.0)
+    })
+}
+
+fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<LinearAlgebraValue, Diagnostic> {
     match request {
-        LinearAlgebraRequest::Transpose { matrix } => Ok(LinearAlgebraValue::Matrix(transpose(&matrix))),
-        LinearAlgebraRequest::Index { matrix, row, col } => Ok(LinearAlgebraValue::Matrix(index_scalar(&matrix, row, col)?)),
-        LinearAlgebraRequest::MatMul { lhs, rhs } => Ok(LinearAlgebraValue::Matrix(matmul(&lhs, &rhs)?)),
-        LinearAlgebraRequest::Hadamard { lhs, rhs } => Ok(LinearAlgebraValue::Matrix(hadamard(&lhs, &rhs)?)),
+        LinearAlgebraRequest::Transpose { matrix } => {
+            let matrix = resolve(store, matrix)?;
+            Ok(LinearAlgebraValue::Matrix(transpose(&matrix)))
+        }
+        LinearAlgebraRequest::Index { matrix, row, col } => {
+            let matrix = resolve(store, matrix)?;
+            Ok(LinearAlgebraValue::Matrix(index_scalar(&matrix, row, col)?))
+        }
+        LinearAlgebraRequest::MatMul { lhs, rhs } => {
+            let lhs = resolve(store, lhs)?;
+            let rhs = resolve(store, rhs)?;
+            Ok(LinearAlgebraValue::Matrix(matmul(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::Hadamard { lhs, rhs } => {
+            let lhs = resolve(store, lhs)?;
+            let rhs = resolve(store, rhs)?;
+            Ok(LinearAlgebraValue::Matrix(hadamard(&lhs, &rhs)?))
+        }
         LinearAlgebraRequest::Rank { matrix } => {
+            let matrix = resolve(store, matrix)?;
             if matrix.parent().element.is_machine() {
                 let (rank, guarantee) = rank_machine(&matrix, DEFAULT_PIVOT_THRESHOLD)?;
                 Ok(LinearAlgebraValue::MachineRank { rank, guarantee })
@@ -91,6 +116,7 @@ fn run(request: LinearAlgebraRequest) -> Result<LinearAlgebraValue, Diagnostic> 
             }
         }
         LinearAlgebraRequest::Det { matrix } => {
+            let matrix = resolve(store, matrix)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_det_deferred_l2")
@@ -99,12 +125,15 @@ fn run(request: LinearAlgebraRequest) -> Result<LinearAlgebraValue, Diagnostic> 
             Ok(LinearAlgebraValue::ExactDet(det_bareiss(&matrix)?))
         }
         LinearAlgebraRequest::Rref { matrix } => {
+            let matrix = resolve(store, matrix)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "rref_exact_only"));
             }
             Ok(LinearAlgebraValue::ExactRref(rref_rational(&matrix)?))
         }
         LinearAlgebraRequest::Solve { a, b } => {
+            let a = resolve(store, a)?;
+            let b = resolve(store, b)?;
             if a.parent().element.is_machine() || b.parent().element.is_machine() {
                 if !(a.parent().element.is_machine() && b.parent().element.is_machine()) {
                     return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "solve_parent_mixed"));

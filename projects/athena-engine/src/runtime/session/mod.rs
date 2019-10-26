@@ -220,8 +220,8 @@ impl Session {
         execute_graph_theory(request)
     }
 
-    /// 执行线性代数域请求（与 [`crate::execute_domain`] 的 `LinearAlgebra` 分支等价）。
+    /// 执行线性代数域请求（经 `Session::matrix_objects` 解析）。
     pub fn execute_linear_algebra(&self, request: LinearAlgebraRequest) -> LinearAlgebraResult {
-        execute_linear_algebra(request)
+        execute_linear_algebra(request, &self.matrix_objects)
     }
 }

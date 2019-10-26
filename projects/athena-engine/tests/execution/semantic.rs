@@ -343,13 +343,17 @@ fn linear_algebra_paths() {
     let e = sem(SemanticOperator::Determinant, vec![m], &mut s);
     assert_eq!(eval(&mut s, e), "-2");
 
-    let a = MatrixValue::from_integers_row_major(
-        2,
-        2,
-        vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
-    )
-    .unwrap();
-    let b = MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap();
+    let a = s.matrix_objects.intern(
+        MatrixValue::from_integers_row_major(
+            2,
+            2,
+            vec![Integer::from_i64(2), Integer::from_i64(0), Integer::from_i64(0), Integer::from_i64(2)],
+        )
+        .unwrap(),
+    );
+    let b = s
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
     let expected = MatrixValue::from_rationals_row_major(
         2,
         1,

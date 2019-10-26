@@ -66,22 +66,24 @@ fn exact_and_machine_buffers_are_incompatible() {
 
 #[test]
 fn neutral_matmul_and_hadamard_requests_are_distinct() {
-    let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
-    let b = MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap();
+    let mut store = athena_engine::domains::linear_algebra::MatrixObjectStore::new();
+    let a = store.intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let b = store.intern(MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap());
 
-    let mm = LinearAlgebraRequest::MatMul { lhs: a.clone(), rhs: b.clone() };
+    let mm = LinearAlgebraRequest::MatMul { lhs: a, rhs: b };
     let had = LinearAlgebraRequest::Hadamard { lhs: a, rhs: b };
     assert_ne!(mm, had);
 
-    let r1 = execute_linear_algebra(mm.clone());
-    let r2 = execute_linear_algebra(mm);
+    let r1 = execute_linear_algebra(mm.clone(), &store);
+    let r2 = execute_linear_algebra(mm, &store);
     assert_eq!(r1, r2);
-    let _ = execute_linear_algebra(had);
+    let _ = execute_linear_algebra(had, &store);
 }
 
 #[test]
 fn one_based_index_helper_builds_neutral_request() {
-    let m = MatrixValue::from_integers_row_major(2, 2, vec![i(10), i(20), i(30), i(40)]).unwrap();
+    let mut store = athena_engine::domains::linear_algebra::MatrixObjectStore::new();
+    let m = store.intern(MatrixValue::from_integers_row_major(2, 2, vec![i(10), i(20), i(30), i(40)]).unwrap());
     let spec = scalar_index_from_one_based(2, 1).unwrap();
     assert_eq!(spec, IndexSpec::Scalar { row: 1, col: 0 });
 
@@ -90,7 +92,7 @@ fn one_based_index_helper_builds_neutral_request() {
         panic!("scalar");
     };
     let req = LinearAlgebraRequest::Index { matrix: m, row, col };
-    let LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(v) } = execute_linear_algebra(req)
+    let LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(v) } = execute_linear_algebra(req, &store)
     else {
         panic!("index");
     };
@@ -148,9 +150,11 @@ fn l1_machine_solve_with_residual() {
 
 #[test]
 fn domain_request_dispatches_linear_algebra() {
-    let a = MatrixValue::from_integers_row_major(1, 1, vec![i(7)]).unwrap();
-    let req = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: a });
     let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 1, vec![i(7)]).unwrap());
+    let req = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: a });
     let DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value: LinearAlgebraValue::ExactDet(d) }) =
         execute_domain(&mut session, req).unwrap()
     else {
