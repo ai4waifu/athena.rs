@@ -22,7 +22,8 @@ fn differentiate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: 
         crate::execution::shape::Shape::Number
         | crate::execution::shape::Shape::String(_)
         | crate::execution::shape::Shape::Bool(_)
-        | crate::execution::shape::Shape::Null => dc.in_(0),
+        | crate::execution::shape::Shape::Null
+        | crate::execution::shape::Shape::Constant(_) => dc.in_(0),
         crate::execution::shape::Shape::Symbol(s) => dc.in_(if dc.symbol_id_is(s, var) { 1 } else { 0 }),
         crate::execution::shape::Shape::Collection(items) => {
             let ds = items.iter().map(|i| differentiate_symbol(dc, *i, var)).collect();

@@ -292,7 +292,7 @@ fn negative_valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: Symbol
 fn valuation(cc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Option<i64> {
     match cc.shape(expr)? {
         Shape::Symbol(s) if cc.symbol_id_is(s, var) => Some(1),
-        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => Some(0),
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => Some(0),
         Shape::Collection(items) => {
             let mut m = i64::MAX;
             for i in items {

@@ -4,7 +4,7 @@ use athena_numeric::{Integer, Number, Rational, to_f64_lossy as num_to_f64_lossy
 use athena_types::{Result, SymbolId, TermId};
 
 use super::diag;
-use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
+use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermBuilder, UnaryFunction};
 
 use crate::{
     domains::linear_algebra::{MatrixEntry, MatrixValue},
@@ -17,10 +17,16 @@ use crate::{
         },
     },
 };
-use athena_ir::TermBuilder;
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
     matches!(head, ApplicationHead::Semantic(o) if o == op)
+}
+
+fn is_math_constant(session: &Session, id: TermId, expected: MathematicalConstant) -> bool {
+    matches!(
+        session.arena.get(id),
+        Some(athena_ir::TermNode::Atom(Atom::Constant(c))) if *c == expected
+    )
 }
 
 fn head_label(session: &Session, head: ApplicationHead) -> Option<String> {
@@ -44,7 +50,7 @@ pub(crate) fn term_as_f64_session(session: &Session, arg: TermId) -> Option<f64>
     if let Some(k) = normalize_pi_angle_session(session, arg) {
         return Some((k as f64) * std::f64::consts::PI);
     }
-    if head_name_session(session, arg).as_deref() == Some("E") {
+    if is_math_constant(session, arg, MathematicalConstant::EulerNumber) {
         return Some(std::f64::consts::E);
     }
     number_of(session, arg).and_then(num_to_f64_lossy)
@@ -56,23 +62,23 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
             return Some(0);
         }
     }
-    if head_name_session(session, arg).as_deref() == Some("Pi") {
+    if is_math_constant(session, arg, MathematicalConstant::Pi) {
         return Some(1);
     }
     if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(arg) {
         if is_sem(*head, SemanticOperator::Multiply) {
             if let [a, b] = arguments.as_slice() {
-                if head_name_session(session, *a).as_deref() == Some("Pi") {
+                if is_math_constant(session, *a, MathematicalConstant::Pi) {
                     return number_of(session, *b).and_then(|n| n.as_exact_integer());
                 }
-                if head_name_session(session, *b).as_deref() == Some("Pi") {
+                if is_math_constant(session, *b, MathematicalConstant::Pi) {
                     return number_of(session, *a).and_then(|n| n.as_exact_integer());
                 }
             }
         }
         if is_sem(*head, SemanticOperator::Add)
             && arguments.len() == 1
-            && head_name_session(session, arguments[0]).as_deref() == Some("Pi")
+            && is_math_constant(session, arguments[0], MathematicalConstant::Pi)
         {
             return Some(1);
         }
@@ -80,10 +86,12 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
     None
 }
 
-pub(crate) fn head_name_session(session: &Session, id: TermId) -> Option<String> {
+/// Debug / diagnostics head label only — **not** for semantic dispatch (Living `27`).
+pub(crate) fn debug_head_label_session(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         athena_ir::TermNode::Application { head, .. } => head_label(session, *head),
-        athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
+        athena_ir::TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
+        athena_ir::TermNode::Atom(Atom::Constant(c)) => Some(c.debug_label().to_string()),
         _ => None,
     }
 }

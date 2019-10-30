@@ -7,11 +7,11 @@ use athena_engine::{
     runtime::{
         Session,
         results::CoverageStatus,
-        values::arena::{push_application_named, push_int, push_list, push_semantic, push_symbol_name},
+        values::arena::{push_application_named, push_constant, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 use athena_types::{BindingEvaluationPolicy, ComputationStatus, TermId};
-use athena_ir::{SemanticOperator, UnaryFunction};
+use athena_ir::{MathematicalConstant, SemanticOperator, UnaryFunction};
 
 type Tid = TermId;
 
@@ -37,6 +37,10 @@ fn result_of<'a>(e: Tid, c: &'a mut C) -> &'a athena_engine::runtime::results::C
 
 fn symbol(name: &str, c: &mut C) -> Tid {
     push_symbol_name(&mut c.s, name)
+}
+
+fn math_const(value: MathematicalConstant, c: &mut C) -> Tid {
+    push_constant(&mut c.s, value)
 }
 
 fn i(n: i64, c: &mut C) -> Tid {
@@ -438,7 +442,7 @@ fn machine_trig_at_real_points() {
     };
     let e = unary(UnaryFunction::Sin, vec![zero], &mut c);
     assert_eq!(t(e, &mut c), "0");
-    let e = unary(UnaryFunction::Cos, vec![symbol("Pi", &mut c)], &mut c);
+    let e = unary(UnaryFunction::Cos, vec![math_const(MathematicalConstant::Pi, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "-1");
 }
 

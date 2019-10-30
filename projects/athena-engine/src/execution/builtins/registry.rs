@@ -152,7 +152,7 @@ fn deriv_gamma(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
 }
 
 fn deriv_erf(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
-    let pi = cc.symbol("Pi");
+    let pi = cc.math_constant(athena_ir::MathematicalConstant::Pi);
     let sqrt_pi = cc.apply_semantic(SemanticOperator::Sqrt, vec![pi]);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![sqrt_pi, cc.in_(-1)]);
     let u2 = cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(2)]);

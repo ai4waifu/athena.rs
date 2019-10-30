@@ -126,7 +126,7 @@ pub(crate) fn substitute_binds(session: &mut Session, expr: TermId, binds: &Hash
     };
     match s {
         Shape::Symbol(symbol) => binds.get(&symbol).copied().unwrap_or(expr),
-        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => expr,
         Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -149,7 +149,7 @@ pub(crate) fn substitute_symbol(session: &mut Session, expr: TermId, symbol: Sym
     };
     match s {
         Shape::Symbol(x) if x == symbol => value,
-        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => expr,
         Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -174,7 +174,7 @@ pub(crate) fn replace_literal(session: &mut Session, expr: TermId, lhs: TermId, 
         return expr;
     };
     match s {
-        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => expr,
         Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());

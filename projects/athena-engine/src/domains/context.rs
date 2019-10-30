@@ -120,6 +120,7 @@ impl<'a> DomainExecutionContext<'a> {
             athena_ir::TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
             athena_ir::TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
             athena_ir::TermNode::Atom(Atom::Null) => Some(Shape::Null),
+            athena_ir::TermNode::Atom(Atom::Constant(c)) => Some(Shape::Constant(*c)),
             athena_ir::TermNode::Collection { elements: items, .. } => Some(Shape::Collection(items.clone())),
             athena_ir::TermNode::Application { head: op, arguments: args } => Some(Shape::Application(*op, args.clone())),
         }
@@ -187,6 +188,11 @@ impl<'a> DomainExecutionContext<'a> {
     /// Symbol atom by display name (user symbol, not an operator).
     pub(crate) fn symbol(&self, name: &str) -> TermId {
         crate::runtime::values::arena::push_symbol_name(self.session_mut(), name)
+    }
+
+    /// Closed mathematical constant atom (Living `27`).
+    pub(crate) fn math_constant(&self, value: athena_ir::MathematicalConstant) -> TermId {
+        crate::runtime::values::arena::push_constant(self.session_mut(), value)
     }
 
     /// Intern a user symbol name.

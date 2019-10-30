@@ -336,7 +336,10 @@ fn fourier_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, o
                     return None;
                 }
                 let ainv = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&a)), cc.in_(-1)]);
-                let pia = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol("Pi"), ainv]);
+                let pia = cc.apply_semantic(SemanticOperator::Multiply, vec![
+                    cc.math_constant(athena_ir::MathematicalConstant::Pi),
+                    ainv,
+                ]);
                 let scale = cc.apply_semantic(SemanticOperator::Sqrt, vec![pia]);
                 let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(omega), cc.in_(2)]);
                 let four_a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(4), cc.num(cc.copy(&a))]);

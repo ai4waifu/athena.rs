@@ -13,6 +13,7 @@ pub(crate) enum Shape {
     Symbol(SymbolId),
     Bool(bool),
     Null,
+    Constant(athena_ir::MathematicalConstant),
     Collection(Vec<TermId>),
     Application(ApplicationHead, Vec<TermId>),
 }
@@ -25,13 +26,16 @@ pub(crate) fn term_shape(session: &Session, id: TermId) -> Option<Shape> {
         TermNode::Atom(Atom::Symbol(s)) => Some(Shape::Symbol(*s)),
         TermNode::Atom(Atom::Boolean(b)) => Some(Shape::Bool(*b)),
         TermNode::Atom(Atom::Null) => Some(Shape::Null),
+        TermNode::Atom(Atom::Constant(c)) => Some(Shape::Constant(*c)),
         TermNode::Collection { elements: items, .. } => Some(Shape::Collection(items.clone())),
         TermNode::Application { head, arguments: args } => Some(Shape::Application(*head, args.clone())),
     }
 }
 
-/// Head display name for atoms / apps / lists (Session path).
-pub(crate) fn term_head_name(session: &Session, id: TermId) -> Option<String> {
+/// Debug / diagnostics head label (Session path).
+///
+/// **Not for semantic dispatch** (Living `27`). Prefer [`crate::runtime::values::arena::application_head`].
+pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         TermNode::Application { head, .. } => match *head {
             ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
@@ -39,6 +43,7 @@ pub(crate) fn term_head_name(session: &Session, id: TermId) -> Option<String> {
         },
         TermNode::Collection { .. } => Some("OrderedCollection".into()),
         TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
+        TermNode::Atom(Atom::Constant(c)) => Some(c.debug_label().to_string()),
         _ => None,
     }
 }

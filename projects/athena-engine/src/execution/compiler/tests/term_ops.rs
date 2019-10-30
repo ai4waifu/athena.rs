@@ -1,6 +1,6 @@
 use super::super::*;
 use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
-use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode, UnaryFunction};
+use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::ComputationStatus;
 
 #[test]
@@ -349,7 +349,7 @@ fn compile_and_execute_times_zero_and_cos_pi() {
         other => panic!("expected Times[0,x] == 0, got {other:?}"),
     }
 
-    let pi = session.builder().symbol("Pi", Default::default());
+    let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
     let cos = ApplicationHead::Semantic(SemanticOperator::from_unary(UnaryFunction::Cos));
     let term = session.builder().application(cos, vec![pi], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("cos");

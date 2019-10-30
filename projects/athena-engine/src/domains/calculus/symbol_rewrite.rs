@@ -20,7 +20,7 @@ pub(crate) fn replace_symbol(dc: &DomainExecutionContext<'_>, expr: TermId, var:
                 expr
             }
         }
-        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => expr,
         Shape::Collection(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -52,7 +52,7 @@ pub(crate) fn contains_symbol(dc: &DomainExecutionContext<'_>, expr: TermId, var
     };
     match shape {
         Shape::Symbol(s) => dc.symbol_id_is(s, var),
-        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => false,
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => false,
         Shape::Collection(items) => items.iter().any(|i| contains_symbol(dc, *i, var)),
         Shape::Application(_, args) => args.iter().any(|a| contains_symbol(dc, *a, var)),
     }

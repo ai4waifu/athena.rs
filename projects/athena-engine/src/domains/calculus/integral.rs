@@ -25,7 +25,7 @@ fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Symb
             let n = dc.number_of(expr).map(|n| dc.copy(n)).expect("number");
             dc.apply_semantic(SemanticOperator::Multiply, vec![dc.num(n), dc.symbol_id(var)])
         }
-        Shape::String(_) | Shape::Bool(_) | Shape::Null => residual_integrate(dc, expr, var),
+        Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) => residual_integrate(dc, expr, var),
         Shape::Symbol(s) => {
             if dc.symbol_id_is(s, var) {
                 let x2 = dc.apply_semantic(SemanticOperator::Power, vec![dc.symbol_id(var), dc.in_(2)]);

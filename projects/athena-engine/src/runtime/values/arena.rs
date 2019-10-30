@@ -53,6 +53,12 @@ pub fn push_symbol_name(session: &mut Session, name: &str) -> TermId {
     b.symbol(name, default_span())
 }
 
+/// Construct a closed mathematical constant atom.
+pub fn push_constant(session: &mut Session, value: athena_ir::MathematicalConstant) -> TermId {
+    let mut b = TermBuilder::new(&mut session.arena);
+    b.constant(value, default_span())
+}
+
 /// Construct a core semantic application.
 pub fn push_semantic(session: &mut Session, op: SemanticOperator, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);

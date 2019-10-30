@@ -285,7 +285,7 @@ fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, 
     match cc.shape(expr)? {
         Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
         Shape::Symbol(s) if cc.symbol_id_is(s, var) => Some((1, Number::small_int(1))),
-        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Collection(_) => None,
+        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) | Shape::Collection(_) => None,
         Shape::Application(head, args) => match head {
             ApplicationHead::Semantic(SemanticOperator::Add) => {
                 let mut best: Option<(i64, Number)> = None;

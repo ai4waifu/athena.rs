@@ -49,5 +49,6 @@ fn atom_debug(session: &Session, atom: &Atom) -> String {
         Atom::Boolean(true) => "True".into(),
         Atom::Boolean(false) => "False".into(),
         Atom::Null => "Null".into(),
+        Atom::Constant(c) => c.debug_label().into(),
     }
 }

@@ -7,11 +7,11 @@ use athena_engine::{
     execution::evaluate_term,
     runtime::{
         Session,
-        values::arena::{push_application_named, push_int, push_list, push_semantic, push_symbol_name},
+        values::arena::{push_application_named, push_constant, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 use athena_types::BindingEvaluationPolicy;
-use athena_ir::{SemanticOperator, UnaryFunction};
+use athena_ir::{MathematicalConstant, SemanticOperator, UnaryFunction};
 
 type Tid = athena_types::TermId;
 
@@ -22,6 +22,10 @@ fn eval(s: &mut Session, expr: Tid) -> String {
 
 fn symbol(name: &str, s: &mut Session) -> Tid {
     push_symbol_name(s, name)
+}
+
+fn math_const(value: MathematicalConstant, s: &mut Session) -> Tid {
+    push_constant(s, value)
 }
 
 fn int(n: i64, s: &mut Session) -> Tid {
@@ -75,7 +79,7 @@ fn arithmetic_normalization() {
     let e = ext("Foo", vec![int(1, &mut s), symbol("y", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "Foo[1, y]");
     // 精确三角
-    let e = unary(UnaryFunction::Cos, vec![symbol("Pi", &mut s)], &mut s);
+    let e = unary(UnaryFunction::Cos, vec![math_const(MathematicalConstant::Pi, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "-1");
     let e = unary(UnaryFunction::Sin, vec![int(0, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "0");

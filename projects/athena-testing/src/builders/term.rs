@@ -1,8 +1,8 @@
 //! Typed term construction — only [`SemanticOperator`] / [`UnaryFunction`] / collections.
 
 use athena_engine::Session;
-use athena_engine::runtime::values::arena::{push_int, push_semantic, push_symbol_name};
-use athena_ir::{SemanticOperator, TermNode, UnaryFunction};
+use athena_engine::runtime::values::arena::{push_constant, push_int, push_semantic, push_symbol_name};
+use athena_ir::{MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::{CollectionKind, SymbolId, TermId};
 
 /// Session-bound term builder with **no** named-head API.
@@ -24,6 +24,11 @@ impl<'a> TermBuilder<'a> {
     /// Symbol atom by display name (`SymbolId`, not an operator).
     pub fn symbol(&mut self, name: &str) -> TermId {
         push_symbol_name(self.session, name)
+    }
+
+    /// Closed mathematical constant (`Pi`, `E`, …) — not a user symbol name.
+    pub fn math_constant(&mut self, value: MathematicalConstant) -> TermId {
+        push_constant(self.session, value)
     }
 
     /// Intern a user symbol name (for [`DomainRequest`] / [`CalculusRequest`] fields).
