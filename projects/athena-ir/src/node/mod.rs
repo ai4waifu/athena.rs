@@ -1,5 +1,9 @@
 //! Core CAS IR term 种类（arena 持有，由 [`TermId`](athena_types::TermId) 引用）。
 
+mod constant;
+
+pub use constant::MathematicalConstant;
+
 use athena_numeric::{NumericContext, NumericValue};
 use athena_types::{CollectionKind, Result, SourceSpan, SymbolId, TermId};
 
@@ -20,6 +24,8 @@ pub enum Atom {
     Boolean(bool),
     /// Typed Null。
     Null,
+    /// Closed mathematical constant (not a user symbol name).
+    Constant(MathematicalConstant),
 }
 
 impl Atom {
@@ -31,6 +37,7 @@ impl Atom {
             Self::Symbol(id) => Self::Symbol(*id),
             Self::Boolean(b) => Self::Boolean(*b),
             Self::Null => Self::Null,
+            Self::Constant(c) => Self::Constant(*c),
         })
     }
 }

@@ -112,6 +112,10 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
             mix_u64(&mut s.state, u64::from(*b));
         }
         TermNode::Atom(Atom::Null) => mix_tag(&mut s.state, b"null"),
+        TermNode::Atom(Atom::Constant(c)) => {
+            mix_tag(&mut s.state, b"const");
+            mix_u64(&mut s.state, u64::from(c.discriminant()));
+        }
         TermNode::Collection { kind, elements: items } => {
             mix_tag(&mut s.state, b"collection");
             mix_u64(&mut s.state, collection_kind_tag(*kind));

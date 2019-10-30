@@ -4,7 +4,7 @@ use athena_numeric::NumericValue;
 use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 use crate::{
-    node::{Atom, TermNode},
+    node::{Atom, MathematicalConstant, TermNode},
     operator::{ApplicationHead, OperatorRegistry, SemanticOperator},
     store::TermStore,
     symbol::SymbolTable,
@@ -88,6 +88,11 @@ impl<'a> TermBuilder<'a> {
     /// Typed Null 原子 term。
     pub fn null(&mut self, span: SourceSpan) -> TermId {
         self.arena.push(TermNode::Atom(Atom::Null), span)
+    }
+
+    /// Closed mathematical constant atom.
+    pub fn constant(&mut self, value: MathematicalConstant, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Constant(value)), span)
     }
 
     /// 小型精确整数。
