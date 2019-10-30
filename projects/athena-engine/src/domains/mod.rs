@@ -20,6 +20,6 @@ pub use context::DomainExecutionContext;
 pub use dispatch::{DomainRequest, DomainResult, execute_domain};
 pub use planner::{DomainPlan, PlanStep, plan_domain};
 pub use views::{
-    LeaseSet, PolynomialMatrixView, SeriesPolynomialView, TypedViewHeader, ViewFingerprint, ViewKind,
-    ViewRevision,
+    GraphMatrixView, LeaseSet, PolynomialMatrixView, SeriesPolynomialView, TypedViewHeader, ViewFingerprint,
+    ViewKind, ViewRevision,
 };

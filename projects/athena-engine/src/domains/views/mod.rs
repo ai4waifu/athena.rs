@@ -3,9 +3,11 @@
 //! View 只读、带 fingerprint / revision，不拥有 DomainObject payload。
 //! 禁止领域间通过 `Vec` 全量复制或裸 `TermId` 冒充跨域对象。
 
+mod graph_matrix;
 mod polynomial_matrix;
 mod series_polynomial;
 
+pub use graph_matrix::GraphMatrixView;
 pub use polynomial_matrix::PolynomialMatrixView;
 pub use series_polynomial::SeriesPolynomialView;
 

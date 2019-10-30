@@ -41,6 +41,8 @@ impl TheoryContextId {
     pub const CALCULUS: Self = Self(4);
     /// 线性代数 / 矩阵上下文。
     pub const MATRIX: Self = Self(5);
+    /// 图论 / 图语义上下文。
+    pub const GRAPH: Self = Self(6);
 }
 
 /// 稳定语义谓词身份（禁止用任意 `String` 当关系标签）。
