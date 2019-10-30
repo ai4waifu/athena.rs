@@ -3,10 +3,12 @@
 //! Goal describes intent. Algorithm / representation / backend choices belong here —
 //! not inside domain providers as hidden `if len > …` policy.
 //!
-//! Bootstrap: every [`DomainRequest`] plans as
-//! `CallDomainProvider` → `MaterializeResult`. Later slices add normalize,
-//! representation selection, TypedView, Verify, and capability budgets.
+//! Bootstrap: most [`DomainRequest`]s plan as
+//! `CallDomainProvider` → `MaterializeResult`. Series-family calculus goals insert
+//! `CrossDomainView` after the provider so a `SeriesPolynomialView` can open without
+//! owning a `Vec` copy.
 
+use crate::domains::calculus::CalculusRequest;
 use crate::domains::dispatch::DomainRequest;
 
 /// One step in a domain execution plan (PlanIR atom).
@@ -37,19 +39,30 @@ pub struct DomainPlan {
 
 /// Build a [`DomainPlan`] for `request` (Living `28` DomainPlanner entry).
 ///
-/// Bootstrap policy is uniform: call the domain provider then materialize.
-/// Domain-specific algorithm selection lands here in later slices — not inside
-/// `execute_*` helpers as silent strategy branches.
-pub fn plan_domain(_request: &DomainRequest) -> DomainPlan {
-    DomainPlan {
-        steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+/// Domain-specific algorithm selection lands here — not inside `execute_*` helpers
+/// as silent strategy branches. `CrossDomainView` is declarative PlanIR only until
+/// Reflector executes the step.
+pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
+    match request {
+        DomainRequest::Calculus(
+            CalculusRequest::Series { .. } | CalculusRequest::Laurent { .. } | CalculusRequest::Asymptotic { .. },
+        ) => DomainPlan {
+            steps: vec![
+                PlanStep::CallDomainProvider,
+                PlanStep::CrossDomainView,
+                PlanStep::MaterializeResult,
+            ],
+        },
+        _ => DomainPlan {
+            steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+        },
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domains::calculus::{CalculusRequest, DerivativeOrder};
+    use crate::domains::calculus::DerivativeOrder;
     use athena_types::{AssumptionSet, SymbolId, TermId};
 
     #[test]
@@ -64,6 +77,26 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult]
+        );
+    }
+
+    #[test]
+    fn series_goal_inserts_cross_domain_view_step() {
+        let request = DomainRequest::Calculus(CalculusRequest::Series {
+            expression: TermId(0),
+            variable: SymbolId(0),
+            center: TermId(1),
+            order: 2,
+            assumptions: AssumptionSet::empty(),
+        });
+        let plan = plan_domain(&request);
+        assert_eq!(
+            plan.steps,
+            vec![
+                PlanStep::CallDomainProvider,
+                PlanStep::CrossDomainView,
+                PlanStep::MaterializeResult,
+            ]
         );
     }
 }
