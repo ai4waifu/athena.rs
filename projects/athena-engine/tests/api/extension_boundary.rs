@@ -1,6 +1,6 @@
 //! Extension surface names must not become core semantic dispatch.
 
-use athena_engine::runtime::values::arena::push_application_named;
+use athena_engine::runtime::values::arena::push_extension;
 use athena_ir::{ApplicationHead, Atom, TermNode};
 use athena_testing::SessionFixture;
 
@@ -15,7 +15,8 @@ fn extension_named_plus_is_not_semantic_add() {
         let mut t = fx.terms();
         t.integer(2)
     };
-    let term = push_application_named(fx.session_mut(), "Plus", vec![a, b]);
+    let op = fx.session_mut().operators.intern("Plus");
+    let term = push_extension(fx.session_mut(), op, vec![a, b]);
     match fx.session().arena.get(term) {
         Some(TermNode::Application {
             head: ApplicationHead::Extension(_),

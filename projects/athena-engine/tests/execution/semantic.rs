@@ -7,7 +7,7 @@ use athena_engine::{
     execution::evaluate_term,
     runtime::{
         Session,
-        values::arena::{push_application_named, push_constant, push_int, push_list, push_semantic, push_symbol_name},
+        values::arena::{push_constant, push_extension, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 use athena_types::BindingEvaluationPolicy;
@@ -46,7 +46,8 @@ fn unary(f: UnaryFunction, args: Vec<Tid>, s: &mut Session) -> Tid {
 }
 
 fn ext(head: &str, args: Vec<Tid>, s: &mut Session) -> Tid {
-    push_application_named(s, head, args)
+    let op = s.operators.intern(head);
+    push_extension(s, op, args)
 }
 
 

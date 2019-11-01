@@ -7,7 +7,7 @@ use athena_engine::{
     runtime::{
         Session,
         results::CoverageStatus,
-        values::arena::{push_application_named, push_constant, push_int, push_list, push_semantic, push_symbol_name},
+        values::arena::{push_constant, push_extension, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
 use athena_types::{BindingEvaluationPolicy, ComputationStatus, TermId};
@@ -70,7 +70,8 @@ fn unary(f: UnaryFunction, args: Vec<Tid>, c: &mut C) -> Tid {
 }
 
 fn ext(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
-    push_application_named(&mut c.s, head, args)
+    let op = c.s.operators.intern(head);
+    push_extension(&mut c.s, op, args)
 }
 
 #[test]

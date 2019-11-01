@@ -8,7 +8,7 @@ use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, T
 
 use crate::{
     domains::linear_algebra::{MatrixEntry, MatrixValue},
-    execution::{number_of, push_application, push_number, push_semantic},
+    execution::{number_of, push_extension, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -198,7 +198,8 @@ pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec
         }
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
             let name = session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
-            push_application(session, &name, args)
+            let op = session.operators.intern(&name);
+            push_extension(session, op, args)
         }
         _ => {
             let mut wrapped = Vec::with_capacity(args.len() + 1);

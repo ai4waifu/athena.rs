@@ -26,7 +26,7 @@ use crate::{
         compiler::ExecutionCompiler,
         environment::{LocalBinding, ScopeFrame},
         ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
-        number_of, push_application, push_number, push_semantic,
+        number_of, push_extension, push_number, push_semantic,
     },
     runtime::{
         results::{ComputationResult, CoverageStatus, ResultProvenance, computation_from_domain},

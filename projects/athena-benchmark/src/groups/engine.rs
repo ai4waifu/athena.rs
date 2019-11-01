@@ -1,16 +1,13 @@
 //! `engine` 分组种子 fixture。
 
-use athena_engine::{execution::evaluate_term, runtime::Session};
-
-fn push_int(n: i64, session: &mut Session) -> athena_types::TermId {
-    athena_engine::runtime::values::arena::push_int(session, n)
-}
-
-fn push_application_named(head: &str, args: Vec<athena_types::TermId>, session: &mut Session) -> athena_types::TermId {
-    athena_engine::runtime::values::arena::push_application_named(session, head, args)
-}
-
-use athena_engine::execution;
+use athena_engine::{
+    execution::{self, evaluate_term},
+    runtime::{
+        Session,
+        values::arena::{push_int, push_semantic},
+    },
+};
+use athena_ir::SemanticOperator;
 
 use crate::{
     fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
@@ -26,7 +23,9 @@ impl Fixture for EvalPowerFixture {
 
     fn validate(&self) -> Result<ValidationSummary, String> {
         let mut session = Session::new();
-        let expr = push_application_named("Power", vec![push_int(2, &mut session), push_int(10, &mut session)], &mut session);
+        let two = push_int(&mut session, 2);
+        let ten = push_int(&mut session, 10);
+        let expr = push_semantic(&mut session, SemanticOperator::Power, vec![two, ten]);
         let v = evaluate_term(&mut session, expr).term;
         let Some(x) = execution::number_of(&session, v).and_then(athena_numeric::to_f64_lossy)
         else {
@@ -40,7 +39,9 @@ impl Fixture for EvalPowerFixture {
 
     fn run_once(&self) {
         let mut session = Session::new();
-        let expr = push_application_named("Power", vec![push_int(3, &mut session), push_int(8, &mut session)], &mut session);
+        let three = push_int(&mut session, 3);
+        let eight = push_int(&mut session, 8);
+        let expr = push_semantic(&mut session, SemanticOperator::Power, vec![three, eight]);
         let _ = evaluate_term(&mut session, expr);
     }
 }

@@ -12,7 +12,7 @@ use super::super::{ReferenceExecutor, Slot};
 use super::super::helpers::*;
 use crate::{
     api::request::AthenaRequest,
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_application, push_number, push_semantic},
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_extension, push_number, push_semantic},
     runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
 };
 
@@ -92,7 +92,8 @@ impl ReferenceExecutor {
             terms.push(self.slot_as_term(session, slot)?);
         }
         // Extension residuals only — core trig/specials evaluate via SemanticOperator::Unary.
-        Ok(Slot::Term(push_application(session, name, terms)))
+        let op = session.operators.intern(name);
+        Ok(Slot::Term(push_extension(session, op, terms)))
     }
 
     /// Apply the first matching Session dispatch rule and re-evaluate the replacement.
@@ -372,7 +373,8 @@ impl ReferenceExecutor {
             }
         }
         if let Some(name) = symbol_name(session, func) {
-            let mapped = push_application(session, &name, vec![item]);
+            let op = session.operators.intern(&name);
+            let mapped = push_extension(session, op, vec![item]);
             return self.re_eval_term(session, mapped);
         }
         Err(diag("map_func_unsupported"))
@@ -442,7 +444,8 @@ impl ReferenceExecutor {
             }
         }
         if let Some(name) = symbol_name(session, head) {
-            let app = push_application(session, &name, call_args);
+            let op = session.operators.intern(&name);
+            let app = push_extension(session, op, call_args);
             match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
                 Ok(module) => {
                     let result_id = self.execute(session, &module, None)?;

@@ -5,16 +5,17 @@ use athena_engine::{
     plot::{SampleDomain, SamplingPolicy, sample_1d},
     runtime::{
         Session,
-        values::arena::{push_application_named, push_int, push_symbol_name},
+        values::arena::{push_int, push_semantic, push_symbol_name},
     },
 };
+use athena_ir::SemanticOperator;
 use athena_numeric::Number;
 use athena_types::SymbolId;
 
 fn square_of_x(session: &mut Session) -> athena_types::TermId {
     let x = push_symbol_name(session, "x");
     let two = push_int(session, 2);
-    push_application_named(session, "Power", vec![x, two])
+    push_semantic(session, SemanticOperator::Power, vec![x, two])
 }
 
 use crate::{
