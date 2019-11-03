@@ -17,6 +17,7 @@ use crate::{
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
         planner::{PlanStep, plan_domain},
         polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial_with_rings},
+        views::SeriesPolynomialView,
     },
     runtime::session::Session,
 };
@@ -44,7 +45,7 @@ pub enum DomainRequest {
     Optimization(OptimizationRequest),
 }
 
-/// 顶层域结果 — 按域区分，禁止压成无类型 map。
+/// 顶层域结果 — 按域区分，禁止压成单一类型 map。
 #[derive(Debug, PartialEq)]
 pub enum DomainResult {
     /// 微积分条件结果。
@@ -77,10 +78,42 @@ pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<D
             .detail("domain", "planner")
             .detail("reason", "plan missing CallDomainProvider"));
     }
-    // Bootstrap: Normalize / Verify / MaterializeResult are PlanIR markers only.
-    // Effectful work is CallDomainProvider → existing domain `execute_*`.
-    let _ = plan;
-    call_domain_provider(session, request)
+    let wants_cross_domain_view = plan.steps.iter().any(|s| matches!(s, PlanStep::CrossDomainView));
+    // Normalize / Verify / MaterializeResult remain PlanIR markers until Reflector owns them.
+    let result = call_domain_provider(session, request)?;
+    if wants_cross_domain_view {
+        open_cross_domain_view(session, &result)?;
+    }
+    Ok(result)
+}
+
+fn open_cross_domain_view(session: &Session, result: &DomainResult) -> Result<(), Diagnostic> {
+    match result {
+        DomainResult::Calculus(
+            CalculusResult::Exact {
+                value: CalculusValue::Series(series_ref),
+                ..
+            }
+            | CalculusResult::Conditional {
+                value: CalculusValue::Series(series_ref),
+                ..
+            }
+            | CalculusResult::Unevaluated {
+                expression: CalculusValue::Series(series_ref),
+                ..
+            },
+        ) => {
+            SeriesPolynomialView::open(&session.series_objects, *series_ref).ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("domain", "views")
+                    .detail("reason", "missing_series_ref_for_cross_domain_view")
+                    .arg("ref", series_ref.0)
+            })?;
+            Ok(())
+        }
+        // Plan asked for a view but this result shape has none yet — soft no-op.
+        _ => Ok(()),
+    }
 }
 
 fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
@@ -98,5 +131,56 @@ fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
         DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req, &session.matrix_objects))),
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domains::context::DomainExecutionContext;
+    use athena_ir::SemanticOperator;
+    use athena_types::AssumptionSet;
+
+    #[test]
+    fn series_plan_opens_series_polynomial_view() {
+        let mut session = Session::new();
+        let (expression, variable, center) = {
+            let dc = DomainExecutionContext::new(&mut session);
+            let variable = dc.intern("x");
+            let xs = dc.symbol_id(variable);
+            let center = dc.in_(0);
+            let expression = dc.apply_semantic(SemanticOperator::Unary(athena_ir::UnaryFunction::Sin), vec![xs]);
+            (expression, variable, center)
+        };
+        let result = execute_domain(
+            &mut session,
+            DomainRequest::Calculus(CalculusRequest::Series {
+                expression,
+                variable,
+                center,
+                order: 2,
+                assumptions: AssumptionSet::empty(),
+            }),
+        )
+        .expect("execute");
+        match result {
+            DomainResult::Calculus(
+                CalculusResult::Exact {
+                    value: CalculusValue::Series(r),
+                    ..
+                }
+                | CalculusResult::Conditional {
+                    value: CalculusValue::Series(r),
+                    ..
+                }
+                | CalculusResult::Unevaluated {
+                    expression: CalculusValue::Series(r),
+                    ..
+                },
+            ) => {
+                assert!(SeriesPolynomialView::open(&session.series_objects, r).is_some());
+            }
+            other => panic!("expected series DomainResult, got {other:?}"),
+        }
     }
 }
