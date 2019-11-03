@@ -264,44 +264,19 @@ impl ExecutionCompiler {
                 Ok(ssa)
             }
             Some(TermNode::Atom(Atom::Symbol(symbol))) => {
-                match session.arena.symbols().resolve(*symbol) {
-                    Some("True") => {
-                        let ssa = builder.ssa();
-                        let constant = builder.push_constant(ConstantValue::boolean(true));
-                        operations.push(Operation {
-                            result: Some(ssa),
-                            result_type: ExecutionValueType::Boolean,
-                            kind: OperationKind::Constant { constant },
-                            effect_in: None,
-                            effect_out: None,
-                        });
-                        return Ok(ssa);
-                    }
-                    Some("False") => {
-                        let ssa = builder.ssa();
-                        let constant = builder.push_constant(ConstantValue::boolean(false));
-                        operations.push(Operation {
-                            result: Some(ssa),
-                            result_type: ExecutionValueType::Boolean,
-                            kind: OperationKind::Constant { constant },
-                            effect_in: None,
-                            effect_out: None,
-                        });
-                        return Ok(ssa);
-                    }
-                    Some("Null") => {
-                        let root = builder.push_term_root(term);
-                        let ssa = builder.ssa();
-                        operations.push(Operation {
-                            result: Some(ssa),
-                            result_type: ExecutionValueType::Term,
-                            kind: OperationKind::LoadTerm { root },
-                            effect_in: None,
-                            effect_out: None,
-                        });
-                        return Ok(ssa);
-                    }
-                    _ => {}
+                // Living `27`: never treat user symbol display names as booleans.
+                // `"Null"` as a symbol remains a binding key / residual load (typed `Atom::Null` is separate).
+                if session.arena.symbols().resolve(*symbol) == Some("Null") {
+                    let root = builder.push_term_root(term);
+                    let ssa = builder.ssa();
+                    operations.push(Operation {
+                        result: Some(ssa),
+                        result_type: ExecutionValueType::Term,
+                        kind: OperationKind::LoadTerm { root },
+                        effect_in: None,
+                        effect_out: None,
+                    });
+                    return Ok(ssa);
                 }
                 let key = builder.ssa();
                 let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
@@ -455,13 +430,6 @@ impl ExecutionCompiler {
     fn require_boolean_atom(&self, session: &mut Session, term: TermId) -> Result<bool> {
         match session.arena.get(term) {
             Some(TermNode::Atom(Atom::Boolean(value))) => Ok(*value),
-            Some(TermNode::Atom(Atom::Symbol(symbol))) => match session.arena.symbols().resolve(*symbol) {
-                Some("True") => Ok(true),
-                Some("False") => Ok(false),
-                _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "ExecutionCompiler")
-                    .detail("status", "branch_condition_not_boolean_atom")),
-            },
             // Exact `0`/`1` truthiness. Other numbers fail so
             // `Branch` can fall back to runtime predicate lowering.
             Some(TermNode::Atom(Atom::Number(n))) => {

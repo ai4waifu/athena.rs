@@ -103,11 +103,6 @@ pub(crate) fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool
 pub(crate) fn as_boolean_like_term(session: &Session, term: TermId) -> Option<bool> {
     match session.arena.get(term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Some(*v),
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => match session.arena.symbols().resolve(*symbol) {
-            Some("True") => Some(true),
-            Some("False") => Some(false),
-            _ => None,
-        },
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
             if n.is_zero() {
                 Some(false)
@@ -126,13 +121,6 @@ pub(crate) fn as_boolean_like_term(session: &Session, term: TermId) -> Option<bo
 pub(crate) fn coerce_branch_predicate(session: &Session, term: TermId) -> Result<bool> {
     match session.arena.get(term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v))) => Ok(*v),
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => match session.arena.symbols().resolve(*symbol) {
-            Some("True") => Ok(true),
-            Some("False") => Ok(false),
-            _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
-                .detail("component", "ReferenceExecutor")
-                .detail("reason", "branch_symbol_not_boolean")),
-        },
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => Ok(!n.is_zero()),
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Null)) => Ok(false),
         _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)

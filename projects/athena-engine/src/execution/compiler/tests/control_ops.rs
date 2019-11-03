@@ -507,8 +507,8 @@ fn compile_and_execute_cond_picks_true_arm() {
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
     let three = session.builder().int(3, Default::default());
-    let fals = session.builder().symbol("False", Default::default());
-    let tru = session.builder().symbol("True", Default::default());
+    let fals = session.builder().boolean(false, Default::default());
+    let tru = session.builder().boolean(true, Default::default());
     let request = AthenaRequest::Control(ControlPlan::Cond {
         arms: vec![
             (fals, Box::new(AthenaRequest::Term(one))),
@@ -573,7 +573,7 @@ fn compile_and_execute_runtime_branch() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(seven));
 
-    let fals = session.builder().symbol("False", Default::default());
+    let fals = session.builder().boolean(false, Default::default());
     let request = AthenaRequest::Control(ControlPlan::Branch {
         condition: fals,
         then_branch: Box::new(AthenaRequest::Term(seven)),

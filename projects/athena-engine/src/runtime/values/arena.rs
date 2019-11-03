@@ -138,22 +138,12 @@ pub fn number_from_id<'a>(session: &'a Session, id: TermId) -> Option<&'a Number
     }
 }
 
-/// 将节点解释为 typed Boolean。
+/// 将节点解释为 typed Boolean（仅 `Atom::Boolean` 与精确 `0`/`1` 数字）。
+///
+/// Living `27`：禁止用用户符号显示名 `"True"` / `"False"` 反推布尔语义。
 pub fn as_boolean_id(session: &Session, id: TermId) -> Option<bool> {
     match session.arena.get(id)? {
         TermNode::Atom(Atom::Boolean(b)) => Some(*b),
-        TermNode::Atom(Atom::Symbol(sym)) => {
-            let name = session.arena.symbols().resolve(*sym)?;
-            if name == "True" {
-                Some(true)
-            }
-            else if name == "False" {
-                Some(false)
-            }
-            else {
-                None
-            }
-        }
         _ => number_from_id(session, id).and_then(|n| {
             if n.is_zero() {
                 Some(false)
