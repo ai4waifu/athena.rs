@@ -85,14 +85,19 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_residual_app(&self, session: &mut Session, name: &str, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_residual_app(
+        &self,
+        session: &mut Session,
+        op: athena_types::OperatorId,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         // Extension residuals only — core trig/specials evaluate via SemanticOperator::Unary.
-        let op = session.operators.intern(name);
         Ok(Slot::Term(push_extension(session, op, terms)))
     }
 

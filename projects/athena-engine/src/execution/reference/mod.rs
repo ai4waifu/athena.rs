@@ -338,13 +338,17 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
-                // Extension names are display / user-dispatch only — never core math (Living 27).
-                let name = session.operators.name(*operator).unwrap_or("").to_string();
-                if let Some(slot) = self.try_apply_down_values(session, name.as_str(), args, slots)? {
-                    return Ok(slot);
+                // Living `27`: residual rebuild uses `OperatorId` only.
+                // RuleDispatch lookup still bridges display name → user `SymbolId` (temporary debt).
+                let op = *operator;
+                let display = session.operators.name(op).map(str::to_string);
+                if let Some(name) = display.as_deref() {
+                    if let Some(slot) = self.try_apply_down_values(session, name, args, slots)? {
+                        return Ok(slot);
+                    }
                 }
                 *unevaluated = true;
-                self.eval_residual_app(session, name.as_str(), args, slots)
+                self.eval_residual_app(session, op, args, slots)
             }
             OperationKind::ConstructCollection { kind, elements } => {
                 let mut items = Vec::with_capacity(elements.len());
