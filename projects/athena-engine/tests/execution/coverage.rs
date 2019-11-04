@@ -151,11 +151,22 @@ fn unknown_head_is_unevaluated_not_exact_value() {
 }
 
 #[test]
-fn symbol_true_false_null_canonicalize_to_typed_atoms() {
+fn typed_boolean_and_null_atoms_render_and_symbols_stay_symbols() {
     let mut c = C::new();
-    assert_eq!(t(symbol("True", &mut c), &mut c), "True");
-    assert_eq!(t(symbol("False", &mut c), &mut c), "False");
-    assert_eq!(t(symbol("Null", &mut c), &mut c), "Null");
+    assert_eq!(t(boolean(true, &mut c), &mut c), "True");
+    assert_eq!(t(boolean(false, &mut c), &mut c), "False");
+    {
+        let span = athena_ir::TermNode::default_span();
+        let null = c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Null), span);
+        assert_eq!(t(null, &mut c), "Null");
+    }
+    // Display-name symbols must not canonicalize into typed boolean/null atoms.
+    let true_sym = symbol("True", &mut c);
+    assert_eq!(t(true_sym, &mut c), "True");
+    assert!(matches!(
+        c.s.arena.get(true_sym),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_)))
+    ));
     assert_eq!(t(sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
 }
 

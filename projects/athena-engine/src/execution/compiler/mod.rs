@@ -264,20 +264,7 @@ impl ExecutionCompiler {
                 Ok(ssa)
             }
             Some(TermNode::Atom(Atom::Symbol(symbol))) => {
-                // Living `27`: never treat user symbol display names as booleans.
-                // `"Null"` as a symbol remains a binding key / residual load (typed `Atom::Null` is separate).
-                if session.arena.symbols().resolve(*symbol) == Some("Null") {
-                    let root = builder.push_term_root(term);
-                    let ssa = builder.ssa();
-                    operations.push(Operation {
-                        result: Some(ssa),
-                        result_type: ExecutionValueType::Term,
-                        kind: OperationKind::LoadTerm { root },
-                        effect_in: None,
-                        effect_out: None,
-                    });
-                    return Ok(ssa);
-                }
+                // Living `27`: user symbols are binding keys only — never display-name constants.
                 let key = builder.ssa();
                 let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
                 let effect_in = builder.push_effect(EffectKind::ReadBinding, None);
