@@ -266,18 +266,24 @@ impl ReferenceExecutor {
             }
             IndexSpec::Scalar(IntegerIndex(idx)) => {
                 if *idx == 0 {
+                    // Living `27`: never reify heads via display-name symbols.
+                    // Index 0 yields a typed empty projection of the same head / collection kind.
                     return Ok(IndexStep::Next(match session.arena.get(expr) {
-                        Some(athena_ir::TermNode::Collection { .. }) => {
-                            session.builder().symbol("OrderedCollection", Default::default())
+                        Some(athena_ir::TermNode::Collection { kind, .. }) => {
+                            let kind = *kind;
+                            let span = athena_ir::TermNode::default_span();
+                            session.arena.push(athena_ir::TermNode::Collection { kind, elements: Vec::new() }, span)
                         }
                         Some(athena_ir::TermNode::Application { head, .. }) => {
-                            let name = match *head {
-                                athena_ir::ApplicationHead::Semantic(op) => op.debug_label().to_string(),
-                                athena_ir::ApplicationHead::Extension(id) => {
-                                    session.operators.name(id).unwrap_or("").to_string()
-                                }
-                            };
-                            session.builder().symbol(&name, Default::default())
+                            let head = *head;
+                            let span = athena_ir::TermNode::default_span();
+                            session.arena.push(
+                                athena_ir::TermNode::Application {
+                                    head,
+                                    arguments: Vec::new(),
+                                },
+                                span,
+                            )
                         }
                         _ => return Ok(IndexStep::Residual),
                     }));
