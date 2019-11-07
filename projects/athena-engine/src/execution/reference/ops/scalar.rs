@@ -142,16 +142,22 @@ impl ReferenceExecutor {
     pub(crate) fn try_apply_down_values(
         &self,
         session: &mut Session,
-        name: &str,
+        op: athena_types::OperatorId,
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
-        let symbol = session.arena.symbols_mut().intern(name);
+        // Temporary bridge: RuleDispatch tables are still keyed by user `SymbolId`.
+        // Display name is registry/diagnostics only — never core `SemanticOperator` dispatch.
+        let Some(name) = session.operators.name(op).map(str::to_string)
+        else {
+            return Ok(None);
+        };
+        let symbol = session.arena.symbols_mut().intern(&name);
         let Some(rules) = session.defs.dispatch_rules(symbol).map(|r| r.to_vec())
         else {
             return Ok(None);
         };
-        let call_op = ApplicationHead::Extension(session.operators.intern(name));
+        let call_op = ApplicationHead::Extension(op);
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;

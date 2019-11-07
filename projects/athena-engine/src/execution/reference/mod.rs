@@ -339,13 +339,9 @@ impl ReferenceExecutor {
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
                 // Living `27`: residual rebuild uses `OperatorId` only.
-                // RuleDispatch lookup still bridges display name → user `SymbolId` (temporary debt).
                 let op = *operator;
-                let display = session.operators.name(op).map(str::to_string);
-                if let Some(name) = display.as_deref() {
-                    if let Some(slot) = self.try_apply_down_values(session, name, args, slots)? {
-                        return Ok(slot);
-                    }
+                if let Some(slot) = self.try_apply_down_values(session, op, args, slots)? {
+                    return Ok(slot);
                 }
                 *unevaluated = true;
                 self.eval_residual_app(session, op, args, slots)
