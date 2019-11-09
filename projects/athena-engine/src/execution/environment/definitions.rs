@@ -1,11 +1,11 @@
-//! 分层定义表与作用域帧（Living `25` / `27` · `SymbolId` 键）。
+//! 分层定义表与作用域帧（Living `25` / `27` · `SymbolId` / `OperatorId` 键）。
 //!
 //! - [`DefinitionLayer`]：语句层立即绑定 / 残余绑定 / 规则分派（Session 全局为底层）。
 //! - [`ScopeFrame`]：局部遮蔽（读取优先，不写回全局）。
 
 use std::collections::HashMap;
 
-use athena_types::{SymbolId, TermId};
+use athena_types::{OperatorId, SymbolId, TermId};
 
 use crate::reasoning::trs::TermPattern;
 
@@ -15,6 +15,8 @@ pub struct DefinitionLayer {
     bindings: HashMap<SymbolId, TermId>,
     residual_bindings: HashMap<SymbolId, TermId>,
     dispatch_rules: HashMap<SymbolId, Vec<(TermPattern, TermId)>>,
+    /// Extension / 表面 head 规则（Living `27`：apply 路径按 `OperatorId` 查，禁止字符串桥接）。
+    extension_dispatch_rules: HashMap<OperatorId, Vec<(TermPattern, TermId)>>,
 }
 
 impl DefinitionLayer {
@@ -42,6 +44,11 @@ impl DefinitionLayer {
         self.bindings.remove(&symbol);
     }
 
+    /// 追加 extension head 规则（[`OperatorId`] 键）。
+    pub fn register_extension_rule(&mut self, op: OperatorId, pattern: TermPattern, replacement: TermId) {
+        self.extension_dispatch_rules.entry(op).or_default().push((pattern, replacement));
+    }
+
     /// 查立即绑定。
     pub fn binding(&self, symbol: SymbolId) -> Option<TermId> {
         self.bindings.get(&symbol).copied()
@@ -52,9 +59,14 @@ impl DefinitionLayer {
         self.residual_bindings.get(&symbol).copied()
     }
 
-    /// 查规则分派表。
+    /// 查规则分派表（用户符号键）。
     pub fn dispatch_rules(&self, symbol: SymbolId) -> Option<&[(TermPattern, TermId)]> {
         self.dispatch_rules.get(&symbol).map(Vec::as_slice)
+    }
+
+    /// 查 extension head 规则分派表。
+    pub fn extension_dispatch_rules(&self, op: OperatorId) -> Option<&[(TermPattern, TermId)]> {
+        self.extension_dispatch_rules.get(&op).map(Vec::as_slice)
     }
 
     /// 清除该符号的全部绑定与分派规则。
@@ -64,11 +76,17 @@ impl DefinitionLayer {
         self.dispatch_rules.remove(&symbol);
     }
 
+    /// 清除 extension head 的分派规则。
+    pub fn clear_extension(&mut self, op: OperatorId) {
+        self.extension_dispatch_rules.remove(&op);
+    }
+
     /// 清空层内全部定义。
     pub fn clear(&mut self) {
         self.bindings.clear();
         self.residual_bindings.clear();
         self.dispatch_rules.clear();
+        self.extension_dispatch_rules.clear();
     }
 
     /// 层内是否存在该符号的任何定义。

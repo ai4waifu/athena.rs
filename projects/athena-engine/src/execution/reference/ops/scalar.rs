@@ -146,14 +146,7 @@ impl ReferenceExecutor {
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
-        // Temporary bridge: RuleDispatch tables are still keyed by user `SymbolId`.
-        // Display name is registry/diagnostics only — never core `SemanticOperator` dispatch.
-        let Some(name) = session.operators.name(op).map(str::to_string)
-        else {
-            return Ok(None);
-        };
-        let symbol = session.arena.symbols_mut().intern(&name);
-        let Some(rules) = session.defs.dispatch_rules(symbol).map(|r| r.to_vec())
+        let Some(rules) = session.defs.extension_dispatch_rules(op).map(|r| r.to_vec())
         else {
             return Ok(None);
         };
