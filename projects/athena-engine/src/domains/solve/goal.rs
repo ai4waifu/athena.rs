@@ -1,33 +1,34 @@
 //! Solve 目标族。
 //!
 //! 不同前端入口 lowering 到不同 goal；禁止压成同一返回类型。
+//! 方言表面函数名只存在于 SXO adapter / 文档，不写入本枚举合同。
 
 /// 求解目标（完整性承诺随 goal 变化）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SolveGoal {
-    /// 精确解集（Mathematica `Solve` / MATLAB `solve`）。
+    /// 完整精确解集。结果必须区分条件、覆盖率与完备性。
     ExactSolutionSet,
-    /// 数值根集（`NSolve` / `vpasolve`）。
+    /// 数值近似根集（不承诺符号完备）。
     NumericalRootSet,
-    /// 与原问题等价的条件描述（`Reduce` 一侧）。
+    /// 与原问题等价的条件 / 半代数描述。
     ConstraintDescription,
-    /// 量词消去（`Reduce`/`Resolve` 量化侧）。
+    /// 量词消去，产出无量词公式。
     QuantifierElimination,
-    /// 指定域上的量词判定（`Resolve`）。
+    /// 指定域上的量词真假判定。
     QuantifierDecision,
-    /// 消元理想 / 投影关系（`Eliminate`）。
+    /// 消元理想 / 投影关系。
     EliminationIdeal,
-    /// 模型查找（`FindInstance`，不承诺完整）。
+    /// 模型查找（存在性实例，不承诺完整解集）。
     ModelFinding,
-    /// 局部数值根（`FindRoot` / `fsolve`）。
+    /// 局部数值根（初值邻域）。
     LocalNumericalRoot,
-    /// 线性系统（`LinearSolve` / `linsolve` / `A\b`）。
+    /// 线性系统精确 / 结构化求解。
     LinearSystemSolve,
-    /// 多项式根集（MATLAB `roots` 等）。
+    /// 多项式根集（一元或指定表示）。
     PolynomialRootSet,
-    /// 微分方程解（`DSolve` / `dsolve`）。
+    /// 微分方程解。
     DifferentialSolution,
-    /// 递推解（`RSolve`）。
+    /// 递推关系解。
     RecurrenceSolution,
 }
 
@@ -39,6 +40,9 @@ impl SolveGoal {
 
     /// 结果是否应是条件公式而非绑定枚举。
     pub fn yields_constraint_formula(self) -> bool {
-        matches!(self, Self::ConstraintDescription | Self::QuantifierElimination | Self::QuantifierDecision | Self::EliminationIdeal)
+        matches!(
+            self,
+            Self::ConstraintDescription | Self::QuantifierElimination | Self::QuantifierDecision | Self::EliminationIdeal
+        )
     }
 }
