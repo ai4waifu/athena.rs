@@ -306,13 +306,12 @@ fn downvalues_and_match_q() {
         other => panic!("expected symbol, got {other:?}"),
     };
     let f_op = s.operators.intern("f");
-    let f_sym = s.arena.symbols_mut().intern("f");
     let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
     let pattern = TermPattern::Application {
         operator: athena_ir::ApplicationHead::Extension(f_op),
         arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
     };
-    s.defs.register_rule(f_sym, pattern, rhs);
+    s.defs.register_extension_rule(f_op, pattern, rhs);
     let call = ext("f", vec![int(3, &mut s)], &mut s);
     assert_eq!(eval(&mut s, call), "9");
 

@@ -348,10 +348,9 @@ fn session_pattern_dispatch_rule() {
         other => panic!("expected symbol, got {other:?}"),
     };
     let f_op = c.s.operators.intern("f");
-    let f_sym = c.s.arena.symbols_mut().intern("f");
     let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    c.s.defs.register_rule(
-        f_sym,
+    c.s.defs.register_extension_rule(
+        f_op,
         TermPattern::Application {
             operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
@@ -367,11 +366,10 @@ fn dispatch_literal_then_bind_fallback() {
     use athena_ir::{Atom, TermNode};
     let mut c = C::new();
     let f_op = c.s.operators.intern("f");
-    let f_sym = c.s.arena.symbols_mut().intern("f");
     let one = i(1, &mut c);
     let ten = i(10, &mut c);
-    c.s.defs.register_rule(
-        f_sym,
+    c.s.defs.register_extension_rule(
+        f_op,
         TermPattern::Application {
             operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Exact(one)],
@@ -384,8 +382,8 @@ fn dispatch_literal_then_bind_fallback() {
         other => panic!("expected symbol, got {other:?}"),
     };
     let rhs2 = sem(SemanticOperator::Multiply, vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
-    c.s.defs.register_rule(
-        f_sym,
+    c.s.defs.register_extension_rule(
+        f_op,
         TermPattern::Application {
             operator: athena_ir::ApplicationHead::Extension(f_op),
             arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],

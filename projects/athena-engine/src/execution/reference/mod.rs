@@ -451,12 +451,14 @@ impl ReferenceExecutor {
                 };
                 // Structure-only compile from term. Wildcards must arrive as typed `TermPattern` via API.
                 let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
-                session.defs.register_rule(symbol, compiled.clone(), value_term);
-                // Dual-index under `OperatorId` so extension apply never strings through display names.
-                if let Some(name) = session.arena.symbols().resolve(symbol).map(str::to_string) {
-                    let op = session.operators.intern(&name);
-                    session.defs.register_extension_rule(op, compiled, value_term);
-                }
+                let Some(name) = session.arena.symbols().resolve(symbol).map(str::to_string)
+                else {
+                    return Err(diag("rule_head_symbol_unresolved"));
+                };
+                let op = session.operators.intern(&name);
+                // Living `27`: rules live only under `OperatorId`.
+                session.defs.clear_symbol(symbol);
+                session.defs.register_extension_rule(op, compiled, value_term);
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {
