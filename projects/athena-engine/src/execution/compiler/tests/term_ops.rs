@@ -75,7 +75,7 @@ fn compile_and_execute_list_with_plus() {
             }
             assert_eq!(items[1], c);
         }
-        other => panic!("expected List[5,9], got {other:?}"),
+        other => panic!("expected OrderedCollection[5,9], got {other:?}"),
     }
 }
 
@@ -101,7 +101,7 @@ fn compile_and_execute_abs_and_length() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(2) => {}
-        other => panic!("expected Length[List[1,2]] == 2, got {other:?}"),
+        other => panic!("expected Length[OrderedCollection[1,2]] == 2, got {other:?}"),
     }
 }
 
@@ -129,7 +129,7 @@ fn compile_and_execute_first_rest_join() {
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [b, c] => {}
-        other => panic!("expected Rest == List[2,3], got {other:?}"),
+        other => panic!("expected Rest == OrderedCollection[2,3], got {other:?}"),
     }
 }
 
@@ -187,7 +187,7 @@ fn compile_and_execute_apply_and_size() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3) => {}
-        other => panic!("expected Apply[Add, List[1,2]] == 3, got {other:?}"),
+        other => panic!("expected Apply[Add, OrderedCollection[1,2]] == 3, got {other:?}"),
     }
 
     let row = session.builder().list(vec![one, two], Default::default());
@@ -206,7 +206,7 @@ fn compile_and_execute_apply_and_size() {
                 }
             }
         }
-        other => panic!("expected Size == List[2,2], got {other:?}"),
+        other => panic!("expected Size == OrderedCollection[2,2], got {other:?}"),
     }
 }
 
@@ -233,7 +233,7 @@ fn compile_and_execute_map_symbol() {
                 other => panic!("expected Abs[4]==4, got {other:?}"),
             }
         }
-        other => panic!("expected Map[Abs, List[-1,4]] == List[1,4], got {other:?}"),
+        other => panic!("expected Map[Abs, OrderedCollection[-1,4]] == OrderedCollection[1,4], got {other:?}"),
     }
 }
 

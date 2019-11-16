@@ -28,9 +28,9 @@ pub fn term_debug(session: &Session, id: athena_types::TermId) -> String {
     match session.arena.get(id) {
         None => format!("TermId({})", id.0),
         Some(TermNode::Atom(a)) => atom_debug(session, a),
-        Some(TermNode::Collection { elements: items, .. }) => {
+        Some(TermNode::Collection { kind, elements: items }) => {
             let inner: Vec<_> = items.iter().map(|c| term_debug(session, *c)).collect();
-            format!("List[{}]", inner.join(", "))
+            format!("{}[{}]", kind.debug_label(), inner.join(", "))
         }
         Some(TermNode::Application { .. }) => {
             let head = application_display_name(session, id).unwrap_or_else(|| "?".into());

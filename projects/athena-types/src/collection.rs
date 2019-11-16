@@ -28,3 +28,20 @@ pub enum CollectionKind {
     /// 领域注册的集合种类。
     DomainCollection(CollectionKindId),
 }
+
+impl CollectionKind {
+    /// 诊断 / 调试标签（非方言表面名 · Living `27`）。
+    pub const fn debug_label(self) -> &'static str {
+        match self {
+            Self::StructuralSequence => "StructuralSequence",
+            Self::Tuple => "Tuple",
+            Self::OrderedCollection => "OrderedCollection",
+            Self::SetLikeCollection => "SetLikeCollection",
+            Self::Vector => "Vector",
+            Self::MatrixRow => "MatrixRow",
+            Self::MatrixColumn => "MatrixColumn",
+            Self::Matrix => "Matrix",
+            Self::DomainCollection(_) => "DomainCollection",
+        }
+    }
+}

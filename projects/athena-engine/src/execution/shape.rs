@@ -41,7 +41,7 @@ pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<Str
             ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
             ApplicationHead::Extension(op) => session.operators.name(op).map(str::to_string),
         },
-        TermNode::Collection { .. } => Some("OrderedCollection".into()),
+        TermNode::Collection { kind, .. } => Some(kind.debug_label().to_string()),
         TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
         TermNode::Atom(Atom::Constant(c)) => Some(c.debug_label().to_string()),
         _ => None,

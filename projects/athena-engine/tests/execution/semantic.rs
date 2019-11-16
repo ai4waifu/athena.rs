@@ -100,15 +100,15 @@ fn comparisons_and_logic() {
     let nested = sem(SemanticOperator::Less, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let e = sem(SemanticOperator::Less, vec![nested, int(3, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "True");
-    let t = symbol("True", &mut s);
-    let f = symbol("False", &mut s);
+    let t = s.builder().boolean(true, Default::default());
+    let f = s.builder().boolean(false, Default::default());
     let e = sem(SemanticOperator::And, vec![t, f], &mut s);
     assert_eq!(eval(&mut s, e), "False");
-    let t = symbol("True", &mut s);
-    let f = symbol("False", &mut s);
+    let t = s.builder().boolean(true, Default::default());
+    let f = s.builder().boolean(false, Default::default());
     let e = sem(SemanticOperator::Or, vec![t, f], &mut s);
     assert_eq!(eval(&mut s, e), "True");
-    let f = symbol("False", &mut s);
+    let f = s.builder().boolean(false, Default::default());
     let e = sem(SemanticOperator::Not, vec![f], &mut s);
     assert_eq!(eval(&mut s, e), "True");
 }
@@ -259,7 +259,7 @@ fn iterate_collects_ordered_collection() {
         body: Box::new(AthenaRequest::Term(body)),
         evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
     });
-    assert_eq!(eval_request(&mut s, request), "List[1, 4, 9, 16]");
+    assert_eq!(eval_request(&mut s, request), "OrderedCollection[1, 4, 9, 16]");
 }
 
 #[test]

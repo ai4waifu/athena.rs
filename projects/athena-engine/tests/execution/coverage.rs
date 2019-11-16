@@ -94,7 +94,7 @@ fn list_eval() {
     let mut c = C::new();
     let inner = sem(SemanticOperator::Add, vec![i(2, &mut c), i(2, &mut c)], &mut c);
     let e = lst(vec![i(1, &mut c), inner], &mut c);
-    assert_eq!(t(e, &mut c), "List[1, 4]");
+    assert_eq!(t(e, &mut c), "OrderedCollection[1, 4]");
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn map_sin_list() {
     let mut c = C::new();
     let e = sem(SemanticOperator::Map, vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
     let r = t(e, &mut c);
-    assert!(r.starts_with("List["), "got {r}");
+    assert!(r.starts_with("OrderedCollection["), "got {r}");
 }
 
 #[test]
@@ -257,7 +257,7 @@ fn session_pattern_dispatch_rule() {
 fn compare_list_scalar_broadcasts() {
     let mut c = C::new();
     let e = sem(SemanticOperator::Less, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), i(2, &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "List[True, False, False]");
+    assert_eq!(t(e, &mut c), "OrderedCollection[True, False, False]");
 }
 
 #[test]
@@ -308,7 +308,7 @@ fn apply_and_join_and_length() {
     let e = sem(SemanticOperator::Apply, vec![sem(SemanticOperator::Add, vec![], &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
     let e = sem(SemanticOperator::Join, vec![lst(vec![i(1, &mut c)], &mut c), lst(vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
-    assert_eq!(t(e, &mut c), "List[1, 2, 3]");
+    assert_eq!(t(e, &mut c), "OrderedCollection[1, 2, 3]");
     let e = sem(SemanticOperator::Length, vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "3");
 }
@@ -349,7 +349,7 @@ fn det_and_size() {
     let m = lst(vec![lst(vec![i(1, &mut c), i(2, &mut c)], &mut c), lst(vec![i(3, &mut c), i(4, &mut c)], &mut c)], &mut c);
     assert_eq!(t(sem(SemanticOperator::Determinant, vec![m.clone()], &mut c), &mut c), "-2");
     let r = t(sem(SemanticOperator::Size, vec![m], &mut c), &mut c);
-    assert!(r.contains("List[2, 2]"), "got {r}");
+    assert!(r.contains("OrderedCollection[2, 2]"), "got {r}");
 }
 
 #[test]
@@ -437,5 +437,5 @@ fn iterate_with_explicit_range() {
     });
     let result_id = execution::execute_ir_request(&mut c.s, request).expect("ir");
     let term = c.s.results.get(result_id).and_then(|r| r.symbolic_term).expect("term");
-    assert_eq!(term_debug(&c.s, term), "List[1, 2, 3]");
+    assert_eq!(term_debug(&c.s, term), "OrderedCollection[1, 2, 3]");
 }
