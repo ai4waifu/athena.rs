@@ -391,11 +391,7 @@ impl ReferenceExecutor {
                             frame.unbind(symbol);
                         }
                         else {
-                            if let Some(name) = session.arena.symbols().resolve(symbol) {
-                                if let Some(op) = session.operators.lookup(name) {
-                                    session.defs.clear_extension(op);
-                                }
-                            }
+                            // Living `27`: clear owned extension rules via `SymbolId`→`OperatorId` map.
                             session.defs.clear_symbol(symbol);
                         }
                     }
@@ -456,9 +452,8 @@ impl ReferenceExecutor {
                     return Err(diag("rule_head_symbol_unresolved"));
                 };
                 let op = session.operators.intern(&name);
-                // Living `27`: rules live only under `OperatorId`.
-                session.defs.clear_symbol(symbol);
-                session.defs.register_extension_rule(op, compiled, value_term);
+                // Living `27`: rules under `OperatorId`, owned by the head `SymbolId` for clear.
+                session.defs.register_extension_rule_for_symbol(symbol, op, compiled, value_term);
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {
