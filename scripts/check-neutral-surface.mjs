@@ -26,6 +26,7 @@ const banned = [
   { re: /\bextension_named\s*\(/, why: "extension display-name semantic check" },
   { re: /fn\s+apply\s*\(\s*&self,\s*head:\s*&str/, why: "string apply construction API" },
   { re: /\blookup_function\s*\(/, why: "string function registry" },
+  { re: /\.operators\.lookup\s*\(/, why: "operators.lookup string bridge" },
   { re: /\bpush_application_named\s*\(/, why: "string named application construction" },
   { re: /fn\s+push_application\s*\([^)]*&str/, why: "push_application(&str) construction API" },
   { re: /\btry_calculus_request\s*\(/, why: "string calculus goal hub" },
