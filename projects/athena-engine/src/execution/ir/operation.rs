@@ -89,8 +89,10 @@ pub enum OperationKind {
     },
     /// Register a pattern → replacement dispatch rule on a head binding.
     RegisterRuleDispatch {
-        /// Head symbol key.
+        /// Head symbol key (ownership / clear).
         head: SsaValueId,
+        /// Extension operator closed at compile (no execute-time display-name intern).
+        operator: OperatorId,
         /// Pattern term (already neutral / compiled at lowering).
         pattern: SsaValueId,
         /// Replacement template term.

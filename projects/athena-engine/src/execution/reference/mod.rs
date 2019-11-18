@@ -432,7 +432,7 @@ impl ReferenceExecutor {
                 }
                 Ok(Slot::Unit)
             }
-            OperationKind::RegisterRuleDispatch { head, pattern, replacement } => {
+            OperationKind::RegisterRuleDispatch { head, operator, pattern, replacement } => {
                 let symbol = match slots.get(head) {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
@@ -447,13 +447,8 @@ impl ReferenceExecutor {
                 };
                 // Structure-only compile from term. Wildcards must arrive as typed `TermPattern` via API.
                 let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
-                let Some(name) = session.arena.symbols().resolve(symbol).map(str::to_string)
-                else {
-                    return Err(diag("rule_head_symbol_unresolved"));
-                };
-                let op = session.operators.intern(&name);
-                // Living `27`: rules under `OperatorId`, owned by the head `SymbolId` for clear.
-                session.defs.register_extension_rule_for_symbol(symbol, op, compiled, value_term);
+                // Living `27`: `OperatorId` closed at compile. No execute-time display-name intern.
+                session.defs.register_extension_rule_for_symbol(symbol, *operator, compiled, value_term);
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {

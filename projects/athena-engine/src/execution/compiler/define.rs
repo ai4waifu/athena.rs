@@ -24,7 +24,12 @@ impl ExecutionCompiler {
         pattern: TermId,
         value: TermId,
     ) -> Result<SsaValueId> {
-        let _ = session;
+        let Some(name) = session.arena.symbols().resolve(symbol)
+        else {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("status", "rule_head_symbol_unresolved"));
+        };
+        let operator = session.operators.intern(name);
         let key = builder.ssa();
         let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
         let pattern_root = builder.push_term_root(pattern);
@@ -62,7 +67,12 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::RegisterRuleDispatch { head: key, pattern: pattern_ssa, replacement: value_ssa },
+                    kind: OperationKind::RegisterRuleDispatch {
+                        head: key,
+                        operator,
+                        pattern: pattern_ssa,
+                        replacement: value_ssa,
+                    },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },
