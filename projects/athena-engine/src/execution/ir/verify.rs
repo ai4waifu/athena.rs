@@ -180,6 +180,7 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
         OperationKind::ReadBinding { key } => vec![*key],
         OperationKind::WriteBinding { key, value, .. } => vec![*key, *value],
         OperationKind::RegisterRuleDispatch { head, pattern, replacement, .. } => vec![*head, *pattern, *replacement],
+        OperationKind::RegisterCompiledRule { .. } => Vec::new(),
         OperationKind::EnterScope { parent } => parent.iter().copied().collect(),
         OperationKind::ExitScope { scope } => vec![*scope],
         OperationKind::CallProvider { args, .. } => args.clone(),

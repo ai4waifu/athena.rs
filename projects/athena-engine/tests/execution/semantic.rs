@@ -326,6 +326,34 @@ fn downvalues_and_match_q() {
     assert!(!athena_engine::execution::builtins::patterns::match_term_pattern(&s, y, &constrained, &mut binds));
 }
 
+#[test]
+fn register_compiled_rule_via_session_command() {
+    use athena_engine::{
+        api::request::SessionCommand,
+        reasoning::trs::TermPattern,
+    };
+    use athena_ir::Atom;
+
+    let mut s = Session::new();
+    let x_term = symbol("x", &mut s);
+    let x_sym = match s.arena.get(x_term) {
+        Some(athena_ir::TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let f_op = s.operators.intern("f");
+    let table = s.defs.alloc_dispatch_table();
+    s.defs.bind_operator_table(f_op, table);
+    let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
+    let pattern = TermPattern::Application {
+        operator: athena_ir::ApplicationHead::Extension(f_op),
+        arguments: vec![TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) }],
+    };
+    let rule = s.compiled_rules.intern(pattern, rhs);
+    let request = AthenaRequest::Command(SessionCommand::RegisterRuleDispatch { table, rule });
+    assert_eq!(eval_request(&mut s, request), "Null");
+    let call = ext("f", vec![int(4, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, call), "16");
+}
 
 #[test]
 fn linear_algebra_paths() {

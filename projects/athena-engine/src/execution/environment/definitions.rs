@@ -47,7 +47,31 @@ impl DefinitionLayer {
     /// 追加 extension head 规则（分配或复用 [`DispatchTableId`]）。
     pub fn register_extension_rule(&mut self, op: OperatorId, pattern: TermPattern, replacement: TermId) {
         let table = self.ensure_table_for_operator(op);
+        self.append_rule(table, pattern, replacement);
+    }
+
+    /// 分配独立分派表（供 `SessionCommand::RegisterRuleDispatch`）。
+    pub fn alloc_dispatch_table(&mut self) -> DispatchTableId {
+        let id = DispatchTableId(self.next_dispatch_table);
+        self.next_dispatch_table = self.next_dispatch_table.saturating_add(1);
+        self.dispatch_tables.entry(id).or_default();
+        id
+    }
+
+    /// 将 Extension operator 绑定到已有分派表（apply 索引）。
+    pub fn bind_operator_table(&mut self, op: OperatorId, table: DispatchTableId) {
+        self.operator_tables.insert(op, table);
+        self.dispatch_tables.entry(table).or_default();
+    }
+
+    /// 向分派表追加一条规则。
+    pub fn append_rule(&mut self, table: DispatchTableId, pattern: TermPattern, replacement: TermId) {
         self.dispatch_tables.entry(table).or_default().push((pattern, replacement));
+    }
+
+    /// 按表句柄查规则。
+    pub fn rules_for_table(&self, table: DispatchTableId) -> Option<&[(TermPattern, TermId)]> {
+        self.dispatch_tables.get(&table).map(Vec::as_slice)
     }
 
     /// 以用户符号拥有 extension 规则表（清除该符号值绑定，记录拥有关系）。
@@ -121,8 +145,7 @@ impl DefinitionLayer {
         if let Some(id) = self.operator_tables.get(&op).copied() {
             return id;
         }
-        let id = DispatchTableId(self.next_dispatch_table);
-        self.next_dispatch_table = self.next_dispatch_table.saturating_add(1);
+        let id = self.alloc_dispatch_table();
         self.operator_tables.insert(op, id);
         id
     }

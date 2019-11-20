@@ -176,9 +176,27 @@ impl ExecutionCompiler {
                         .detail("reason", "missing_term")),
                 }
             }
-            SessionCommand::RegisterRuleDispatch { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "ExecutionCompiler")
-                .detail("status", "register_rule_dispatch_pending_opcode")),
+            SessionCommand::RegisterRuleDispatch { table, rule } => {
+                let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+                let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+                let unit = builder.ssa();
+                blocks.push(BasicBlock {
+                    id: block_id,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        result: Some(unit),
+                        result_type: ExecutionValueType::Unit,
+                        kind: OperationKind::RegisterCompiledRule {
+                            table: *table,
+                            rule: *rule,
+                        },
+                        effect_in: Some(effect_in),
+                        effect_out: Some(effect_out),
+                    }],
+                    terminator: Terminator::return_value(unit),
+                });
+                Ok(unit)
+            }
             SessionCommand::ClearDefinition { symbol } => {
                 let key = builder.ssa();
                 let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));

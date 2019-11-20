@@ -451,6 +451,14 @@ impl ReferenceExecutor {
                 session.defs.register_extension_rule_for_symbol(symbol, *operator, compiled, value_term);
                 Ok(Slot::Unit)
             }
+            OperationKind::RegisterCompiledRule { table, rule } => {
+                let Some((pattern, replacement)) = session.compiled_rules.get(*rule).cloned()
+                else {
+                    return Err(diag("compiled_rule_missing"));
+                };
+                session.defs.append_rule(*table, pattern, replacement);
+                Ok(Slot::Unit)
+            }
             OperationKind::ReadBinding { key } => {
                 let symbol = match slots.get(key) {
                     Some(Slot::Symbol(symbol)) => *symbol,

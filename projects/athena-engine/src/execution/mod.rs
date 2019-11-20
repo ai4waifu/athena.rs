@@ -17,7 +17,7 @@ use athena_types::{ComputationStatus, Diagnostic, Result as AthenaResult, Result
 
 use crate::{api::request::AthenaRequest, runtime::session::Session};
 
-pub use environment::{DefinitionLayer, LocalBinding, ScopeFrame};
+pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFrame};
 
 /// Compile and run one request on the `ExecutionIR` path only.
 ///

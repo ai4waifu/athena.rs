@@ -18,7 +18,7 @@ use crate::{
             execute_polynomial_with_rings,
         },
     },
-    execution::{self, environment::DefinitionLayer},
+    execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
     reasoning::mgraph::MGraphState,
     runtime::{
         results::{ComputationResult, ResultStore},
@@ -35,6 +35,8 @@ pub struct Session {
     pub operators: OperatorRegistry,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
+    /// 已编译规则仓（`CompiledRuleId` · Living `27` `SessionCommand::RegisterRuleDispatch`）。
+    pub compiled_rules: CompiledRuleStore,
     /// `LexicalScope` 局部唯一化计数器。
     pub module_counter: u64,
     /// 多项式环 intern 表。
@@ -63,6 +65,7 @@ impl core::fmt::Debug for Session {
             .field("arena_len", &self.arena.len())
             .field("operators", &self.operators.len())
             .field("defs", &self.defs)
+            .field("compiled_rules_len", &self.compiled_rules.len())
             .field("rings", &self.rings)
             .field("polynomial_objects_len", &self.polynomial_objects.len())
             .field("series_objects_len", &self.series_objects.len())
@@ -94,6 +97,7 @@ impl Session {
             arena: TermStore::new(),
             operators: OperatorRegistry::new(),
             defs: DefinitionLayer::new(),
+            compiled_rules: CompiledRuleStore::new(),
             module_counter: 0,
             rings: RingTable::default(),
             polynomial_objects: PolynomialObjectStore::new(),

@@ -1,6 +1,6 @@
 //! Typed SSA operations (closed opcode family — no string handler lookup).
 
-use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, IndexSpec, OperatorId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, IndexSpec, OperatorId};
 use athena_ir::SemanticOperator;
 
 use super::{
@@ -97,6 +97,13 @@ pub enum OperationKind {
         pattern: SsaValueId,
         /// Replacement template term.
         replacement: SsaValueId,
+    },
+    /// Attach a precompiled rule to a dispatch table (`SessionCommand::RegisterRuleDispatch`).
+    RegisterCompiledRule {
+        /// Target dispatch table.
+        table: DispatchTableId,
+        /// Precompiled rule handle.
+        rule: CompiledRuleId,
     },
     /// Enter a lexical or dynamic scope frame.
     EnterScope {
