@@ -109,9 +109,10 @@ fn pythagorean() {
 #[test]
 fn map_sin_list() {
     let mut c = C::new();
-    let e = sem(SemanticOperator::Map, vec![symbol("Sin", &mut c), lst(vec![i(0, &mut c)], &mut c)], &mut c);
-    let r = t(e, &mut c);
-    assert!(r.starts_with("OrderedCollection["), "got {r}");
+    // Living `27`: Map over a 0-ary semantic operator value, not a display-name symbol.
+    let sin = sem(SemanticOperator::from_unary(UnaryFunction::Sin), vec![], &mut c);
+    let e = sem(SemanticOperator::Map, vec![sin, lst(vec![i(0, &mut c)], &mut c)], &mut c);
+    assert_eq!(t(e, &mut c), "OrderedCollection[0]");
 }
 
 #[test]
