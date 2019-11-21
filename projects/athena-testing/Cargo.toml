@@ -4,12 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena neutral test helpers — builders and asserts only (no test binary)"
+description = "Athena neutral test helpers — builders, asserts, and lib contract smoke"
 publish = false
 
 [lib]
 path = "src/lib.rs"
-test = false
 doctest = false
 
 [dependencies]

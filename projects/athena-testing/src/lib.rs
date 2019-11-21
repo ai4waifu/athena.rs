@@ -21,6 +21,9 @@ pub mod rewrite;
 pub mod terms;
 pub mod values;
 
+#[cfg(test)]
+mod contract;
+
 pub use assertions::{assert_exact_integer, assert_structural_eq, expect_diagnostic};
 pub use builders::{DomainRequestBuilder, SessionFixture, TermBuilder};
 pub use requests::{goal_request, term_request};
