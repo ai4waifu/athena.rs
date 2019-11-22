@@ -39,7 +39,7 @@ fn saturate_respects_zero_iteration_budget() {
     let report = saturate(&mut graph, &store, &[], SaturationBudget {
         max_iterations: 0,
         ..SaturationBudget::smoke()
-    });
+    }, None);
     assert_eq!(report.stop, SaturationStopReason::ResourceBudget);
     assert!(report.candidates.is_empty());
 }
@@ -74,7 +74,7 @@ fn saturate_adds_roots_to_fixed_point() {
         athena_numeric::Number::small_int(0),
     )), span);
     let mut graph = EGraph::new();
-    let report = saturate(&mut graph, &store, &[x], SaturationBudget::smoke());
+    let report = saturate(&mut graph, &store, &[x], SaturationBudget::smoke(), None);
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
     assert!(graph.class_of_term(x).is_some());
     assert!(report.candidates.is_empty());

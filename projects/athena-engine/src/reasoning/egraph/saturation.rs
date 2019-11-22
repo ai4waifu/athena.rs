@@ -1,6 +1,7 @@
-//! Budgeted saturation driver (bootstrap · no rule database yet).
+//! Budgeted saturation driver (bootstrap · rule matching not wired yet).
 
 use athena_ir::TermStore;
+use athena_rewriter::RuleSet;
 use athena_types::TermId;
 
 use super::{
@@ -22,14 +23,16 @@ pub struct SaturationReport {
 
 /// Run scope-local saturation under `budget`.
 ///
-/// Bootstrap behavior: add all `roots`, then stop at fixed point (no rewrite
-/// database yet). Still enforces resource caps so callers can wire budgets now.
+/// Bootstrap behavior: add all `roots`, then stop at fixed point.
+/// `rules` is accepted for API stability; matching lands in a later fill-in.
 pub fn saturate(
     graph: &mut EGraph,
     store: &TermStore,
     roots: &[TermId],
     budget: SaturationBudget,
+    rules: Option<&RuleSet>,
 ) -> SaturationReport {
+    let _ = rules;
     if budget.max_iterations == 0 || budget.max_eclasses == 0 || budget.max_enodes == 0 {
         return SaturationReport {
             stop: SaturationStopReason::ResourceBudget,
@@ -60,7 +63,6 @@ pub fn saturate(
         }
     }
 
-    // Future: match rewrite rules → merge classes → emit CandidateEquivalence.
     SaturationReport {
         stop: SaturationStopReason::FixedPoint,
         iterations,
