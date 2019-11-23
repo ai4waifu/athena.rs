@@ -6,12 +6,16 @@
 
 use athena_engine::api::AthenaRequest;
 use athena_engine::api::request::SessionCommand;
+use athena_engine::domains::calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder};
+use athena_engine::domains::number_theory::{NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue};
+use athena_engine::domains::{DomainRequest, DomainResult};
 use athena_engine::reasoning::trs::TermPattern;
 use athena_engine::runtime::values::arena::push_extension;
 use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
-use athena_types::CollectionKind;
+use athena_numeric::Integer;
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, ComputationStatus};
 
-use crate::{assert_exact_integer, SessionFixture};
+use crate::{assert_exact_integer, goal_request, SessionFixture};
 
 #[test]
 fn math_constant_pi_is_typed_atom_not_user_symbol() {
@@ -32,6 +36,24 @@ fn math_constant_pi_is_typed_atom_not_user_symbol() {
     match fx.session().arena.get(named) {
         Some(TermNode::Atom(Atom::Symbol(_))) => {}
         other => panic!("expected user symbol Pi, got {other:?}"),
+    }
+}
+
+#[test]
+fn math_constant_euler_number_is_not_user_symbol_e() {
+    let mut fx = SessionFixture::new();
+    let e = {
+        let mut t = fx.terms();
+        t.math_constant(MathematicalConstant::EulerNumber)
+    };
+    let named = {
+        let mut t = fx.terms();
+        t.symbol("E")
+    };
+    assert!(!fx.structural_eq(e, named));
+    match fx.session().arena.get(e) {
+        Some(TermNode::Atom(Atom::Constant(MathematicalConstant::EulerNumber))) => {}
+        other => panic!("expected typed EulerNumber, got {other:?}"),
     }
 }
 
@@ -137,5 +159,121 @@ fn zero_ary_sin_maps_over_ordered_collection() {
             assert_exact_integer(fx.session(), elements[0], 0);
         }
         other => panic!("expected OrderedCollection[0], got {other:?}"),
+    }
+}
+
+#[test]
+fn semantic_head_is_not_extension_operator_id() {
+    let mut fx = SessionFixture::new();
+    let add = {
+        let mut t = fx.terms();
+        let a = t.integer(1);
+        let b = t.integer(2);
+        t.add([a, b])
+    };
+    match fx.session().arena.get(add) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            ..
+        }) => {}
+        other => panic!("expected Semantic(Add), got {other:?}"),
+    }
+    let ext = fx.session_mut().operators.intern("user_plugin_op");
+    let call = push_extension(fx.session_mut(), ext, vec![]);
+    match fx.session().arena.get(call) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Extension(id),
+            ..
+        }) => assert_eq!(*id, ext),
+        other => panic!("expected Extension head, got {other:?}"),
+    }
+}
+
+#[test]
+fn domain_goal_derivative_uses_typed_calculus_request() {
+    let mut fx = SessionFixture::new();
+    let (expression, x) = {
+        let mut t = fx.terms();
+        let x = t.intern("x");
+        let xs = t.symbol("x");
+        (t.unary_function(UnaryFunction::Sin, xs), x)
+    };
+    let goal = fx.domain().derivative_first(expression, x);
+    let athena_engine::api::DomainGoal::Dispatch(DomainRequest::Calculus(req)) = goal else {
+        unreachable!()
+    };
+    assert!(matches!(
+        req,
+        CalculusRequest::Derivative {
+            order: DerivativeOrder::First,
+            ..
+        }
+    ));
+    let engine = athena_engine::AthenaEngine::new();
+    let result = engine
+        .execute_domain(fx.session_mut(), DomainRequest::Calculus(req))
+        .expect("sin'");
+    match result {
+        DomainResult::Calculus(CalculusResult::Exact {
+            value: CalculusValue::Expression(term),
+            ..
+        })
+        | DomainResult::Calculus(CalculusResult::Conditional {
+            value: CalculusValue::Expression(term),
+            ..
+        }) => {
+            assert!(fx.session().arena.get(term).is_some());
+        }
+        other => panic!("expected calculus expression, got {other:?}"),
+    }
+}
+
+#[test]
+fn session_binding_define_uses_typed_policy() {
+    let mut fx = SessionFixture::new();
+    let (symbol, value) = {
+        let mut t = fx.terms();
+        let sym_term = t.symbol("x");
+        let value = t.integer(5);
+        (sym_term, value)
+    };
+    let symbol = match fx.session().arena.get(symbol) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    fx.execute_request(AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    }))
+    .expect("define");
+    assert_eq!(fx.session().defs.binding(symbol), Some(value));
+    let sum = {
+        let mut t = fx.terms();
+        let x = t.symbol("x");
+        let one = t.integer(1);
+        t.add([x, one])
+    };
+    let out = fx.evaluate_term(sum);
+    assert_exact_integer(fx.session(), out, 6);
+}
+
+#[test]
+fn number_theory_goal_request_preserves_typed_payload() {
+    let mut fx = SessionFixture::new();
+    let goal = fx.domain().dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
+        a: Integer::from_i64(12),
+        b: Integer::from_i64(8),
+    }));
+    let result_id = fx.execute_request(goal_request(goal)).expect("gcd goal");
+    let loaded = fx.session().results.get(result_id).expect("payload");
+    assert_eq!(loaded.status, ComputationStatus::Exact);
+    let value_id = loaded.value.expect("value");
+    match fx.session().values.get(value_id).expect("runtime") {
+        athena_engine::runtime::RuntimeValue::Domain(DomainResult::NumberTheory(NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Integer(n),
+        })) => assert_eq!(n, &Integer::from_i64(4)),
+        other => panic!("expected gcd payload, got {other:?}"),
     }
 }
