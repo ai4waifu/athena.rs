@@ -7,6 +7,8 @@ use athena_ir::{ExtensionRegistry, TermBuilder, TermStore};
 use athena_numeric::{ExecutionBudget, NumericContext};
 use athena_types::{TermId, ValueId};
 
+use athena_rewriter::RuleSet;
+
 use crate::{
     api::request::AthenaRequest,
     domains::{
@@ -19,7 +21,12 @@ use crate::{
         },
     },
     execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
-    reasoning::mgraph::MGraphState,
+    reasoning::{
+        egraph::{
+            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, admit_structural_term_equality, saturate,
+        },
+        mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
+    },
     runtime::{
         results::{ComputationResult, ResultStore},
         semantic::AssumptionScopeTable,
@@ -49,6 +56,10 @@ pub struct Session {
     pub matrix_objects: MatrixObjectStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
+    /// Scope-local E-Graph（候选搜索 · 不得绕过 AdmissionGate）。
+    pub egraph: EGraph,
+    /// Session 默认 E-Graph saturation 预算。
+    pub egraph_budget: SaturationBudget,
     /// 运行时值存储（`ValueId` → [`RuntimeValue`]）。
     pub values: ValueStore,
     /// 计算结果存储（`ResultId` → [`ComputationResult`]）。
@@ -71,6 +82,8 @@ impl core::fmt::Debug for Session {
             .field("series_objects_len", &self.series_objects.len())
             .field("matrix_objects_len", &self.matrix_objects.len())
             .field("mgraph", &self.mgraph)
+            .field("egraph_eclasses", &self.egraph.eclass_count())
+            .field("egraph_budget", &self.egraph_budget)
             .field("values", &self.values)
             .field("results", &self.results)
             .field("assumption_scopes", &self.assumption_scopes)
@@ -104,6 +117,8 @@ impl Session {
             series_objects: SeriesObjectStore::new(),
             matrix_objects: MatrixObjectStore::new(),
             mgraph: MGraphState::default(),
+            egraph: EGraph::new(),
+            egraph_budget: SaturationBudget::smoke(),
             values: ValueStore::default(),
             results: ResultStore::default(),
             assumption_scopes: AssumptionScopeTable::default(),
@@ -227,5 +242,33 @@ impl Session {
     /// 执行线性代数域请求（经 `Session::matrix_objects` 解析）。
     pub fn execute_linear_algebra(&self, request: LinearAlgebraRequest) -> LinearAlgebraResult {
         execute_linear_algebra(request, &self.matrix_objects)
+    }
+
+    /// 在本 Session 的 scope-local E-Graph 上做预算内 saturation（只产候选，不写 M-Graph）。
+    pub fn run_egraph_saturation(&mut self, roots: &[TermId], rules: Option<&RuleSet>) -> SaturationReport {
+        saturate(&mut self.egraph, &self.arena, roots, self.egraph_budget, rules)
+    }
+
+    /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
+    pub fn admit_structural_term_equality(
+        &mut self,
+        left: TermId,
+        right: TermId,
+    ) -> Result<FactId, AdmissionRejectReason> {
+        admit_structural_term_equality(
+            &self.arena,
+            &mut self.mgraph.semantic,
+            left,
+            right,
+            &VerificationPolicy::default(),
+        )
+    }
+
+    /// 将 E-Graph 候选升级为 M-Graph 事实（仅当结构相等时可接纳）。
+    pub fn admit_egraph_candidate_if_structural(
+        &mut self,
+        candidate: &CandidateEquivalence,
+    ) -> Result<FactId, AdmissionRejectReason> {
+        self.admit_structural_term_equality(candidate.left_term, candidate.right_term)
     }
 }
