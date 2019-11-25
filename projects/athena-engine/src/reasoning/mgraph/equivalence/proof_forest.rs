@@ -28,7 +28,7 @@ pub enum ProofStepKind {
 }
 
 /// Forest of equality justifications (append-only bootstrap).
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProofForest {
     edges: Vec<ProofEdge>,
 }

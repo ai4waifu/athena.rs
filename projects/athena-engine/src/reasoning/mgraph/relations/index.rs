@@ -91,6 +91,11 @@ fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<Sem
                 TheoryContextId::CALCULUS,
             )
         }
+        Proposition::TermEquality { left, right } => (
+            predicates::REWRITE_EQUIVALENT,
+            vec![SemanticRef::Term(*left), SemanticRef::Term(*right)],
+            TheoryContextId::REWRITE,
+        ),
     }
 }
 

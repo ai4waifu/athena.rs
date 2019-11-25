@@ -73,6 +73,13 @@ pub enum EvidenceCertificate {
         /// 结果项。
         result_term: TermId,
     },
+    /// TermStore 结构相等检查通过（E-Graph 候选升级）。
+    StructuralTermEquality {
+        /// 左项。
+        left: TermId,
+        /// 右项。
+        right: TermId,
+    },
 }
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
@@ -129,6 +136,13 @@ pub enum Proposition {
         variable_fingerprint: u64,
         /// 结果项（payload 仍在 TermStore）。
         result_term: TermId,
+    },
+    /// 两项语义等价（经 E-Graph 候选 + Verifier / structural 检查后可接纳）。
+    TermEquality {
+        /// 左项。
+        left: TermId,
+        /// 右项。
+        right: TermId,
     },
 }
 
