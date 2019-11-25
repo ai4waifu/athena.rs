@@ -453,13 +453,13 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
 fn compile_unknown_head_stays_residual() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
-    let head = ApplicationHead::Extension(session.operators.intern("Foo"));
+    let head = ApplicationHead::Extension(session.extensions.intern("Foo"));
     let term = session.builder().application(head, vec![x], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("foo");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if matches!(*head, ApplicationHead::Extension(id) if session.operators.name(id) == Some("Foo")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
+            if matches!(*head, ApplicationHead::Extension(id) if session.extensions.display_name(id) == Some("Foo")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
         other => panic!("expected Foo[x] residual, got {other:?}"),
     }
 }

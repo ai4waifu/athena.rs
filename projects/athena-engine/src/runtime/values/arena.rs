@@ -65,10 +65,10 @@ pub fn push_semantic(session: &mut Session, op: SemanticOperator, args: Vec<Term
     b.application_semantic(op, args, default_span())
 }
 
-/// Construct an extension application from a registered [`athena_types::OperatorId`].
+/// Construct an extension application from a registered [`athena_types::ExtensionOperatorId`].
 ///
 /// Never maps a display string onto core [`SemanticOperator`] semantics (Living `27`).
-pub fn push_extension(session: &mut Session, op: athena_types::OperatorId, args: Vec<TermId>) -> TermId {
+pub fn push_extension(session: &mut Session, op: athena_types::ExtensionOperatorId, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
     b.application_extension_id(op, args, default_span())
 }
@@ -101,7 +101,7 @@ pub fn application_display_name(session: &Session, id: TermId) -> Option<String>
     };
     match *head {
         ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
-        ApplicationHead::Extension(op) => session.operators.name(op).map(str::to_string),
+        ApplicationHead::Extension(op) => session.extensions.display_name(op).map(str::to_string),
     }
 }
 

@@ -32,7 +32,7 @@ fn is_math_constant(session: &Session, id: TermId, expected: MathematicalConstan
 fn head_label(session: &Session, head: ApplicationHead) -> Option<String> {
     match head {
         ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
-        ApplicationHead::Extension(id) => session.operators.name(id).map(str::to_string),
+        ApplicationHead::Extension(id) => session.extensions.display_name(id).map(str::to_string),
     }
 }
 
@@ -198,7 +198,7 @@ pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec
         }
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
             let name = session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
-            let op = session.operators.intern(&name);
+            let op = session.extensions.intern(&name);
             push_extension(session, op, args)
         }
         _ => {

@@ -9,7 +9,7 @@ use athena_types::{CollectionKind, TermId};
 
 use crate::{
     node::{Atom, TermNode},
-    operator::{ApplicationHead, OperatorRegistry},
+    operator::{ApplicationHead, ExtensionRegistry},
     store::TermStore,
 };
 
@@ -62,18 +62,18 @@ pub fn canonical_hash(arena: &TermStore, root: TermId) -> u64 {
 }
 
 /// Cross-registry stable hash: semantic via discriminant, extension via display name.
-pub fn canonical_hash_named(arena: &TermStore, registry: &OperatorRegistry, root: TermId) -> u64 {
+pub fn canonical_hash_named(arena: &TermStore, registry: &ExtensionRegistry, root: TermId) -> u64 {
     hash_walk(arena, Some(registry), root).state
 }
 
 struct HashWalk<'a> {
     arena: &'a TermStore,
-    registry: Option<&'a OperatorRegistry>,
+    registry: Option<&'a ExtensionRegistry>,
     state: u64,
     seen: Vec<TermId>,
 }
 
-fn hash_walk<'a>(arena: &'a TermStore, registry: Option<&'a OperatorRegistry>, root: TermId) -> HashWalk<'a> {
+fn hash_walk<'a>(arena: &'a TermStore, registry: Option<&'a ExtensionRegistry>, root: TermId) -> HashWalk<'a> {
     let mut s = HashWalk { arena, registry, state: FNV_OFFSET_BASIS, seen: Vec::new() };
     hash_term(&mut s, root);
     s
@@ -133,7 +133,7 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
                 }
                 ApplicationHead::Extension(op) => {
                     mix_tag(&mut s.state, b"ext");
-                    match s.registry.and_then(|r| r.name(op)) {
+                    match s.registry.and_then(|r| r.display_name(op)) {
                         Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
                         None => mix_u64(&mut s.state, u64::from(op.0)),
                     }

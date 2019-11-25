@@ -70,7 +70,7 @@ fn unary(f: UnaryFunction, args: Vec<Tid>, c: &mut C) -> Tid {
 }
 
 fn ext(head: &str, args: Vec<Tid>, c: &mut C) -> Tid {
-    let op = c.s.operators.intern(head);
+    let op = c.s.extensions.intern(head);
     push_extension(&mut c.s, op, args)
 }
 
@@ -348,7 +348,7 @@ fn session_pattern_dispatch_rule() {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    let f_op = c.s.operators.intern("f");
+    let f_op = c.s.extensions.intern("f");
     let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut c), i(2, &mut c)], &mut c);
     c.s.defs.register_extension_rule(
         f_op,
@@ -366,7 +366,7 @@ fn dispatch_literal_then_bind_fallback() {
     use athena_engine::reasoning::trs::TermPattern;
     use athena_ir::{Atom, TermNode};
     let mut c = C::new();
-    let f_op = c.s.operators.intern("f");
+    let f_op = c.s.extensions.intern("f");
     let one = i(1, &mut c);
     let ten = i(10, &mut c);
     c.s.defs.register_extension_rule(

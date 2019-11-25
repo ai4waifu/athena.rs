@@ -121,9 +121,9 @@ impl ExecutionCompiler {
     /// The `DomainRequest` payload is supplied at runtime by `execute_ir_request`
     /// (not stored in the module), so backends share the same IR shape.
     fn lower_goal_provider(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, block_id: BlockId) -> Result<SsaValueId> {
-        use athena_types::OperatorId;
+        use athena_types::ExtensionOperatorId;
 
-        let call = builder.push_provider_call(ProviderCallDescriptor::new(ProviderCallId(0), OperatorId(0), ExecutionValueType::Unit));
+        let call = builder.push_provider_call(ProviderCallDescriptor::new(ProviderCallId(0), ExtensionOperatorId(0), ExecutionValueType::Unit));
         let effect_call_in = builder.push_effect(EffectKind::CallProvider, None);
         let effect_call_out = builder.push_effect(EffectKind::CallProvider, Some(effect_call_in));
         let payload = builder.ssa();

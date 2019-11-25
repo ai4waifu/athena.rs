@@ -8,7 +8,7 @@
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 use athena_numeric::Number;
-use athena_types::{CollectionKind, OperatorId, SymbolId, TermId};
+use athena_types::{CollectionKind, ExtensionOperatorId, SymbolId, TermId};
 use std::marker::PhantomData;
 
 use crate::{
@@ -18,23 +18,23 @@ use crate::{
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
 
-/// Pre-interned residual extension identities (compare by [`OperatorId`], never by display name).
+/// Pre-interned residual extension identities (compare by [`ExtensionOperatorId`], never by display name).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResidualExtensionIds {
     /// Residual indeterminate form marker.
-    pub indeterminate: OperatorId,
+    pub indeterminate: ExtensionOperatorId,
     /// Real-part residual used in ROC predicates.
-    pub re: OperatorId,
+    pub re: ExtensionOperatorId,
     /// Element-of residual used in ROC / domain predicates.
-    pub element: OperatorId,
+    pub element: ExtensionOperatorId,
     /// Unit step / Heaviside causal marker.
-    pub unit_step: OperatorId,
+    pub unit_step: ExtensionOperatorId,
     /// Alternate Heaviside name (same semantic residual family).
-    pub heaviside_theta: OperatorId,
+    pub heaviside_theta: ExtensionOperatorId,
     /// Kronecker delta residual.
-    pub kronecker_delta: OperatorId,
+    pub kronecker_delta: ExtensionOperatorId,
     /// Discrete delta residual.
-    pub discrete_delta: OperatorId,
+    pub discrete_delta: ExtensionOperatorId,
 }
 
 /// Shared term read/build capability for domain providers.
@@ -48,13 +48,13 @@ impl<'a> DomainExecutionContext<'a> {
     /// Bind an exclusive session borrow for the duration of a domain call.
     pub fn new(s: &'a mut Session) -> Self {
         let ext = ResidualExtensionIds {
-            indeterminate: s.operators.intern("Indeterminate"),
-            re: s.operators.intern("Re"),
-            element: s.operators.intern("Element"),
-            unit_step: s.operators.intern("UnitStep"),
-            heaviside_theta: s.operators.intern("HeavisideTheta"),
-            kronecker_delta: s.operators.intern("KroneckerDelta"),
-            discrete_delta: s.operators.intern("DiscreteDelta"),
+            indeterminate: s.extensions.intern("Indeterminate"),
+            re: s.extensions.intern("Re"),
+            element: s.extensions.intern("Element"),
+            unit_step: s.extensions.intern("UnitStep"),
+            heaviside_theta: s.extensions.intern("HeavisideTheta"),
+            kronecker_delta: s.extensions.intern("KroneckerDelta"),
+            discrete_delta: s.extensions.intern("DiscreteDelta"),
         };
         Self { s: s as *mut Session, ext, _marker: PhantomData }
     }
@@ -91,12 +91,12 @@ impl<'a> DomainExecutionContext<'a> {
     }
 
     /// Intern an extension operator id (ODE dependent head etc. · not core math).
-    pub(crate) fn intern_extension(&self, name: &str) -> OperatorId {
-        self.session_mut().operators.intern(name)
+    pub(crate) fn intern_extension(&self, name: &str) -> ExtensionOperatorId {
+        self.session_mut().extensions.intern(name)
     }
 
-    /// Extension application by [`OperatorId`].
-    pub(crate) fn apply_extension(&self, id: OperatorId, args: Vec<TermId>) -> TermId {
+    /// Extension application by [`ExtensionOperatorId`].
+    pub(crate) fn apply_extension(&self, id: ExtensionOperatorId, args: Vec<TermId>) -> TermId {
         self.apply_head(ApplicationHead::Extension(id), args)
     }
 

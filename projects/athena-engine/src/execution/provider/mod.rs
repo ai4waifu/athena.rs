@@ -8,7 +8,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use athena_types::OperatorId;
+use athena_types::ExtensionOperatorId;
 
 use crate::execution::ir::{ExecutionValueType, ProviderCallDescriptor, ProviderCallId};
 
@@ -21,7 +21,7 @@ pub struct ProviderCapabilitySnapshot {
 
 impl ProviderCapabilitySnapshot {
     /// Derive a session-local capability fingerprint from a closed operator id.
-    pub fn from_operator(operator: OperatorId) -> Self {
+    pub fn from_operator(operator: ExtensionOperatorId) -> Self {
         let mut hasher = DefaultHasher::new();
         0x5052_4f56_4341_5045u64.hash(&mut hasher); // "PROVCAPE"
         operator.0.hash(&mut hasher);
@@ -40,7 +40,7 @@ pub struct ProviderCallHandoff {
 
 impl ProviderCallHandoff {
     /// Build a handoff from operator identity.
-    pub fn from_operator(id: ProviderCallId, operator: OperatorId) -> Self {
+    pub fn from_operator(id: ProviderCallId, operator: ExtensionOperatorId) -> Self {
         Self {
             descriptor: ProviderCallDescriptor::new(id, operator, ExecutionValueType::Unknown),
             capabilities: ProviderCapabilitySnapshot::from_operator(operator),
@@ -61,9 +61,9 @@ mod tests {
 
     #[test]
     fn capability_fingerprint_is_stable_for_operator() {
-        let a = ProviderCapabilitySnapshot::from_operator(OperatorId(7));
-        let b = ProviderCapabilitySnapshot::from_operator(OperatorId(7));
-        let c = ProviderCapabilitySnapshot::from_operator(OperatorId(8));
+        let a = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(7));
+        let b = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(7));
+        let c = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(8));
         assert_eq!(a, b);
         assert_ne!(a.fingerprint, c.fingerprint);
         assert_ne!(a.fingerprint, 0);
@@ -71,9 +71,9 @@ mod tests {
 
     #[test]
     fn handoff_from_descriptor_binds_operator_capability() {
-        let descriptor = ProviderCallDescriptor::new(ProviderCallId(0), OperatorId(3), ExecutionValueType::Unit);
+        let descriptor = ProviderCallDescriptor::new(ProviderCallId(0), ExtensionOperatorId(3), ExecutionValueType::Unit);
         let handoff = ProviderCallHandoff::from_descriptor(descriptor.clone());
         assert_eq!(handoff.descriptor, descriptor);
-        assert_eq!(handoff.capabilities, ProviderCapabilitySnapshot::from_operator(OperatorId(3)));
+        assert_eq!(handoff.capabilities, ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(3)));
     }
 }

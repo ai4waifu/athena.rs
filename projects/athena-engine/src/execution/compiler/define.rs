@@ -29,7 +29,7 @@ impl ExecutionCompiler {
             return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("status", "rule_head_symbol_unresolved"));
         };
-        let operator = session.operators.intern(name);
+        let operator = session.extensions.intern(name);
         let key = builder.ssa();
         let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
         let pattern_root = builder.push_term_root(pattern);

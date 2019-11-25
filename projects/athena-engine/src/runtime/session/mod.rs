@@ -3,7 +3,7 @@
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
 use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
-use athena_ir::{OperatorRegistry, TermBuilder, TermStore};
+use athena_ir::{ExtensionRegistry, TermBuilder, TermStore};
 use athena_numeric::{ExecutionBudget, NumericContext};
 use athena_types::{TermId, ValueId};
 
@@ -31,8 +31,8 @@ use crate::{
 pub struct Session {
     /// Core IR 符号项存储。
     pub arena: TermStore,
-    /// 内建算子注册表。
-    pub operators: OperatorRegistry,
+    /// 扩展显示名注册表（非核心算子 catalog）。
+    pub extensions: ExtensionRegistry,
     /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
     pub defs: DefinitionLayer,
     /// 已编译规则仓（`CompiledRuleId` · Living `27` `SessionCommand::RegisterRuleDispatch`）。
@@ -63,7 +63,7 @@ impl core::fmt::Debug for Session {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Session")
             .field("arena_len", &self.arena.len())
-            .field("operators", &self.operators.len())
+            .field("extensions", &self.extensions.len())
             .field("defs", &self.defs)
             .field("compiled_rules_len", &self.compiled_rules.len())
             .field("rings", &self.rings)
@@ -95,7 +95,7 @@ impl Session {
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
             arena: TermStore::new(),
-            operators: OperatorRegistry::new(),
+            extensions: ExtensionRegistry::new(),
             defs: DefinitionLayer::new(),
             compiled_rules: CompiledRuleStore::new(),
             module_counter: 0,

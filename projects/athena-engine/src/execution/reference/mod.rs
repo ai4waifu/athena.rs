@@ -338,7 +338,7 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
-                // Living `27`: residual rebuild uses `OperatorId` only.
+                // Living `27`: residual rebuild uses `ExtensionOperatorId` only.
                 let op = *operator;
                 if let Some(slot) = self.try_apply_down_values(session, op, args, slots)? {
                     return Ok(slot);
@@ -391,7 +391,7 @@ impl ReferenceExecutor {
                             frame.unbind(symbol);
                         }
                         else {
-                            // Living `27`: clear owned extension rules via `SymbolId`→`OperatorId` map.
+                            // Living `27`: clear owned extension rules via `SymbolId`→`ExtensionOperatorId` map.
                             session.defs.clear_symbol(symbol);
                         }
                     }
@@ -447,7 +447,7 @@ impl ReferenceExecutor {
                 };
                 // Structure-only compile from term. Wildcards must arrive as typed `TermPattern` via API.
                 let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
-                // Living `27`: `OperatorId` closed at compile. No execute-time display-name intern.
+                // Living `27`: `ExtensionOperatorId` closed at compile. No execute-time display-name intern.
                 session.defs.register_extension_rule_for_symbol(symbol, *operator, compiled, value_term);
                 Ok(Slot::Unit)
             }
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn unknown_head_marks_partial_unknown() {
         let mut session = Session::new();
-        let foo_id = session.operators.intern("FooBar");
+        let foo_id = session.extensions.intern("FooBar");
         let foo = athena_ir::ApplicationHead::Extension(foo_id);
         let one = session.builder().int(1, Default::default());
         let term = session.builder().application(foo, vec![one], Default::default());
@@ -653,7 +653,7 @@ mod tests {
             Some(athena_ir::TermNode::Application {
                 head: athena_ir::ApplicationHead::Extension(id),
                 ..
-            }) if session.operators.name(*id) == Some("FooBar") => {}
+            }) if session.extensions.display_name(*id) == Some("FooBar") => {}
             other => panic!("expected residual FooBar[...], got {other:?}"),
         }
     }

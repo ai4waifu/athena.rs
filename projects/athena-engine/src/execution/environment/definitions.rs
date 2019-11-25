@@ -2,11 +2,11 @@
 //!
 //! - [`DefinitionLayer`]：语句层立即绑定 / 残余绑定 / 规则分派（Session 全局为底层）。
 //! - [`ScopeFrame`]：局部遮蔽（读取优先，不写回全局）。
-//! - 规则表按 [`DispatchTableId`] 存储；[`OperatorId`] 仅作 Extension apply 索引（Living `27`）。
+//! - 规则表按 [`DispatchTableId`] 存储；[`ExtensionOperatorId`] 仅作 Extension apply 索引（Living `27`）。
 
 use std::collections::HashMap;
 
-use athena_types::{DispatchTableId, OperatorId, SymbolId, TermId};
+use athena_types::{DispatchTableId, ExtensionOperatorId, SymbolId, TermId};
 
 use crate::reasoning::trs::TermPattern;
 
@@ -18,9 +18,9 @@ pub struct DefinitionLayer {
     /// 规则分派表（Living `27` 一等键）。
     dispatch_tables: HashMap<DispatchTableId, Vec<(TermPattern, TermId)>>,
     /// Extension head → 其分派表（apply 路径索引，非字符串）。
-    operator_tables: HashMap<OperatorId, DispatchTableId>,
+    operator_tables: HashMap<ExtensionOperatorId, DispatchTableId>,
     /// `RegisterRuleDispatch` 头符号对其 Extension operator 的拥有关系。
-    extension_rule_owners: HashMap<SymbolId, OperatorId>,
+    extension_rule_owners: HashMap<SymbolId, ExtensionOperatorId>,
     next_dispatch_table: u32,
 }
 
@@ -45,7 +45,7 @@ impl DefinitionLayer {
     }
 
     /// 追加 extension head 规则（分配或复用 [`DispatchTableId`]）。
-    pub fn register_extension_rule(&mut self, op: OperatorId, pattern: TermPattern, replacement: TermId) {
+    pub fn register_extension_rule(&mut self, op: ExtensionOperatorId, pattern: TermPattern, replacement: TermId) {
         let table = self.ensure_table_for_operator(op);
         self.append_rule(table, pattern, replacement);
     }
@@ -59,7 +59,7 @@ impl DefinitionLayer {
     }
 
     /// 将 Extension operator 绑定到已有分派表（apply 索引）。
-    pub fn bind_operator_table(&mut self, op: OperatorId, table: DispatchTableId) {
+    pub fn bind_operator_table(&mut self, op: ExtensionOperatorId, table: DispatchTableId) {
         self.operator_tables.insert(op, table);
         self.dispatch_tables.entry(table).or_default();
     }
@@ -78,7 +78,7 @@ impl DefinitionLayer {
     pub fn register_extension_rule_for_symbol(
         &mut self,
         symbol: SymbolId,
-        op: OperatorId,
+        op: ExtensionOperatorId,
         pattern: TermPattern,
         replacement: TermId,
     ) {
@@ -98,14 +98,14 @@ impl DefinitionLayer {
         self.residual_bindings.get(&symbol).copied()
     }
 
-    /// Extension apply：经 `OperatorId` → [`DispatchTableId`] 取规则。
-    pub fn extension_dispatch_rules(&self, op: OperatorId) -> Option<&[(TermPattern, TermId)]> {
+    /// Extension apply：经 `ExtensionOperatorId` → [`DispatchTableId`] 取规则。
+    pub fn extension_dispatch_rules(&self, op: ExtensionOperatorId) -> Option<&[(TermPattern, TermId)]> {
         let table = self.operator_tables.get(&op)?;
         self.dispatch_tables.get(table).map(Vec::as_slice)
     }
 
     /// 查 Extension head 对应的分派表句柄。
-    pub fn dispatch_table_for(&self, op: OperatorId) -> Option<DispatchTableId> {
+    pub fn dispatch_table_for(&self, op: ExtensionOperatorId) -> Option<DispatchTableId> {
         self.operator_tables.get(&op).copied()
     }
 
@@ -117,7 +117,7 @@ impl DefinitionLayer {
     }
 
     /// 清除 Extension head 对应的分派表。
-    pub fn clear_extension(&mut self, op: OperatorId) {
+    pub fn clear_extension(&mut self, op: ExtensionOperatorId) {
         if let Some(table) = self.operator_tables.remove(&op) {
             self.dispatch_tables.remove(&table);
         }
@@ -141,7 +141,7 @@ impl DefinitionLayer {
             || self.extension_rule_owners.contains_key(&symbol)
     }
 
-    fn ensure_table_for_operator(&mut self, op: OperatorId) -> DispatchTableId {
+    fn ensure_table_for_operator(&mut self, op: ExtensionOperatorId) -> DispatchTableId {
         if let Some(id) = self.operator_tables.get(&op).copied() {
             return id;
         }

@@ -1,9 +1,9 @@
 //! Closed core semantic operators and application heads.
 //!
 //! Core math / logic / structure ops are [`SemanticOperator`].
-//! [`OperatorRegistry`] is only for extension display names, never the core catalog.
+//! [`ExtensionRegistry`] is only for extension display names, never the core catalog.
 
-use athena_types::OperatorId;
+use athena_types::ExtensionOperatorId;
 
 /// Closed unary special-function identity (fingerprint-stable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -381,6 +381,6 @@ impl SemanticOperator {
 pub enum ApplicationHead {
     /// Core closed semantic operator.
     Semantic(SemanticOperator),
-    /// Extension-only identity. Display name may live in [`super::OperatorRegistry`].
-    Extension(OperatorId),
+    /// Extension-only identity. Display name may live in [`super::ExtensionRegistry`].
+    Extension(ExtensionOperatorId),
 }

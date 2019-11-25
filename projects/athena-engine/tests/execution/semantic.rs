@@ -46,7 +46,7 @@ fn unary(f: UnaryFunction, args: Vec<Tid>, s: &mut Session) -> Tid {
 }
 
 fn ext(head: &str, args: Vec<Tid>, s: &mut Session) -> Tid {
-    let op = s.operators.intern(head);
+    let op = s.extensions.intern(head);
     push_extension(s, op, args)
 }
 
@@ -305,7 +305,7 @@ fn downvalues_and_match_q() {
         Some(athena_ir::TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    let f_op = s.operators.intern("f");
+    let f_op = s.extensions.intern("f");
     let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut s), int(2, &mut s)], &mut s);
     let pattern = TermPattern::Application {
         operator: athena_ir::ApplicationHead::Extension(f_op),
@@ -340,7 +340,7 @@ fn register_compiled_rule_via_session_command() {
         Some(athena_ir::TermNode::Atom(Atom::Symbol(id))) => *id,
         other => panic!("expected symbol, got {other:?}"),
     };
-    let f_op = s.operators.intern("f");
+    let f_op = s.extensions.intern("f");
     let table = s.defs.alloc_dispatch_table();
     s.defs.bind_operator_table(f_op, table);
     let rhs = sem(SemanticOperator::Power, vec![symbol("x", &mut s), int(2, &mut s)], &mut s);

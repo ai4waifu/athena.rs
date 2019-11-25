@@ -15,7 +15,7 @@ fn extension_named_plus_is_not_semantic_add() {
         let mut t = fx.terms();
         t.integer(2)
     };
-    let op = fx.session_mut().operators.intern("Plus");
+    let op = fx.session_mut().extensions.intern("Plus");
     let term = push_extension(fx.session_mut(), op, vec![a, b]);
     match fx.session().arena.get(term) {
         Some(TermNode::Application {

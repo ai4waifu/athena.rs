@@ -10,9 +10,11 @@ pub struct TermId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SymbolId(pub u32);
 
-/// 内建 / 注册算子 id。
+/// 扩展算子身份（仅扩展显示名 / apply 索引，禁止承担核心数学语义）。
+///
+/// 核心算子用 [`athena_ir::SemanticOperator`]，不得经本 id 做算术 / 微积分分派。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct OperatorId(pub u32);
+pub struct ExtensionOperatorId(pub u32);
 
 /// 数学域 id（系数域等）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

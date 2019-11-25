@@ -39,7 +39,7 @@ pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<Str
     match session.arena.get(id)? {
         TermNode::Application { head, .. } => match *head {
             ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
-            ApplicationHead::Extension(op) => session.operators.name(op).map(str::to_string),
+            ApplicationHead::Extension(op) => session.extensions.display_name(op).map(str::to_string),
         },
         TermNode::Collection { kind, .. } => Some(kind.debug_label().to_string()),
         TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),

@@ -1,11 +1,11 @@
 //! 受控 IR 构造 API。
 
 use athena_numeric::NumericValue;
-use athena_types::{CollectionKind, OperatorId, Result, SourceSpan, SymbolId, TermId};
+use athena_types::{CollectionKind, ExtensionOperatorId, Result, SourceSpan, SymbolId, TermId};
 
 use crate::{
     node::{Atom, MathematicalConstant, TermNode},
-    operator::{ApplicationHead, OperatorRegistry, SemanticOperator},
+    operator::{ApplicationHead, ExtensionRegistry, SemanticOperator},
     store::TermStore,
     symbol::SymbolTable,
 };
@@ -66,7 +66,7 @@ impl<'a> TermBuilder<'a> {
     /// Extension operator application (display name via registry — never maps to core semantics).
     pub fn application_extension(
         &mut self,
-        registry: &mut OperatorRegistry,
+        registry: &mut ExtensionRegistry,
         head: &str,
         args: Vec<TermId>,
         span: SourceSpan,
@@ -75,8 +75,8 @@ impl<'a> TermBuilder<'a> {
         self.application(ApplicationHead::Extension(op), args, span)
     }
 
-    /// Extension application from an existing [`OperatorId`].
-    pub fn application_extension_id(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
+    /// Extension application from an existing [`ExtensionOperatorId`].
+    pub fn application_extension_id(&mut self, op: ExtensionOperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
         self.application(ApplicationHead::Extension(op), args, span)
     }
 

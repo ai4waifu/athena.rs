@@ -88,7 +88,7 @@ impl ReferenceExecutor {
     pub(crate) fn eval_residual_app(
         &self,
         session: &mut Session,
-        op: athena_types::OperatorId,
+        op: athena_types::ExtensionOperatorId,
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Slot> {
@@ -142,7 +142,7 @@ impl ReferenceExecutor {
     pub(crate) fn try_apply_down_values(
         &self,
         session: &mut Session,
-        op: athena_types::OperatorId,
+        op: athena_types::ExtensionOperatorId,
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
@@ -377,7 +377,7 @@ impl ReferenceExecutor {
             }
         }
         if let Some(name) = symbol_name(session, func) {
-            let op = session.operators.intern(&name);
+            let op = session.extensions.intern(&name);
             let mapped = push_extension(session, op, vec![item]);
             return self.re_eval_term(session, mapped);
         }
@@ -448,7 +448,7 @@ impl ReferenceExecutor {
             }
         }
         if let Some(name) = symbol_name(session, head) {
-            let op = session.operators.intern(&name);
+            let op = session.extensions.intern(&name);
             let app = push_extension(session, op, call_args);
             match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
                 Ok(module) => {

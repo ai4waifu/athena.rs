@@ -25,7 +25,7 @@ pub use pattern_ids::{CompiledRuleId, DispatchTableId, PredicateId, ValueTypeId}
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId, FieldPresentationId,
-    FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, OperatorId, PolynomialId, PresentationId, ProofRef, ResultId, RingId,
+    FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, ExtensionOperatorId, PolynomialId, PresentationId, ProofRef, ResultId, RingId,
     SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
 };
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};

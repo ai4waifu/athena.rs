@@ -124,8 +124,8 @@ pub fn push_semantic(session: &mut crate::runtime::session::Session, op: athena_
     crate::runtime::values::arena::push_semantic(session, op, args)
 }
 
-/// 会话级 extension App 构造（[`OperatorId`](athena_types::OperatorId)，永不字符串→核心语义）。
-pub fn push_extension(session: &mut crate::runtime::session::Session, op: athena_types::OperatorId, args: Vec<TermId>) -> TermId {
+/// 会话级 extension App 构造（[`ExtensionOperatorId`](athena_types::ExtensionOperatorId)，永不字符串→核心语义）。
+pub fn push_extension(session: &mut crate::runtime::session::Session, op: athena_types::ExtensionOperatorId, args: Vec<TermId>) -> TermId {
     crate::runtime::values::arena::push_extension(session, op, args)
 }
 

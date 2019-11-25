@@ -1,6 +1,6 @@
 //! Typed SSA operations (closed opcode family — no string handler lookup).
 
-use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, IndexSpec, OperatorId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, IndexSpec, ExtensionOperatorId};
 use athena_ir::SemanticOperator;
 
 use super::{
@@ -53,7 +53,7 @@ pub enum OperationKind {
     /// Apply an extension operator (display name via registry — not core math).
     ApplyExtensionOperator {
         /// Extension identity.
-        operator: OperatorId,
+        operator: ExtensionOperatorId,
         /// Operand SSA values.
         args: Vec<SsaValueId>,
     },
@@ -92,7 +92,7 @@ pub enum OperationKind {
         /// Head symbol key (ownership / clear).
         head: SsaValueId,
         /// Extension operator closed at compile (no execute-time display-name intern).
-        operator: OperatorId,
+        operator: ExtensionOperatorId,
         /// Pattern term (already neutral / compiled at lowering).
         pattern: SsaValueId,
         /// Replacement template term.

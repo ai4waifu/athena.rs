@@ -1,6 +1,6 @@
 //! Static types carried by SSA values inside `ExecutionIR`.
 
-use athena_types::{OperatorId, ResultId, SymbolId, TermId, ValueId};
+use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, ValueId};
 
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
 
@@ -69,7 +69,7 @@ pub struct ProviderCallDescriptor {
     /// Descriptor table index.
     pub id: ProviderCallId,
     /// Closed semantic operator identity (not a dialect surface name).
-    pub operator: OperatorId,
+    pub operator: ExtensionOperatorId,
     /// Expected argument types.
     pub argument_types: Vec<ExecutionValueType>,
     /// Result type.
@@ -112,7 +112,7 @@ impl CapturedRoot {
 
 impl ProviderCallDescriptor {
     /// Minimal provider descriptor.
-    pub fn new(id: ProviderCallId, operator: OperatorId, result_type: ExecutionValueType) -> Self {
+    pub fn new(id: ProviderCallId, operator: ExtensionOperatorId, result_type: ExecutionValueType) -> Self {
         Self { id, operator, argument_types: Vec::new(), result_type, safepoint: true }
     }
 }

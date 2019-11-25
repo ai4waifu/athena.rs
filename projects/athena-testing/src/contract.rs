@@ -109,7 +109,7 @@ fn register_compiled_rule_dispatches_extension_apply() {
         let mut t = fx.terms();
         t.intern("x")
     };
-    let f_op = fx.session_mut().operators.intern("f");
+    let f_op = fx.session_mut().extensions.intern("f");
     let table = fx.session_mut().defs.alloc_dispatch_table();
     fx.session_mut().defs.bind_operator_table(f_op, table);
     let rhs = {
@@ -178,7 +178,7 @@ fn semantic_head_is_not_extension_operator_id() {
         }) => {}
         other => panic!("expected Semantic(Add), got {other:?}"),
     }
-    let ext = fx.session_mut().operators.intern("user_plugin_op");
+    let ext = fx.session_mut().extensions.intern("user_plugin_op");
     let call = push_extension(fx.session_mut(), ext, vec![]);
     match fx.session().arena.get(call) {
         Some(TermNode::Application {
