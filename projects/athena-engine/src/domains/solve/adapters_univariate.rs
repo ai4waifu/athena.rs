@@ -11,7 +11,7 @@ use super::{
     binding::{BindingMap, BoundSymbol},
     coverage::CoverageStatus,
     domain::SolveDomain,
-    frontier::ResumeToken,
+    frontier::{ResumeKind, ResumeToken},
     map_coverage::coverage_from_factorization,
     solution::{BranchStatus, MultiplicityInfo, SolutionBranch, SolutionSet},
     value_table::{BindingValue, BindingValueTable},
@@ -72,7 +72,7 @@ pub fn adapt_univariate_factorization(
 
     let frontier = match &coverage {
         CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
-        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => Some(ResumeToken::empty("univariate_factor")),
+        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => Some(ResumeToken::empty(ResumeKind::UnivariateFactor)),
         _ => None,
     };
 

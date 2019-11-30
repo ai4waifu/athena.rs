@@ -38,7 +38,7 @@ pub use constraint::{
 pub use coverage::CoverageStatus;
 pub use dispatch::{LinearSolveMode, execute_linear_system_goal, execute_polynomial_root_goal, require_goal};
 pub use domain::SolveDomain;
-pub use frontier::ResumeToken;
+pub use frontier::{ResumeKind, ResumeToken};
 pub use goal::SolveGoal;
 pub use map_coverage::{coverage_from_exact_disposition, coverage_from_factorization, coverage_from_machine_disposition};
 pub use normalize::{normalize_constraint_conjunction, normalize_relational_application};

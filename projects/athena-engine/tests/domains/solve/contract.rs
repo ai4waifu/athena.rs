@@ -2,7 +2,7 @@
 
 use athena_engine::{
     domains::solve::{
-        BindingMap, BoundSymbol, Constraint, ConstraintSet, CoverageStatus, ExecutionLimits, ResumeToken, SolutionBranch, SolutionSet,
+        BindingMap, BoundSymbol, Constraint, ConstraintSet, CoverageStatus, ExecutionLimits, ResumeKind, ResumeToken, SolutionBranch, SolutionSet,
         SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SolveRelationKind,
     },
     reasoning::solver::{DomainRef, SolverOperation, SolverRequest},
@@ -49,7 +49,7 @@ fn coverage_gates_exact_union_find() {
     assert!(!CoverageStatus::LocalOnly.admits_exact_union_find());
     assert!(!CoverageStatus::CertifiedSubset.admits_exact_union_find());
     assert!(!CoverageStatus::Probable.admits_exact_union_find());
-    assert!(!CoverageStatus::ResourceLimited { frontier: ResumeToken::empty("cut") }.admits_exact_union_find());
+    assert!(!CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::Cut) }.admits_exact_union_find());
     assert!(CoverageStatus::LocalOnly.must_surface_to_renderer());
 }
 

@@ -5,7 +5,7 @@ use crate::domains::{
     polynomial::PolynomialFactorizationCompleteness,
 };
 
-use super::{coverage::CoverageStatus, frontier::ResumeToken};
+use super::{coverage::CoverageStatus, frontier::{ResumeKind, ResumeToken}};
 
 /// 精确线性求解 disposition → 覆盖。
 pub fn coverage_from_exact_disposition(disposition: &SolveDisposition) -> CoverageStatus {
@@ -14,7 +14,7 @@ pub fn coverage_from_exact_disposition(disposition: &SolveDisposition) -> Covera
         // 仅有特解与自由列下标，尚无零空间基，不得声称完整参数族。
         SolveDisposition::Infinite { .. } => CoverageStatus::CertifiedSubset,
         SolveDisposition::Singular => CoverageStatus::Unsupported,
-        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty("linear_exact") },
+        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::LinearExact) },
     }
 }
 
@@ -25,7 +25,7 @@ pub fn coverage_from_machine_disposition(disposition: &SolveDisposition, guarant
         SolveDisposition::Unique => CoverageStatus::LocalOnly,
         SolveDisposition::Singular | SolveDisposition::Inconsistent => CoverageStatus::LocalOnly,
         SolveDisposition::Infinite { .. } => CoverageStatus::CertifiedSubset,
-        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty("linear_machine") },
+        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::LinearMachine) },
     }
 }
 
@@ -37,7 +37,7 @@ pub fn coverage_from_factorization(completeness: PolynomialFactorizationComplete
         PolynomialFactorizationCompleteness::Probable => CoverageStatus::Probable,
         PolynomialFactorizationCompleteness::Partial => CoverageStatus::CertifiedSubset,
         PolynomialFactorizationCompleteness::ResourceLimited => {
-            CoverageStatus::ResourceLimited { frontier: ResumeToken::empty("univariate_factor") }
+            CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::UnivariateFactor) }
         }
     }
 }
