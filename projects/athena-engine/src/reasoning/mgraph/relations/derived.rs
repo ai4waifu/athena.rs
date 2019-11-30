@@ -3,6 +3,7 @@
 use crate::reasoning::mgraph::{
     core::types::RewriteWitness,
     equivalence::{
+        congruence::CongruenceIndex,
         proof_forest::{ProofForest, ProofStepKind},
         union_find::ExactUnionFind,
     },
@@ -20,6 +21,8 @@ pub struct DerivedIndexes {
     pub exact_uf: ExactUnionFind,
     /// 已接纳等式的证明森林。
     pub proof_forest: ProofForest,
+    /// 模同余 stable 指纹索引（与 `TermId` ExactUF 分离）。
+    pub congruence: CongruenceIndex,
     /// admission 通过的 rewrite witness 边。
     pub rewrite_witnesses: Vec<RewriteWitness>,
 }
@@ -34,7 +37,7 @@ impl DerivedIndexes {
         derived
     }
 
-    /// 增量应用单条已验证 claim（更新 exact UF / proof forest / witness 索引）。
+    /// 增量应用单条已验证 claim（更新 exact UF / proof forest / congruence / witness 索引）。
     pub fn apply_verified_claim(&mut self, claim: &VerifiedClaim) {
         if !claim.admissible_for_exact_union() {
             return;
@@ -51,7 +54,15 @@ impl DerivedIndexes {
                 self.exact_uf.union(*left, *right);
                 self.proof_forest.record(*left, *right, ProofStepKind::AdmittedEquality);
             }
-            Proposition::Congruence { .. } | Proposition::CalculusRelation { .. } => {}
+            Proposition::Congruence {
+                modulus_fingerprint: _,
+                left,
+                right,
+            } => {
+                // Fingerprint-space index only. Do not coerce fingerprints into `TermId` ProofForest edges.
+                self.congruence.union(*left, *right);
+            }
+            Proposition::CalculusRelation { .. } => {}
         }
     }
 }
@@ -98,5 +109,34 @@ mod tests {
         assert_eq!(derived.exact_uf.find(TermId(1)), derived.exact_uf.find(TermId(3)));
         assert_eq!(derived.proof_forest.len(), 2);
         assert_eq!(derived.proof_forest.edges()[0].step_kind, ProofStepKind::AdmittedEquality);
+    }
+
+    fn congruence_claim(left: u64, right: u64) -> VerifiedClaim {
+        VerifiedClaim::from_admission(Claim {
+            proposition: Proposition::Congruence {
+                modulus_fingerprint: 97,
+                left,
+                right,
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::TestHarness,
+                summary: String::new(),
+            },
+        })
+    }
+
+    #[test]
+    fn rebuild_projects_congruence_into_fingerprint_index() {
+        let mut journal = AdmissionJournal::new();
+        journal.append(congruence_claim(10, 20));
+        journal.append(congruence_claim(20, 30));
+        let derived = DerivedIndexes::rebuild_from(&journal);
+        assert_eq!(derived.congruence.find(10), derived.congruence.find(30));
+        assert_eq!(derived.congruence.union_count(), 2);
+        assert!(derived.proof_forest.is_empty());
+        assert_eq!(derived.exact_uf.union_count(), 0);
     }
 }

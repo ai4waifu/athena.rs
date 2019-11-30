@@ -36,7 +36,7 @@ pub use core::{
     SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, predicates, scope_from_ref,
     scope_ref_from_assumption_set, scope_to_ref,
 };
-pub use equivalence::{ExactUnionFind, ProofEdge, ProofForest, ProofStepKind};
+pub use equivalence::{CongruenceIndex, ExactUnionFind, ProofEdge, ProofForest, ProofStepKind, congruence_proposition};
 pub use facts::{
     AdmissionJournal, CalculusRelationKind, Claim, Evidence, EvidenceCertificate, FactId, Guarantee, Proposition, Scope, VerifiedClaim,
     proposition_from_cache_key,
