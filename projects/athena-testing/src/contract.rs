@@ -277,3 +277,19 @@ fn number_theory_goal_request_preserves_typed_payload() {
         other => panic!("expected gcd payload, got {other:?}"),
     }
 }
+
+#[test]
+fn structural_term_equality_admits_into_exact_uf_and_proof_forest() {
+    let mut fx = SessionFixture::new();
+    let (left, right) = {
+        let mut t = fx.terms();
+        (t.integer(7), t.integer(7))
+    };
+    assert!(fx.session().arena.structural_eq(left, right));
+    fx.session_mut()
+        .admit_structural_term_equality(left, right)
+        .expect("admit");
+    let derived = &fx.session().mgraph.semantic.derived;
+    assert_eq!(derived.exact_uf.find(left), derived.exact_uf.find(right));
+    assert_eq!(derived.proof_forest.len(), 1);
+}
