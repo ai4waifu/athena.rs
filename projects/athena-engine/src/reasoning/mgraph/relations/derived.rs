@@ -55,12 +55,12 @@ impl DerivedIndexes {
                 self.proof_forest.record(*left, *right, ProofStepKind::AdmittedEquality);
             }
             Proposition::Congruence {
-                modulus_fingerprint: _,
+                modulus_fingerprint,
                 left,
                 right,
             } => {
                 // Fingerprint-space index only. Do not coerce fingerprints into `TermId` ProofForest edges.
-                self.congruence.union(*left, *right);
+                self.congruence.union(*modulus_fingerprint, *left, *right);
             }
             Proposition::CalculusRelation { .. } => {}
         }
@@ -111,10 +111,10 @@ mod tests {
         assert_eq!(derived.proof_forest.edges()[0].step_kind, ProofStepKind::AdmittedEquality);
     }
 
-    fn congruence_claim(left: u64, right: u64) -> VerifiedClaim {
+    fn congruence_claim(modulus: u64, left: u64, right: u64) -> VerifiedClaim {
         VerifiedClaim::from_admission(Claim {
             proposition: Proposition::Congruence {
-                modulus_fingerprint: 97,
+                modulus_fingerprint: modulus,
                 left,
                 right,
             },
@@ -131,12 +131,23 @@ mod tests {
     #[test]
     fn rebuild_projects_congruence_into_fingerprint_index() {
         let mut journal = AdmissionJournal::new();
-        journal.append(congruence_claim(10, 20));
-        journal.append(congruence_claim(20, 30));
+        journal.append(congruence_claim(97, 10, 20));
+        journal.append(congruence_claim(97, 20, 30));
         let derived = DerivedIndexes::rebuild_from(&journal);
-        assert_eq!(derived.congruence.find(10), derived.congruence.find(30));
+        assert_eq!(derived.congruence.find(97, 10), derived.congruence.find(97, 30));
         assert_eq!(derived.congruence.union_count(), 2);
         assert!(derived.proof_forest.is_empty());
         assert_eq!(derived.exact_uf.union_count(), 0);
+    }
+
+    #[test]
+    fn rebuild_keeps_congruence_classes_per_modulus() {
+        let mut journal = AdmissionJournal::new();
+        journal.append(congruence_claim(7, 10, 20));
+        journal.append(congruence_claim(11, 10, 30));
+        let derived = DerivedIndexes::rebuild_from(&journal);
+        assert_eq!(derived.congruence.find(7, 10), derived.congruence.find(7, 20));
+        assert_ne!(derived.congruence.find(7, 10), derived.congruence.find(7, 30));
+        assert_eq!(derived.congruence.modulus_count(), 2);
     }
 }
