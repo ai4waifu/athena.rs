@@ -13,12 +13,11 @@ fn intern_stable() {
 fn extension_registry_starts_empty_without_surface_catalog() {
     let mut registry = ExtensionRegistry::new();
     assert!(registry.is_empty());
-    assert!(registry.lookup_display_name("Plus").is_none());
-    assert!(registry.lookup_display_name("Blank").is_none());
-    let deferred_define = format!("{}{}", "Define", "Deferred");
-    assert!(registry.lookup_display_name(&deferred_define).is_none());
-    let plus = registry.intern("Plus");
-    assert_eq!(registry.lookup_display_name("Plus"), Some(plus));
-    assert_eq!(registry.display_name(plus), Some("Plus"));
+    // Display-name reverse lookup is not a public core API. Intern is the only
+    // allocate path; identity is `ExtensionOperatorId`, not a Mathematica catalog.
+    let plus = registry.intern("user_extension_plus");
+    let again = registry.intern("user_extension_plus");
+    assert_eq!(plus, again);
+    assert_eq!(registry.display_name(plus), Some("user_extension_plus"));
     assert_eq!(registry.len(), 1);
 }

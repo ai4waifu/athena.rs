@@ -38,15 +38,10 @@ impl ExtensionRegistry {
         id
     }
 
-    /// Look up an existing id by display name without allocating.
-    ///
-    /// Boundary / product-layer helper only. Core execution must never branch on
-    /// the returned name or use this to recover [`super::SemanticOperator`].
-    pub fn lookup_display_name(&self, name: &str) -> Option<ExtensionOperatorId> {
-        self.by_name.get(name).copied()
-    }
-
     /// Resolve an extension operator display name (debug / renderer / diagnostics).
+    ///
+    /// Never use the returned string to recover [`super::SemanticOperator`] or to
+    /// choose an executor / provider / domain request.
     pub fn display_name(&self, id: ExtensionOperatorId) -> Option<&str> {
         self.names.get(id.0 as usize).map(String::as_str)
     }
