@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use athena_engine::reasoning::{
-    mgraph::{CapabilityProviderId, ClosureLimits, MGraphState, SolverCandidate, run_closure_step},
+    mgraph::{CapabilityProviderId, ClosureLimits, ClosureStopReason, MGraphState, SolverCandidate, run_closure_step},
     solver::{
         DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverOperation, SolverRegistry, SolverRequest, score_candidate,
     },
@@ -23,7 +23,8 @@ fn mgraph_state_defaults() {
     let state = MGraphState::new();
     assert!(state.operational.hyper_edges.is_empty());
     let result = run_closure_step(&state, &ClosureLimits::default());
-    assert!(!result.complete);
+    assert_eq!(result.stop, ClosureStopReason::UnsupportedBootstrap);
+    assert!(!result.is_saturated());
     assert!(!result.diagnostics.is_empty());
 }
 

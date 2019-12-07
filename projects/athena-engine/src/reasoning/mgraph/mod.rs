@@ -29,7 +29,7 @@ pub use admission::{
     VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
 };
 pub use cache::ResultCache;
-pub use closure::{ClosureLimits, ClosureResult, OperationalState, run_closure_step};
+pub use closure::{ClosureLimits, ClosureResult, ClosureStopReason, OperationalState, run_closure_step};
 pub use core::{
     CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
     MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind,
