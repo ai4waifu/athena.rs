@@ -293,3 +293,14 @@ fn structural_term_equality_admits_into_exact_uf_and_proof_forest() {
     assert_eq!(derived.exact_uf.find(left), derived.exact_uf.find(right));
     assert_eq!(derived.proof_forest.len(), 1);
 }
+
+#[test]
+fn congruence_admit_keeps_classes_per_modulus() {
+    let mut fx = SessionFixture::new();
+    fx.session_mut().admit_congruence(7, 10, 20).expect("mod7");
+    fx.session_mut().admit_congruence(11, 10, 30).expect("mod11");
+    let congruence = &fx.session().mgraph.semantic.derived.congruence;
+    assert_eq!(congruence.find(7, 10), congruence.find(7, 20));
+    assert_ne!(congruence.find(7, 10), congruence.find(7, 30));
+    assert_eq!(congruence.modulus_count(), 2);
+}
