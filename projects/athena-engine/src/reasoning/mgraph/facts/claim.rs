@@ -80,6 +80,15 @@ pub enum EvidenceCertificate {
         /// 右项。
         right: TermId,
     },
+    /// 模同余精确关系证书（stable 指纹）。
+    CongruenceExact {
+        /// 模数 canonical 指纹。
+        modulus_fingerprint: u64,
+        /// 左操作数 stable 指纹。
+        left: u64,
+        /// 右操作数 stable 指纹。
+        right: u64,
+    },
 }
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。

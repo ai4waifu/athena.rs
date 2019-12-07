@@ -17,6 +17,9 @@ use crate::{
 /// 微积分域 capability provider 身份。
 pub const CALCULUS_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(11);
 
+/// 同余关系 capability provider 身份。
+pub const CONGRUENCE_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(21);
+
 /// 拒绝接纳原因。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdmissionRejectReason {
@@ -157,6 +160,35 @@ impl AdmissionGate {
         };
         Self::admit_claim(semantic, claim, policy)
     }
+
+    /// 接纳无条件 `ProvenExact` 模同余关系（写入 modulus-isolated `CongruenceIndex`）。
+    pub fn admit_congruence(
+        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        modulus_fingerprint: u64,
+        left: u64,
+        right: u64,
+        policy: &VerificationPolicy,
+    ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
+        let claim = Claim {
+            proposition: Proposition::Congruence {
+                modulus_fingerprint,
+                left,
+                right,
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CONGRUENCE_PROVIDER_ID,
+                certificate: EvidenceCertificate::CongruenceExact {
+                    modulus_fingerprint,
+                    left,
+                    right,
+                },
+                summary: format!("congruence:{modulus_fingerprint}:{left}:{right}"),
+            },
+        };
+        Self::admit_claim(semantic, claim, policy)
+    }
 }
 
 /// 对多项式 Exact 值执行 verifier（不写入 semantic core）。
@@ -252,5 +284,22 @@ fn evidence_from_witness(key: &PolynomialCacheKey, witness: &PolynomialWitness) 
             groebner_steps: witness.groebner_steps,
         },
         summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::reasoning::mgraph::SemanticCore;
+
+    #[test]
+    fn admit_congruence_rebuilds_modulus_isolated_index() {
+        let mut semantic = SemanticCore::new();
+        let policy = VerificationPolicy::default();
+        AdmissionGate::admit_congruence(&mut semantic, 7, 10, 20, &policy).expect("mod7");
+        AdmissionGate::admit_congruence(&mut semantic, 11, 10, 30, &policy).expect("mod11");
+        assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 20));
+        assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 30));
+        assert_eq!(semantic.derived.congruence.modulus_count(), 2);
     }
 }

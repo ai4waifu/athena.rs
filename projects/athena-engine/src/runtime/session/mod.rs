@@ -271,4 +271,20 @@ impl Session {
     ) -> Result<FactId, AdmissionRejectReason> {
         self.admit_structural_term_equality(candidate.left_term, candidate.right_term)
     }
+
+    /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
+    pub fn admit_congruence(
+        &mut self,
+        modulus_fingerprint: u64,
+        left: u64,
+        right: u64,
+    ) -> Result<FactId, AdmissionRejectReason> {
+        crate::reasoning::mgraph::AdmissionGate::admit_congruence(
+            &mut self.mgraph.semantic,
+            modulus_fingerprint,
+            left,
+            right,
+            &VerificationPolicy::default(),
+        )
+    }
 }

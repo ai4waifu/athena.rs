@@ -25,8 +25,8 @@ pub mod relations;
 pub mod semantic_entry;
 
 pub use admission::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, EvidenceVerifier, OuterCandidate, SemanticCore,
-    VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID, EvidenceVerifier, OuterCandidate,
+    SemanticCore, VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
 };
 pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, ClosureStopReason, OperationalState, run_closure_step};
