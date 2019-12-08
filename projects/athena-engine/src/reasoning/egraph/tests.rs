@@ -179,3 +179,37 @@ fn session_saturation_and_structural_admit() {
         session.mgraph.semantic.derived.exact_uf.find(b)
     );
 }
+
+#[test]
+fn saturate_emits_candidates_from_structural_rule_match() {
+    use athena_rewriter::RuleSet;
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let zero = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
+        span,
+    );
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let pattern = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
+        span,
+    );
+    let replacement = one;
+    let mut rules = RuleSet::new();
+    rules.push(pattern, replacement, Some("zero_to_one"));
+
+    let mut graph = EGraph::new();
+    let report = saturate(&mut graph, &store, &[zero], SaturationBudget::smoke(), Some(&rules));
+    assert_eq!(report.stop, SaturationStopReason::FixedPoint);
+    assert_eq!(report.candidates.len(), 1);
+    assert_eq!(report.candidates[0].left_term, zero);
+    assert_eq!(report.candidates[0].right_term, one);
+    assert_eq!(
+        graph.find(graph.class_of_term(zero).unwrap()),
+        graph.find(graph.class_of_term(one).unwrap())
+    );
+}

@@ -96,6 +96,11 @@ impl EGraph {
         true
     }
 
+    /// Terms previously added to this graph (session-local roots).
+    pub fn known_terms(&self) -> Vec<TermId> {
+        self.term_class.keys().copied().collect()
+    }
+
     /// Lookup e-class for a previously added term.
     pub fn class_of_term(&self, term: TermId) -> Option<EClassId> {
         self.term_class.get(&term).map(|c| self.find(*c))
