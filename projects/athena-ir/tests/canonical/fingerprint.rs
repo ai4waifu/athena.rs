@@ -95,3 +95,23 @@ fn structural_eq_atom_payloads() {
     assert!(!arena.structural_eq(tr, i1));
     assert!(matches!(arena.get(i1), Some(TermNode::Atom(Atom::Number(_)))));
 }
+
+#[test]
+fn number_fingerprint_uses_stable_domain_tag_not_debug() {
+    let mut arena = TermStore::new();
+    let mut b = TermBuilder::new(&mut arena);
+    let i = b.int(2, SPAN);
+    let r = b.rational_i64(1, 2, SPAN).unwrap();
+    assert_ne!(canonical_hash(&arena, i), canonical_hash(&arena, r));
+    match (arena.get(i), arena.get(r)) {
+        (Some(TermNode::Atom(Atom::Number(ni))), Some(TermNode::Atom(Atom::Number(nr)))) => {
+            assert_eq!(ni.fingerprint_domain_tag(), 1);
+            assert_eq!(nr.fingerprint_domain_tag(), 2);
+        }
+        other => panic!("expected number atoms, got {other:?}"),
+    }
+    let mut arena2 = TermStore::new();
+    let mut b2 = TermBuilder::new(&mut arena2);
+    let i2 = b2.int(2, SPAN);
+    assert_eq!(canonical_hash(&arena, i), canonical_hash(&arena2, i2));
+}

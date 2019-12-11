@@ -286,6 +286,38 @@ impl NumericValue {
         }
     }
 
+    /// Stable domain/kind tag for IR fingerprints (never `Debug` formatting).
+    pub fn fingerprint_domain_tag(&self) -> u64 {
+        const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+        let mix = |h: u64, v: u64| h.wrapping_mul(FNV_PRIME).wrapping_add(v);
+        match self {
+            Self::Integer(_) => 1,
+            Self::Rational(_) => 2,
+            Self::Real(Real::Machine(_)) => 3,
+            Self::Real(Real::Decimal(_)) => 4,
+            Self::Complex(_) => 5,
+            Self::Interval(_) => 6,
+            Self::Algebraic(_) => 7,
+            Self::Modular(v) => {
+                let mut h = 8u64;
+                if let Some(m) = v.modulus() {
+                    for &limb in m.as_limbs() {
+                        h = mix(h, limb);
+                    }
+                }
+                h
+            }
+            Self::FiniteField(v) => mix(9, u64::from(v.field().0)),
+            Self::PAdic(v) => {
+                let mut h = mix(10, u64::from(v.precision));
+                for b in v.prime.to_decimal_string().as_bytes() {
+                    h = mix(h, u64::from(*b));
+                }
+                h
+            }
+        }
+    }
+
     /// 代数数视图。
     pub fn as_algebraic(&self) -> Option<&AlgebraicNumber> {
         match self {
