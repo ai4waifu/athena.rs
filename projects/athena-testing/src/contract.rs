@@ -304,3 +304,26 @@ fn congruence_admit_keeps_classes_per_modulus() {
     assert_ne!(congruence.find(7, 10), congruence.find(7, 30));
     assert_eq!(congruence.modulus_count(), 2);
 }
+
+#[test]
+fn egraph_ruleset_saturation_emits_unverified_candidates() {
+    use athena_rewriter::RuleSet;
+
+    let mut fx = SessionFixture::new();
+    let (zero, one) = {
+        let mut t = fx.terms();
+        (t.integer(0), t.integer(1))
+    };
+    let pattern = {
+        let mut t = fx.terms();
+        t.integer(0)
+    };
+    let mut rules = RuleSet::new();
+    rules.push(pattern, one, Some("zero_to_one"));
+    let report = fx.session_mut().run_egraph_saturation(&[zero], Some(&rules));
+    assert_eq!(report.candidates.len(), 1);
+    assert_eq!(report.candidates[0].left_term, zero);
+    assert_eq!(report.candidates[0].right_term, one);
+    // Candidates stay outside M-Graph until explicit admit.
+    assert_eq!(fx.session().mgraph.semantic.derived.proof_forest.len(), 0);
+}
