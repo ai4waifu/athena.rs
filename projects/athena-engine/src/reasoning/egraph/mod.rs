@@ -28,7 +28,8 @@ pub use extract::{ExtractionPreference, Extractor};
 pub use graph::EGraph;
 pub use ids::{EClassId, ENodeId};
 pub use pipeline::{
-    EGRAPH_PROVIDER_ID, admit_structural_term_equality, candidate_to_outer, verify_structural_term_equality,
+    EGRAPH_PROVIDER_ID, admit_structural_candidates, admit_structural_term_equality, candidate_to_outer,
+    verify_structural_term_equality,
 };
 pub use saturation::{SaturationReport, saturate};
 

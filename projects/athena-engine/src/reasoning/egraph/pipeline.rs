@@ -75,3 +75,19 @@ pub fn admit_structural_term_equality(
     let claim = verify_structural_term_equality(store, left, right)?;
     AdmissionGate::admit_claim(semantic, claim, policy)
 }
+
+/// Admit only those candidates that are structurally equal in `store`.
+///
+/// Rule-driven rewrites that change structure stay as outer candidates and are skipped.
+pub fn admit_structural_candidates(
+    store: &TermStore,
+    semantic: &mut SemanticCore,
+    candidates: &[CandidateEquivalence],
+    policy: &VerificationPolicy,
+) -> Vec<Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason>> {
+    candidates
+        .iter()
+        .filter(|c| store.structural_eq(c.left_term, c.right_term))
+        .map(|c| admit_structural_term_equality(store, semantic, c.left_term, c.right_term, policy))
+        .collect()
+}

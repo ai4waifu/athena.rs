@@ -128,6 +128,7 @@ pub fn saturate(
                     right_term: rule.replacement,
                     left_class,
                     right_class,
+                    rule: Some(rule.id),
                 });
                 progressed = true;
             }

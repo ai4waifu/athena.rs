@@ -102,6 +102,7 @@ fn candidate_to_outer_stays_unverified() {
         right_term: right,
         left_class: super::EClassId(0),
         right_class: super::EClassId(1),
+        rule: None,
     });
     assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
     assert!(matches!(
@@ -200,7 +201,7 @@ fn saturate_emits_candidates_from_structural_rule_match() {
     );
     let replacement = one;
     let mut rules = RuleSet::new();
-    rules.push(pattern, replacement, Some("zero_to_one"));
+    let rule_id = rules.push(pattern, replacement, Some("zero_to_one"));
 
     let mut graph = EGraph::new();
     let report = saturate(&mut graph, &store, &[zero], SaturationBudget::smoke(), Some(&rules));
@@ -208,8 +209,53 @@ fn saturate_emits_candidates_from_structural_rule_match() {
     assert_eq!(report.candidates.len(), 1);
     assert_eq!(report.candidates[0].left_term, zero);
     assert_eq!(report.candidates[0].right_term, one);
+    assert_eq!(report.candidates[0].rule, Some(rule_id));
     assert_eq!(
         graph.find(graph.class_of_term(zero).unwrap()),
         graph.find(graph.class_of_term(one).unwrap())
     );
+}
+
+#[test]
+fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
+    use crate::runtime::Session;
+    use athena_rewriter::RuleSet;
+
+    let mut session = Session::new();
+    let span = SourceSpan::default();
+    let zero = session.arena.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
+        span,
+    );
+    let one = session.arena.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let pattern = session.arena.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
+        span,
+    );
+    let mut rules = RuleSet::new();
+    rules.push(pattern, one, Some("zero_to_one"));
+    let report = session.run_egraph_saturation(&[zero], Some(&rules));
+    assert_eq!(report.candidates.len(), 1);
+    let admitted = session.admit_structural_egraph_candidates(&report.candidates);
+    assert!(admitted.is_empty());
+    assert_eq!(session.mgraph.semantic.derived.proof_forest.len(), 0);
+
+    let twin = session.arena.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
+        span,
+    );
+    let structural = CandidateEquivalence {
+        left_term: zero,
+        right_term: twin,
+        left_class: session.egraph.class_of_term(zero).unwrap_or(super::EClassId(0)),
+        right_class: super::EClassId(0),
+        rule: None,
+    };
+    let admitted = session.admit_structural_egraph_candidates(&[structural]);
+    assert_eq!(admitted.len(), 1);
+    assert!(admitted[0].is_ok());
+    assert_eq!(session.mgraph.semantic.derived.proof_forest.len(), 1);
 }

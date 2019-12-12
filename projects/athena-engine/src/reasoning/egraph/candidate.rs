@@ -1,5 +1,6 @@
 //! Unverified equivalence candidates — never M-Graph facts.
 
+use athena_rewriter::RewriteRuleId;
 use athena_types::TermId;
 
 use super::ids::EClassId;
@@ -18,4 +19,6 @@ pub struct CandidateEquivalence {
     pub left_class: EClassId,
     /// Local e-class of the right term.
     pub right_class: EClassId,
+    /// Rule that produced this candidate (`None` if not rule-driven).
+    pub rule: Option<RewriteRuleId>,
 }

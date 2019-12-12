@@ -23,7 +23,8 @@ use crate::{
     execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
     reasoning::{
         egraph::{
-            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, admit_structural_term_equality, saturate,
+            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, admit_structural_candidates,
+            admit_structural_term_equality, saturate,
         },
         mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
     },
@@ -270,6 +271,19 @@ impl Session {
         candidate: &CandidateEquivalence,
     ) -> Result<FactId, AdmissionRejectReason> {
         self.admit_structural_term_equality(candidate.left_term, candidate.right_term)
+    }
+
+    /// 批量接纳 saturation 候选中结构相等的对（跳过改写型候选）。
+    pub fn admit_structural_egraph_candidates(
+        &mut self,
+        candidates: &[CandidateEquivalence],
+    ) -> Vec<Result<FactId, AdmissionRejectReason>> {
+        admit_structural_candidates(
+            &self.arena,
+            &mut self.mgraph.semantic,
+            candidates,
+            &VerificationPolicy::default(),
+        )
     }
 
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
