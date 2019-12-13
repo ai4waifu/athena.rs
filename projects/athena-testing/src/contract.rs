@@ -319,11 +319,14 @@ fn egraph_ruleset_saturation_emits_unverified_candidates() {
         t.integer(0)
     };
     let mut rules = RuleSet::new();
-    rules.push(pattern, one, Some("zero_to_one"));
+    let rule_id = rules.push(pattern, one, Some("zero_to_one"));
     let report = fx.session_mut().run_egraph_saturation(&[zero], Some(&rules));
     assert_eq!(report.candidates.len(), 1);
     assert_eq!(report.candidates[0].left_term, zero);
     assert_eq!(report.candidates[0].right_term, one);
+    assert_eq!(report.candidates[0].rule, Some(rule_id));
     // Candidates stay outside M-Graph until explicit admit.
     assert_eq!(fx.session().mgraph.semantic.derived.proof_forest.len(), 0);
+    let admitted = fx.session_mut().admit_structural_egraph_candidates(&report.candidates);
+    assert!(admitted.is_empty());
 }
