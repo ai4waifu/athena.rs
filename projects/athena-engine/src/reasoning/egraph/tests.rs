@@ -210,6 +210,10 @@ fn saturate_emits_candidates_from_structural_rule_match() {
     assert_eq!(report.candidates[0].left_term, zero);
     assert_eq!(report.candidates[0].right_term, one);
     assert_eq!(report.candidates[0].rule, Some(rule_id));
+    let witness = report.candidates[0].local_witness().expect("rule witness");
+    assert_eq!(witness.rule, rule_id);
+    assert_eq!(witness.subject, zero);
+    assert_eq!(witness.produced, one);
     assert_eq!(
         graph.find(graph.class_of_term(zero).unwrap()),
         graph.find(graph.class_of_term(one).unwrap())

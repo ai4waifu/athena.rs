@@ -1,6 +1,6 @@
 //! Unverified equivalence candidates — never M-Graph facts.
 
-use athena_rewriter::RewriteRuleId;
+use athena_rewriter::{LocalRewriteWitness, RewriteRuleId};
 use athena_types::TermId;
 
 use super::ids::EClassId;
@@ -21,4 +21,15 @@ pub struct CandidateEquivalence {
     pub right_class: EClassId,
     /// Rule that produced this candidate (`None` if not rule-driven).
     pub rule: Option<RewriteRuleId>,
+}
+
+impl CandidateEquivalence {
+    /// Local rewrite witness when this candidate came from a [`RewriteRuleId`].
+    pub fn local_witness(&self) -> Option<LocalRewriteWitness> {
+        Some(LocalRewriteWitness {
+            rule: self.rule?,
+            subject: self.left_term,
+            produced: self.right_term,
+        })
+    }
 }
