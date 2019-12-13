@@ -6,11 +6,11 @@
 use std::collections::HashMap;
 
 use athena_ir::ApplicationHead;
-use athena_types::{SymbolId, TermId, ValueTypeId};
+use athena_types::{SymbolId, TermId};
 
 use crate::{
     execution::shape::{Shape, push_application_head, term_shape},
-    reasoning::trs::{PatternConstraint, TermPattern},
+    reasoning::trs::TermPattern,
     runtime::{session::Session, values::arena::push_list},
 };
 
@@ -46,73 +46,7 @@ pub(crate) fn structural_pattern_from_term(session: &Session, pat: TermId) -> Te
 
 /// 对中性 [`TermPattern`] 做结构匹配并收集绑定。
 pub fn match_term_pattern(session: &Session, expr: TermId, pattern: &TermPattern, binds: &mut HashMap<SymbolId, TermId>) -> bool {
-    match pattern {
-        TermPattern::Any => true,
-        TermPattern::Bind { name, inner } => {
-            if match_term_pattern(session, expr, inner, binds) {
-                binds.insert(*name, expr);
-                true
-            }
-            else {
-                false
-            }
-        }
-        TermPattern::Exact(literal) => session.arena.structural_eq(expr, *literal),
-        TermPattern::Sequence(items) => {
-            let Some(Shape::Collection(expr_items)) = term_shape(session, expr)
-            else {
-                return false;
-            };
-            zip_match(session, &expr_items, items, binds)
-        }
-        TermPattern::Application { operator, arguments } => {
-            let Some(Shape::Application(op, args)) = term_shape(session, expr)
-            else {
-                return false;
-            };
-            op == *operator && zip_match(session, &args, arguments, binds)
-        }
-        TermPattern::StructuralApplication(items) => {
-            let Some(Shape::Application(_, args)) = term_shape(session, expr)
-            else {
-                return false;
-            };
-            zip_match(session, &args, items, binds)
-        }
-        TermPattern::Constrained { pattern, constraint } => {
-            constraint_holds(session, expr, constraint) && match_term_pattern(session, expr, pattern, binds)
-        }
-    }
-}
-
-fn zip_match(session: &Session, exprs: &[TermId], patterns: &[TermPattern], binds: &mut HashMap<SymbolId, TermId>) -> bool {
-    if exprs.len() != patterns.len() {
-        return false;
-    }
-    exprs.iter().zip(patterns.iter()).all(|(e, p)| match_term_pattern(session, *e, p, binds))
-}
-
-fn constraint_holds(session: &Session, expr: TermId, constraint: &PatternConstraint) -> bool {
-    match constraint {
-        PatternConstraint::Operator(expected) => match term_shape(session, expr) {
-            Some(Shape::Application(op, _)) => op == *expected,
-            _ => false,
-        },
-        PatternConstraint::ValueType(ValueTypeId::ExactInteger) => match session.arena.get(expr) {
-            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => n.as_exact_integer().is_some() || n.as_integer().is_some(),
-            _ => false,
-        },
-        PatternConstraint::ValueType(ValueTypeId::Symbol) => matches!(term_shape(session, expr), Some(Shape::Symbol(_))),
-        PatternConstraint::ValueType(ValueTypeId::String) => matches!(term_shape(session, expr), Some(Shape::String(_))),
-        PatternConstraint::ValueType(ValueTypeId::Boolean) => matches!(term_shape(session, expr), Some(Shape::Bool(_))),
-        PatternConstraint::ValueType(ValueTypeId::Null) => matches!(term_shape(session, expr), Some(Shape::Null)),
-        PatternConstraint::ValueType(ValueTypeId::Numeric) => matches!(term_shape(session, expr), Some(Shape::Number)),
-        PatternConstraint::CollectionKind(kind) => match session.arena.get(expr) {
-            Some(athena_ir::TermNode::Collection { kind: k, .. }) => k == kind,
-            _ => false,
-        },
-        PatternConstraint::Domain(_) | PatternConstraint::Predicate(_) => false,
-    }
+    crate::reasoning::trs::match_pattern(&session.arena, expr, pattern, binds)
 }
 
 /// 绑定替换：符号原子替换，未命中共享。
