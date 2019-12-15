@@ -1,59 +1,18 @@
-//! `TermStore` — Core IR 唯一符号项存储。
+//! `TermStore` — Core IR 唯一符号项存储（结构 hash-cons）。
 
 use std::collections::HashMap;
 
-use athena_types::{CollectionKind, Diagnostic, DiagnosticCode, Result, SourceSpan, SymbolId, TermId};
+use athena_types::{CollectionKind, Diagnostic, DiagnosticCode, Result, SourceSpan, TermId};
 
 use crate::{
-    node::{Atom, MathematicalConstant, TermNode},
+    canonical::fnv1a64,
+    node::{Atom, TermNode},
     operator::ApplicationHead,
     symbol::SymbolTable,
 };
 
-/// Structural key for hash-consing (Living `26` · stable identity, not arena index).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum ConsKey {
-    Symbol(SymbolId),
-    Boolean(bool),
-    Null,
-    Constant(MathematicalConstant),
-    String(String),
-    /// Number identity via render + domain tag (avoids requiring `Hash` on `NumericValue`).
-    Number {
-        render: String,
-        domain_tag: u64,
-    },
-    Collection {
-        kind: CollectionKind,
-        elements: Vec<TermId>,
-    },
-    Application {
-        head: ApplicationHead,
-        arguments: Vec<TermId>,
-    },
-}
-
-fn cons_key(kind: &TermNode) -> ConsKey {
-    match kind {
-        TermNode::Atom(Atom::Symbol(id)) => ConsKey::Symbol(*id),
-        TermNode::Atom(Atom::Boolean(b)) => ConsKey::Boolean(*b),
-        TermNode::Atom(Atom::Null) => ConsKey::Null,
-        TermNode::Atom(Atom::Constant(c)) => ConsKey::Constant(*c),
-        TermNode::Atom(Atom::String(s)) => ConsKey::String(s.clone()),
-        TermNode::Atom(Atom::Number(n)) => ConsKey::Number {
-            render: n.to_render_string(),
-            domain_tag: n.fingerprint_domain_tag(),
-        },
-        TermNode::Collection { kind, elements } => ConsKey::Collection {
-            kind: *kind,
-            elements: elements.clone(),
-        },
-        TermNode::Application { head, arguments } => ConsKey::Application {
-            head: *head,
-            arguments: arguments.clone(),
-        },
-    }
-}
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Core CAS IR 符号项存储。
 #[derive(Debug, Default)]
@@ -61,7 +20,8 @@ pub struct TermStore {
     nodes: Vec<TermNode>,
     spans: Vec<SourceSpan>,
     symbols: SymbolTable,
-    cons: HashMap<ConsKey, TermId>,
+    /// Structure hash → candidate ids (collision checked via [`PartialEq`]).
+    by_hash: HashMap<u64, Vec<TermId>>,
 }
 
 impl TermStore {
@@ -80,18 +40,23 @@ impl TermStore {
         &mut self.symbols
     }
 
-    /// 分配或复用 term 节点（hash-cons），返回稳定 [`TermId`]。
+    /// 分配或复用 term 节点（结构 hash-cons），返回稳定 [`TermId`]。
     ///
-    /// Equal structure under [`ConsKey`] shares one id. First-seen span is kept.
+    /// Identical structure and payloads share one id. The first inserted
+    /// [`SourceSpan`] is retained on hit.
     pub fn push(&mut self, kind: TermNode, span: SourceSpan) -> TermId {
-        let key = cons_key(&kind);
-        if let Some(id) = self.cons.get(&key) {
-            return *id;
+        let hash = structure_hash(&kind);
+        if let Some(ids) = self.by_hash.get(&hash) {
+            for &id in ids {
+                if self.nodes.get(id.0 as usize) == Some(&kind) {
+                    return id;
+                }
+            }
         }
         let id = TermId(self.nodes.len() as u32);
         self.nodes.push(kind);
         self.spans.push(span);
-        self.cons.insert(key, id);
+        self.by_hash.entry(hash).or_default().push(id);
         id
     }
 
@@ -122,10 +87,93 @@ impl TermStore {
 
     /// 结构等价（数值载荷按 [`NumericValue`](athena_numeric::NumericValue) 精确相等）。
     ///
-    /// DAG 共享子图去重；与插入地址无关，只比结构与载荷。
+    /// DAG 共享子图去重；与插入地址无关，只比结构与载荷。Hash-cons 后同结构常为同一 [`TermId`]。
     pub fn structural_eq(&self, a: TermId, b: TermId) -> bool {
         let mut seen = std::collections::HashSet::new();
         structural_eq_walk(self, a, b, &mut seen)
+    }
+}
+
+fn mix_tag(state: &mut u64, tag: &[u8]) {
+    *state ^= fnv1a64(tag);
+    *state = state.wrapping_mul(FNV_PRIME);
+}
+
+fn mix_u64(state: &mut u64, v: u64) {
+    *state ^= v;
+    *state = state.wrapping_mul(FNV_PRIME);
+}
+
+fn structure_hash(node: &TermNode) -> u64 {
+    let mut state = FNV_OFFSET_BASIS;
+    match node {
+        TermNode::Atom(atom) => {
+            mix_tag(&mut state, b"atom");
+            match atom {
+                Atom::Number(n) => {
+                    mix_tag(&mut state, b"num");
+                    mix_u64(&mut state, n.fingerprint_domain_tag());
+                    mix_u64(&mut state, fnv1a64(n.to_render_string().as_bytes()));
+                }
+                Atom::String(v) => {
+                    mix_tag(&mut state, b"str");
+                    mix_u64(&mut state, fnv1a64(v.as_bytes()));
+                }
+                Atom::Symbol(sym) => {
+                    mix_tag(&mut state, b"sym");
+                    mix_u64(&mut state, u64::from(sym.0));
+                }
+                Atom::Boolean(b) => {
+                    mix_tag(&mut state, b"bool");
+                    mix_u64(&mut state, u64::from(*b));
+                }
+                Atom::Null => mix_tag(&mut state, b"null"),
+                Atom::Constant(c) => {
+                    mix_tag(&mut state, b"const");
+                    mix_u64(&mut state, u64::from(c.discriminant()));
+                }
+            }
+        }
+        TermNode::Collection { kind, elements } => {
+            mix_tag(&mut state, b"collection");
+            mix_u64(&mut state, collection_kind_tag(*kind));
+            mix_u64(&mut state, elements.len() as u64);
+            for id in elements {
+                mix_u64(&mut state, u64::from(id.0));
+            }
+        }
+        TermNode::Application { head, arguments } => {
+            mix_tag(&mut state, b"app");
+            match *head {
+                ApplicationHead::Semantic(op) => {
+                    mix_tag(&mut state, b"sem");
+                    mix_u64(&mut state, u64::from(op.discriminant()));
+                }
+                ApplicationHead::Extension(op) => {
+                    mix_tag(&mut state, b"ext");
+                    mix_u64(&mut state, u64::from(op.0));
+                }
+            }
+            mix_u64(&mut state, arguments.len() as u64);
+            for id in arguments {
+                mix_u64(&mut state, u64::from(id.0));
+            }
+        }
+    }
+    state
+}
+
+fn collection_kind_tag(kind: CollectionKind) -> u64 {
+    match kind {
+        CollectionKind::StructuralSequence => 1,
+        CollectionKind::Tuple => 2,
+        CollectionKind::OrderedCollection => 3,
+        CollectionKind::SetLikeCollection => 4,
+        CollectionKind::Vector => 5,
+        CollectionKind::MatrixRow => 6,
+        CollectionKind::MatrixColumn => 7,
+        CollectionKind::Matrix => 8,
+        CollectionKind::DomainCollection(id) => 0x1000 | u64::from(id.0),
     }
 }
 
@@ -175,49 +223,4 @@ fn verify_term(arena: &TermStore, id: TermId, stack: &mut Vec<TermId>) -> Result
     };
     stack.pop();
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_types::SourceSpan;
-
-    use super::*;
-    use crate::{ApplicationHead, SemanticOperator};
-
-    #[test]
-    fn push_hash_conses_equal_atoms_and_applications() {
-        let mut store = TermStore::new();
-        let span = SourceSpan::default();
-        let a = store.push(TermNode::Atom(Atom::Boolean(true)), span);
-        let b = store.push(TermNode::Atom(Atom::Boolean(true)), span);
-        assert_eq!(a, b);
-        assert_eq!(store.len(), 1);
-
-        let one = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-            span,
-        );
-        let one_again = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-            span,
-        );
-        assert_eq!(one, one_again);
-
-        let add1 = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![one, one],
-            },
-            span,
-        );
-        let add2 = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![one, one],
-            },
-            span,
-        );
-        assert_eq!(add1, add2);
-        assert_eq!(store.len(), 3);
-    }
 }
