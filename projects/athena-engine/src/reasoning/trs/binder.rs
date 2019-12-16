@@ -100,9 +100,44 @@ fn constraint_holds(store: &TermStore, expr: TermId, constraint: &PatternConstra
     }
 }
 
+/// Apply `binds` to a template term, hash-consing rebuilt nodes into `store`.
+///
+/// Symbol atoms present in `binds` are replaced. Unbound symbols and other atoms are shared.
+pub fn substitute(store: &mut TermStore, template: TermId, binds: &PatternBindings) -> TermId {
+    if binds.is_empty() {
+        return template;
+    }
+    let span = store.span(template).unwrap_or_default();
+    match store.get(template) {
+        None => template,
+        Some(TermNode::Atom(Atom::Symbol(sym))) => binds.get(sym).copied().unwrap_or(template),
+        Some(TermNode::Atom(_)) => template,
+        Some(TermNode::Collection { kind, elements }) => {
+            let kind = *kind;
+            let elements = elements.clone();
+            let out: Vec<TermId> = elements.iter().map(|e| substitute(store, *e, binds)).collect();
+            if out == elements {
+                template
+            } else {
+                store.push(TermNode::Collection { kind, elements: out }, span)
+            }
+        }
+        Some(TermNode::Application { head, arguments }) => {
+            let head = *head;
+            let arguments = arguments.clone();
+            let out: Vec<TermId> = arguments.iter().map(|a| substitute(store, *a, binds)).collect();
+            if out == arguments {
+                template
+            } else {
+                store.push(TermNode::Application { head, arguments: out }, span)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use athena_ir::{ApplicationHead, SemanticOperator, TermNode};
+    use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
     use athena_types::{CollectionKind, SourceSpan};
 
     use super::*;
@@ -177,5 +212,38 @@ mod tests {
         let pattern = TermPattern::Sequence(vec![TermPattern::Exact(a), TermPattern::Exact(b)]);
         let mut binds = PatternBindings::new();
         assert!(match_pattern(&store, list, &pattern, &mut binds));
+    }
+
+    #[test]
+    fn substitute_replaces_bound_symbols_and_hash_conses() {
+        let mut store = TermStore::new();
+        let span = SourceSpan::default();
+        let x = store.symbols_mut().intern("x");
+        let y = store.symbols_mut().intern("y");
+        let x_term = store.push(TermNode::Atom(Atom::Symbol(x)), span);
+        let y_term = store.push(TermNode::Atom(Atom::Symbol(y)), span);
+        let one = store.push(
+            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
+            span,
+        );
+        let template = store.push(
+            TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Add),
+                arguments: vec![x_term, y_term],
+            },
+            span,
+        );
+        let mut binds = PatternBindings::new();
+        binds.insert(x, one);
+        binds.insert(y, one);
+        let out = substitute(&mut store, template, &binds);
+        let expected = store.push(
+            TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Add),
+                arguments: vec![one, one],
+            },
+            span,
+        );
+        assert_eq!(out, expected);
     }
 }

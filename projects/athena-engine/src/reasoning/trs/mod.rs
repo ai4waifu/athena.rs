@@ -5,5 +5,5 @@
 mod binder;
 mod pattern;
 
-pub use binder::{PatternBindings, match_pattern};
+pub use binder::{PatternBindings, match_pattern, substitute};
 pub use pattern::{PatternConstraint, TermPattern};
