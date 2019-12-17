@@ -330,3 +330,14 @@ fn egraph_ruleset_saturation_emits_unverified_candidates() {
     let admitted = fx.session_mut().admit_structural_egraph_candidates(&report.candidates);
     assert!(admitted.is_empty());
 }
+
+#[test]
+fn term_store_push_hash_conses_identical_integers() {
+    let mut fx = SessionFixture::new();
+    let (a, b, c) = {
+        let mut t = fx.terms();
+        (t.integer(5), t.integer(5), t.integer(6))
+    };
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+}
