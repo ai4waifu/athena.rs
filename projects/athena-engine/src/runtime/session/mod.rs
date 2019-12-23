@@ -23,8 +23,8 @@ use crate::{
     execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
     reasoning::{
         egraph::{
-            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, admit_structural_candidates,
-            admit_structural_term_equality, saturate,
+            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet, admit_structural_candidates,
+            admit_structural_term_equality, saturate, saturate_typed,
         },
         mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
     },
@@ -248,6 +248,15 @@ impl Session {
     /// 在本 Session 的 scope-local E-Graph 上做预算内 saturation（只产候选，不写 M-Graph）。
     pub fn run_egraph_saturation(&mut self, roots: &[TermId], rules: Option<&RuleSet>) -> SaturationReport {
         saturate(&mut self.egraph, &self.arena, roots, self.egraph_budget, rules)
+    }
+
+    /// Typed [`TermPattern`] saturation（`match_pattern` + `substitute` · 不写 M-Graph）。
+    pub fn run_egraph_saturation_typed(
+        &mut self,
+        roots: &[TermId],
+        rules: Option<&TypedRuleSet>,
+    ) -> SaturationReport {
+        saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules)
     }
 
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。

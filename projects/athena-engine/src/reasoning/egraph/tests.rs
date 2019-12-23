@@ -263,3 +263,53 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
     assert!(admitted[0].is_ok());
     assert_eq!(session.mgraph.semantic.derived.proof_forest.len(), 1);
 }
+
+#[test]
+fn saturate_typed_binds_and_substitutes_replacement() {
+    use athena_ir::{ApplicationHead, SemanticOperator};
+    use crate::reasoning::trs::TermPattern;
+
+    use super::{TypedRuleSet, saturate_typed};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let x = store.symbols_mut().intern("x");
+    let x_term = store.push(TermNode::Atom(athena_ir::Atom::Symbol(x)), span);
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Semantic(SemanticOperator::Add),
+        arguments: vec![
+            TermPattern::Bind {
+                name: x,
+                inner: Box::new(TermPattern::Any),
+            },
+            TermPattern::Bind {
+                name: x,
+                inner: Box::new(TermPattern::Any),
+            },
+        ],
+    };
+    let mut rules = TypedRuleSet::new();
+    let rule_id = rules.push(pattern, x_term, Some("add_same"));
+    let mut graph = EGraph::new();
+    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::smoke(), Some(&rules));
+    assert_eq!(report.stop, SaturationStopReason::FixedPoint);
+    assert_eq!(report.candidates.len(), 1);
+    assert_eq!(report.candidates[0].left_term, add);
+    assert_eq!(report.candidates[0].right_term, one);
+    assert_eq!(report.candidates[0].rule, Some(rule_id));
+    assert_eq!(
+        graph.find(graph.class_of_term(add).unwrap()),
+        graph.find(graph.class_of_term(one).unwrap())
+    );
+}

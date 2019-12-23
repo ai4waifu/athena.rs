@@ -21,6 +21,7 @@ mod graph;
 mod ids;
 mod pipeline;
 mod saturation;
+mod typed_rules;
 
 pub use budget::{SaturationBudget, SaturationStopReason};
 pub use candidate::CandidateEquivalence;
@@ -31,7 +32,8 @@ pub use pipeline::{
     EGRAPH_PROVIDER_ID, admit_structural_candidates, admit_structural_term_equality, candidate_to_outer,
     verify_structural_term_equality,
 };
-pub use saturation::{SaturationReport, saturate};
+pub use saturation::{SaturationReport, saturate, saturate_typed};
+pub use typed_rules::{TypedRewriteRule, TypedRuleSet};
 
 #[cfg(test)]
 mod tests;

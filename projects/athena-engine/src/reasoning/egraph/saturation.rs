@@ -4,10 +4,13 @@ use athena_ir::TermStore;
 use athena_rewriter::RuleSet;
 use athena_types::TermId;
 
+use crate::reasoning::trs::{match_pattern, substitute, PatternBindings};
+
 use super::{
     budget::{SaturationBudget, SaturationStopReason},
     candidate::CandidateEquivalence,
     graph::EGraph,
+    typed_rules::TypedRuleSet,
 };
 
 /// Report from one saturation attempt.
@@ -21,12 +24,11 @@ pub struct SaturationReport {
     pub candidates: Vec<CandidateEquivalence>,
 }
 
-/// Run scope-local saturation under `budget`.
+/// Run scope-local saturation under `budget` with structural [`RuleSet`] rules.
 ///
-/// Bootstrap matcher: after ingesting `roots`, scan known terms for
-/// [`TermStore::structural_eq`] hits against each rule pattern, add the
-/// replacement, emit a [`CandidateEquivalence`], and optionally union classes
-/// locally. Never writes M-Graph.
+/// After ingesting `roots`, scan known terms for [`TermStore::structural_eq`]
+/// hits against each rule pattern, add the replacement, emit a
+/// [`CandidateEquivalence`], and union classes locally. Never writes M-Graph.
 pub fn saturate(
     graph: &mut EGraph,
     store: &TermStore,
@@ -126,6 +128,130 @@ pub fn saturate(
                 candidates.push(CandidateEquivalence {
                     left_term: subject,
                     right_term: rule.replacement,
+                    left_class,
+                    right_class,
+                    rule: Some(rule.id),
+                });
+                progressed = true;
+            }
+        }
+
+        iterations = iterations.saturating_add(1);
+        if !progressed {
+            return SaturationReport {
+                stop: SaturationStopReason::FixedPoint,
+                iterations,
+                candidates,
+            };
+        }
+    }
+}
+
+/// Run scope-local saturation with [`TypedRuleSet`] (`TermPattern` + `substitute`).
+///
+/// Never writes M-Graph. `store` is mutable so replacement templates can be
+/// instantiated via [`substitute`](crate::reasoning::trs::substitute).
+pub fn saturate_typed(
+    graph: &mut EGraph,
+    store: &mut TermStore,
+    roots: &[TermId],
+    budget: SaturationBudget,
+    rules: Option<&TypedRuleSet>,
+) -> SaturationReport {
+    if budget.max_iterations == 0 || budget.max_eclasses == 0 || budget.max_enodes == 0 {
+        return SaturationReport {
+            stop: SaturationStopReason::ResourceBudget,
+            iterations: 0,
+            candidates: Vec::new(),
+        };
+    }
+
+    let mut iterations = 0u32;
+    let mut candidates = Vec::new();
+
+    for root in roots {
+        if over_structure_budget(graph, &budget) {
+            return SaturationReport {
+                stop: SaturationStopReason::ResourceBudget,
+                iterations,
+                candidates,
+            };
+        }
+        let _ = graph.add_term(store, *root);
+        iterations = iterations.saturating_add(1);
+        if iterations >= budget.max_iterations {
+            return SaturationReport {
+                stop: SaturationStopReason::IterationBudget,
+                iterations,
+                candidates,
+            };
+        }
+    }
+
+    let Some(rules) = rules else {
+        return SaturationReport {
+            stop: SaturationStopReason::FixedPoint,
+            iterations,
+            candidates,
+        };
+    };
+
+    if rules.is_empty() {
+        return SaturationReport {
+            stop: SaturationStopReason::FixedPoint,
+            iterations,
+            candidates,
+        };
+    }
+
+    loop {
+        if iterations >= budget.max_iterations {
+            return SaturationReport {
+                stop: SaturationStopReason::IterationBudget,
+                iterations,
+                candidates,
+            };
+        }
+        if over_structure_budget(graph, &budget) {
+            return SaturationReport {
+                stop: SaturationStopReason::ResourceBudget,
+                iterations,
+                candidates,
+            };
+        }
+
+        let mut progressed = false;
+        let subjects = graph.known_terms();
+        for rule in rules.iter() {
+            for &subject in &subjects {
+                if candidates.len() as u32 >= budget.max_candidate_unions {
+                    return SaturationReport {
+                        stop: SaturationStopReason::ResourceBudget,
+                        iterations,
+                        candidates,
+                    };
+                }
+                let mut binds = PatternBindings::new();
+                if !match_pattern(store, subject, &rule.pattern, &mut binds) {
+                    continue;
+                }
+                let produced = substitute(store, rule.replacement, &binds);
+                let Some(left_class) = graph.class_of_term(subject) else {
+                    continue;
+                };
+                let Some(right_class) = graph.add_term(store, produced) else {
+                    continue;
+                };
+                if graph.find(left_class) == graph.find(right_class) {
+                    continue;
+                }
+                if already_emitted(&candidates, subject, produced) {
+                    continue;
+                }
+                graph.union_classes(left_class, right_class);
+                candidates.push(CandidateEquivalence {
+                    left_term: subject,
+                    right_term: produced,
                     left_class,
                     right_class,
                     rule: Some(rule.id),
