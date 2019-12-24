@@ -259,6 +259,21 @@ impl Session {
         saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules)
     }
 
+    /// Extract a representative term from a local e-class.
+    pub fn extract_egraph_class(
+        &self,
+        class: crate::reasoning::egraph::EClassId,
+        preference: crate::reasoning::egraph::ExtractionPreference,
+    ) -> Option<TermId> {
+        use crate::reasoning::egraph::Extractor;
+        Extractor::with_preference(preference).extract(
+            &self.egraph,
+            &self.arena,
+            class,
+            Some(&self.mgraph.semantic.derived.exact_uf),
+        )
+    }
+
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
     pub fn admit_structural_term_equality(
         &mut self,

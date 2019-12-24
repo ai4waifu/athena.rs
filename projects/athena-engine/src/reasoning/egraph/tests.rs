@@ -73,7 +73,7 @@ fn candidate_union_merges_classes_locally() {
     assert!(graph.union_classes(ca, cb));
     assert_eq!(graph.find(ca), graph.find(cb));
     let extracted = Extractor::with_preference(ExtractionPreference::FirstTerm)
-        .extract(&graph, ca)
+        .extract(&graph, &store, ca, None)
         .expect("term");
     assert!(extracted == a || extracted == b);
 }
@@ -312,4 +312,62 @@ fn saturate_typed_binds_and_substitutes_replacement() {
         graph.find(graph.class_of_term(add).unwrap()),
         graph.find(graph.class_of_term(one).unwrap())
     );
+}
+
+#[test]
+fn extract_smallest_ast_prefers_shorter_term() {
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let mut graph = EGraph::new();
+    let c_add = graph.add_term(&store, add).unwrap();
+    let c_one = graph.add_term(&store, one).unwrap();
+    assert!(graph.union_classes(c_add, c_one));
+    let extracted = Extractor::with_preference(ExtractionPreference::SmallestAst)
+        .extract(&graph, &store, c_add, None)
+        .expect("term");
+    assert_eq!(extracted, one);
+}
+
+#[test]
+fn extract_admitted_exact_prefers_union_find_rep() {
+    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let mut graph = EGraph::new();
+    let c_add = graph.add_term(&store, add).unwrap();
+    let c_one = graph.add_term(&store, one).unwrap();
+    graph.union_classes(c_add, c_one);
+    let mut uf = ExactUnionFind::default();
+    // Force the admitted representative to be `one` (lower id after hash-cons still one).
+    uf.union(add, one);
+    let extracted = Extractor::with_preference(ExtractionPreference::AdmittedExact)
+        .extract(&graph, &store, c_add, Some(&uf))
+        .expect("term");
+    assert_eq!(extracted, uf.find(one));
 }

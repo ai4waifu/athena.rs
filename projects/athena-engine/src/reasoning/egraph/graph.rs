@@ -101,6 +101,20 @@ impl EGraph {
         self.term_class.keys().copied().collect()
     }
 
+    /// All term roots recorded in `class` (after find).
+    pub fn terms_in_class(&self, class: EClassId) -> Vec<TermId> {
+        let root = self.find(class);
+        let mut out = Vec::new();
+        for (term, c) in &self.term_class {
+            if self.find(*c) == root {
+                out.push(*term);
+            }
+        }
+        out.sort_by_key(|t| t.0);
+        out.dedup();
+        out
+    }
+
     /// Lookup e-class for a previously added term.
     pub fn class_of_term(&self, term: TermId) -> Option<EClassId> {
         self.term_class.get(&term).map(|c| self.find(*c))
