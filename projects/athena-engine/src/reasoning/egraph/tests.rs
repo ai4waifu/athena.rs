@@ -342,6 +342,74 @@ fn extract_smallest_ast_prefers_shorter_term() {
 }
 
 #[test]
+fn application_congruence_admits_when_args_exact_equal() {
+    use crate::reasoning::mgraph::{
+        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    };
+    use athena_ir::{ApplicationHead, Atom, SemanticOperator};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let sx = store.symbols_mut().intern("x");
+    let sy = store.symbols_mut().intern("y");
+    let sz = store.symbols_mut().intern("z");
+    let x = store.push(TermNode::Atom(Atom::Symbol(sx)), span);
+    let y = store.push(TermNode::Atom(Atom::Symbol(sy)), span);
+    let z = store.push(TermNode::Atom(Atom::Symbol(sz)), span);
+    let fx = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![x, z],
+        },
+        span,
+    );
+    let fy = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![y, z],
+        },
+        span,
+    );
+
+    let mut semantic = SemanticCore::new();
+    AdmissionGate::admit_claim(
+        &mut semantic,
+        Claim {
+            proposition: Proposition::TermEquality { left: x, right: y },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "seed-xy".into(),
+            },
+        },
+        &VerificationPolicy::default(),
+    )
+    .expect("seed");
+
+    let mut graph = EGraph::new();
+    graph.add_term(&store, fx).expect("fx");
+    graph.add_term(&store, fy).expect("fy");
+
+    let candidates = super::application_congruence_candidates(&store, &graph, &semantic.derived.exact_uf, 8);
+    assert_eq!(candidates.len(), 1);
+    let pair = (candidates[0].left_term, candidates[0].right_term);
+    assert!(pair == (fx, fy) || pair == (fy, fx));
+
+    let fact = super::admit_application_congruence(
+        &store,
+        &mut semantic,
+        fx,
+        fy,
+        &VerificationPolicy::default(),
+    )
+    .expect("admit app congruence");
+    assert_eq!(fact.0, 1);
+    assert_eq!(semantic.derived.exact_uf.find(fx), semantic.derived.exact_uf.find(fy));
+}
+
+#[test]
 fn extract_admitted_exact_prefers_union_find_rep() {
     use crate::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};

@@ -23,8 +23,9 @@ use crate::{
     execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
     reasoning::{
         egraph::{
-            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet, admit_structural_candidates,
-            admit_structural_term_equality, saturate, saturate_typed,
+            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet,
+            admit_application_congruence, admit_application_congruence_candidates, admit_structural_candidates,
+            admit_structural_term_equality, application_congruence_candidates, saturate, saturate_typed,
         },
         mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
     },
@@ -306,6 +307,50 @@ impl Session {
             &self.arena,
             &mut self.mgraph.semantic,
             candidates,
+            &VerificationPolicy::default(),
+        )
+    }
+
+    /// Emit ExactUF application-congruence candidates from known egraph terms (no admit).
+    pub fn emit_application_congruence_candidates(&self, max_pairs: u32) -> Vec<CandidateEquivalence> {
+        application_congruence_candidates(
+            &self.arena,
+            &self.egraph,
+            &self.mgraph.semantic.derived.exact_uf,
+            max_pairs,
+        )
+    }
+
+    /// Admit `f(a…) ≈ f(b…)` when heads match and args are ExactUF-equal.
+    pub fn admit_application_congruence(
+        &mut self,
+        left: TermId,
+        right: TermId,
+    ) -> Result<FactId, AdmissionRejectReason> {
+        admit_application_congruence(
+            &self.arena,
+            &mut self.mgraph.semantic,
+            left,
+            right,
+            &VerificationPolicy::default(),
+        )
+    }
+
+    /// Scan known apps under ExactUF and admit congruence equalities (bounded by `max_pairs`).
+    pub fn rebuild_and_admit_application_congruence(
+        &mut self,
+        max_pairs: u32,
+    ) -> Vec<Result<FactId, AdmissionRejectReason>> {
+        let candidates = application_congruence_candidates(
+            &self.arena,
+            &self.egraph,
+            &self.mgraph.semantic.derived.exact_uf,
+            max_pairs,
+        );
+        admit_application_congruence_candidates(
+            &self.arena,
+            &mut self.mgraph.semantic,
+            &candidates,
             &VerificationPolicy::default(),
         )
     }

@@ -89,6 +89,13 @@ pub enum EvidenceCertificate {
         /// 右操作数 stable 指纹。
         right: u64,
     },
+    /// 应用同余：头相同且各参数在 ExactUF 下等价。
+    ApplicationCongruence {
+        /// 左应用项。
+        left: TermId,
+        /// 右应用项。
+        right: TermId,
+    },
 }
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。

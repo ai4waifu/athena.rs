@@ -16,6 +16,7 @@
 
 mod budget;
 mod candidate;
+mod congruence;
 mod extract;
 mod graph;
 mod ids;
@@ -25,6 +26,10 @@ mod typed_rules;
 
 pub use budget::{SaturationBudget, SaturationStopReason};
 pub use candidate::CandidateEquivalence;
+pub use congruence::{
+    admit_application_congruence, admit_application_congruence_candidates, application_congruence_candidates,
+    applications_congruent, verify_application_congruence,
+};
 pub use extract::{ExtractionPreference, Extractor};
 pub use graph::EGraph;
 pub use ids::{EClassId, ENodeId};
