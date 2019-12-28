@@ -22,4 +22,4 @@ pub mod reasoning;
 pub mod runtime;
 
 pub use api::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use runtime::Session;
+pub use runtime::{Session, TypedEgraphAdmitReport};

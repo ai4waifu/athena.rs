@@ -410,6 +410,62 @@ fn application_congruence_admits_when_args_exact_equal() {
 }
 
 #[test]
+fn typed_admit_pipeline_runs_congruence_after_seed() {
+    use crate::reasoning::mgraph::{
+        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    };
+    use athena_ir::{ApplicationHead, Atom, SemanticOperator};
+    use crate::runtime::Session;
+
+    let mut session = Session::new();
+    let span = SourceSpan::default();
+    let sx = session.arena.symbols_mut().intern("x");
+    let sy = session.arena.symbols_mut().intern("y");
+    let sz = session.arena.symbols_mut().intern("z");
+    let x = session.arena.push(TermNode::Atom(Atom::Symbol(sx)), span);
+    let y = session.arena.push(TermNode::Atom(Atom::Symbol(sy)), span);
+    let z = session.arena.push(TermNode::Atom(Atom::Symbol(sz)), span);
+    let add_xz = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![x, z],
+        },
+        span,
+    );
+    let add_yz = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![y, z],
+        },
+        span,
+    );
+    AdmissionGate::admit_claim(
+        &mut session.mgraph.semantic,
+        Claim {
+            proposition: Proposition::TermEquality { left: x, right: y },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "seed-xy".into(),
+            },
+        },
+        &VerificationPolicy::default(),
+    )
+    .expect("seed");
+
+    let report = session.run_typed_egraph_admit_pipeline(&[add_xz, add_yz], None, 8);
+    assert!(report.structural_admitted.is_empty());
+    assert_eq!(report.congruence_admitted.len(), 1);
+    assert!(report.congruence_admitted[0].is_ok());
+    assert_eq!(
+        session.mgraph.semantic.derived.exact_uf.find(add_xz),
+        session.mgraph.semantic.derived.exact_uf.find(add_yz)
+    );
+}
+
+#[test]
 fn extract_admitted_exact_prefers_union_find_rep() {
     use crate::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};

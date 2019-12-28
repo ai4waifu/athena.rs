@@ -36,6 +36,17 @@ use crate::{
     },
 };
 
+/// Report from typed saturation followed by structural and application-congruence admit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypedEgraphAdmitReport {
+    /// Unverified candidates from saturation.
+    pub saturation: SaturationReport,
+    /// Structural admit outcomes for those candidates (rewrite-shaped pairs are skipped upstream).
+    pub structural_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
+    /// ExactUF application-congruence admit outcomes.
+    pub congruence_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
+}
+
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
     /// Core IR 符号项存储。
@@ -353,6 +364,31 @@ impl Session {
             &candidates,
             &VerificationPolicy::default(),
         )
+    }
+
+    /// Typed saturation then structural admit then ExactUF application-congruence rebuild.
+    ///
+    /// Rewrite-shaped candidates stay unverified unless `structural_eq`. Congruence
+    /// only fires when ExactUF already equates application arguments.
+    pub fn run_typed_egraph_admit_pipeline(
+        &mut self,
+        roots: &[TermId],
+        rules: Option<&TypedRuleSet>,
+        congruence_max_pairs: u32,
+    ) -> TypedEgraphAdmitReport {
+        let saturation = saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules);
+        let structural_admitted = admit_structural_candidates(
+            &self.arena,
+            &mut self.mgraph.semantic,
+            &saturation.candidates,
+            &VerificationPolicy::default(),
+        );
+        let congruence_admitted = self.rebuild_and_admit_application_congruence(congruence_max_pairs);
+        TypedEgraphAdmitReport {
+            saturation,
+            structural_admitted,
+            congruence_admitted,
+        }
     }
 
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
