@@ -466,6 +466,47 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
 }
 
 #[test]
+fn extract_result_cost_prefers_admitted_then_smallest() {
+    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let two = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let mut graph = EGraph::new();
+    let c_add = graph.add_term(&store, add).unwrap();
+    let c_one = graph.add_term(&store, one).unwrap();
+    let c_two = graph.add_term(&store, two).unwrap();
+    graph.union_classes(c_add, c_one);
+    graph.union_classes(c_add, c_two);
+    let mut uf = ExactUnionFind::default();
+    // Make `two` the ExactUF representative of the merged class.
+    uf.union(two, add);
+    uf.union(two, one);
+    assert_eq!(uf.find(add), two);
+    let (extracted, cost) = Extractor::with_preference(ExtractionPreference::ResultCost)
+        .extract_with_cost(&graph, &store, c_add, Some(&uf))
+        .expect("term");
+    assert_eq!(extracted, two);
+    assert!(cost.admitted_exact);
+    assert_eq!(cost.ast_nodes, 1);
+}
+
+#[test]
 fn extract_admitted_exact_prefers_union_find_rep() {
     use crate::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};

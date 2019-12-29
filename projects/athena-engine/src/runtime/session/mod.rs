@@ -286,6 +286,21 @@ impl Session {
         )
     }
 
+    /// Extract a representative term and its local [`crate::reasoning::egraph::ResultCost`].
+    pub fn extract_egraph_class_with_cost(
+        &self,
+        class: crate::reasoning::egraph::EClassId,
+        preference: crate::reasoning::egraph::ExtractionPreference,
+    ) -> Option<(TermId, crate::reasoning::egraph::ResultCost)> {
+        use crate::reasoning::egraph::Extractor;
+        Extractor::with_preference(preference).extract_with_cost(
+            &self.egraph,
+            &self.arena,
+            class,
+            Some(&self.mgraph.semantic.derived.exact_uf),
+        )
+    }
+
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
     pub fn admit_structural_term_equality(
         &mut self,

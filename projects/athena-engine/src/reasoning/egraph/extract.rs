@@ -7,6 +7,23 @@ use crate::reasoning::mgraph::ExactUnionFind;
 
 use super::{graph::EGraph, ids::EClassId};
 
+/// Local extraction cost (not a solver multi-objective frontier).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResultCost {
+    /// DAG node count in [`TermStore`] (shared subtrees counted once).
+    pub ast_nodes: u32,
+    /// Whether this term is an ExactUF representative present in the e-class.
+    pub admitted_exact: bool,
+}
+
+impl ResultCost {
+    /// Lexicographic key: prefer admitted, then fewer AST nodes.
+    pub fn rank_key(self) -> (u8, u32) {
+        let admitted_rank = if self.admitted_exact { 0 } else { 1 };
+        (admitted_rank, self.ast_nodes)
+    }
+}
+
 /// Preference for extraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExtractionPreference {
@@ -19,6 +36,8 @@ pub enum ExtractionPreference {
     ///
     /// Falls back to [`Self::SmallestAst`] when no admitted representative is present.
     AdmittedExact,
+    /// Lexicographic on [`ResultCost`]: admitted ExactUF reps first, then smallest AST.
+    ResultCost,
 }
 
 /// Extracts a host [`TermId`] from a local e-class when available.
@@ -38,9 +57,20 @@ impl Extractor {
         Self { preference }
     }
 
+    /// Score a term under optional ExactUF admission.
+    pub fn score(store: &TermStore, term: TermId, exact_uf: Option<&ExactUnionFind>) -> ResultCost {
+        let ast_nodes = ast_size(store, term);
+        let admitted_exact = exact_uf.is_some_and(|uf| uf.find(term) == term);
+        ResultCost {
+            ast_nodes,
+            admitted_exact,
+        }
+    }
+
     /// Extract a term for `class`.
     ///
-    /// `exact_uf` is consulted only for [`ExtractionPreference::AdmittedExact`].
+    /// `exact_uf` is consulted for [`ExtractionPreference::AdmittedExact`] and
+    /// [`ExtractionPreference::ResultCost`].
     pub fn extract(
         &self,
         graph: &EGraph,
@@ -48,12 +78,25 @@ impl Extractor {
         class: EClassId,
         exact_uf: Option<&ExactUnionFind>,
     ) -> Option<TermId> {
+        self.extract_with_cost(graph, store, class, exact_uf)
+            .map(|(term, _)| term)
+    }
+
+    /// Extract a term plus its [`ResultCost`].
+    pub fn extract_with_cost(
+        &self,
+        graph: &EGraph,
+        store: &TermStore,
+        class: EClassId,
+        exact_uf: Option<&ExactUnionFind>,
+    ) -> Option<(TermId, ResultCost)> {
         let root = graph.find(class);
         let mut terms = graph.terms_in_class(root);
         if terms.is_empty() {
-            return graph.term_for_class(root);
+            let term = graph.term_for_class(root)?;
+            return Some((term, Self::score(store, term, exact_uf)));
         }
-        match self.preference {
+        let chosen = match self.preference {
             ExtractionPreference::FirstTerm => terms.into_iter().next(),
             ExtractionPreference::SmallestAst => terms
                 .into_iter()
@@ -68,12 +111,28 @@ impl Extractor {
                     reps.sort_by_key(|t| t.0);
                     reps.dedup();
                     if !reps.is_empty() {
-                        return reps.into_iter().min_by_key(|t| (ast_size(store, *t), t.0));
+                        return reps
+                            .into_iter()
+                            .min_by_key(|t| (ast_size(store, *t), t.0))
+                            .map(|t| (t, Self::score(store, t, exact_uf)));
                     }
                 }
                 terms.into_iter().min_by_key(|t| (ast_size(store, *t), t.0))
             }
-        }
+            ExtractionPreference::ResultCost => {
+                // Prefer ExactUF reps that still inhabit the class, then AST size.
+                let class_terms = terms.clone();
+                terms.into_iter().min_by_key(|t| {
+                    let mut cost = Self::score(store, *t, exact_uf);
+                    if let Some(uf) = exact_uf {
+                        let rep = uf.find(*t);
+                        cost.admitted_exact = rep == *t && class_terms.contains(&rep);
+                    }
+                    (cost.rank_key(), t.0)
+                })
+            }
+        }?;
+        Some((chosen, Self::score(store, chosen, exact_uf)))
     }
 }
 
