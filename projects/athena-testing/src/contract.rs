@@ -460,3 +460,42 @@ fn application_congruence_rebuild_admits_from_exact_uf() {
     assert_eq!(derived.exact_uf.find(add_xz), derived.exact_uf.find(add_yz));
     assert!(derived.proof_forest.len() >= 2);
 }
+
+#[test]
+fn typed_egraph_admit_pipeline_closes_application_congruence() {
+    use athena_engine::reasoning::mgraph::{
+        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    };
+
+    let mut fx = SessionFixture::new();
+    let (x, y, add_xz, add_yz) = {
+        let mut t = fx.terms();
+        let x = t.symbol("x");
+        let y = t.symbol("y");
+        let z = t.symbol("z");
+        (x, y, t.add([x, z]), t.add([y, z]))
+    };
+    AdmissionGate::admit_claim(
+        &mut fx.session_mut().mgraph.semantic,
+        Claim {
+            proposition: Proposition::TermEquality { left: x, right: y },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "seed-xy".into(),
+            },
+        },
+        &VerificationPolicy::default(),
+    )
+    .expect("seed");
+    let report = fx
+        .session_mut()
+        .run_typed_egraph_admit_pipeline(&[add_xz, add_yz], None, 8);
+    assert!(report.structural_admitted.is_empty());
+    assert_eq!(report.congruence_admitted.len(), 1);
+    assert!(report.congruence_admitted[0].is_ok());
+    let derived = &fx.session().mgraph.semantic.derived;
+    assert_eq!(derived.exact_uf.find(add_xz), derived.exact_uf.find(add_yz));
+}
