@@ -25,16 +25,17 @@ pub mod relations;
 pub mod semantic_entry;
 
 pub use admission::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID, EvidenceVerifier, OuterCandidate,
-    SemanticCore, VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID,
+    EvidenceVerifier, HYPER_EDGE_STAGING_PROVIDER_ID, OuterCandidate, SemanticCore, VerificationPolicy,
+    admit_polynomial_exact, admit_polynomial_result, hyper_edge_to_outer_candidate, is_admitted,
 };
 pub use cache::ResultCache;
 pub use closure::{ClosureLimits, ClosureResult, ClosureStopReason, OperationalState, run_closure_step};
 pub use core::{
-    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
-    MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef, ScopeRelationKind,
-    SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, predicates, scope_from_ref,
-    scope_ref_from_assumption_set, scope_to_ref,
+    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
+    HyperEdge, MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateDescriptor, PredicateId, RelationRef, RelationStatus,
+    RewriteWitness, ScopeRef, ScopeRelationKind, SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef,
+    all_descriptors, arity_ok, descriptor, predicates, scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use equivalence::{CongruenceIndex, ExactUnionFind, ProofEdge, ProofForest, ProofStepKind, congruence_proposition};
 pub use facts::{

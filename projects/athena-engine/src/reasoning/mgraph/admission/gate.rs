@@ -33,6 +33,8 @@ pub enum AdmissionRejectReason {
     NotExact,
     /// 保证层级不足以进入 exact closure。
     InsufficientGuarantee,
+    /// 谓词未注册或 subject 元数与 [`crate::reasoning::mgraph::PredicateDescriptor`] 不符。
+    MalformedRelation,
 }
 
 /// Admission 判定结果。

@@ -2,6 +2,7 @@
 
 pub mod candidate;
 pub mod gate;
+pub mod hyper_edge;
 pub mod semantic;
 
 pub use candidate::OuterCandidate;
@@ -9,4 +10,5 @@ pub use gate::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID, EvidenceVerifier,
     VerificationPolicy, admit_polynomial_exact, admit_polynomial_result, is_admitted,
 };
+pub use hyper_edge::{HYPER_EDGE_STAGING_PROVIDER_ID, hyper_edge_to_outer_candidate};
 pub use semantic::SemanticCore;

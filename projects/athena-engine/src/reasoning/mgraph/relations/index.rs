@@ -38,13 +38,46 @@ pub struct RelationRecord {
 }
 
 impl RelationRecord {
-    /// 从已验证 claim 构造记录。
+    /// 从已验证 claim 构造记录（命题映射必须通过谓词注册表 arity 检查）。
     pub fn from_verified(claim: VerifiedClaim) -> Self {
+        Self::try_from_verified(claim).expect("verified claim must map to a registered predicate arity")
+    }
+
+    /// Fallible construction used by admission / rebuild paths.
+    pub fn try_from_verified(claim: VerifiedClaim) -> Result<Self, crate::reasoning::mgraph::admission::AdmissionRejectReason> {
         let scope = scope_to_ref(claim.claim.scope);
         let status = relation_status_from_guarantee(claim.claim.guarantee);
         let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim.proposition);
+        Self::validate_predicate_subjects(predicate, theory, subjects.len())?;
         let provider = provider_from_evidence(&claim.claim.evidence);
-        Self { predicate, subjects, scope, theory, provider, status, witness: None, verified: claim }
+        Ok(Self {
+            predicate,
+            subjects,
+            scope,
+            theory,
+            provider,
+            status,
+            witness: None,
+            verified: claim,
+        })
+    }
+
+    /// Check predicate registration and subject arity (Living `26`).
+    pub fn validate_predicate_subjects(
+        predicate: PredicateId,
+        theory: TheoryContextId,
+        subject_count: usize,
+    ) -> Result<(), crate::reasoning::mgraph::admission::AdmissionRejectReason> {
+        use crate::reasoning::mgraph::core::predicate_registry;
+        use crate::reasoning::mgraph::admission::AdmissionRejectReason;
+
+        let Some(desc) = predicate_registry::descriptor(predicate) else {
+            return Err(AdmissionRejectReason::MalformedRelation);
+        };
+        if desc.theory != theory || !desc.subject_arity.contains(&subject_count) {
+            return Err(AdmissionRejectReason::MalformedRelation);
+        }
+        Ok(())
     }
 }
 
@@ -117,6 +150,7 @@ fn relation_status_from_guarantee(g: Guarantee) -> RelationStatus {
 pub struct RelationIndex {
     records: Vec<RelationRecord>,
     by_scope: HashMap<ScopeRef, Vec<RelationRef>>,
+    by_predicate: HashMap<(ScopeRef, PredicateId), Vec<RelationRef>>,
 }
 
 impl RelationIndex {
@@ -129,6 +163,10 @@ impl RelationIndex {
     pub(crate) fn append(&mut self, record: RelationRecord) -> RelationRef {
         let id = FactId(self.records.len() as u64);
         self.by_scope.entry(record.scope).or_default().push(id);
+        self.by_predicate
+            .entry((record.scope, record.predicate))
+            .or_default()
+            .push(id);
         self.records.push(record);
         id
     }
@@ -150,6 +188,14 @@ impl RelationIndex {
     /// 某 scope 下的关系 id。
     pub fn relations_in_scope(&self, scope: ScopeRef) -> &[RelationRef] {
         self.by_scope.get(&scope).map(Vec::as_slice).unwrap_or(&[])
+    }
+
+    /// 某 scope + 谓词下的关系 id（二级索引）。
+    pub fn relations_with_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> &[RelationRef] {
+        self.by_predicate
+            .get(&(scope, predicate))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 
     /// 按 id 查记录。

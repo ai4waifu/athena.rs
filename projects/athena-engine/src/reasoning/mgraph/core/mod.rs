@@ -4,10 +4,12 @@
 //! 实现层：`MGraphCore { scope_index, relation_index }` + `admit` / `close`。
 //! 理论层概念（根源宇宙、纤维化、内世界子范畴）**不得**出现在本模块的类型中。
 
+pub mod predicate_registry;
 pub mod refs;
 pub mod state;
 pub mod types;
 
+pub use predicate_registry::{PredicateDescriptor, all_descriptors, arity_ok, descriptor};
 pub use refs::{
     ObjectRef, PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, TheoryContextId, WitnessRef, predicates,
     scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
@@ -113,26 +115,31 @@ impl<'a> MGraphView<'a> {
 
     /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
     pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
-        self.relations_in_scope(scope).iter().copied().find(|&id| {
-            self.relation(id).is_some_and(|r| {
-                if r.predicate != predicate || !matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional) {
-                    return false;
-                }
-                if known_objects.is_empty() {
-                    return true;
-                }
-                let object_subjects: Vec<ObjectRef> = r
-                    .subjects
-                    .iter()
-                    .filter_map(|s| match s {
-                        SemanticRef::Object(o) => Some(*o),
-                        _ => None,
-                    })
-                    .collect();
-                known_objects.len() <= object_subjects.len()
-                    && known_objects.iter().zip(object_subjects.iter()).all(|(want, got)| want == got)
+        self.core
+            .relation_index()
+            .relations_with_predicate(scope, predicate)
+            .iter()
+            .copied()
+            .find(|&id| {
+                self.relation(id).is_some_and(|r| {
+                    if !matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional) {
+                        return false;
+                    }
+                    if known_objects.is_empty() {
+                        return true;
+                    }
+                    let object_subjects: Vec<ObjectRef> = r
+                        .subjects
+                        .iter()
+                        .filter_map(|s| match s {
+                            SemanticRef::Object(o) => Some(*o),
+                            _ => None,
+                        })
+                        .collect();
+                    known_objects.len() <= object_subjects.len()
+                        && known_objects.iter().zip(object_subjects.iter()).all(|(want, got)| want == got)
+                })
             })
-        })
     }
 
     /// Scope 边。
