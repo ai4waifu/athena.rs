@@ -418,6 +418,51 @@ fn egraph_extract_smallest_ast_after_typed_saturation() {
 }
 
 #[test]
+fn egraph_extract_result_cost_prefers_admitted_rep() {
+    use athena_engine::reasoning::egraph::ExtractionPreference;
+    use athena_engine::reasoning::mgraph::{
+        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    };
+
+    let mut fx = SessionFixture::new();
+    let (one, add) = {
+        let mut t = fx.terms();
+        let one = t.integer(1);
+        let add = t.add([one, one]);
+        (one, add)
+    };
+    {
+        let session = fx.session_mut();
+        let c_add = session.egraph.add_term(&session.arena, add).expect("add");
+        let c_one = session.egraph.add_term(&session.arena, one).expect("one");
+        session.egraph.union_classes(c_add, c_one);
+    }
+    AdmissionGate::admit_claim(
+        &mut fx.session_mut().mgraph.semantic,
+        Claim {
+            proposition: Proposition::TermEquality { left: one, right: add },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "seed-one-add".into(),
+            },
+        },
+        &VerificationPolicy::default(),
+    )
+    .expect("seed");
+    let class = fx.session().egraph.class_of_term(add).expect("class");
+    let (extracted, cost) = fx
+        .session()
+        .extract_egraph_class_with_cost(class, ExtractionPreference::ResultCost)
+        .expect("extract");
+    assert_eq!(extracted, one);
+    assert!(cost.admitted_exact);
+    assert_eq!(cost.ast_nodes, 1);
+}
+
+#[test]
 fn application_congruence_rebuild_admits_from_exact_uf() {
     use athena_engine::reasoning::mgraph::{
         AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
