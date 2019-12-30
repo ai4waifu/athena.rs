@@ -544,3 +544,32 @@ fn typed_egraph_admit_pipeline_closes_application_congruence() {
     let derived = &fx.session().mgraph.semantic.derived;
     assert_eq!(derived.exact_uf.find(add_xz), derived.exact_uf.find(add_yz));
 }
+
+#[test]
+fn predicate_registry_and_hyper_edge_staging_are_typed() {
+    use athena_engine::reasoning::mgraph::{
+        Guarantee, HyperEdge, Proposition, arity_ok, descriptor, hyper_edge_to_outer_candidate, predicates,
+    };
+    use athena_types::TermId;
+
+    let desc = descriptor(predicates::REWRITE_EQUIVALENT).expect("registered");
+    assert!(arity_ok(predicates::REWRITE_EQUIVALENT, 2));
+    assert_eq!(desc.subject_arity, 2..=2);
+
+    let edge = HyperEdge {
+        nodes: vec![TermId(10), TermId(11)],
+        predicate: predicates::REWRITE_EQUIVALENT,
+    };
+    let outer = hyper_edge_to_outer_candidate(&edge).expect("stage");
+    assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
+    assert_eq!(
+        outer.claim.proposition,
+        Proposition::TermEquality {
+            left: TermId(10),
+            right: TermId(11),
+        }
+    );
+    // Staged candidates must not enter ExactUF without AdmissionGate.
+    let fx = SessionFixture::new();
+    assert_eq!(fx.session().mgraph.semantic.derived.exact_uf.union_count(), 0);
+}
