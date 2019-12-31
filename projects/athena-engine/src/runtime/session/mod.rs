@@ -25,7 +25,8 @@ use crate::{
         egraph::{
             CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet,
             admit_application_congruence, admit_application_congruence_candidates, admit_structural_candidates,
-            admit_structural_term_equality, application_congruence_candidates, saturate, saturate_typed,
+            admit_structural_term_equality, admit_typed_rewrite_candidates, application_congruence_candidates,
+            saturate, saturate_typed,
         },
         mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
     },
@@ -404,6 +405,21 @@ impl Session {
             structural_admitted,
             congruence_admitted,
         }
+    }
+
+    /// Replay-verify typed rewrite candidates (`match_pattern` + `substitute`) then admit.
+    pub fn admit_typed_rewrite_egraph_candidates(
+        &mut self,
+        rules: &TypedRuleSet,
+        candidates: &[CandidateEquivalence],
+    ) -> Vec<Result<FactId, AdmissionRejectReason>> {
+        admit_typed_rewrite_candidates(
+            &mut self.arena,
+            &mut self.mgraph.semantic,
+            rules,
+            candidates,
+            &VerificationPolicy::default(),
+        )
     }
 
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。

@@ -21,6 +21,7 @@ mod extract;
 mod graph;
 mod ids;
 mod pipeline;
+mod rewrite_verify;
 mod saturation;
 mod typed_rules;
 
@@ -36,6 +37,9 @@ pub use ids::{EClassId, ENodeId};
 pub use pipeline::{
     EGRAPH_PROVIDER_ID, admit_structural_candidates, admit_structural_term_equality, candidate_to_outer,
     verify_structural_term_equality,
+};
+pub use rewrite_verify::{
+    admit_typed_rewrite_candidate, admit_typed_rewrite_candidates, verify_typed_rewrite_candidate,
 };
 pub use saturation::{SaturationReport, saturate, saturate_typed};
 pub use typed_rules::{TypedRewriteRule, TypedRuleSet};

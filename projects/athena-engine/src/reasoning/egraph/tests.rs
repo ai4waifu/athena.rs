@@ -342,6 +342,63 @@ fn extract_smallest_ast_prefers_shorter_term() {
 }
 
 #[test]
+fn typed_rewrite_replay_admits_add_same_candidate() {
+    use athena_ir::{ApplicationHead, Atom, SemanticOperator};
+    use super::{TypedRuleSet, admit_typed_rewrite_candidate, saturate_typed};
+    use crate::reasoning::trs::TermPattern;
+    use crate::reasoning::mgraph::{SemanticCore, VerificationPolicy};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let x_sym = store.symbols_mut().intern("x");
+    let x_term = store.push(TermNode::Atom(Atom::Symbol(x_sym)), span);
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Semantic(SemanticOperator::Add),
+        arguments: vec![
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+        ],
+    };
+    let mut rules = TypedRuleSet::new();
+    rules.push(pattern, x_term, Some("add_same"));
+    let mut graph = EGraph::new();
+    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::smoke(), Some(&rules));
+    assert_eq!(report.candidates.len(), 1);
+
+    let mut semantic = SemanticCore::new();
+    let fact = admit_typed_rewrite_candidate(
+        &mut store,
+        &mut semantic,
+        &rules,
+        &report.candidates[0],
+        &VerificationPolicy::default(),
+    )
+    .expect("replay admit");
+    assert_eq!(fact.0, 0);
+    assert_eq!(
+        semantic.derived.exact_uf.find(add),
+        semantic.derived.exact_uf.find(one)
+    );
+}
+
+#[test]
 fn application_congruence_admits_when_args_exact_equal() {
     use crate::reasoning::mgraph::{
         AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,

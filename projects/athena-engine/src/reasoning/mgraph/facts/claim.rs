@@ -96,6 +96,15 @@ pub enum EvidenceCertificate {
         /// 右应用项。
         right: TermId,
     },
+    /// Typed [`TermPattern`] 改写重放通过（match + substitute）。
+    TypedRewriteReplay {
+        /// 规则身份。
+        rule: athena_rewriter::RewriteRuleId,
+        /// 匹配主体。
+        left: TermId,
+        /// 重放产出（与候选右侧结构相等）。
+        right: TermId,
+    },
 }
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
