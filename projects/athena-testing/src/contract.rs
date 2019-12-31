@@ -573,3 +573,44 @@ fn predicate_registry_and_hyper_edge_staging_are_typed() {
     let fx = SessionFixture::new();
     assert_eq!(fx.session().mgraph.semantic.derived.exact_uf.union_count(), 0);
 }
+
+#[test]
+fn typed_rewrite_replay_admits_add_same_into_exact_uf() {
+    use athena_engine::reasoning::egraph::TypedRuleSet;
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut fx = SessionFixture::new();
+    let (one, add, x_sym, x_term) = {
+        let mut t = fx.terms();
+        let one = t.integer(1);
+        let add = t.add([one, one]);
+        let x_sym = t.intern("x");
+        let x_term = t.symbol("x");
+        (one, add, x_sym, x_term)
+    };
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Semantic(SemanticOperator::Add),
+        arguments: vec![
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+        ],
+    };
+    let mut rules = TypedRuleSet::new();
+    rules.push(pattern, x_term, Some("add_same"));
+    let report = fx.session_mut().run_egraph_saturation_typed(&[add], Some(&rules));
+    assert_eq!(report.candidates.len(), 1);
+    let admitted = fx
+        .session_mut()
+        .admit_typed_rewrite_egraph_candidates(&rules, &report.candidates);
+    assert_eq!(admitted.len(), 1);
+    assert!(admitted[0].is_ok());
+    let derived = &fx.session().mgraph.semantic.derived;
+    assert_eq!(derived.exact_uf.find(add), derived.exact_uf.find(one));
+}
