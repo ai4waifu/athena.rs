@@ -107,6 +107,12 @@ fn number_fingerprint_uses_stable_domain_tag_not_debug() {
         (Some(TermNode::Atom(Atom::Number(ni))), Some(TermNode::Atom(Atom::Number(nr)))) => {
             assert_eq!(ni.fingerprint_domain_tag(), 1);
             assert_eq!(nr.fingerprint_domain_tag(), 2);
+            assert_ne!(ni.fingerprint_content_hash(), nr.fingerprint_content_hash());
+            // Content hash must not depend on decimal render text alone.
+            assert_eq!(
+                ni.fingerprint_content_hash(),
+                athena_numeric::Number::Integer(athena_numeric::Integer::from_i64(2)).fingerprint_content_hash()
+            );
         }
         other => panic!("expected number atoms, got {other:?}"),
     }

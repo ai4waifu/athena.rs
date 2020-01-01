@@ -93,7 +93,7 @@ fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
     match kind {
         TermNode::Atom(Atom::Number(n)) => {
             mix_tag(&mut s.state, b"num");
-            mix_u64(&mut s.state, fnv1a64(n.to_render_string().as_bytes()));
+            mix_u64(&mut s.state, n.fingerprint_content_hash());
             mix_u64(&mut s.state, n.fingerprint_domain_tag());
         }
         TermNode::Atom(Atom::String(v)) => {
