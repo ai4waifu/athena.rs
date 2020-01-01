@@ -3,8 +3,9 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    algebraic::AlgebraicNumber, complex::Complex, decimal::Decimal, domain::NumericDomain, finite_field::FiniteFieldValue, integer::Integer,
-    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
+    algebraic::AlgebraicNumber, complex::Complex, decimal::Decimal, domain::NumericDomain, finite_field::FiniteFieldValue,
+    integer::{Integer, Sign}, interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational,
+    real::Real,
 };
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
@@ -318,6 +319,47 @@ impl NumericValue {
         }
     }
 
+    /// Binary-stable content hash for IR fingerprints (Integer/Rational limb wire; no render string).
+    ///
+    /// Other variants still mix a domain tag and a best-effort payload; full ANV1 wire coverage is later.
+    pub fn fingerprint_content_hash(&self) -> u64 {
+        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+        let mix = |h: &mut u64, v: u64| {
+            *h ^= v;
+            *h = h.wrapping_mul(FNV_PRIME);
+        };
+        let mix_integer = |h: &mut u64, n: &Integer| {
+            let sign_code = match n.sign() {
+                Sign::Zero => 0u64,
+                Sign::Positive => 1,
+                Sign::Negative => 2,
+            };
+            mix(h, sign_code);
+            mix(h, n.as_limbs().len() as u64);
+            for &limb in n.as_limbs() {
+                mix(h, limb);
+            }
+        };
+
+        let mut h = FNV_OFFSET;
+        mix(&mut h, self.fingerprint_domain_tag());
+        match self {
+            Self::Integer(n) => mix_integer(&mut h, n),
+            Self::Rational(r) => {
+                mix_integer(&mut h, &r.numerator());
+                mix_integer(&mut h, &r.denominator());
+            }
+            Self::Real(Real::Machine(x)) => mix(&mut h, x.to_bits()),
+            other => {
+                for b in other.to_render_string().as_bytes() {
+                    mix(&mut h, u64::from(*b));
+                }
+            }
+        }
+        h
+    }
+
     /// 代数数视图。
     pub fn as_algebraic(&self) -> Option<&AlgebraicNumber> {
         match self {
@@ -407,5 +449,21 @@ impl NumericValue {
             Self::FiniteField(v) => Self::FiniteField(v.try_clone_in(ctx)?),
             Self::PAdic(v) => Self::PAdic(v.try_clone_in(ctx)?),
         })
+    }
+}
+
+#[cfg(test)]
+mod fingerprint_content_tests {
+    use super::*;
+    use crate::integer::Integer;
+
+    #[test]
+    fn integer_content_hash_is_limb_stable() {
+        let a = Number::Integer(Integer::from_i64(42));
+        let b = Number::Integer(Integer::from_i64(42));
+        let c = Number::Integer(Integer::from_i64(43));
+        assert_eq!(a.fingerprint_content_hash(), b.fingerprint_content_hash());
+        assert_ne!(a.fingerprint_content_hash(), c.fingerprint_content_hash());
+        assert_eq!(a.fingerprint_domain_tag(), 1);
     }
 }
