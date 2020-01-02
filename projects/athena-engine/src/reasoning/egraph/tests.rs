@@ -514,6 +514,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
 
     let report = session.run_typed_egraph_admit_pipeline(&[add_xz, add_yz], None, 8);
     assert!(report.structural_admitted.is_empty());
+    assert!(report.rewrite_admitted.is_empty());
     assert_eq!(report.congruence_admitted.len(), 1);
     assert!(report.congruence_admitted[0].is_ok());
     assert_eq!(

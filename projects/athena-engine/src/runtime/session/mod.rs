@@ -37,13 +37,15 @@ use crate::{
     },
 };
 
-/// Report from typed saturation followed by structural and application-congruence admit.
+/// Report from typed saturation followed by structural, rewrite-replay, and application-congruence admit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypedEgraphAdmitReport {
     /// Unverified candidates from saturation.
     pub saturation: SaturationReport,
     /// Structural admit outcomes for those candidates (rewrite-shaped pairs are skipped upstream).
     pub structural_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
+    /// Typed rewrite replay admit outcomes (`match_pattern` + `substitute`).
+    pub rewrite_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
     /// ExactUF application-congruence admit outcomes.
     pub congruence_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
 }
@@ -382,10 +384,11 @@ impl Session {
         )
     }
 
-    /// Typed saturation then structural admit then ExactUF application-congruence rebuild.
+    /// Typed saturation then structural admit, typed rewrite replay admit, then ExactUF congruence.
     ///
-    /// Rewrite-shaped candidates stay unverified unless `structural_eq`. Congruence
-    /// only fires when ExactUF already equates application arguments.
+    /// Structural admit only upgrades `structural_eq` pairs. Rewrite candidates require
+    /// `rules` so replay can re-run `match_pattern` + `substitute`. Congruence fires when
+    /// ExactUF already equates application arguments.
     pub fn run_typed_egraph_admit_pipeline(
         &mut self,
         roots: &[TermId],
@@ -399,10 +402,21 @@ impl Session {
             &saturation.candidates,
             &VerificationPolicy::default(),
         );
+        let rewrite_admitted = match rules {
+            Some(rules) => admit_typed_rewrite_candidates(
+                &mut self.arena,
+                &mut self.mgraph.semantic,
+                rules,
+                &saturation.candidates,
+                &VerificationPolicy::default(),
+            ),
+            None => Vec::new(),
+        };
         let congruence_admitted = self.rebuild_and_admit_application_congruence(congruence_max_pairs);
         TypedEgraphAdmitReport {
             saturation,
             structural_admitted,
+            rewrite_admitted,
             congruence_admitted,
         }
     }
