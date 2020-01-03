@@ -539,10 +539,52 @@ fn typed_egraph_admit_pipeline_closes_application_congruence() {
         .session_mut()
         .run_typed_egraph_admit_pipeline(&[add_xz, add_yz], None, 8);
     assert!(report.structural_admitted.is_empty());
+    assert!(report.rewrite_admitted.is_empty());
     assert_eq!(report.congruence_admitted.len(), 1);
     assert!(report.congruence_admitted[0].is_ok());
     let derived = &fx.session().mgraph.semantic.derived;
     assert_eq!(derived.exact_uf.find(add_xz), derived.exact_uf.find(add_yz));
+}
+
+#[test]
+fn typed_egraph_admit_pipeline_replays_rewrite_rules() {
+    use athena_engine::reasoning::egraph::TypedRuleSet;
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut fx = SessionFixture::new();
+    let (one, add, x_sym, x_term) = {
+        let mut t = fx.terms();
+        let one = t.integer(1);
+        let add = t.add([one, one]);
+        let x_sym = t.intern("x");
+        let x_term = t.symbol("x");
+        (one, add, x_sym, x_term)
+    };
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Semantic(SemanticOperator::Add),
+        arguments: vec![
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+            TermPattern::Bind {
+                name: x_sym,
+                inner: Box::new(TermPattern::Any),
+            },
+        ],
+    };
+    let mut rules = TypedRuleSet::new();
+    rules.push(pattern, x_term, Some("add_same"));
+    let report = fx
+        .session_mut()
+        .run_typed_egraph_admit_pipeline(&[add], Some(&rules), 8);
+    assert_eq!(report.saturation.candidates.len(), 1);
+    assert!(report.structural_admitted.is_empty());
+    assert_eq!(report.rewrite_admitted.len(), 1);
+    assert!(report.rewrite_admitted[0].is_ok());
+    let derived = &fx.session().mgraph.semantic.derived;
+    assert_eq!(derived.exact_uf.find(add), derived.exact_uf.find(one));
 }
 
 #[test]
