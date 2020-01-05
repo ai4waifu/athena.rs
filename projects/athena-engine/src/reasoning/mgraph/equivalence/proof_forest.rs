@@ -19,10 +19,12 @@ pub struct ProofEdge {
 /// Closed step taxonomy for bootstrap (expand with certificates later).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofStepKind {
-    /// Direct admitted equality.
+    /// Direct admitted equality (structural / harness / generic).
     AdmittedEquality,
-    /// Congruence under a common head.
+    /// Congruence under a common head (ExactUF application congruence).
     Congruence,
+    /// Typed rewrite replay (`match_pattern` + `substitute`).
+    TypedRewrite,
     /// Transitivity step.
     Transitivity,
 }

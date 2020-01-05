@@ -8,7 +8,7 @@ use crate::reasoning::mgraph::{
         union_find::ExactUnionFind,
     },
     facts::{
-        claim::{Proposition, VerifiedClaim},
+        claim::{Evidence, EvidenceCertificate, Proposition, VerifiedClaim},
         journal::AdmissionJournal,
     },
     polynomial::POLYNOMIAL_PROVIDER_ID,
@@ -52,7 +52,8 @@ impl DerivedIndexes {
             }
             Proposition::TermEquality { left, right } => {
                 self.exact_uf.union(*left, *right);
-                self.proof_forest.record(*left, *right, ProofStepKind::AdmittedEquality);
+                let step = proof_step_from_evidence(&claim.claim.evidence);
+                self.proof_forest.record(*left, *right, step);
             }
             Proposition::Congruence {
                 modulus_fingerprint,
@@ -64,6 +65,21 @@ impl DerivedIndexes {
             }
             Proposition::CalculusRelation { .. } => {}
         }
+    }
+}
+
+fn proof_step_from_evidence(evidence: &Evidence) -> ProofStepKind {
+    match evidence {
+        Evidence::TrustedKernel { certificate, .. } => match certificate {
+            EvidenceCertificate::ApplicationCongruence { .. } => ProofStepKind::Congruence,
+            EvidenceCertificate::TypedRewriteReplay { .. } => ProofStepKind::TypedRewrite,
+            EvidenceCertificate::StructuralTermEquality { .. }
+            | EvidenceCertificate::TestHarness
+            | EvidenceCertificate::PolynomialExact { .. }
+            | EvidenceCertificate::Rejected { .. }
+            | EvidenceCertificate::CalculusExact { .. }
+            | EvidenceCertificate::CongruenceExact { .. } => ProofStepKind::AdmittedEquality,
+        },
     }
 }
 
@@ -149,5 +165,46 @@ mod tests {
         assert_eq!(derived.congruence.find(7, 10), derived.congruence.find(7, 20));
         assert_ne!(derived.congruence.find(7, 10), derived.congruence.find(7, 30));
         assert_eq!(derived.congruence.modulus_count(), 2);
+    }
+
+    #[test]
+    fn proof_forest_step_kind_follows_term_equality_certificate() {
+        let mut journal = AdmissionJournal::new();
+        journal.append(VerifiedClaim::from_admission(Claim {
+            proposition: Proposition::TermEquality {
+                left: TermId(1),
+                right: TermId(2),
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::ApplicationCongruence {
+                    left: TermId(1),
+                    right: TermId(2),
+                },
+                summary: String::new(),
+            },
+        }));
+        journal.append(VerifiedClaim::from_admission(Claim {
+            proposition: Proposition::TermEquality {
+                left: TermId(3),
+                right: TermId(4),
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::TypedRewriteReplay {
+                    rule: athena_rewriter::RewriteRuleId(0),
+                    left: TermId(3),
+                    right: TermId(4),
+                },
+                summary: String::new(),
+            },
+        }));
+        let derived = DerivedIndexes::rebuild_from(&journal);
+        assert_eq!(derived.proof_forest.edges()[0].step_kind, ProofStepKind::Congruence);
+        assert_eq!(derived.proof_forest.edges()[1].step_kind, ProofStepKind::TypedRewrite);
     }
 }
