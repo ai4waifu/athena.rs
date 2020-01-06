@@ -36,7 +36,8 @@ impl Rewriter {
         Self { options: opts }
     }
 
-    /// 化简 term（stub：可选叶节点常量折叠）。
+    /// Leaf constant-fold pass only (local). Typed match/substitute live on this crate's
+    /// [`crate::match_pattern`] / [`crate::substitute`]; E-Graph saturation is engine-owned.
     pub fn simplify(&self, arena: &mut TermStore, root: TermId) -> Result<RewriteResult> {
         arena.verify(root)?;
         if !self.options.constant_fold {

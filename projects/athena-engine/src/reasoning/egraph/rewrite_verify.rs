@@ -1,6 +1,7 @@
 //! Replay-verify typed rewrite candidates before M-Graph admission (Living `03` R-2.5 / `26`).
 
 use athena_ir::TermStore;
+use athena_rewriter::{PatternBindings, match_pattern, substitute};
 
 use crate::reasoning::{
     egraph::{CandidateEquivalence, TypedRuleSet},
@@ -11,7 +12,6 @@ use crate::reasoning::{
         },
         SemanticCore,
     },
-    trs::{match_pattern, substitute, PatternBindings},
 };
 
 use super::pipeline::EGRAPH_PROVIDER_ID;

@@ -1,11 +1,9 @@
 //! Typed [`TermPattern`] rules for E-Graph saturation (Living `26` / `27`).
 //!
-//! Lives in `athena-engine` because [`TermPattern`] is an engine TRS contract.
-//! Emitting matches never admits M-Graph facts.
+//! Pattern/match/substitute ownership is [`athena_rewriter`]. This module only
+//! packages rules for engine-local saturation (never admits M-Graph facts).
 
-use athena_rewriter::RewriteRuleId;
-
-use crate::reasoning::trs::TermPattern;
+use athena_rewriter::{RewriteRuleId, TermPattern};
 use athena_types::TermId;
 
 /// One typed rewrite rule (pattern → replacement template).

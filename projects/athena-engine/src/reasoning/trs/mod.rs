@@ -1,9 +1,8 @@
-//! 中性 typed TRS 模式合同。
+//! Neutral typed TRS pattern contract — **re-exported from [`athena_rewriter`]**.
 //!
-//! Mathematica `Blank` / `Pattern` 等是方言表面，不得作为内部规则本体。
+//! Ownership: `TermPattern` / `match_pattern` / `substitute` live in `athena-rewriter`.
+//! This module remains a compatibility facade for engine / request / ExecutionIR paths.
 
-mod binder;
-mod pattern;
-
-pub use binder::{PatternBindings, match_pattern, substitute};
-pub use pattern::{PatternConstraint, TermPattern};
+pub use athena_rewriter::{
+    PatternBindings, PatternConstraint, TermPattern, match_pattern, substitute,
+};

@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 athena-types = { workspace = true }
 athena-ir = { workspace = true }
+athena-numeric = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

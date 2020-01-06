@@ -2,6 +2,9 @@
 //!
 //! Rules here are **internal** contracts — not dialect `ReplacementRule` / Blank patterns.
 //! Emitting a match never admits M-Graph facts.
+//!
+//! Pattern matching and substitution live in this crate ([`crate::TermPattern`],
+//! [`crate::match_pattern`], [`crate::substitute`]). Engine owns saturation / admission.
 
 use athena_types::TermId;
 
@@ -11,9 +14,8 @@ pub struct RewriteRuleId(pub u32);
 
 /// One compiled rewrite rule (pattern → replacement template).
 ///
-/// Pattern / replacement payloads stay as host [`TermId`] roots for bootstrap.
-/// Full [`athena_engine::reasoning::trs::TermPattern`] integration lands with the engine
-/// saturation rule matcher (engine depends on rewriter, not the reverse).
+/// Bootstrap payloads stay as host [`TermId`] roots for structural [`RuleSet`] matching.
+/// Typed [`crate::TermPattern`] rules are owned here and consumed by engine E-Graph saturation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewriteRule {
     /// Rule identity.

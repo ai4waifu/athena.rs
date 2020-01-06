@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use athena_ir::{Atom, TermNode, TermStore};
 use athena_types::{SymbolId, TermId, ValueTypeId};
 
-use super::pattern::{PatternConstraint, TermPattern};
+use crate::pattern::{PatternConstraint, TermPattern};
 
 /// Binding environment produced by a successful match.
 pub type PatternBindings = HashMap<SymbolId, TermId>;
@@ -141,6 +141,7 @@ mod tests {
     use athena_types::{CollectionKind, SourceSpan};
 
     use super::*;
+    use crate::pattern::TermPattern;
 
     #[test]
     fn bind_is_consistent_across_repeated_names() {

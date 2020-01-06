@@ -1,10 +1,8 @@
 //! Budgeted saturation driver (Living `03` R-2.5 / `26`).
 
 use athena_ir::TermStore;
-use athena_rewriter::RuleSet;
+use athena_rewriter::{RuleSet, match_pattern, substitute, PatternBindings};
 use athena_types::TermId;
-
-use crate::reasoning::trs::{match_pattern, substitute, PatternBindings};
 
 use super::{
     budget::{SaturationBudget, SaturationStopReason},
@@ -150,7 +148,7 @@ pub fn saturate(
 /// Run scope-local saturation with [`TypedRuleSet`] (`TermPattern` + `substitute`).
 ///
 /// Never writes M-Graph. `store` is mutable so replacement templates can be
-/// instantiated via [`substitute`](crate::reasoning::trs::substitute).
+/// instantiated via [`athena_rewriter::substitute`].
 pub fn saturate_typed(
     graph: &mut EGraph,
     store: &mut TermStore,
