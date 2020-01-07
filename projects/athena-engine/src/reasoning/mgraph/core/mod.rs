@@ -75,9 +75,13 @@ impl MGraphCore {
         self.scope_index.add_relation(from, to, ScopeRelationKind::Refines);
     }
 
-    /// 对已接纳关系做必要闭包传播（transport 规则待扩展）。
+    /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
+    ///
+    /// `seeds` 预留 scope 过滤；bootstrap 忽略并在全 semantic 上运行。
     pub fn close(&mut self, _seeds: &ClosureSeeds) {
-        // Transport / projection 规则待扩展。
+        let _ = self;
+        // Transport along ScopeRelation remains future work. Equality-forest
+        // closure runs on [`MGraphState`] via [`run_closure_step`].
     }
 
     /// 关系条数。

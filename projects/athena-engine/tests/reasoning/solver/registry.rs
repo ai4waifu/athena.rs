@@ -20,12 +20,12 @@ impl Reflector for StubReflector {
 
 #[test]
 fn mgraph_state_defaults() {
-    let state = MGraphState::new();
+    let mut state = MGraphState::new();
     assert!(state.operational.hyper_edges.is_empty());
-    let result = run_closure_step(&state, &ClosureLimits::default());
-    assert_eq!(result.stop, ClosureStopReason::UnsupportedBootstrap);
-    assert!(!result.is_saturated());
-    assert!(!result.diagnostics.is_empty());
+    let result = run_closure_step(&mut state, &ClosureLimits::default());
+    assert_eq!(result.stop, ClosureStopReason::Saturated);
+    assert!(result.is_saturated());
+    assert_eq!(result.steps_applied, 0);
 }
 
 #[test]

@@ -28,7 +28,7 @@ use crate::{
             admit_structural_term_equality, admit_typed_rewrite_candidates, application_congruence_candidates,
             saturate, saturate_typed,
         },
-        mgraph::{AdmissionRejectReason, FactId, MGraphState, VerificationPolicy},
+        mgraph::{AdmissionRejectReason, ClosureLimits, ClosureResult, FactId, MGraphState, VerificationPolicy},
     },
     runtime::{
         results::{ComputationResult, ResultStore},
@@ -450,5 +450,10 @@ impl Session {
             right,
             &VerificationPolicy::default(),
         )
+    }
+
+    /// Run M-Graph equality-forest closure (transitivity proof edges · bootstrap).
+    pub fn run_mgraph_closure(&mut self, limits: ClosureLimits) -> ClosureResult {
+        self.mgraph.run_closure(&limits)
     }
 }

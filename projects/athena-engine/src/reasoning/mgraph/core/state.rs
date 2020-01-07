@@ -16,4 +16,12 @@ impl MGraphState {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Run equality-forest closure in place (Living `26` / `29` bootstrap).
+    pub fn run_closure(
+        &mut self,
+        limits: &crate::reasoning::mgraph::ClosureLimits,
+    ) -> crate::reasoning::mgraph::ClosureResult {
+        crate::reasoning::mgraph::run_closure_step(self, limits)
+    }
 }
