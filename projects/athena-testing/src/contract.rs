@@ -656,3 +656,42 @@ fn typed_rewrite_replay_admits_add_same_into_exact_uf() {
     let derived = &fx.session().mgraph.semantic.derived;
     assert_eq!(derived.exact_uf.find(add), derived.exact_uf.find(one));
 }
+
+#[test]
+fn mgraph_closure_materializes_transitivity_in_proof_forest() {
+    use athena_engine::reasoning::mgraph::{
+        AdmissionGate, Claim, ClosureLimits, ClosureStopReason, Evidence, EvidenceCertificate, Guarantee,
+        ProofStepKind, Proposition, Scope, VerificationPolicy,
+    };
+
+    let mut fx = SessionFixture::new();
+    let (a, b, c) = {
+        let mut t = fx.terms();
+        (t.symbol("a"), t.symbol("b"), t.symbol("c"))
+    };
+    for (left, right) in [(a, b), (b, c)] {
+        AdmissionGate::admit_claim(
+            &mut fx.session_mut().mgraph.semantic,
+            Claim {
+                proposition: Proposition::TermEquality { left, right },
+                scope: Scope::Unconditional,
+                guarantee: Guarantee::ProvenExact,
+                evidence: Evidence::TrustedKernel {
+                    provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                    certificate: EvidenceCertificate::TestHarness,
+                    summary: "seed".into(),
+                },
+            },
+            &VerificationPolicy::default(),
+        )
+        .expect("seed");
+    }
+    assert_eq!(fx.session().mgraph.semantic.derived.proof_forest.len(), 2);
+    let result = fx.session_mut().run_mgraph_closure(ClosureLimits::default());
+    assert_eq!(result.stop, ClosureStopReason::Saturated);
+    assert!(result.steps_applied >= 1);
+    assert!(fx.session().mgraph.semantic.derived.proof_forest.edges().iter().any(|e| {
+        e.step_kind == ProofStepKind::Transitivity
+            && ((e.left == a && e.right == c) || (e.left == c && e.right == a))
+    }));
+}
