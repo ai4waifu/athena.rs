@@ -30,7 +30,10 @@ pub use admission::{
     admit_polynomial_exact, admit_polynomial_result, hyper_edge_to_outer_candidate, is_admitted,
 };
 pub use cache::ResultCache;
-pub use closure::{ClosureLimits, ClosureResult, ClosureStopReason, OperationalState, run_closure_step};
+pub use closure::{
+    ClosureLimits, ClosureResult, ClosureStopReason, HyperEdgeDrainReport, OperationalState, drain_hyper_edges_to_outer_pool,
+    run_closure_step,
+};
 pub use core::{
     CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
     HyperEdge, MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateDescriptor, PredicateId, RelationRef, RelationStatus,

@@ -85,14 +85,9 @@ mod tests {
     #[test]
     fn unsupported_predicate_is_not_exact() {
         let edge = HyperEdge {
-            nodes: vec![
-                TermId(1),
-                TermId(2),
-                TermId(3),
-            ],
+            nodes: vec![TermId(1), TermId(2), TermId(3)],
             predicate: predicates::CONGRUENCE,
         };
-        // Congruence subjects are Object fingerprints, not TermIds — staging refuses.
         assert_eq!(
             hyper_edge_to_outer_candidate(&edge),
             Err(AdmissionRejectReason::NotExact)

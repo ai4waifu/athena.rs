@@ -4,6 +4,7 @@
 //! proof forest (transitivity). It never admits OuterCandidate / HyperEdge facts
 //! and never invents witness-bearing claims.
 
+pub mod drain;
 pub mod operational;
 
 use athena_types::TermId;
@@ -14,6 +15,7 @@ use crate::reasoning::mgraph::{
     ProofForest,
 };
 
+pub use drain::{HyperEdgeDrainReport, drain_hyper_edges_to_outer_pool};
 pub use operational::OperationalState;
 
 /// 闭包资源限制。
@@ -45,6 +47,10 @@ pub struct ClosureResult {
     pub stop: ClosureStopReason,
     /// 本轮物化的传递性边数。
     pub steps_applied: u32,
+    /// Hyper-edges drained into OuterCandidate pool this run.
+    pub hyper_edges_staged: u32,
+    /// Hyper-edges retained (unsupported mapping).
+    pub hyper_edges_retained: u32,
 }
 
 impl ClosureResult {
@@ -54,13 +60,13 @@ impl ClosureResult {
     }
 }
 
-/// 就地运行闭包直至饱和或步数预算耗尽。
+/// Bootstrap fragment:
+/// 1. Drain stageable operational hyper-edges into OuterCandidate pool (no admit).
+/// 2. Materialize [`ProofStepKind::Transitivity`] edges for one-hop compositions.
 ///
-/// Bootstrap fragment: materialize [`ProofStepKind::Transitivity`] edges for
-/// one-hop compositions of existing proof-forest equalities when ExactUF already
-/// equates the endpoints. Does **not** write journal / ExactUF (already closed
-/// under union) and does **not** promote operational hyper-edges.
+/// Does **not** write journal / ExactUF and does **not** promote OuterCandidate to facts.
 pub fn run_closure_step(state: &mut MGraphState, limits: &ClosureLimits) -> ClosureResult {
+    let drain = drain_hyper_edges_to_outer_pool(state);
     let mut steps_applied = 0u32;
 
     while steps_applied < limits.max_steps {
@@ -70,6 +76,8 @@ pub fn run_closure_step(state: &mut MGraphState, limits: &ClosureLimits) -> Clos
                 return ClosureResult {
                     stop: ClosureStopReason::Saturated,
                     steps_applied,
+                    hyper_edges_staged: drain.staged,
+                    hyper_edges_retained: drain.retained,
                 };
             }
         }
@@ -83,6 +91,8 @@ pub fn run_closure_step(state: &mut MGraphState, limits: &ClosureLimits) -> Clos
             ClosureStopReason::Saturated
         },
         steps_applied,
+        hyper_edges_staged: drain.staged,
+        hyper_edges_retained: drain.retained,
     }
 }
 
@@ -180,6 +190,7 @@ mod tests {
         let result = run_closure_step(&mut state, &ClosureLimits::default());
         assert_eq!(result.stop, ClosureStopReason::Saturated);
         assert_eq!(result.steps_applied, 0);
+        assert_eq!(result.hyper_edges_staged, 0);
         assert!(result.is_saturated());
     }
 
@@ -214,5 +225,22 @@ mod tests {
         assert_eq!(result.stop, ClosureStopReason::StepBudget);
         assert_eq!(result.steps_applied, 1);
         assert!(!result.is_saturated());
+    }
+
+    #[test]
+    fn closure_drains_rewrite_hyper_edges_into_outer_pool() {
+        use crate::reasoning::mgraph::{HyperEdge, predicates};
+
+        let mut state = MGraphState::new();
+        state.operational.hyper_edges.push(HyperEdge {
+            nodes: vec![TermId(10), TermId(11)],
+            predicate: predicates::REWRITE_EQUIVALENT,
+        });
+        let result = run_closure_step(&mut state, &ClosureLimits::default());
+        assert_eq!(result.hyper_edges_staged, 1);
+        assert_eq!(result.hyper_edges_retained, 0);
+        assert_eq!(state.operational.outer_candidates.len(), 1);
+        assert!(state.operational.hyper_edges.is_empty());
+        assert_eq!(state.semantic.relation_count(), 0);
     }
 }

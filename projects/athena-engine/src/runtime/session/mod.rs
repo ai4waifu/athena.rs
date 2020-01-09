@@ -456,4 +456,9 @@ impl Session {
     pub fn run_mgraph_closure(&mut self, limits: ClosureLimits) -> ClosureResult {
         self.mgraph.run_closure(&limits)
     }
+
+    /// Drain stageable operational hyper-edges into OuterCandidate pool (no admit).
+    pub fn drain_mgraph_hyper_edges(&mut self) -> crate::reasoning::mgraph::HyperEdgeDrainReport {
+        crate::reasoning::mgraph::drain_hyper_edges_to_outer_pool(&mut self.mgraph)
+    }
 }
