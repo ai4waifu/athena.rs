@@ -695,3 +695,31 @@ fn mgraph_closure_materializes_transitivity_in_proof_forest() {
             && ((e.left == a && e.right == c) || (e.left == c && e.right == a))
     }));
 }
+
+#[test]
+fn mgraph_closure_drains_hyper_edges_without_admit() {
+    use athena_engine::reasoning::mgraph::{ClosureLimits, Guarantee, HyperEdge, Proposition, predicates};
+
+    let mut fx = SessionFixture::new();
+    let (left, right) = {
+        let mut t = fx.terms();
+        (t.symbol("x"), t.symbol("y"))
+    };
+    fx.session_mut().mgraph.operational.hyper_edges.push(HyperEdge {
+        nodes: vec![left, right],
+        predicate: predicates::REWRITE_EQUIVALENT,
+    });
+    let result = fx.session_mut().run_mgraph_closure(ClosureLimits::default());
+    assert_eq!(result.hyper_edges_staged, 1);
+    assert!(fx.session().mgraph.operational.hyper_edges.is_empty());
+    assert_eq!(fx.session().mgraph.operational.outer_candidates.len(), 1);
+    assert_eq!(
+        fx.session().mgraph.operational.outer_candidates[0].claim.guarantee,
+        Guarantee::Candidate
+    );
+    assert_eq!(
+        fx.session().mgraph.operational.outer_candidates[0].claim.proposition,
+        Proposition::TermEquality { left, right }
+    );
+    assert_eq!(fx.session().mgraph.semantic.relation_count(), 0);
+}
