@@ -723,3 +723,52 @@ fn mgraph_closure_drains_hyper_edges_without_admit() {
     );
     assert_eq!(fx.session().mgraph.semantic.relation_count(), 0);
 }
+
+#[test]
+fn mgraph_outer_pool_admits_only_structural_equality() {
+    use athena_engine::reasoning::mgraph::{Guarantee, HyperEdge, Proposition, predicates};
+    use athena_ir::{Atom, TermNode};
+    use athena_types::SourceSpan;
+
+    let mut fx = SessionFixture::new();
+    let (same_a, same_b, left, right) = {
+        let session = fx.session_mut();
+        let span = SourceSpan::default();
+        let same_a = session.arena.push(
+            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(3))),
+            span,
+        );
+        let same_b = session.arena.push(
+            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(3))),
+            span,
+        );
+        let x = session.arena.symbols_mut().intern("p");
+        let y = session.arena.symbols_mut().intern("q");
+        let left = session.arena.push(TermNode::Atom(Atom::Symbol(x)), span);
+        let right = session.arena.push(TermNode::Atom(Atom::Symbol(y)), span);
+        (same_a, same_b, left, right)
+    };
+    assert_eq!(same_a, same_b);
+    fx.session_mut().mgraph.operational.hyper_edges.push(HyperEdge {
+        nodes: vec![same_a, same_b],
+        predicate: predicates::REWRITE_EQUIVALENT,
+    });
+    fx.session_mut().mgraph.operational.hyper_edges.push(HyperEdge {
+        nodes: vec![left, right],
+        predicate: predicates::REWRITE_EQUIVALENT,
+    });
+    assert_eq!(fx.session_mut().drain_mgraph_hyper_edges().staged, 2);
+    let report = fx.session_mut().admit_mgraph_outer_pool_if_structural();
+    assert_eq!(report.admitted, 1);
+    assert_eq!(report.retained, 1);
+    assert_eq!(fx.session().mgraph.operational.outer_candidates.len(), 1);
+    assert_eq!(
+        fx.session().mgraph.operational.outer_candidates[0].claim.proposition,
+        Proposition::TermEquality { left, right }
+    );
+    assert_eq!(
+        fx.session().mgraph.operational.outer_candidates[0].claim.guarantee,
+        Guarantee::Candidate
+    );
+    assert_eq!(fx.session().mgraph.semantic.relation_count(), 1);
+}
