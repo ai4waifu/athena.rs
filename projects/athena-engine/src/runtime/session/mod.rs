@@ -461,4 +461,15 @@ impl Session {
     pub fn drain_mgraph_hyper_edges(&mut self) -> crate::reasoning::mgraph::HyperEdgeDrainReport {
         crate::reasoning::mgraph::drain_hyper_edges_to_outer_pool(&mut self.mgraph)
     }
+
+    /// Admit OuterCandidate pool entries that pass TermStore structural equality (upgrade to ProvenExact).
+    pub fn admit_mgraph_outer_pool_if_structural(
+        &mut self,
+    ) -> crate::reasoning::mgraph::OuterAdmitReport {
+        crate::reasoning::mgraph::admit_outer_pool_if_structural(
+            &self.arena,
+            &mut self.mgraph,
+            &VerificationPolicy::default(),
+        )
+    }
 }
