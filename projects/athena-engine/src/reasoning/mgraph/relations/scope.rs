@@ -40,4 +40,12 @@ impl ScopeIndex {
     pub fn refines(&self, from: ScopeRef, to: ScopeRef) -> bool {
         self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::Refines)
     }
+
+    /// Direct `Refines` targets of `from` (`from ⊑ to`).
+    pub fn refines_targets(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
+        self.edges
+            .iter()
+            .filter(move |e| e.from == from && e.kind == ScopeRelationKind::Refines)
+            .map(|e| e.to)
+    }
 }

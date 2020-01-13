@@ -78,10 +78,11 @@ impl MGraphCore {
     /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
     ///
     /// `seeds` 预留 scope 过滤；bootstrap 忽略并在全 semantic 上运行。
+    /// Scope `Refines` transport remains **query-time** via [`MGraphView::find_accepted`]
+    /// (no fiber copying into unconditional closure).
     pub fn close(&mut self, _seeds: &ClosureSeeds) {
         let _ = self;
-        // Transport along ScopeRelation remains future work. Equality-forest
-        // closure runs on [`MGraphState`] via [`run_closure_step`].
+        // Equality-forest closure runs on [`MGraphState`] via [`run_closure_step`].
     }
 
     /// 关系条数。
@@ -113,12 +114,38 @@ impl<'a> MGraphView<'a> {
     }
 
     /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Living `29` Reflector 短路）。
+    ///
+    /// Query-time transport: also search scopes reachable via registered
+    /// [`ScopeRelationKind::Refines`] edges (`scope ⊑ ancestor`). Does **not**
+    /// copy relations into other fibers or the unconditional closure.
     pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
         self.find_accepted(scope, predicate, &[])
     }
 
     /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
     pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![scope];
+        while let Some(current) = stack.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            if let Some(id) = self.find_accepted_local(current, predicate, known_objects) {
+                return Some(id);
+            }
+            for ancestor in self.core.scope_index().refines_targets(current) {
+                stack.push(ancestor);
+            }
+        }
+        None
+    }
+
+    fn find_accepted_local(
+        &self,
+        scope: ScopeRef,
+        predicate: PredicateId,
+        known_objects: &[ObjectRef],
+    ) -> Option<RelationRef> {
         self.core
             .relation_index()
             .relations_with_predicate(scope, predicate)

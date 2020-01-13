@@ -95,6 +95,52 @@ fn scope_index_refines_edge() {
 }
 
 #[test]
+fn find_accepted_transports_along_refines() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let local = Scope::UnderAssumptions(AssumptionSetId(0));
+    let local_ref = scope_to_ref(local);
+    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL);
+
+    admit_ok(&mut semantic, sample_claim(77));
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
+        .is_some());
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT)
+        .is_some());
+}
+
+#[test]
+fn find_accepted_does_not_transport_upward() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let local = Scope::UnderAssumptions(AssumptionSetId(1));
+    let local_ref = scope_to_ref(local);
+    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL);
+
+    let mut claim = sample_claim(88);
+    claim.scope = local;
+    admit_ok(&mut semantic, claim);
+
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT)
+        .is_some());
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
+        .is_none());
+    assert!(semantic.view().relations_in_scope(ScopeRef::UNCONDITIONAL).is_empty());
+}
+
+#[test]
 fn semantic_core_commit_syncs_core_and_admission_journal() {
     let mut semantic = SemanticCore::new();
     let id = admit_ok(&mut semantic, sample_claim(42));
