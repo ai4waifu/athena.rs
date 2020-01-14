@@ -17,14 +17,22 @@ pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProvi
 
 /// Turn a typed hyper-edge into an unverified outer candidate.
 ///
-/// Does **not** admit. Currently only [`predicates::REWRITE_EQUIVALENT`] (binary term equality)
-/// is staged; other predicates remain solver/reflector-local until a proposition mapping exists.
+/// Does **not** admit. Stageable predicates (binary term equality shape):
+/// - [`predicates::REWRITE_EQUIVALENT`]
+/// - [`predicates::EVALUATION_RESULT`]
+///
+/// Other predicates remain solver/reflector-local until a proposition mapping exists.
 pub fn hyper_edge_to_outer_candidate(edge: &HyperEdge) -> Result<OuterCandidate, AdmissionRejectReason> {
     if descriptor(edge.predicate).is_none() || !arity_ok(edge.predicate, edge.nodes.len()) {
         return Err(AdmissionRejectReason::MalformedRelation);
     }
-    if edge.predicate == predicates::REWRITE_EQUIVALENT {
+    if edge.predicate == predicates::REWRITE_EQUIVALENT || edge.predicate == predicates::EVALUATION_RESULT {
         let [left, right] = binary_terms(&edge.nodes)?;
+        let tag = if edge.predicate == predicates::REWRITE_EQUIVALENT {
+            "hyper-edge-rewrite"
+        } else {
+            "hyper-edge-eval"
+        };
         return Ok(OuterCandidate::new(Claim {
             proposition: Proposition::TermEquality { left, right },
             scope: Scope::Unconditional,
@@ -34,7 +42,7 @@ pub fn hyper_edge_to_outer_candidate(edge: &HyperEdge) -> Result<OuterCandidate,
                 certificate: EvidenceCertificate::Rejected {
                     guarantee: Guarantee::Candidate,
                 },
-                summary: format!("hyper-edge-rewrite:{left:?}:{right:?}"),
+                summary: format!("{tag}:{left:?}:{right:?}"),
             },
         }));
     }
@@ -68,6 +76,28 @@ mod tests {
                 right: TermId(2),
             }
         );
+    }
+
+    #[test]
+    fn evaluation_result_hyper_edge_stages_term_equality() {
+        let edge = HyperEdge {
+            nodes: vec![TermId(4), TermId(5)],
+            predicate: predicates::EVALUATION_RESULT,
+        };
+        let outer = hyper_edge_to_outer_candidate(&edge).expect("stage");
+        assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
+        assert_eq!(
+            outer.claim.proposition,
+            Proposition::TermEquality {
+                left: TermId(4),
+                right: TermId(5),
+            }
+        );
+        match &outer.claim.evidence {
+            Evidence::TrustedKernel { summary, .. } => {
+                assert!(summary.starts_with("hyper-edge-eval:"));
+            }
+        }
     }
 
     #[test]
