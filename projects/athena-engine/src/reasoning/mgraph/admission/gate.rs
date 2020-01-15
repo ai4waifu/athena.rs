@@ -122,6 +122,35 @@ impl AdmissionGate {
         }
     }
 
+    /// Admit into [`MGraphState`] and wake matching operational obligations (Living `29`).
+    pub fn admit_claim_into_state(
+        state: &mut MGraphState,
+        claim: Claim,
+        policy: &VerificationPolicy,
+    ) -> Result<
+        (
+            crate::reasoning::mgraph::facts::FactId,
+            crate::reasoning::mgraph::WakeReport,
+        ),
+        AdmissionRejectReason,
+    > {
+        let id = Self::admit_claim(&mut state.semantic, claim, policy)?;
+        let Some((predicate, admitted_scope)) = state
+            .semantic
+            .relation(id)
+            .map(|record| (record.predicate, record.scope))
+        else {
+            return Ok((id, crate::reasoning::mgraph::WakeReport::default()));
+        };
+        let wake = state.operational.obligation_index.wake_matching(
+            admitted_scope,
+            predicate,
+            id,
+            state.semantic.core.scope_index(),
+        );
+        Ok((id, wake))
+    }
+
     /// 接纳多项式结果：operational cache 始终写入，semantic core 仅 verified claim。
     pub fn commit_polynomial(state: &mut MGraphState, key: PolynomialCacheKey, result: PolynomialResult, policy: &VerificationPolicy) {
         let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy);

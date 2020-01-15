@@ -4,6 +4,8 @@
 //! `AlreadyKnown` / `Need*` / `Inconclusive`。`execute_domain` 只应出现在
 //! `NeedComputation` 选出的内部 DomainPlan 中。
 
+pub mod index;
+
 use crate::{
     domains::planner::DomainPlan,
     reasoning::mgraph::core::{
@@ -11,6 +13,8 @@ use crate::{
         MGraphView,
     },
 };
+
+pub use index::{ObligationIndex, ReflectorWake, WakeReport};
 
 /// 待证明 / 待填补的语义缺口。
 #[derive(Debug, Clone, PartialEq, Eq)]

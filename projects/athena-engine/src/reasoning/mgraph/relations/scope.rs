@@ -48,4 +48,25 @@ impl ScopeIndex {
             .filter(move |e| e.from == from && e.kind == ScopeRelationKind::Refines)
             .map(|e| e.to)
     }
+
+    /// Whether `from` reaches `ancestor` by zero or more `Refines` steps (`from ⊑* ancestor`).
+    pub fn is_refines_ancestor(&self, from: ScopeRef, ancestor: ScopeRef) -> bool {
+        if from == ancestor {
+            return true;
+        }
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![from];
+        while let Some(current) = stack.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            for to in self.refines_targets(current) {
+                if to == ancestor {
+                    return true;
+                }
+                stack.push(to);
+            }
+        }
+        false
+    }
 }

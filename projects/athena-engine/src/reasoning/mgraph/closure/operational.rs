@@ -4,6 +4,7 @@ use crate::reasoning::mgraph::{
     admission::OuterCandidate,
     cache::result::ResultCache,
     core::types::{DeterminacyState, HyperEdge, SolverFrontier},
+    obligation::ObligationIndex,
 };
 
 /// 操作层状态（非单调；可驱逐、可重建）。
@@ -17,6 +18,8 @@ pub struct OperationalState {
     pub hyper_edges: Vec<HyperEdge>,
     /// 已从 hyper-edge 映射、仍未经验证的外候选（**不得**直接进入 ExactUF）。
     pub outer_candidates: Vec<OuterCandidate>,
+    /// Pending ProofObligations awaiting Reflector wake on admit.
+    pub obligation_index: ObligationIndex,
     /// 全局 determinacy 占位（后续改为 per-claim）。
     pub determinacy: DeterminacyState,
 }

@@ -472,4 +472,30 @@ impl Session {
             &VerificationPolicy::default(),
         )
     }
+
+    /// Register a pending ProofObligation for Reflector wake-on-admit.
+    pub fn register_mgraph_obligation(
+        &mut self,
+        obligation: crate::reasoning::mgraph::ProofObligation,
+    ) {
+        self.mgraph.operational.obligation_index.register(obligation);
+    }
+
+    /// Admit a claim into M-Graph state and wake matching obligations.
+    pub fn admit_mgraph_claim_with_wake(
+        &mut self,
+        claim: crate::reasoning::mgraph::Claim,
+    ) -> Result<
+        (
+            crate::reasoning::mgraph::FactId,
+            crate::reasoning::mgraph::WakeReport,
+        ),
+        AdmissionRejectReason,
+    > {
+        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(
+            &mut self.mgraph,
+            claim,
+            &VerificationPolicy::default(),
+        )
+    }
 }

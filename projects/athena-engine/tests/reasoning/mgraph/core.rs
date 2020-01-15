@@ -141,6 +141,27 @@ fn find_accepted_does_not_transport_upward() {
 }
 
 #[test]
+fn admit_into_state_wakes_matching_obligation() {
+    use athena_engine::reasoning::mgraph::{MGraphState, ProofObligation, predicates};
+
+    let mut state = MGraphState::new();
+    state.operational.obligation_index.register(ProofObligation {
+        predicate: predicates::POLYNOMIAL_RESULT,
+        scope: ScopeRef::UNCONDITIONAL,
+        known_objects: vec![],
+    });
+    let (id, wake) = AdmissionGate::admit_claim_into_state(
+        &mut state,
+        sample_claim(55),
+        &VerificationPolicy::default(),
+    )
+    .expect("admit");
+    assert_eq!(wake.wakes.len(), 1);
+    assert_eq!(wake.wakes[0].relation, id);
+    assert!(state.operational.obligation_index.is_empty());
+}
+
+#[test]
 fn semantic_core_commit_syncs_core_and_admission_journal() {
     let mut semantic = SemanticCore::new();
     let id = admit_ok(&mut semantic, sample_claim(42));
