@@ -772,3 +772,36 @@ fn mgraph_outer_pool_admits_only_structural_equality() {
     );
     assert_eq!(fx.session().mgraph.semantic.relation_count(), 1);
 }
+
+#[test]
+fn mgraph_admit_wakes_registered_obligation() {
+    use athena_engine::reasoning::mgraph::{
+        Claim, Evidence, EvidenceCertificate, Guarantee, POLYNOMIAL_PROVIDER_ID, ProofObligation, Proposition, Scope,
+        ScopeRef, predicates,
+    };
+
+    let mut fx = SessionFixture::new();
+    fx.session_mut().register_mgraph_obligation(ProofObligation {
+        predicate: predicates::POLYNOMIAL_RESULT,
+        scope: ScopeRef::UNCONDITIONAL,
+        known_objects: vec![],
+    });
+    let (_, wake) = fx
+        .session_mut()
+        .admit_mgraph_claim_with_wake(Claim {
+            proposition: Proposition::PolynomialResult {
+                operation: athena_engine::domains::polynomial::PolynomialCacheOp::Add,
+                request_fingerprint: 101,
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: POLYNOMIAL_PROVIDER_ID,
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "wake".into(),
+            },
+        })
+        .expect("admit");
+    assert_eq!(wake.wakes.len(), 1);
+    assert!(fx.session().mgraph.operational.obligation_index.is_empty());
+}
