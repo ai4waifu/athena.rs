@@ -20,8 +20,9 @@ impl MGraphState {
     /// Run equality-forest closure in place (Living `26` / `29` bootstrap).
     pub fn run_closure(
         &mut self,
+        store: &athena_ir::TermStore,
         limits: &crate::reasoning::mgraph::ClosureLimits,
     ) -> crate::reasoning::mgraph::ClosureResult {
-        crate::reasoning::mgraph::run_closure_step(self, limits)
+        crate::reasoning::mgraph::run_closure_step(store, self, limits)
     }
 }

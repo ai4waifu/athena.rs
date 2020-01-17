@@ -454,12 +454,12 @@ impl Session {
 
     /// Run M-Graph equality-forest closure (transitivity proof edges · bootstrap).
     pub fn run_mgraph_closure(&mut self, limits: ClosureLimits) -> ClosureResult {
-        self.mgraph.run_closure(&limits)
+        self.mgraph.run_closure(&self.arena, &limits)
     }
 
     /// Drain stageable operational hyper-edges into OuterCandidate pool (no admit).
     pub fn drain_mgraph_hyper_edges(&mut self) -> crate::reasoning::mgraph::HyperEdgeDrainReport {
-        crate::reasoning::mgraph::drain_hyper_edges_to_outer_pool(&mut self.mgraph)
+        crate::reasoning::mgraph::drain_hyper_edges_to_outer_pool(&self.arena, &mut self.mgraph)
     }
 
     /// Admit OuterCandidate pool entries that pass TermStore structural equality (upgrade to ProvenExact).

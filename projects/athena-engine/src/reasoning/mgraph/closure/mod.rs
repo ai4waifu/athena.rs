@@ -7,6 +7,7 @@
 pub mod drain;
 pub mod operational;
 
+use athena_ir::TermStore;
 use athena_types::TermId;
 
 use crate::reasoning::mgraph::{
@@ -65,8 +66,12 @@ impl ClosureResult {
 /// 2. Materialize [`ProofStepKind::Transitivity`] edges for one-hop compositions.
 ///
 /// Does **not** write journal / ExactUF and does **not** promote OuterCandidate to facts.
-pub fn run_closure_step(state: &mut MGraphState, limits: &ClosureLimits) -> ClosureResult {
-    let drain = drain_hyper_edges_to_outer_pool(state);
+pub fn run_closure_step(
+    store: &TermStore,
+    state: &mut MGraphState,
+    limits: &ClosureLimits,
+) -> ClosureResult {
+    let drain = drain_hyper_edges_to_outer_pool(store, state);
     let mut steps_applied = 0u32;
 
     while steps_applied < limits.max_steps {
@@ -186,8 +191,9 @@ mod tests {
 
     #[test]
     fn empty_state_is_already_saturated() {
+        let store = athena_ir::TermStore::new();
         let mut state = MGraphState::new();
-        let result = run_closure_step(&mut state, &ClosureLimits::default());
+        let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
         assert_eq!(result.stop, ClosureStopReason::Saturated);
         assert_eq!(result.steps_applied, 0);
         assert_eq!(result.hyper_edges_staged, 0);
@@ -196,12 +202,13 @@ mod tests {
 
     #[test]
     fn closure_materializes_transitivity_proof_edge() {
+        let store = athena_ir::TermStore::new();
         let mut state = MGraphState::new();
         seed_equality(&mut state, 1, 2);
         seed_equality(&mut state, 2, 3);
         assert_eq!(state.semantic.derived.proof_forest.len(), 2);
 
-        let result = run_closure_step(&mut state, &ClosureLimits::default());
+        let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
         assert_eq!(result.stop, ClosureStopReason::Saturated);
         assert!(result.steps_applied >= 1);
         assert!(state.semantic.derived.proof_forest.edges().iter().any(|e| {
@@ -217,11 +224,12 @@ mod tests {
 
     #[test]
     fn step_budget_stops_before_saturation() {
+        let store = athena_ir::TermStore::new();
         let mut state = MGraphState::new();
         seed_equality(&mut state, 1, 2);
         seed_equality(&mut state, 2, 3);
         seed_equality(&mut state, 3, 4);
-        let result = run_closure_step(&mut state, &ClosureLimits { max_steps: 1 });
+        let result = run_closure_step(&store, &mut state, &ClosureLimits { max_steps: 1 });
         assert_eq!(result.stop, ClosureStopReason::StepBudget);
         assert_eq!(result.steps_applied, 1);
         assert!(!result.is_saturated());
@@ -229,14 +237,23 @@ mod tests {
 
     #[test]
     fn closure_drains_rewrite_hyper_edges_into_outer_pool() {
+        use athena_ir::{Atom, TermNode};
+        use athena_types::SourceSpan;
         use crate::reasoning::mgraph::{HyperEdge, predicates};
+
+        let mut store = athena_ir::TermStore::new();
+        let span = SourceSpan::default();
+        let x = store.symbols_mut().intern("x");
+        let y = store.symbols_mut().intern("y");
+        let left = store.push(TermNode::Atom(Atom::Symbol(x)), span);
+        let right = store.push(TermNode::Atom(Atom::Symbol(y)), span);
 
         let mut state = MGraphState::new();
         state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![TermId(10), TermId(11)],
+            nodes: vec![left, right],
             predicate: predicates::REWRITE_EQUIVALENT,
         });
-        let result = run_closure_step(&mut state, &ClosureLimits::default());
+        let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
         assert_eq!(result.hyper_edges_staged, 1);
         assert_eq!(result.hyper_edges_retained, 0);
         assert_eq!(state.operational.outer_candidates.len(), 1);

@@ -107,7 +107,7 @@ mod tests {
             nodes: vec![a, b],
             predicate: predicates::REWRITE_EQUIVALENT,
         });
-        assert_eq!(drain_hyper_edges_to_outer_pool(&mut state).staged, 1);
+        assert_eq!(drain_hyper_edges_to_outer_pool(&store, &mut state).staged, 1);
         assert_eq!(state.operational.outer_candidates.len(), 1);
 
         let report = admit_outer_pool_if_structural(&store, &mut state, &VerificationPolicy::default());
