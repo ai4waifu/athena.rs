@@ -590,29 +590,52 @@ fn typed_egraph_admit_pipeline_replays_rewrite_rules() {
 #[test]
 fn predicate_registry_and_hyper_edge_staging_are_typed() {
     use athena_engine::reasoning::mgraph::{
-        Guarantee, HyperEdge, Proposition, arity_ok, descriptor, hyper_edge_to_outer_candidate, predicates,
+        CalculusRelationKind, Guarantee, HyperEdge, Proposition, arity_ok, descriptor,
+        hyper_edge_to_outer_candidate, predicates,
     };
-    use athena_types::TermId;
+    use athena_ir::canonical_hash;
 
     let desc = descriptor(predicates::REWRITE_EQUIVALENT).expect("registered");
     assert!(arity_ok(predicates::REWRITE_EQUIVALENT, 2));
     assert_eq!(desc.subject_arity, 2..=2);
 
+    let mut fx = SessionFixture::new();
+    let (left, right, expr, var, result) = {
+        let mut t = fx.terms();
+        (t.symbol("l"), t.symbol("r"), t.symbol("e"), t.symbol("v"), t.symbol("out"))
+    };
+
     let edge = HyperEdge {
-        nodes: vec![TermId(10), TermId(11)],
+        nodes: vec![left, right],
         predicate: predicates::REWRITE_EQUIVALENT,
     };
-    let outer = hyper_edge_to_outer_candidate(&edge).expect("stage");
+    let outer = hyper_edge_to_outer_candidate(&fx.session().arena, &edge).expect("stage");
     assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
     assert_eq!(
         outer.claim.proposition,
-        Proposition::TermEquality {
-            left: TermId(10),
-            right: TermId(11),
-        }
+        Proposition::TermEquality { left, right }
     );
-    // Staged candidates must not enter ExactUF without AdmissionGate.
-    let fx = SessionFixture::new();
+
+    let calc = HyperEdge {
+        nodes: vec![expr, var, result],
+        predicate: predicates::DERIVATIVE_OF,
+    };
+    let calc_outer = hyper_edge_to_outer_candidate(&fx.session().arena, &calc).expect("calculus");
+    match calc_outer.claim.proposition {
+        Proposition::CalculusRelation {
+            kind,
+            expression_fingerprint,
+            variable_fingerprint,
+            result_term,
+        } => {
+            assert_eq!(kind, CalculusRelationKind::DerivativeOf);
+            assert_eq!(expression_fingerprint, canonical_hash(&fx.session().arena, expr));
+            assert_eq!(variable_fingerprint, canonical_hash(&fx.session().arena, var));
+            assert_eq!(result_term, result);
+        }
+        other => panic!("expected CalculusRelation, got {other:?}"),
+    }
+
     assert_eq!(fx.session().mgraph.semantic.derived.exact_uf.union_count(), 0);
 }
 
