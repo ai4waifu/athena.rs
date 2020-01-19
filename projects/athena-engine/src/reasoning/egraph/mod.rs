@@ -31,7 +31,7 @@ pub use congruence::{
     admit_application_congruence, admit_application_congruence_candidates, application_congruence_candidates,
     applications_congruent, verify_application_congruence,
 };
-pub use extract::{ExtractionPreference, Extractor, ResultCost};
+pub use extract::{ExtractionPreference, Extractor, ParetoFrontier, ResultCost};
 pub use graph::EGraph;
 pub use ids::{EClassId, ENodeId};
 pub use pipeline::{

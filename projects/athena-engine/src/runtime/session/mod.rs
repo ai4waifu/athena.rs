@@ -304,6 +304,20 @@ impl Session {
         )
     }
 
+    /// Multi-objective undominated extract set for a local e-class.
+    pub fn extract_egraph_class_pareto(
+        &self,
+        class: crate::reasoning::egraph::EClassId,
+    ) -> crate::reasoning::egraph::ParetoFrontier {
+        use crate::reasoning::egraph::Extractor;
+        Extractor::extract_pareto(
+            &self.egraph,
+            &self.arena,
+            class,
+            Some(&self.mgraph.semantic.derived.exact_uf),
+        )
+    }
+
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
     pub fn admit_structural_term_equality(
         &mut self,

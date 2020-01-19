@@ -7,7 +7,7 @@ use crate::reasoning::mgraph::ExactUnionFind;
 
 use super::{graph::EGraph, ids::EClassId};
 
-/// Local extraction cost (not a solver multi-objective frontier).
+/// Local extraction cost (objectives for single-winner and Pareto extract).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResultCost {
     /// DAG node count in [`TermStore`] (shared subtrees counted once).
@@ -21,6 +21,42 @@ impl ResultCost {
     pub fn rank_key(self) -> (u8, u32) {
         let admitted_rank = if self.admitted_exact { 0 } else { 1 };
         (admitted_rank, self.ast_nodes)
+    }
+
+    /// Pareto dominance on `(admitted_exact maximize, ast_nodes minimize)`.
+    ///
+    /// `self` dominates `other` when it is at least as good on every objective and
+    /// strictly better on at least one.
+    pub fn dominates(self, other: Self) -> bool {
+        let adm_ge = (self.admitted_exact as u8) >= (other.admitted_exact as u8);
+        let ast_le = self.ast_nodes <= other.ast_nodes;
+        let adm_gt = self.admitted_exact && !other.admitted_exact;
+        let ast_lt = self.ast_nodes < other.ast_nodes;
+        adm_ge && ast_le && (adm_gt || ast_lt)
+    }
+}
+
+/// Non-dominated extract candidates for one e-class (Living `16` Pareto bootstrap).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ParetoFrontier {
+    /// Undominated `(term, cost)` points, sorted by [`ResultCost::rank_key`] then [`TermId`].
+    pub points: Vec<(TermId, ResultCost)>,
+}
+
+impl ParetoFrontier {
+    /// Whether the frontier is empty.
+    pub fn is_empty(&self) -> bool {
+        self.points.is_empty()
+    }
+
+    /// Number of undominated points.
+    pub fn len(&self) -> usize {
+        self.points.len()
+    }
+
+    /// Lexicographic single pick (same order as [`ExtractionPreference::ResultCost`]).
+    pub fn lexicographic_pick(&self) -> Option<(TermId, ResultCost)> {
+        self.points.first().copied()
     }
 }
 
@@ -65,6 +101,21 @@ impl Extractor {
             ast_nodes,
             admitted_exact,
         }
+    }
+
+    /// Score with e-class membership for ExactUF representatives.
+    fn score_in_class(
+        store: &TermStore,
+        term: TermId,
+        class_terms: &[TermId],
+        exact_uf: Option<&ExactUnionFind>,
+    ) -> ResultCost {
+        let mut cost = Self::score(store, term, exact_uf);
+        if let Some(uf) = exact_uf {
+            let rep = uf.find(term);
+            cost.admitted_exact = rep == term && class_terms.contains(&rep);
+        }
+        cost
     }
 
     /// Extract a term for `class`.
@@ -120,19 +171,47 @@ impl Extractor {
                 terms.into_iter().min_by_key(|t| (ast_size(store, *t), t.0))
             }
             ExtractionPreference::ResultCost => {
-                // Prefer ExactUF reps that still inhabit the class, then AST size.
                 let class_terms = terms.clone();
                 terms.into_iter().min_by_key(|t| {
-                    let mut cost = Self::score(store, *t, exact_uf);
-                    if let Some(uf) = exact_uf {
-                        let rep = uf.find(*t);
-                        cost.admitted_exact = rep == *t && class_terms.contains(&rep);
-                    }
+                    let cost = Self::score_in_class(store, *t, &class_terms, exact_uf);
                     (cost.rank_key(), t.0)
                 })
             }
         }?;
         Some((chosen, Self::score(store, chosen, exact_uf)))
+    }
+
+    /// Multi-objective undominated extract set for `class` (does not pick a single winner).
+    pub fn extract_pareto(
+        graph: &EGraph,
+        store: &TermStore,
+        class: EClassId,
+        exact_uf: Option<&ExactUnionFind>,
+    ) -> ParetoFrontier {
+        let root = graph.find(class);
+        let mut terms = graph.terms_in_class(root);
+        if terms.is_empty() {
+            if let Some(term) = graph.term_for_class(root) {
+                terms.push(term);
+            }
+        }
+        let scored: Vec<(TermId, ResultCost)> = terms
+            .iter()
+            .copied()
+            .map(|t| (t, Self::score_in_class(store, t, &terms, exact_uf)))
+            .collect();
+        let mut points: Vec<(TermId, ResultCost)> = scored
+            .iter()
+            .copied()
+            .filter(|(term, cost)| {
+                !scored
+                    .iter()
+                    .any(|(other_term, other_cost)| other_term != term && other_cost.dominates(*cost))
+            })
+            .collect();
+        points.sort_by_key(|(term, cost)| (cost.rank_key(), term.0));
+        points.dedup_by_key(|(term, _)| *term);
+        ParetoFrontier { points }
     }
 }
 

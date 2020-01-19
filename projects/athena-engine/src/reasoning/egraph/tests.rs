@@ -565,6 +565,44 @@ fn extract_result_cost_prefers_admitted_then_smallest() {
 }
 
 #[test]
+fn extract_pareto_keeps_admitted_large_and_unadmitted_small() {
+    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_ir::{ApplicationHead, SemanticOperator};
+
+    let mut store = athena_ir::TermStore::new();
+    let span = SourceSpan::default();
+    let one = store.push(
+        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
+        span,
+    );
+    let add = store.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments: vec![one, one],
+        },
+        span,
+    );
+    let mut graph = EGraph::new();
+    let c_add = graph.add_term(&store, add).unwrap();
+    let c_one = graph.add_term(&store, one).unwrap();
+    assert!(graph.union_classes(c_add, c_one));
+
+    let mut uf = ExactUnionFind::default();
+    // Force `add` (larger AST) as ExactUF representative.
+    uf.union(add, one);
+    assert_eq!(uf.find(one), add);
+
+    let frontier = Extractor::extract_pareto(&graph, &store, c_add, Some(&uf));
+    assert!(frontier.len() >= 2, "expected incomparable admitted-large vs unadmitted-small");
+    let has_add = frontier.points.iter().any(|(t, c)| *t == add && c.admitted_exact);
+    let has_one = frontier.points.iter().any(|(t, c)| *t == one && !c.admitted_exact);
+    assert!(has_add);
+    assert!(has_one);
+    let (lex_term, _) = frontier.lexicographic_pick().expect("pick");
+    assert_eq!(lex_term, add);
+}
+
+#[test]
 fn extract_admitted_exact_prefers_union_find_rep() {
     use crate::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};
