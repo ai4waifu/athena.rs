@@ -14,6 +14,7 @@ use crate::reasoning::mgraph::{
         CalculusRelationKind, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope,
     },
 };
+use crate::domains::polynomial::PolynomialCacheOp;
 
 /// Capability provider identity for staged hyper-edge candidates (not a trusted kernel).
 pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(22);
@@ -25,6 +26,8 @@ pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProvi
 /// - [`predicates::DERIVATIVE_OF`] / [`predicates::INTEGRAL_OF`] / [`predicates::SERIES_EXPANSION`]
 ///   → `CalculusRelation` (expression/variable via [`canonical_hash`], result as `TermId`)
 /// - [`predicates::CONGRUENCE`] → `Congruence` (left/right/modulus fingerprints)
+/// - [`predicates::POLYNOMIAL_RESULT`] → `PolynomialResult` (request fingerprint; staging op
+///   [`PolynomialCacheOp::Normalize`])
 ///
 /// Other predicates remain solver/reflector-local until a proposition mapping exists.
 pub fn hyper_edge_to_outer_candidate(
@@ -74,6 +77,18 @@ pub fn hyper_edge_to_outer_candidate(
             format!("hyper-edge-congruence:{left:?}:{right:?}:{modulus:?}"),
         ));
     }
+    if edge.predicate == predicates::POLYNOMIAL_RESULT {
+        let [request] = unary_term(&edge.nodes)?;
+        let request_fingerprint = term_fingerprint(store, request)?;
+        return Ok(candidate_claim(
+            Proposition::PolynomialResult {
+                // Staging placeholder: hyper-edges carry only the request object identity.
+                operation: PolynomialCacheOp::Normalize,
+                request_fingerprint,
+            },
+            format!("hyper-edge-polynomial:{request:?}"),
+        ));
+    }
     Err(AdmissionRejectReason::NotExact)
 }
 
@@ -107,6 +122,13 @@ fn calculus_kind(predicate: crate::reasoning::mgraph::PredicateId) -> Option<Cal
 fn binary_terms(nodes: &[TermId]) -> Result<[TermId; 2], AdmissionRejectReason> {
     match nodes {
         [left, right] => Ok([*left, *right]),
+        _ => Err(AdmissionRejectReason::MalformedRelation),
+    }
+}
+
+fn unary_term(nodes: &[TermId]) -> Result<[TermId; 1], AdmissionRejectReason> {
+    match nodes {
+        [only] => Ok([*only]),
         _ => Err(AdmissionRejectReason::MalformedRelation),
     }
 }
@@ -222,6 +244,23 @@ mod tests {
     }
 
     #[test]
+    fn polynomial_result_hyper_edge_stages_request_fingerprint() {
+        let (store, request, _, _) = store_with_symbols();
+        let edge = HyperEdge {
+            nodes: vec![request],
+            predicate: predicates::POLYNOMIAL_RESULT,
+        };
+        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
+        assert_eq!(
+            outer.claim.proposition,
+            Proposition::PolynomialResult {
+                operation: PolynomialCacheOp::Normalize,
+                request_fingerprint: canonical_hash(&store, request),
+            }
+        );
+    }
+
+    #[test]
     fn missing_term_is_malformed() {
         let store = TermStore::new();
         let edge = HyperEdge {
@@ -248,15 +287,17 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_predicate_is_not_exact() {
+    fn unknown_predicate_is_malformed() {
+        use crate::reasoning::mgraph::PredicateId;
+
         let (store, only, _, _) = store_with_symbols();
         let edge = HyperEdge {
             nodes: vec![only],
-            predicate: predicates::POLYNOMIAL_RESULT,
+            predicate: PredicateId(99),
         };
         assert_eq!(
             hyper_edge_to_outer_candidate(&store, &edge),
-            Err(AdmissionRejectReason::NotExact)
+            Err(AdmissionRejectReason::MalformedRelation)
         );
     }
 }

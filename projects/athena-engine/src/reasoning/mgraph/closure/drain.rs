@@ -69,6 +69,8 @@ mod tests {
 
     #[test]
     fn drain_moves_rewrite_edges_without_admitting() {
+        use crate::reasoning::mgraph::PredicateId;
+
         let mut store = TermStore::new();
         let a = push_symbol(&mut store, "a");
         let b = push_symbol(&mut store, "b");
@@ -79,7 +81,7 @@ mod tests {
         });
         state.operational.hyper_edges.push(HyperEdge {
             nodes: vec![a],
-            predicate: predicates::POLYNOMIAL_RESULT,
+            predicate: PredicateId(99),
         });
         let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
         assert_eq!(report.staged, 1);
@@ -87,6 +89,22 @@ mod tests {
         assert_eq!(state.operational.outer_candidates.len(), 1);
         assert_eq!(state.operational.hyper_edges.len(), 1);
         assert_eq!(state.semantic.derived.exact_uf.union_count(), 0);
+        assert_eq!(state.semantic.relation_count(), 0);
+    }
+
+    #[test]
+    fn drain_moves_polynomial_result_edges() {
+        let mut store = TermStore::new();
+        let req = push_symbol(&mut store, "poly_req");
+        let mut state = MGraphState::new();
+        state.operational.hyper_edges.push(HyperEdge {
+            nodes: vec![req],
+            predicate: predicates::POLYNOMIAL_RESULT,
+        });
+        let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
+        assert_eq!(report.staged, 1);
+        assert_eq!(report.retained, 0);
+        assert!(state.operational.hyper_edges.is_empty());
         assert_eq!(state.semantic.relation_count(), 0);
     }
 
