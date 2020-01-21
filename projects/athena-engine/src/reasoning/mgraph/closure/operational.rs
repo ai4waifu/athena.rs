@@ -1,10 +1,13 @@
 //! Operational 状态：frontier · 非语义缓存 · 暂存超边 / OuterCandidate 池 / determinacy。
 
-use crate::reasoning::mgraph::{
-    admission::OuterCandidate,
-    cache::result::ResultCache,
-    core::types::{DeterminacyState, HyperEdge, SolverFrontier},
-    obligation::ObligationIndex,
+use crate::{
+    domains::planner::DomainPlan,
+    reasoning::mgraph::{
+        admission::OuterCandidate,
+        cache::result::ResultCache,
+        core::types::{DeterminacyState, HyperEdge, SolverFrontier},
+        obligation::{ObligationIndex, ProofObligation},
+    },
 };
 
 /// 操作层状态（非单调；可驱逐、可重建）。
@@ -20,6 +23,10 @@ pub struct OperationalState {
     pub outer_candidates: Vec<OuterCandidate>,
     /// Pending ProofObligations awaiting Reflector wake on admit.
     pub obligation_index: ObligationIndex,
+    /// DomainPlans queued from Reflector `NeedComputation` (not yet executed).
+    pub pending_plans: Vec<DomainPlan>,
+    /// Inconclusive obligations retained for frontier resume.
+    pub resume_queue: Vec<ProofObligation>,
     /// 全局 determinacy 占位（后续改为 per-claim）。
     pub determinacy: DeterminacyState,
 }

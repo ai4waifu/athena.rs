@@ -5,6 +5,7 @@
 //! `NeedComputation` 选出的内部 DomainPlan 中。
 
 pub mod index;
+pub mod schedule;
 
 use crate::{
     domains::planner::DomainPlan,
@@ -15,6 +16,7 @@ use crate::{
 };
 
 pub use index::{ObligationIndex, ReflectorWake, WakeReport};
+pub use schedule::{ReflectorScheduleReport, resume_reflector_frontier, schedule_reflector_wakes};
 
 /// 待证明 / 待填补的语义缺口。
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -46,7 +46,10 @@ pub use facts::{
     AdmissionJournal, CalculusRelationKind, Claim, Evidence, EvidenceCertificate, FactId, Guarantee, Proposition, Scope, VerifiedClaim,
     proposition_from_cache_key,
 };
-pub use obligation::{ObligationIndex, ProofObligation, Reflection, ReflectorWake, SemanticReflector, WakeReport};
+pub use obligation::{
+    ObligationIndex, ProofObligation, Reflection, ReflectorScheduleReport, ReflectorWake, SemanticReflector, WakeReport,
+    resume_reflector_frontier, schedule_reflector_wakes,
+};
 pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,
 };

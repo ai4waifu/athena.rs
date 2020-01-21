@@ -512,4 +512,21 @@ impl Session {
             &VerificationPolicy::default(),
         )
     }
+
+    /// Schedule Reflector outcomes for a wake batch into operational queues.
+    pub fn schedule_mgraph_reflector_wakes(
+        &mut self,
+        wakes: &[crate::reasoning::mgraph::ReflectorWake],
+        reflector: &dyn crate::reasoning::mgraph::SemanticReflector,
+    ) -> crate::reasoning::mgraph::ReflectorScheduleReport {
+        crate::reasoning::mgraph::schedule_reflector_wakes(&mut self.mgraph, wakes, reflector)
+    }
+
+    /// Resume inconclusive obligations from the operational frontier queue.
+    pub fn resume_mgraph_reflector_frontier(
+        &mut self,
+        reflector: &dyn crate::reasoning::mgraph::SemanticReflector,
+    ) -> crate::reasoning::mgraph::ReflectorScheduleReport {
+        crate::reasoning::mgraph::resume_reflector_frontier(&mut self.mgraph, reflector)
+    }
 }
