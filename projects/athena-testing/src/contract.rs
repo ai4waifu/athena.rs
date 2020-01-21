@@ -828,3 +828,37 @@ fn mgraph_admit_wakes_registered_obligation() {
     assert_eq!(wake.wakes.len(), 1);
     assert!(fx.session().mgraph.operational.obligation_index.is_empty());
 }
+
+#[test]
+fn mgraph_schedule_wakes_queues_need_computation() {
+    use athena_engine::domains::planner::{DomainPlan, PlanStep};
+    use athena_engine::reasoning::mgraph::{
+        MGraphView, ProofObligation, Reflection, ReflectorWake, ScopeRef, SemanticReflector, FactId, predicates,
+    };
+
+    struct AlwaysCompute;
+    impl SemanticReflector for AlwaysCompute {
+        fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
+            Reflection::NeedComputation {
+                plan: DomainPlan {
+                    steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+                },
+            }
+        }
+    }
+
+    let mut fx = SessionFixture::new();
+    let wakes = [ReflectorWake {
+        obligation: ProofObligation {
+            predicate: predicates::POLYNOMIAL_RESULT,
+            scope: ScopeRef::UNCONDITIONAL,
+            known_objects: vec![],
+        },
+        relation: FactId(0),
+    }];
+    let report = fx
+        .session_mut()
+        .schedule_mgraph_reflector_wakes(&wakes, &AlwaysCompute);
+    assert_eq!(report.need_computation, 1);
+    assert_eq!(fx.session().mgraph.operational.pending_plans.len(), 1);
+}
