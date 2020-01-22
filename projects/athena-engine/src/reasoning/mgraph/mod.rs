@@ -47,8 +47,8 @@ pub use facts::{
     proposition_from_cache_key,
 };
 pub use obligation::{
-    ObligationIndex, ProofObligation, Reflection, ReflectorScheduleReport, ReflectorWake, SemanticReflector, WakeReport,
-    resume_reflector_frontier, schedule_reflector_wakes,
+    ObligationIndex, ProofObligation, QueuedPlan, Reflection, ReflectorScheduleReport, ReflectorWake, SemanticReflector,
+    WakeReport, execute_queued_plan, resume_reflector_frontier, run_next_queued_plan, schedule_reflector_wakes,
 };
 pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,

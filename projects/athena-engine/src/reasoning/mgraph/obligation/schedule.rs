@@ -2,7 +2,7 @@
 
 use crate::reasoning::mgraph::{
     core::state::MGraphState,
-    obligation::{ProofObligation, Reflection, ReflectorWake, SemanticReflector},
+    obligation::{ProofObligation, QueuedPlan, Reflection, ReflectorWake, SemanticReflector},
 };
 
 /// Counts from applying Reflector outcomes to operational queues.
@@ -68,7 +68,10 @@ fn apply_reflections<'a>(
                 report.already_known = report.already_known.saturating_add(1);
             }
             Reflection::NeedComputation { plan } => {
-                state.operational.pending_plans.push(plan);
+                state.operational.pending_plans.push(QueuedPlan {
+                    plan,
+                    obligation: obligation.clone(),
+                });
                 report.need_computation = report.need_computation.saturating_add(1);
             }
             Reflection::NeedRelation { obligation: nested } => {
@@ -158,6 +161,10 @@ mod tests {
         let report = schedule_reflector_wakes(&mut state, &[sample_wake()], &AlwaysCompute);
         assert_eq!(report.need_computation, 1);
         assert_eq!(state.operational.pending_plans.len(), 1);
+        assert_eq!(
+            state.operational.pending_plans[0].obligation.predicate,
+            PredicateId(1)
+        );
     }
 
     #[test]

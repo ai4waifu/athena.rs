@@ -123,7 +123,7 @@ fn calculus_kind_from_predicate(predicate: crate::reasoning::mgraph::PredicateId
     }
 }
 
-fn try_admit_calculus_exact(session: &mut Session, obligation: &ProofObligation, result: &DomainResult) {
+pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &ProofObligation, result: &DomainResult) {
     let DomainResult::Calculus(CalculusResult::Exact {
         value: CalculusValue::Expression(result_term),
         conditions,

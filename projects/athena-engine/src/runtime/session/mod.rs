@@ -529,4 +529,15 @@ impl Session {
     ) -> crate::reasoning::mgraph::ReflectorScheduleReport {
         crate::reasoning::mgraph::resume_reflector_frontier(&mut self.mgraph, reflector)
     }
+
+    /// Execute the front queued DomainPlan with a bound [`crate::domains::DomainRequest`].
+    ///
+    /// Exact calculus results admit via AdmissionGate. Polynomial path uses
+    /// `execute_polynomial_mgraph` (cache + AdmissionGate). Returns `Ok(None)` if empty.
+    pub fn run_next_queued_domain_plan(
+        &mut self,
+        request: crate::domains::DomainRequest,
+    ) -> Result<Option<crate::domains::DomainResult>, athena_types::Diagnostic> {
+        crate::reasoning::mgraph::run_next_queued_plan(self, request)
+    }
 }
