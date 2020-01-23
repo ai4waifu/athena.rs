@@ -50,6 +50,7 @@ impl RelationRecord {
         let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim.proposition);
         Self::validate_predicate_subjects(predicate, theory, subjects.len())?;
         let provider = provider_from_evidence(&claim.claim.evidence);
+        let witness = crate::reasoning::mgraph::facts::witness_ref_from_evidence(&claim.claim.evidence);
         Ok(Self {
             predicate,
             subjects,
@@ -57,7 +58,7 @@ impl RelationRecord {
             theory,
             provider,
             status,
-            witness: None,
+            witness,
             verified: claim,
         })
     }

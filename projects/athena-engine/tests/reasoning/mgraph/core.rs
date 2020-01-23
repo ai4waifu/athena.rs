@@ -44,6 +44,7 @@ fn relation_index_groups_by_scope() {
     assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::POLYNOMIAL_RESULT);
     assert_eq!(rec.theory, athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL);
     assert_eq!(rec.provider, Some(POLYNOMIAL_PROVIDER_ID));
+    assert!(rec.witness.is_some());
     assert_eq!(
         rec.subjects,
         vec![athena_engine::reasoning::mgraph::SemanticRef::Object(athena_engine::reasoning::mgraph::ObjectRef::new(

@@ -44,7 +44,7 @@ pub use core::{
 pub use equivalence::{CongruenceIndex, ExactUnionFind, ProofEdge, ProofForest, ProofStepKind, congruence_proposition};
 pub use facts::{
     AdmissionJournal, CalculusRelationKind, Claim, Evidence, EvidenceCertificate, FactId, Guarantee, Proposition, Scope, VerifiedClaim,
-    proposition_from_cache_key,
+    proposition_from_cache_key, witness_ref_from_evidence,
 };
 pub use obligation::{
     ObligationIndex, ProofObligation, QueuedPlan, Reflection, ReflectorScheduleReport, ReflectorWake, SemanticReflector,
