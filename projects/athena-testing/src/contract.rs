@@ -861,4 +861,8 @@ fn mgraph_schedule_wakes_queues_need_computation() {
         .schedule_mgraph_reflector_wakes(&wakes, &AlwaysCompute);
     assert_eq!(report.need_computation, 1);
     assert_eq!(fx.session().mgraph.operational.pending_plans.len(), 1);
+    assert_eq!(
+        fx.session().mgraph.operational.pending_plans[0].obligation.predicate,
+        predicates::POLYNOMIAL_RESULT
+    );
 }
