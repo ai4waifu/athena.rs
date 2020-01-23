@@ -89,6 +89,43 @@ pub fn run_next_queued_plan(
     Ok(Some(result))
 }
 
+/// Batch-execute queued plans, pairing each with the next bound request.
+///
+/// Stops on the first provider error (that plan remains at the front). Extra
+/// requests beyond the queue length are ignored. When requests run out, remaining
+/// plans stay queued.
+pub fn run_queued_plans(
+    session: &mut Session,
+    requests: impl IntoIterator<Item = DomainRequest>,
+) -> Result<QueuedPlanBatchReport, Diagnostic> {
+    let mut report = QueuedPlanBatchReport::default();
+    for request in requests {
+        if session.mgraph.operational.pending_plans.is_empty() {
+            break;
+        }
+        match run_next_queued_plan(session, request)? {
+            Some(result) => {
+                report.executed = report.executed.saturating_add(1);
+                report.results.push(result);
+            }
+            None => break,
+        }
+    }
+    report.remaining = session.mgraph.operational.pending_plans.len() as u32;
+    Ok(report)
+}
+
+/// Report from batch-executing queued plans.
+#[derive(Debug, PartialEq, Default)]
+pub struct QueuedPlanBatchReport {
+    /// Plans executed successfully in this call.
+    pub executed: u32,
+    /// Plans still waiting in the queue.
+    pub remaining: u32,
+    /// Domain results in execution order.
+    pub results: Vec<DomainResult>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +190,45 @@ mod tests {
         )
         .expect("ok");
         assert!(out.is_none());
+    }
+
+    #[test]
+    fn run_queued_plans_drains_matching_requests() {
+        use crate::domains::polynomial::{
+            CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest,
+        };
+        use athena_types::SymbolId;
+
+        let mut session = Session::new();
+        let ring = session
+            .rings
+            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
+            .expect("ring");
+        let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
+        let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
+        let plan = QueuedPlan {
+            plan: DomainPlan {
+                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+            },
+            obligation: ProofObligation {
+                predicate: predicates::POLYNOMIAL_RESULT,
+                scope: ScopeRef::UNCONDITIONAL,
+                known_objects: vec![],
+            },
+        };
+        session.mgraph.operational.pending_plans.push(plan.clone());
+        session.mgraph.operational.pending_plans.push(plan);
+        let report = run_queued_plans(
+            &mut session,
+            [
+                DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }),
+                DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }),
+            ],
+        )
+        .expect("batch");
+        assert_eq!(report.executed, 2);
+        assert_eq!(report.remaining, 0);
+        assert_eq!(report.results.len(), 2);
+        assert!(session.mgraph.operational.pending_plans.is_empty());
     }
 }

@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-pub use execute::{QueuedPlan, execute_queued_plan, run_next_queued_plan};
+pub use execute::{QueuedPlan, QueuedPlanBatchReport, execute_queued_plan, run_next_queued_plan, run_queued_plans};
 pub use index::{ObligationIndex, ReflectorWake, WakeReport};
 pub use schedule::{ReflectorScheduleReport, resume_reflector_frontier, schedule_reflector_wakes};
 

@@ -540,4 +540,12 @@ impl Session {
     ) -> Result<Option<crate::domains::DomainResult>, athena_types::Diagnostic> {
         crate::reasoning::mgraph::run_next_queued_plan(self, request)
     }
+
+    /// Batch-execute queued DomainPlans paired with bound requests.
+    pub fn run_queued_domain_plans(
+        &mut self,
+        requests: impl IntoIterator<Item = crate::domains::DomainRequest>,
+    ) -> Result<crate::reasoning::mgraph::QueuedPlanBatchReport, athena_types::Diagnostic> {
+        crate::reasoning::mgraph::run_queued_plans(self, requests)
+    }
 }
