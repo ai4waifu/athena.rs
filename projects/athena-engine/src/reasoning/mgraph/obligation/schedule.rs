@@ -68,10 +68,11 @@ fn apply_reflections<'a>(
                 report.already_known = report.already_known.saturating_add(1);
             }
             Reflection::NeedComputation { plan } => {
-                state.operational.pending_plans.push(QueuedPlan {
-                    plan,
-                    obligation: obligation.clone(),
-                });
+                // Wake path has no DomainRequest yet — fingerprint binds at execute time.
+                state
+                    .operational
+                    .pending_plans
+                    .push(QueuedPlan::unbound(plan, obligation.clone()));
                 report.need_computation = report.need_computation.saturating_add(1);
             }
             Reflection::NeedRelation { obligation: nested } => {

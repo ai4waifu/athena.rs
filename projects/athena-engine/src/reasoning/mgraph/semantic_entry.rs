@@ -9,7 +9,7 @@ use crate::{
     api::request::DomainGoal,
     domains::{
         calculus::{CalculusRequest, CalculusResult, CalculusValue},
-        dispatch::{DomainRequest, DomainResult, execute_domain},
+        dispatch::{DomainRequest, DomainResult},
         planner::{PlanStep, plan_domain},
     },
     reasoning::mgraph::{
@@ -213,23 +213,18 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
                     .detail("domain", "semantic_entry")
                     .detail("reason", "plan missing CallDomainProvider"));
             }
-            let result = match request {
-                DomainRequest::Polynomial(req) => {
-                    let poly = crate::domains::polynomial::execute_polynomial_mgraph(
-                        req,
-                        &session.rings,
-                        &session.polynomial_objects,
-                        &mut session.mgraph,
-                    );
-                    DomainResult::Polynomial(poly)
-                }
-                other => {
-                    let result = execute_domain(session, other)?;
-                    if let Some(obligation) = &obligation {
-                        try_admit_calculus_exact(session, obligation, &result);
-                    }
-                    result
-                }
+            // Queue with fingerprint binding, then drain via the same execute path as Reflector wakes.
+            let obligation = obligation.unwrap_or(ProofObligation {
+                predicate: crate::reasoning::mgraph::PredicateId(0),
+                scope: ScopeRef::UNCONDITIONAL,
+                known_objects: Vec::new(),
+            });
+            let queued = crate::reasoning::mgraph::QueuedPlan::bound(session, plan, obligation, &request);
+            session.mgraph.operational.pending_plans.push(queued);
+            let Some(result) = crate::reasoning::mgraph::run_next_queued_plan(session, request)? else {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("domain", "semantic_entry")
+                    .detail("reason", "queued_plan_vanished"));
             };
             Ok(DomainSemanticOutcome::Computed(result))
         }

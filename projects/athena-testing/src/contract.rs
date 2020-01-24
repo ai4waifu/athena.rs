@@ -865,4 +865,8 @@ fn mgraph_schedule_wakes_queues_need_computation() {
         fx.session().mgraph.operational.pending_plans[0].obligation.predicate,
         predicates::POLYNOMIAL_RESULT
     );
+    assert!(matches!(
+        fx.session().mgraph.operational.pending_plans[0].binding,
+        athena_engine::reasoning::mgraph::PlanBinding::Unbound
+    ));
 }
