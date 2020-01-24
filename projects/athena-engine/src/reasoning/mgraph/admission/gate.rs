@@ -1,6 +1,8 @@
 //! 证据接纳门控 — 唯一可信接纳边界。
 //!
 //! `EvidenceVerifier::verify` → [`VerifiedClaim`] → [`SemanticCore::commit`] → [`ExactUnionFind`]。
+//!
+//! **禁止**「存在证书 / provider 自称 exact ⇒ 接纳」。证书字段必须与命题重放一致。
 
 use crate::{
     domains::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult},
@@ -35,6 +37,8 @@ pub enum AdmissionRejectReason {
     InsufficientGuarantee,
     /// 谓词未注册或 subject 元数与 [`crate::reasoning::mgraph::PredicateDescriptor`] 不符。
     MalformedRelation,
+    /// 证书与命题不一致，或禁止的夹具/拒绝证书被冒充证明。
+    EvidenceMismatch,
 }
 
 /// Admission 判定结果。
@@ -56,11 +60,16 @@ pub enum AdmissionOutcome {
 pub struct VerificationPolicy {
     /// 进入 semantic core 所需的最低保证。
     pub min_guarantee: Guarantee,
+    /// 是否允许 [`EvidenceCertificate::TestHarness`]（仅测试；默认禁止）。
+    pub allow_test_harness: bool,
 }
 
 impl Default for VerificationPolicy {
     fn default() -> Self {
-        Self { min_guarantee: Guarantee::ProvenExact }
+        Self {
+            min_guarantee: Guarantee::ProvenExact,
+            allow_test_harness: false,
+        }
     }
 }
 
@@ -69,6 +78,14 @@ impl VerificationPolicy {
     pub fn accepts(&self, guarantee: Guarantee) -> bool {
         guarantee_rank(guarantee) >= guarantee_rank(self.min_guarantee)
     }
+
+    /// 测试夹具策略：允许 `TestHarness` 证书（不得用于生产路径）。
+    pub fn for_test_harness() -> Self {
+        Self {
+            min_guarantee: Guarantee::ProvenExact,
+            allow_test_harness: true,
+        }
+    }
 }
 
 /// 可验证证据检查器（trusted kernel 边界）。
@@ -76,12 +93,26 @@ pub struct EvidenceVerifier;
 
 impl EvidenceVerifier {
     /// 验证候选 claim 是否可接纳为 [`VerifiedClaim`]。
+    ///
+    /// 顺序：Probable 拒绝 → 保证门槛 → **证书↔命题重放** → Admitted。
     pub fn verify(claim: &Claim, policy: &VerificationPolicy) -> AdmissionOutcome {
         if claim.guarantee == Guarantee::Probable {
-            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: claim.guarantee };
+            return AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::ProbableResult,
+                guarantee: claim.guarantee,
+            };
         }
         if !policy.accepts(claim.guarantee) {
-            return AdmissionOutcome::Rejected { reason: reject_reason_for_guarantee(claim.guarantee), guarantee: claim.guarantee };
+            return AdmissionOutcome::Rejected {
+                reason: reject_reason_for_guarantee(claim.guarantee),
+                guarantee: claim.guarantee,
+            };
+        }
+        if !certificate_replays_proposition(claim, policy) {
+            return AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::EvidenceMismatch,
+                guarantee: claim.guarantee,
+            };
         }
         AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim.clone()))
     }
@@ -99,10 +130,64 @@ impl EvidenceVerifier {
                 };
                 Self::verify(&claim, policy)
             }
-            PolynomialResult::Unevaluated { .. } => {
-                AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown }
-            }
+            PolynomialResult::Unevaluated { .. } => AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::NotExact,
+                guarantee: Guarantee::Unknown,
+            },
         }
+    }
+}
+
+/// Replay gate: certificate payload must match the claimed proposition.
+fn certificate_replays_proposition(claim: &Claim, policy: &VerificationPolicy) -> bool {
+    let Evidence::TrustedKernel { certificate, .. } = &claim.evidence;
+    match (&claim.proposition, certificate) {
+        (
+            Proposition::PolynomialResult {
+                operation,
+                request_fingerprint,
+            },
+            EvidenceCertificate::PolynomialExact {
+                operation: cert_op,
+                request_fingerprint: cert_fp,
+                ..
+            },
+        ) => operation == cert_op && request_fingerprint == cert_fp,
+        (
+            Proposition::Congruence {
+                modulus_fingerprint,
+                left,
+                right,
+            },
+            EvidenceCertificate::CongruenceExact {
+                modulus_fingerprint: m,
+                left: l,
+                right: r,
+            },
+        ) => modulus_fingerprint == m && left == l && right == r,
+        (
+            Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                result_term,
+            },
+            EvidenceCertificate::CalculusExact {
+                kind: k,
+                expression_fingerprint: e,
+                variable_fingerprint: v,
+                result_term: t,
+            },
+        ) => kind == k && expression_fingerprint == e && variable_fingerprint == v && result_term == t,
+        (
+            Proposition::TermEquality { left, right },
+            EvidenceCertificate::StructuralTermEquality { left: l, right: r }
+            | EvidenceCertificate::ApplicationCongruence { left: l, right: r }
+            | EvidenceCertificate::TypedRewriteReplay { left: l, right: r, .. },
+        ) => left == l && right == r,
+        (_, EvidenceCertificate::TestHarness) => policy.allow_test_harness,
+        (_, EvidenceCertificate::Rejected { .. }) => false,
+        _ => false,
     }
 }
 
@@ -243,27 +328,23 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
         PolynomialDomainValue::GroebnerBasis(v) => {
             if v.is_exact_witness() {
                 Guarantee::ProvenExact
-            }
-            else {
+            } else {
                 Guarantee::Partial
             }
         }
         PolynomialDomainValue::UnivariateDivision(v) => {
             if v.remainder.inner.terms().is_empty() {
                 Guarantee::ProvenExact
-            }
-            else {
+            } else {
                 Guarantee::Partial
             }
         }
         PolynomialDomainValue::Factorization(v) => {
             if v.is_exact_witness() {
                 Guarantee::ProvenExact
-            }
-            else if v.completeness() == crate::domains::polynomial::PolynomialFactorizationCompleteness::Probable {
+            } else if v.completeness() == crate::domains::polynomial::PolynomialFactorizationCompleteness::Probable {
                 Guarantee::Probable
-            }
-            else {
+            } else {
                 Guarantee::Partial
             }
         }
@@ -322,6 +403,7 @@ fn evidence_from_witness(key: &PolynomialCacheKey, witness: &PolynomialWitness) 
 mod tests {
     use super::*;
     use crate::reasoning::mgraph::SemanticCore;
+    use athena_types::TermId;
 
     #[test]
     fn admit_congruence_rebuilds_modulus_isolated_index() {
@@ -332,5 +414,106 @@ mod tests {
         assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 20));
         assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 30));
         assert_eq!(semantic.derived.congruence.modulus_count(), 2);
+    }
+
+    #[test]
+    fn mismatched_calculus_certificate_is_rejected() {
+        let claim = Claim {
+            proposition: Proposition::CalculusRelation {
+                kind: CalculusRelationKind::DerivativeOf,
+                expression_fingerprint: 1,
+                variable_fingerprint: 2,
+                result_term: TermId(3),
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CALCULUS_PROVIDER_ID,
+                certificate: EvidenceCertificate::CalculusExact {
+                    kind: CalculusRelationKind::DerivativeOf,
+                    expression_fingerprint: 1,
+                    variable_fingerprint: 2,
+                    result_term: TermId(99),
+                },
+                summary: "forged".into(),
+            },
+        };
+        match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
+            AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::EvidenceMismatch,
+                ..
+            } => {}
+            other => panic!("expected EvidenceMismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_harness_rejected_without_policy_flag() {
+        let claim = Claim {
+            proposition: Proposition::TermEquality {
+                left: TermId(1),
+                right: TermId(1),
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::TestHarness,
+                summary: "harness".into(),
+            },
+        };
+        match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
+            AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::EvidenceMismatch,
+                ..
+            } => {}
+            other => panic!("expected EvidenceMismatch, got {other:?}"),
+        }
+        match EvidenceVerifier::verify(&claim, &VerificationPolicy::for_test_harness()) {
+            AdmissionOutcome::Admitted(_) => {}
+            other => panic!("expected Admitted under test harness policy, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn structural_equality_certificate_must_match_terms() {
+        let ok = Claim {
+            proposition: Proposition::TermEquality {
+                left: TermId(1),
+                right: TermId(2),
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::StructuralTermEquality {
+                    left: TermId(1),
+                    right: TermId(2),
+                },
+                summary: "ok".into(),
+            },
+        };
+        assert!(matches!(
+            EvidenceVerifier::verify(&ok, &VerificationPolicy::default()),
+            AdmissionOutcome::Admitted(_)
+        ));
+        let bad = Claim {
+            evidence: Evidence::TrustedKernel {
+                provider: CapabilityProviderId(0),
+                certificate: EvidenceCertificate::StructuralTermEquality {
+                    left: TermId(1),
+                    right: TermId(9),
+                },
+                summary: "bad".into(),
+            },
+            ..ok
+        };
+        assert!(matches!(
+            EvidenceVerifier::verify(&bad, &VerificationPolicy::default()),
+            AdmissionOutcome::Rejected {
+                reason: AdmissionRejectReason::EvidenceMismatch,
+                ..
+            }
+        ));
     }
 }

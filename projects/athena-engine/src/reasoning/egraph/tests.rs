@@ -437,7 +437,7 @@ fn application_congruence_admits_when_args_exact_equal() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
         },
@@ -504,7 +504,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
         },

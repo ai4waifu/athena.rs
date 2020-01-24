@@ -65,7 +65,11 @@ fn admit_maps_congruence_predicate() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: POLYNOMIAL_PROVIDER_ID,
-                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::CongruenceExact {
+                    modulus_fingerprint: 7,
+                    left: 1,
+                    right: 8,
+                },
                 summary: "test".into(),
             },
         },
@@ -238,7 +242,12 @@ fn sample_claim(fingerprint: u64) -> Claim {
         guarantee: Guarantee::ProvenExact,
         evidence: Evidence::TrustedKernel {
             provider: POLYNOMIAL_PROVIDER_ID,
-            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::PolynomialExact {
+                operation: athena_engine::domains::polynomial::PolynomialCacheOp::Add,
+                request_fingerprint: fingerprint,
+                input_hashes: vec![],
+                groebner_steps: None,
+            },
             summary: "test".into(),
         },
     }

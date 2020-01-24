@@ -52,6 +52,16 @@ fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> FactId {
 }
 
 fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
+    let certificate = if guarantee == Guarantee::ProvenExact {
+        athena_engine::reasoning::mgraph::EvidenceCertificate::PolynomialExact {
+            operation: athena_engine::domains::polynomial::PolynomialCacheOp::Add,
+            request_fingerprint: fingerprint,
+            input_hashes: vec![],
+            groebner_steps: None,
+        }
+    } else {
+        athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness
+    };
     Claim {
         proposition: Proposition::PolynomialResult {
             operation: athena_engine::domains::polynomial::PolynomialCacheOp::Add,
@@ -61,7 +71,7 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
         guarantee,
         evidence: Evidence::TrustedKernel {
             provider: POLYNOMIAL_PROVIDER_ID,
-            certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness,
+            certificate,
             summary: "test".into(),
         },
     }

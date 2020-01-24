@@ -138,7 +138,11 @@ mod tests {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::CongruenceExact {
+                    modulus_fingerprint: modulus,
+                    left,
+                    right,
+                },
                 summary: String::new(),
             },
         })

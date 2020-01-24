@@ -445,7 +445,7 @@ fn egraph_extract_result_cost_prefers_admitted_rep() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::StructuralTermEquality { left: one, right: add },
                 summary: "seed-one-add".into(),
             },
         },
@@ -486,7 +486,7 @@ fn application_congruence_rebuild_admits_from_exact_uf() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
         },
@@ -528,7 +528,7 @@ fn typed_egraph_admit_pipeline_closes_application_congruence() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
         },
@@ -701,7 +701,7 @@ fn mgraph_closure_materializes_transitivity_in_proof_forest() {
                 guarantee: Guarantee::ProvenExact,
                 evidence: Evidence::TrustedKernel {
                     provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                    certificate: EvidenceCertificate::TestHarness,
+                    certificate: EvidenceCertificate::StructuralTermEquality { left, right },
                     summary: "seed".into(),
                 },
             },
@@ -820,7 +820,12 @@ fn mgraph_admit_wakes_registered_obligation() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: POLYNOMIAL_PROVIDER_ID,
-                certificate: EvidenceCertificate::TestHarness,
+                certificate: EvidenceCertificate::PolynomialExact {
+                    operation: athena_engine::domains::polynomial::PolynomialCacheOp::Add,
+                    request_fingerprint: 101,
+                    input_hashes: vec![],
+                    groebner_steps: None,
+                },
                 summary: "wake".into(),
             },
         })
