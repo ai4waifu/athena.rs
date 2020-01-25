@@ -3,10 +3,9 @@
 //! Goal describes intent. Algorithm / representation / backend choices belong here —
 //! not inside domain providers as hidden `if len > …` policy.
 //!
-//! Bootstrap: most [`DomainRequest`]s plan as
-//! `CallDomainProvider` → `MaterializeResult`. Series-family calculus goals insert
-//! `CrossDomainView` after the provider so a `SeriesPolynomialView` can open without
-//! owning a `Vec` copy.
+//! Bootstrap plans are interpreted by [`crate::domains::plan_exec::interpret_domain_plan`].
+//! Default shape: `Normalize` → `CallDomainProvider` → `Verify` → `MaterializeResult`.
+//! Series-family calculus goals insert `CrossDomainView` after the provider.
 
 use crate::domains::calculus::CalculusRequest;
 use crate::domains::dispatch::DomainRequest;
@@ -40,21 +39,27 @@ pub struct DomainPlan {
 /// Build a [`DomainPlan`] for `request` (Living `28` DomainPlanner entry).
 ///
 /// Domain-specific algorithm selection lands here — not inside `execute_*` helpers
-/// as silent strategy branches. `CrossDomainView` is declarative PlanIR only until
-/// Reflector executes the step.
+/// as silent strategy branches.
 pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
     match request {
         DomainRequest::Calculus(
             CalculusRequest::Series { .. } | CalculusRequest::Laurent { .. } | CalculusRequest::Asymptotic { .. },
         ) => DomainPlan {
             steps: vec![
+                PlanStep::Normalize,
                 PlanStep::CallDomainProvider,
                 PlanStep::CrossDomainView,
+                PlanStep::Verify,
                 PlanStep::MaterializeResult,
             ],
         },
         _ => DomainPlan {
-            steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
+            steps: vec![
+                PlanStep::Normalize,
+                PlanStep::CallDomainProvider,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ],
         },
     }
 }
@@ -66,7 +71,7 @@ mod tests {
     use athena_types::{AssumptionSet, SymbolId, TermId};
 
     #[test]
-    fn calculus_goal_gets_provider_then_materialize_plan() {
+    fn calculus_goal_gets_normalize_provider_verify_materialize() {
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
             expression: TermId(0),
             variable: SymbolId(0),
@@ -76,7 +81,12 @@ mod tests {
         let plan = plan_domain(&request);
         assert_eq!(
             plan.steps,
-            vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult]
+            vec![
+                PlanStep::Normalize,
+                PlanStep::CallDomainProvider,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ]
         );
     }
 
@@ -93,8 +103,10 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
+                PlanStep::Normalize,
                 PlanStep::CallDomainProvider,
                 PlanStep::CrossDomainView,
+                PlanStep::Verify,
                 PlanStep::MaterializeResult,
             ]
         );

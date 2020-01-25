@@ -1,7 +1,11 @@
 //! 多项式 SemanticReflector（Living `29`）。
 
 use crate::{
-    domains::planner::{DomainPlan, PlanStep},
+    domains::planner::plan_domain,
+    domains::{
+        polynomial::PolynomialRequest,
+        DomainRequest,
+    },
     reasoning::mgraph::{
         core::{predicates, MGraphView},
         obligation::{ProofObligation, Reflection, SemanticReflector},
@@ -25,10 +29,13 @@ impl SemanticReflector for PolynomialReflector {
                 object_kind: "PolynomialRef",
             };
         }
+        // PlanIR from DomainPlanner (Normalize → … → Materialize). Object identity
+        // is already carried by the obligation fingerprint; request is rebound at execute.
+        let scaffold = DomainRequest::Polynomial(PolynomialRequest::Normalize {
+            polynomial: crate::domains::polynomial::PolynomialRef(0),
+        });
         Reflection::NeedComputation {
-            plan: DomainPlan {
-                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
-            },
+            plan: plan_domain(&scaffold),
         }
     }
 }
@@ -36,7 +43,10 @@ impl SemanticReflector for PolynomialReflector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reasoning::mgraph::{MGraphCore, ObjectRef, ScopeRef, TheoryContextId};
+    use crate::{
+        domains::planner::PlanStep,
+        reasoning::mgraph::{MGraphCore, ObjectRef, ScopeRef, TheoryContextId},
+    };
 
     #[test]
     fn polynomial_result_needs_object_when_empty() {

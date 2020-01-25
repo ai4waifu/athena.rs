@@ -1,9 +1,9 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
-//! Living `28`：`DomainRequest` → [`plan_domain`] → PlanIR → provider → `DomainResult`。
+//! Living `28`：`DomainRequest` → [`plan_domain`] → PlanIR → [`interpret_domain_plan`] → `DomainResult`。
 //! 微积分、数论、多项式、群、域、伽罗瓦、图论、线性代数、优化经此入口进入 `athena-engine`。
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::Diagnostic;
 
 use crate::{
     domains::{
@@ -15,7 +15,8 @@ use crate::{
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
         number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
-        planner::{PlanStep, plan_domain},
+        plan_exec::interpret_domain_plan,
+        planner::plan_domain,
         polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial_with_rings},
         views::SeriesPolynomialView,
     },
@@ -68,55 +69,17 @@ pub enum DomainResult {
     Optimization(OptimizationResult),
 }
 
-/// 分派顶层 [`DomainRequest`]（经 DomainPlanner PlanIR）。
+/// 分派顶层 [`DomainRequest`]（经 DomainPlanner PlanIR 逐步解释）。
 ///
 /// 微积分分支读写 `session` arena；其余域暂不依赖 session。
 pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     let plan = plan_domain(&request);
-    if !plan.steps.iter().any(|s| matches!(s, PlanStep::CallDomainProvider)) {
-        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "planner")
-            .detail("reason", "plan missing CallDomainProvider"));
-    }
-    let wants_cross_domain_view = plan.steps.iter().any(|s| matches!(s, PlanStep::CrossDomainView));
-    // Normalize / Verify / MaterializeResult remain PlanIR markers until Reflector owns them.
-    let result = call_domain_provider(session, request)?;
-    if wants_cross_domain_view {
-        open_cross_domain_view(session, &result)?;
-    }
+    let (result, _report) = interpret_domain_plan(session, &plan, request, call_domain_provider)?;
     Ok(result)
 }
 
-fn open_cross_domain_view(session: &Session, result: &DomainResult) -> Result<(), Diagnostic> {
-    match result {
-        DomainResult::Calculus(
-            CalculusResult::Exact {
-                value: CalculusValue::Series(series_ref),
-                ..
-            }
-            | CalculusResult::Conditional {
-                value: CalculusValue::Series(series_ref),
-                ..
-            }
-            | CalculusResult::Unevaluated {
-                expression: CalculusValue::Series(series_ref),
-                ..
-            },
-        ) => {
-            SeriesPolynomialView::open(&session.series_objects, *series_ref).ok_or_else(|| {
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("domain", "views")
-                    .detail("reason", "missing_series_ref_for_cross_domain_view")
-                    .arg("ref", series_ref.0)
-            })?;
-            Ok(())
-        }
-        // Plan asked for a view but this result shape has none yet — soft no-op.
-        _ => Ok(()),
-    }
-}
-
-fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
+/// Invoke the owning domain provider (PlanIR `CallDomainProvider` body).
+pub(crate) fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),

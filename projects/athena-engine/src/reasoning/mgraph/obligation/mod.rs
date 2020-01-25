@@ -115,7 +115,15 @@ mod tests {
         };
         match AlwaysCompute.reflect(&obligation, &view) {
             Reflection::NeedComputation { plan } => {
-                assert_eq!(plan.steps, vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult]);
+                assert_eq!(
+                    plan.steps,
+                    vec![
+                        PlanStep::Normalize,
+                        PlanStep::CallDomainProvider,
+                        PlanStep::Verify,
+                        PlanStep::MaterializeResult,
+                    ]
+                );
             }
             other => panic!("expected NeedComputation, got {other:?}"),
         }

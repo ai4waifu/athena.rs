@@ -12,8 +12,9 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use crate::{
     domains::{
         calculus::CalculusRequest,
-        dispatch::{DomainRequest, DomainResult, execute_domain},
-        planner::{DomainPlan, PlanStep},
+        dispatch::{DomainRequest, DomainResult, call_domain_provider},
+        plan_exec::interpret_domain_plan,
+        planner::DomainPlan,
         polynomial::{cache_key_for_request, execute_polynomial_mgraph},
     },
     reasoning::mgraph::{
@@ -226,38 +227,31 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
 }
 
 /// Execute one queued plan with a caller-bound request (AdmissionGate on exact results).
+///
+/// Walks PlanIR via [`interpret_domain_plan`]. Polynomial provider uses
+/// `execute_polynomial_mgraph`; calculus exact results admit after materialize.
 pub fn execute_queued_plan(
     session: &mut Session,
     queued: &QueuedPlan,
     request: DomainRequest,
 ) -> Result<DomainResult, Diagnostic> {
-    if !queued
-        .plan
-        .steps
-        .iter()
-        .any(|s| matches!(s, PlanStep::CallDomainProvider))
-    {
-        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "pending_plans")
-            .detail("reason", "plan missing CallDomainProvider"));
-    }
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;
-    let result = match request {
-        DomainRequest::Polynomial(req) => {
-            let poly = execute_polynomial_mgraph(
-                req,
-                &session.rings,
-                &session.polynomial_objects,
-                &mut session.mgraph,
-            );
-            DomainResult::Polynomial(poly)
+    let obligation = queued.obligation.clone();
+    let (result, _report) = interpret_domain_plan(session, &queued.plan, request, |session, req| {
+        match req {
+            DomainRequest::Polynomial(poly_req) => {
+                let poly = execute_polynomial_mgraph(
+                    poly_req,
+                    &session.rings,
+                    &session.polynomial_objects,
+                    &mut session.mgraph,
+                );
+                Ok(DomainResult::Polynomial(poly))
+            }
+            other => call_domain_provider(session, other),
         }
-        other => {
-            let result = execute_domain(session, other)?;
-            try_admit_calculus_exact(session, &queued.obligation, &result);
-            result
-        }
-    };
+    })?;
+    try_admit_calculus_exact(session, &obligation, &result);
     Ok(result)
 }
 
@@ -272,20 +266,24 @@ pub fn run_next_queued_plan(
     let Some(queued) = session.mgraph.operational.pending_plans.first().cloned() else {
         return Ok(None);
     };
-    if !queued
-        .plan
-        .steps
-        .iter()
-        .any(|s| matches!(s, PlanStep::CallDomainProvider))
-    {
-        let _ = session.mgraph.operational.pending_plans.remove(0);
-        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "pending_plans")
-            .detail("reason", "plan missing CallDomainProvider"));
+    match execute_queued_plan(session, &queued, request) {
+        Ok(result) => {
+            let _ = session.mgraph.operational.pending_plans.remove(0);
+            Ok(Some(result))
+        }
+        Err(err) => {
+            // Drop malformed plans that the interpreter rejects for structure.
+            let reason = err.details.get("reason").map(|v| v.to_string());
+            if matches!(
+                reason.as_deref(),
+                Some("plan_missing_CallDomainProvider")
+                    | Some("plan_missing_MaterializeResult_or_EmitResidual")
+            ) {
+                let _ = session.mgraph.operational.pending_plans.remove(0);
+            }
+            Err(err)
+        }
     }
-    let result = execute_queued_plan(session, &queued, request)?;
-    let _ = session.mgraph.operational.pending_plans.remove(0);
-    Ok(Some(result))
 }
 
 /// Batch-execute queued plans, pairing each with the next bound request.
