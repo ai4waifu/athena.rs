@@ -54,8 +54,9 @@ impl ObligationIndex {
 
     /// Wake and remove obligations that can observe `admitted_scope` for `predicate`.
     ///
-    /// An obligation matches when predicates equal and the obligation scope can see
-    /// the admitted fiber via identity or registered `Refines` ancestors.
+    /// An obligation matches when predicates equal, scopes are not
+    /// `IncompatibleWith`, and the obligation can see the admitted fiber via
+    /// identity / `Refines` ancestors / directed `CompatibleWith`.
     pub fn wake_matching(
         &mut self,
         admitted_scope: ScopeRef,
@@ -67,7 +68,9 @@ impl ObligationIndex {
         let mut retained = Vec::new();
         for obligation in self.pending.drain(..) {
             let visible = obligation.predicate == predicate
-                && scopes.is_refines_ancestor(obligation.scope, admitted_scope);
+                && !scopes.incompatible_with(obligation.scope, admitted_scope)
+                && (scopes.is_refines_ancestor(obligation.scope, admitted_scope)
+                    || scopes.compatible_with(obligation.scope, admitted_scope));
             if visible {
                 wakes.push(ReflectorWake {
                     obligation,
@@ -156,5 +159,29 @@ mod tests {
         let report = index.wake_matching(local, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
         assert!(report.wakes.is_empty());
         assert_eq!(index.len(), 1);
+    }
+
+    #[test]
+    fn wake_respects_compatible_and_incompatible() {
+        let mut index = ObligationIndex::new();
+        let a = ScopeRef(5);
+        let b = ScopeRef(6);
+        index.register(ProofObligation {
+            predicate: predicates::POLYNOMIAL_RESULT,
+            scope: a,
+            known_objects: vec![],
+        });
+        let mut scopes = ScopeIndex::new();
+        scopes.add_relation(a, b, ScopeRelationKind::CompatibleWith);
+        scopes.add_relation(a, b, ScopeRelationKind::IncompatibleWith);
+
+        let blocked = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
+        assert!(blocked.wakes.is_empty());
+        assert_eq!(index.len(), 1);
+
+        let mut scopes2 = ScopeIndex::new();
+        scopes2.add_relation(a, b, ScopeRelationKind::CompatibleWith);
+        let hit = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(10), &scopes2);
+        assert_eq!(hit.wakes.len(), 1);
     }
 }

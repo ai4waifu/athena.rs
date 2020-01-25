@@ -228,6 +228,74 @@ fn candidate_guarantee_is_rejected_by_admission_gate() {
     assert_eq!(semantic.relation_count(), 0);
 }
 
+#[test]
+fn find_accepted_consults_compatible_peer_locally() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let a = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(10)));
+    let b = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(11)));
+    semantic.core.mark_scopes_compatible(a, b);
+
+    let mut claim = sample_claim(201);
+    claim.scope = Scope::UnderAssumptions(AssumptionSetId(11));
+    admit_ok(&mut semantic, claim);
+
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT)
+        .is_some());
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
+        .is_none());
+}
+
+#[test]
+fn find_accepted_skips_incompatible_ancestor() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let local = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(12)));
+    semantic.core.refine_scope(local, ScopeRef::UNCONDITIONAL);
+    semantic
+        .core
+        .mark_scopes_incompatible(local, ScopeRef::UNCONDITIONAL);
+
+    admit_ok(&mut semantic, sample_claim(202));
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
+        .is_some());
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(local, predicates::POLYNOMIAL_RESULT)
+        .is_none());
+}
+
+#[test]
+fn incompatible_wins_over_compatible_peer() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let a = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(13)));
+    let b = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(14)));
+    semantic.core.mark_scopes_compatible(a, b);
+    semantic.core.mark_scopes_incompatible(a, b);
+
+    let mut claim = sample_claim(203);
+    claim.scope = Scope::UnderAssumptions(AssumptionSetId(14));
+    admit_ok(&mut semantic, claim);
+
+    assert!(semantic
+        .view()
+        .find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT)
+        .is_none());
+}
+
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
     AdmissionGate::admit_claim(semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }

@@ -75,6 +75,18 @@ impl MGraphCore {
         self.scope_index.add_relation(from, to, ScopeRelationKind::Refines);
     }
 
+    /// Register that `from` may consult local facts of `to` (Living `29` Compatible).
+    pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) {
+        self.scope_index
+            .add_relation(from, to, ScopeRelationKind::CompatibleWith);
+    }
+
+    /// Register that `a` and `b` must not share query-time transport (Living `29` Incompatible).
+    pub fn mark_scopes_incompatible(&mut self, a: ScopeRef, b: ScopeRef) {
+        self.scope_index
+            .add_relation(a, b, ScopeRelationKind::IncompatibleWith);
+    }
+
     /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
     ///
     /// `seeds` 预留 scope 过滤；bootstrap 忽略并在全 semantic 上运行。
@@ -116,25 +128,49 @@ impl<'a> MGraphView<'a> {
     /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Living `29` Reflector 短路）。
     ///
     /// Query-time transport: also search scopes reachable via registered
-    /// [`ScopeRelationKind::Refines`] edges (`scope ⊑ ancestor`). Does **not**
-    /// copy relations into other fibers or the unconditional closure.
+    /// [`ScopeRelationKind::Refines`] edges (`scope ⊑ ancestor`), plus local
+    /// [`ScopeRelationKind::CompatibleWith`] peers. Fibers marked
+    /// [`ScopeRelationKind::IncompatibleWith`] the query scope are skipped.
+    /// Does **not** copy relations into other fibers or the unconditional closure.
     pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
         self.find_accepted(scope, predicate, &[])
     }
 
     /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
+    ///
+    /// Transport rules (bootstrap):
+    /// - Walk `Refines` ancestors (`scope ⊑* ancestor`), skipping fibers marked
+    ///   `IncompatibleWith` the query scope.
+    /// - Additionally consult **local** facts of `CompatibleWith` peers (no peer
+    ///   ancestor expansion). `IncompatibleWith` wins over `CompatibleWith`.
     pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
+        let scopes = self.core.scope_index();
         let mut visited = std::collections::HashSet::new();
         let mut stack = vec![scope];
         while let Some(current) = stack.pop() {
             if !visited.insert(current) {
                 continue;
             }
+            if scopes.incompatible_with(scope, current) {
+                continue;
+            }
             if let Some(id) = self.find_accepted_local(current, predicate, known_objects) {
                 return Some(id);
             }
-            for ancestor in self.core.scope_index().refines_targets(current) {
-                stack.push(ancestor);
+            for ancestor in scopes.refines_targets(current) {
+                if !scopes.incompatible_with(scope, ancestor) {
+                    stack.push(ancestor);
+                }
+            }
+            // Compatible peers: local fiber only (do not push onto Refines walk).
+            for peer in scopes.compatible_peers(current) {
+                if visited.contains(&peer) || scopes.incompatible_with(scope, peer) {
+                    continue;
+                }
+                if let Some(id) = self.find_accepted_local(peer, predicate, known_objects) {
+                    return Some(id);
+                }
+                let _ = visited.insert(peer);
             }
         }
         None
