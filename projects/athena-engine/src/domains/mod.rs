@@ -15,12 +15,14 @@ pub mod plan_exec;
 pub mod planner;
 pub mod polynomial;
 pub mod solve;
+pub mod verify_replay;
 pub mod views;
 
 pub use context::DomainExecutionContext;
 pub use dispatch::{DomainRequest, DomainResult, execute_domain};
 pub use plan_exec::{PlanStepReport, interpret_domain_plan};
 pub use planner::{DomainPlan, PlanStep, plan_domain};
+pub use verify_replay::{VerifySnapshot, verify_recompute_domain_result};
 pub use views::{
     GraphMatrixView, LeaseSet, PolynomialMatrixView, SeriesPolynomialView, TypedViewHeader, ViewFingerprint,
     ViewKind, ViewRevision,

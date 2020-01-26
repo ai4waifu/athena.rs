@@ -10,6 +10,7 @@ use crate::{
         calculus::{CalculusResult, CalculusValue},
         dispatch::{DomainRequest, DomainResult},
         planner::{DomainPlan, PlanStep},
+        verify_replay::{VerifySnapshot, verify_recompute_domain_result},
         views::SeriesPolynomialView,
     },
     runtime::session::Session,
@@ -38,7 +39,7 @@ pub struct PlanStepReport {
 /// - `Normalize` / `SelectRepresentation` — acknowledged markers (no hidden policy).
 /// - `CallDomainProvider` — invoke `provider` exactly once.
 /// - `CrossDomainView` — open TypedView after provider output exists.
-/// - `Verify` — require provider output; typed result presence gate (AdmissionGate still owns evidence).
+/// - `Verify` — recompute calculus/polynomial against claimed result; presence gate elsewhere.
 /// - `MaterializeResult` — seal the `DomainResult` for the host.
 /// - `EmitResidual` — allow completion alongside or instead of materialize.
 pub fn interpret_domain_plan<F>(
@@ -68,6 +69,7 @@ where
 
     let mut report = PlanStepReport::default();
     let mut result: Option<DomainResult> = None;
+    let verify_snapshot = VerifySnapshot::from_request(&request);
     let mut pending_request = Some(request);
     let mut provider = Some(provider);
 
@@ -102,7 +104,7 @@ where
                 let current = result
                     .as_ref()
                     .ok_or_else(|| plan_err("Verify_before_provider"))?;
-                verify_provider_result(current)?;
+                verify_recompute_domain_result(session, &verify_snapshot, current)?;
                 report.verified = true;
                 report.executed.push(*step);
             }
@@ -131,22 +133,6 @@ fn plan_err(reason: &'static str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
         .detail("domain", "plan_exec")
         .detail("reason", reason)
-}
-
-fn verify_provider_result(result: &DomainResult) -> Result<(), Diagnostic> {
-    // Bootstrap: presence of a typed DomainResult is the verify gate.
-    // Domain-specific certificate replay remains AdmissionGate's job.
-    match result {
-        DomainResult::Calculus(_)
-        | DomainResult::NumberTheory(_)
-        | DomainResult::Polynomial(_)
-        | DomainResult::GroupTheory(_)
-        | DomainResult::FieldTheory(_)
-        | DomainResult::GaloisTheory(_)
-        | DomainResult::GraphTheory(_)
-        | DomainResult::LinearAlgebra(_)
-        | DomainResult::Optimization(_) => Ok(()),
-    }
 }
 
 pub(crate) fn open_cross_domain_view(session: &Session, result: &DomainResult) -> Result<(), Diagnostic> {
@@ -247,6 +233,35 @@ mod tests {
     }
 
     #[test]
+    fn interpret_rejects_forged_calculus_on_verify() {
+        let mut session = Session::new();
+        let request = DomainRequest::Calculus(CalculusRequest::Derivative {
+            expression: TermId(0),
+            variable: SymbolId(0),
+            order: DerivativeOrder::First,
+            assumptions: AssumptionSet::empty(),
+        });
+        let plan = DomainPlan {
+            steps: vec![
+                PlanStep::CallDomainProvider,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ],
+        };
+        let err = interpret_domain_plan(&mut session, &plan, request, |_s, _r| {
+            Ok(DomainResult::Calculus(crate::domains::calculus::CalculusResult::Exact {
+                value: CalculusValue::Expression(TermId(999_999)),
+                conditions: Vec::new(),
+            }))
+        })
+        .expect_err("forge");
+        assert_eq!(
+            err.details.get("reason").map(|v| v.to_string()).as_deref(),
+            Some("calculus_recompute_mismatch")
+        );
+    }
+
+    #[test]
     fn plan_domain_default_is_interpretable() {
         let mut session = Session::new();
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
@@ -260,6 +275,6 @@ mod tests {
             crate::domains::dispatch::call_domain_provider(s, r)
         })
         .expect("default plan");
-        assert!(report.provider_invoked && report.materialized);
+        assert!(report.provider_invoked && report.verified && report.materialized);
     }
 }
