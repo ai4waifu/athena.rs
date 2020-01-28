@@ -51,13 +51,7 @@ pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<Str
 /// Rebuild a semantic operator application in the Session arena.
 pub(crate) fn push_application_semantic(session: &mut Session, op: SemanticOperator, args: Vec<TermId>) -> TermId {
     let span = TermNode::default_span();
-    session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(op),
-            arguments: args,
-        },
-        span,
-    )
+    session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(op), arguments: args }, span)
 }
 
 /// Rebuild an application from an [`ApplicationHead`].

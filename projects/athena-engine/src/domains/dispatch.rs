@@ -83,11 +83,9 @@ pub(crate) fn call_domain_provider(session: &mut Session, request: DomainRequest
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),
-        DomainRequest::Polynomial(req) => Ok(DomainResult::Polynomial(execute_polynomial_with_rings(
-            req,
-            &session.rings,
-            &session.polynomial_objects,
-        ))),
+        DomainRequest::Polynomial(req) => {
+            Ok(DomainResult::Polynomial(execute_polynomial_with_rings(req, &session.rings, &session.polynomial_objects)))
+        }
         DomainRequest::GroupTheory(req) => Ok(DomainResult::GroupTheory(execute_group(req))),
         DomainRequest::FieldTheory(req) => Ok(DomainResult::FieldTheory(execute_field(req))),
         DomainRequest::GaloisTheory(req) => Ok(DomainResult::GaloisTheory(execute_galois(req))),
@@ -117,29 +115,14 @@ mod tests {
         };
         let result = execute_domain(
             &mut session,
-            DomainRequest::Calculus(CalculusRequest::Series {
-                expression,
-                variable,
-                center,
-                order: 2,
-                assumptions: AssumptionSet::empty(),
-            }),
+            DomainRequest::Calculus(CalculusRequest::Series { expression, variable, center, order: 2, assumptions: AssumptionSet::empty() }),
         )
         .expect("execute");
         match result {
             DomainResult::Calculus(
-                CalculusResult::Exact {
-                    value: CalculusValue::Series(r),
-                    ..
-                }
-                | CalculusResult::Conditional {
-                    value: CalculusValue::Series(r),
-                    ..
-                }
-                | CalculusResult::Unevaluated {
-                    expression: CalculusValue::Series(r),
-                    ..
-                },
+                CalculusResult::Exact { value: CalculusValue::Series(r), .. }
+                | CalculusResult::Conditional { value: CalculusValue::Series(r), .. }
+                | CalculusResult::Unevaluated { expression: CalculusValue::Series(r), .. },
             ) => {
                 assert!(SeriesPolynomialView::open(&session.series_objects, r).is_some());
             }

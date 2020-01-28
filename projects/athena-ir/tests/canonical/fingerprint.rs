@@ -1,6 +1,5 @@
 use athena_ir::{
-    ApplicationHead, Atom, ExtensionRegistry, SemanticOperator, TermBuilder, TermNode, TermStore, canonical_hash, canonical_hash_named,
-    fnv1a64,
+    ApplicationHead, Atom, ExtensionRegistry, SemanticOperator, TermBuilder, TermNode, TermStore, canonical_hash, canonical_hash_named, fnv1a64,
 };
 use athena_types::SourceSpan;
 
@@ -33,10 +32,7 @@ fn canonical_hash_semantic_stable_without_registry() {
     let (a1, r1) = build_add_x_y();
     let (a2, r2) = build_add_x_y();
     assert_eq!(canonical_hash(&a1, r1), canonical_hash(&a2, r2));
-    assert_eq!(
-        canonical_hash_named(&a1, &ExtensionRegistry::new(), r1),
-        canonical_hash(&a1, r1)
-    );
+    assert_eq!(canonical_hash_named(&a1, &ExtensionRegistry::new(), r1), canonical_hash(&a1, r1));
 }
 
 #[test]

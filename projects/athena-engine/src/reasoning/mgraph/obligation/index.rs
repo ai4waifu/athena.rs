@@ -69,14 +69,11 @@ impl ObligationIndex {
         for obligation in self.pending.drain(..) {
             let visible = obligation.predicate == predicate
                 && !scopes.incompatible_with(obligation.scope, admitted_scope)
-                && (scopes.is_refines_ancestor(obligation.scope, admitted_scope)
-                    || scopes.compatible_with(obligation.scope, admitted_scope));
+                && (scopes.is_refines_ancestor(obligation.scope, admitted_scope) || scopes.compatible_with(obligation.scope, admitted_scope));
             if visible {
-                wakes.push(ReflectorWake {
-                    obligation,
-                    relation,
-                });
-            } else {
+                wakes.push(ReflectorWake { obligation, relation });
+            }
+            else {
                 retained.push(obligation);
             }
         }
@@ -88,27 +85,14 @@ impl ObligationIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::reasoning::mgraph::{
-        ScopeRelationKind,
-        core::refs::predicates,
-        facts::FactId,
-    };
+    use crate::reasoning::mgraph::{ScopeRelationKind, core::refs::predicates, facts::FactId};
 
     #[test]
     fn wake_removes_matching_obligation() {
         let mut index = ObligationIndex::new();
-        index.register(ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![],
-        });
+        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] });
         let scopes = ScopeIndex::new();
-        let report = index.wake_matching(
-            ScopeRef::UNCONDITIONAL,
-            predicates::POLYNOMIAL_RESULT,
-            FactId(0),
-            &scopes,
-        );
+        let report = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT, FactId(0), &scopes);
         assert_eq!(report.wakes.len(), 1);
         assert!(index.is_empty());
     }
@@ -117,29 +101,15 @@ mod tests {
     fn wake_respects_refines_visibility() {
         let mut index = ObligationIndex::new();
         let local = ScopeRef(3);
-        index.register(ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: local,
-            known_objects: vec![],
-        });
+        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: local, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
         scopes.add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines);
 
-        let miss = index.wake_matching(
-            ScopeRef::UNCONDITIONAL,
-            predicates::CONGRUENCE,
-            FactId(1),
-            &scopes,
-        );
+        let miss = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::CONGRUENCE, FactId(1), &scopes);
         assert!(miss.wakes.is_empty());
         assert_eq!(index.len(), 1);
 
-        let hit = index.wake_matching(
-            ScopeRef::UNCONDITIONAL,
-            predicates::POLYNOMIAL_RESULT,
-            FactId(2),
-            &scopes,
-        );
+        let hit = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT, FactId(2), &scopes);
         assert_eq!(hit.wakes.len(), 1);
         assert_eq!(hit.wakes[0].relation, FactId(2));
         assert!(index.is_empty());
@@ -148,11 +118,7 @@ mod tests {
     #[test]
     fn finer_admit_does_not_wake_coarser_obligation() {
         let mut index = ObligationIndex::new();
-        index.register(ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![],
-        });
+        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
         let local = ScopeRef(4);
         scopes.add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines);
@@ -166,11 +132,7 @@ mod tests {
         let mut index = ObligationIndex::new();
         let a = ScopeRef(5);
         let b = ScopeRef(6);
-        index.register(ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: a,
-            known_objects: vec![],
-        });
+        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: a, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
         scopes.add_relation(a, b, ScopeRelationKind::CompatibleWith);
         scopes.add_relation(a, b, ScopeRelationKind::IncompatibleWith);

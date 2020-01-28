@@ -2,16 +2,15 @@
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, mul as num_mul};
-use athena_types::{SymbolId, AssumptionSet, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
-        derivative::differentiate,
+    derivative::differentiate,
     integral::integrate,
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 候选 ODE 解是否已通过残差代入验证。
 #[derive(Debug, Clone, PartialEq)]
@@ -130,33 +129,33 @@ pub fn solve_ode_checked(
 
     if is_zero_term(cc, residual) && ivp_ok {
         CalculusResult::Exact {
-            value: DifferentialSolution {
-                dependent,
-                independent,
-                explicit,
-                verified: VerificationStatus::Verified { residual },
-            },
+            value: DifferentialSolution { dependent, independent, explicit, verified: VerificationStatus::Verified { residual } },
             conditions: Vec::new(),
         }
     }
     else {
         CalculusResult::Unevaluated {
-            expression: DifferentialSolution {
-                dependent,
-                independent,
-                explicit,
-                verified: VerificationStatus::Failed { residual },
-            },
+            expression: DifferentialSolution { dependent, independent, explicit, verified: VerificationStatus::Failed { residual } },
             reason: Diagnostic::new(DiagnosticCode::OdeSolutionUnverified),
         }
     }
 }
 
-fn apply_ivp(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, f: TermId, particular: TermId, x0: TermId, y0: TermId) -> TermId {
+fn apply_ivp(
+    cc: &mut DomainExecutionContext<'_>,
+    dependent: SymbolId,
+    independent: SymbolId,
+    f: TermId,
+    particular: TermId,
+    x0: TermId,
+    y0: TermId,
+) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
         let ax0 = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&a)), x0]));
-        let c = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), ax0])]));
+        let c = cc.fold_term(
+            cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), ax0])]),
+        );
         let ax = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
         return cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![ax, c]));
     }
@@ -173,7 +172,9 @@ fn apply_ivp(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independe
     // 仅含自变量：y' = g(x) → y = ∫g + C，C = y0 − F(x0)
     if !contains_symbol(cc, f, dependent) {
         let fx0 = cc.fold_term(replace_symbol(cc, particular, independent, x0));
-        let c = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), fx0])]));
+        let c = cc.fold_term(
+            cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), fx0])]),
+        );
         return cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![particular, c]));
     }
     // 常数特解：必要时平移
@@ -241,7 +242,10 @@ fn try_bernoulli_const(cc: &mut DomainExecutionContext<'_>, f: TermId, dependent
     }
     if a.is_zero() {
         // 退化为 c y^n
-        let rhs = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(b), cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(dependent), cc.in_(n)])]);
+        let rhs = cc.apply_semantic(
+            SemanticOperator::Multiply,
+            vec![cc.num(b), cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(dependent), cc.in_(n)])],
+        );
         let rhs = cc.fold_term(rhs);
         return try_power_of_y(cc, rhs, dependent, independent);
     }
@@ -356,7 +360,12 @@ fn match_g_times_y_power(cc: &mut DomainExecutionContext<'_>, f: TermId, depende
     None
 }
 
-fn recognize_y_prime_equals(cc: &mut DomainExecutionContext<'_>, equation: TermId, dependent: SymbolId, independent: SymbolId) -> Option<FirstOrderRhs> {
+fn recognize_y_prime_equals(
+    cc: &mut DomainExecutionContext<'_>,
+    equation: TermId,
+    dependent: SymbolId,
+    independent: SymbolId,
+) -> Option<FirstOrderRhs> {
     // 形态：Equal[D[y,x], rhs]
     let (h, args) = cc.application_head(equation)?;
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
@@ -444,12 +453,8 @@ fn is_d_of(cc: &DomainExecutionContext<'_>, term: TermId, dependent: SymbolId, i
 }
 
 fn is_integrate_residual(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
-    matches!(
-        cc.application_head(term),
-        Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _))
-    )
+    matches!(cc.application_head(term), Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _)))
 }
-
 
 fn match_times_const_y(cc: &mut DomainExecutionContext<'_>, term: TermId, dependent: SymbolId) -> Option<Number> {
     let Some((h, args)) = cc.application_head(term)
@@ -481,7 +486,12 @@ fn placeholder(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, indepen
     }
 }
 
-fn unsupported(cc: &mut DomainExecutionContext<'_>, dependent: SymbolId, independent: SymbolId, equation: TermId) -> CalculusResult<DifferentialSolution> {
+fn unsupported(
+    cc: &mut DomainExecutionContext<'_>,
+    dependent: SymbolId,
+    independent: SymbolId,
+    equation: TermId,
+) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(cc, dependent, independent, equation),
         reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),

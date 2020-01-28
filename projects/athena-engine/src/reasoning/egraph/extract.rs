@@ -97,19 +97,11 @@ impl Extractor {
     pub fn score(store: &TermStore, term: TermId, exact_uf: Option<&ExactUnionFind>) -> ResultCost {
         let ast_nodes = ast_size(store, term);
         let admitted_exact = exact_uf.is_some_and(|uf| uf.find(term) == term);
-        ResultCost {
-            ast_nodes,
-            admitted_exact,
-        }
+        ResultCost { ast_nodes, admitted_exact }
     }
 
     /// Score with e-class membership for ExactUF representatives.
-    fn score_in_class(
-        store: &TermStore,
-        term: TermId,
-        class_terms: &[TermId],
-        exact_uf: Option<&ExactUnionFind>,
-    ) -> ResultCost {
+    fn score_in_class(store: &TermStore, term: TermId, class_terms: &[TermId], exact_uf: Option<&ExactUnionFind>) -> ResultCost {
         let mut cost = Self::score(store, term, exact_uf);
         if let Some(uf) = exact_uf {
             let rep = uf.find(term);
@@ -122,15 +114,8 @@ impl Extractor {
     ///
     /// `exact_uf` is consulted for [`ExtractionPreference::AdmittedExact`] and
     /// [`ExtractionPreference::ResultCost`].
-    pub fn extract(
-        &self,
-        graph: &EGraph,
-        store: &TermStore,
-        class: EClassId,
-        exact_uf: Option<&ExactUnionFind>,
-    ) -> Option<TermId> {
-        self.extract_with_cost(graph, store, class, exact_uf)
-            .map(|(term, _)| term)
+    pub fn extract(&self, graph: &EGraph, store: &TermStore, class: EClassId, exact_uf: Option<&ExactUnionFind>) -> Option<TermId> {
+        self.extract_with_cost(graph, store, class, exact_uf).map(|(term, _)| term)
     }
 
     /// Extract a term plus its [`ResultCost`].
@@ -149,23 +134,14 @@ impl Extractor {
         }
         let chosen = match self.preference {
             ExtractionPreference::FirstTerm => terms.into_iter().next(),
-            ExtractionPreference::SmallestAst => terms
-                .into_iter()
-                .min_by_key(|t| (ast_size(store, *t), t.0)),
+            ExtractionPreference::SmallestAst => terms.into_iter().min_by_key(|t| (ast_size(store, *t), t.0)),
             ExtractionPreference::AdmittedExact => {
                 if let Some(uf) = exact_uf {
-                    let mut reps: Vec<TermId> = terms
-                        .iter()
-                        .map(|t| uf.find(*t))
-                        .filter(|rep| terms.contains(rep))
-                        .collect();
+                    let mut reps: Vec<TermId> = terms.iter().map(|t| uf.find(*t)).filter(|rep| terms.contains(rep)).collect();
                     reps.sort_by_key(|t| t.0);
                     reps.dedup();
                     if !reps.is_empty() {
-                        return reps
-                            .into_iter()
-                            .min_by_key(|t| (ast_size(store, *t), t.0))
-                            .map(|t| (t, Self::score(store, t, exact_uf)));
+                        return reps.into_iter().min_by_key(|t| (ast_size(store, *t), t.0)).map(|t| (t, Self::score(store, t, exact_uf)));
                     }
                 }
                 terms.into_iter().min_by_key(|t| (ast_size(store, *t), t.0))
@@ -182,12 +158,7 @@ impl Extractor {
     }
 
     /// Multi-objective undominated extract set for `class` (does not pick a single winner).
-    pub fn extract_pareto(
-        graph: &EGraph,
-        store: &TermStore,
-        class: EClassId,
-        exact_uf: Option<&ExactUnionFind>,
-    ) -> ParetoFrontier {
+    pub fn extract_pareto(graph: &EGraph, store: &TermStore, class: EClassId, exact_uf: Option<&ExactUnionFind>) -> ParetoFrontier {
         let root = graph.find(class);
         let mut terms = graph.terms_in_class(root);
         if terms.is_empty() {
@@ -195,19 +166,11 @@ impl Extractor {
                 terms.push(term);
             }
         }
-        let scored: Vec<(TermId, ResultCost)> = terms
-            .iter()
-            .copied()
-            .map(|t| (t, Self::score_in_class(store, t, &terms, exact_uf)))
-            .collect();
+        let scored: Vec<(TermId, ResultCost)> = terms.iter().copied().map(|t| (t, Self::score_in_class(store, t, &terms, exact_uf))).collect();
         let mut points: Vec<(TermId, ResultCost)> = scored
             .iter()
             .copied()
-            .filter(|(term, cost)| {
-                !scored
-                    .iter()
-                    .any(|(other_term, other_cost)| other_term != term && other_cost.dominates(*cost))
-            })
+            .filter(|(term, cost)| !scored.iter().any(|(other_term, other_cost)| other_term != term && other_cost.dominates(*cost)))
             .collect();
         points.sort_by_key(|(term, cost)| (cost.rank_key(), term.0));
         points.dedup_by_key(|(term, _)| *term);
@@ -227,11 +190,7 @@ fn ast_size_walk(store: &TermStore, id: TermId, seen: &mut std::collections::Has
     match store.get(id) {
         None => 1,
         Some(TermNode::Atom(_)) => 1,
-        Some(TermNode::Collection { elements, .. }) => {
-            1 + elements.iter().map(|c| ast_size_walk(store, *c, seen)).sum::<u32>()
-        }
-        Some(TermNode::Application { arguments, .. }) => {
-            1 + arguments.iter().map(|c| ast_size_walk(store, *c, seen)).sum::<u32>()
-        }
+        Some(TermNode::Collection { elements, .. }) => 1 + elements.iter().map(|c| ast_size_walk(store, *c, seen)).sum::<u32>(),
+        Some(TermNode::Application { arguments, .. }) => 1 + arguments.iter().map(|c| ast_size_walk(store, *c, seen)).sum::<u32>(),
     }
 }

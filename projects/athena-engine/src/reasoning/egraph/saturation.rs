@@ -1,7 +1,7 @@
 //! Budgeted saturation driver (Living `03` R-2.5 / `26`).
 
 use athena_ir::TermStore;
-use athena_rewriter::{RuleSet, match_pattern, substitute, PatternBindings};
+use athena_rewriter::{PatternBindings, RuleSet, match_pattern, substitute};
 use athena_types::TermId;
 
 use super::{
@@ -35,11 +35,7 @@ pub fn saturate(
     rules: Option<&RuleSet>,
 ) -> SaturationReport {
     if budget.max_iterations == 0 || budget.max_eclasses == 0 || budget.max_enodes == 0 {
-        return SaturationReport {
-            stop: SaturationStopReason::ResourceBudget,
-            iterations: 0,
-            candidates: Vec::new(),
-        };
+        return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations: 0, candidates: Vec::new() };
     }
 
     let mut iterations = 0u32;
@@ -47,53 +43,30 @@ pub fn saturate(
 
     for root in roots {
         if over_structure_budget(graph, &budget) {
-            return SaturationReport {
-                stop: SaturationStopReason::ResourceBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
         }
         let _ = graph.add_term(store, *root);
         iterations = iterations.saturating_add(1);
         if iterations >= budget.max_iterations {
-            return SaturationReport {
-                stop: SaturationStopReason::IterationBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::IterationBudget, iterations, candidates };
         }
     }
 
-    let Some(rules) = rules else {
-        return SaturationReport {
-            stop: SaturationStopReason::FixedPoint,
-            iterations,
-            candidates,
-        };
+    let Some(rules) = rules
+    else {
+        return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
     };
 
     if rules.is_empty() {
-        return SaturationReport {
-            stop: SaturationStopReason::FixedPoint,
-            iterations,
-            candidates,
-        };
+        return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
     }
 
     loop {
         if iterations >= budget.max_iterations {
-            return SaturationReport {
-                stop: SaturationStopReason::IterationBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::IterationBudget, iterations, candidates };
         }
         if over_structure_budget(graph, &budget) {
-            return SaturationReport {
-                stop: SaturationStopReason::ResourceBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
         }
 
         let mut progressed = false;
@@ -101,19 +74,17 @@ pub fn saturate(
         for rule in rules.iter() {
             for &subject in &subjects {
                 if candidates.len() as u32 >= budget.max_candidate_unions {
-                    return SaturationReport {
-                        stop: SaturationStopReason::ResourceBudget,
-                        iterations,
-                        candidates,
-                    };
+                    return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
                 }
                 if !store.structural_eq(subject, rule.pattern) {
                     continue;
                 }
-                let Some(left_class) = graph.class_of_term(subject) else {
+                let Some(left_class) = graph.class_of_term(subject)
+                else {
                     continue;
                 };
-                let Some(right_class) = graph.add_term(store, rule.replacement) else {
+                let Some(right_class) = graph.add_term(store, rule.replacement)
+                else {
                     continue;
                 };
                 if graph.find(left_class) == graph.find(right_class) {
@@ -136,11 +107,7 @@ pub fn saturate(
 
         iterations = iterations.saturating_add(1);
         if !progressed {
-            return SaturationReport {
-                stop: SaturationStopReason::FixedPoint,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
         }
     }
 }
@@ -157,11 +124,7 @@ pub fn saturate_typed(
     rules: Option<&TypedRuleSet>,
 ) -> SaturationReport {
     if budget.max_iterations == 0 || budget.max_eclasses == 0 || budget.max_enodes == 0 {
-        return SaturationReport {
-            stop: SaturationStopReason::ResourceBudget,
-            iterations: 0,
-            candidates: Vec::new(),
-        };
+        return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations: 0, candidates: Vec::new() };
     }
 
     let mut iterations = 0u32;
@@ -169,53 +132,30 @@ pub fn saturate_typed(
 
     for root in roots {
         if over_structure_budget(graph, &budget) {
-            return SaturationReport {
-                stop: SaturationStopReason::ResourceBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
         }
         let _ = graph.add_term(store, *root);
         iterations = iterations.saturating_add(1);
         if iterations >= budget.max_iterations {
-            return SaturationReport {
-                stop: SaturationStopReason::IterationBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::IterationBudget, iterations, candidates };
         }
     }
 
-    let Some(rules) = rules else {
-        return SaturationReport {
-            stop: SaturationStopReason::FixedPoint,
-            iterations,
-            candidates,
-        };
+    let Some(rules) = rules
+    else {
+        return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
     };
 
     if rules.is_empty() {
-        return SaturationReport {
-            stop: SaturationStopReason::FixedPoint,
-            iterations,
-            candidates,
-        };
+        return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
     }
 
     loop {
         if iterations >= budget.max_iterations {
-            return SaturationReport {
-                stop: SaturationStopReason::IterationBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::IterationBudget, iterations, candidates };
         }
         if over_structure_budget(graph, &budget) {
-            return SaturationReport {
-                stop: SaturationStopReason::ResourceBudget,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
         }
 
         let mut progressed = false;
@@ -223,21 +163,19 @@ pub fn saturate_typed(
         for rule in rules.iter() {
             for &subject in &subjects {
                 if candidates.len() as u32 >= budget.max_candidate_unions {
-                    return SaturationReport {
-                        stop: SaturationStopReason::ResourceBudget,
-                        iterations,
-                        candidates,
-                    };
+                    return SaturationReport { stop: SaturationStopReason::ResourceBudget, iterations, candidates };
                 }
                 let mut binds = PatternBindings::new();
                 if !match_pattern(store, subject, &rule.pattern, &mut binds) {
                     continue;
                 }
                 let produced = substitute(store, rule.replacement, &binds);
-                let Some(left_class) = graph.class_of_term(subject) else {
+                let Some(left_class) = graph.class_of_term(subject)
+                else {
                     continue;
                 };
-                let Some(right_class) = graph.add_term(store, produced) else {
+                let Some(right_class) = graph.add_term(store, produced)
+                else {
                     continue;
                 };
                 if graph.find(left_class) == graph.find(right_class) {
@@ -260,11 +198,7 @@ pub fn saturate_typed(
 
         iterations = iterations.saturating_add(1);
         if !progressed {
-            return SaturationReport {
-                stop: SaturationStopReason::FixedPoint,
-                iterations,
-                candidates,
-            };
+            return SaturationReport { stop: SaturationStopReason::FixedPoint, iterations, candidates };
         }
     }
 }
@@ -274,7 +208,5 @@ fn over_structure_budget(graph: &EGraph, budget: &SaturationBudget) -> bool {
 }
 
 fn already_emitted(candidates: &[CandidateEquivalence], left: TermId, right: TermId) -> bool {
-    candidates.iter().any(|c| {
-        (c.left_term == left && c.right_term == right) || (c.left_term == right && c.right_term == left)
-    })
+    candidates.iter().any(|c| (c.left_term == left && c.right_term == right) || (c.left_term == right && c.right_term == left))
 }

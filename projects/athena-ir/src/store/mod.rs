@@ -186,10 +186,9 @@ fn structural_eq_walk(arena: &TermStore, x: TermId, y: TermId, seen: &mut std::c
     }
     match (arena.get(x), arena.get(y)) {
         (Some(TermNode::Atom(p)), Some(TermNode::Atom(q))) => p == q,
-        (
-            Some(TermNode::Collection { kind: kx, elements: xs }),
-            Some(TermNode::Collection { kind: ky, elements: ys }),
-        ) => kx == ky && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen)),
+        (Some(TermNode::Collection { kind: kx, elements: xs }), Some(TermNode::Collection { kind: ky, elements: ys })) => {
+            kx == ky && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
+        }
         (Some(TermNode::Application { head: op_x, arguments: xs }), Some(TermNode::Application { head: op_y, arguments: ys })) => {
             op_x == op_y && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(a, b)| structural_eq_walk(arena, *a, *b, seen))
         }

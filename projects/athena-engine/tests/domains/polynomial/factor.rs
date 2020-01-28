@@ -2,8 +2,8 @@
 
 use athena_engine::domains::polynomial::{
     CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialDomainValue, PolynomialFactorLimits, PolynomialFactorStatus,
-    PolynomialFactorizationCompleteness, PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable,
-    execute_polynomial_with_rings, factor_univariate,
+    PolynomialFactorizationCompleteness, PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_with_rings,
+    factor_univariate,
 };
 use athena_numeric::Number;
 use athena_types::SymbolId;
@@ -86,10 +86,7 @@ fn factor_request_via_execute_polynomial() {
     let p = uni(&rings, ring, &[(2, 1), (3, 0)]);
     let poly = store.intern(p, &rings);
     let result = execute_polynomial_with_rings(
-        PolynomialRequest::Factor {
-            polynomial: poly,
-            limits: PolynomialFactorLimits::default(),
-        },
+        PolynomialRequest::Factor { polynomial: poly, limits: PolynomialFactorLimits::default() },
         &rings,
         &store,
     );

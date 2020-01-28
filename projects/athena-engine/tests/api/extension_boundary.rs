@@ -18,18 +18,12 @@ fn extension_named_plus_is_not_semantic_add() {
     let op = fx.session_mut().extensions.intern("Plus");
     let term = push_extension(fx.session_mut(), op, vec![a, b]);
     match fx.session().arena.get(term) {
-        Some(TermNode::Application {
-            head: ApplicationHead::Extension(_),
-            ..
-        }) => {}
+        Some(TermNode::Application { head: ApplicationHead::Extension(_), .. }) => {}
         other => panic!("expected Extension head for surface Plus, got {other:?}"),
     }
     let evaluated = fx.evaluate_term(term);
     assert!(
-        fx.session()
-            .arena
-            .get(evaluated)
-            .is_some_and(|n| !matches!(n, TermNode::Atom(Atom::Number(_)))),
+        fx.session().arena.get(evaluated).is_some_and(|n| !matches!(n, TermNode::Atom(Atom::Number(_)))),
         "extension Plus must not evaluate as core Add"
     );
 }

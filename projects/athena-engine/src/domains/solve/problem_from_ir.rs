@@ -4,8 +4,12 @@ use athena_ir::TermStore;
 use athena_types::{AssumptionSetId, Diagnostic, TermId};
 
 use super::{
-    binding::BoundSymbol, domain::SolveDomain, goal::SolveGoal, normalize::normalize_constraint_conjunction,
-    policy::{ExecutionLimits, SolvePolicy}, problem::SolveProblem,
+    binding::BoundSymbol,
+    domain::SolveDomain,
+    goal::SolveGoal,
+    normalize::normalize_constraint_conjunction,
+    policy::{ExecutionLimits, SolvePolicy},
+    problem::SolveProblem,
 };
 
 /// 由 IR 方程/不等式根归一化并组装 [`SolveProblem`]。

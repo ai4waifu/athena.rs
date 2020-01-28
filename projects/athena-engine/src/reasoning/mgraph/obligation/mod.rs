@@ -11,14 +11,14 @@ pub mod schedule;
 use crate::{
     domains::planner::DomainPlan,
     reasoning::mgraph::core::{
-        refs::{ObjectRef, PredicateId, RelationRef, ScopeRef},
         MGraphView,
+        refs::{ObjectRef, PredicateId, RelationRef, ScopeRef},
     },
 };
 
 pub use execute::{
-    PlanBinding, QueuedPlan, QueuedPlanBatchReport, execute_queued_plan, plan_binding_for_request,
-    run_next_queued_plan, run_queued_plans, verify_plan_binding,
+    PlanBinding, QueuedPlan, QueuedPlanBatchReport, execute_queued_plan, plan_binding_for_request, run_next_queued_plan, run_queued_plans,
+    verify_plan_binding,
 };
 pub use index::{ObligationIndex, ReflectorWake, WakeReport};
 pub use schedule::{ReflectorScheduleReport, resume_reflector_frontier, schedule_reflector_wakes};
@@ -81,9 +81,11 @@ pub trait SemanticReflector: Send + Sync {
 mod tests {
     use super::*;
     use crate::{
-        domains::planner::{PlanStep, plan_domain},
-        domains::DomainRequest,
-        domains::calculus::{CalculusRequest, DerivativeOrder},
+        domains::{
+            DomainRequest,
+            calculus::{CalculusRequest, DerivativeOrder},
+            planner::{PlanStep, plan_domain},
+        },
         reasoning::mgraph::core::MGraphCore,
     };
     use athena_types::{AssumptionSet, SymbolId, TermId};
@@ -98,9 +100,7 @@ mod tests {
                 order: DerivativeOrder::First,
                 assumptions: AssumptionSet::empty(),
             });
-            Reflection::NeedComputation {
-                plan: plan_domain(&request),
-            }
+            Reflection::NeedComputation { plan: plan_domain(&request) }
         }
     }
 
@@ -108,22 +108,10 @@ mod tests {
     fn need_computation_carries_living28_plan() {
         let core = MGraphCore::new();
         let view = MGraphView::new(&core);
-        let obligation = ProofObligation {
-            predicate: PredicateId(0),
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: Vec::new(),
-        };
+        let obligation = ProofObligation { predicate: PredicateId(0), scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
         match AlwaysCompute.reflect(&obligation, &view) {
             Reflection::NeedComputation { plan } => {
-                assert_eq!(
-                    plan.steps,
-                    vec![
-                        PlanStep::Normalize,
-                        PlanStep::CallDomainProvider,
-                        PlanStep::Verify,
-                        PlanStep::MaterializeResult,
-                    ]
-                );
+                assert_eq!(plan.steps, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
             }
             other => panic!("expected NeedComputation, got {other:?}"),
         }

@@ -7,8 +7,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 在 arena 上做符号积分（多项式 / 初等子集）。
 pub fn integrate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
@@ -57,9 +56,7 @@ fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Symb
                 let ir = integrate_symbol(dc, rest, var);
                 dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))
             }
-            ApplicationHead::Semantic(SemanticOperator::Power)
-                if args.len() == 2 && is_symbol_id(dc, args[0], var) =>
-            {
+            ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_id(dc, args[0], var) => {
                 if let Some(n) = dc.int_exp(args[1]) {
                     if n != -1 {
                         let p = dc.apply_semantic(SemanticOperator::Power, vec![args[0], dc.in_(n + 1)]);
@@ -98,10 +95,7 @@ fn residual_integrate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Sy
 }
 
 fn is_integrate_residual(dc: &DomainExecutionContext<'_>, value: TermId) -> bool {
-    matches!(
-        dc.application_head(value),
-        Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _))
-    )
+    matches!(dc.application_head(value), Some((ApplicationHead::Semantic(SemanticOperator::Integrate), _)))
 }
 
 /// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。

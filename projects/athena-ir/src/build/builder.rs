@@ -64,13 +64,7 @@ impl<'a> TermBuilder<'a> {
     }
 
     /// Extension operator application (display name via registry — never maps to core semantics).
-    pub fn application_extension(
-        &mut self,
-        registry: &mut ExtensionRegistry,
-        head: &str,
-        args: Vec<TermId>,
-        span: SourceSpan,
-    ) -> TermId {
+    pub fn application_extension(&mut self, registry: &mut ExtensionRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
         let op = registry.intern(head);
         self.application(ApplicationHead::Extension(op), args, span)
     }

@@ -2,8 +2,7 @@
 
 use athena_types::{SymbolId, TermId};
 
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 将 `var` 的每次出现替换为 `with`；未命中路径按 arena 共享。
 pub(crate) fn replace_symbol(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId, with: TermId) -> TermId {

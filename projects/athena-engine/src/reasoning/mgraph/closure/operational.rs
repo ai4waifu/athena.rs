@@ -1,12 +1,10 @@
 //! Operational 状态：frontier · 非语义缓存 · 暂存超边 / OuterCandidate 池 / determinacy。
 
-use crate::{
-    reasoning::mgraph::{
-        admission::OuterCandidate,
-        cache::result::ResultCache,
-        core::types::{DeterminacyState, HyperEdge, SolverFrontier},
-        obligation::{ObligationIndex, ProofObligation, QueuedPlan},
-    },
+use crate::reasoning::mgraph::{
+    admission::OuterCandidate,
+    cache::result::ResultCache,
+    core::types::{DeterminacyState, HyperEdge, SolverFrontier},
+    obligation::{ObligationIndex, ProofObligation, QueuedPlan},
 };
 
 /// 操作层状态（非单调；可驱逐、可重建）。

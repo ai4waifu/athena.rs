@@ -105,12 +105,7 @@ impl CalculusValue {
         match self {
             Self::Expression(t) => *t,
             Self::Series(r) => {
-                let series = cc
-                    .session()
-                    .series_objects
-                    .get(*r)
-                    .cloned()
-                    .expect("SeriesRef must resolve in Session::series_objects");
+                let series = cc.session().series_objects.get(*r).cloned().expect("SeriesRef must resolve in Session::series_objects");
                 series.to_term(cc)
             }
             Self::Gradient(g) => g.materialize_list_expression(cc),

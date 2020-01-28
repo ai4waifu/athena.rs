@@ -55,12 +55,7 @@ impl RuleSet {
     pub fn push(&mut self, pattern: TermId, replacement: TermId, debug_label: Option<&'static str>) -> RewriteRuleId {
         let id = RewriteRuleId(self.next_id);
         self.next_id = self.next_id.saturating_add(1);
-        self.rules.push(RewriteRule {
-            id,
-            pattern,
-            replacement,
-            debug_label,
-        });
+        self.rules.push(RewriteRule { id, pattern, replacement, debug_label });
         id
     }
 

@@ -43,11 +43,7 @@ impl ProofForest {
 
     /// Record a justified equality (does not itself admit M-Graph facts).
     pub fn record(&mut self, left: TermId, right: TermId, step_kind: ProofStepKind) {
-        self.edges.push(ProofEdge {
-            left,
-            right,
-            step_kind,
-        });
+        self.edges.push(ProofEdge { left, right, step_kind });
     }
 
     /// Edge count.

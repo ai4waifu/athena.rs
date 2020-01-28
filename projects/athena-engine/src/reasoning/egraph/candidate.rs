@@ -26,10 +26,6 @@ pub struct CandidateEquivalence {
 impl CandidateEquivalence {
     /// Local rewrite witness when this candidate came from a [`RewriteRuleId`].
     pub fn local_witness(&self) -> Option<LocalRewriteWitness> {
-        Some(LocalRewriteWitness {
-            rule: self.rule?,
-            subject: self.left_term,
-            produced: self.right_term,
-        })
+        Some(LocalRewriteWitness { rule: self.rule?, subject: self.left_term, produced: self.right_term })
     }
 }

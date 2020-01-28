@@ -59,10 +59,7 @@ impl EGraph {
 
     /// Number of distinct e-class roots.
     pub fn eclass_count(&self) -> usize {
-        (0..self.parent.len())
-            .map(|i| self.find(EClassId(i as u32)).0)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
+        (0..self.parent.len()).map(|i| self.find(EClassId(i as u32)).0).collect::<std::collections::BTreeSet<_>>().len()
     }
 
     /// Find representative e-class.
@@ -85,11 +82,7 @@ impl EGraph {
             return false;
         }
         // Prefer lower id as root (deterministic).
-        let (keep, drop) = if root_left.0 <= root_right.0 {
-            (root_left, root_right)
-        } else {
-            (root_right, root_left)
-        };
+        let (keep, drop) = if root_left.0 <= root_right.0 { (root_left, root_right) } else { (root_right, root_left) };
         if let Some(slot) = self.parent.get_mut(drop.0 as usize) {
             *slot = keep;
         }
@@ -175,11 +168,7 @@ impl EGraph {
         }
         let class = self.alloc_class();
         let enode_id = ENodeId(self.enodes.len() as u32);
-        self.enodes.push(ENode {
-            key: key.clone(),
-            term: Some(term),
-            eclass: class,
-        });
+        self.enodes.push(ENode { key: key.clone(), term: Some(term), eclass: class });
         self.by_key.insert(key, enode_id);
         class
     }

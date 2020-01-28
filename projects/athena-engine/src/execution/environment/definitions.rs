@@ -75,13 +75,7 @@ impl DefinitionLayer {
     }
 
     /// 以用户符号拥有 extension 规则表（清除该符号值绑定，记录拥有关系）。
-    pub fn register_extension_rule_for_symbol(
-        &mut self,
-        symbol: SymbolId,
-        op: ExtensionOperatorId,
-        pattern: TermPattern,
-        replacement: TermId,
-    ) {
+    pub fn register_extension_rule_for_symbol(&mut self, symbol: SymbolId, op: ExtensionOperatorId, pattern: TermPattern, replacement: TermId) {
         self.bindings.remove(&symbol);
         self.residual_bindings.remove(&symbol);
         self.extension_rule_owners.insert(symbol, op);
@@ -136,9 +130,7 @@ impl DefinitionLayer {
 
     /// 层内是否存在该符号的任何绑定或规则拥有关系。
     pub fn defines(&self, symbol: SymbolId) -> bool {
-        self.bindings.contains_key(&symbol)
-            || self.residual_bindings.contains_key(&symbol)
-            || self.extension_rule_owners.contains_key(&symbol)
+        self.bindings.contains_key(&symbol) || self.residual_bindings.contains_key(&symbol) || self.extension_rule_owners.contains_key(&symbol)
     }
 
     fn ensure_table_for_operator(&mut self, op: ExtensionOperatorId) -> DispatchTableId {

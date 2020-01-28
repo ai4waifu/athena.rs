@@ -76,10 +76,7 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
                 }
             }
         }
-        if is_sem(*head, SemanticOperator::Add)
-            && arguments.len() == 1
-            && is_math_constant(session, arguments[0], MathematicalConstant::Pi)
-        {
+        if is_sem(*head, SemanticOperator::Add) && arguments.len() == 1 && is_math_constant(session, arguments[0], MathematicalConstant::Pi) {
             return Some(1);
         }
     }
@@ -184,14 +181,10 @@ pub(crate) fn range_int_terms(session: &mut Session, a: i64, b: i64, step: i64) 
 pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -> TermId {
     match session.arena.get(head) {
         // 0-ary semantic / extension application used as an operator value (not a Symbol name).
-        Some(athena_ir::TermNode::Application {
-            head: ApplicationHead::Semantic(op),
-            arguments,
-        }) if arguments.is_empty() => push_semantic(session, *op, args),
-        Some(athena_ir::TermNode::Application {
-            head: ApplicationHead::Extension(id),
-            arguments,
-        }) if arguments.is_empty() => {
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(op), arguments }) if arguments.is_empty() => {
+            push_semantic(session, *op, args)
+        }
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Extension(id), arguments }) if arguments.is_empty() => {
             let id = *id;
             let mut b = TermBuilder::new(&mut session.arena);
             b.application_extension_id(id, args, athena_ir::TermNode::default_span())
@@ -262,10 +255,16 @@ pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Op
         return None;
     }
     let (a, b) = (arguments[0], arguments[1]);
-    if is_trig_sq_session(session, a, UnaryFunction::Sin) && is_trig_sq_session(session, b, UnaryFunction::Cos) && same_trig_arg_session(session, a, b) {
+    if is_trig_sq_session(session, a, UnaryFunction::Sin)
+        && is_trig_sq_session(session, b, UnaryFunction::Cos)
+        && same_trig_arg_session(session, a, b)
+    {
         return Some(session.builder().int(1, Default::default()));
     }
-    if is_trig_sq_session(session, a, UnaryFunction::Cos) && is_trig_sq_session(session, b, UnaryFunction::Sin) && same_trig_arg_session(session, a, b) {
+    if is_trig_sq_session(session, a, UnaryFunction::Cos)
+        && is_trig_sq_session(session, b, UnaryFunction::Sin)
+        && same_trig_arg_session(session, a, b)
+    {
         return Some(session.builder().int(1, Default::default()));
     }
     None

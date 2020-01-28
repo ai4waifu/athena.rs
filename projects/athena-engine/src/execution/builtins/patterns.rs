@@ -35,10 +35,9 @@ pub(crate) fn structural_pattern_from_term(session: &Session, pat: TermId) -> Te
         return TermPattern::Exact(pat);
     };
     match shape {
-        Shape::Application(op, args) => TermPattern::Application {
-            operator: op,
-            arguments: args.into_iter().map(|a| structural_pattern_from_term(session, a)).collect(),
-        },
+        Shape::Application(op, args) => {
+            TermPattern::Application { operator: op, arguments: args.into_iter().map(|a| structural_pattern_from_term(session, a)).collect() }
+        }
         Shape::Collection(items) => TermPattern::Sequence(items.into_iter().map(|i| structural_pattern_from_term(session, i)).collect()),
         _ => TermPattern::Exact(pat),
     }

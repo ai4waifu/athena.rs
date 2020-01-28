@@ -44,18 +44,12 @@ pub struct CongruenceIndex {
 impl CongruenceIndex {
     /// 在给定模数指纹下合并两操作数指纹（单调：只 union）。
     pub fn union(&mut self, modulus_fingerprint: u64, left: u64, right: u64) {
-        self.by_modulus
-            .entry(modulus_fingerprint)
-            .or_default()
-            .union(left, right);
+        self.by_modulus.entry(modulus_fingerprint).or_default().union(left, right);
     }
 
     /// 在给定模数指纹下查代表元。
     pub fn find(&self, modulus_fingerprint: u64, id: u64) -> u64 {
-        self.by_modulus
-            .get(&modulus_fingerprint)
-            .map(|classes| classes.find(id))
-            .unwrap_or(id)
+        self.by_modulus.get(&modulus_fingerprint).map(|classes| classes.find(id)).unwrap_or(id)
     }
 
     /// 已记录 union 边数（跨所有模数）。
@@ -71,11 +65,7 @@ impl CongruenceIndex {
 
 /// 构造同余命题（模数 + 左右 stable 指纹）。
 pub fn congruence_proposition(modulus_fingerprint: u64, left: u64, right: u64) -> crate::reasoning::mgraph::facts::claim::Proposition {
-    crate::reasoning::mgraph::facts::claim::Proposition::Congruence {
-        modulus_fingerprint,
-        left,
-        right,
-    }
+    crate::reasoning::mgraph::facts::claim::Proposition::Congruence { modulus_fingerprint, left, right }
 }
 
 #[cfg(test)]

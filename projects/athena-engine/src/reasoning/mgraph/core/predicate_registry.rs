@@ -19,41 +19,13 @@ pub struct PredicateDescriptor {
 }
 
 const DESCRIPTORS: &[PredicateDescriptor] = &[
-    PredicateDescriptor {
-        id: predicates::POLYNOMIAL_RESULT,
-        theory: TheoryContextId::POLYNOMIAL,
-        subject_arity: 1..=1,
-    },
-    PredicateDescriptor {
-        id: predicates::CONGRUENCE,
-        theory: TheoryContextId::CONGRUENCE,
-        subject_arity: 3..=3,
-    },
-    PredicateDescriptor {
-        id: predicates::REWRITE_EQUIVALENT,
-        theory: TheoryContextId::REWRITE,
-        subject_arity: 2..=2,
-    },
-    PredicateDescriptor {
-        id: predicates::EVALUATION_RESULT,
-        theory: TheoryContextId::DEFAULT,
-        subject_arity: 2..=2,
-    },
-    PredicateDescriptor {
-        id: predicates::DERIVATIVE_OF,
-        theory: TheoryContextId::CALCULUS,
-        subject_arity: 3..=3,
-    },
-    PredicateDescriptor {
-        id: predicates::SERIES_EXPANSION,
-        theory: TheoryContextId::CALCULUS,
-        subject_arity: 3..=3,
-    },
-    PredicateDescriptor {
-        id: predicates::INTEGRAL_OF,
-        theory: TheoryContextId::CALCULUS,
-        subject_arity: 3..=3,
-    },
+    PredicateDescriptor { id: predicates::POLYNOMIAL_RESULT, theory: TheoryContextId::POLYNOMIAL, subject_arity: 1..=1 },
+    PredicateDescriptor { id: predicates::CONGRUENCE, theory: TheoryContextId::CONGRUENCE, subject_arity: 3..=3 },
+    PredicateDescriptor { id: predicates::REWRITE_EQUIVALENT, theory: TheoryContextId::REWRITE, subject_arity: 2..=2 },
+    PredicateDescriptor { id: predicates::EVALUATION_RESULT, theory: TheoryContextId::DEFAULT, subject_arity: 2..=2 },
+    PredicateDescriptor { id: predicates::DERIVATIVE_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
+    PredicateDescriptor { id: predicates::SERIES_EXPANSION, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
+    PredicateDescriptor { id: predicates::INTEGRAL_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
 ];
 
 /// Look up a closed predicate descriptor.

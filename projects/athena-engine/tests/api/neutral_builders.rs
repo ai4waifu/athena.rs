@@ -32,10 +32,7 @@ fn unary_sin_uses_closed_identity() {
         t.unary_function(UnaryFunction::Sin, x)
     };
     match fx.session().arena.get(term) {
-        Some(TermNode::Application {
-            head: ApplicationHead::Semantic(op),
-            ..
-        }) => {
+        Some(TermNode::Application { head: ApplicationHead::Semantic(op), .. }) => {
             assert_eq!(op.as_unary(), Some(UnaryFunction::Sin));
         }
         other => panic!("expected unary Sin application, got {other:?}"),

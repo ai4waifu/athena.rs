@@ -2,22 +2,28 @@
 
 use std::collections::HashMap;
 
-use athena_numeric::{
-    Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
-};
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
+use athena_numeric::{Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Result, SymbolId, TermId};
 
-use super::super::{ReferenceExecutor, Slot};
-use super::super::helpers::*;
+use super::super::{ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_extension, push_number, push_semantic},
-    runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
+    runtime::{
+        session::Session,
+        values::{arena::push_list, numeric_clone::clone_number},
+    },
 };
 
 impl ReferenceExecutor {
-    pub(crate) fn eval_unary_term_op(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_unary_term_op(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -163,16 +169,18 @@ impl ReferenceExecutor {
                 let ok = match &pattern {
                     crate::reasoning::trs::TermPattern::Application { operator, arguments } => {
                         *operator == call_op && arguments.len() == terms.len() && {
-                            arguments.iter().zip(terms.iter()).all(|(p, a)| {
-                                crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds)
-                            })
+                            arguments
+                                .iter()
+                                .zip(terms.iter())
+                                .all(|(p, a)| crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds))
                         }
                     }
                     crate::reasoning::trs::TermPattern::StructuralApplication(arguments) => {
                         arguments.len() == terms.len()
-                            && arguments.iter().zip(terms.iter()).all(|(p, a)| {
-                                crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds)
-                            })
+                            && arguments
+                                .iter()
+                                .zip(terms.iter())
+                                .all(|(p, a)| crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds))
                     }
                     _ => false,
                 };
@@ -211,7 +219,13 @@ impl ReferenceExecutor {
         Ok(Slot::Term(evaluated))
     }
 
-    pub(crate) fn eval_rule(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_rule(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -341,14 +355,16 @@ impl ReferenceExecutor {
             return true;
         }
         match session.arena.get(func) {
-            Some(athena_ir::TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Function),
-                arguments,
-            }) if arguments.len() == 2 => true,
-            Some(athena_ir::TermNode::Application {
-                head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_),
-                arguments,
-            }) if arguments.is_empty() => true,
+            Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), arguments })
+                if arguments.len() == 2 =>
+            {
+                true
+            }
+            Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_), arguments })
+                if arguments.is_empty() =>
+            {
+                true
+            }
             _ => false,
         }
     }

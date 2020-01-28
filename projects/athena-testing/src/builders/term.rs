@@ -1,7 +1,9 @@
 //! Typed term construction — only [`SemanticOperator`] / [`UnaryFunction`] / collections.
 
-use athena_engine::Session;
-use athena_engine::runtime::values::arena::{push_constant, push_int, push_semantic, push_symbol_name};
+use athena_engine::{
+    Session,
+    runtime::values::arena::{push_constant, push_int, push_semantic, push_symbol_name},
+};
 use athena_ir::{MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::{CollectionKind, SymbolId, TermId};
 
@@ -39,13 +41,9 @@ impl<'a> TermBuilder<'a> {
     /// Ordered collection with explicit [`CollectionKind::OrderedCollection`].
     pub fn ordered(&mut self, elements: impl IntoIterator<Item = TermId>) -> TermId {
         let span = TermNode::default_span();
-        self.session.arena.push(
-            TermNode::Collection {
-                kind: CollectionKind::OrderedCollection,
-                elements: elements.into_iter().collect(),
-            },
-            span,
-        )
+        self.session
+            .arena
+            .push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: elements.into_iter().collect() }, span)
     }
 
     /// `SemanticOperator::Add`.

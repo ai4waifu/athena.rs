@@ -1,7 +1,7 @@
 //! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 Living `25`）。
 
 use athena_ir::SemanticOperator;
-use athena_types::{SymbolId, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
     result::CalculusResult,
@@ -43,21 +43,12 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
             // 若余项未知且无主部，不假装精确 0
             if matches!(series.remainder, Remainder::Unknown) && pole_order == 0 && is_zero_like(cc, value) {
                 return CalculusResult::Unevaluated {
-                    expression: Residue {
-                        expression,
-                        variable,
-                        point,
-                        value: residue_echo(cc, expression, variable, point),
-                        pole_order: 0,
-                    },
+                    expression: Residue { expression, variable, point, value: residue_echo(cc, expression, variable, point), pole_order: 0 },
                     reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
                 };
             }
             let _ = conditions;
-            CalculusResult::Exact {
-                value: Residue { expression, variable, point, value, pole_order },
-                conditions: Vec::new(),
-            }
+            CalculusResult::Exact { value: Residue { expression, variable, point, value, pole_order }, conditions: Vec::new() }
         }
         CalculusResult::Conditional { value: series, conditions } => {
             let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
@@ -65,13 +56,7 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
             CalculusResult::Conditional { value: Residue { expression, variable, point, value, pole_order }, conditions }
         }
         CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
-            expression: Residue {
-                expression,
-                variable,
-                point,
-                value: residue_echo(cc, expression, variable, point),
-                pole_order: 0,
-            },
+            expression: Residue { expression, variable, point, value: residue_echo(cc, expression, variable, point), pole_order: 0 },
             reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
         },
     }

@@ -3,8 +3,7 @@
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{CollectionKind, Predicate, SymbolId, TermId};
 
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::builtins::registry::lookup_unary;
+use crate::{domains::context::DomainExecutionContext, execution::builtins::registry::lookup_unary};
 
 use super::result::{ConditionalResult, unresolved};
 
@@ -77,9 +76,7 @@ fn differentiate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: 
                 let binv = dc.apply_semantic(SemanticOperator::Power, vec![b, dc.in_(-2)]);
                 dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![plus, binv]))
             }
-            ApplicationHead::Semantic(SemanticOperator::Abs | SemanticOperator::Sqrt) if args.len() == 1 => {
-                residual_diff(dc, expr, var)
-            }
+            ApplicationHead::Semantic(SemanticOperator::Abs | SemanticOperator::Sqrt) if args.len() == 1 => residual_diff(dc, expr, var),
             ApplicationHead::Semantic(op) => {
                 if let Some(uf) = op.as_unary() {
                     if let Some(def) = lookup_unary(uf) {

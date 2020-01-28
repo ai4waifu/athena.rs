@@ -213,9 +213,7 @@ pub(crate) fn combine_like_powers_session(session: &mut Session, factors: Vec<Te
     let mut rest = Vec::new();
     for f in factors {
         let base_exp = match session.arena.get(f) {
-            Some(athena_ir::TermNode::Application { head, arguments })
-                if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 =>
-            {
+            Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 => {
                 Some((arguments[0], arguments[1]))
             }
             Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_))) => Some((f, session.builder().int(1, Default::default()))),
@@ -315,7 +313,8 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
                     let args = arguments.clone();
                     if let Some(c) = number_of(session, args[0]) {
                         if let Ok(cp) = num_pow(c, e) {
-                            let rest = if args.len() == 2 { args[1] } else { push_semantic(session, SemanticOperator::Multiply, args[1..].to_vec()) };
+                            let rest =
+                                if args.len() == 2 { args[1] } else { push_semantic(session, SemanticOperator::Multiply, args[1..].to_vec()) };
                             let rest_pow = fold_power_symbolic(session, vec![rest, exp]);
                             let cp_id = push_number(session, cp);
                             return fold_times_symbolic(session, vec![cp_id, rest_pow]);

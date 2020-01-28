@@ -3,13 +3,12 @@
 use athena_ir::{Atom, TermNode};
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, TermId};
 
-use super::{ExecutionCompiler, ModuleBuilder};
-use super::helpers::expand_span_range;
+use super::{ExecutionCompiler, ModuleBuilder, helpers::expand_span_range};
 use crate::{
     api::request::{AthenaRequest, ControlPlan, SessionCommand},
-    execution::builtins::patterns::substitute_symbol,
-    execution::ir::{
-        BasicBlock, BlockEdge, BlockId, ConstantValue, EffectKind, ExecutionValueType, Operation, OperationKind, SsaValueId, Terminator,
+    execution::{
+        builtins::patterns::substitute_symbol,
+        ir::{BasicBlock, BlockEdge, BlockId, ConstantValue, EffectKind, ExecutionValueType, Operation, OperationKind, SsaValueId, Terminator},
     },
     runtime::session::Session,
 };
@@ -43,9 +42,7 @@ impl ExecutionCompiler {
             }
             ControlPlan::Index { target, axes } => self.lower_index(session, builder, blocks, block_id, *target, axes),
             ControlPlan::Match { target, pattern } => self.lower_match_pattern(session, builder, blocks, block_id, *target, pattern),
-            ControlPlan::CollectMatches { source, pattern } => {
-                self.lower_collect_matches(session, builder, blocks, block_id, *source, pattern)
-            }
+            ControlPlan::CollectMatches { source, pattern } => self.lower_collect_matches(session, builder, blocks, block_id, *source, pattern),
         }
     }
 
@@ -122,10 +119,7 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(indexed),
                     result_type: ExecutionValueType::Term,
-                    kind: OperationKind::Index {
-                        target: load,
-                        axes: axes.to_vec(),
-                    },
+                    kind: OperationKind::Index { target: load, axes: axes.to_vec() },
                     effect_in: None,
                     effect_out: None,
                 },
@@ -376,12 +370,7 @@ impl ExecutionCompiler {
         Ok(exit_param)
     }
 
-    pub(crate) fn lower_reject(
-        &self,
-        builder: &mut ModuleBuilder,
-        blocks: &mut Vec<BasicBlock>,
-        block_id: BlockId,
-    ) -> Result<SsaValueId> {
+    pub(crate) fn lower_reject(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, block_id: BlockId) -> Result<SsaValueId> {
         let placeholder = builder.ssa();
         let constant = builder.push_constant(ConstantValue::Unit);
         blocks.push(BasicBlock {
@@ -842,5 +831,4 @@ impl ExecutionCompiler {
         });
         Ok(then_value)
     }
-
 }

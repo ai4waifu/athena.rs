@@ -15,24 +15,14 @@ pub struct SaturationBudget {
 
 impl Default for SaturationBudget {
     fn default() -> Self {
-        Self {
-            max_eclasses: 1_024,
-            max_enodes: 4_096,
-            max_iterations: 64,
-            max_candidate_unions: 512,
-        }
+        Self { max_eclasses: 1_024, max_enodes: 4_096, max_iterations: 64, max_candidate_unions: 512 }
     }
 }
 
 impl SaturationBudget {
     /// Tiny budget for smoke / contract tests.
     pub const fn smoke() -> Self {
-        Self {
-            max_eclasses: 32,
-            max_enodes: 128,
-            max_iterations: 8,
-            max_candidate_unions: 16,
-        }
+        Self { max_eclasses: 32, max_enodes: 128, max_iterations: 8, max_candidate_unions: 16 }
     }
 }
 

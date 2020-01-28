@@ -6,11 +6,13 @@ use athena_ir::SemanticOperator;
 use athena_numeric::{Number, compare as num_compare};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use super::diag;
-use super::super::Slot;
+use super::{super::Slot, diag};
 use crate::{
     execution::{number_of, push_number, push_semantic},
-    runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_number},
+    runtime::{
+        session::Session,
+        values::{arena::push_list, numeric_clone::clone_number},
+    },
 };
 
 pub(crate) fn compare_list_broadcast(
@@ -78,9 +80,7 @@ pub(crate) fn compare_pair_term(
     if matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { elements: _, .. }))
         || matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { elements: _, .. }))
     {
-        return Ok(
-            compare_list_broadcast(session, op, left, right, pick)?.unwrap_or_else(|| push_semantic(session, op, vec![left, right])),
-        );
+        return Ok(compare_list_broadcast(session, op, left, right, pick)?.unwrap_or_else(|| push_semantic(session, op, vec![left, right])));
     }
     match (number_of(session, left).map(clone_number), number_of(session, right).map(clone_number)) {
         (Some(a), Some(b)) => {

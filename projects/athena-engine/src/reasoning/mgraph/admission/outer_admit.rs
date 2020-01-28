@@ -9,9 +9,7 @@ use athena_ir::TermStore;
 use crate::reasoning::mgraph::{
     admission::{AdmissionGate, AdmissionRejectReason, OuterCandidate, VerificationPolicy},
     core::{state::MGraphState, types::CapabilityProviderId},
-    facts::claim::{
-        Claim, Evidence, EvidenceCertificate, Guarantee, Proposition,
-    },
+    facts::claim::{Claim, Evidence, EvidenceCertificate, Guarantee, Proposition},
 };
 
 /// Capability provider for OuterCandidate structural upgrades.
@@ -30,11 +28,7 @@ pub struct OuterAdmitReport {
 ///
 /// Non-matching / non-TermEquality candidates stay in `outer_candidates`.
 /// Does **not** invent proofs for rewrite-shaped inequalities.
-pub fn admit_outer_pool_if_structural(
-    store: &TermStore,
-    state: &mut MGraphState,
-    policy: &VerificationPolicy,
-) -> OuterAdmitReport {
+pub fn admit_outer_pool_if_structural(store: &TermStore, state: &mut MGraphState, policy: &VerificationPolicy) -> OuterAdmitReport {
     let pending = std::mem::take(&mut state.operational.outer_candidates);
     let mut retained = Vec::new();
     let mut admitted = 0u32;
@@ -46,10 +40,7 @@ pub fn admit_outer_pool_if_structural(
     }
     let retained_count = retained.len() as u32;
     state.operational.outer_candidates = retained;
-    OuterAdmitReport {
-        admitted,
-        retained: retained_count,
-    }
+    OuterAdmitReport { admitted, retained: retained_count }
 }
 
 fn try_admit_outer_if_structural(
@@ -58,7 +49,8 @@ fn try_admit_outer_if_structural(
     outer: &OuterCandidate,
     policy: &VerificationPolicy,
 ) -> Result<(), AdmissionRejectReason> {
-    let Proposition::TermEquality { left, right } = outer.claim.proposition else {
+    let Proposition::TermEquality { left, right } = outer.claim.proposition
+    else {
         return Err(AdmissionRejectReason::NotExact);
     };
     if !store.structural_eq(left, right) {
@@ -82,9 +74,7 @@ mod tests {
     use athena_ir::{Atom, TermNode};
     use athena_types::SourceSpan;
 
-    use crate::reasoning::mgraph::{
-        HyperEdge, Scope, drain_hyper_edges_to_outer_pool, predicates,
-    };
+    use crate::reasoning::mgraph::{HyperEdge, Scope, drain_hyper_edges_to_outer_pool, predicates};
 
     use super::*;
 
@@ -92,21 +82,12 @@ mod tests {
     fn structural_outer_pair_admits_and_clears_pool() {
         let mut store = athena_ir::TermStore::new();
         let span = SourceSpan::default();
-        let a = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(7))),
-            span,
-        );
-        let b = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(7))),
-            span,
-        );
+        let a = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(7))), span);
+        let b = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(7))), span);
         assert_eq!(a, b);
 
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![a, b],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![a, b], predicate: predicates::REWRITE_EQUIVALENT });
         assert_eq!(drain_hyper_edges_to_outer_pool(&store, &mut state).staged, 1);
         assert_eq!(state.operational.outer_candidates.len(), 1);
 
@@ -133,9 +114,7 @@ mod tests {
             guarantee: Guarantee::Candidate,
             evidence: Evidence::TrustedKernel {
                 provider: OUTER_STRUCTURAL_PROVIDER_ID,
-                certificate: EvidenceCertificate::Rejected {
-                    guarantee: Guarantee::Candidate,
-                },
+                certificate: EvidenceCertificate::Rejected { guarantee: Guarantee::Candidate },
                 summary: "unequal".into(),
             },
         }));

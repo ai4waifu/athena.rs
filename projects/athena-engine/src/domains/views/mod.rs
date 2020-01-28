@@ -56,18 +56,7 @@ pub struct TypedViewHeader {
 
 impl TypedViewHeader {
     /// 构造头。
-    pub const fn new(
-        source: ObjectRef,
-        kind: ViewKind,
-        source_revision: ViewRevision,
-        fingerprint: ViewFingerprint,
-    ) -> Self {
-        Self {
-            source,
-            kind,
-            source_revision,
-            fingerprint,
-            lease: LeaseSet { active: false },
-        }
+    pub const fn new(source: ObjectRef, kind: ViewKind, source_revision: ViewRevision, fingerprint: ViewFingerprint) -> Self {
+        Self { source, kind, source_revision, fingerprint, lease: LeaseSet { active: false } }
     }
 }

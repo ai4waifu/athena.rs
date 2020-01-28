@@ -113,7 +113,8 @@ fn deriv_tanh(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
 
 fn deriv_arcsin(cc: &mut DomainExecutionContext<'_>, arg: TermId) -> TermId {
     let u2 = cc.apply_semantic(SemanticOperator::Power, vec![arg, cc.in_(2)]);
-    let one_minus = cc.apply_semantic(SemanticOperator::Add, vec![cc.in_(1), cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), u2])]);
+    let one_minus =
+        cc.apply_semantic(SemanticOperator::Add, vec![cc.in_(1), cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), u2])]);
     let sqrt = cc.apply_semantic(SemanticOperator::Sqrt, vec![one_minus]);
     cc.apply_semantic(SemanticOperator::Power, vec![sqrt, cc.in_(-1)])
 }

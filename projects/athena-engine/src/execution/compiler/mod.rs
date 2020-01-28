@@ -21,11 +21,10 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct ExecutionCompiler {}
 
-
 mod builder;
-mod helpers;
 mod control;
 mod define;
+mod helpers;
 
 use builder::ModuleBuilder;
 use helpers::{collect_compare_chain_args, flatten_compare_chain_args};
@@ -78,13 +77,7 @@ impl ExecutionCompiler {
         block_id: BlockId,
         term: TermId,
     ) -> Result<SsaValueId> {
-        if matches!(
-            session.arena.get(term),
-            Some(TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Hold),
-                ..
-            })
-        ) {
+        if matches!(session.arena.get(term), Some(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Hold), .. })) {
             return self.lower_held_term(builder, blocks, block_id, term);
         }
         self.lower_term_into_block(session, builder, blocks, block_id, term)
@@ -169,7 +162,15 @@ impl ExecutionCompiler {
                     return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, *evaluation);
                 }
                 match session.arena.get(*value) {
-                    Some(TermNode::Atom(_)) => self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, BindingEvaluationPolicy::EvaluateBeforeStore),
+                    Some(TermNode::Atom(_)) => self.lower_define_capture(
+                        session,
+                        builder,
+                        blocks,
+                        block_id,
+                        *symbol,
+                        *value,
+                        BindingEvaluationPolicy::EvaluateBeforeStore,
+                    ),
                     Some(_) => self.lower_define_evaluated(session, builder, blocks, block_id, *symbol, *value),
                     None => Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
                         .detail("component", "ExecutionCompiler")
@@ -186,10 +187,7 @@ impl ExecutionCompiler {
                     operations: vec![Operation {
                         result: Some(unit),
                         result_type: ExecutionValueType::Unit,
-                        kind: OperationKind::RegisterCompiledRule {
-                            table: *table,
-                            rule: *rule,
-                        },
+                        kind: OperationKind::RegisterCompiledRule { table: *table, rule: *rule },
                         effect_in: Some(effect_in),
                         effect_out: Some(effect_out),
                     }],
@@ -323,13 +321,11 @@ impl ExecutionCompiler {
                     ApplicationHead::Semantic(op) => {
                         let compare_args = if matches!(
                             op,
-                            SemanticOperator::Less
-                                | SemanticOperator::Greater
-                                | SemanticOperator::LessEqual
-                                | SemanticOperator::GreaterEqual
+                            SemanticOperator::Less | SemanticOperator::Greater | SemanticOperator::LessEqual | SemanticOperator::GreaterEqual
                         ) {
                             flatten_compare_chain_args(session, op, term)
-                        } else {
+                        }
+                        else {
                             None
                         };
                         let arg_terms = compare_args.unwrap_or(arguments);
@@ -351,8 +347,7 @@ impl ExecutionCompiler {
                         let hold_first = op == SemanticOperator::Product
                             || (op == SemanticOperator::Sum && arg_terms.len() == 2)
                             || matches!(op, SemanticOperator::Apply | SemanticOperator::Map);
-                        let hold_second = matches!(op, SemanticOperator::CollectMatches | SemanticOperator::Matches)
-                            && arg_terms.len() >= 2;
+                        let hold_second = matches!(op, SemanticOperator::CollectMatches | SemanticOperator::Matches) && arg_terms.len() >= 2;
                         let mut args = Vec::with_capacity(arg_terms.len());
                         for (index, arg) in arg_terms.into_iter().enumerate() {
                             if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
@@ -366,7 +361,8 @@ impl ExecutionCompiler {
                                     effect_out: None,
                                 });
                                 args.push(ssa);
-                            } else {
+                            }
+                            else {
                                 args.push(self.lower_pure_expr(session, builder, operations, arg)?);
                             }
                         }
@@ -460,7 +456,6 @@ impl ExecutionCompiler {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests;

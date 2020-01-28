@@ -24,6 +24,5 @@ pub use plan_exec::{PlanStepReport, interpret_domain_plan};
 pub use planner::{DomainPlan, PlanStep, plan_domain};
 pub use verify_replay::{VerifySnapshot, verify_recompute_domain_result};
 pub use views::{
-    GraphMatrixView, LeaseSet, PolynomialMatrixView, SeriesPolynomialView, TypedViewHeader, ViewFingerprint,
-    ViewKind, ViewRevision,
+    GraphMatrixView, LeaseSet, PolynomialMatrixView, SeriesPolynomialView, TypedViewHeader, ViewFingerprint, ViewKind, ViewRevision,
 };

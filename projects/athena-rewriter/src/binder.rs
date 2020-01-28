@@ -16,12 +16,7 @@ pub type PatternBindings = HashMap<SymbolId, TermId>;
 ///
 /// [`TermPattern::Bind`] is consistent: a repeated name must refer to structurally
 /// equal terms.
-pub fn match_pattern(
-    store: &TermStore,
-    expr: TermId,
-    pattern: &TermPattern,
-    binds: &mut PatternBindings,
-) -> bool {
+pub fn match_pattern(store: &TermStore, expr: TermId, pattern: &TermPattern, binds: &mut PatternBindings) -> bool {
     match pattern {
         TermPattern::Any => true,
         TermPattern::Bind { name, inner } => {
@@ -42,9 +37,7 @@ pub fn match_pattern(
             _ => false,
         },
         TermPattern::Application { operator, arguments } => match store.get(expr) {
-            Some(TermNode::Application { head, arguments: args }) => {
-                head == operator && zip_match(store, args, arguments, binds)
-            }
+            Some(TermNode::Application { head, arguments: args }) => head == operator && zip_match(store, args, arguments, binds),
             _ => false,
         },
         TermPattern::StructuralApplication(items) => match store.get(expr) {
@@ -61,10 +54,7 @@ fn zip_match(store: &TermStore, exprs: &[TermId], patterns: &[TermPattern], bind
     if exprs.len() != patterns.len() {
         return false;
     }
-    exprs
-        .iter()
-        .zip(patterns.iter())
-        .all(|(e, p)| match_pattern(store, *e, p, binds))
+    exprs.iter().zip(patterns.iter()).all(|(e, p)| match_pattern(store, *e, p, binds))
 }
 
 fn constraint_holds(store: &TermStore, expr: TermId, constraint: &PatternConstraint) -> bool {
@@ -116,21 +106,13 @@ pub fn substitute(store: &mut TermStore, template: TermId, binds: &PatternBindin
             let kind = *kind;
             let elements = elements.clone();
             let out: Vec<TermId> = elements.iter().map(|e| substitute(store, *e, binds)).collect();
-            if out == elements {
-                template
-            } else {
-                store.push(TermNode::Collection { kind, elements: out }, span)
-            }
+            if out == elements { template } else { store.push(TermNode::Collection { kind, elements: out }, span) }
         }
         Some(TermNode::Application { head, arguments }) => {
             let head = *head;
             let arguments = arguments.clone();
             let out: Vec<TermId> = arguments.iter().map(|a| substitute(store, *a, binds)).collect();
-            if out == arguments {
-                template
-            } else {
-                store.push(TermNode::Application { head, arguments: out }, span)
-            }
+            if out == arguments { template } else { store.push(TermNode::Application { head, arguments: out }, span) }
         }
     }
 }
@@ -147,40 +129,18 @@ mod tests {
     fn bind_is_consistent_across_repeated_names() {
         let mut store = TermStore::new();
         let span = SourceSpan::default();
-        let one = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-            span,
-        );
-        let two = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))),
-            span,
-        );
+        let one = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
+        let two = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))), span);
         let x = store.symbols_mut().intern("x");
-        let same = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![one, one],
-            },
-            span,
-        );
-        let diff = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![one, two],
-            },
-            span,
-        );
+        let same =
+            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
+        let diff =
+            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, two] }, span);
         let pattern = TermPattern::Application {
             operator: ApplicationHead::Semantic(SemanticOperator::Add),
             arguments: vec![
-                TermPattern::Bind {
-                    name: x,
-                    inner: Box::new(TermPattern::Any),
-                },
-                TermPattern::Bind {
-                    name: x,
-                    inner: Box::new(TermPattern::Any),
-                },
+                TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
+                TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
             ],
         };
         let mut binds = PatternBindings::new();
@@ -195,21 +155,9 @@ mod tests {
     fn sequence_matches_ordered_collection() {
         let mut store = TermStore::new();
         let span = SourceSpan::default();
-        let a = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-            span,
-        );
-        let b = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))),
-            span,
-        );
-        let list = store.push(
-            TermNode::Collection {
-                kind: CollectionKind::OrderedCollection,
-                elements: vec![a, b],
-            },
-            span,
-        );
+        let a = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
+        let b = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))), span);
+        let list = store.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, span);
         let pattern = TermPattern::Sequence(vec![TermPattern::Exact(a), TermPattern::Exact(b)]);
         let mut binds = PatternBindings::new();
         assert!(match_pattern(&store, list, &pattern, &mut binds));
@@ -223,28 +171,15 @@ mod tests {
         let y = store.symbols_mut().intern("y");
         let x_term = store.push(TermNode::Atom(Atom::Symbol(x)), span);
         let y_term = store.push(TermNode::Atom(Atom::Symbol(y)), span);
-        let one = store.push(
-            TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-            span,
-        );
-        let template = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![x_term, y_term],
-            },
-            span,
-        );
+        let one = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
+        let template =
+            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![x_term, y_term] }, span);
         let mut binds = PatternBindings::new();
         binds.insert(x, one);
         binds.insert(y, one);
         let out = substitute(&mut store, template, &binds);
-        let expected = store.push(
-            TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Add),
-                arguments: vec![one, one],
-            },
-            span,
-        );
+        let expected =
+            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
         assert_eq!(out, expected);
     }
 }

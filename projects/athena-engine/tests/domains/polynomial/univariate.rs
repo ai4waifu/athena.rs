@@ -1,8 +1,8 @@
 //! 单变量除法 · GCD · Resultant（ℤ / ℚ / 𝔽_p）。
 
 use athena_engine::domains::polynomial::{
-    CoefficientDomain, DivisionPolicy, MonomialOrder, PolynomialBuilder, PolynomialObjectStore, PolynomialRequest, PolynomialResult,
-    RingTable, execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
+    CoefficientDomain, DivisionPolicy, MonomialOrder, PolynomialBuilder, PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable,
+    execute_polynomial_with_rings, gcd_univariate, resultant_univariate,
 };
 use athena_numeric::{Integer, Number};
 use athena_types::SymbolId;
@@ -43,15 +43,8 @@ fn rational_univariate_division() {
     let mut store = PolynomialObjectStore::new();
     let dividend = store.intern(uni(&rings, ring, &[(1, 2), (-1, 0)]), &rings);
     let divisor = store.intern(uni(&rings, ring, &[(1, 1), (-1, 0)]), &rings);
-    let result = execute_polynomial_with_rings(
-        PolynomialRequest::Div {
-            dividend,
-            divisor,
-            policy: DivisionPolicy::FieldDivision,
-        },
-        &rings,
-        &store,
-    );
+    let result =
+        execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::FieldDivision }, &rings, &store);
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::UnivariateDivision(d) => {
@@ -73,15 +66,7 @@ fn integer_exact_division_rejects_nonzero_remainder() {
     let mut store = PolynomialObjectStore::new();
     let dividend = store.intern(uni(&rings, ring, &[(1, 1), (1, 0)]), &rings);
     let divisor = store.intern(uni(&rings, ring, &[(2, 1), (1, 0)]), &rings);
-    let err = execute_polynomial_with_rings(
-        PolynomialRequest::Div {
-            dividend,
-            divisor,
-            policy: DivisionPolicy::ExactOnly,
-        },
-        &rings,
-        &store,
-    );
+    let err = execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly }, &rings, &store);
     assert!(matches!(err, PolynomialResult::Unevaluated { .. }));
 }
 

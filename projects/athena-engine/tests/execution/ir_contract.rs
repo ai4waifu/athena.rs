@@ -37,11 +37,11 @@ fn define_emits_write_binding_effect_chain() {
     let module = compile(
         &mut session,
         AthenaRequest::Command(SessionCommand::Define {
-        symbol,
-        value,
-        kind: BindingKind::Session,
-        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
-    }),
+            symbol,
+            value,
+            kind: BindingKind::Session,
+            evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+        }),
     );
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::WriteBinding)));
     assert!(module.regions[0].blocks.iter().any(|b| {
@@ -75,10 +75,8 @@ fn loop_while_emits_budget_check_effect() {
     let mut session = Session::new();
     let cond = session.builder().boolean(false, Default::default());
     let body = session.builder().int(1, Default::default());
-    let module = compile(
-        &mut session,
-        AthenaRequest::Control(ControlPlan::LoopWhile { condition: cond, body: Box::new(AthenaRequest::Term(body)) }),
-    );
+    let module =
+        compile(&mut session, AthenaRequest::Control(ControlPlan::LoopWhile { condition: cond, body: Box::new(AthenaRequest::Term(body)) }));
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::BudgetCheck)));
     verify_module(&module).expect("loop budget");
 }
@@ -96,9 +94,12 @@ fn goal_provider_call_publishes_with_effect_pair() {
     assert_eq!(module.provider_calls.len(), 1);
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::CallProvider)));
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::PublishResult)));
-    assert!(module.regions[0].blocks.iter().any(|b| {
-        b.operations.iter().any(|op| matches!(op.kind, OperationKind::CallProvider { .. }) && op.effect_in.is_some())
-    }));
+    assert!(
+        module.regions[0]
+            .blocks
+            .iter()
+            .any(|b| { b.operations.iter().any(|op| matches!(op.kind, OperationKind::CallProvider { .. }) && op.effect_in.is_some()) })
+    );
     verify_module(&module).expect("provider effects");
 
     let result_id = athena_engine::execution::execute_ir_request(&mut session, make_request()).expect("execute");
@@ -127,30 +128,22 @@ fn collection_term_emits_construct_collection() {
     let list = session.builder().collection(CollectionKind::OrderedCollection, vec![a, b], Default::default());
     let module = compile(&mut session, AthenaRequest::Term(list));
     assert!(module.regions.iter().flat_map(|r| &r.blocks).any(|block| {
-        block.operations.iter().any(|op| {
-            matches!(
-                op.kind,
-                OperationKind::ConstructCollection {
-                    kind: CollectionKind::OrderedCollection,
-                    ..
-                }
-            )
-        })
+        block.operations.iter().any(|op| matches!(op.kind, OperationKind::ConstructCollection { kind: CollectionKind::OrderedCollection, .. }))
     }));
 }
 
 #[test]
 fn typed_pattern_constraint_rejects_non_integer() {
-    use athena_engine::execution::builtins::patterns::match_term_pattern;
-    use athena_engine::reasoning::trs::{PatternConstraint, TermPattern};
+    use athena_engine::{
+        execution::builtins::patterns::match_term_pattern,
+        reasoning::trs::{PatternConstraint, TermPattern},
+    };
     use athena_types::ValueTypeId;
     let mut session = Session::new();
     let n = session.builder().int(7, Default::default());
     let sym = session.builder().symbol("x", Default::default());
-    let pat = TermPattern::Constrained {
-        pattern: Box::new(TermPattern::Any),
-        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
-    };
+    let pat =
+        TermPattern::Constrained { pattern: Box::new(TermPattern::Any), constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger) };
     let mut binds = std::collections::HashMap::new();
     assert!(match_term_pattern(&session, n, &pat, &mut binds));
     assert!(!match_term_pattern(&session, sym, &pat, &mut binds));

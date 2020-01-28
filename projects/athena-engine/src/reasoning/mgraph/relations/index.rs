@@ -51,16 +51,7 @@ impl RelationRecord {
         Self::validate_predicate_subjects(predicate, theory, subjects.len())?;
         let provider = provider_from_evidence(&claim.claim.evidence);
         let witness = crate::reasoning::mgraph::facts::witness_ref_from_evidence(&claim.claim.evidence);
-        Ok(Self {
-            predicate,
-            subjects,
-            scope,
-            theory,
-            provider,
-            status,
-            witness,
-            verified: claim,
-        })
+        Ok(Self { predicate, subjects, scope, theory, provider, status, witness, verified: claim })
     }
 
     /// Check predicate registration and subject arity (Living `26`).
@@ -69,10 +60,10 @@ impl RelationRecord {
         theory: TheoryContextId,
         subject_count: usize,
     ) -> Result<(), crate::reasoning::mgraph::admission::AdmissionRejectReason> {
-        use crate::reasoning::mgraph::core::predicate_registry;
-        use crate::reasoning::mgraph::admission::AdmissionRejectReason;
+        use crate::reasoning::mgraph::{admission::AdmissionRejectReason, core::predicate_registry};
 
-        let Some(desc) = predicate_registry::descriptor(predicate) else {
+        let Some(desc) = predicate_registry::descriptor(predicate)
+        else {
             return Err(AdmissionRejectReason::MalformedRelation);
         };
         if desc.theory != theory || !desc.subject_arity.contains(&subject_count) {
@@ -104,12 +95,7 @@ fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<Sem
             ],
             TheoryContextId::CONGRUENCE,
         ),
-        Proposition::CalculusRelation {
-            kind,
-            expression_fingerprint,
-            variable_fingerprint,
-            result_term,
-        } => {
+        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
             let predicate = match kind {
                 crate::reasoning::mgraph::facts::claim::CalculusRelationKind::DerivativeOf => predicates::DERIVATIVE_OF,
                 crate::reasoning::mgraph::facts::claim::CalculusRelationKind::IntegralOf => predicates::INTEGRAL_OF,
@@ -125,11 +111,9 @@ fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<Sem
                 TheoryContextId::CALCULUS,
             )
         }
-        Proposition::TermEquality { left, right } => (
-            predicates::REWRITE_EQUIVALENT,
-            vec![SemanticRef::Term(*left), SemanticRef::Term(*right)],
-            TheoryContextId::REWRITE,
-        ),
+        Proposition::TermEquality { left, right } => {
+            (predicates::REWRITE_EQUIVALENT, vec![SemanticRef::Term(*left), SemanticRef::Term(*right)], TheoryContextId::REWRITE)
+        }
     }
 }
 
@@ -164,10 +148,7 @@ impl RelationIndex {
     pub(crate) fn append(&mut self, record: RelationRecord) -> RelationRef {
         let id = FactId(self.records.len() as u64);
         self.by_scope.entry(record.scope).or_default().push(id);
-        self.by_predicate
-            .entry((record.scope, record.predicate))
-            .or_default()
-            .push(id);
+        self.by_predicate.entry((record.scope, record.predicate)).or_default().push(id);
         self.records.push(record);
         id
     }
@@ -193,10 +174,7 @@ impl RelationIndex {
 
     /// 某 scope + 谓词下的关系 id（二级索引）。
     pub fn relations_with_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> &[RelationRef] {
-        self.by_predicate
-            .get(&(scope, predicate))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+        self.by_predicate.get(&(scope, predicate)).map(Vec::as_slice).unwrap_or(&[])
     }
 
     /// 按 id 查记录。

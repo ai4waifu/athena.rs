@@ -151,9 +151,7 @@ fn l1_machine_solve_with_residual() {
 #[test]
 fn domain_request_dispatches_linear_algebra() {
     let mut session = Session::new();
-    let a = session
-        .matrix_objects
-        .intern(MatrixValue::from_integers_row_major(1, 1, vec![i(7)]).unwrap());
+    let a = session.matrix_objects.intern(MatrixValue::from_integers_row_major(1, 1, vec![i(7)]).unwrap());
     let req = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: a });
     let DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value: LinearAlgebraValue::ExactDet(d) }) =
         execute_domain(&mut session, req).unwrap()

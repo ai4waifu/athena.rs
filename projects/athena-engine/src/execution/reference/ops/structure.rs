@@ -1,23 +1,22 @@
 //! List / matrix / arithmetic operator evaluation.
 
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
-use athena_numeric::{
-    Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow,
-};
 use athena_ir::SemanticOperator;
+use athena_numeric::{Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use super::super::{IndexStep, ReferenceExecutor, Slot};
-use super::super::helpers::*;
+use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
     domains::linear_algebra::{det_bareiss, matmul},
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_number, push_semantic},
     runtime::{
         session::Session,
-        values::{arena::push_list, numeric_clone::{clone_number, clone_rational}},
+        values::{
+            arena::push_list,
+            numeric_clone::{clone_number, clone_rational},
+        },
     },
 };
 
@@ -277,13 +276,7 @@ impl ReferenceExecutor {
                         Some(athena_ir::TermNode::Application { head, .. }) => {
                             let head = *head;
                             let span = athena_ir::TermNode::default_span();
-                            session.arena.push(
-                                athena_ir::TermNode::Application {
-                                    head,
-                                    arguments: Vec::new(),
-                                },
-                                span,
-                            )
+                            session.arena.push(athena_ir::TermNode::Application { head, arguments: Vec::new() }, span)
                         }
                         _ => return Ok(IndexStep::Residual),
                     }));
@@ -303,10 +296,9 @@ impl ReferenceExecutor {
                 };
                 match items.get(pos) {
                     Some(item) => Ok(IndexStep::Next(*item)),
-                    None => Ok(IndexStep::Invalid {
-                        echo: expr,
-                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)),
-                    }),
+                    None => {
+                        Ok(IndexStep::Invalid { echo: expr, diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)) })
+                    }
                 }
             }
             IndexSpec::Range { start, end, step } => {
@@ -355,7 +347,13 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    pub(crate) fn eval_compare_chain(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_compare_chain(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         if args.len() < 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -394,7 +392,13 @@ impl ReferenceExecutor {
     }
 
     /// Elementwise `DotTimes` / `DotDivide` / `DotPower` with scalar broadcast.
-    pub(crate) fn eval_dot_arithmetic(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_dot_arithmetic(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
@@ -480,7 +484,13 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_arithmetic(&self, session: &mut Session, op: SemanticOperator, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_arithmetic(
+        &self,
+        session: &mut Session,
+        op: SemanticOperator,
+        args: &[SsaValueId],
+        slots: &HashMap<SsaValueId, Slot>,
+    ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
@@ -519,9 +529,7 @@ impl ReferenceExecutor {
                     }
                     ok.then_some(acc)
                 }
-                (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => {
-                    num_mul(Number::small_int(-1), clone_number(a)).ok()
-                }
+                (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
                 (SemanticOperator::Subtract, [a, b]) => {
                     num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok()
                 }
@@ -536,7 +544,8 @@ impl ReferenceExecutor {
         }
         // Matrix `Multiply` — exact rational matmul when both arguments are matrices.
         if op == SemanticOperator::Multiply && terms.len() == 2 {
-            if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
+            if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1]))
+            {
                 // Require both sides to look like matrices (row collections), not bare scalars.
                 let left_matrixish = matches!(
                     session.arena.get(terms[0]),

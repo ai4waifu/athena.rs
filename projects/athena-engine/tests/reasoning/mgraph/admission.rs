@@ -59,7 +59,8 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
             input_hashes: vec![],
             groebner_steps: None,
         }
-    } else {
+    }
+    else {
         athena_engine::reasoning::mgraph::EvidenceCertificate::TestHarness
     };
     Claim {
@@ -69,10 +70,6 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
         },
         scope: Scope::Unconditional,
         guarantee,
-        evidence: Evidence::TrustedKernel {
-            provider: POLYNOMIAL_PROVIDER_ID,
-            certificate,
-            summary: "test".into(),
-        },
+        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, certificate, summary: "test".into() },
     }
 }

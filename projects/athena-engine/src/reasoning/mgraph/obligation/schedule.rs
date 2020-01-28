@@ -32,26 +32,17 @@ pub fn schedule_reflector_wakes(
 ) -> ReflectorScheduleReport {
     let outcomes: Vec<Reflection> = {
         let view = state.semantic.view();
-        wakes
-            .iter()
-            .map(|wake| reflector.reflect(&wake.obligation, &view))
-            .collect()
+        wakes.iter().map(|wake| reflector.reflect(&wake.obligation, &view)).collect()
     };
     apply_reflections(state, wakes.iter().map(|w| &w.obligation), outcomes)
 }
 
 /// Re-reflect obligations drained from the resume queue (frontier resume).
-pub fn resume_reflector_frontier(
-    state: &mut MGraphState,
-    reflector: &dyn SemanticReflector,
-) -> ReflectorScheduleReport {
+pub fn resume_reflector_frontier(state: &mut MGraphState, reflector: &dyn SemanticReflector) -> ReflectorScheduleReport {
     let pending = std::mem::take(&mut state.operational.resume_queue);
     let outcomes: Vec<Reflection> = {
         let view = state.semantic.view();
-        pending
-            .iter()
-            .map(|obligation| reflector.reflect(obligation, &view))
-            .collect()
+        pending.iter().map(|obligation| reflector.reflect(obligation, &view)).collect()
     };
     apply_reflections(state, pending.iter(), outcomes)
 }
@@ -69,10 +60,7 @@ fn apply_reflections<'a>(
             }
             Reflection::NeedComputation { plan } => {
                 // Wake path has no DomainRequest yet — fingerprint binds at execute time.
-                state
-                    .operational
-                    .pending_plans
-                    .push(QueuedPlan::unbound(plan, obligation.clone()));
+                state.operational.pending_plans.push(QueuedPlan::unbound(plan, obligation.clone()));
                 report.need_computation = report.need_computation.saturating_add(1);
             }
             Reflection::NeedRelation { obligation: nested } => {
@@ -98,20 +86,15 @@ fn apply_reflections<'a>(
 mod tests {
     use super::*;
     use crate::{
-        domains::planner::{PlanStep, DomainPlan},
-        reasoning::mgraph::{
-            MGraphCore, MGraphView, PredicateId, ProofObligation, ScopeRef, SemanticReflector,
-            ReflectorWake, FactId,
-        },
+        domains::planner::{DomainPlan, PlanStep},
+        reasoning::mgraph::{FactId, MGraphCore, MGraphView, PredicateId, ProofObligation, ReflectorWake, ScopeRef, SemanticReflector},
     };
 
     struct AlwaysKnown;
 
     impl SemanticReflector for AlwaysKnown {
         fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            Reflection::AlreadyKnown {
-                relation: FactId(0),
-            }
+            Reflection::AlreadyKnown { relation: FactId(0) }
         }
     }
 
@@ -127,21 +110,13 @@ mod tests {
 
     impl SemanticReflector for AlwaysCompute {
         fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            Reflection::NeedComputation {
-                plan: DomainPlan {
-                    steps: vec![PlanStep::CallDomainProvider],
-                },
-            }
+            Reflection::NeedComputation { plan: DomainPlan { steps: vec![PlanStep::CallDomainProvider] } }
         }
     }
 
     fn sample_wake() -> ReflectorWake {
         ReflectorWake {
-            obligation: ProofObligation {
-                predicate: PredicateId(1),
-                scope: ScopeRef::UNCONDITIONAL,
-                known_objects: vec![],
-            },
+            obligation: ProofObligation { predicate: PredicateId(1), scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] },
             relation: FactId(0),
         }
     }
@@ -162,10 +137,7 @@ mod tests {
         let report = schedule_reflector_wakes(&mut state, &[sample_wake()], &AlwaysCompute);
         assert_eq!(report.need_computation, 1);
         assert_eq!(state.operational.pending_plans.len(), 1);
-        assert_eq!(
-            state.operational.pending_plans[0].obligation.predicate,
-            PredicateId(1)
-        );
+        assert_eq!(state.operational.pending_plans[0].obligation.predicate, PredicateId(1));
     }
 
     #[test]

@@ -28,19 +28,16 @@ mod typed_rules;
 pub use budget::{SaturationBudget, SaturationStopReason};
 pub use candidate::CandidateEquivalence;
 pub use congruence::{
-    admit_application_congruence, admit_application_congruence_candidates, application_congruence_candidates,
-    applications_congruent, verify_application_congruence,
+    admit_application_congruence, admit_application_congruence_candidates, application_congruence_candidates, applications_congruent,
+    verify_application_congruence,
 };
 pub use extract::{ExtractionPreference, Extractor, ParetoFrontier, ResultCost};
 pub use graph::EGraph;
 pub use ids::{EClassId, ENodeId};
 pub use pipeline::{
-    EGRAPH_PROVIDER_ID, admit_structural_candidates, admit_structural_term_equality, candidate_to_outer,
-    verify_structural_term_equality,
+    EGRAPH_PROVIDER_ID, admit_structural_candidates, admit_structural_term_equality, candidate_to_outer, verify_structural_term_equality,
 };
-pub use rewrite_verify::{
-    admit_typed_rewrite_candidate, admit_typed_rewrite_candidates, verify_typed_rewrite_candidate,
-};
+pub use rewrite_verify::{admit_typed_rewrite_candidate, admit_typed_rewrite_candidates, verify_typed_rewrite_candidate};
 pub use saturation::{SaturationReport, saturate, saturate_typed};
 pub use typed_rules::{TypedRewriteRule, TypedRuleSet};
 

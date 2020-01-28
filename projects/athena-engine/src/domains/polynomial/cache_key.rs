@@ -90,11 +90,7 @@ impl PolynomialCacheKey {
 }
 
 /// 从 [`PolynomialRequest`] 构造缓存键（经 DomainObject 仓解析）。
-pub fn cache_key_for_request(
-    request: &PolynomialRequest,
-    rings: &RingTable,
-    store: &PolynomialObjectStore,
-) -> Result<PolynomialCacheKey> {
+pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, store: &PolynomialObjectStore) -> Result<PolynomialCacheKey> {
     match request {
         PolynomialRequest::Normalize { polynomial } => {
             let poly = store.resolve_owning(*polynomial)?;

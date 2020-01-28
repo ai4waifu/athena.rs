@@ -9,11 +9,11 @@ use self::helpers::*;
 
 use std::{cmp::Ordering, collections::HashMap};
 
+use athena_ir::SemanticOperator;
 use athena_numeric::{
     Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
     mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
-use athena_ir::SemanticOperator;
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
 use crate::{
@@ -282,19 +282,18 @@ impl ReferenceExecutor {
                         };
                         Ok(Slot::Boolean(if op == SemanticOperator::Unequal { !same } else { same }))
                     }
-                    SemanticOperator::Less
-                    | SemanticOperator::Greater
-                    | SemanticOperator::LessEqual
-                    | SemanticOperator::GreaterEqual => self.eval_compare_chain(session, op, args, slots),
+                    SemanticOperator::Less | SemanticOperator::Greater | SemanticOperator::LessEqual | SemanticOperator::GreaterEqual => {
+                        self.eval_compare_chain(session, op, args, slots)
+                    }
                     SemanticOperator::Add
                     | SemanticOperator::Multiply
                     | SemanticOperator::Subtract
                     | SemanticOperator::Negate
                     | SemanticOperator::Divide
                     | SemanticOperator::Power => self.eval_arithmetic(session, op, args, slots),
-                    SemanticOperator::ElementwiseMultiply
-                    | SemanticOperator::ElementwiseDivide
-                    | SemanticOperator::ElementwisePower => self.eval_dot_arithmetic(session, op, args, slots),
+                    SemanticOperator::ElementwiseMultiply | SemanticOperator::ElementwiseDivide | SemanticOperator::ElementwisePower => {
+                        self.eval_dot_arithmetic(session, op, args, slots)
+                    }
                     SemanticOperator::Abs
                     | SemanticOperator::Length
                     | SemanticOperator::First
@@ -353,10 +352,7 @@ impl ReferenceExecutor {
                     items.push(self.slot_as_term(session, slot)?);
                 }
                 let span = athena_ir::TermNode::default_span();
-                Ok(Slot::Term(session.arena.push(
-                    athena_ir::TermNode::Collection { kind: *kind, elements: items },
-                    span,
-                )))
+                Ok(Slot::Term(session.arena.push(athena_ir::TermNode::Collection { kind: *kind, elements: items }, span)))
             }
             OperationKind::Index { target, axes } => self.eval_index(session, *target, axes, slots, invalid),
             OperationKind::EnterScope { .. } => {
@@ -381,10 +377,7 @@ impl ReferenceExecutor {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
-                let residual = !matches!(
-                    evaluation,
-                    athena_types::BindingEvaluationPolicy::EvaluateBeforeStore
-                );
+                let residual = !matches!(evaluation, athena_types::BindingEvaluationPolicy::EvaluateBeforeStore);
                 match slots.get(value) {
                     Some(Slot::Unit) => {
                         if let Some(frame) = frames.last_mut() {
@@ -491,8 +484,8 @@ impl ReferenceExecutor {
                     Some(domain) => {
                         let domain_result = execute_domain(session, domain)?;
                         let mut computation = computation_from_domain(session, domain_result);
-                        computation =
-                            computation.with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
+                        computation = computation
+                            .with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
                         Ok(Slot::Result(session.insert_result(computation)))
                     }
                     None => {
@@ -509,9 +502,6 @@ impl ReferenceExecutor {
         }
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -650,10 +640,8 @@ mod tests {
         assert!(loaded.diagnostics.is_empty());
         let out = loaded.symbolic_term.expect("term");
         match session.arena.get(out) {
-            Some(athena_ir::TermNode::Application {
-                head: athena_ir::ApplicationHead::Extension(id),
-                ..
-            }) if session.extensions.display_name(*id) == Some("FooBar") => {}
+            Some(athena_ir::TermNode::Application { head: athena_ir::ApplicationHead::Extension(id), .. })
+                if session.extensions.display_name(*id) == Some("FooBar") => {}
             other => panic!("expected residual FooBar[...], got {other:?}"),
         }
     }
@@ -731,10 +719,7 @@ mod tests {
         let b = session.builder().int(2, Default::default());
         let c = session.builder().int(3, Default::default());
         let list = session.builder().list(vec![a, b, c], Default::default());
-        let module = index_module(
-            list,
-            vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }],
-        );
+        let module = index_module(list, vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }]);
         let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
         let loaded = session.results.get(result_id).expect("result");
         let out = loaded.symbolic_term.expect("term");

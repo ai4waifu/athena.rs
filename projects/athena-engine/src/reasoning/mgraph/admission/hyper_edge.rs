@@ -3,18 +3,18 @@
 use athena_ir::{TermStore, canonical_hash};
 use athena_types::TermId;
 
-use crate::reasoning::mgraph::{
-    admission::{AdmissionRejectReason, OuterCandidate},
-    core::{
-        predicate_registry::{arity_ok, descriptor},
-        predicates,
-        types::{CapabilityProviderId, HyperEdge},
-    },
-    facts::claim::{
-        CalculusRelationKind, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope,
+use crate::{
+    domains::polynomial::PolynomialCacheOp,
+    reasoning::mgraph::{
+        admission::{AdmissionRejectReason, OuterCandidate},
+        core::{
+            predicate_registry::{arity_ok, descriptor},
+            predicates,
+            types::{CapabilityProviderId, HyperEdge},
+        },
+        facts::claim::{CalculusRelationKind, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope},
     },
 };
-use crate::domains::polynomial::PolynomialCacheOp;
 
 /// Capability provider identity for staged hyper-edge candidates (not a trusted kernel).
 pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(22);
@@ -30,10 +30,7 @@ pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProvi
 ///   [`PolynomialCacheOp::Normalize`])
 ///
 /// Other predicates remain solver/reflector-local until a proposition mapping exists.
-pub fn hyper_edge_to_outer_candidate(
-    store: &TermStore,
-    edge: &HyperEdge,
-) -> Result<OuterCandidate, AdmissionRejectReason> {
+pub fn hyper_edge_to_outer_candidate(store: &TermStore, edge: &HyperEdge) -> Result<OuterCandidate, AdmissionRejectReason> {
     if descriptor(edge.predicate).is_none() || !arity_ok(edge.predicate, edge.nodes.len()) {
         return Err(AdmissionRejectReason::MalformedRelation);
     }
@@ -41,15 +38,8 @@ pub fn hyper_edge_to_outer_candidate(
         let [left, right] = binary_terms(&edge.nodes)?;
         require_present(store, left)?;
         require_present(store, right)?;
-        let tag = if edge.predicate == predicates::REWRITE_EQUIVALENT {
-            "hyper-edge-rewrite"
-        } else {
-            "hyper-edge-eval"
-        };
-        return Ok(candidate_claim(
-            Proposition::TermEquality { left, right },
-            format!("{tag}:{left:?}:{right:?}"),
-        ));
+        let tag = if edge.predicate == predicates::REWRITE_EQUIVALENT { "hyper-edge-rewrite" } else { "hyper-edge-eval" };
+        return Ok(candidate_claim(Proposition::TermEquality { left, right }, format!("{tag}:{left:?}:{right:?}")));
     }
     if let Some(kind) = calculus_kind(edge.predicate) {
         let [expr, var, result] = ternary_terms(&edge.nodes)?;
@@ -57,12 +47,7 @@ pub fn hyper_edge_to_outer_candidate(
         let variable_fingerprint = term_fingerprint(store, var)?;
         require_present(store, result)?;
         return Ok(candidate_claim(
-            Proposition::CalculusRelation {
-                kind,
-                expression_fingerprint,
-                variable_fingerprint,
-                result_term: result,
-            },
+            Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term: result },
             format!("hyper-edge-calculus:{kind:?}:{expr:?}:{var:?}:{result:?}"),
         ));
     }
@@ -99,9 +84,7 @@ fn candidate_claim(proposition: Proposition, summary: String) -> OuterCandidate 
         guarantee: Guarantee::Candidate,
         evidence: Evidence::TrustedKernel {
             provider: HYPER_EDGE_STAGING_PROVIDER_ID,
-            certificate: EvidenceCertificate::Rejected {
-                guarantee: Guarantee::Candidate,
-            },
+            certificate: EvidenceCertificate::Rejected { guarantee: Guarantee::Candidate },
             summary,
         },
     })
@@ -110,11 +93,14 @@ fn candidate_claim(proposition: Proposition, summary: String) -> OuterCandidate 
 fn calculus_kind(predicate: crate::reasoning::mgraph::PredicateId) -> Option<CalculusRelationKind> {
     if predicate == predicates::DERIVATIVE_OF {
         Some(CalculusRelationKind::DerivativeOf)
-    } else if predicate == predicates::INTEGRAL_OF {
+    }
+    else if predicate == predicates::INTEGRAL_OF {
         Some(CalculusRelationKind::IntegralOf)
-    } else if predicate == predicates::SERIES_EXPANSION {
+    }
+    else if predicate == predicates::SERIES_EXPANSION {
         Some(CalculusRelationKind::SeriesExpansion)
-    } else {
+    }
+    else {
         None
     }
 }
@@ -174,25 +160,16 @@ mod tests {
     #[test]
     fn rewrite_hyper_edge_stages_candidate_term_equality() {
         let (store, left, right, _) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![left, right],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        };
+        let edge = HyperEdge { nodes: vec![left, right], predicate: predicates::REWRITE_EQUIVALENT };
         let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
         assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
-        assert_eq!(
-            outer.claim.proposition,
-            Proposition::TermEquality { left, right }
-        );
+        assert_eq!(outer.claim.proposition, Proposition::TermEquality { left, right });
     }
 
     #[test]
     fn evaluation_result_hyper_edge_stages_term_equality() {
         let (store, left, right, _) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![left, right],
-            predicate: predicates::EVALUATION_RESULT,
-        };
+        let edge = HyperEdge { nodes: vec![left, right], predicate: predicates::EVALUATION_RESULT };
         let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
         match &outer.claim.evidence {
             Evidence::TrustedKernel { summary, .. } => {
@@ -204,18 +181,10 @@ mod tests {
     #[test]
     fn derivative_hyper_edge_stages_calculus_relation() {
         let (store, expr, var, result) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![expr, var, result],
-            predicate: predicates::DERIVATIVE_OF,
-        };
+        let edge = HyperEdge { nodes: vec![expr, var, result], predicate: predicates::DERIVATIVE_OF };
         let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
         match outer.claim.proposition {
-            Proposition::CalculusRelation {
-                kind,
-                expression_fingerprint,
-                variable_fingerprint,
-                result_term,
-            } => {
+            Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
                 assert_eq!(kind, CalculusRelationKind::DerivativeOf);
                 assert_eq!(expression_fingerprint, canonical_hash(&store, expr));
                 assert_eq!(variable_fingerprint, canonical_hash(&store, var));
@@ -228,10 +197,7 @@ mod tests {
     #[test]
     fn congruence_hyper_edge_stages_fingerprints() {
         let (store, left, right, modulus) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![left, right, modulus],
-            predicate: predicates::CONGRUENCE,
-        };
+        let edge = HyperEdge { nodes: vec![left, right, modulus], predicate: predicates::CONGRUENCE };
         let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
         assert_eq!(
             outer.claim.proposition,
@@ -246,44 +212,26 @@ mod tests {
     #[test]
     fn polynomial_result_hyper_edge_stages_request_fingerprint() {
         let (store, request, _, _) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![request],
-            predicate: predicates::POLYNOMIAL_RESULT,
-        };
+        let edge = HyperEdge { nodes: vec![request], predicate: predicates::POLYNOMIAL_RESULT };
         let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
         assert_eq!(
             outer.claim.proposition,
-            Proposition::PolynomialResult {
-                operation: PolynomialCacheOp::Normalize,
-                request_fingerprint: canonical_hash(&store, request),
-            }
+            Proposition::PolynomialResult { operation: PolynomialCacheOp::Normalize, request_fingerprint: canonical_hash(&store, request) }
         );
     }
 
     #[test]
     fn missing_term_is_malformed() {
         let store = TermStore::new();
-        let edge = HyperEdge {
-            nodes: vec![TermId(1), TermId(2)],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        };
-        assert_eq!(
-            hyper_edge_to_outer_candidate(&store, &edge),
-            Err(AdmissionRejectReason::MalformedRelation)
-        );
+        let edge = HyperEdge { nodes: vec![TermId(1), TermId(2)], predicate: predicates::REWRITE_EQUIVALENT };
+        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
     }
 
     #[test]
     fn bad_arity_is_malformed() {
         let (store, left, _, _) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![left],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        };
-        assert_eq!(
-            hyper_edge_to_outer_candidate(&store, &edge),
-            Err(AdmissionRejectReason::MalformedRelation)
-        );
+        let edge = HyperEdge { nodes: vec![left], predicate: predicates::REWRITE_EQUIVALENT };
+        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
     }
 
     #[test]
@@ -291,13 +239,7 @@ mod tests {
         use crate::reasoning::mgraph::PredicateId;
 
         let (store, only, _, _) = store_with_symbols();
-        let edge = HyperEdge {
-            nodes: vec![only],
-            predicate: PredicateId(99),
-        };
-        assert_eq!(
-            hyper_edge_to_outer_candidate(&store, &edge),
-            Err(AdmissionRejectReason::MalformedRelation)
-        );
+        let edge = HyperEdge { nodes: vec![only], predicate: PredicateId(99) };
+        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
     }
 }

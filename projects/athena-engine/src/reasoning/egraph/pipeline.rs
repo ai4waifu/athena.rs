@@ -6,12 +6,10 @@ use athena_types::TermId;
 use crate::reasoning::{
     egraph::CandidateEquivalence,
     mgraph::{
+        SemanticCore,
         admission::{AdmissionGate, AdmissionRejectReason, OuterCandidate, VerificationPolicy},
         core::types::CapabilityProviderId,
-        facts::claim::{
-            Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope,
-        },
-        SemanticCore,
+        facts::claim::{Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope},
     },
 };
 
@@ -23,32 +21,19 @@ pub const EGRAPH_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(20);
 /// Does **not** admit. Call [`verify_structural_term_equality`] then [`AdmissionGate::admit_claim`].
 pub fn candidate_to_outer(candidate: &CandidateEquivalence) -> OuterCandidate {
     OuterCandidate::new(Claim {
-        proposition: Proposition::TermEquality {
-            left: candidate.left_term,
-            right: candidate.right_term,
-        },
+        proposition: Proposition::TermEquality { left: candidate.left_term, right: candidate.right_term },
         scope: Scope::Unconditional,
         guarantee: Guarantee::Candidate,
         evidence: Evidence::TrustedKernel {
             provider: EGRAPH_PROVIDER_ID,
-            certificate: EvidenceCertificate::StructuralTermEquality {
-                left: candidate.left_term,
-                right: candidate.right_term,
-            },
-            summary: format!(
-                "egraph-candidate:{:?}:{:?}",
-                candidate.left_term, candidate.right_term
-            ),
+            certificate: EvidenceCertificate::StructuralTermEquality { left: candidate.left_term, right: candidate.right_term },
+            summary: format!("egraph-candidate:{:?}:{:?}", candidate.left_term, candidate.right_term),
         },
     })
 }
 
 /// Upgrade a term-equality claim when TermStore reports structural equality.
-pub fn verify_structural_term_equality(
-    store: &TermStore,
-    left: TermId,
-    right: TermId,
-) -> Result<Claim, AdmissionRejectReason> {
+pub fn verify_structural_term_equality(store: &TermStore, left: TermId, right: TermId) -> Result<Claim, AdmissionRejectReason> {
     if !store.structural_eq(left, right) {
         return Err(AdmissionRejectReason::NotExact);
     }

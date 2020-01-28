@@ -77,14 +77,12 @@ impl MGraphCore {
 
     /// Register that `from` may consult local facts of `to` (Living `29` Compatible).
     pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) {
-        self.scope_index
-            .add_relation(from, to, ScopeRelationKind::CompatibleWith);
+        self.scope_index.add_relation(from, to, ScopeRelationKind::CompatibleWith);
     }
 
     /// Register that `a` and `b` must not share query-time transport (Living `29` Incompatible).
     pub fn mark_scopes_incompatible(&mut self, a: ScopeRef, b: ScopeRef) {
-        self.scope_index
-            .add_relation(a, b, ScopeRelationKind::IncompatibleWith);
+        self.scope_index.add_relation(a, b, ScopeRelationKind::IncompatibleWith);
     }
 
     /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
@@ -176,37 +174,26 @@ impl<'a> MGraphView<'a> {
         None
     }
 
-    fn find_accepted_local(
-        &self,
-        scope: ScopeRef,
-        predicate: PredicateId,
-        known_objects: &[ObjectRef],
-    ) -> Option<RelationRef> {
-        self.core
-            .relation_index()
-            .relations_with_predicate(scope, predicate)
-            .iter()
-            .copied()
-            .find(|&id| {
-                self.relation(id).is_some_and(|r| {
-                    if !matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional) {
-                        return false;
-                    }
-                    if known_objects.is_empty() {
-                        return true;
-                    }
-                    let object_subjects: Vec<ObjectRef> = r
-                        .subjects
-                        .iter()
-                        .filter_map(|s| match s {
-                            SemanticRef::Object(o) => Some(*o),
-                            _ => None,
-                        })
-                        .collect();
-                    known_objects.len() <= object_subjects.len()
-                        && known_objects.iter().zip(object_subjects.iter()).all(|(want, got)| want == got)
-                })
+    fn find_accepted_local(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
+        self.core.relation_index().relations_with_predicate(scope, predicate).iter().copied().find(|&id| {
+            self.relation(id).is_some_and(|r| {
+                if !matches!(r.status, RelationStatus::Accepted | RelationStatus::Conditional) {
+                    return false;
+                }
+                if known_objects.is_empty() {
+                    return true;
+                }
+                let object_subjects: Vec<ObjectRef> = r
+                    .subjects
+                    .iter()
+                    .filter_map(|s| match s {
+                        SemanticRef::Object(o) => Some(*o),
+                        _ => None,
+                    })
+                    .collect();
+                known_objects.len() <= object_subjects.len() && known_objects.iter().zip(object_subjects.iter()).all(|(want, got)| want == got)
             })
+        })
     }
 
     /// Scope 边。

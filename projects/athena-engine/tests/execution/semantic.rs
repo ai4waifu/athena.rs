@@ -10,8 +10,8 @@ use athena_engine::{
         values::arena::{push_constant, push_extension, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
-use athena_types::BindingEvaluationPolicy;
 use athena_ir::{MathematicalConstant, SemanticOperator, UnaryFunction};
+use athena_types::BindingEvaluationPolicy;
 
 type Tid = athena_types::TermId;
 
@@ -36,7 +36,6 @@ fn list(items: Vec<Tid>, s: &mut Session) -> Tid {
     push_list(s, items)
 }
 
-
 fn sem(op: SemanticOperator, args: Vec<Tid>, s: &mut Session) -> Tid {
     push_semantic(s, op, args)
 }
@@ -49,7 +48,6 @@ fn ext(head: &str, args: Vec<Tid>, s: &mut Session) -> Tid {
     let op = s.extensions.intern(head);
     push_extension(s, op, args)
 }
-
 
 #[test]
 fn arithmetic_normalization() {
@@ -133,10 +131,7 @@ fn if_and_which() {
     let c1 = sem(SemanticOperator::Equal, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let c2 = sem(SemanticOperator::Equal, vec![int(3, &mut s), int(3, &mut s)], &mut s);
     let request = AthenaRequest::Control(ControlPlan::Cond {
-        arms: vec![
-            (c1, Box::new(AthenaRequest::Term(int(0, &mut s)))),
-            (c2, Box::new(AthenaRequest::Term(int(42, &mut s)))),
-        ],
+        arms: vec![(c1, Box::new(AthenaRequest::Term(int(0, &mut s)))), (c2, Box::new(AthenaRequest::Term(int(42, &mut s))))],
         otherwise: None,
     });
     assert_eq!(eval_request(&mut s, request), "42");
@@ -231,10 +226,7 @@ fn while_accumulator() {
                 kind: BindingKind::Session,
                 evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
             }),
-            AthenaRequest::Control(ControlPlan::LoopWhile {
-                condition: cond,
-                body: Box::new(body),
-            }),
+            AthenaRequest::Control(ControlPlan::LoopWhile { condition: cond, body: Box::new(body) }),
             AthenaRequest::Term(symbol("s", &mut s)),
         ],
     });
@@ -315,10 +307,8 @@ fn downvalues_and_match_q() {
     let call = ext("f", vec![int(3, &mut s)], &mut s);
     assert_eq!(eval(&mut s, call), "9");
 
-    let constrained = TermPattern::Constrained {
-        pattern: Box::new(TermPattern::Any),
-        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
-    };
+    let constrained =
+        TermPattern::Constrained { pattern: Box::new(TermPattern::Any), constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger) };
     let mut binds = std::collections::HashMap::new();
     let three = int(3, &mut s);
     let y = symbol("y", &mut s);
@@ -328,10 +318,7 @@ fn downvalues_and_match_q() {
 
 #[test]
 fn register_compiled_rule_via_session_command() {
-    use athena_engine::{
-        api::request::SessionCommand,
-        reasoning::trs::TermPattern,
-    };
+    use athena_engine::{api::request::SessionCommand, reasoning::trs::TermPattern};
     use athena_ir::Atom;
 
     let mut s = Session::new();
@@ -383,9 +370,7 @@ fn linear_algebra_paths() {
         )
         .unwrap(),
     );
-    let b = s
-        .matrix_objects
-        .intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
+    let b = s.matrix_objects.intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
     let expected = MatrixValue::from_rationals_row_major(
         2,
         1,
@@ -398,11 +383,7 @@ fn linear_algebra_paths() {
     let value_id = loaded.value.expect("value");
     match s.values.get(value_id).expect("runtime") {
         RuntimeValue::Domain(DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
-            value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
-                disposition: SolveDisposition::Unique,
-                particular: Some(x),
-                ..
-            }),
+            value: LinearAlgebraValue::ExactSolve(ExactSolveResult { disposition: SolveDisposition::Unique, particular: Some(x), .. }),
         })) => assert!(matrices_equal(x, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
         other => panic!("expected ExactSolve unique, got {other:?}"),
     }

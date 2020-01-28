@@ -4,12 +4,12 @@ use athena_types::{AssumptionSet, SymbolId, TermId};
 
 use crate::{
     domains::{
+        DomainRequest,
         calculus::{CalculusRequest, DerivativeOrder},
         planner::plan_domain,
-        DomainRequest,
     },
     reasoning::mgraph::{
-        core::{predicates, MGraphView},
+        core::{MGraphView, predicates},
         obligation::{ProofObligation, Reflection, SemanticReflector},
     },
 };
@@ -21,16 +21,8 @@ pub struct CalculusReflector;
 impl CalculusReflector {
     /// Scaffold request from obligation known objects (placeholders when unbound).
     fn request_for(obligation: &ProofObligation) -> Option<DomainRequest> {
-        let expression = obligation
-            .known_objects
-            .first()
-            .map(|o| TermId(o.fingerprint as u32))
-            .unwrap_or(TermId(0));
-        let variable = obligation
-            .known_objects
-            .get(1)
-            .map(|o| SymbolId(o.fingerprint as u32))
-            .unwrap_or(SymbolId(0));
+        let expression = obligation.known_objects.first().map(|o| TermId(o.fingerprint as u32)).unwrap_or(TermId(0));
+        let variable = obligation.known_objects.get(1).map(|o| SymbolId(o.fingerprint as u32)).unwrap_or(SymbolId(0));
         if obligation.predicate == predicates::DERIVATIVE_OF {
             return Some(DomainRequest::Calculus(CalculusRequest::Derivative {
                 expression,
@@ -40,11 +32,7 @@ impl CalculusReflector {
             }));
         }
         if obligation.predicate == predicates::INTEGRAL_OF {
-            return Some(DomainRequest::Calculus(CalculusRequest::Integral {
-                expression,
-                variable,
-                assumptions: AssumptionSet::empty(),
-            }));
+            return Some(DomainRequest::Calculus(CalculusRequest::Integral { expression, variable, assumptions: AssumptionSet::empty() }));
         }
         if obligation.predicate == predicates::SERIES_EXPANSION {
             return Some(DomainRequest::Calculus(CalculusRequest::Series {
@@ -71,9 +59,7 @@ impl SemanticReflector for CalculusReflector {
             return Reflection::AlreadyKnown { relation };
         }
         match Self::request_for(obligation) {
-            Some(request) => Reflection::NeedComputation {
-                plan: plan_domain(&request),
-            },
+            Some(request) => Reflection::NeedComputation { plan: plan_domain(&request) },
             None => Reflection::Inconclusive,
         }
     }
@@ -91,22 +77,10 @@ mod tests {
     fn derivative_obligation_needs_computation_when_empty() {
         let core = MGraphCore::new();
         let view = MGraphView::new(&core);
-        let obligation = ProofObligation {
-            predicate: predicates::DERIVATIVE_OF,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: Vec::new(),
-        };
+        let obligation = ProofObligation { predicate: predicates::DERIVATIVE_OF, scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
         match CalculusReflector.reflect(&obligation, &view) {
             Reflection::NeedComputation { plan } => {
-                assert_eq!(
-                    plan.steps,
-                    vec![
-                        PlanStep::Normalize,
-                        PlanStep::CallDomainProvider,
-                        PlanStep::Verify,
-                        PlanStep::MaterializeResult,
-                    ]
-                );
+                assert_eq!(plan.steps, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
             }
             other => panic!("expected NeedComputation, got {other:?}"),
         }

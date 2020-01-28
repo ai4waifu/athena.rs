@@ -2,10 +2,7 @@
 
 use athena_ir::TermStore;
 
-use crate::reasoning::mgraph::{
-    admission::hyper_edge_to_outer_candidate,
-    core::state::MGraphState,
-};
+use crate::reasoning::mgraph::{admission::hyper_edge_to_outer_candidate, core::state::MGraphState};
 
 use super::operational::OperationalState;
 
@@ -21,17 +18,11 @@ pub struct HyperEdgeDrainReport {
 /// Move stageable operational hyper-edges into [`OperationalState::outer_candidates`].
 ///
 /// Unsupported edges stay in `hyper_edges`. Never admits into SemanticCore / ExactUF.
-pub fn drain_hyper_edges_to_outer_pool(
-    store: &TermStore,
-    state: &mut MGraphState,
-) -> HyperEdgeDrainReport {
+pub fn drain_hyper_edges_to_outer_pool(store: &TermStore, state: &mut MGraphState) -> HyperEdgeDrainReport {
     drain_operational_hyper_edges(store, &mut state.operational)
 }
 
-fn drain_operational_hyper_edges(
-    store: &TermStore,
-    operational: &mut OperationalState,
-) -> HyperEdgeDrainReport {
+fn drain_operational_hyper_edges(store: &TermStore, operational: &mut OperationalState) -> HyperEdgeDrainReport {
     let pending = std::mem::take(&mut operational.hyper_edges);
     let mut retained = Vec::new();
     let mut staged = 0u32;
@@ -46,10 +37,7 @@ fn drain_operational_hyper_edges(
     }
     let retained_count = retained.len() as u32;
     operational.hyper_edges = retained;
-    HyperEdgeDrainReport {
-        staged,
-        retained: retained_count,
-    }
+    HyperEdgeDrainReport { staged, retained: retained_count }
 }
 
 #[cfg(test)]
@@ -75,14 +63,8 @@ mod tests {
         let a = push_symbol(&mut store, "a");
         let b = push_symbol(&mut store, "b");
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![a, b],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        });
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![a],
-            predicate: PredicateId(99),
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![a, b], predicate: predicates::REWRITE_EQUIVALENT });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![a], predicate: PredicateId(99) });
         let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
         assert_eq!(report.staged, 1);
         assert_eq!(report.retained, 1);
@@ -97,10 +79,7 @@ mod tests {
         let mut store = TermStore::new();
         let req = push_symbol(&mut store, "poly_req");
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![req],
-            predicate: predicates::POLYNOMIAL_RESULT,
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![req], predicate: predicates::POLYNOMIAL_RESULT });
         let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
         assert_eq!(report.staged, 1);
         assert_eq!(report.retained, 0);
@@ -114,10 +93,7 @@ mod tests {
         let a = push_symbol(&mut store, "x");
         let b = push_symbol(&mut store, "y");
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![a, b],
-            predicate: predicates::EVALUATION_RESULT,
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![a, b], predicate: predicates::EVALUATION_RESULT });
         let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
         assert_eq!(report.staged, 1);
         assert_eq!(report.retained, 0);
@@ -133,14 +109,8 @@ mod tests {
         let v = push_symbol(&mut store, "v");
         let r = push_symbol(&mut store, "r");
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![e, v, r],
-            predicate: predicates::DERIVATIVE_OF,
-        });
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![e, v, r],
-            predicate: predicates::CONGRUENCE,
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![e, v, r], predicate: predicates::DERIVATIVE_OF });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![e, v, r], predicate: predicates::CONGRUENCE });
         let report = drain_hyper_edges_to_outer_pool(&store, &mut state);
         assert_eq!(report.staged, 2);
         assert_eq!(report.retained, 0);

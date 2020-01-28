@@ -26,8 +26,7 @@ impl ExecutionCompiler {
     ) -> Result<SsaValueId> {
         let Some(name) = session.arena.symbols().resolve(symbol)
         else {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("status", "rule_head_symbol_unresolved"));
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("status", "rule_head_symbol_unresolved"));
         };
         let operator = session.extensions.intern(name);
         let key = builder.ssa();
@@ -67,12 +66,7 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::RegisterRuleDispatch {
-                        head: key,
-                        operator,
-                        pattern: pattern_ssa,
-                        replacement: value_ssa,
-                    },
+                    kind: OperationKind::RegisterRuleDispatch { head: key, operator, pattern: pattern_ssa, replacement: value_ssa },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },
@@ -124,12 +118,7 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(unit),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::WriteBinding {
-                        key,
-                        value: rhs,
-                        kind: BindingKind::Session,
-                        evaluation,
-                    },
+                    kind: OperationKind::WriteBinding { key, value: rhs, kind: BindingKind::Session, evaluation },
                     effect_in: Some(effect_in),
                     effect_out: Some(effect_out),
                 },

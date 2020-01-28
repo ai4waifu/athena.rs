@@ -13,8 +13,8 @@ use crate::{
         planner::{PlanStep, plan_domain},
     },
     reasoning::mgraph::{
-        AdmissionGate, CalculusReflector, CalculusRelationKind, MGraphView, ObjectRef, PolynomialReflector, ProofObligation,
-        Reflection, RelationRef, ScopeRef, SemanticReflector, TheoryContextId, VerificationPolicy, predicates,
+        AdmissionGate, CalculusReflector, CalculusRelationKind, MGraphView, ObjectRef, PolynomialReflector, ProofObligation, Reflection,
+        RelationRef, ScopeRef, SemanticReflector, TheoryContextId, VerificationPolicy, predicates,
     },
     runtime::session::Session,
 };
@@ -78,21 +78,13 @@ pub fn obligation_from_domain_request(session: &mut Session, request: &DomainReq
             ],
         }),
         DomainRequest::Polynomial(poly_req) => {
-            let interned = crate::domains::polynomial::intern_request_object_refs(
-                poly_req,
-                &session.rings,
-                &mut session.polynomial_objects,
-            )
-            .unwrap_or_default();
+            let interned = crate::domains::polynomial::intern_request_object_refs(poly_req, &session.rings, &mut session.polynomial_objects)
+                .unwrap_or_default();
             let known_objects = match crate::domains::polynomial::cache_key_for_request(poly_req, &session.rings, &session.polynomial_objects) {
                 Ok(key) => vec![ObjectRef::new(TheoryContextId::POLYNOMIAL, key.fingerprint())],
                 Err(_) => interned,
             };
-            Some(ProofObligation {
-                predicate: predicates::POLYNOMIAL_RESULT,
-                scope: ScopeRef::UNCONDITIONAL,
-                known_objects,
-            })
+            Some(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects })
         }
         _ => None,
     }
@@ -102,9 +94,7 @@ fn reflect_domain(request: &DomainRequest, obligation: &ProofObligation, view: &
     match request {
         DomainRequest::Calculus(_) => CalculusReflector.reflect(obligation, view),
         DomainRequest::Polynomial(_) => PolynomialReflector.reflect(obligation, view),
-        _ => Reflection::NeedComputation {
-            plan: plan_domain(request),
-        },
+        _ => Reflection::NeedComputation { plan: plan_domain(request) },
     }
 }
 
@@ -124,17 +114,15 @@ fn calculus_kind_from_predicate(predicate: crate::reasoning::mgraph::PredicateId
 }
 
 pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &ProofObligation, result: &DomainResult) {
-    let DomainResult::Calculus(CalculusResult::Exact {
-        value: CalculusValue::Expression(result_term),
-        conditions,
-    }) = result
+    let DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(result_term), conditions }) = result
     else {
         return;
     };
     if !conditions.is_empty() {
         return;
     }
-    let Some(kind) = calculus_kind_from_predicate(obligation.predicate) else {
+    let Some(kind) = calculus_kind_from_predicate(obligation.predicate)
+    else {
         return;
     };
     if obligation.known_objects.len() < 2 {
@@ -153,7 +141,8 @@ pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &Proof
 }
 
 fn materialize_already_known(session: &Session, relation: RelationRef) -> Result<DomainResult, Diagnostic> {
-    let Some(record) = session.mgraph.semantic.relation(relation) else {
+    let Some(record) = session.mgraph.semantic.relation(relation)
+    else {
         return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "semantic_entry")
             .detail("reason", "relation_missing")
@@ -161,18 +150,10 @@ fn materialize_already_known(session: &Session, relation: RelationRef) -> Result
     };
     match &record.verified.claim.proposition {
         crate::reasoning::mgraph::Proposition::CalculusRelation { result_term, .. } => {
-            Ok(DomainResult::Calculus(CalculusResult::Exact {
-                value: CalculusValue::Expression(*result_term),
-                conditions: Vec::new(),
-            }))
+            Ok(DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(*result_term), conditions: Vec::new() }))
         }
         crate::reasoning::mgraph::Proposition::PolynomialResult { request_fingerprint, .. } => {
-            let Some(entry) = session
-                .mgraph
-                .operational
-                .result_cache
-                .polynomial
-                .get_by_request_fingerprint(*request_fingerprint)
+            let Some(entry) = session.mgraph.operational.result_cache.polynomial.get_by_request_fingerprint(*request_fingerprint)
             else {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "semantic_entry")
@@ -196,9 +177,7 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
         let view = session.mgraph.semantic.view();
         match &obligation {
             Some(obligation) => reflect_domain(&request, obligation, &view),
-            None => Reflection::NeedComputation {
-                plan: plan_domain(&request),
-            },
+            None => Reflection::NeedComputation { plan: plan_domain(&request) },
         }
     };
     match reflection {
@@ -221,7 +200,8 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
             });
             let queued = crate::reasoning::mgraph::QueuedPlan::bound(session, plan, obligation, &request);
             session.mgraph.operational.pending_plans.push(queued);
-            let Some(result) = crate::reasoning::mgraph::run_next_queued_plan(session, request)? else {
+            let Some(result) = crate::reasoning::mgraph::run_next_queued_plan(session, request)?
+            else {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "semantic_entry")
                     .detail("reason", "queued_plan_vanished"));
@@ -245,9 +225,9 @@ pub fn domain_result_from_semantic_outcome(session: &Session, outcome: DomainSem
             .detail("reason", "need_conversion")
             .detail("source", source)
             .detail("target", target)),
-        DomainSemanticOutcome::Inconclusive => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "semantic_entry")
-            .detail("reason", "inconclusive")),
+        DomainSemanticOutcome::Inconclusive => {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "semantic_entry").detail("reason", "inconclusive"))
+        }
     }
 }
 
@@ -304,10 +284,8 @@ mod tests {
             }))
         };
         let first = execute_domain_goal(&mut session, make_goal()).expect("first");
-        let DomainSemanticOutcome::Computed(DomainResult::Calculus(CalculusResult::Exact {
-            value: CalculusValue::Expression(term),
-            ..
-        })) = first
+        let DomainSemanticOutcome::Computed(DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(term), .. })) =
+            first
         else {
             panic!("expected Exact Expression first, got {first:?}");
         };
@@ -315,14 +293,11 @@ mod tests {
         let second = execute_domain_goal(&mut session, make_goal()).expect("second");
         match second {
             DomainSemanticOutcome::AlreadyKnown { relation } => {
-                let replayed = domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation })
-                    .expect("materialize");
+                let replayed =
+                    domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
                 assert_eq!(
                     replayed,
-                    DomainResult::Calculus(CalculusResult::Exact {
-                        value: CalculusValue::Expression(term),
-                        conditions: Vec::new(),
-                    })
+                    DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(term), conditions: Vec::new() })
                 );
             }
             other => panic!("expected AlreadyKnown, got {other:?}"),
@@ -333,9 +308,7 @@ mod tests {
     fn polynomial_goal_computes_when_request_carries_polynomial() {
         use crate::domains::polynomial::{Polynomial, PolynomialRequest};
         let mut session = Session::new();
-        let poly = session
-            .polynomial_objects
-            .intern(Polynomial::zero(athena_types::RingId(0)), &session.rings);
+        let poly = session.polynomial_objects.intern(Polynomial::zero(athena_types::RingId(0)), &session.rings);
         let goal = DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly }));
         match execute_domain_goal(&mut session, goal).expect("ok") {
             DomainSemanticOutcome::Computed(DomainResult::Polynomial(_)) => {}
@@ -345,28 +318,24 @@ mod tests {
 
     #[test]
     fn polynomial_second_goal_is_already_known_after_mgraph_admit() {
-        use crate::domains::polynomial::{
-            CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult,
-        };
+        use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult};
         use athena_types::SymbolId;
         let mut session = Session::new();
-        let ring = session
-            .rings
-            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-            .expect("ring");
+        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
         let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
         let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
         let make_goal = || DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }));
         let first = execute_domain_goal(&mut session, make_goal()).expect("first");
-        let DomainSemanticOutcome::Computed(DomainResult::Polynomial(PolynomialResult::Exact { value })) = first else {
+        let DomainSemanticOutcome::Computed(DomainResult::Polynomial(PolynomialResult::Exact { value })) = first
+        else {
             panic!("expected Exact polynomial first, got {first:?}");
         };
         assert!(session.mgraph.semantic.relation_count() >= 1);
         let second = execute_domain_goal(&mut session, make_goal()).expect("second");
         match second {
             DomainSemanticOutcome::AlreadyKnown { relation } => {
-                let replayed = domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation })
-                    .expect("materialize");
+                let replayed =
+                    domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
                 assert_eq!(replayed, DomainResult::Polynomial(PolynomialResult::Exact { value }));
             }
             other => panic!("expected AlreadyKnown, got {other:?}"),

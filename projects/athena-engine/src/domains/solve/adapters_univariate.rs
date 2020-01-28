@@ -72,7 +72,9 @@ pub fn adapt_univariate_factorization(
 
     let frontier = match &coverage {
         CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
-        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => Some(ResumeToken::empty(ResumeKind::UnivariateFactor)),
+        _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => {
+            Some(ResumeToken::empty(ResumeKind::UnivariateFactor))
+        }
         _ => None,
     };
 

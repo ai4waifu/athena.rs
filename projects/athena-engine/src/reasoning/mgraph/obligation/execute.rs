@@ -56,31 +56,18 @@ pub struct QueuedPlan {
 impl QueuedPlan {
     /// Queue a plan without a request fingerprint (wake path).
     pub fn unbound(plan: DomainPlan, obligation: ProofObligation) -> Self {
-        Self {
-            plan,
-            obligation,
-            binding: PlanBinding::Unbound,
-        }
+        Self { plan, obligation, binding: PlanBinding::Unbound }
     }
 
     /// Queue a plan with a fingerprint derived from `request`.
     pub fn bound(session: &Session, plan: DomainPlan, obligation: ProofObligation, request: &DomainRequest) -> Self {
-        let binding = plan_binding_for_request(session, request, &obligation)
-            .unwrap_or(PlanBinding::Unbound);
-        Self {
-            plan,
-            obligation,
-            binding,
-        }
+        let binding = plan_binding_for_request(session, request, &obligation).unwrap_or(PlanBinding::Unbound);
+        Self { plan, obligation, binding }
     }
 }
 
 /// Derive a [`PlanBinding`] fingerprint for calculus / polynomial requests.
-pub fn plan_binding_for_request(
-    session: &Session,
-    request: &DomainRequest,
-    obligation: &ProofObligation,
-) -> Option<PlanBinding> {
+pub fn plan_binding_for_request(session: &Session, request: &DomainRequest, obligation: &ProofObligation) -> Option<PlanBinding> {
     match request {
         DomainRequest::Polynomial(req) => {
             let key = cache_key_for_request(req, &session.rings, &session.polynomial_objects).ok()?;
@@ -92,11 +79,7 @@ pub fn plan_binding_for_request(
         }
         DomainRequest::Calculus(calc) => {
             let (predicate, fingerprint) = calculus_binding(calc)?;
-            Some(PlanBinding::Fingerprint {
-                theory: TheoryContextId::CALCULUS,
-                predicate,
-                request_fingerprint: fingerprint,
-            })
+            Some(PlanBinding::Fingerprint { theory: TheoryContextId::CALCULUS, predicate, request_fingerprint: fingerprint })
         }
         _ => {
             // Fallback: mix obligation identity so unbound domains still get a gate
@@ -112,11 +95,7 @@ pub fn plan_binding_for_request(
                 mix_u64(&mut state, obj.fingerprint);
             }
             Some(PlanBinding::Fingerprint {
-                theory: obligation
-                    .known_objects
-                    .first()
-                    .map(|o| o.theory)
-                    .unwrap_or(TheoryContextId::DEFAULT),
+                theory: obligation.known_objects.first().map(|o| o.theory).unwrap_or(TheoryContextId::DEFAULT),
                 predicate: obligation.predicate,
                 request_fingerprint: state,
             })
@@ -127,46 +106,20 @@ pub fn plan_binding_for_request(
 fn calculus_binding(request: &CalculusRequest) -> Option<(PredicateId, u64)> {
     let mut state = fnv1a64(b"athena.plan-binding.calculus");
     match request {
-        CalculusRequest::Derivative {
-            expression,
-            variable,
-            order,
-            ..
-        } => {
+        CalculusRequest::Derivative { expression, variable, order, .. } => {
             mix_u64(&mut state, u64::from(expression.0));
             mix_u64(&mut state, u64::from(variable.0));
             mix_u64(&mut state, derivative_order_tag(*order));
             Some((predicates::DERIVATIVE_OF, state))
         }
-        CalculusRequest::Integral {
-            expression,
-            variable,
-            ..
-        }
-        | CalculusRequest::DefiniteIntegral {
-            expression,
-            variable,
-            ..
-        } => {
+        CalculusRequest::Integral { expression, variable, .. } | CalculusRequest::DefiniteIntegral { expression, variable, .. } => {
             mix_u64(&mut state, u64::from(expression.0));
             mix_u64(&mut state, u64::from(variable.0));
             Some((predicates::INTEGRAL_OF, state))
         }
-        CalculusRequest::Series {
-            expression,
-            variable,
-            ..
-        }
-        | CalculusRequest::Laurent {
-            expression,
-            variable,
-            ..
-        }
-        | CalculusRequest::Asymptotic {
-            expression,
-            variable,
-            ..
-        } => {
+        CalculusRequest::Series { expression, variable, .. }
+        | CalculusRequest::Laurent { expression, variable, .. }
+        | CalculusRequest::Asymptotic { expression, variable, .. } => {
             mix_u64(&mut state, u64::from(expression.0));
             mix_u64(&mut state, u64::from(variable.0));
             Some((predicates::SERIES_EXPANSION, state))
@@ -194,22 +147,15 @@ pub fn verify_plan_binding(
     obligation: &ProofObligation,
     request: &DomainRequest,
 ) -> Result<(), Diagnostic> {
-    let PlanBinding::Fingerprint {
-        theory,
-        predicate,
-        request_fingerprint,
-    } = binding
+    let PlanBinding::Fingerprint { theory, predicate, request_fingerprint } = binding
     else {
         return Ok(());
     };
     if obligation.predicate != *predicate {
         return Err(binding_mismatch("obligation_predicate"));
     }
-    let Some(PlanBinding::Fingerprint {
-        theory: got_theory,
-        predicate: got_predicate,
-        request_fingerprint: got_fp,
-    }) = plan_binding_for_request(session, request, obligation)
+    let Some(PlanBinding::Fingerprint { theory: got_theory, predicate: got_predicate, request_fingerprint: got_fp }) =
+        plan_binding_for_request(session, request, obligation)
     else {
         return Err(binding_mismatch("request_unfingerprintable"));
     };
@@ -230,26 +176,15 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
 ///
 /// Walks PlanIR via [`interpret_domain_plan`]. Polynomial provider uses
 /// `execute_polynomial_mgraph`; calculus exact results admit after materialize.
-pub fn execute_queued_plan(
-    session: &mut Session,
-    queued: &QueuedPlan,
-    request: DomainRequest,
-) -> Result<DomainResult, Diagnostic> {
+pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;
     let obligation = queued.obligation.clone();
-    let (result, _report) = interpret_domain_plan(session, &queued.plan, request, |session, req| {
-        match req {
-            DomainRequest::Polynomial(poly_req) => {
-                let poly = execute_polynomial_mgraph(
-                    poly_req,
-                    &session.rings,
-                    &session.polynomial_objects,
-                    &mut session.mgraph,
-                );
-                Ok(DomainResult::Polynomial(poly))
-            }
-            other => call_domain_provider(session, other),
+    let (result, _report) = interpret_domain_plan(session, &queued.plan, request, |session, req| match req {
+        DomainRequest::Polynomial(poly_req) => {
+            let poly = execute_polynomial_mgraph(poly_req, &session.rings, &session.polynomial_objects, &mut session.mgraph);
+            Ok(DomainResult::Polynomial(poly))
         }
+        other => call_domain_provider(session, other),
     })?;
     try_admit_calculus_exact(session, &obligation, &result);
     Ok(result)
@@ -259,11 +194,9 @@ pub fn execute_queued_plan(
 ///
 /// Returns `Ok(None)` when the queue is empty. On provider/admit/binding errors the
 /// plan stays at the front of the queue (except malformed plans missing CallDomainProvider).
-pub fn run_next_queued_plan(
-    session: &mut Session,
-    request: DomainRequest,
-) -> Result<Option<DomainResult>, Diagnostic> {
-    let Some(queued) = session.mgraph.operational.pending_plans.first().cloned() else {
+pub fn run_next_queued_plan(session: &mut Session, request: DomainRequest) -> Result<Option<DomainResult>, Diagnostic> {
+    let Some(queued) = session.mgraph.operational.pending_plans.first().cloned()
+    else {
         return Ok(None);
     };
     match execute_queued_plan(session, &queued, request) {
@@ -274,11 +207,7 @@ pub fn run_next_queued_plan(
         Err(err) => {
             // Drop malformed plans that the interpreter rejects for structure.
             let reason = err.details.get("reason").map(|v| v.to_string());
-            if matches!(
-                reason.as_deref(),
-                Some("plan_missing_CallDomainProvider")
-                    | Some("plan_missing_MaterializeResult_or_EmitResidual")
-            ) {
+            if matches!(reason.as_deref(), Some("plan_missing_CallDomainProvider") | Some("plan_missing_MaterializeResult_or_EmitResidual")) {
                 let _ = session.mgraph.operational.pending_plans.remove(0);
             }
             Err(err)
@@ -291,10 +220,7 @@ pub fn run_next_queued_plan(
 /// Stops on the first provider/binding error (that plan remains at the front). Extra
 /// requests beyond the queue length are ignored. When requests run out, remaining
 /// plans stay queued.
-pub fn run_queued_plans(
-    session: &mut Session,
-    requests: impl IntoIterator<Item = DomainRequest>,
-) -> Result<QueuedPlanBatchReport, Diagnostic> {
+pub fn run_queued_plans(session: &mut Session, requests: impl IntoIterator<Item = DomainRequest>) -> Result<QueuedPlanBatchReport, Diagnostic> {
     let mut report = QueuedPlanBatchReport::default();
     for request in requests {
         if session.mgraph.operational.pending_plans.is_empty() {
@@ -333,16 +259,11 @@ mod tests {
     };
 
     fn poly_session() -> (Session, crate::domains::polynomial::PolynomialRef) {
-        use crate::domains::polynomial::{
-            CoefficientDomain, MonomialOrder, PolynomialBuilder,
-        };
+        use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder};
         use athena_types::SymbolId;
 
         let mut session = Session::new();
-        let ring = session
-            .rings
-            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-            .expect("ring");
+        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
         let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
         let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
         (session, poly_ref)
@@ -354,22 +275,14 @@ mod tests {
 
         let (mut session, poly_ref) = poly_session();
         let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![],
-        };
+        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
         session.mgraph.operational.pending_plans.push(QueuedPlan::bound(
             &session,
-            DomainPlan {
-                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
-            },
+            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
             obligation,
             &request,
         ));
-        let result = run_next_queued_plan(&mut session, request)
-            .expect("run")
-            .expect("some");
+        let result = run_next_queued_plan(&mut session, request).expect("run").expect("some");
         assert!(matches!(result, DomainResult::Polynomial(_)));
         assert!(session.mgraph.operational.pending_plans.is_empty());
         assert!(session.mgraph.semantic.relation_count() >= 1);
@@ -381,16 +294,10 @@ mod tests {
 
         let (mut session, poly_ref) = poly_session();
         let bound_req = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![],
-        };
+        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
         session.mgraph.operational.pending_plans.push(QueuedPlan::bound(
             &session,
-            DomainPlan {
-                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
-            },
+            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
             obligation,
             &bound_req,
         ));
@@ -403,16 +310,11 @@ mod tests {
                 crate::domains::polynomial::MonomialOrder::Lex,
             )
             .expect("ring2");
-        let poly2 = crate::domains::polynomial::PolynomialBuilder::new(ring2)
-            .build(&session.rings)
-            .expect("poly2");
+        let poly2 = crate::domains::polynomial::PolynomialBuilder::new(ring2).build(&session.rings).expect("poly2");
         let poly_ref2 = session.polynomial_objects.intern(poly2, &session.rings);
         let mismatch = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref2 });
         let err = run_next_queued_plan(&mut session, mismatch).expect_err("mismatch");
-        assert_eq!(
-            err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("plan_binding_mismatch")
-        );
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("plan_binding_mismatch"));
         assert_eq!(session.mgraph.operational.pending_plans.len(), 1);
     }
 
@@ -421,11 +323,8 @@ mod tests {
         use crate::domains::polynomial::PolynomialRequest;
 
         let (mut session, poly_ref) = poly_session();
-        let out = run_next_queued_plan(
-            &mut session,
-            DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }),
-        )
-        .expect("ok");
+        let out =
+            run_next_queued_plan(&mut session, DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref })).expect("ok");
         assert!(out.is_none());
     }
 
@@ -435,16 +334,10 @@ mod tests {
 
         let (mut session, poly_ref) = poly_session();
         let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![],
-        };
+        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
         let plan = QueuedPlan::bound(
             &session,
-            DomainPlan {
-                steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult],
-            },
+            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
             obligation,
             &request,
         );

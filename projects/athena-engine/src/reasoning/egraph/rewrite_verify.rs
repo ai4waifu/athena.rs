@@ -6,11 +6,9 @@ use athena_rewriter::{PatternBindings, match_pattern, substitute};
 use crate::reasoning::{
     egraph::{CandidateEquivalence, TypedRuleSet},
     mgraph::{
-        admission::{AdmissionGate, AdmissionRejectReason, VerificationPolicy},
-        facts::claim::{
-            Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope,
-        },
         SemanticCore,
+        admission::{AdmissionGate, AdmissionRejectReason, VerificationPolicy},
+        facts::claim::{Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope},
     },
 };
 
@@ -40,11 +38,7 @@ pub fn verify_typed_rewrite_candidate(
         guarantee: Guarantee::ProvenExact,
         evidence: Evidence::TrustedKernel {
             provider: EGRAPH_PROVIDER_ID,
-            certificate: EvidenceCertificate::TypedRewriteReplay {
-                rule: rule_id,
-                left,
-                right,
-            },
+            certificate: EvidenceCertificate::TypedRewriteReplay { rule: rule_id, left, right },
             summary: format!("typed-rewrite-replay:{rule_id:?}:{left:?}:{right:?}"),
         },
     })
@@ -70,9 +64,5 @@ pub fn admit_typed_rewrite_candidates(
     candidates: &[CandidateEquivalence],
     policy: &VerificationPolicy,
 ) -> Vec<Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason>> {
-    candidates
-        .iter()
-        .filter(|c| c.rule.is_some())
-        .map(|c| admit_typed_rewrite_candidate(store, semantic, rules, c, policy))
-        .collect()
+    candidates.iter().filter(|c| c.rule.is_some()).map(|c| admit_typed_rewrite_candidate(store, semantic, rules, c, policy)).collect()
 }

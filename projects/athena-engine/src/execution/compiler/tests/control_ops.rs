@@ -24,8 +24,8 @@ fn compile_and_execute_boolean_branch() {
 
 #[test]
 fn compile_and_execute_define_write_binding() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("x", Default::default());
@@ -48,8 +48,8 @@ fn compile_and_execute_define_write_binding() {
 
 #[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let plus = ApplicationHead::Semantic(SemanticOperator::Add);
@@ -84,8 +84,8 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
 
 #[test]
 fn compile_and_execute_define_then_read_binding() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("y", Default::default());
@@ -112,8 +112,8 @@ fn compile_and_execute_define_then_read_binding() {
 
 #[test]
 fn compile_and_execute_sequence_define_read_clear() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("z", Default::default());
@@ -125,11 +125,11 @@ fn compile_and_execute_sequence_define_read_clear() {
     let request = AthenaRequest::Control(ControlPlan::Sequence {
         steps: vec![
             AthenaRequest::Command(SessionCommand::Define {
-        symbol,
-        value,
-        kind: BindingKind::Session,
-        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
-    }),
+                symbol,
+                value,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
             AthenaRequest::Term(sym_term),
             AthenaRequest::Command(SessionCommand::ClearDefinition { symbol }),
         ],
@@ -154,8 +154,7 @@ fn compile_and_execute_counted_loop_unroll() {
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(3, Default::default());
     let iter = session.builder().list(vec![a, b, c], Default::default());
-    let request =
-        AthenaRequest::Control(ControlPlan::CountedLoop { variable: var, iterator: iter, body: Box::new(AthenaRequest::Term(var)) });
+    let request = AthenaRequest::Control(ControlPlan::CountedLoop { variable: var, iterator: iter, body: Box::new(AthenaRequest::Term(var)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("counted");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
@@ -203,10 +202,7 @@ fn compile_and_execute_control_index_scalar() {
     let b = session.builder().int(20, Default::default());
     let c = session.builder().int(30, Default::default());
     let list = session.builder().list(vec![a, b, c], Default::default());
-    let request = AthenaRequest::Control(ControlPlan::Index {
-        target: list,
-        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
-    });
+    let request = AthenaRequest::Control(ControlPlan::Index { target: list, axes: vec![IndexSpec::Scalar(IntegerIndex(2))] });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("index");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
@@ -223,11 +219,7 @@ fn compile_and_execute_term_counted_loop_range() {
     let three = session.builder().int(3, Default::default());
     let range_op = ApplicationHead::Semantic(SemanticOperator::Range);
     let iter = session.builder().application(range_op, vec![one, three], Default::default());
-    let request = AthenaRequest::Control(ControlPlan::CountedLoop {
-        variable: var,
-        iterator: iter,
-        body: Box::new(AthenaRequest::Term(var)),
-    });
+    let request = AthenaRequest::Control(ControlPlan::CountedLoop { variable: var, iterator: iter, body: Box::new(AthenaRequest::Term(var)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("counted range");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
@@ -257,10 +249,7 @@ fn compile_and_execute_term_loop_while_zero() {
     let mut session = Session::new();
     let zero = session.builder().int(0, Default::default());
     let body = session.builder().int(1, Default::default());
-    let request = AthenaRequest::Control(ControlPlan::LoopWhile {
-        condition: zero,
-        body: Box::new(AthenaRequest::Term(body)),
-    });
+    let request = AthenaRequest::Control(ControlPlan::LoopWhile { condition: zero, body: Box::new(AthenaRequest::Term(body)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("loop control");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
@@ -295,9 +284,7 @@ fn compile_and_execute_goal_call_provider_dispatches_domain() {
     let value_id = loaded.value.expect("value");
     match session.values.get(value_id).expect("runtime") {
         RuntimeValue::Domain(crate::domains::dispatch::DomainResult::NumberTheory(
-            crate::domains::number_theory::NumberTheoryResult::Exact {
-                value: crate::domains::number_theory::NumberTheoryValue::Integer(n),
-            },
+            crate::domains::number_theory::NumberTheoryResult::Exact { value: crate::domains::number_theory::NumberTheoryValue::Integer(n) },
         )) => assert_eq!(n, &Integer::from_i64(4)),
         other => panic!("expected NumberTheory Exact Integer gcd, got {other:?}"),
     }
@@ -402,8 +389,8 @@ fn compile_and_execute_local_scope_body() {
 
 #[test]
 fn compile_and_execute_local_scope_shadows_session() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let sym_term = session.builder().symbol("s", Default::default());
@@ -524,8 +511,8 @@ fn compile_and_execute_cond_picks_true_arm() {
 
 #[test]
 fn compile_and_execute_define_in_sequence() {
-    use athena_types::{BindingEvaluationPolicy, BindingKind};
     use crate::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());

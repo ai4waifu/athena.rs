@@ -3,8 +3,10 @@
 //! 图语义 ≠ 矩阵 CSR 伪装：本视图只借用边表，不物化独立 `MatrixValue`。
 
 use super::{TypedViewHeader, ViewFingerprint, ViewKind, ViewRevision};
-use crate::domains::graph_theory::{GraphNodeId, GraphObject};
-use crate::reasoning::mgraph::{ObjectRef, TheoryContextId};
+use crate::{
+    domains::graph_theory::{GraphNodeId, GraphObject},
+    reasoning::mgraph::{ObjectRef, TheoryContextId},
+};
 
 /// 只读图邻接投影：借用 [`GraphObject`] 边表，禁止拷成 CSR DomainObject。
 #[derive(Debug, Clone, Copy)]
@@ -18,12 +20,7 @@ impl<'a> GraphMatrixView<'a> {
     pub fn open(graph: &'a GraphObject) -> Self {
         let fingerprint = ViewFingerprint(provisional_graph_view_fingerprint(graph));
         let source = ObjectRef::new(TheoryContextId::GRAPH, fingerprint.0);
-        let header = TypedViewHeader::new(
-            source,
-            ViewKind::GraphMatrix,
-            ViewRevision(graph.revision().0),
-            fingerprint,
-        );
+        let header = TypedViewHeader::new(source, ViewKind::GraphMatrix, ViewRevision(graph.revision().0), fingerprint);
         Self { header, graph }
     }
 

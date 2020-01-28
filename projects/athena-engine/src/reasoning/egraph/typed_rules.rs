@@ -43,20 +43,10 @@ impl TypedRuleSet {
     }
 
     /// Register a typed pattern → replacement template.
-    pub fn push(
-        &mut self,
-        pattern: TermPattern,
-        replacement: TermId,
-        debug_label: Option<&'static str>,
-    ) -> RewriteRuleId {
+    pub fn push(&mut self, pattern: TermPattern, replacement: TermId, debug_label: Option<&'static str>) -> RewriteRuleId {
         let id = RewriteRuleId(self.next_id);
         self.next_id = self.next_id.saturating_add(1);
-        self.rules.push(TypedRewriteRule {
-            id,
-            pattern,
-            replacement,
-            debug_label,
-        });
+        self.rules.push(TypedRewriteRule { id, pattern, replacement, debug_label });
         id
     }
 

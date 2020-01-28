@@ -355,10 +355,7 @@ mod tests {
                 Operation {
                     result: None,
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::Guard {
-                        predicate: pred,
-                        on_failure: GuardFailure::Exit(crate::execution::ir::ExitId(7)),
-                    },
+                    kind: OperationKind::Guard { predicate: pred, on_failure: GuardFailure::Exit(crate::execution::ir::ExitId(7)) },
                     effect_in: None,
                     effect_out: None,
                 },

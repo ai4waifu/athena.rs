@@ -41,21 +41,19 @@ impl VerifySnapshot {
 }
 
 /// Recompute and compare claimed provider output (PlanIR Verify body).
-pub fn verify_recompute_domain_result(
-    session: &mut Session,
-    snapshot: &VerifySnapshot,
-    claimed: &DomainResult,
-) -> Result<(), Diagnostic> {
+pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySnapshot, claimed: &DomainResult) -> Result<(), Diagnostic> {
     match snapshot {
         VerifySnapshot::Calculus(req) => {
-            let DomainResult::Calculus(claimed_calc) = claimed else {
+            let DomainResult::Calculus(claimed_calc) = claimed
+            else {
                 return Err(verify_err("calculus_result_kind_mismatch"));
             };
             let replay = execute_calculus(session, req.clone());
             assert_calculus_match(session, &replay, claimed_calc)
         }
         VerifySnapshot::Polynomial(req) => {
-            let DomainResult::Polynomial(claimed_poly) = claimed else {
+            let DomainResult::Polynomial(claimed_poly) = claimed
+            else {
                 return Err(verify_err("polynomial_result_kind_mismatch"));
             };
             // Always recompute via rings path (independent of M-Graph cache admit).
@@ -82,16 +80,7 @@ fn assert_calculus_match(
     claimed: &CalculusResult<CalculusValue>,
 ) -> Result<(), Diagnostic> {
     match (replay, claimed) {
-        (
-            CalculusResult::Exact {
-                value: rv,
-                conditions: rc,
-            },
-            CalculusResult::Exact {
-                value: cv,
-                conditions: cc,
-            },
-        ) => {
+        (CalculusResult::Exact { value: rv, conditions: rc }, CalculusResult::Exact { value: cv, conditions: cc }) => {
             if rc != cc {
                 return Err(verify_err("calculus_conditions_mismatch"));
             }
@@ -101,16 +90,7 @@ fn assert_calculus_match(
             Ok(())
         }
         (CalculusResult::Unevaluated { .. }, CalculusResult::Unevaluated { .. }) => Ok(()),
-        (
-            CalculusResult::Conditional {
-                value: rv,
-                conditions: rc,
-            },
-            CalculusResult::Conditional {
-                value: cv,
-                conditions: cc,
-            },
-        ) => {
+        (CalculusResult::Conditional { value: rv, conditions: rc }, CalculusResult::Conditional { value: cv, conditions: cc }) => {
             if rc != cc {
                 return Err(verify_err("calculus_conditions_mismatch"));
             }
@@ -130,10 +110,7 @@ fn calculus_values_match(session: &Session, a: &CalculusValue, b: &CalculusValue
             if x == y {
                 return true;
             }
-            match (
-                session.series_objects.get(*x),
-                session.series_objects.get(*y),
-            ) {
+            match (session.series_objects.get(*x), session.series_objects.get(*y)) {
                 (Some(sx), Some(sy)) => sx == sy,
                 _ => false,
             }
@@ -147,7 +124,8 @@ fn assert_polynomial_match(replay: &PolynomialResult, claimed: &PolynomialResult
         (PolynomialResult::Exact { value: rv }, PolynomialResult::Exact { value: cv }) => {
             if rv == cv {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(verify_err("polynomial_recompute_mismatch"))
             }
         }
@@ -157,9 +135,7 @@ fn assert_polynomial_match(replay: &PolynomialResult, claimed: &PolynomialResult
 }
 
 fn verify_err(reason: &'static str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "plan_exec")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "plan_exec").detail("reason", reason)
 }
 
 #[cfg(test)]
@@ -169,31 +145,33 @@ mod tests {
     use athena_types::{AssumptionSet, SymbolId, TermId};
 
     #[test]
+    fn calculus_forged_exact_term_fails_recompute() {
+        let mut session = Session::new();
+        let snapshot = VerifySnapshot::Calculus(CalculusRequest::Derivative {
+            expression: TermId(0),
+            variable: SymbolId(0),
+            order: DerivativeOrder::First,
+            assumptions: AssumptionSet::empty(),
+        });
+        let forged =
+            DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(TermId(999_999)), conditions: Vec::new() });
+        let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("calculus_recompute_mismatch"));
+    }
+
+    #[test]
     fn polynomial_forged_exact_fails_recompute() {
         use crate::domains::polynomial::{
-            CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest,
-            PolynomialResult, PolynomialValue,
+            CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
         };
-        use athena_types::SymbolId;
 
         let mut session = Session::new();
-        let ring = session
-            .rings
-            .intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex)
-            .expect("ring");
+        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
         let poly = PolynomialBuilder::new(ring).build(&session.rings).expect("zero");
         let poly_ref = session.polynomial_objects.intern(poly, &session.rings);
         let snapshot = VerifySnapshot::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let forged = DomainResult::Polynomial(PolynomialResult::Exact {
-            value: PolynomialDomainValue::Placeholder,
-        });
+        let forged = DomainResult::Polynomial(PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder });
         let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
-        assert_eq!(
-            err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("polynomial_recompute_mismatch")
-        );
-        let _ = PolynomialValue {
-            inner: PolynomialBuilder::new(ring).build(&session.rings).expect("pad"),
-        };
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("polynomial_recompute_mismatch"));
     }
 }

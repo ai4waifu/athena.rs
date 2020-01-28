@@ -10,11 +10,7 @@ pub mod operational;
 use athena_ir::TermStore;
 use athena_types::TermId;
 
-use crate::reasoning::mgraph::{
-    core::state::MGraphState,
-    equivalence::proof_forest::ProofStepKind,
-    ProofForest,
-};
+use crate::reasoning::mgraph::{ProofForest, core::state::MGraphState, equivalence::proof_forest::ProofStepKind};
 
 pub use drain::{HyperEdgeDrainReport, drain_hyper_edges_to_outer_pool};
 pub use operational::OperationalState;
@@ -66,11 +62,7 @@ impl ClosureResult {
 /// 2. Materialize [`ProofStepKind::Transitivity`] edges for one-hop compositions.
 ///
 /// Does **not** write journal / ExactUF and does **not** promote OuterCandidate to facts.
-pub fn run_closure_step(
-    store: &TermStore,
-    state: &mut MGraphState,
-    limits: &ClosureLimits,
-) -> ClosureResult {
+pub fn run_closure_step(store: &TermStore, state: &mut MGraphState, limits: &ClosureLimits) -> ClosureResult {
     let drain = drain_hyper_edges_to_outer_pool(store, state);
     let mut steps_applied = 0u32;
 
@@ -90,11 +82,7 @@ pub fn run_closure_step(
 
     let more = pending_transitivity_exists(state);
     ClosureResult {
-        stop: if more {
-            ClosureStopReason::StepBudget
-        } else {
-            ClosureStopReason::Saturated
-        },
+        stop: if more { ClosureStopReason::StepBudget } else { ClosureStopReason::Saturated },
         steps_applied,
         hyper_edges_staged: drain.staged,
         hyper_edges_retained: drain.retained,
@@ -102,14 +90,11 @@ pub fn run_closure_step(
 }
 
 fn materialize_one_transitivity_edge(state: &mut MGraphState) -> bool {
-    let Some((left, right)) = next_transitivity_pair(state) else {
+    let Some((left, right)) = next_transitivity_pair(state)
+    else {
         return false;
     };
-    state
-        .semantic
-        .derived
-        .proof_forest
-        .record(left, right, ProofStepKind::Transitivity);
+    state.semantic.derived.proof_forest.record(left, right, ProofStepKind::Transitivity);
     true
 }
 
@@ -149,9 +134,7 @@ fn next_transitivity_pair(state: &MGraphState) -> Option<(TermId, TermId)> {
 }
 
 fn forest_has_pair(forest: &ProofForest, left: TermId, right: TermId) -> bool {
-    forest.edges().iter().any(|e| {
-        (e.left == left && e.right == right) || (e.left == right && e.right == left)
-    })
+    forest.edges().iter().any(|e| (e.left == left && e.right == right) || (e.left == right && e.right == left))
 }
 
 #[cfg(test)]
@@ -159,8 +142,8 @@ mod tests {
     use athena_types::TermId;
 
     use crate::reasoning::mgraph::{
-        AdmissionGate, CapabilityProviderId, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition,
-        Scope, VerificationPolicy, ProofStepKind,
+        AdmissionGate, CapabilityProviderId, Claim, Evidence, EvidenceCertificate, Guarantee, ProofStepKind, Proposition, Scope,
+        VerificationPolicy,
     };
 
     use super::*;
@@ -169,18 +152,12 @@ mod tests {
         AdmissionGate::admit_claim(
             &mut state.semantic,
             Claim {
-                proposition: Proposition::TermEquality {
-                    left: TermId(left),
-                    right: TermId(right),
-                },
+                proposition: Proposition::TermEquality { left: TermId(left), right: TermId(right) },
                 scope: Scope::Unconditional,
                 guarantee: Guarantee::ProvenExact,
                 evidence: Evidence::TrustedKernel {
                     provider: CapabilityProviderId(0),
-                    certificate: EvidenceCertificate::StructuralTermEquality {
-                        left: TermId(left),
-                        right: TermId(right),
-                    },
+                    certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(left), right: TermId(right) },
                     summary: "seed".into(),
                 },
             },
@@ -213,13 +190,9 @@ mod tests {
         assert!(result.steps_applied >= 1);
         assert!(state.semantic.derived.proof_forest.edges().iter().any(|e| {
             e.step_kind == ProofStepKind::Transitivity
-                && ((e.left == TermId(1) && e.right == TermId(3))
-                    || (e.left == TermId(3) && e.right == TermId(1)))
+                && ((e.left == TermId(1) && e.right == TermId(3)) || (e.left == TermId(3) && e.right == TermId(1)))
         }));
-        assert_eq!(
-            state.semantic.derived.exact_uf.find(TermId(1)),
-            state.semantic.derived.exact_uf.find(TermId(3))
-        );
+        assert_eq!(state.semantic.derived.exact_uf.find(TermId(1)), state.semantic.derived.exact_uf.find(TermId(3)));
     }
 
     #[test]
@@ -237,9 +210,9 @@ mod tests {
 
     #[test]
     fn closure_drains_rewrite_hyper_edges_into_outer_pool() {
+        use crate::reasoning::mgraph::{HyperEdge, predicates};
         use athena_ir::{Atom, TermNode};
         use athena_types::SourceSpan;
-        use crate::reasoning::mgraph::{HyperEdge, predicates};
 
         let mut store = athena_ir::TermStore::new();
         let span = SourceSpan::default();
@@ -249,10 +222,7 @@ mod tests {
         let right = store.push(TermNode::Atom(Atom::Symbol(y)), span);
 
         let mut state = MGraphState::new();
-        state.operational.hyper_edges.push(HyperEdge {
-            nodes: vec![left, right],
-            predicate: predicates::REWRITE_EQUIVALENT,
-        });
+        state.operational.hyper_edges.push(HyperEdge { nodes: vec![left, right], predicate: predicates::REWRITE_EQUIVALENT });
         let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
         assert_eq!(result.hyper_edges_staged, 1);
         assert_eq!(result.hyper_edges_retained, 0);

@@ -1,15 +1,14 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
-use athena_types::{SymbolId, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{
     derivative::differentiate,
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, replace_symbol},
 };
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 截断级数的余项标注。
 #[derive(Debug, Clone, PartialEq)]
@@ -103,7 +102,13 @@ fn residual_series(cc: &mut DomainExecutionContext<'_>, expression: TermId, vari
 }
 
 /// 关于 `center` 展开到 `order`（含该幂次）的 Taylor 展开。
-pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> CalculusResult<Series> {
+pub fn taylor(
+    cc: &mut DomainExecutionContext<'_>,
+    expression: TermId,
+    variable: SymbolId,
+    center: TermId,
+    order: u32,
+) -> CalculusResult<Series> {
     const SHIFT: &str = "__athena_taylor_t";
     let working = if is_zero_term(cc, center) {
         expression
@@ -135,7 +140,12 @@ pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
                 reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
             };
         }
-        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Divide, vec![at_zero, cc.in_(factorial)])) };
+        let coeff = if n == 0 || factorial == 1 {
+            at_zero
+        }
+        else {
+            cc.fold_term(cc.apply_semantic(SemanticOperator::Divide, vec![at_zero, cc.in_(factorial)]))
+        };
         if !is_zero_term(cc, coeff) {
             terms.push((coeff, n as i64));
         }
@@ -167,7 +177,13 @@ pub fn taylor(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable:
 /// 关于 `center` 的 Laurent 展开：先清除有限阶极点，再 Taylor，再平移幂次。
 ///
 /// `order` 为正则部分（非负幂）截断的最高幂次。主部在可清除时完整保留。
-pub fn laurent(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> CalculusResult<Series> {
+pub fn laurent(
+    cc: &mut DomainExecutionContext<'_>,
+    expression: TermId,
+    variable: SymbolId,
+    center: TermId,
+    order: u32,
+) -> CalculusResult<Series> {
     const MAX_POLE: u32 = 8;
     let delta = if is_zero_term(cc, center) {
         cc.symbol_id(variable)
@@ -210,7 +226,15 @@ pub fn laurent(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable
     }
 }
 
-fn remap_laurent_series(cc: &mut DomainExecutionContext<'_>, series: Series, variable: SymbolId, center: TermId, order: u32, m: u32, delta: TermId) -> Series {
+fn remap_laurent_series(
+    cc: &mut DomainExecutionContext<'_>,
+    series: Series,
+    variable: SymbolId,
+    center: TermId,
+    order: u32,
+    m: u32,
+    delta: TermId,
+) -> Series {
     let terms: Vec<(TermId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
@@ -347,9 +371,7 @@ fn remap_asymptotic_series(cc: &mut DomainExecutionContext<'_>, series: Series, 
 fn term_has_singular_zero_power(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
     match cc.shape(term) {
         Some(Shape::Collection(items)) => items.iter().any(|t| term_has_singular_zero_power(cc, *t)),
-        Some(Shape::Application(ApplicationHead::Semantic(SemanticOperator::Power), args))
-            if args.len() == 2 && is_zero_term(cc, args[0]) =>
-        {
+        Some(Shape::Application(ApplicationHead::Semantic(SemanticOperator::Power), args)) if args.len() == 2 && is_zero_term(cc, args[0]) => {
             !is_zero_term(cc, args[1])
         }
         Some(Shape::Application(_, args)) => args.iter().any(|t| term_has_singular_zero_power(cc, *t)),

@@ -110,14 +110,8 @@ fn find_accepted_transports_along_refines() {
     semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL);
 
     admit_ok(&mut semantic, sample_claim(77));
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
-        .is_some());
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT)
-        .is_some());
+    assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_some());
+    assert!(semantic.view().find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT).is_some());
 }
 
 #[test]
@@ -134,14 +128,8 @@ fn find_accepted_does_not_transport_upward() {
     claim.scope = local;
     admit_ok(&mut semantic, claim);
 
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT)
-        .is_some());
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
-        .is_none());
+    assert!(semantic.view().find_accepted_by_predicate(local_ref, predicates::POLYNOMIAL_RESULT).is_some());
+    assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_none());
     assert!(semantic.view().relations_in_scope(ScopeRef::UNCONDITIONAL).is_empty());
 }
 
@@ -155,12 +143,7 @@ fn admit_into_state_wakes_matching_obligation() {
         scope: ScopeRef::UNCONDITIONAL,
         known_objects: vec![],
     });
-    let (id, wake) = AdmissionGate::admit_claim_into_state(
-        &mut state,
-        sample_claim(55),
-        &VerificationPolicy::default(),
-    )
-    .expect("admit");
+    let (id, wake) = AdmissionGate::admit_claim_into_state(&mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
     assert_eq!(wake.wakes.len(), 1);
     assert_eq!(wake.wakes[0].relation, id);
     assert!(state.operational.obligation_index.is_empty());
@@ -242,14 +225,8 @@ fn find_accepted_consults_compatible_peer_locally() {
     claim.scope = Scope::UnderAssumptions(AssumptionSetId(11));
     admit_ok(&mut semantic, claim);
 
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT)
-        .is_some());
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
-        .is_none());
+    assert!(semantic.view().find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT).is_some());
+    assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_none());
 }
 
 #[test]
@@ -260,19 +237,11 @@ fn find_accepted_skips_incompatible_ancestor() {
     let mut semantic = SemanticCore::new();
     let local = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(12)));
     semantic.core.refine_scope(local, ScopeRef::UNCONDITIONAL);
-    semantic
-        .core
-        .mark_scopes_incompatible(local, ScopeRef::UNCONDITIONAL);
+    semantic.core.mark_scopes_incompatible(local, ScopeRef::UNCONDITIONAL);
 
     admit_ok(&mut semantic, sample_claim(202));
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT)
-        .is_some());
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(local, predicates::POLYNOMIAL_RESULT)
-        .is_none());
+    assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_some());
+    assert!(semantic.view().find_accepted_by_predicate(local, predicates::POLYNOMIAL_RESULT).is_none());
 }
 
 #[test]
@@ -290,10 +259,7 @@ fn incompatible_wins_over_compatible_peer() {
     claim.scope = Scope::UnderAssumptions(AssumptionSetId(14));
     admit_ok(&mut semantic, claim);
 
-    assert!(semantic
-        .view()
-        .find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT)
-        .is_none());
+    assert!(semantic.view().find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT).is_none());
 }
 
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {

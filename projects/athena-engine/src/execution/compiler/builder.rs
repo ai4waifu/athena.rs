@@ -3,9 +3,8 @@
 use athena_types::{Result, TermId};
 
 use crate::execution::ir::{
-    BasicBlock, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken,
-    ExecutionModule, ExecutionValueType, ModuleFingerprint, ProviderCallDescriptor, ProviderCallId, Region, RegionId, SsaValueId,
-    verify_module,
+    BasicBlock, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken, ExecutionModule,
+    ExecutionValueType, ModuleFingerprint, ProviderCallDescriptor, ProviderCallId, Region, RegionId, SsaValueId, verify_module,
 };
 
 #[derive(Default)]
@@ -79,4 +78,3 @@ impl ModuleBuilder {
         Ok(module)
     }
 }
-

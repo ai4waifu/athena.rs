@@ -4,8 +4,8 @@ use athena_ir::{SemanticOperator, TermNode};
 use athena_types::SourceSpan;
 
 use super::{
-    CandidateEquivalence, EGraph, ExtractionPreference, Extractor, SaturationBudget, SaturationStopReason,
-    admit_structural_term_equality, candidate_to_outer, saturate, verify_structural_term_equality,
+    CandidateEquivalence, EGraph, ExtractionPreference, Extractor, SaturationBudget, SaturationStopReason, admit_structural_term_equality,
+    candidate_to_outer, saturate, verify_structural_term_equality,
 };
 use crate::reasoning::mgraph::{Guarantee, ProofStepKind, Proposition, SemanticCore, VerificationPolicy};
 
@@ -13,21 +13,10 @@ use crate::reasoning::mgraph::{Guarantee, ProofStepKind, Proposition, SemanticCo
 fn add_term_builds_eclasses_without_mgraph_side_effects() {
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let two = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, two],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let two = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))), span);
+    let add = store
+        .push(TermNode::Application { head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, two] }, span);
 
     let mut graph = EGraph::new();
     let class = graph.add_term(&store, add).expect("add");
@@ -40,16 +29,7 @@ fn add_term_builds_eclasses_without_mgraph_side_effects() {
 fn saturate_respects_zero_iteration_budget() {
     let store = athena_ir::TermStore::new();
     let mut graph = EGraph::new();
-    let report = saturate(
-        &mut graph,
-        &store,
-        &[],
-        SaturationBudget {
-            max_iterations: 0,
-            ..SaturationBudget::smoke()
-        },
-        None,
-    );
+    let report = saturate(&mut graph, &store, &[], SaturationBudget { max_iterations: 0, ..SaturationBudget::smoke() }, None);
     assert_eq!(report.stop, SaturationStopReason::ResourceBudget);
     assert!(report.candidates.is_empty());
 }
@@ -58,23 +38,15 @@ fn saturate_respects_zero_iteration_budget() {
 fn candidate_union_merges_classes_locally() {
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let a = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let b = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))),
-        span,
-    );
+    let a = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let b = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))), span);
     let mut graph = EGraph::new();
     let ca = graph.add_term(&store, a).unwrap();
     let cb = graph.add_term(&store, b).unwrap();
     assert_ne!(graph.find(ca), graph.find(cb));
     assert!(graph.union_classes(ca, cb));
     assert_eq!(graph.find(ca), graph.find(cb));
-    let extracted = Extractor::with_preference(ExtractionPreference::FirstTerm)
-        .extract(&graph, &store, ca, None)
-        .expect("term");
+    let extracted = Extractor::with_preference(ExtractionPreference::FirstTerm).extract(&graph, &store, ca, None).expect("term");
     assert!(extracted == a || extracted == b);
 }
 
@@ -82,10 +54,7 @@ fn candidate_union_merges_classes_locally() {
 fn saturate_adds_roots_to_fixed_point() {
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let x = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
+    let x = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
     let mut graph = EGraph::new();
     let report = saturate(&mut graph, &store, &[x], SaturationBudget::smoke(), None);
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
@@ -115,43 +84,27 @@ fn candidate_to_outer_stays_unverified() {
 fn structural_admit_writes_exact_uf_and_proof_forest() {
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let a = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(7))),
-        span,
-    );
-    let b = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(7))),
-        span,
-    );
+    let a = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(7))), span);
+    let b = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(7))), span);
     assert!(store.structural_eq(a, b));
 
     let claim = verify_structural_term_equality(&store, a, b).expect("verify");
     assert_eq!(claim.guarantee, Guarantee::ProvenExact);
 
     let mut semantic = SemanticCore::new();
-    let fact = admit_structural_term_equality(&store, &mut semantic, a, b, &VerificationPolicy::default())
-        .expect("admit");
+    let fact = admit_structural_term_equality(&store, &mut semantic, a, b, &VerificationPolicy::default()).expect("admit");
     assert_eq!(fact.0, 0);
     assert_eq!(semantic.derived.exact_uf.find(a), semantic.derived.exact_uf.find(b));
     assert_eq!(semantic.derived.proof_forest.len(), 1);
-    assert_eq!(
-        semantic.derived.proof_forest.edges()[0].step_kind,
-        ProofStepKind::AdmittedEquality
-    );
+    assert_eq!(semantic.derived.proof_forest.edges()[0].step_kind, ProofStepKind::AdmittedEquality);
 }
 
 #[test]
 fn structural_verify_rejects_unequal_terms() {
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let a = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let b = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))),
-        span,
-    );
+    let a = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let b = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))), span);
     assert!(verify_structural_term_equality(&store, a, b).is_err());
 }
 
@@ -161,24 +114,13 @@ fn session_saturation_and_structural_admit() {
 
     let mut session = Session::new();
     let span = SourceSpan::default();
-    let a = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(3))),
-        span,
-    );
-    let b = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(3))),
-        span,
-    );
+    let a = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(3))), span);
+    let b = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(3))), span);
     let report = session.run_egraph_saturation(&[a, b], None);
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
     assert!(session.egraph.class_of_term(a).is_some());
-    session
-        .admit_structural_term_equality(a, b)
-        .expect("session admit");
-    assert_eq!(
-        session.mgraph.semantic.derived.exact_uf.find(a),
-        session.mgraph.semantic.derived.exact_uf.find(b)
-    );
+    session.admit_structural_term_equality(a, b).expect("session admit");
+    assert_eq!(session.mgraph.semantic.derived.exact_uf.find(a), session.mgraph.semantic.derived.exact_uf.find(b));
 }
 
 #[test]
@@ -187,18 +129,9 @@ fn saturate_emits_candidates_from_structural_rule_match() {
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let zero = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let pattern = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
+    let zero = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let pattern = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
     let replacement = one;
     let mut rules = RuleSet::new();
     let rule_id = rules.push(pattern, replacement, Some("zero_to_one"));
@@ -214,10 +147,7 @@ fn saturate_emits_candidates_from_structural_rule_match() {
     assert_eq!(witness.rule, rule_id);
     assert_eq!(witness.subject, zero);
     assert_eq!(witness.produced, one);
-    assert_eq!(
-        graph.find(graph.class_of_term(zero).unwrap()),
-        graph.find(graph.class_of_term(one).unwrap())
-    );
+    assert_eq!(graph.find(graph.class_of_term(zero).unwrap()), graph.find(graph.class_of_term(one).unwrap()));
 }
 
 #[test]
@@ -227,18 +157,9 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
 
     let mut session = Session::new();
     let span = SourceSpan::default();
-    let zero = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
-    let one = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let pattern = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
+    let zero = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
+    let one = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let pattern = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
     let mut rules = RuleSet::new();
     rules.push(pattern, one, Some("zero_to_one"));
     let report = session.run_egraph_saturation(&[zero], Some(&rules));
@@ -247,10 +168,7 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
     assert!(admitted.is_empty());
     assert_eq!(session.mgraph.semantic.derived.proof_forest.len(), 0);
 
-    let twin = session.arena.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))),
-        span,
-    );
+    let twin = session.arena.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
     let structural = CandidateEquivalence {
         left_term: zero,
         right_term: twin,
@@ -266,37 +184,22 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
 
 #[test]
 fn saturate_typed_binds_and_substitutes_replacement() {
-    use athena_ir::{ApplicationHead, SemanticOperator};
     use crate::reasoning::trs::TermPattern;
+    use athena_ir::{ApplicationHead, SemanticOperator};
 
     use super::{TypedRuleSet, saturate_typed};
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let x = store.symbols_mut().intern("x");
     let x_term = store.push(TermNode::Atom(athena_ir::Atom::Symbol(x)), span);
     let pattern = TermPattern::Application {
         operator: ApplicationHead::Semantic(SemanticOperator::Add),
         arguments: vec![
-            TermPattern::Bind {
-                name: x,
-                inner: Box::new(TermPattern::Any),
-            },
-            TermPattern::Bind {
-                name: x,
-                inner: Box::new(TermPattern::Any),
-            },
+            TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
+            TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
         ],
     };
     let mut rules = TypedRuleSet::new();
@@ -308,10 +211,7 @@ fn saturate_typed_binds_and_substitutes_replacement() {
     assert_eq!(report.candidates[0].left_term, add);
     assert_eq!(report.candidates[0].right_term, one);
     assert_eq!(report.candidates[0].rule, Some(rule_id));
-    assert_eq!(
-        graph.find(graph.class_of_term(add).unwrap()),
-        graph.find(graph.class_of_term(one).unwrap())
-    );
+    assert_eq!(graph.find(graph.class_of_term(add).unwrap()), graph.find(graph.class_of_term(one).unwrap()));
 }
 
 #[test]
@@ -320,60 +220,36 @@ fn extract_smallest_ast_prefers_shorter_term() {
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let mut graph = EGraph::new();
     let c_add = graph.add_term(&store, add).unwrap();
     let c_one = graph.add_term(&store, one).unwrap();
     assert!(graph.union_classes(c_add, c_one));
-    let extracted = Extractor::with_preference(ExtractionPreference::SmallestAst)
-        .extract(&graph, &store, c_add, None)
-        .expect("term");
+    let extracted = Extractor::with_preference(ExtractionPreference::SmallestAst).extract(&graph, &store, c_add, None).expect("term");
     assert_eq!(extracted, one);
 }
 
 #[test]
 fn typed_rewrite_replay_admits_add_same_candidate() {
-    use athena_ir::{ApplicationHead, Atom, SemanticOperator};
     use super::{TypedRuleSet, admit_typed_rewrite_candidate, saturate_typed};
-    use crate::reasoning::trs::TermPattern;
-    use crate::reasoning::mgraph::{SemanticCore, VerificationPolicy};
+    use crate::reasoning::{
+        mgraph::{SemanticCore, VerificationPolicy},
+        trs::TermPattern,
+    };
+    use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let x_sym = store.symbols_mut().intern("x");
     let x_term = store.push(TermNode::Atom(Atom::Symbol(x_sym)), span);
     let pattern = TermPattern::Application {
         operator: ApplicationHead::Semantic(SemanticOperator::Add),
         arguments: vec![
-            TermPattern::Bind {
-                name: x_sym,
-                inner: Box::new(TermPattern::Any),
-            },
-            TermPattern::Bind {
-                name: x_sym,
-                inner: Box::new(TermPattern::Any),
-            },
+            TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) },
+            TermPattern::Bind { name: x_sym, inner: Box::new(TermPattern::Any) },
         ],
     };
     let mut rules = TypedRuleSet::new();
@@ -383,26 +259,15 @@ fn typed_rewrite_replay_admits_add_same_candidate() {
     assert_eq!(report.candidates.len(), 1);
 
     let mut semantic = SemanticCore::new();
-    let fact = admit_typed_rewrite_candidate(
-        &mut store,
-        &mut semantic,
-        &rules,
-        &report.candidates[0],
-        &VerificationPolicy::default(),
-    )
-    .expect("replay admit");
+    let fact = admit_typed_rewrite_candidate(&mut store, &mut semantic, &rules, &report.candidates[0], &VerificationPolicy::default())
+        .expect("replay admit");
     assert_eq!(fact.0, 0);
-    assert_eq!(
-        semantic.derived.exact_uf.find(add),
-        semantic.derived.exact_uf.find(one)
-    );
+    assert_eq!(semantic.derived.exact_uf.find(add), semantic.derived.exact_uf.find(one));
 }
 
 #[test]
 fn application_congruence_admits_when_args_exact_equal() {
-    use crate::reasoning::mgraph::{
-        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
-    };
+    use crate::reasoning::mgraph::{AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy};
     use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
@@ -413,20 +278,8 @@ fn application_congruence_admits_when_args_exact_equal() {
     let x = store.push(TermNode::Atom(Atom::Symbol(sx)), span);
     let y = store.push(TermNode::Atom(Atom::Symbol(sy)), span);
     let z = store.push(TermNode::Atom(Atom::Symbol(sz)), span);
-    let fx = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![x, z],
-        },
-        span,
-    );
-    let fy = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![y, z],
-        },
-        span,
-    );
+    let fx = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![x, z] }, span);
+    let fy = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![y, z] }, span);
 
     let mut semantic = SemanticCore::new();
     AdmissionGate::admit_claim(
@@ -454,25 +307,19 @@ fn application_congruence_admits_when_args_exact_equal() {
     let pair = (candidates[0].left_term, candidates[0].right_term);
     assert!(pair == (fx, fy) || pair == (fy, fx));
 
-    let fact = super::admit_application_congruence(
-        &store,
-        &mut semantic,
-        fx,
-        fy,
-        &VerificationPolicy::default(),
-    )
-    .expect("admit app congruence");
+    let fact =
+        super::admit_application_congruence(&store, &mut semantic, fx, fy, &VerificationPolicy::default()).expect("admit app congruence");
     assert_eq!(fact.0, 1);
     assert_eq!(semantic.derived.exact_uf.find(fx), semantic.derived.exact_uf.find(fy));
 }
 
 #[test]
 fn typed_admit_pipeline_runs_congruence_after_seed() {
-    use crate::reasoning::mgraph::{
-        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    use crate::{
+        reasoning::mgraph::{AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy},
+        runtime::Session,
     };
     use athena_ir::{ApplicationHead, Atom, SemanticOperator};
-    use crate::runtime::Session;
 
     let mut session = Session::new();
     let span = SourceSpan::default();
@@ -482,20 +329,10 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
     let x = session.arena.push(TermNode::Atom(Atom::Symbol(sx)), span);
     let y = session.arena.push(TermNode::Atom(Atom::Symbol(sy)), span);
     let z = session.arena.push(TermNode::Atom(Atom::Symbol(sz)), span);
-    let add_xz = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![x, z],
-        },
-        span,
-    );
-    let add_yz = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![y, z],
-        },
-        span,
-    );
+    let add_xz =
+        session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![x, z] }, span);
+    let add_yz =
+        session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![y, z] }, span);
     AdmissionGate::admit_claim(
         &mut session.mgraph.semantic,
         Claim {
@@ -517,10 +354,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
     assert!(report.rewrite_admitted.is_empty());
     assert_eq!(report.congruence_admitted.len(), 1);
     assert!(report.congruence_admitted[0].is_ok());
-    assert_eq!(
-        session.mgraph.semantic.derived.exact_uf.find(add_xz),
-        session.mgraph.semantic.derived.exact_uf.find(add_yz)
-    );
+    assert_eq!(session.mgraph.semantic.derived.exact_uf.find(add_xz), session.mgraph.semantic.derived.exact_uf.find(add_yz));
 }
 
 #[test]
@@ -530,21 +364,9 @@ fn extract_result_cost_prefers_admitted_then_smallest() {
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let two = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let two = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(2))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let mut graph = EGraph::new();
     let c_add = graph.add_term(&store, add).unwrap();
     let c_one = graph.add_term(&store, one).unwrap();
@@ -556,9 +378,8 @@ fn extract_result_cost_prefers_admitted_then_smallest() {
     uf.union(two, add);
     uf.union(two, one);
     assert_eq!(uf.find(add), two);
-    let (extracted, cost) = Extractor::with_preference(ExtractionPreference::ResultCost)
-        .extract_with_cost(&graph, &store, c_add, Some(&uf))
-        .expect("term");
+    let (extracted, cost) =
+        Extractor::with_preference(ExtractionPreference::ResultCost).extract_with_cost(&graph, &store, c_add, Some(&uf)).expect("term");
     assert_eq!(extracted, two);
     assert!(cost.admitted_exact);
     assert_eq!(cost.ast_nodes, 1);
@@ -571,17 +392,8 @@ fn extract_pareto_keeps_admitted_large_and_unadmitted_small() {
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let mut graph = EGraph::new();
     let c_add = graph.add_term(&store, add).unwrap();
     let c_one = graph.add_term(&store, one).unwrap();
@@ -609,17 +421,8 @@ fn extract_admitted_exact_prefers_union_find_rep() {
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
-    let one = store.push(
-        TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))),
-        span,
-    );
-    let add = store.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![one, one],
-        },
-        span,
-    );
+    let one = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(1))), span);
+    let add = store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
     let mut graph = EGraph::new();
     let c_add = graph.add_term(&store, add).unwrap();
     let c_one = graph.add_term(&store, one).unwrap();
@@ -627,8 +430,6 @@ fn extract_admitted_exact_prefers_union_find_rep() {
     let mut uf = ExactUnionFind::default();
     // Force the admitted representative to be `one` (lower id after hash-cons still one).
     uf.union(add, one);
-    let extracted = Extractor::with_preference(ExtractionPreference::AdmittedExact)
-        .extract(&graph, &store, c_add, Some(&uf))
-        .expect("term");
+    let extracted = Extractor::with_preference(ExtractionPreference::AdmittedExact).extract(&graph, &store, c_add, Some(&uf)).expect("term");
     assert_eq!(extracted, uf.find(one));
 }

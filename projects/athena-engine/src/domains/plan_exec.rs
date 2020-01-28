@@ -51,19 +51,10 @@ pub fn interpret_domain_plan<F>(
 where
     F: FnOnce(&mut Session, DomainRequest) -> Result<DomainResult, Diagnostic>,
 {
-    if !plan
-        .steps
-        .iter()
-        .any(|s| matches!(s, PlanStep::CallDomainProvider))
-    {
+    if !plan.steps.iter().any(|s| matches!(s, PlanStep::CallDomainProvider)) {
         return Err(plan_err("plan_missing_CallDomainProvider"));
     }
-    if !plan.steps.iter().any(|s| {
-        matches!(
-            s,
-            PlanStep::MaterializeResult | PlanStep::EmitResidual
-        )
-    }) {
+    if !plan.steps.iter().any(|s| matches!(s, PlanStep::MaterializeResult | PlanStep::EmitResidual)) {
         return Err(plan_err("plan_missing_MaterializeResult_or_EmitResidual"));
     }
 
@@ -82,28 +73,20 @@ where
                 if report.provider_invoked {
                     return Err(plan_err("duplicate_CallDomainProvider"));
                 }
-                let req = pending_request
-                    .take()
-                    .ok_or_else(|| plan_err("request_already_consumed"))?;
-                let call = provider
-                    .take()
-                    .ok_or_else(|| plan_err("provider_callback_missing"))?;
+                let req = pending_request.take().ok_or_else(|| plan_err("request_already_consumed"))?;
+                let call = provider.take().ok_or_else(|| plan_err("provider_callback_missing"))?;
                 result = Some(call(session, req)?);
                 report.provider_invoked = true;
                 report.executed.push(*step);
             }
             PlanStep::CrossDomainView => {
-                let current = result
-                    .as_ref()
-                    .ok_or_else(|| plan_err("CrossDomainView_before_provider"))?;
+                let current = result.as_ref().ok_or_else(|| plan_err("CrossDomainView_before_provider"))?;
                 open_cross_domain_view(session, current)?;
                 report.cross_domain_view = true;
                 report.executed.push(*step);
             }
             PlanStep::Verify => {
-                let current = result
-                    .as_ref()
-                    .ok_or_else(|| plan_err("Verify_before_provider"))?;
+                let current = result.as_ref().ok_or_else(|| plan_err("Verify_before_provider"))?;
                 verify_recompute_domain_result(session, &verify_snapshot, current)?;
                 report.verified = true;
                 report.executed.push(*step);
@@ -130,26 +113,15 @@ where
 }
 
 fn plan_err(reason: &'static str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "plan_exec")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "plan_exec").detail("reason", reason)
 }
 
 pub(crate) fn open_cross_domain_view(session: &Session, result: &DomainResult) -> Result<(), Diagnostic> {
     match result {
         DomainResult::Calculus(
-            CalculusResult::Exact {
-                value: CalculusValue::Series(series_ref),
-                ..
-            }
-            | CalculusResult::Conditional {
-                value: CalculusValue::Series(series_ref),
-                ..
-            }
-            | CalculusResult::Unevaluated {
-                expression: CalculusValue::Series(series_ref),
-                ..
-            },
+            CalculusResult::Exact { value: CalculusValue::Series(series_ref), .. }
+            | CalculusResult::Conditional { value: CalculusValue::Series(series_ref), .. }
+            | CalculusResult::Unevaluated { expression: CalculusValue::Series(series_ref), .. },
         ) => {
             SeriesPolynomialView::open(&session.series_objects, *series_ref).ok_or_else(|| {
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -181,28 +153,11 @@ mod tests {
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
         });
-        let plan = DomainPlan {
-            steps: vec![
-                PlanStep::Normalize,
-                PlanStep::CallDomainProvider,
-                PlanStep::Verify,
-                PlanStep::MaterializeResult,
-            ],
-        };
-        let (result, report) = interpret_domain_plan(&mut session, &plan, request, |s, r| {
-            crate::domains::dispatch::call_domain_provider(s, r)
-        })
-        .expect("interpret");
+        let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult] };
+        let (result, report) = interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+            .expect("interpret");
         assert!(matches!(result, DomainResult::Calculus(_)));
-        assert_eq!(
-            report.executed,
-            vec![
-                PlanStep::Normalize,
-                PlanStep::CallDomainProvider,
-                PlanStep::Verify,
-                PlanStep::MaterializeResult,
-            ]
-        );
+        assert_eq!(report.executed, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
         assert!(report.provider_invoked && report.verified && report.materialized);
     }
 
@@ -215,21 +170,10 @@ mod tests {
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
         });
-        let plan = DomainPlan {
-            steps: vec![
-                PlanStep::Verify,
-                PlanStep::CallDomainProvider,
-                PlanStep::MaterializeResult,
-            ],
-        };
-        let err = interpret_domain_plan(&mut session, &plan, request, |s, r| {
-            crate::domains::dispatch::call_domain_provider(s, r)
-        })
-        .expect_err("order");
-        assert_eq!(
-            err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("Verify_before_provider")
-        );
+        let plan = DomainPlan { steps: vec![PlanStep::Verify, PlanStep::CallDomainProvider, PlanStep::MaterializeResult] };
+        let err = interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+            .expect_err("order");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("Verify_before_provider"));
     }
 
     #[test]
@@ -241,13 +185,7 @@ mod tests {
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
         });
-        let plan = DomainPlan {
-            steps: vec![
-                PlanStep::CallDomainProvider,
-                PlanStep::Verify,
-                PlanStep::MaterializeResult,
-            ],
-        };
+        let plan = DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult] };
         let err = interpret_domain_plan(&mut session, &plan, request, |_s, _r| {
             Ok(DomainResult::Calculus(crate::domains::calculus::CalculusResult::Exact {
                 value: CalculusValue::Expression(TermId(999_999)),
@@ -255,10 +193,7 @@ mod tests {
             }))
         })
         .expect_err("forge");
-        assert_eq!(
-            err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("calculus_recompute_mismatch")
-        );
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("calculus_recompute_mismatch"));
     }
 
     #[test]
@@ -271,10 +206,9 @@ mod tests {
             assumptions: AssumptionSet::empty(),
         });
         let plan = plan_domain(&request);
-        let (_result, report) = interpret_domain_plan(&mut session, &plan, request, |s, r| {
-            crate::domains::dispatch::call_domain_provider(s, r)
-        })
-        .expect("default plan");
+        let (_result, report) =
+            interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+                .expect("default plan");
         assert!(report.provider_invoked && report.verified && report.materialized);
     }
 }

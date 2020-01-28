@@ -5,7 +5,10 @@ use crate::domains::{
     polynomial::PolynomialFactorizationCompleteness,
 };
 
-use super::{coverage::CoverageStatus, frontier::{ResumeKind, ResumeToken}};
+use super::{
+    coverage::CoverageStatus,
+    frontier::{ResumeKind, ResumeToken},
+};
 
 /// 精确线性求解 disposition → 覆盖。
 pub fn coverage_from_exact_disposition(disposition: &SolveDisposition) -> CoverageStatus {

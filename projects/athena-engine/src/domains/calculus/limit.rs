@@ -9,8 +9,7 @@ use super::{
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 在假设下尝试求极限。
 pub fn limit_checked(
@@ -181,9 +180,7 @@ fn is_reciprocal_power(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
 
 fn reciprocal_base(cc: &DomainExecutionContext<'_>, expr: TermId) -> Option<TermId> {
     match cc.application_head(expr) {
-        Some((ApplicationHead::Semantic(SemanticOperator::Power), args)) if args.len() == 2 && cc.int_exp(args[1]) == Some(-1) => {
-            Some(args[0])
-        }
+        Some((ApplicationHead::Semantic(SemanticOperator::Power), args)) if args.len() == 2 && cc.int_exp(args[1]) == Some(-1) => Some(args[0]),
         _ => None,
     }
 }
@@ -234,7 +231,8 @@ fn try_onesided_simple_pole(
         };
         return Some(if positive {
             cc.symbol("Infinity")
-        } else {
+        }
+        else {
             cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
         });
     }
@@ -267,7 +265,8 @@ fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
         }
         let value = if sign_positive {
             cc.symbol("Infinity")
-        } else {
+        }
+        else {
             cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
         };
         return CalculusResult::Exact { value, conditions: Vec::new() };
@@ -332,7 +331,13 @@ fn is_open_limit_head(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
     }
 }
 
-fn limit_form(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, approach: &LimitApproach, direction: LimitDirection) -> TermId {
+fn limit_form(
+    cc: &mut DomainExecutionContext<'_>,
+    expression: TermId,
+    variable: SymbolId,
+    approach: &LimitApproach,
+    direction: LimitDirection,
+) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
         LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
@@ -405,4 +410,3 @@ fn is_singular_form(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
         _ => false,
     }
 }
-

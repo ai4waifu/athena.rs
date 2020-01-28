@@ -83,11 +83,7 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
 }
 
 fn provisional_matrix_fingerprint(matrix: &MatrixValue) -> u64 {
-    use super::{
-        parent::ElementParentKind,
-        shape::StorageOrder,
-        value::MatrixBuffer,
-    };
+    use super::{parent::ElementParentKind, shape::StorageOrder, value::MatrixBuffer};
     let mut body = Vec::with_capacity(64);
     body.extend_from_slice(b"AMX0");
     body.extend_from_slice(&matrix.shape().rows.to_le_bytes());

@@ -44,22 +44,14 @@ impl DerivedIndexes {
         }
         match &claim.claim.proposition {
             Proposition::PolynomialResult { .. } => {
-                self.rewrite_witnesses.push(RewriteWitness {
-                    provider: POLYNOMIAL_PROVIDER_ID,
-                    inputs: Vec::new(),
-                    outputs: Vec::new(),
-                });
+                self.rewrite_witnesses.push(RewriteWitness { provider: POLYNOMIAL_PROVIDER_ID, inputs: Vec::new(), outputs: Vec::new() });
             }
             Proposition::TermEquality { left, right } => {
                 self.exact_uf.union(*left, *right);
                 let step = proof_step_from_evidence(&claim.claim.evidence);
                 self.proof_forest.record(*left, *right, step);
             }
-            Proposition::Congruence {
-                modulus_fingerprint,
-                left,
-                right,
-            } => {
+            Proposition::Congruence { modulus_fingerprint, left, right } => {
                 // Fingerprint-space index only. Do not coerce fingerprints into `TermId` ProofForest edges.
                 self.congruence.union(*modulus_fingerprint, *left, *right);
             }
@@ -88,29 +80,23 @@ mod tests {
     use athena_types::TermId;
 
     use crate::reasoning::mgraph::{
-        facts::claim::{
-            Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerifiedClaim,
-        },
-        facts::journal::AdmissionJournal,
         core::types::CapabilityProviderId,
+        facts::{
+            claim::{Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerifiedClaim},
+            journal::AdmissionJournal,
+        },
     };
 
     use super::*;
 
     fn term_eq_claim(left: u32, right: u32) -> VerifiedClaim {
         VerifiedClaim::from_admission(Claim {
-            proposition: Proposition::TermEquality {
-                left: TermId(left),
-                right: TermId(right),
-            },
+            proposition: Proposition::TermEquality { left: TermId(left), right: TermId(right) },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::StructuralTermEquality {
-                    left: TermId(left),
-                    right: TermId(right),
-                },
+                certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(left), right: TermId(right) },
                 summary: String::new(),
             },
         })
@@ -129,20 +115,12 @@ mod tests {
 
     fn congruence_claim(modulus: u64, left: u64, right: u64) -> VerifiedClaim {
         VerifiedClaim::from_admission(Claim {
-            proposition: Proposition::Congruence {
-                modulus_fingerprint: modulus,
-                left,
-                right,
-            },
+            proposition: Proposition::Congruence { modulus_fingerprint: modulus, left, right },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::CongruenceExact {
-                    modulus_fingerprint: modulus,
-                    left,
-                    right,
-                },
+                certificate: EvidenceCertificate::CongruenceExact { modulus_fingerprint: modulus, left, right },
                 summary: String::new(),
             },
         })
@@ -175,26 +153,17 @@ mod tests {
     fn proof_forest_step_kind_follows_term_equality_certificate() {
         let mut journal = AdmissionJournal::new();
         journal.append(VerifiedClaim::from_admission(Claim {
-            proposition: Proposition::TermEquality {
-                left: TermId(1),
-                right: TermId(2),
-            },
+            proposition: Proposition::TermEquality { left: TermId(1), right: TermId(2) },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::ApplicationCongruence {
-                    left: TermId(1),
-                    right: TermId(2),
-                },
+                certificate: EvidenceCertificate::ApplicationCongruence { left: TermId(1), right: TermId(2) },
                 summary: String::new(),
             },
         }));
         journal.append(VerifiedClaim::from_admission(Claim {
-            proposition: Proposition::TermEquality {
-                left: TermId(3),
-                right: TermId(4),
-            },
+            proposition: Proposition::TermEquality { left: TermId(3), right: TermId(4) },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {

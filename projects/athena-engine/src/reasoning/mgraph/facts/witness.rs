@@ -12,11 +12,7 @@ use crate::reasoning::mgraph::{
 /// Derive a stable witness identity from trusted-kernel evidence.
 pub fn witness_ref_from_evidence(evidence: &Evidence) -> Option<WitnessRef> {
     match evidence {
-        Evidence::TrustedKernel {
-            provider,
-            certificate,
-            summary: _,
-        } => Some(WitnessRef(hash_certificate(*provider, certificate))),
+        Evidence::TrustedKernel { provider, certificate, summary: _ } => Some(WitnessRef(hash_certificate(*provider, certificate))),
     }
 }
 
@@ -24,12 +20,7 @@ fn hash_certificate(provider: CapabilityProviderId, certificate: &EvidenceCertif
     let mut state = fnv1a64(b"athena.witness.v1");
     mix_u64(&mut state, u64::from(provider.0));
     match certificate {
-        EvidenceCertificate::PolynomialExact {
-            operation,
-            request_fingerprint,
-            input_hashes,
-            groebner_steps,
-        } => {
+        EvidenceCertificate::PolynomialExact { operation, request_fingerprint, input_hashes, groebner_steps } => {
             mix_tag(&mut state, b"poly");
             mix_tag(&mut state, operation.as_str().as_bytes());
             mix_u64(&mut state, *request_fingerprint);
@@ -45,12 +36,7 @@ fn hash_certificate(provider: CapabilityProviderId, certificate: &EvidenceCertif
         EvidenceCertificate::TestHarness => {
             mix_tag(&mut state, b"test");
         }
-        EvidenceCertificate::CalculusExact {
-            kind,
-            expression_fingerprint,
-            variable_fingerprint,
-            result_term,
-        } => {
+        EvidenceCertificate::CalculusExact { kind, expression_fingerprint, variable_fingerprint, result_term } => {
             mix_tag(&mut state, b"calculus");
             mix_u64(&mut state, calculus_kind_tag(*kind));
             mix_u64(&mut state, *expression_fingerprint);
@@ -62,11 +48,7 @@ fn hash_certificate(provider: CapabilityProviderId, certificate: &EvidenceCertif
             mix_u64(&mut state, u64::from(left.0));
             mix_u64(&mut state, u64::from(right.0));
         }
-        EvidenceCertificate::CongruenceExact {
-            modulus_fingerprint,
-            left,
-            right,
-        } => {
+        EvidenceCertificate::CongruenceExact { modulus_fingerprint, left, right } => {
             mix_tag(&mut state, b"congruence");
             mix_u64(&mut state, *modulus_fingerprint);
             mix_u64(&mut state, *left);
@@ -130,26 +112,17 @@ mod tests {
     fn structural_witness_is_stable_and_order_sensitive() {
         let a = Evidence::TrustedKernel {
             provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality {
-                left: TermId(1),
-                right: TermId(2),
-            },
+            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) },
             summary: "ignored".into(),
         };
         let b = Evidence::TrustedKernel {
             provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality {
-                left: TermId(1),
-                right: TermId(2),
-            },
+            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) },
             summary: "different summary".into(),
         };
         let c = Evidence::TrustedKernel {
             provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality {
-                left: TermId(2),
-                right: TermId(1),
-            },
+            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(2), right: TermId(1) },
             summary: "ignored".into(),
         };
         assert_eq!(witness_ref_from_evidence(&a), witness_ref_from_evidence(&b));

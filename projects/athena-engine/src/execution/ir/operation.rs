@@ -1,7 +1,7 @@
 //! Typed SSA operations (closed opcode family — no string handler lookup).
 
-use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, IndexSpec, ExtensionOperatorId};
 use athena_ir::SemanticOperator;
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, ExtensionOperatorId, IndexSpec};
 
 use super::{
     ids::{CapturedRootId, ConstantId, EffectToken, InputId, ProviderCallId, SsaValueId},

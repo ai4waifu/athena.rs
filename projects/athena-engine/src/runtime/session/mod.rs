@@ -16,17 +16,18 @@ use crate::{
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, execute_linear_algebra},
         polynomial::{
-            PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph,
-            execute_polynomial_with_rings,
+            PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
         },
     },
-    execution::{self, environment::CompiledRuleStore, environment::DefinitionLayer},
+    execution::{
+        self,
+        environment::{CompiledRuleStore, DefinitionLayer},
+    },
     reasoning::{
         egraph::{
-            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet,
-            admit_application_congruence, admit_application_congruence_candidates, admit_structural_candidates,
-            admit_structural_term_equality, admit_typed_rewrite_candidates, application_congruence_candidates,
-            saturate, saturate_typed,
+            CandidateEquivalence, EGraph, SaturationBudget, SaturationReport, TypedRuleSet, admit_application_congruence,
+            admit_application_congruence_candidates, admit_structural_candidates, admit_structural_term_equality,
+            admit_typed_rewrite_candidates, application_congruence_candidates, saturate, saturate_typed,
         },
         mgraph::{AdmissionRejectReason, ClosureLimits, ClosureResult, FactId, MGraphState, VerificationPolicy},
     },
@@ -266,11 +267,7 @@ impl Session {
     }
 
     /// Typed [`TermPattern`] saturation（`match_pattern` + `substitute` · 不写 M-Graph）。
-    pub fn run_egraph_saturation_typed(
-        &mut self,
-        roots: &[TermId],
-        rules: Option<&TypedRuleSet>,
-    ) -> SaturationReport {
+    pub fn run_egraph_saturation_typed(&mut self, roots: &[TermId], rules: Option<&TypedRuleSet>) -> SaturationReport {
         saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules)
     }
 
@@ -281,12 +278,7 @@ impl Session {
         preference: crate::reasoning::egraph::ExtractionPreference,
     ) -> Option<TermId> {
         use crate::reasoning::egraph::Extractor;
-        Extractor::with_preference(preference).extract(
-            &self.egraph,
-            &self.arena,
-            class,
-            Some(&self.mgraph.semantic.derived.exact_uf),
-        )
+        Extractor::with_preference(preference).extract(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
     }
 
     /// Extract a representative term and its local [`crate::reasoning::egraph::ResultCost`].
@@ -296,106 +288,44 @@ impl Session {
         preference: crate::reasoning::egraph::ExtractionPreference,
     ) -> Option<(TermId, crate::reasoning::egraph::ResultCost)> {
         use crate::reasoning::egraph::Extractor;
-        Extractor::with_preference(preference).extract_with_cost(
-            &self.egraph,
-            &self.arena,
-            class,
-            Some(&self.mgraph.semantic.derived.exact_uf),
-        )
+        Extractor::with_preference(preference).extract_with_cost(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
     }
 
     /// Multi-objective undominated extract set for a local e-class.
-    pub fn extract_egraph_class_pareto(
-        &self,
-        class: crate::reasoning::egraph::EClassId,
-    ) -> crate::reasoning::egraph::ParetoFrontier {
+    pub fn extract_egraph_class_pareto(&self, class: crate::reasoning::egraph::EClassId) -> crate::reasoning::egraph::ParetoFrontier {
         use crate::reasoning::egraph::Extractor;
-        Extractor::extract_pareto(
-            &self.egraph,
-            &self.arena,
-            class,
-            Some(&self.mgraph.semantic.derived.exact_uf),
-        )
+        Extractor::extract_pareto(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
     }
 
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
-    pub fn admit_structural_term_equality(
-        &mut self,
-        left: TermId,
-        right: TermId,
-    ) -> Result<FactId, AdmissionRejectReason> {
-        admit_structural_term_equality(
-            &self.arena,
-            &mut self.mgraph.semantic,
-            left,
-            right,
-            &VerificationPolicy::default(),
-        )
+    pub fn admit_structural_term_equality(&mut self, left: TermId, right: TermId) -> Result<FactId, AdmissionRejectReason> {
+        admit_structural_term_equality(&self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
     }
 
     /// 将 E-Graph 候选升级为 M-Graph 事实（仅当结构相等时可接纳）。
-    pub fn admit_egraph_candidate_if_structural(
-        &mut self,
-        candidate: &CandidateEquivalence,
-    ) -> Result<FactId, AdmissionRejectReason> {
+    pub fn admit_egraph_candidate_if_structural(&mut self, candidate: &CandidateEquivalence) -> Result<FactId, AdmissionRejectReason> {
         self.admit_structural_term_equality(candidate.left_term, candidate.right_term)
     }
 
     /// 批量接纳 saturation 候选中结构相等的对（跳过改写型候选）。
-    pub fn admit_structural_egraph_candidates(
-        &mut self,
-        candidates: &[CandidateEquivalence],
-    ) -> Vec<Result<FactId, AdmissionRejectReason>> {
-        admit_structural_candidates(
-            &self.arena,
-            &mut self.mgraph.semantic,
-            candidates,
-            &VerificationPolicy::default(),
-        )
+    pub fn admit_structural_egraph_candidates(&mut self, candidates: &[CandidateEquivalence]) -> Vec<Result<FactId, AdmissionRejectReason>> {
+        admit_structural_candidates(&self.arena, &mut self.mgraph.semantic, candidates, &VerificationPolicy::default())
     }
 
     /// Emit ExactUF application-congruence candidates from known egraph terms (no admit).
     pub fn emit_application_congruence_candidates(&self, max_pairs: u32) -> Vec<CandidateEquivalence> {
-        application_congruence_candidates(
-            &self.arena,
-            &self.egraph,
-            &self.mgraph.semantic.derived.exact_uf,
-            max_pairs,
-        )
+        application_congruence_candidates(&self.arena, &self.egraph, &self.mgraph.semantic.derived.exact_uf, max_pairs)
     }
 
     /// Admit `f(a…) ≈ f(b…)` when heads match and args are ExactUF-equal.
-    pub fn admit_application_congruence(
-        &mut self,
-        left: TermId,
-        right: TermId,
-    ) -> Result<FactId, AdmissionRejectReason> {
-        admit_application_congruence(
-            &self.arena,
-            &mut self.mgraph.semantic,
-            left,
-            right,
-            &VerificationPolicy::default(),
-        )
+    pub fn admit_application_congruence(&mut self, left: TermId, right: TermId) -> Result<FactId, AdmissionRejectReason> {
+        admit_application_congruence(&self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
     }
 
     /// Scan known apps under ExactUF and admit congruence equalities (bounded by `max_pairs`).
-    pub fn rebuild_and_admit_application_congruence(
-        &mut self,
-        max_pairs: u32,
-    ) -> Vec<Result<FactId, AdmissionRejectReason>> {
-        let candidates = application_congruence_candidates(
-            &self.arena,
-            &self.egraph,
-            &self.mgraph.semantic.derived.exact_uf,
-            max_pairs,
-        );
-        admit_application_congruence_candidates(
-            &self.arena,
-            &mut self.mgraph.semantic,
-            &candidates,
-            &VerificationPolicy::default(),
-        )
+    pub fn rebuild_and_admit_application_congruence(&mut self, max_pairs: u32) -> Vec<Result<FactId, AdmissionRejectReason>> {
+        let candidates = application_congruence_candidates(&self.arena, &self.egraph, &self.mgraph.semantic.derived.exact_uf, max_pairs);
+        admit_application_congruence_candidates(&self.arena, &mut self.mgraph.semantic, &candidates, &VerificationPolicy::default())
     }
 
     /// Typed saturation then structural admit, typed rewrite replay admit, then ExactUF congruence.
@@ -410,12 +340,8 @@ impl Session {
         congruence_max_pairs: u32,
     ) -> TypedEgraphAdmitReport {
         let saturation = saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules);
-        let structural_admitted = admit_structural_candidates(
-            &self.arena,
-            &mut self.mgraph.semantic,
-            &saturation.candidates,
-            &VerificationPolicy::default(),
-        );
+        let structural_admitted =
+            admit_structural_candidates(&self.arena, &mut self.mgraph.semantic, &saturation.candidates, &VerificationPolicy::default());
         let rewrite_admitted = match rules {
             Some(rules) => admit_typed_rewrite_candidates(
                 &mut self.arena,
@@ -427,12 +353,7 @@ impl Session {
             None => Vec::new(),
         };
         let congruence_admitted = self.rebuild_and_admit_application_congruence(congruence_max_pairs);
-        TypedEgraphAdmitReport {
-            saturation,
-            structural_admitted,
-            rewrite_admitted,
-            congruence_admitted,
-        }
+        TypedEgraphAdmitReport { saturation, structural_admitted, rewrite_admitted, congruence_admitted }
     }
 
     /// Replay-verify typed rewrite candidates (`match_pattern` + `substitute`) then admit.
@@ -441,22 +362,11 @@ impl Session {
         rules: &TypedRuleSet,
         candidates: &[CandidateEquivalence],
     ) -> Vec<Result<FactId, AdmissionRejectReason>> {
-        admit_typed_rewrite_candidates(
-            &mut self.arena,
-            &mut self.mgraph.semantic,
-            rules,
-            candidates,
-            &VerificationPolicy::default(),
-        )
+        admit_typed_rewrite_candidates(&mut self.arena, &mut self.mgraph.semantic, rules, candidates, &VerificationPolicy::default())
     }
 
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
-    pub fn admit_congruence(
-        &mut self,
-        modulus_fingerprint: u64,
-        left: u64,
-        right: u64,
-    ) -> Result<FactId, AdmissionRejectReason> {
+    pub fn admit_congruence(&mut self, modulus_fingerprint: u64, left: u64, right: u64) -> Result<FactId, AdmissionRejectReason> {
         crate::reasoning::mgraph::AdmissionGate::admit_congruence(
             &mut self.mgraph.semantic,
             modulus_fingerprint,
@@ -477,21 +387,12 @@ impl Session {
     }
 
     /// Admit OuterCandidate pool entries that pass TermStore structural equality (upgrade to ProvenExact).
-    pub fn admit_mgraph_outer_pool_if_structural(
-        &mut self,
-    ) -> crate::reasoning::mgraph::OuterAdmitReport {
-        crate::reasoning::mgraph::admit_outer_pool_if_structural(
-            &self.arena,
-            &mut self.mgraph,
-            &VerificationPolicy::default(),
-        )
+    pub fn admit_mgraph_outer_pool_if_structural(&mut self) -> crate::reasoning::mgraph::OuterAdmitReport {
+        crate::reasoning::mgraph::admit_outer_pool_if_structural(&self.arena, &mut self.mgraph, &VerificationPolicy::default())
     }
 
     /// Register a pending ProofObligation for Reflector wake-on-admit.
-    pub fn register_mgraph_obligation(
-        &mut self,
-        obligation: crate::reasoning::mgraph::ProofObligation,
-    ) {
+    pub fn register_mgraph_obligation(&mut self, obligation: crate::reasoning::mgraph::ProofObligation) {
         self.mgraph.operational.obligation_index.register(obligation);
     }
 
@@ -499,18 +400,8 @@ impl Session {
     pub fn admit_mgraph_claim_with_wake(
         &mut self,
         claim: crate::reasoning::mgraph::Claim,
-    ) -> Result<
-        (
-            crate::reasoning::mgraph::FactId,
-            crate::reasoning::mgraph::WakeReport,
-        ),
-        AdmissionRejectReason,
-    > {
-        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(
-            &mut self.mgraph,
-            claim,
-            &VerificationPolicy::default(),
-        )
+    ) -> Result<(crate::reasoning::mgraph::FactId, crate::reasoning::mgraph::WakeReport), AdmissionRejectReason> {
+        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.mgraph, claim, &VerificationPolicy::default())
     }
 
     /// Schedule Reflector outcomes for a wake batch into operational queues.

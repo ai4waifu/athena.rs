@@ -147,8 +147,6 @@ fn compile_and_execute_factorial() {
     }
 }
 
-
-
 #[test]
 fn compile_and_execute_range_and_sqrt() {
     let mut session = Session::new();
@@ -444,7 +442,8 @@ fn compile_and_execute_plus_like_terms_and_distribute() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     // 2*(x+1) → 2x+2
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
-        Some(TermNode::Application { head, arguments }) if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Add)) && arguments.len() == 2 => {}
+        Some(TermNode::Application { head, arguments })
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Add)) && arguments.len() == 2 => {}
         other => panic!("expected distribute to Plus, got {other:?}"),
     }
 }
@@ -459,7 +458,9 @@ fn compile_unknown_head_stays_residual() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Application { head, arguments })
-            if matches!(*head, ApplicationHead::Extension(id) if session.extensions.display_name(id) == Some("Foo")) && arguments.len() == 1 && session.arena.structural_eq(arguments[0], x) => {}
+            if matches!(*head, ApplicationHead::Extension(id) if session.extensions.display_name(id) == Some("Foo"))
+                && arguments.len() == 1
+                && session.arena.structural_eq(arguments[0], x) => {}
         other => panic!("expected Foo[x] residual, got {other:?}"),
     }
 }

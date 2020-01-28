@@ -25,21 +25,19 @@ pub mod relations;
 pub mod semantic_entry;
 
 pub use admission::{
-    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID,
-    EvidenceVerifier, HYPER_EDGE_STAGING_PROVIDER_ID, OUTER_STRUCTURAL_PROVIDER_ID, OuterAdmitReport, OuterCandidate,
-    SemanticCore, VerificationPolicy, admit_outer_pool_if_structural, admit_polynomial_exact, admit_polynomial_result,
-    hyper_edge_to_outer_candidate, is_admitted,
+    AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID, EvidenceVerifier,
+    HYPER_EDGE_STAGING_PROVIDER_ID, OUTER_STRUCTURAL_PROVIDER_ID, OuterAdmitReport, OuterCandidate, SemanticCore, VerificationPolicy,
+    admit_outer_pool_if_structural, admit_polynomial_exact, admit_polynomial_result, hyper_edge_to_outer_candidate, is_admitted,
 };
 pub use cache::ResultCache;
 pub use closure::{
-    ClosureLimits, ClosureResult, ClosureStopReason, HyperEdgeDrainReport, OperationalState, drain_hyper_edges_to_outer_pool,
-    run_closure_step,
+    ClosureLimits, ClosureResult, ClosureStopReason, HyperEdgeDrainReport, OperationalState, drain_hyper_edges_to_outer_pool, run_closure_step,
 };
 pub use core::{
-    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
-    HyperEdge, MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateDescriptor, PredicateId, RelationRef, RelationStatus,
-    RewriteWitness, ScopeRef, ScopeRelationKind, SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef,
-    all_descriptors, arity_ok, descriptor, predicates, scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
+    CapabilityProviderId, ClosureSeeds, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
+    MGraphCore, MGraphState, MGraphView, ObjectRef, PredicateDescriptor, PredicateId, RelationRef, RelationStatus, RewriteWitness, ScopeRef,
+    ScopeRelationKind, SemanticRef, SolverCandidate, SolverFrontier, SolverScore, TheoryContextId, WitnessRef, all_descriptors, arity_ok,
+    descriptor, predicates, scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use equivalence::{CongruenceIndex, ExactUnionFind, ProofEdge, ProofForest, ProofStepKind, congruence_proposition};
 pub use facts::{
@@ -47,9 +45,9 @@ pub use facts::{
     proposition_from_cache_key, witness_ref_from_evidence,
 };
 pub use obligation::{
-    ObligationIndex, PlanBinding, ProofObligation, QueuedPlan, QueuedPlanBatchReport, Reflection, ReflectorScheduleReport,
-    ReflectorWake, SemanticReflector, WakeReport, execute_queued_plan, plan_binding_for_request, resume_reflector_frontier,
-    run_next_queued_plan, run_queued_plans, schedule_reflector_wakes, verify_plan_binding,
+    ObligationIndex, PlanBinding, ProofObligation, QueuedPlan, QueuedPlanBatchReport, Reflection, ReflectorScheduleReport, ReflectorWake,
+    SemanticReflector, WakeReport, execute_queued_plan, plan_binding_for_request, resume_reflector_frontier, run_next_queued_plan,
+    run_queued_plans, schedule_reflector_wakes, verify_plan_binding,
 };
 pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,

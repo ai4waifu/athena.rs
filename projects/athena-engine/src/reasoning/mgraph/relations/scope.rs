@@ -43,33 +43,22 @@ impl ScopeIndex {
 
     /// Direct `Refines` targets of `from` (`from ⊑ to`).
     pub fn refines_targets(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
-        self.edges
-            .iter()
-            .filter(move |e| e.from == from && e.kind == ScopeRelationKind::Refines)
-            .map(|e| e.to)
+        self.edges.iter().filter(move |e| e.from == from && e.kind == ScopeRelationKind::Refines).map(|e| e.to)
     }
 
     /// Whether an undirected `IncompatibleWith` edge links `a` and `b`.
     pub fn incompatible_with(&self, a: ScopeRef, b: ScopeRef) -> bool {
-        self.edges.iter().any(|e| {
-            e.kind == ScopeRelationKind::IncompatibleWith
-                && ((e.from == a && e.to == b) || (e.from == b && e.to == a))
-        })
+        self.edges.iter().any(|e| e.kind == ScopeRelationKind::IncompatibleWith && ((e.from == a && e.to == b) || (e.from == b && e.to == a)))
     }
 
     /// Whether a directed `CompatibleWith` edge `from → to` exists.
     pub fn compatible_with(&self, from: ScopeRef, to: ScopeRef) -> bool {
-        self.edges
-            .iter()
-            .any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::CompatibleWith)
+        self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::CompatibleWith)
     }
 
     /// Direct `CompatibleWith` peers of `from` (`from` may consult `to` locally).
     pub fn compatible_peers(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
-        self.edges
-            .iter()
-            .filter(move |e| e.from == from && e.kind == ScopeRelationKind::CompatibleWith)
-            .map(|e| e.to)
+        self.edges.iter().filter(move |e| e.from == from && e.kind == ScopeRelationKind::CompatibleWith).map(|e| e.to)
     }
 
     /// Whether `from` reaches `ancestor` by zero or more `Refines` steps (`from ⊑* ancestor`).

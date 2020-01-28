@@ -25,8 +25,7 @@ fn cache_key_uses_ring_fingerprint_not_handle() {
     let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let p = PolynomialBuilder::new(ring).build(&session.rings).unwrap();
     let poly = session.polynomial_objects.intern(p, &session.rings);
-    let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: poly }, &session.rings, &session.polynomial_objects)
-        .unwrap();
+    let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: poly }, &session.rings, &session.polynomial_objects).unwrap();
     assert_eq!(key.ring_fingerprint, session.rings.ring_fingerprint(ring).unwrap());
     assert_eq!(key.input_fingerprints.len(), 1);
 }

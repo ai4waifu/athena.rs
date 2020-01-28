@@ -1,12 +1,11 @@
-﻿//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现（arena 版 · Living `25`）。
+//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现（arena 版 · Living `25`）。
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
-use athena_types::{SymbolId, AssumptionSet, Diagnostic, DiagnosticCode, TermId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 use super::{request::TransformKind, result::CalculusResult, symbol_rewrite::is_symbol_id};
-use crate::domains::context::DomainExecutionContext;
-use crate::execution::shape::Shape;
+use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 收敛域 — 每个变换结果都必须携带。
 #[derive(Debug, PartialEq)]
@@ -163,13 +162,7 @@ pub fn z_checked(
 ) -> CalculusResult<TransformResult> {
     match z_one(cc, expression, time_variable, transform_variable) {
         Some((expr, roc)) => CalculusResult::Exact {
-            value: TransformResult {
-                kind: TransformKind::Z,
-                expression: expr,
-                time_variable,
-                transform_variable,
-                region_of_convergence: roc,
-            },
+            value: TransformResult { kind: TransformKind::Z, expression: expr, time_variable, transform_variable, region_of_convergence: roc },
             conditions: Vec::new(),
         },
         None => CalculusResult::Unevaluated {
@@ -336,10 +329,7 @@ fn fourier_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, o
                     return None;
                 }
                 let ainv = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&a)), cc.in_(-1)]);
-                let pia = cc.apply_semantic(SemanticOperator::Multiply, vec![
-                    cc.math_constant(athena_ir::MathematicalConstant::Pi),
-                    ainv,
-                ]);
+                let pia = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.math_constant(athena_ir::MathematicalConstant::Pi), ainv]);
                 let scale = cc.apply_semantic(SemanticOperator::Sqrt, vec![pia]);
                 let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(omega), cc.in_(2)]);
                 let four_a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(4), cc.num(cc.copy(&a))]);
@@ -356,7 +346,12 @@ fn fourier_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, o
     }
 }
 
-fn fourier_causal_exp(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, omega: SymbolId) -> Option<(TermId, RegionOfConvergence)> {
+fn fourier_causal_exp(
+    cc: &mut DomainExecutionContext<'_>,
+    expr: TermId,
+    t: SymbolId,
+    omega: SymbolId,
+) -> Option<(TermId, RegionOfConvergence)> {
     // 形态：Exp[-a t]（a>0）→ 1/(a + I ω)
     let (head, args) = cc.application_head(expr)?;
     if !matches!(head, ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Exp)) || args.len() != 1 {
@@ -387,9 +382,7 @@ fn is_unit_step(cc: &DomainExecutionContext<'_>, term: TermId, t: SymbolId) -> b
     else {
         return false;
     };
-    cc.is_unit_step_extension(head)
-        && args.len() == 1
-        && is_symbol_id(cc, args[0], t)
+    cc.is_unit_step_extension(head) && args.len() == 1 && is_symbol_id(cc, args[0], t)
 }
 
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
@@ -584,9 +577,7 @@ fn is_kronecker_delta(cc: &DomainExecutionContext<'_>, term: TermId, n: SymbolId
     else {
         return false;
     };
-    cc.is_delta_extension(head)
-        && args.len() == 1
-        && is_symbol_id(cc, args[0], n)
+    cc.is_delta_extension(head) && args.len() == 1 && is_symbol_id(cc, args[0], n)
 }
 
 fn match_n_times_power(cc: &DomainExecutionContext<'_>, args: &[TermId], n: SymbolId) -> Option<Number> {
@@ -618,7 +609,6 @@ fn roc_abs_radius(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConvergence
     }
     None
 }
-
 
 fn factorial_u32(n: u32) -> Option<i64> {
     let mut acc: i64 = 1;

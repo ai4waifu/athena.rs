@@ -20,15 +20,15 @@ pub mod wire;
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use binding::{BindingEvaluationPolicy, BindingKind};
 pub use collection::{CollectionKind, CollectionKindId};
-pub use index_spec::{IndexSpec, IndexSpecId, IntegerIndex, IntegerOffset};
-pub use pattern_ids::{CompiledRuleId, DispatchTableId, PredicateId, ValueTypeId};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
-    AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId, FieldPresentationId,
-    FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, ExtensionOperatorId, PolynomialId, PresentationId, ProofRef, ResultId, RingId,
-    SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
+    AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, ExtensionOperatorId, FieldId,
+    FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, PolynomialId, PresentationId, ProofRef, ResultId,
+    RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
 };
+pub use index_spec::{IndexSpec, IndexSpecId, IntegerIndex, IntegerOffset};
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};
+pub use pattern_ids::{CompiledRuleId, DispatchTableId, PredicateId, ValueTypeId};
 pub use scope::{
     AssumptionBranchPolicy, AssumptionScope, ScopeApplicability, ScopeConflict, ScopeConflictKind, ScopeMergeOutcome, TheoryContext,
 };

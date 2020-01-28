@@ -27,10 +27,6 @@ pub struct ResumeToken {
 impl ResumeToken {
     /// 空载荷前沿。
     pub fn empty(kind: ResumeKind) -> Self {
-        Self {
-            kind,
-            version: 0,
-            payload: Vec::new(),
-        }
+        Self { kind, version: 0, payload: Vec::new() }
     }
 }

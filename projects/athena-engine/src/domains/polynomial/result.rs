@@ -40,11 +40,7 @@ pub fn execute_polynomial(request: PolynomialRequest) -> PolynomialResult {
 }
 
 /// 在已注册环表与 DomainObject 仓中执行多项式域请求。
-pub fn execute_polynomial_with_rings(
-    request: PolynomialRequest,
-    rings: &RingTable,
-    store: &PolynomialObjectStore,
-) -> PolynomialResult {
+pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTable, store: &PolynomialObjectStore) -> PolynomialResult {
     match request {
         PolynomialRequest::Normalize { polynomial } => {
             let polynomial = match store.resolve_owning(polynomial) {
@@ -52,9 +48,7 @@ pub fn execute_polynomial_with_rings(
                 Err(reason) => return PolynomialResult::Unevaluated { reason },
             };
             match canonicalize_polynomial(polynomial, rings) {
-                Ok(normalized) => PolynomialResult::Exact {
-                    value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: normalized }),
-                },
+                Ok(normalized) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: normalized }) },
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
@@ -64,9 +58,7 @@ pub fn execute_polynomial_with_rings(
                 (Err(reason), _) | (_, Err(reason)) => return PolynomialResult::Unevaluated { reason },
             };
             match add_polynomial(lhs, rhs, rings) {
-                Ok(sum) => PolynomialResult::Exact {
-                    value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: sum }),
-                },
+                Ok(sum) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: sum }) },
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
@@ -76,9 +68,7 @@ pub fn execute_polynomial_with_rings(
                 (Err(reason), _) | (_, Err(reason)) => return PolynomialResult::Unevaluated { reason },
             };
             match mul_polynomial(lhs, rhs, rings) {
-                Ok(product) => PolynomialResult::Exact {
-                    value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }),
-                },
+                Ok(product) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: product }) },
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
@@ -103,9 +93,7 @@ pub fn execute_polynomial_with_rings(
                 (Err(reason), _) | (_, Err(reason)) => return PolynomialResult::Unevaluated { reason },
             };
             match gcd_univariate(lhs, rhs, rings) {
-                Ok(g) => PolynomialResult::Exact {
-                    value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: g }),
-                },
+                Ok(g) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: g }) },
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }

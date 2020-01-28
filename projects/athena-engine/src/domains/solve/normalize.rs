@@ -27,12 +27,7 @@ pub fn normalize_relational_application(arena: &TermStore, root: TermId) -> Resu
         SemanticOperator::Less => Ok(Constraint::Inequality(Inequality { lhs, op: InequalityOp::Less, rhs, span })),
         SemanticOperator::LessEqual => Ok(Constraint::Inequality(Inequality { lhs, op: InequalityOp::LessEqual, rhs, span })),
         SemanticOperator::Greater => Ok(Constraint::Inequality(Inequality { lhs, op: InequalityOp::Greater, rhs, span })),
-        SemanticOperator::GreaterEqual => Ok(Constraint::Inequality(Inequality {
-            lhs,
-            op: InequalityOp::GreaterEqual,
-            rhs,
-            span,
-        })),
+        SemanticOperator::GreaterEqual => Ok(Constraint::Inequality(Inequality { lhs, op: InequalityOp::GreaterEqual, rhs, span })),
         SemanticOperator::Unequal => Ok(Constraint::Inequality(Inequality { lhs, op: InequalityOp::NotEqual, rhs, span })),
         _ => Err(diag("unknown_relational_operator")),
     }
@@ -54,7 +49,5 @@ fn arena_node(arena: &TermStore, id: TermId) -> Result<(&TermNode, SourceSpan), 
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "solve_normalize")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "solve_normalize").detail("reason", reason)
 }

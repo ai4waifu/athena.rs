@@ -10,8 +10,8 @@ use athena_engine::{
         values::arena::{push_constant, push_extension, push_int, push_list, push_semantic, push_symbol_name},
     },
 };
-use athena_types::BindingEvaluationPolicy;
 use athena_ir::{MathematicalConstant, SemanticOperator, UnaryFunction};
+use athena_types::BindingEvaluationPolicy;
 
 type Tid = athena_types::TermId;
 
@@ -126,8 +126,6 @@ fn truthy_via_and_or() {
     assert_eq!(t(sem(SemanticOperator::Not, vec![boolean(true, &mut c)], &mut c), &mut c), "False");
 }
 
-
-
 #[test]
 fn unsupported_import_is_not_silent_value() {
     use athena_types::ComputationStatus;
@@ -164,18 +162,21 @@ fn typed_boolean_and_null_atoms_render_and_symbols_stay_symbols() {
     // Display-name symbols must not canonicalize into typed boolean/null atoms.
     let true_sym = symbol("True", &mut c);
     assert_eq!(t(true_sym, &mut c), "True");
-    assert!(matches!(
-        c.s.arena.get(true_sym),
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_)))
-    ));
+    assert!(matches!(c.s.arena.get(true_sym), Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_)))));
     assert_eq!(t(sem(SemanticOperator::Equal, vec![i(1, &mut c), i(1, &mut c)], &mut c), &mut c), "True");
 }
 
 #[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
-    assert_eq!(t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c), "Hold[Add[1, 1]]");
-    assert_eq!(t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c), "Hold[Add[2, 3]]");
+    assert_eq!(
+        t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c),
+        "Hold[Add[1, 1]]"
+    );
+    assert_eq!(
+        t(sem(SemanticOperator::Hold, vec![sem(SemanticOperator::Add, vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c),
+        "Hold[Add[2, 3]]"
+    );
 }
 
 #[test]
@@ -194,8 +195,6 @@ fn cond_picks_first_true_branch() {
     assert_eq!(term_debug(&c.s, term), "2");
 }
 
-
-
 #[test]
 fn compare_chain_less_expands_to_and() {
     let mut c = C::new();
@@ -209,8 +208,10 @@ fn compare_chain_less_expands_to_and() {
 
 #[test]
 fn session_setdelayed_evaluates_on_use() {
-    use athena_engine::api::request::SessionCommand;
-    use athena_engine::execution::{compiler::ExecutionCompiler, reference::ReferenceExecutor};
+    use athena_engine::{
+        api::request::SessionCommand,
+        execution::{compiler::ExecutionCompiler, reference::ReferenceExecutor},
+    };
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut c = C::new();
@@ -271,10 +272,7 @@ fn dispatch_literal_then_bind_fallback() {
     let ten = i(10, &mut c);
     c.s.defs.register_extension_rule(
         f_op,
-        TermPattern::Application {
-            operator: athena_ir::ApplicationHead::Extension(f_op),
-            arguments: vec![TermPattern::Exact(one)],
-        },
+        TermPattern::Application { operator: athena_ir::ApplicationHead::Extension(f_op), arguments: vec![TermPattern::Exact(one)] },
         ten,
     );
     let x_term = symbol("x", &mut c);
@@ -306,7 +304,11 @@ fn replace_all_literal() {
 #[test]
 fn apply_and_join_and_length() {
     let mut c = C::new();
-    let e = sem(SemanticOperator::Apply, vec![sem(SemanticOperator::Add, vec![], &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
+    let e = sem(
+        SemanticOperator::Apply,
+        vec![sem(SemanticOperator::Add, vec![], &mut c), lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c)],
+        &mut c,
+    );
     assert_eq!(t(e, &mut c), "6");
     let e = sem(SemanticOperator::Join, vec![lst(vec![i(1, &mut c)], &mut c), lst(vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "OrderedCollection[1, 2, 3]");
@@ -316,14 +318,14 @@ fn apply_and_join_and_length() {
 
 #[test]
 fn cases_filters_by_value_type_pattern() {
-    use athena_engine::execution::builtins::patterns::match_term_pattern;
-    use athena_engine::reasoning::trs::{PatternConstraint, TermPattern};
+    use athena_engine::{
+        execution::builtins::patterns::match_term_pattern,
+        reasoning::trs::{PatternConstraint, TermPattern},
+    };
     use athena_types::ValueTypeId;
     let mut c = C::new();
-    let pat = TermPattern::Constrained {
-        pattern: Box::new(TermPattern::Any),
-        constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger),
-    };
+    let pat =
+        TermPattern::Constrained { pattern: Box::new(TermPattern::Any), constraint: PatternConstraint::ValueType(ValueTypeId::ExactInteger) };
     let items = [i(1, &mut c), symbol("y", &mut c), i(3, &mut c)];
     let mut out = Vec::new();
     for item in items {
@@ -377,10 +379,7 @@ fn linear_solve_via_domain_goal() {
         )
         .unwrap(),
     );
-    let b = c
-        .s
-        .matrix_objects
-        .intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
+    let b = c.s.matrix_objects.intern(MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(4), Integer::from_i64(6)]).unwrap());
     let expected = MatrixValue::from_rationals_row_major(
         2,
         1,
@@ -393,11 +392,7 @@ fn linear_solve_via_domain_goal() {
     let value_id = loaded.value.expect("value");
     match c.s.values.get(value_id).expect("runtime") {
         RuntimeValue::Domain(DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
-            value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
-                disposition: SolveDisposition::Unique,
-                particular: Some(x),
-                ..
-            }),
+            value: LinearAlgebraValue::ExactSolve(ExactSolveResult { disposition: SolveDisposition::Unique, particular: Some(x), .. }),
         })) => assert!(matrices_equal(x, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
         other => panic!("expected ExactSolve unique, got {other:?}"),
     }

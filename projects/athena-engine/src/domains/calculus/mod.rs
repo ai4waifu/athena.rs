@@ -37,8 +37,7 @@ pub use vector::{
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::domains::context::DomainExecutionContext;
-use crate::runtime::session::Session;
+use crate::{domains::context::DomainExecutionContext, runtime::session::Session};
 
 /// 将微积分域请求分派到对应子模块（读写调用方 session arena）。
 pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
@@ -65,9 +64,7 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 unresolved: last.unresolved,
             }))
         }
-        CalculusRequest::Integral { expression, variable, assumptions: _ } => {
-            map_term_result(integrate_checked(&mut dc, expression, variable))
-        }
+        CalculusRequest::Integral { expression, variable, assumptions: _ } => map_term_result(integrate_checked(&mut dc, expression, variable)),
         CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => {
             map_term_result(definite_integrate_checked(&mut dc, expression, variable, lower, upper))
         }
@@ -122,8 +119,7 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
 /// 域尚未接入时的便捷错误。
 #[allow(dead_code)]
 fn domain_unsupported(_name: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "calculus")
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "calculus")
 }
 
 #[cfg(test)]
@@ -146,27 +142,12 @@ mod tests {
         };
         let result = execute_calculus(
             &mut session,
-            CalculusRequest::Series {
-                expression,
-                variable,
-                center,
-                order: 2,
-                assumptions: AssumptionSet::empty(),
-            },
+            CalculusRequest::Series { expression, variable, center, order: 2, assumptions: AssumptionSet::empty() },
         );
         match result {
-            CalculusResult::Exact {
-                value: CalculusValue::Series(r),
-                ..
-            }
-            | CalculusResult::Conditional {
-                value: CalculusValue::Series(r),
-                ..
-            }
-            | CalculusResult::Unevaluated {
-                expression: CalculusValue::Series(r),
-                ..
-            } => {
+            CalculusResult::Exact { value: CalculusValue::Series(r), .. }
+            | CalculusResult::Conditional { value: CalculusValue::Series(r), .. }
+            | CalculusResult::Unevaluated { expression: CalculusValue::Series(r), .. } => {
                 assert!(session.series_objects.get(r).is_some());
                 assert_eq!(session.series_objects.len(), 1);
             }

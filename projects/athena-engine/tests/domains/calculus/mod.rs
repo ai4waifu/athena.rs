@@ -2,9 +2,13 @@
 //!
 //! No Mathematica-shaped `ap("Plus")` / `try_calculus_request` fixtures.
 
-use athena_engine::domains::calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder};
-use athena_engine::domains::{DomainRequest, DomainResult};
-use athena_engine::AthenaEngine;
+use athena_engine::{
+    AthenaEngine,
+    domains::{
+        DomainRequest, DomainResult,
+        calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder},
+    },
+};
 use athena_ir::UnaryFunction;
 use athena_testing::SessionFixture;
 use athena_types::AssumptionSet;
@@ -24,24 +28,12 @@ fn derivative_goal_power_rule() {
     else {
         unreachable!()
     };
-    assert!(matches!(
-        req,
-        CalculusRequest::Derivative {
-            order: DerivativeOrder::First,
-            ..
-        }
-    ));
+    assert!(matches!(req, CalculusRequest::Derivative { order: DerivativeOrder::First, .. }));
     let engine = AthenaEngine::new();
     let result = engine.execute_domain(fx.session_mut(), DomainRequest::Calculus(req)).expect("domain");
     match result {
-        DomainResult::Calculus(CalculusResult::Exact {
-            value: CalculusValue::Expression(term),
-            ..
-        })
-        | DomainResult::Calculus(CalculusResult::Conditional {
-            value: CalculusValue::Expression(term),
-            ..
-        }) => {
+        DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(term), .. })
+        | DomainResult::Calculus(CalculusResult::Conditional { value: CalculusValue::Expression(term), .. }) => {
             assert!(fx.session().arena.get(term).is_some());
         }
         other => panic!("expected calculus expression, got {other:?}"),
