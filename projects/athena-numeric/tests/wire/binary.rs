@@ -575,6 +575,17 @@ fn reject_finite_field_trailing() {
 }
 
 #[test]
+fn reject_finite_field_oversized_count_without_oom() {
+    // Fuzz can claim ~10^9 coefficients with a tiny rest; decode must reject before allocate.
+    let mut payload = 4u32.to_le_bytes().to_vec();
+    payload.extend_from_slice(&2u32.to_le_bytes());
+    payload.extend_from_slice(&0x0FFF_FFFFu32.to_le_bytes());
+    payload.extend(signed_int_bytes(1, mag_bytes(1, &[1])));
+    let err = finite_field_wire(0, payload).decode().unwrap_err();
+    assert_eq!(reason_of(&err), Some("finite_field_trailing"));
+}
+
+#[test]
 fn binary_padic_roundtrip() {
     let v = NumericValue::padic(PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap());
     let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();

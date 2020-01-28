@@ -541,8 +541,14 @@ pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<Fi
     if count == 0 {
         return Err(reject_non_canonical(WireReject::FiniteFieldEmpty));
     }
-    let mut rest = &payload[12..];
+    let rest = &payload[12..];
+    // Each coefficient needs ≥1 wire byte. Reject before `Vec::with_capacity` so fuzzed
+    // huge `count` cannot OOM the process.
+    if count > rest.len() {
+        return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
+    }
     let mut coefficients = Vec::with_capacity(count);
+    let mut rest = rest;
     for _ in 0..count {
         let (c, tail) = take_signed_integer(rest)?;
         coefficients.push(c);
