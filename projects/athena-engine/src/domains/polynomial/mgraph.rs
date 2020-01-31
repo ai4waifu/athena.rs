@@ -27,21 +27,26 @@ pub fn execute_polynomial_mgraph(
         return entry.result.clone();
     }
     let result = execute_polynomial_with_rings(request, rings, store);
-    record_polynomial_cache(key, result.clone(), state);
+    record_polynomial_cache(key, result.clone(), state, rings);
     result
 }
 
 /// 将已有结果写入 M-Graph（测试 / 外部 orchestrator）。
-pub fn record_polynomial_result(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState) -> Result<(), Diagnostic> {
+pub fn record_polynomial_result(
+    key: PolynomialCacheKey,
+    result: PolynomialResult,
+    state: &mut MGraphState,
+    rings: Option<&RingTable>,
+) -> Result<(), Diagnostic> {
     match &result {
         PolynomialResult::Exact { .. } => {
-            record_polynomial_cache(key, result, state);
+            AdmissionGate::commit_polynomial(state, key, result, &VerificationPolicy::default(), rings);
             Ok(())
         }
         PolynomialResult::Unevaluated { reason } => Err(reason.clone()),
     }
 }
 
-fn record_polynomial_cache(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState) {
-    AdmissionGate::commit_polynomial(state, key, result, &VerificationPolicy::default());
+fn record_polynomial_cache(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState, rings: &RingTable) {
+    AdmissionGate::commit_polynomial(state, key, result, &VerificationPolicy::default(), Some(rings));
 }

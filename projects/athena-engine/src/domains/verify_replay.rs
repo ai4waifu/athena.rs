@@ -58,7 +58,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             };
             // Always recompute via rings path (independent of M-Graph cache admit).
             let replay = execute_polynomial_with_rings(req.clone(), &session.rings, &session.polynomial_objects);
-            assert_polynomial_match(&replay, claimed_poly)
+            assert_polynomial_match(session, &replay, claimed_poly)
         }
         VerifySnapshot::PresenceOnly => match claimed {
             DomainResult::Calculus(_)
@@ -119,18 +119,38 @@ fn calculus_values_match(session: &Session, a: &CalculusValue, b: &CalculusValue
     }
 }
 
-fn assert_polynomial_match(replay: &PolynomialResult, claimed: &PolynomialResult) -> Result<(), Diagnostic> {
+fn assert_polynomial_match(
+    session: &Session,
+    replay: &PolynomialResult,
+    claimed: &PolynomialResult,
+) -> Result<(), Diagnostic> {
     match (replay, claimed) {
         (PolynomialResult::Exact { value: rv }, PolynomialResult::Exact { value: cv }) => {
-            if rv == cv {
-                Ok(())
+            if rv != cv {
+                return Err(verify_err("polynomial_recompute_mismatch"));
             }
-            else {
-                Err(verify_err("polynomial_recompute_mismatch"))
-            }
+            verify_claimed_groebner_basis(session, cv)
         }
         (PolynomialResult::Unevaluated { .. }, PolynomialResult::Unevaluated { .. }) => Ok(()),
         _ => Err(verify_err("polynomial_result_shape_mismatch")),
+    }
+}
+
+fn verify_claimed_groebner_basis(session: &Session, value: &crate::domains::polynomial::PolynomialDomainValue) -> Result<(), Diagnostic> {
+    use crate::domains::polynomial::{PolynomialDomainValue, verify_groebner_basis};
+    let PolynomialDomainValue::GroebnerBasis(v) = value
+    else {
+        return Ok(());
+    };
+    if !v.is_exact_witness() {
+        return Ok(());
+    }
+    let report = verify_groebner_basis(&v.basis, &session.rings).map_err(|_| verify_err("groebner_independent_verify_failed"))?;
+    if report.all_s_pairs_reduce_to_zero {
+        Ok(())
+    }
+    else {
+        Err(verify_err("groebner_basis_not_complete"))
     }
 }
 

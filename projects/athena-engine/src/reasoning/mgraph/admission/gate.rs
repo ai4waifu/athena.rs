@@ -5,7 +5,9 @@
 //! **禁止**「存在证书 / provider 自称 exact ⇒ 接纳」。证书字段必须与命题重放一致。
 
 use crate::{
-    domains::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult},
+    domains::polynomial::{
+        PolynomialCacheKey, PolynomialDomainValue, PolynomialResult, RingTable, verify_groebner_basis,
+    },
     reasoning::mgraph::{
         core::{state::MGraphState, types::CapabilityProviderId},
         facts::claim::{
@@ -103,9 +105,19 @@ impl EvidenceVerifier {
     }
 
     /// 验证多项式 solver 产出（Claim 合同判据，非 `PolynomialResult::Exact` 名称）。
-    pub fn verify_polynomial(key: &PolynomialCacheKey, result: &PolynomialResult, policy: &VerificationPolicy) -> AdmissionOutcome {
+    ///
+    /// `rings` 用于独立重放 Gröbner 基：自称 `Verified` 但 critical pairs 不归零时拒绝。
+    pub fn verify_polynomial(
+        key: &PolynomialCacheKey,
+        result: &PolynomialResult,
+        policy: &VerificationPolicy,
+        rings: Option<&RingTable>,
+    ) -> AdmissionOutcome {
         match result {
             PolynomialResult::Exact { value } => {
+                if let Some(reason) = reject_unverified_groebner(value, rings) {
+                    return AdmissionOutcome::Rejected { reason, guarantee: Guarantee::Partial };
+                }
                 let guarantee = classify_polynomial_guarantee(value);
                 let claim = Claim {
                     proposition: proposition_from_cache_key(key),
@@ -182,8 +194,14 @@ impl AdmissionGate {
     }
 
     /// 接纳多项式结果：operational cache 始终写入，semantic core 仅 verified claim。
-    pub fn commit_polynomial(state: &mut MGraphState, key: PolynomialCacheKey, result: PolynomialResult, policy: &VerificationPolicy) {
-        let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy);
+    pub fn commit_polynomial(
+        state: &mut MGraphState,
+        key: PolynomialCacheKey,
+        result: PolynomialResult,
+        policy: &VerificationPolicy,
+        rings: Option<&RingTable>,
+    ) {
+        let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy, rings);
         state.operational.result_cache.store_polynomial(key, result, &outcome);
         if let AdmissionOutcome::Admitted(vc) = outcome {
             state.semantic.commit(vc);
@@ -236,12 +254,46 @@ impl AdmissionGate {
 
 /// 对多项式 Exact 值执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
-    EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.clone() }, &VerificationPolicy::default())
+    EvidenceVerifier::verify_polynomial(
+        key,
+        &PolynomialResult::Exact { value: value.clone() },
+        &VerificationPolicy::default(),
+        None,
+    )
 }
 
 /// 对 [`PolynomialResult`] 执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_result(key: &PolynomialCacheKey, result: &PolynomialResult) -> AdmissionOutcome {
-    EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default())
+    EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default(), None)
+}
+
+/// 带环表的多项式 verifier（Gröbner 独立重放）。
+pub fn admit_polynomial_result_with_rings(
+    key: &PolynomialCacheKey,
+    result: &PolynomialResult,
+    rings: &RingTable,
+) -> AdmissionOutcome {
+    EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default(), Some(rings))
+}
+
+/// 自称已验证的 Gröbner 基须经独立 critical-pair 重放；无环表则拒绝 exact admission。
+fn reject_unverified_groebner(value: &PolynomialDomainValue, rings: Option<&RingTable>) -> Option<AdmissionRejectReason> {
+    let PolynomialDomainValue::GroebnerBasis(v) = value
+    else {
+        return None;
+    };
+    if !v.is_exact_witness() {
+        return None;
+    }
+    let Some(rings) = rings
+    else {
+        return Some(AdmissionRejectReason::EvidenceMismatch);
+    };
+    match verify_groebner_basis(&v.basis, rings) {
+        Ok(report) if report.all_s_pairs_reduce_to_zero => None,
+        Ok(_) => Some(AdmissionRejectReason::EvidenceMismatch),
+        Err(_) => Some(AdmissionRejectReason::EvidenceMismatch),
+    }
 }
 
 /// 是否应写入 semantic core。

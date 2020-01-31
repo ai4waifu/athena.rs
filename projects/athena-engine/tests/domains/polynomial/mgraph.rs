@@ -89,7 +89,13 @@ fn placeholder_exact_result_not_admitted() {
     let ring = z_x_ring(&mut session);
     let poly = session.polynomial_objects.intern(PolynomialBuilder::new(ring).build(&session.rings).unwrap(), &session.rings);
     let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: poly }, &session.rings, &session.polynomial_objects).unwrap();
-    record_polynomial_result(key.clone(), PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder }, &mut session.mgraph).unwrap();
+    record_polynomial_result(
+        key.clone(),
+        PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder },
+        &mut session.mgraph,
+        Some(&session.rings),
+    )
+    .unwrap();
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 0);
     match admit_polynomial_result(&key, &session.mgraph.operational.result_cache.polynomial.get_partial(&key).unwrap().result) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::Placeholder, .. } => {}
@@ -117,6 +123,108 @@ fn probable_claim_blocked_by_verifier() {
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: Guarantee::Probable } => {}
         other => panic!("expected ProbableResult, got {other:?}"),
+    }
+}
+
+#[test]
+fn forged_verified_groebner_rejected_by_independent_replay() {
+    use athena_engine::{
+        domains::algebra::{PropertyState, PropertyWitness},
+        domains::polynomial::{
+            GroebnerAlgorithm, GroebnerBasisValue, GroebnerCertificate, GroebnerStatus, PolynomialDomainValue, PolynomialRequest,
+            PolynomialResult, cache_key_for_request,
+        },
+        reasoning::mgraph::{AdmissionOutcome, AdmissionRejectReason, admit_polynomial_result_with_rings},
+    };
+
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    // 经典非 Gröbner 基，却伪造 Verified 证书。
+    let mut b1 = PolynomialBuilder::new(ring);
+    b1.push_term(Number::small_int(1), vec![2, 0]).unwrap();
+    b1.push_term(Number::small_int(-1), vec![0, 1]).unwrap();
+    let g1 = b1.build(&session.rings).unwrap();
+    let mut b2 = PolynomialBuilder::new(ring);
+    b2.push_term(Number::small_int(1), vec![1, 1]).unwrap();
+    b2.push_term(Number::small_int(-1), vec![0, 0]).unwrap();
+    let g2 = b2.build(&session.rings).unwrap();
+    let r1 = session.polynomial_objects.intern(g1.clone(), &session.rings);
+    let r2 = session.polynomial_objects.intern(g2.clone(), &session.rings);
+    let req = PolynomialRequest::Groebner { generators: vec![r1, r2], limits: GroebnerLimits::default() };
+    let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();
+    let forged = PolynomialResult::Exact {
+        value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue {
+            ring,
+            basis: vec![g1, g2],
+            certificate: GroebnerCertificate {
+                algorithm: GroebnerAlgorithm::Buchberger,
+                ring,
+                input_generators: 2,
+                basis_elements: 2,
+                s_pair_steps: 1,
+                complete: true,
+                verification: PropertyState::Proven {
+                    value: (),
+                    witness: PropertyWitness::placeholder("forged"),
+                },
+                elimination_elements: None,
+            },
+            status: GroebnerStatus::Verified,
+        }),
+    };
+    match admit_polynomial_result_with_rings(&key, &forged, &session.rings) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, .. } => {}
+        other => panic!("expected EvidenceMismatch, got {other:?}"),
+    }
+}
+
+#[test]
+fn groebner_second_goal_is_already_known_after_admit() {
+    use athena_engine::{
+        api::DomainGoal,
+        domains::dispatch::{DomainRequest, DomainResult},
+        domains::polynomial::{GroebnerLimits, PolynomialDomainValue, PolynomialRequest, PolynomialResult},
+        reasoning::mgraph::{DomainSemanticOutcome, domain_result_from_semantic_outcome, execute_domain_goal},
+    };
+
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(ring);
+    b.push_term(Number::small_int(1), vec![1]).unwrap();
+    b.push_term(Number::small_int(-1), vec![0]).unwrap();
+    let g = b.build(&session.rings).unwrap();
+    let generator = session.polynomial_objects.intern(g, &session.rings);
+    let make_goal = || {
+        DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Groebner {
+            generators: vec![generator],
+            limits: GroebnerLimits::default(),
+        }))
+    };
+    let first = execute_domain_goal(&mut session, make_goal()).expect("first");
+    let DomainSemanticOutcome::Computed(DomainResult::Polynomial(PolynomialResult::Exact {
+        value: PolynomialDomainValue::GroebnerBasis(first_gb),
+    })) = &first
+    else {
+        panic!("expected Exact GroebnerBasis first, got {first:?}");
+    };
+    assert!(first_gb.is_exact_witness());
+    assert!(session.mgraph.semantic.relation_count() >= 1);
+    let second = execute_domain_goal(&mut session, make_goal()).expect("second");
+    match second {
+        DomainSemanticOutcome::AlreadyKnown { relation } => {
+            let replayed =
+                domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
+            match replayed {
+                DomainResult::Polynomial(PolynomialResult::Exact {
+                    value: PolynomialDomainValue::GroebnerBasis(gb),
+                }) => {
+                    assert!(gb.is_exact_witness());
+                    assert_eq!(gb.basis.len(), first_gb.basis.len());
+                }
+                other => panic!("expected materialize GroebnerBasis, got {other:?}"),
+            }
+        }
+        other => panic!("expected AlreadyKnown, got {other:?}"),
     }
 }
 
