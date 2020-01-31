@@ -65,12 +65,19 @@ impl VerifiedGroebnerBasis {
 }
 
 /// 未完成计算的候选前沿（不可作数学证书）。
+///
+/// `pending_pairs` / `pending_insertion` 使 Partial / ResourceLimited 可诚实恢复。
+/// 索引相对于 `candidates` 当前顺序。恢复前不得对候选做会打乱下标的变换。
 #[derive(Debug, PartialEq)]
 pub struct GroebnerFrontier {
     /// 所属环。
     pub ring: RingId,
-    /// 候选多项式。
+    /// 候选多项式（当前 Buchberger 基，未必自约化）。
     pub candidates: Vec<Polynomial>,
+    /// 尚未处理的 critical pairs（下标相对 `candidates`）。
+    pub pending_pairs: Vec<(usize, usize)>,
+    /// 已算得但因 `max_basis_size` 未能插入的多项式。
+    pub pending_insertion: Option<Polynomial>,
     /// 证书（`verified = false`）。
     pub certificate: GroebnerCertificate,
 }
@@ -79,6 +86,16 @@ impl GroebnerFrontier {
     /// 候选切片。
     pub fn candidates(&self) -> &[Polynomial] {
         &self.candidates
+    }
+
+    /// 待处理 pair。
+    pub fn pending_pairs(&self) -> &[(usize, usize)] {
+        &self.pending_pairs
+    }
+
+    /// 是否仍有可恢复工作。
+    pub fn has_resumable_work(&self) -> bool {
+        self.pending_insertion.is_some() || !self.pending_pairs.is_empty()
     }
 }
 
@@ -146,15 +163,8 @@ impl GroebnerComputation {
 /// 仅 [`GroebnerComputation::Complete`] 可作 exact membership / 消元定理 / M-Graph exact witness。
 pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
     let ideal = Ideal::new(generators)?;
-    let desc = rings.get(ideal.ring).ok_or_else(|| ring_unknown(ideal.ring))?;
-    let coeff = rings.coefficient_kernel(ideal.ring)?;
-    if !coeff.is_field() {
-        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
-            .detail("domain", "polynomial")
-            .detail("operation", "groebner_requires_field"));
-    }
-    let layout = &desc.monomial_layout;
-    let mut basis = normalize_generators(ideal.generators, rings)?;
+    require_field_ring(ideal.ring, rings, "groebner_requires_field")?;
+    let basis = normalize_generators(ideal.generators, rings)?;
     let input_count = basis.len();
     let mut pairs: Vec<(usize, usize)> = Vec::new();
     for i in 0..basis.len() {
@@ -162,21 +172,114 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
             pairs.push((i, j));
         }
     }
-    let mut steps = 0u32;
+    run_buchberger(ideal.ring, basis, pairs, None, input_count, 0, rings, limits)
+}
+
+/// 从 Partial / ResourceLimited frontier 恢复 Buchberger。
+///
+/// 恢复前重新校验环 / 域 / pair 下标。中间证书仍须经 `verify_groebner_basis` 才可 Complete。
+pub fn resume_groebner_basis(frontier: GroebnerFrontier, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
+    require_field_ring(frontier.ring, rings, "groebner_resume_requires_field")?;
+    if frontier.candidates.is_empty() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "groebner_resume_empty_basis"));
+    }
+    for p in &frontier.candidates {
+        if p.ring() != frontier.ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "groebner_resume_ring_mismatch"));
+        }
+    }
+    if let Some(p) = &frontier.pending_insertion {
+        if p.ring() != frontier.ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "groebner_resume_insertion_ring_mismatch"));
+        }
+    }
+    let n = frontier.candidates.len();
+    for &(i, j) in &frontier.pending_pairs {
+        if i >= n || j >= n || i == j {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "polynomial")
+                .detail("operation", "groebner_resume_invalid_pair")
+                .detail("i", i.to_string())
+                .detail("j", j.to_string())
+                .detail("basis_len", n.to_string()));
+        }
+    }
+    if !frontier.has_resumable_work() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "groebner_resume_no_pending_work"));
+    }
+    let input_count = frontier.certificate.input_generators.max(1);
+    let prior_steps = frontier.certificate.s_pair_steps;
+    run_buchberger(
+        frontier.ring,
+        frontier.candidates,
+        frontier.pending_pairs,
+        frontier.pending_insertion,
+        input_count,
+        prior_steps,
+        rings,
+        limits,
+    )
+}
+
+fn run_buchberger(
+    ring: RingId,
+    mut basis: Vec<Polynomial>,
+    mut pairs: Vec<(usize, usize)>,
+    mut pending_insertion: Option<Polynomial>,
+    input_count: usize,
+    mut steps: u32,
+    rings: &RingTable,
+    limits: GroebnerLimits,
+) -> Result<GroebnerComputation> {
+    let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+    let coeff = rings.coefficient_kernel(ring)?;
+    let layout = &desc.monomial_layout;
+
+    if let Some(remainder) = pending_insertion.take() {
+        if basis.len() as u32 >= limits.max_basis_size {
+            return Ok(GroebnerComputation::ResourceLimited(frontier(
+                ring,
+                basis,
+                pairs,
+                Some(remainder),
+                input_count,
+                steps,
+                false,
+                None,
+            )));
+        }
+        let idx = basis.len();
+        basis.push(remainder);
+        for k in 0..idx {
+            pairs.push((k, idx));
+        }
+    }
+
     let mut truncated_pairs = false;
     let mut resource_limited = false;
+    let mut deferred_insertion: Option<Polynomial> = None;
     while let Some((i, j)) = pairs.pop() {
         if steps >= limits.max_s_pairs {
+            pairs.push((i, j));
             truncated_pairs = true;
             break;
         }
-        steps += 1;
+        steps = steps.saturating_add(1);
         let s = s_polynomial(&basis[i], &basis[j], rings, layout, &coeff)?;
         let remainder = reduce_polynomial(&s, &basis, rings, layout, &coeff)?;
         if remainder.terms().is_empty() {
             continue;
         }
         if basis.len() as u32 >= limits.max_basis_size {
+            deferred_insertion = Some(remainder);
             resource_limited = true;
             break;
         }
@@ -186,13 +289,24 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
             pairs.push((k, idx));
         }
     }
-    basis = autoreduce_basis(basis, rings, layout, &coeff)?;
+
     if resource_limited {
-        return Ok(GroebnerComputation::ResourceLimited(frontier(ideal.ring, basis, input_count, steps, false, None)));
+        return Ok(GroebnerComputation::ResourceLimited(frontier(
+            ring,
+            basis,
+            pairs,
+            deferred_insertion,
+            input_count,
+            steps,
+            false,
+            None,
+        )));
     }
     if truncated_pairs {
-        return Ok(GroebnerComputation::Partial(frontier(ideal.ring, basis, input_count, steps, false, None)));
+        return Ok(GroebnerComputation::Partial(frontier(ring, basis, pairs, None, input_count, steps, false, None)));
     }
+
+    basis = autoreduce_basis(basis, rings, layout, &coeff)?;
     let verification = verify_groebner_basis(&basis, rings)?;
     if !verification.all_s_pairs_reduce_to_zero {
         return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
@@ -201,15 +315,28 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
     }
     let certificate = GroebnerCertificate {
         algorithm: GroebnerAlgorithm::Buchberger,
-        ring: ideal.ring,
+        ring,
         input_generators: input_count,
         basis_elements: basis.len(),
         s_pair_steps: steps,
         complete: true,
-        verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") },
+        verification: PropertyState::Proven {
+            value: (),
+            witness: PropertyWitness::placeholder("groebner_independent_verifier"),
+        },
         elimination_elements: None,
     };
-    Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: ideal.ring, basis, certificate, verification }))
+    Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
+}
+
+fn require_field_ring(ring: RingId, rings: &RingTable, operation: &str) -> Result<()> {
+    let coeff = rings.coefficient_kernel(ring)?;
+    if !coeff.is_field() {
+        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
+            .detail("domain", "polynomial")
+            .detail("operation", operation));
+    }
+    Ok(())
 }
 
 /// 消元理想：须为完整已验证 Gröbner 基；环须为 [`MonomialOrder::Elimination`]。
@@ -242,7 +369,10 @@ pub fn compute_elimination_basis(generators: Vec<Polynomial>, rings: &RingTable,
             Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring: verified.ring, basis: elim, certificate, verification }))
         }
         GroebnerComputation::Partial(mut frontier) => {
+            // 消元过滤会打乱 pair 下标，incomplete 结果不可再 resume。
             frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
+            frontier.pending_pairs.clear();
+            frontier.pending_insertion = None;
             frontier.certificate.basis_elements = frontier.candidates.len();
             frontier.certificate.elimination_elements = Some(frontier.candidates.len());
             frontier.certificate.mark_unverified();
@@ -250,6 +380,8 @@ pub fn compute_elimination_basis(generators: Vec<Polynomial>, rings: &RingTable,
         }
         GroebnerComputation::ResourceLimited(mut frontier) => {
             frontier.candidates = extract_elimination_polys(&frontier.candidates, eliminate);
+            frontier.pending_pairs.clear();
+            frontier.pending_insertion = None;
             frontier.certificate.basis_elements = frontier.candidates.len();
             frontier.certificate.elimination_elements = Some(frontier.candidates.len());
             frontier.certificate.mark_unverified();
@@ -338,6 +470,8 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
 fn frontier(
     ring: RingId,
     candidates: Vec<Polynomial>,
+    pending_pairs: Vec<(usize, usize)>,
+    pending_insertion: Option<Polynomial>,
     input_generators: usize,
     steps: u32,
     complete: bool,
@@ -353,7 +487,7 @@ fn frontier(
         verification: PropertyState::Unknown,
         elimination_elements,
     };
-    GroebnerFrontier { ring, candidates, certificate }
+    GroebnerFrontier { ring, candidates, pending_pairs, pending_insertion, certificate }
 }
 
 fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<Polynomial>> {
