@@ -171,6 +171,8 @@ fn forged_verified_groebner_rejected_by_independent_replay() {
                 elimination_elements: None,
             },
             status: GroebnerStatus::Verified,
+            pending_pairs: Vec::new(),
+            pending_insertion: None,
         }),
     };
     match admit_polynomial_result_with_rings(&key, &forged, &session.rings) {

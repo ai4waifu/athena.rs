@@ -3,7 +3,7 @@
 use super::{
     certificate::{GroebnerCertificate, GroebnerStatus},
     factor::PolynomialFactorization,
-    groebner::GroebnerComputation,
+    groebner::{GroebnerComputation, GroebnerFrontier},
     object::Polynomial,
 };
 use athena_types::RingId;
@@ -16,6 +16,9 @@ pub struct PolynomialValue {
 }
 
 /// Gröbner / 消元基结果。
+///
+/// Partial / ResourceLimited 时保留 `pending_pairs` / `pending_insertion`，
+/// 以便 Session 层诚实 resume（Living `30` G1）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct GroebnerBasisValue {
     /// 所属环。
@@ -26,21 +29,62 @@ pub struct GroebnerBasisValue {
     pub certificate: GroebnerCertificate,
     /// 显式状态分型（M-Graph admission 只接纳 [`GroebnerStatus::Verified`]）。
     pub status: GroebnerStatus,
+    /// 尚未处理的 critical pairs（下标相对 `basis`）。
+    pub pending_pairs: Vec<(usize, usize)>,
+    /// 已算得但因基大小上限未能插入的多项式。
+    pub pending_insertion: Option<Polynomial>,
 }
 
 impl GroebnerBasisValue {
     /// 从 [`GroebnerComputation`] 构造域值。
     pub fn from_computation(computation: GroebnerComputation) -> Self {
-        let status = computation.status();
-        let ring = computation.ring();
-        let certificate = computation.certificate().clone();
-        let basis = computation.polynomials().to_vec();
-        Self { ring, basis, certificate, status }
+        match computation {
+            GroebnerComputation::Complete(verified) => Self {
+                ring: verified.ring,
+                basis: verified.basis,
+                certificate: verified.certificate,
+                status: GroebnerStatus::Verified,
+                pending_pairs: Vec::new(),
+                pending_insertion: None,
+            },
+            GroebnerComputation::Partial(frontier) => Self::from_frontier(frontier, GroebnerStatus::Partial),
+            GroebnerComputation::ResourceLimited(frontier) => Self::from_frontier(frontier, GroebnerStatus::ResourceLimited),
+        }
+    }
+
+    fn from_frontier(frontier: GroebnerFrontier, status: GroebnerStatus) -> Self {
+        Self {
+            ring: frontier.ring,
+            basis: frontier.candidates,
+            certificate: frontier.certificate,
+            status,
+            pending_pairs: frontier.pending_pairs,
+            pending_insertion: frontier.pending_insertion,
+        }
     }
 
     /// 是否可作为 exact witness。
     pub fn is_exact_witness(&self) -> bool {
         self.status == GroebnerStatus::Verified && self.certificate.is_exact_witness()
+    }
+
+    /// 是否仍有可恢复 Buchberger 工作。
+    pub fn has_resumable_work(&self) -> bool {
+        self.status != GroebnerStatus::Verified && (self.pending_insertion.is_some() || !self.pending_pairs.is_empty())
+    }
+
+    /// 还原为 [`GroebnerFrontier`]（仅 Partial / ResourceLimited）。
+    pub fn into_frontier(self) -> Option<GroebnerFrontier> {
+        if self.status == GroebnerStatus::Verified {
+            return None;
+        }
+        Some(GroebnerFrontier {
+            ring: self.ring,
+            candidates: self.basis,
+            pending_pairs: self.pending_pairs,
+            pending_insertion: self.pending_insertion,
+            certificate: self.certificate,
+        })
     }
 }
 
