@@ -1,5 +1,7 @@
 //! Gröbner 基（Buchberger）· 独立验证 · 类型分型结果 · 理想约化 · 消元。
 
+use std::collections::HashSet;
+
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use crate::domains::algebra::{PropertyState, PropertyWitness};
@@ -232,7 +234,7 @@ pub fn resume_groebner_basis(frontier: GroebnerFrontier, rings: &RingTable, limi
 fn run_buchberger(
     ring: RingId,
     mut basis: Vec<Polynomial>,
-    mut pairs: Vec<(usize, usize)>,
+    pairs_in: Vec<(usize, usize)>,
     mut pending_insertion: Option<Polynomial>,
     input_count: usize,
     mut steps: u32,
@@ -243,12 +245,18 @@ fn run_buchberger(
     let coeff = rings.coefficient_kernel(ring)?;
     let layout = &desc.monomial_layout;
 
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    let mut pending: HashSet<(usize, usize)> = HashSet::new();
+    for (i, j) in pairs_in {
+        enqueue_pair(i, j, &mut pairs, &mut pending);
+    }
+
     if let Some(remainder) = pending_insertion.take() {
         if basis.len() as u32 >= limits.max_basis_size {
             return Ok(GroebnerComputation::ResourceLimited(frontier(
                 ring,
                 basis,
-                pairs,
+                pairs_from_pending(&pending),
                 Some(remainder),
                 input_count,
                 steps,
@@ -259,7 +267,7 @@ fn run_buchberger(
         let idx = basis.len();
         basis.push(remainder);
         for k in 0..idx {
-            pairs.push((k, idx));
+            enqueue_pair(k, idx, &mut pairs, &mut pending);
         }
     }
 
@@ -267,12 +275,21 @@ fn run_buchberger(
     let mut resource_limited = false;
     let mut deferred_insertion: Option<Polynomial> = None;
     while let Some((i, j)) = pairs.pop() {
+        let key = ordered_pair(i, j);
+        if !pending.remove(&key) {
+            continue;
+        }
         // Buchberger criterion 1: coprime leading monomials ⇒ S-pair reduces to 0.
         if leading_monomials_coprime(&basis[i], &basis[j]) {
             continue;
         }
+        // Buchberger criterion 2 (chain): ∃k with LM(k)|lcm(LM(i),LM(j)) and pairs (i,k),(j,k) already treated.
+        if chain_criterion_applies(&basis, i, j, &pending, layout)? {
+            continue;
+        }
         if steps >= limits.max_s_pairs {
-            pairs.push((i, j));
+            pending.insert(key);
+            pairs.push(key);
             truncated_pairs = true;
             break;
         }
@@ -290,7 +307,7 @@ fn run_buchberger(
         let idx = basis.len();
         basis.push(remainder);
         for k in 0..idx {
-            pairs.push((k, idx));
+            enqueue_pair(k, idx, &mut pairs, &mut pending);
         }
     }
 
@@ -298,7 +315,7 @@ fn run_buchberger(
         return Ok(GroebnerComputation::ResourceLimited(frontier(
             ring,
             basis,
-            pairs,
+            pairs_from_pending(&pending),
             deferred_insertion,
             input_count,
             steps,
@@ -307,7 +324,16 @@ fn run_buchberger(
         )));
     }
     if truncated_pairs {
-        return Ok(GroebnerComputation::Partial(frontier(ring, basis, pairs, None, input_count, steps, false, None)));
+        return Ok(GroebnerComputation::Partial(frontier(
+            ring,
+            basis,
+            pairs_from_pending(&pending),
+            None,
+            input_count,
+            steps,
+            false,
+            None,
+        )));
     }
 
     basis = autoreduce_basis(basis, rings, layout, &coeff)?;
@@ -331,6 +357,68 @@ fn run_buchberger(
         elimination_elements: None,
     };
     Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
+}
+
+fn ordered_pair(i: usize, j: usize) -> (usize, usize) {
+    if i < j {
+        (i, j)
+    }
+    else {
+        (j, i)
+    }
+}
+
+fn enqueue_pair(i: usize, j: usize, pairs: &mut Vec<(usize, usize)>, pending: &mut HashSet<(usize, usize)>) {
+    if i == j {
+        return;
+    }
+    let key = ordered_pair(i, j);
+    if pending.insert(key) {
+        pairs.push(key);
+    }
+}
+
+fn pairs_from_pending(pending: &HashSet<(usize, usize)>) -> Vec<(usize, usize)> {
+    let mut out: Vec<(usize, usize)> = pending.iter().copied().collect();
+    out.sort_unstable();
+    out
+}
+
+/// Buchberger chain criterion: ∃`k` s.t. `LM(bk) | lcm(LM(bi), LM(bj))` and pairs `(i,k)`, `(j,k)` already treated.
+fn chain_criterion_applies(
+    basis: &[Polynomial],
+    i: usize,
+    j: usize,
+    pending: &HashSet<(usize, usize)>,
+    layout: &MonomialLayout,
+) -> Result<bool> {
+    let Some(li) = basis[i].terms().first()
+    else {
+        return Ok(false);
+    };
+    let Some(lj) = basis[j].terms().first()
+    else {
+        return Ok(false);
+    };
+    let lcm_ij = layout.lcm_exponents(li.exponents(), lj.exponents())?;
+    let lcm_packed = layout.pack(&lcm_ij)?;
+    for k in 0..basis.len() {
+        if k == i || k == j {
+            continue;
+        }
+        let Some(lk) = basis[k].terms().first()
+        else {
+            continue;
+        };
+        let lk_packed = layout.pack(lk.exponents())?;
+        if !layout.packed_divides(&lk_packed, &lcm_packed)? {
+            continue;
+        }
+        if !pending.contains(&ordered_pair(i, k)) && !pending.contains(&ordered_pair(j, k)) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn require_field_ring(ring: RingId, rings: &RingTable, operation: &str) -> Result<()> {
@@ -633,4 +721,51 @@ fn ring_unknown(ring: RingId) -> Diagnostic {
         .detail("domain", "polynomial")
         .detail("operation", "unknown_ring")
         .detail("ring_id", ring.0.to_string())
+}
+
+#[cfg(test)]
+mod criterion_tests {
+    use super::*;
+    use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable};
+    use athena_numeric::Number;
+    use athena_types::SymbolId;
+
+    fn poly(rings: &RingTable, ring: RingId, terms: &[(i64, Vec<u32>)]) -> Polynomial {
+        let mut b = PolynomialBuilder::new(ring);
+        for &(c, ref exp) in terms {
+            b.push_term(Number::small_int(c), exp.clone()).unwrap();
+        }
+        b.build(rings).unwrap()
+    }
+
+    #[test]
+    fn chain_criterion_true_when_third_lm_divides_lcm_and_pairs_treated() {
+        let mut rings = RingTable::new();
+        let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+        let layout = &rings.get(ring).unwrap().monomial_layout;
+        // LM: x^2, y^2, xy — xy | lcm(x^2,y^2)=x^2y^2
+        let basis = vec![
+            poly(&rings, ring, &[(1, vec![2, 0])]),
+            poly(&rings, ring, &[(1, vec![0, 2])]),
+            poly(&rings, ring, &[(1, vec![1, 1])]),
+        ];
+        let pending = HashSet::new();
+        assert!(chain_criterion_applies(&basis, 0, 1, &pending, layout).unwrap());
+    }
+
+    #[test]
+    fn chain_criterion_false_while_side_pairs_still_pending() {
+        let mut rings = RingTable::new();
+        let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+        let layout = &rings.get(ring).unwrap().monomial_layout;
+        let basis = vec![
+            poly(&rings, ring, &[(1, vec![2, 0])]),
+            poly(&rings, ring, &[(1, vec![0, 2])]),
+            poly(&rings, ring, &[(1, vec![1, 1])]),
+        ];
+        let mut pending = HashSet::new();
+        pending.insert(ordered_pair(0, 2));
+        pending.insert(ordered_pair(1, 2));
+        assert!(!chain_criterion_applies(&basis, 0, 1, &pending, layout).unwrap());
+    }
 }
