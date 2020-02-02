@@ -61,4 +61,21 @@ pub enum PolynomialRequest {
         /// 资源限制。
         limits: GroebnerLimits,
     },
+    /// 从 Partial / ResourceLimited frontier 恢复 Buchberger（Living `30` G1）。
+    ///
+    /// 输入均为 [`PolynomialRef`]；`pending_pairs` 下标相对 `candidates`。
+    ResumeGroebner {
+        /// 当前候选基。
+        candidates: Vec<PolynomialRef>,
+        /// 尚未处理的 critical pairs。
+        pending_pairs: Vec<(usize, usize)>,
+        /// 因基大小上限未能插入的多项式。
+        pending_insertion: Option<PolynomialRef>,
+        /// 原始输入生成元数量（证书字段）。
+        input_generators: usize,
+        /// 已消耗的 S-pair 步数。
+        prior_s_pair_steps: u32,
+        /// 本轮资源限制。
+        limits: GroebnerLimits,
+    },
 }

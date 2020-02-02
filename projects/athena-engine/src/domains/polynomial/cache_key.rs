@@ -27,6 +27,8 @@ pub enum PolynomialCacheOp {
     Groebner,
     /// 消元理想。
     Eliminate,
+    /// 从 frontier 恢复 Gröbner。
+    ResumeGroebner,
 }
 
 impl PolynomialCacheOp {
@@ -38,6 +40,7 @@ impl PolynomialCacheOp {
             Self::Mul => "mul",
             Self::Groebner => "groebner",
             Self::Eliminate => "eliminate",
+            Self::ResumeGroebner => "resume_groebner",
         }
     }
 }
@@ -113,6 +116,29 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, sto
         PolynomialRequest::Eliminate { generators, limits } => {
             let generators = resolve_polys(store, generators)?;
             many_input_key(PolynomialCacheOp::Eliminate, &generators, rings, limits_fingerprint(limits))
+        }
+        PolynomialRequest::ResumeGroebner {
+            candidates,
+            pending_pairs,
+            pending_insertion,
+            input_generators,
+            prior_s_pair_steps,
+            limits,
+        } => {
+            let candidates = resolve_polys(store, candidates)?;
+            let insertion = match pending_insertion {
+                Some(r) => Some(store.resolve_owning(*r)?),
+                None => None,
+            };
+            resume_groebner_key(
+                &candidates,
+                insertion.as_ref(),
+                pending_pairs,
+                *input_generators,
+                *prior_s_pair_steps,
+                limits,
+                rings,
+            )
         }
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
@@ -194,4 +220,63 @@ fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {
     limits.max_s_pairs.hash(&mut h);
     limits.max_basis_size.hash(&mut h);
     h.finish()
+}
+
+/// Resume keys must preserve candidate order (pair indices) and pending work.
+fn resume_groebner_key(
+    candidates: &[Polynomial],
+    insertion: Option<&Polynomial>,
+    pending_pairs: &[(usize, usize)],
+    input_generators: usize,
+    prior_s_pair_steps: u32,
+    limits: &GroebnerLimits,
+    rings: &RingTable,
+) -> Result<PolynomialCacheKey> {
+    if candidates.is_empty() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_empty_resume_candidates"));
+    }
+    let ring = candidates[0].ring();
+    let ring_fingerprint = ring_fingerprint_for(&candidates[0], rings)?;
+    let mut input_fingerprints = Vec::with_capacity(candidates.len() + usize::from(insertion.is_some()));
+    let mut input_hashes = Vec::with_capacity(candidates.len() + usize::from(insertion.is_some()));
+    for g in candidates {
+        if g.ring() != ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "cache_key_ring_mismatch"));
+        }
+        input_fingerprints.push(poly_fingerprint(g, rings)?);
+        input_hashes.push(polynomial_canonical_hash(g, rings)?);
+    }
+    if let Some(ins) = insertion {
+        if ins.ring() != ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "cache_key_ring_mismatch"));
+        }
+        input_fingerprints.push(poly_fingerprint(ins, rings)?);
+        input_hashes.push(polynomial_canonical_hash(ins, rings)?);
+    }
+    use std::collections::hash_map::DefaultHasher;
+    let mut h = DefaultHasher::new();
+    limits.max_s_pairs.hash(&mut h);
+    limits.max_basis_size.hash(&mut h);
+    input_generators.hash(&mut h);
+    prior_s_pair_steps.hash(&mut h);
+    pending_pairs.len().hash(&mut h);
+    for &(i, j) in pending_pairs {
+        i.hash(&mut h);
+        j.hash(&mut h);
+    }
+    insertion.is_some().hash(&mut h);
+    Ok(PolynomialCacheKey {
+        operation: PolynomialCacheOp::ResumeGroebner,
+        ring,
+        ring_fingerprint,
+        input_fingerprints,
+        input_hashes,
+        limits_fingerprint: h.finish(),
+    })
 }
