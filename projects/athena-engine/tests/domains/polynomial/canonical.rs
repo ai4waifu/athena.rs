@@ -28,6 +28,17 @@ fn builder_merges_duplicate_monomials() {
 }
 
 #[test]
+fn builder_returns_canonical_polynomial_identity() {
+    use athena_engine::domains::polynomial::CanonicalPolynomial;
+    let (rings, ring) = xy_integer_ring(MonomialOrder::Lex);
+    let mut b = PolynomialBuilder::new(ring);
+    b.push_term(Number::small_int(1), vec![0, 0]).unwrap();
+    let p: CanonicalPolynomial = b.build(&rings).unwrap();
+    let again = canonicalize_polynomial(p.clone(), &rings).unwrap();
+    assert_eq!(p, again);
+}
+
+#[test]
 fn builder_drops_zero_coefficients() {
     let (rings, ring) = xy_integer_ring(MonomialOrder::Lex);
     let mut b = PolynomialBuilder::new(ring);
