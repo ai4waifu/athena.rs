@@ -343,7 +343,8 @@ impl ExecutionCompiler {
                             | SemanticOperator::GreaterEqual => ExecutionValueType::Boolean,
                             _ => ExecutionValueType::Term,
                         };
-                        let hold_all = op == SemanticOperator::Function;
+                        // `Hold` / `Function` must not evaluate arguments (Living HoldAll).
+                        let hold_all = matches!(op, SemanticOperator::Hold | SemanticOperator::Function);
                         let hold_first = op == SemanticOperator::Product
                             || (op == SemanticOperator::Sum && arg_terms.len() == 2)
                             || matches!(op, SemanticOperator::Apply | SemanticOperator::Map);

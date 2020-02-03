@@ -271,16 +271,43 @@ impl ReferenceExecutor {
                         if args.len() != 2 {
                             return Err(diag("semantic_operator_arity"));
                         }
-                        let left = slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        let right = slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        let same = match (left, right) {
-                            (Slot::Boolean(a), Slot::Boolean(b)) => a == b,
-                            (Slot::Symbol(a), Slot::Symbol(b)) => a == b,
-                            (Slot::Term(a), Slot::Term(b)) => session.arena.structural_eq(*a, *b),
-                            (Slot::Unit, Slot::Unit) => true,
-                            _ => false,
-                        };
-                        Ok(Slot::Boolean(if op == SemanticOperator::Unequal { !same } else { same }))
+                        let left = *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                        let right = *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                        // `Identical` is structural. `Equal` / `Unequal` only decide on comparable
+                        // atoms; symbolic residuals stay as `Equal[...]` (not silent `False`).
+                        if op == SemanticOperator::Identical {
+                            let same = match (left, right) {
+                                (Slot::Boolean(a), Slot::Boolean(b)) => a == b,
+                                (Slot::Symbol(a), Slot::Symbol(b)) => a == b,
+                                (Slot::Term(a), Slot::Term(b)) => session.arena.structural_eq(a, b),
+                                (Slot::Unit, Slot::Unit) => true,
+                                _ => false,
+                            };
+                            return Ok(Slot::Boolean(same));
+                        }
+                        match (left, right) {
+                            (Slot::Boolean(a), Slot::Boolean(b)) => {
+                                Ok(Slot::Boolean(if op == SemanticOperator::Unequal { a != b } else { a == b }))
+                            }
+                            (Slot::Symbol(a), Slot::Symbol(b)) => {
+                                Ok(Slot::Boolean(if op == SemanticOperator::Unequal { a != b } else { a == b }))
+                            }
+                            (Slot::Unit, Slot::Unit) => Ok(Slot::Boolean(op != SemanticOperator::Unequal)),
+                            (Slot::Term(a), Slot::Term(b)) => {
+                                if session.arena.structural_eq(a, b) {
+                                    return Ok(Slot::Boolean(op != SemanticOperator::Unequal));
+                                }
+                                let na = number_of(session, a).map(clone_number);
+                                let nb = number_of(session, b).map(clone_number);
+                                if let (Some(left_n), Some(right_n)) = (na, nb) {
+                                    let ord = num_compare(&left_n, &right_n).ok_or_else(|| diag("compare_failed"))?;
+                                    let eq = ord == Ordering::Equal;
+                                    return Ok(Slot::Boolean(if op == SemanticOperator::Unequal { !eq } else { eq }));
+                                }
+                                self.eval_residual_semantic(session, op, args, slots)
+                            }
+                            _ => self.eval_residual_semantic(session, op, args, slots),
+                        }
                     }
                     SemanticOperator::Less | SemanticOperator::Greater | SemanticOperator::LessEqual | SemanticOperator::GreaterEqual => {
                         self.eval_compare_chain(session, op, args, slots)
@@ -483,7 +510,13 @@ impl ReferenceExecutor {
                 match provider.take() {
                     Some(domain) => {
                         let domain_result = execute_domain(session, domain)?;
+                        let projected = helpers::domain_result_symbolic_term(session, &domain_result);
                         let mut computation = computation_from_domain(session, domain_result);
+                        if computation.symbolic_term.is_none() {
+                            if let Some(term) = projected {
+                                computation = computation.with_symbolic_term(term);
+                            }
+                        }
                         computation = computation
                             .with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
                         Ok(Slot::Result(session.insert_result(computation)))
