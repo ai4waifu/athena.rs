@@ -7,6 +7,7 @@ mod factor;
 mod fingerprint;
 mod groebner;
 mod mgraph;
+mod modular_image;
 mod monomial_layout;
 mod repr;
 mod ring_contract;
