@@ -59,3 +59,41 @@ fn multiple_of_prime_vanishes() {
     assert!(image.vanished);
     assert!(image.image.is_zero());
 }
+
+#[test]
+fn roundtrip_rational_poly_via_large_prime_image() {
+    use athena_engine::domains::polynomial::reconstruct_polynomial_from_modular_image;
+    let mut rings = RingTable::new();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    // Large enough for default Wang bound on small rationals.
+    let p = rings.intern_over_prime_field(Integer::from_i64(97), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::rational_i64(-1, 2).unwrap(), vec![0]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let image = map_polynomial_mod_prime(&poly, p, &rings).unwrap();
+    assert!(!image.vanished);
+    let rebuilt = reconstruct_polynomial_from_modular_image(&image.image, &image.modulus, q, &rings).unwrap();
+    assert_eq!(rebuilt, poly);
+}
+
+#[test]
+fn modular_groebner_image_then_reconstruct_univariate() {
+    use athena_engine::domains::polynomial::{GroebnerLimits, compute_groebner_basis, reconstruct_polynomial_from_modular_image};
+    let mut rings = RingTable::new();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p = rings.intern_over_prime_field(Integer::from_i64(97), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(1, 1).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::rational_i64(-1, 2).unwrap(), vec![0]).unwrap(); // x - 1/2
+    let poly = b.build(&rings).unwrap();
+    let image = map_polynomial_mod_prime(&poly, p, &rings).unwrap();
+    let gb = compute_groebner_basis(vec![image.image.clone()], &rings, GroebnerLimits::default()).unwrap();
+    let verified = gb.as_verified().expect("verified over Fp");
+    assert_eq!(verified.basis().len(), 1);
+    let rebuilt = reconstruct_polynomial_from_modular_image(&verified.basis()[0], &image.modulus, q, &rings).unwrap();
+    // Monic image reconstructs to a scalar multiple of the input over Q; compare after clearing content via equality of roots:
+    // rebuilt should be associate to x - 1/2. With Wang reconstruction of monic Fp basis, expect x + c.
+    assert!(!rebuilt.is_zero());
+    assert_eq!(rebuilt.terms().len(), 2);
+}

@@ -9,6 +9,7 @@ use super::{
     ring::CoefficientDomain,
     ring_table::RingTable,
 };
+use crate::domains::number_theory::{RationalReconstruction, rational_reconstruction};
 
 /// 单次模同态结果（候选像，不进 M-Graph）。
 #[derive(Debug, PartialEq)]
@@ -74,6 +75,82 @@ pub fn map_polynomial_mod_prime(poly: &Polynomial, image_ring: RingId, rings: &R
 /// 批量映射生成元；任一坏分母则整体失败。
 pub fn map_generators_mod_prime(generators: &[Polynomial], image_ring: RingId, rings: &RingTable) -> Result<Vec<ModularImage>> {
     generators.iter().map(|g| map_polynomial_mod_prime(g, image_ring, rings)).collect()
+}
+
+/// 从模 `p` 剩余重构有理系数（默认 Wang 界）。
+pub fn reconstruct_rational_coefficient(residue: &Number, modulus: &Modulus) -> Result<Number> {
+    let integer = residue.as_integer().ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
+            .detail("domain", "polynomial")
+            .detail("operation", "reconstruct_requires_integer_residue")
+    })?;
+    match rational_reconstruction(integer, modulus, None, None) {
+        RationalReconstruction::Found { value } => Ok(number_from_rational(value)),
+        RationalReconstruction::NotFound { reason } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "rational_reconstruction_failed")
+            .detail("reason", format!("{reason:?}"))),
+    }
+}
+
+/// 将 𝔽_p 上多项式系数逐项有理重构到 ℚ（或 ℤ）目标环。
+///
+/// 目标环须为 [`CoefficientDomain::Rational`] 或 [`CoefficientDomain::Integer`]，
+/// 且变量表 / 单项式序与像环一致。重构失败或整数目标遇到非整数分数时返回诊断。
+pub fn reconstruct_polynomial_from_modular_image(
+    image: &Polynomial,
+    modulus: &Modulus,
+    target_ring: RingId,
+    rings: &RingTable,
+) -> Result<CanonicalPolynomial> {
+    let image_desc = rings.get(image.ring()).ok_or_else(|| ring_unknown(image.ring()))?;
+    let target_desc = rings.get(target_ring).ok_or_else(|| ring_unknown(target_ring))?;
+    let target_domain = rings.coefficient_domain_for_descriptor(target_desc).ok_or_else(|| ring_unknown(target_ring))?;
+    match target_domain {
+        CoefficientDomain::Integer | CoefficientDomain::Rational => {}
+        _ => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "polynomial")
+                .detail("operation", "reconstruct_target_must_be_z_or_q"));
+        }
+    }
+    if image_desc.variables != target_desc.variables || image_desc.order != target_desc.order {
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+            .detail("domain", "polynomial")
+            .detail("operation", "reconstruct_ring_shape_mismatch"));
+    }
+    let require_integer = matches!(target_domain, CoefficientDomain::Integer);
+    let mut builder = PolynomialBuilder::new(target_ring);
+    for term in image.terms() {
+        let mut coeff = reconstruct_rational_coefficient(term.coefficient(), modulus)?;
+        if require_integer {
+            match coeff.as_rational() {
+                Some(r) if r.is_integer() => {
+                    coeff = Number::integer(r.numerator());
+                }
+                Some(_) => {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("domain", "polynomial")
+                        .detail("operation", "reconstruct_non_integer_for_z_target"));
+                }
+                None => {}
+            }
+        }
+        if coeff.is_zero() {
+            continue;
+        }
+        builder.push_term(coeff, term.exponents().to_vec())?;
+    }
+    builder.build(rings)
+}
+
+fn number_from_rational(value: Rational) -> Number {
+    if value.is_integer() {
+        Number::integer(value.numerator())
+    }
+    else {
+        Number::rational(value)
+    }
 }
 
 fn reduce_coefficient(coeff: &Number, modulus: &Modulus) -> Result<Number> {
