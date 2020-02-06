@@ -9,7 +9,13 @@ use super::{
     ring::CoefficientDomain,
     ring_table::RingTable,
 };
-use crate::domains::number_theory::{RationalReconstruction, rational_reconstruction};
+use crate::{
+    domains::number_theory::{
+        CrtResult, NumberTheoryResult, NumberTheoryValue, RationalReconstruction, chinese_remainder, rational_reconstruction,
+    },
+    runtime::values::numeric_clone::clone_modulus,
+};
+use std::collections::BTreeSet;
 
 /// 单次模同态结果（候选像，不进 M-Graph）。
 #[derive(Debug, PartialEq)]
@@ -142,6 +148,116 @@ pub fn reconstruct_polynomial_from_modular_image(
         builder.push_term(coeff, term.exponents().to_vec())?;
     }
     builder.build(rings)
+}
+
+/// 多素数 CRT 合并结果（整数剩余类多项式，模为 `lcm`）。
+#[derive(Debug, PartialEq)]
+pub struct CrtPolynomialCombination {
+    /// 合并后的模数（素数之积 / lcm）。
+    pub modulus: Modulus,
+    /// 在 ℤ 目标环上的规范多项式（系数 ∈ `[0, M)`）。
+    pub polynomial: CanonicalPolynomial,
+}
+
+/// 将同一源多项式在多个素数下的像做 CRT 合并到 ℤ 环。
+///
+/// - 至少两个像；任一侧 `vanished` 仍可作为零像参与（缺项按 0 剩余）。
+/// - 各像环须同变量 / 同序，且与 `integer_ring` 形状一致。
+/// - `integer_ring` 须为 [`CoefficientDomain::Integer`]。
+pub fn crt_combine_modular_images(
+    images: &[ModularImage],
+    integer_ring: RingId,
+    rings: &RingTable,
+) -> Result<CrtPolynomialCombination> {
+    if images.len() < 2 {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_requires_at_least_two_images"));
+    }
+    let int_desc = rings.get(integer_ring).ok_or_else(|| ring_unknown(integer_ring))?;
+    let int_domain = rings.coefficient_domain_for_descriptor(int_desc).ok_or_else(|| ring_unknown(integer_ring))?;
+    if !matches!(int_domain, CoefficientDomain::Integer) {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_target_must_be_integer_ring"));
+    }
+    for img in images {
+        let desc = rings.get(img.image_ring).ok_or_else(|| ring_unknown(img.image_ring))?;
+        if desc.variables != int_desc.variables || desc.order != int_desc.order {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "crt_combine_ring_shape_mismatch"));
+        }
+    }
+
+    let mut support: BTreeSet<Vec<u32>> = BTreeSet::new();
+    for img in images {
+        for term in img.image.terms() {
+            support.insert(term.exponents().to_vec());
+        }
+    }
+
+    let moduli: Vec<Modulus> = images.iter().map(|i| clone_modulus(&i.modulus)).collect();
+    let mut builder = PolynomialBuilder::new(integer_ring);
+    let mut combined_modulus: Option<Modulus> = None;
+    for exponents in support {
+        let mut residues = Vec::with_capacity(images.len());
+        for img in images {
+            let coeff = img
+                .image
+                .terms()
+                .iter()
+                .find(|t| t.exponents() == exponents.as_slice())
+                .map(|t| t.coefficient())
+                .and_then(Number::as_integer)
+                .map(|n| clone_integer_from(n))
+                .unwrap_or_else(Integer::zero);
+            residues.push(coeff);
+        }
+        let (residue, modulus) = crt_residue_system(&residues, &moduli)?;
+        if combined_modulus.is_none() {
+            combined_modulus = Some(clone_modulus(&modulus));
+        }
+        if !residue.is_zero() {
+            builder.push_term(Number::integer(residue), exponents)?;
+        }
+    }
+    let modulus = combined_modulus.unwrap_or_else(|| clone_modulus(&moduli[0]));
+    let polynomial = builder.build(rings)?;
+    Ok(CrtPolynomialCombination { modulus, polynomial })
+}
+
+/// CRT 合并后再对系数做 Wang 有理重构到 ℚ / ℤ 目标环。
+pub fn crt_combine_and_reconstruct(
+    images: &[ModularImage],
+    integer_ring: RingId,
+    target_ring: RingId,
+    rings: &RingTable,
+) -> Result<CanonicalPolynomial> {
+    let combined = crt_combine_modular_images(images, integer_ring, rings)?;
+    reconstruct_polynomial_from_modular_image(&combined.polynomial, &combined.modulus, target_ring, rings)
+}
+
+fn crt_residue_system(residues: &[Integer], moduli: &[Modulus]) -> Result<(Integer, Modulus)> {
+    match chinese_remainder(residues, moduli) {
+        NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }),
+        } => Ok((solution.residue(), modulus_lcm)),
+        NumberTheoryResult::Exact {
+            value: NumberTheoryValue::Crt(CrtResult::Inconsistent { .. }),
+        } => Err(Diagnostic::new(DiagnosticCode::CongruenceInconsistent)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_inconsistent")),
+        NumberTheoryResult::Unevaluated { reason } | NumberTheoryResult::InvalidInput { reason } => Err(reason),
+        other => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_unexpected_result")
+            .detail("kind", format!("{other:?}"))),
+    }
+}
+
+fn clone_integer_from(n: &Integer) -> Integer {
+    crate::runtime::values::numeric_clone::clone_integer(n)
 }
 
 fn number_from_rational(value: Rational) -> Number {

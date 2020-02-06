@@ -57,8 +57,8 @@ pub use ideal::Ideal;
 pub use jit_gate::{JitParityOutcome, mul_with_jit_parity, parity_diagnostic};
 pub use mgraph::{execute_polynomial_mgraph, record_polynomial_result};
 pub use modular_image::{
-    ModularImage, map_generators_mod_prime, map_polynomial_mod_prime, reconstruct_polynomial_from_modular_image,
-    reconstruct_rational_coefficient,
+    CrtPolynomialCombination, ModularImage, crt_combine_and_reconstruct, crt_combine_modular_images, map_generators_mod_prime,
+    map_polynomial_mod_prime, reconstruct_polynomial_from_modular_image, reconstruct_rational_coefficient,
 };
 pub use monomial_layout::{CompiledBlockSegment, CompiledMonomialOrder, MonomialLayout, PackedMonomial};
 pub use object::{CanonicalPolynomial, MonomialTerm, Polynomial};

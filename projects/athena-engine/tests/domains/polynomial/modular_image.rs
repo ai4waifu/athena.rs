@@ -78,7 +78,26 @@ fn roundtrip_rational_poly_via_large_prime_image() {
 }
 
 #[test]
-fn modular_groebner_image_then_reconstruct_univariate() {
+fn crt_combine_two_primes_then_reconstruct() {
+    use athena_engine::domains::polynomial::crt_combine_and_reconstruct;
+    let mut rings = RingTable::new();
+    let z = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p5 = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p7 = rings.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::small_int(-1), vec![0]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let i5 = map_polynomial_mod_prime(&poly, p5, &rings).unwrap();
+    let i7 = map_polynomial_mod_prime(&poly, p7, &rings).unwrap();
+    assert!(!i5.vanished && !i7.vanished);
+    let rebuilt = crt_combine_and_reconstruct(&[i5, i7], z, q, &rings).unwrap();
+    assert_eq!(rebuilt, poly);
+}
+
+#[test]
+fn smoke_groebner_over_fp_then_reconstruct() {
     use athena_engine::domains::polynomial::{GroebnerLimits, compute_groebner_basis, reconstruct_polynomial_from_modular_image};
     let mut rings = RingTable::new();
     let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
@@ -92,8 +111,7 @@ fn modular_groebner_image_then_reconstruct_univariate() {
     let verified = gb.as_verified().expect("verified over Fp");
     assert_eq!(verified.basis().len(), 1);
     let rebuilt = reconstruct_polynomial_from_modular_image(&verified.basis()[0], &image.modulus, q, &rings).unwrap();
-    // Monic image reconstructs to a scalar multiple of the input over Q; compare after clearing content via equality of roots:
-    // rebuilt should be associate to x - 1/2. With Wang reconstruction of monic Fp basis, expect x + c.
+    // Monic Fp basis reconstructs to a non-zero bivariate-shaped univariate with two terms.
     assert!(!rebuilt.is_zero());
     assert_eq!(rebuilt.terms().len(), 2);
 }
