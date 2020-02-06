@@ -4,6 +4,7 @@ use super::{
     certificate::{GroebnerCertificate, GroebnerStatus},
     factor::PolynomialFactorization,
     groebner::{GroebnerComputation, GroebnerFrontier},
+    modular_image::ModularImage,
     object::Polynomial,
 };
 use athena_types::RingId;
@@ -130,6 +131,8 @@ pub enum PolynomialDomainValue {
     Factorization(PolynomialFactorization),
     /// Gröbner / 消元基。
     GroebnerBasis(GroebnerBasisValue),
+    /// 模同态像（候选，不进 M-Graph admission）。
+    ModularImage(ModularImage),
     /// 占位。
     Placeholder,
 }

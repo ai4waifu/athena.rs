@@ -7,6 +7,7 @@ use super::{
     certificate::{GroebnerAlgorithm, GroebnerCertificate},
     factor::factor_univariate,
     groebner::{GroebnerFrontier, compute_elimination_basis, compute_groebner_basis, resume_groebner_basis},
+    modular_image::map_polynomial_mod_prime,
     object_ref::PolynomialObjectStore,
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
@@ -184,6 +185,16 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
+        PolynomialRequest::ModularImage { polynomial, image_ring } => {
+            let polynomial = match store.resolve_owning(polynomial) {
+                Ok(p) => p,
+                Err(reason) => return PolynomialResult::Unevaluated { reason },
+            };
+            match map_polynomial_mod_prime(&polynomial, image_ring, rings) {
+                Ok(image) => PolynomialResult::Exact { value: PolynomialDomainValue::ModularImage(image) },
+                Err(reason) => PolynomialResult::Unevaluated { reason },
+            }
+        }
     }
 }
 
@@ -205,5 +216,6 @@ fn operation_name(request: &PolynomialRequest) -> &'static str {
         PolynomialRequest::Groebner { .. } => "groebner",
         PolynomialRequest::Eliminate { .. } => "eliminate",
         PolynomialRequest::ResumeGroebner { .. } => "resume_groebner",
+        PolynomialRequest::ModularImage { .. } => "modular_image",
     }
 }

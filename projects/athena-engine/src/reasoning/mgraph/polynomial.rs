@@ -138,6 +138,7 @@ pub fn witness_from_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValu
             (format!("div:q{}:r{}", v.quotient.inner.terms().len(), v.remainder.inner.terms().len()), None)
         }
         PolynomialDomainValue::Factorization(v) => (format!("factor:{}:{:?}", v.factors.len(), v.completeness()), None),
+        PolynomialDomainValue::ModularImage(v) => (format!("modimg:{}:vanished={}", v.image.terms().len(), v.vanished), None),
         PolynomialDomainValue::Placeholder => ("placeholder".into(), None),
     };
     PolynomialWitness { operation: key.operation, input_hashes: key.input_hashes.clone(), output_summary, groebner_steps }

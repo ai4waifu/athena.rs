@@ -115,3 +115,27 @@ fn smoke_groebner_over_fp_then_reconstruct() {
     assert!(!rebuilt.is_zero());
     assert_eq!(rebuilt.terms().len(), 2);
 }
+
+#[test]
+fn modular_image_via_polynomial_request() {
+    use athena_engine::domains::polynomial::{PolynomialObjectStore, PolynomialRequest, execute_polynomial_with_rings};
+    let mut rings = RingTable::new();
+    let z = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let f5 = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(z);
+    b.push_term(Number::small_int(12), vec![1]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let mut store = PolynomialObjectStore::new();
+    let pref = store.intern(poly, &rings);
+    let result = execute_polynomial_with_rings(PolynomialRequest::ModularImage { polynomial: pref, image_ring: f5 }, &rings, &store);
+    match result {
+        athena_engine::domains::polynomial::PolynomialResult::Exact {
+            value: athena_engine::domains::polynomial::PolynomialDomainValue::ModularImage(image),
+        } => {
+            assert!(!image.vanished);
+            assert_eq!(image.image.terms().len(), 1);
+            assert_eq!(image.image.terms()[0].coefficient().to_render_string(), "2");
+        }
+        other => panic!("expected ModularImage exact, got {other:?}"),
+    }
+}

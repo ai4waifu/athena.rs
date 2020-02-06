@@ -98,7 +98,9 @@ fn fingerprint_or_provisional(poly: &Polynomial, rings: &RingTable) -> Polynomia
 /// Collect DomainObject handles already present on a typed request.
 pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
     match request {
-        PolynomialRequest::Normalize { polynomial } | PolynomialRequest::Factor { polynomial, .. } => vec![*polynomial],
+        PolynomialRequest::Normalize { polynomial }
+        | PolynomialRequest::Factor { polynomial, .. }
+        | PolynomialRequest::ModularImage { polynomial, .. } => vec![*polynomial],
         PolynomialRequest::Add { lhs, rhs } | PolynomialRequest::Mul { lhs, rhs } | PolynomialRequest::Gcd { lhs, rhs } => {
             vec![*lhs, *rhs]
         }

@@ -32,6 +32,25 @@ pub struct ModularImage {
     pub vanished: bool,
 }
 
+impl ModularImage {
+    /// Owning 复制（[`Modulus`] 无 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            source_ring: self.source_ring,
+            image_ring: self.image_ring,
+            image: self.image.owning_copy(),
+            modulus: clone_modulus(&self.modulus),
+            vanished: self.vanished,
+        }
+    }
+}
+
+impl Clone for ModularImage {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
 /// 将 ℤ 或 ℚ 系数多项式映射到已注册的 𝔽_p 多项式环。
 ///
 /// - 源环须为 [`CoefficientDomain::Integer`] 或 [`CoefficientDomain::Rational`]。

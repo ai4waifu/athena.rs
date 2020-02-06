@@ -331,6 +331,8 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
                 Guarantee::Partial
             }
         }
+        // Modular images are candidates over 𝔽_p. They must not become ProvenExact over ℤ/ℚ.
+        PolynomialDomainValue::ModularImage(_) => Guarantee::Partial,
         PolynomialDomainValue::Placeholder => Guarantee::Unknown,
     }
 }

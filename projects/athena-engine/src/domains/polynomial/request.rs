@@ -1,5 +1,7 @@
 //! 多项式域请求（Living `28`：输入为 [`PolynomialRef`]，禁止 owning payload）。
 
+use athena_types::RingId;
+
 use super::{factor::PolynomialFactorLimits, groebner::GroebnerLimits, object_ref::PolynomialRef, ring::DivisionPolicy};
 
 /// 多项式域请求 — 骨架变体，算法逐步填充。
@@ -77,5 +79,12 @@ pub enum PolynomialRequest {
         prior_s_pair_steps: u32,
         /// 本轮资源限制。
         limits: GroebnerLimits,
+    },
+    /// ℤ / ℚ 多项式 → 已注册 𝔽_p 环上的模同态像（Living `30` G1）。
+    ModularImage {
+        /// 源多项式 DomainObject。
+        polynomial: PolynomialRef,
+        /// 目标有限域多项式环。
+        image_ring: RingId,
     },
 }
