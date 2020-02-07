@@ -11,7 +11,8 @@ use super::{
 };
 use crate::{
     domains::number_theory::{
-        CrtResult, NumberTheoryResult, NumberTheoryValue, RationalReconstruction, chinese_remainder, rational_reconstruction,
+        CrtResult, NumberTheoryResult, NumberTheoryValue, RationalReconstruction, RationalReconstructionFailure, chinese_remainder,
+        rational_reconstruction,
     },
     runtime::values::numeric_clone::clone_modulus,
 };
@@ -114,7 +115,7 @@ pub fn reconstruct_rational_coefficient(residue: &Number, modulus: &Modulus) -> 
         RationalReconstruction::NotFound { reason } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
             .detail("operation", "rational_reconstruction_failed")
-            .detail("reason", format!("{reason:?}"))),
+            .detail("reason", rational_reconstruction_failure_token(reason))),
     }
 }
 
@@ -268,10 +269,33 @@ fn crt_residue_system(residues: &[Integer], moduli: &[Modulus]) -> Result<(Integ
             .detail("domain", "polynomial")
             .detail("operation", "crt_combine_inconsistent")),
         NumberTheoryResult::Unevaluated { reason } | NumberTheoryResult::InvalidInput { reason } => Err(reason),
-        other => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+        NumberTheoryResult::Exact { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
             .detail("operation", "crt_combine_unexpected_result")
-            .detail("kind", format!("{other:?}"))),
+            .detail("kind", "exact_non_crt")),
+        NumberTheoryResult::Probable { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_unexpected_result")
+            .detail("kind", "probable")),
+        NumberTheoryResult::Partial { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_unexpected_result")
+            .detail("kind", "partial")),
+        NumberTheoryResult::ResourceLimited { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_unexpected_result")
+            .detail("kind", "resource_limited")),
+        NumberTheoryResult::Inconclusive { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_combine_unexpected_result")
+            .detail("kind", "inconclusive")),
+    }
+}
+
+fn rational_reconstruction_failure_token(reason: RationalReconstructionFailure) -> &'static str {
+    match reason {
+        RationalReconstructionFailure::InvalidBounds => "invalid_bounds",
+        RationalReconstructionFailure::NoCandidate => "no_candidate",
     }
 }
 
