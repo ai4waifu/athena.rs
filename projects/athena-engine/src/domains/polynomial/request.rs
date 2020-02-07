@@ -87,4 +87,11 @@ pub enum PolynomialRequest {
         /// 目标有限域多项式环。
         image_ring: RingId,
     },
+    /// 从 𝔽_p 环上的像多项式做 Wang 有理重构到 ℤ / ℚ（模数取自像环）。
+    ReconstructModular {
+        /// 𝔽_p 上的像多项式 DomainObject。
+        image: PolynomialRef,
+        /// 目标 ℤ 或 ℚ 多项式环。
+        target_ring: RingId,
+    },
 }

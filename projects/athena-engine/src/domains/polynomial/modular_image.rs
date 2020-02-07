@@ -170,6 +170,16 @@ pub fn reconstruct_polynomial_from_modular_image(
     builder.build(rings)
 }
 
+/// 从像环的素域 presentation 取出模数，再做有理重构。
+pub fn reconstruct_polynomial_from_finite_field_ring(
+    image: &Polynomial,
+    target_ring: RingId,
+    rings: &RingTable,
+) -> Result<CanonicalPolynomial> {
+    let modulus = modulus_of_finite_field_ring(image.ring(), rings)?;
+    reconstruct_polynomial_from_modular_image(image, &modulus, target_ring, rings)
+}
+
 /// 多素数 CRT 合并结果（整数剩余类多项式，模为 `lcm`）。
 #[derive(Debug, PartialEq)]
 pub struct CrtPolynomialCombination {
@@ -297,6 +307,18 @@ fn rational_reconstruction_failure_token(reason: RationalReconstructionFailure) 
         RationalReconstructionFailure::InvalidBounds => "invalid_bounds",
         RationalReconstructionFailure::NoCandidate => "no_candidate",
     }
+}
+
+fn modulus_of_finite_field_ring(ring: RingId, rings: &RingTable) -> Result<Modulus> {
+    let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+    let domain = rings.coefficient_domain_for_descriptor(desc).ok_or_else(|| ring_unknown(ring))?;
+    let CoefficientDomain::FiniteField { field } = domain
+    else {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "reconstruct_image_must_be_finite_field"));
+    };
+    rings.field_table().prime_modulus(*field)
 }
 
 fn clone_integer_from(n: &Integer) -> Integer {

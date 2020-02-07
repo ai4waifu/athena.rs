@@ -31,6 +31,8 @@ pub enum PolynomialCacheOp {
     ResumeGroebner,
     /// ℤ/ℚ → 𝔽_p 模同态。
     ModularImage,
+    /// 𝔽_p → ℤ/ℚ Wang 有理重构。
+    ReconstructModular,
 }
 
 impl PolynomialCacheOp {
@@ -44,6 +46,7 @@ impl PolynomialCacheOp {
             Self::Eliminate => "eliminate",
             Self::ResumeGroebner => "resume_groebner",
             Self::ModularImage => "modular_image",
+            Self::ReconstructModular => "reconstruct_modular",
         }
     }
 }
@@ -146,6 +149,10 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, sto
         PolynomialRequest::ModularImage { polynomial, image_ring } => {
             let poly = store.resolve_owning(*polynomial)?;
             modular_image_key(&poly, *image_ring, rings)
+        }
+        PolynomialRequest::ReconstructModular { image, target_ring } => {
+            let poly = store.resolve_owning(*image)?;
+            reconstruct_modular_key(&poly, *target_ring, rings)
         }
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
@@ -296,4 +303,14 @@ fn modular_image_key(poly: &Polynomial, image_ring: RingId, rings: &RingTable) -
     let mut h = DefaultHasher::new();
     image_fp.hash(&mut h);
     single_input_key(PolynomialCacheOp::ModularImage, poly, rings, h.finish())
+}
+
+fn reconstruct_modular_key(poly: &Polynomial, target_ring: RingId, rings: &RingTable) -> Result<PolynomialCacheKey> {
+    let target_fp = rings.ring_fingerprint(target_ring).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_target_ring")
+    })?;
+    use std::collections::hash_map::DefaultHasher;
+    let mut h = DefaultHasher::new();
+    target_fp.hash(&mut h);
+    single_input_key(PolynomialCacheOp::ReconstructModular, poly, rings, h.finish())
 }

@@ -139,3 +139,29 @@ fn modular_image_via_polynomial_request() {
         other => panic!("expected ModularImage exact, got {other:?}"),
     }
 }
+
+#[test]
+fn reconstruct_modular_via_polynomial_request() {
+    use athena_engine::domains::polynomial::{PolynomialObjectStore, PolynomialRequest, execute_polynomial_with_rings};
+    let mut rings = RingTable::new();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p = rings.intern_over_prime_field(Integer::from_i64(97), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::rational_i64(-1, 2).unwrap(), vec![0]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let image = map_polynomial_mod_prime(&poly, p, &rings).unwrap();
+    let mut store = PolynomialObjectStore::new();
+    let image_ref = store.intern(image.image.owning_copy(), &rings);
+    let result = execute_polynomial_with_rings(
+        PolynomialRequest::ReconstructModular { image: image_ref, target_ring: q },
+        &rings,
+        &store,
+    );
+    match result {
+        athena_engine::domains::polynomial::PolynomialResult::Exact {
+            value: athena_engine::domains::polynomial::PolynomialDomainValue::Polynomial(v),
+        } => assert_eq!(v.inner, poly),
+        other => panic!("expected reconstructed polynomial, got {other:?}"),
+    }
+}

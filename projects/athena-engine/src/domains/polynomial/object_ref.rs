@@ -100,7 +100,8 @@ pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
     match request {
         PolynomialRequest::Normalize { polynomial }
         | PolynomialRequest::Factor { polynomial, .. }
-        | PolynomialRequest::ModularImage { polynomial, .. } => vec![*polynomial],
+        | PolynomialRequest::ModularImage { polynomial, .. }
+        | PolynomialRequest::ReconstructModular { image: polynomial, .. } => vec![*polynomial],
         PolynomialRequest::Add { lhs, rhs } | PolynomialRequest::Mul { lhs, rhs } | PolynomialRequest::Gcd { lhs, rhs } => {
             vec![*lhs, *rhs]
         }
