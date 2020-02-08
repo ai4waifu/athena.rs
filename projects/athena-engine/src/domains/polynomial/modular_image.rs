@@ -180,6 +180,29 @@ pub fn reconstruct_polynomial_from_finite_field_ring(
     reconstruct_polynomial_from_modular_image(image, &modulus, target_ring, rings)
 }
 
+/// 将已在 𝔽_p 环上的多项式包装为 [`ModularImage`]（`source_ring` 取像环，供 CRT 路径使用）。
+pub fn modular_image_from_finite_field_poly(image: &Polynomial, rings: &RingTable) -> Result<ModularImage> {
+    let modulus = modulus_of_finite_field_ring(image.ring(), rings)?;
+    Ok(ModularImage {
+        source_ring: image.ring(),
+        image_ring: image.ring(),
+        image: image.owning_copy(),
+        modulus,
+        vanished: image.is_zero(),
+    })
+}
+
+/// 多个 𝔽_p 像多项式 CRT 合并后再 Wang 重构到 ℤ / ℚ。
+pub fn crt_combine_and_reconstruct_finite_field_polys(
+    images: &[Polynomial],
+    integer_ring: RingId,
+    target_ring: RingId,
+    rings: &RingTable,
+) -> Result<CanonicalPolynomial> {
+    let modular: Result<Vec<ModularImage>> = images.iter().map(|p| modular_image_from_finite_field_poly(p, rings)).collect();
+    crt_combine_and_reconstruct(&modular?, integer_ring, target_ring, rings)
+}
+
 /// 多素数 CRT 合并结果（整数剩余类多项式，模为 `lcm`）。
 #[derive(Debug, PartialEq)]
 pub struct CrtPolynomialCombination {

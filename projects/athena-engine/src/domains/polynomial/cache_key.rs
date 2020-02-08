@@ -33,6 +33,8 @@ pub enum PolynomialCacheOp {
     ModularImage,
     /// 𝔽_p → ℤ/ℚ Wang 有理重构。
     ReconstructModular,
+    /// 多素数 CRT + Wang 重构。
+    CrtCombineModular,
 }
 
 impl PolynomialCacheOp {
@@ -47,6 +49,7 @@ impl PolynomialCacheOp {
             Self::ResumeGroebner => "resume_groebner",
             Self::ModularImage => "modular_image",
             Self::ReconstructModular => "reconstruct_modular",
+            Self::CrtCombineModular => "crt_combine_modular",
         }
     }
 }
@@ -153,6 +156,10 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, sto
         PolynomialRequest::ReconstructModular { image, target_ring } => {
             let poly = store.resolve_owning(*image)?;
             reconstruct_modular_key(&poly, *target_ring, rings)
+        }
+        PolynomialRequest::CrtCombineModular { images, integer_ring, target_ring } => {
+            let polys = resolve_polys(store, images)?;
+            crt_combine_modular_key(&polys, *integer_ring, *target_ring, rings)
         }
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
@@ -313,4 +320,46 @@ fn reconstruct_modular_key(poly: &Polynomial, target_ring: RingId, rings: &RingT
     let mut h = DefaultHasher::new();
     target_fp.hash(&mut h);
     single_input_key(PolynomialCacheOp::ReconstructModular, poly, rings, h.finish())
+}
+
+fn crt_combine_modular_key(
+    images: &[Polynomial],
+    integer_ring: RingId,
+    target_ring: RingId,
+    rings: &RingTable,
+) -> Result<PolynomialCacheKey> {
+    if images.len() < 2 {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_crt_combine_too_few_images"));
+    }
+    let integer_fp = rings.ring_fingerprint(integer_ring).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_integer_ring")
+    })?;
+    let target_fp = rings.ring_fingerprint(target_ring).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_target_ring")
+    })?;
+    use std::collections::hash_map::DefaultHasher;
+    let mut h = DefaultHasher::new();
+    integer_fp.hash(&mut h);
+    target_fp.hash(&mut h);
+    let mut input_fingerprints = Vec::with_capacity(images.len());
+    let mut input_hashes = Vec::with_capacity(images.len());
+    for g in images {
+        let ring_fp = ring_fingerprint_for(g, rings)?;
+        ring_fp.hash(&mut h);
+        input_fingerprints.push(poly_fingerprint(g, rings)?);
+        input_hashes.push(polynomial_canonical_hash(g, rings)?);
+    }
+    // Order-independent: CRT inputs commute.
+    input_fingerprints.sort_unstable();
+    input_hashes.sort_unstable();
+    Ok(PolynomialCacheKey {
+        operation: PolynomialCacheOp::CrtCombineModular,
+        ring: integer_ring,
+        ring_fingerprint: integer_fp,
+        input_fingerprints,
+        input_hashes,
+        limits_fingerprint: h.finish(),
+    })
 }

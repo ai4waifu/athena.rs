@@ -94,4 +94,13 @@ pub enum PolynomialRequest {
         /// 目标 ℤ 或 ℚ 多项式环。
         target_ring: RingId,
     },
+    /// 多个 𝔽_p 像 CRT 合并后 Wang 重构到 ℤ / ℚ（Living `30` G1）。
+    CrtCombineModular {
+        /// 各素数环上的像多项式（至少两个）。
+        images: Vec<PolynomialRef>,
+        /// ℤ 中间环（CRT 剩余类多项式）。
+        integer_ring: RingId,
+        /// 目标 ℤ 或 ℚ 环。
+        target_ring: RingId,
+    },
 }

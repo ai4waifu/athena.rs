@@ -107,6 +107,7 @@ pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
         }
         PolynomialRequest::Div { dividend, divisor, .. } => vec![*dividend, *divisor],
         PolynomialRequest::Groebner { generators, .. } | PolynomialRequest::Eliminate { generators, .. } => generators.clone(),
+        PolynomialRequest::CrtCombineModular { images, .. } => images.clone(),
         PolynomialRequest::ResumeGroebner { candidates, pending_insertion, .. } => {
             let mut refs = candidates.clone();
             if let Some(ins) = pending_insertion {

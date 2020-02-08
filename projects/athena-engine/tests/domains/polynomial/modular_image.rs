@@ -165,3 +165,33 @@ fn reconstruct_modular_via_polynomial_request() {
         other => panic!("expected reconstructed polynomial, got {other:?}"),
     }
 }
+
+#[test]
+fn crt_combine_modular_via_polynomial_request() {
+    use athena_engine::domains::polynomial::{PolynomialObjectStore, PolynomialRequest, execute_polynomial_with_rings};
+    let mut rings = RingTable::new();
+    let z = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p5 = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p7 = rings.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::small_int(-1), vec![0]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let i5 = map_polynomial_mod_prime(&poly, p5, &rings).unwrap();
+    let i7 = map_polynomial_mod_prime(&poly, p7, &rings).unwrap();
+    let mut store = PolynomialObjectStore::new();
+    let r5 = store.intern(i5.image.owning_copy(), &rings);
+    let r7 = store.intern(i7.image.owning_copy(), &rings);
+    let result = execute_polynomial_with_rings(
+        PolynomialRequest::CrtCombineModular { images: vec![r5, r7], integer_ring: z, target_ring: q },
+        &rings,
+        &store,
+    );
+    match result {
+        athena_engine::domains::polynomial::PolynomialResult::Exact {
+            value: athena_engine::domains::polynomial::PolynomialDomainValue::Polynomial(v),
+        } => assert_eq!(v.inner, poly),
+        other => panic!("expected CRT reconstructed polynomial, got {other:?}"),
+    }
+}

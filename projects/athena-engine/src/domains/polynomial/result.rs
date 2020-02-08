@@ -7,7 +7,9 @@ use super::{
     certificate::{GroebnerAlgorithm, GroebnerCertificate},
     factor::factor_univariate,
     groebner::{GroebnerFrontier, compute_elimination_basis, compute_groebner_basis, resume_groebner_basis},
-    modular_image::{map_polynomial_mod_prime, reconstruct_polynomial_from_finite_field_ring},
+    modular_image::{
+        crt_combine_and_reconstruct_finite_field_polys, map_polynomial_mod_prime, reconstruct_polynomial_from_finite_field_ring,
+    },
     object_ref::PolynomialObjectStore,
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
@@ -205,6 +207,16 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
+        PolynomialRequest::CrtCombineModular { images, integer_ring, target_ring } => {
+            let images = match resolve_generators(store, &images) {
+                Ok(g) => g,
+                Err(reason) => return PolynomialResult::Unevaluated { reason },
+            };
+            match crt_combine_and_reconstruct_finite_field_polys(&images, integer_ring, target_ring, rings) {
+                Ok(poly) => PolynomialResult::Exact { value: PolynomialDomainValue::Polynomial(PolynomialValue { inner: poly }) },
+                Err(reason) => PolynomialResult::Unevaluated { reason },
+            }
+        }
     }
 }
 
@@ -228,5 +240,6 @@ fn operation_name(request: &PolynomialRequest) -> &'static str {
         PolynomialRequest::ResumeGroebner { .. } => "resume_groebner",
         PolynomialRequest::ModularImage { .. } => "modular_image",
         PolynomialRequest::ReconstructModular { .. } => "reconstruct_modular",
+        PolynomialRequest::CrtCombineModular { .. } => "crt_combine_modular",
     }
 }
