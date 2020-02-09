@@ -5,6 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     builder::PolynomialBuilder,
+    groebner::{GroebnerLimits, compute_groebner_basis},
     object::{CanonicalPolynomial, Polynomial},
     ring::CoefficientDomain,
     ring_table::RingTable,
@@ -201,6 +202,71 @@ pub fn crt_combine_and_reconstruct_finite_field_polys(
 ) -> Result<CanonicalPolynomial> {
     let modular: Result<Vec<ModularImage>> = images.iter().map(|p| modular_image_from_finite_field_poly(p, rings)).collect();
     crt_combine_and_reconstruct(&modular?, integer_ring, target_ring, rings)
+}
+
+/// 多素数路径：各 𝔽_p 上算 verified Gröbner，再按 leading monomial 对齐后 CRT + Wang 重构。
+///
+/// - 每个素数须得到相同长度的 verified 基，且对应元素 leading exponent 向量一致。
+/// - 返回目标环上的候选基（仍须独立 `verify_groebner_basis` 才能 ProvenExact）。
+pub fn reconstruct_groebner_basis_via_crt(
+    generators: &[Polynomial],
+    prime_rings: &[RingId],
+    integer_ring: RingId,
+    target_ring: RingId,
+    rings: &RingTable,
+    limits: GroebnerLimits,
+) -> Result<Vec<CanonicalPolynomial>> {
+    if prime_rings.len() < 2 {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_groebner_requires_at_least_two_primes"));
+    }
+    let mut modular_bases: Vec<Vec<ModularImage>> = Vec::with_capacity(prime_rings.len());
+    for &prime_ring in prime_rings {
+        let images = map_generators_mod_prime(generators, prime_ring, rings)?;
+        let mapped: Vec<Polynomial> = images.into_iter().map(|m| m.image).collect();
+        let computation = compute_groebner_basis(mapped, rings, limits)?;
+        let verified = computation.as_verified().ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "polynomial")
+                .detail("operation", "crt_groebner_prime_not_verified")
+        })?;
+        let mut basis_images = Vec::with_capacity(verified.basis().len());
+        for poly in verified.basis() {
+            basis_images.push(modular_image_from_finite_field_poly(poly, rings)?);
+        }
+        modular_bases.push(basis_images);
+    }
+    let basis_len = modular_bases[0].len();
+    if modular_bases.iter().any(|b| b.len() != basis_len) {
+        return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_groebner_basis_length_mismatch"));
+    }
+    // Align by leading monomial exponents (stable sort within each prime).
+    for basis in &mut modular_bases {
+        basis.sort_by(|a, b| leading_exponents(&a.image).cmp(&leading_exponents(&b.image)));
+    }
+    for i in 0..basis_len {
+        let lm = leading_exponents(&modular_bases[0][i].image);
+        for basis in modular_bases.iter().skip(1) {
+            if leading_exponents(&basis[i].image) != lm {
+                return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                    .detail("domain", "polynomial")
+                    .detail("operation", "crt_groebner_leading_monomial_mismatch"));
+            }
+        }
+    }
+    let mut reconstructed = Vec::with_capacity(basis_len);
+    for i in 0..basis_len {
+        let column: Vec<ModularImage> = modular_bases.iter().map(|b| b[i].owning_copy()).collect();
+        reconstructed.push(crt_combine_and_reconstruct(&column, integer_ring, target_ring, rings)?);
+    }
+    Ok(reconstructed)
+}
+
+fn leading_exponents(poly: &Polynomial) -> Vec<u32> {
+    poly.terms().first().map(|t| t.exponents().to_vec()).unwrap_or_default()
 }
 
 /// 多素数 CRT 合并结果（整数剩余类多项式，模为 `lcm`）。
