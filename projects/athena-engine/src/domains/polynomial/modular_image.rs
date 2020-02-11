@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     builder::PolynomialBuilder,
-    groebner::{GroebnerLimits, compute_groebner_basis},
+    groebner::{GroebnerLimits, GroebnerVerificationReport, compute_groebner_basis, verify_groebner_basis},
     object::{CanonicalPolynomial, Polynomial},
     ring::CoefficientDomain,
     ring_table::RingTable,
@@ -263,6 +263,28 @@ pub fn reconstruct_groebner_basis_via_crt(
         reconstructed.push(crt_combine_and_reconstruct(&column, integer_ring, target_ring, rings)?);
     }
     Ok(reconstructed)
+}
+
+/// CRT 重构后再在目标环上独立 `verify_groebner_basis`（Living `30` G1 候选→可验证）。
+///
+/// 验证失败返回稳定诊断 token，不把未通过的基标成 ProvenExact。
+pub fn reconstruct_and_verify_groebner_basis_via_crt(
+    generators: &[Polynomial],
+    prime_rings: &[RingId],
+    integer_ring: RingId,
+    target_ring: RingId,
+    rings: &RingTable,
+    limits: GroebnerLimits,
+) -> Result<(Vec<CanonicalPolynomial>, GroebnerVerificationReport)> {
+    let basis = reconstruct_groebner_basis_via_crt(generators, prime_rings, integer_ring, target_ring, rings, limits)?;
+    let report = verify_groebner_basis(&basis, rings)?;
+    if !report.all_s_pairs_reduce_to_zero {
+        return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
+            .detail("domain", "polynomial")
+            .detail("operation", "crt_groebner_verify_failed")
+            .detail("pairs_checked", report.pairs_checked.to_string()));
+    }
+    Ok((basis, report))
 }
 
 fn leading_exponents(poly: &Polynomial) -> Vec<u32> {

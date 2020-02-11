@@ -213,3 +213,21 @@ fn reconstruct_single_generator_groebner_via_two_primes() {
     // Current Buchberger path does not force monic bases. CRT recovers the modular images of the generator.
     assert_eq!(basis[0], poly);
 }
+
+#[test]
+fn reconstruct_and_verify_single_generator_groebner_via_crt() {
+    use athena_engine::domains::polynomial::{GroebnerLimits, reconstruct_and_verify_groebner_basis_via_crt};
+    let mut rings = RingTable::new();
+    let z = rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p5 = rings.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let p7 = rings.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
+    b.push_term(Number::small_int(-1), vec![0]).unwrap();
+    let poly = b.build(&rings).unwrap();
+    let (basis, report) =
+        reconstruct_and_verify_groebner_basis_via_crt(&[poly.clone()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
+    assert!(report.all_s_pairs_reduce_to_zero);
+    assert_eq!(basis, vec![poly]);
+}
