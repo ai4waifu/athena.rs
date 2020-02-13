@@ -46,7 +46,7 @@ pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,
 };
-pub use f4::{MacaulayCsrMatrix, MacaulayRowInput, build_macaulay_csr};
+pub use f4::{MacaulayCsrMatrix, MacaulayRowInput, build_macaulay_csr, eliminate_macaulay_column, macaulay_row_to_polynomial};
 pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint, polynomial_fingerprint_u64,
 };

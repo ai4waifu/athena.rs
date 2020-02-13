@@ -40,6 +40,52 @@ fn macaulay_csr_two_rows_share_columns() {
 }
 
 #[test]
+fn macaulay_row_roundtrips_to_polynomial() {
+    use athena_engine::domains::polynomial::macaulay_row_to_polynomial;
+    let mut rings = RingTable::new();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::small_int(2), vec![1]).unwrap();
+    b.push_term(Number::small_int(-3), vec![0]).unwrap();
+    let f = b.build(&rings).unwrap();
+    let zero = [0u32];
+    let matrix = build_macaulay_csr(&[MacaulayRowInput { multiplier: &zero, polynomial: &f }], &rings).unwrap();
+    let back = macaulay_row_to_polynomial(&matrix, 0, &rings).unwrap();
+    assert_eq!(back, f);
+}
+
+#[test]
+fn macaulay_eliminate_column_over_q() {
+    use athena_engine::domains::polynomial::{eliminate_macaulay_column, macaulay_row_to_polynomial};
+    let mut rings = RingTable::new();
+    let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(q);
+    b.push_term(Number::small_int(1), vec![1]).unwrap();
+    b.push_term(Number::small_int(1), vec![0]).unwrap();
+    let f = b.build(&rings).unwrap();
+    let zero = [0u32];
+    let one = [1u32];
+    let matrix = build_macaulay_csr(
+        &[
+            MacaulayRowInput { multiplier: &zero, polynomial: &f },
+            MacaulayRowInput { multiplier: &one, polynomial: &f },
+        ],
+        &rings,
+    )
+    .unwrap();
+    // Eliminate column of `x` (index 1). Pivot row0 = x+1. Row1 becomes x^2 - 1.
+    let reduced = eliminate_macaulay_column(&matrix, 1, &rings).unwrap();
+    assert_eq!(reduced.nrows(), 2);
+    let r0 = macaulay_row_to_polynomial(&reduced, 0, &rings).unwrap();
+    let r1 = macaulay_row_to_polynomial(&reduced, 1, &rings).unwrap();
+    assert_eq!(r0, f);
+    let mut expect = PolynomialBuilder::new(q);
+    expect.push_term(Number::small_int(1), vec![2]).unwrap();
+    expect.push_term(Number::small_int(-1), vec![0]).unwrap();
+    assert_eq!(r1, expect.build(&rings).unwrap());
+}
+
+#[test]
 fn macaulay_rejects_empty_rows() {
     let rings = RingTable::new();
     let err = build_macaulay_csr(&[], &rings).unwrap_err();
