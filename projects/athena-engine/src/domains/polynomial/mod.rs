@@ -13,6 +13,7 @@ mod coefficient_ring_table;
 mod exponent;
 mod factor;
 mod fingerprint;
+mod f4;
 mod groebner;
 mod hash;
 mod ideal;
@@ -45,6 +46,7 @@ pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,
 };
+pub use f4::{MacaulayCsrMatrix, MacaulayRowInput, build_macaulay_csr};
 pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint, polynomial_fingerprint_u64,
 };

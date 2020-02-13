@@ -4,6 +4,7 @@ mod coefficient_kernel;
 mod coefficient_ring;
 mod exact_kernel;
 mod factor;
+mod f4;
 mod fingerprint;
 mod groebner;
 mod mgraph;
