@@ -16,6 +16,9 @@ pub struct StorageCapabilities {
 }
 
 /// 领域无关的分块存储合同。
+///
+/// Owning 读出的复制策略由实现决定（POD / GC `try_clone_in` 等）。
+/// **不得**要求元素实现 Rust [`Clone`] 才能接入本 trait；便利 [`InMemoryStorage`] 对 POD 另有 `T: Clone` bound。
 pub trait ArrayStorage<T> {
     /// 存储错误。
     type Error;
@@ -31,28 +34,41 @@ pub trait ArrayStorage<T> {
     /// 能力报告。
     fn capabilities(&self) -> StorageCapabilities;
 
-    /// 读取恰好一个有界区间。
+    /// 读取恰好一个有界区间（owning）。
     fn read_range(&self, offset: u64, len: usize) -> Result<Vec<T>, Self::Error>;
 
     /// 写入恰好一个有界区间。
     fn write_range(&mut self, offset: u64, values: &[T]) -> Result<(), Self::Error>;
 }
 
-/// 进程内 [`Vec`] 承载的 storage（小数组 / 测试 / 便利路径，不是规模上限）。
-#[derive(Debug, Clone)]
+/// 进程内 [`Vec`] 承载的 storage（小数组 / 测试 / POD 便利路径，不是规模上限）。
+///
+/// 构造移动、热路径优先 [`Self::as_slice`]。`ArrayStorage` 的 owning 读对 POD 经 [`Clone`]（与 `Copy` 同代价），
+/// 非 POD / GC 值类型应自建 [`ArrayStorage`]（例如 engine 内经 `try_clone_in`），不要在此硬套 Rust [`Clone`]。
+#[derive(Debug)]
 pub struct InMemoryStorage<T> {
     data: Vec<T>,
 }
 
 impl<T> InMemoryStorage<T> {
-    /// 从已有向量创建。
+    /// 从已有向量创建（移动）。
     pub fn from_vec(data: Vec<T>) -> Self {
         Self { data }
     }
 
-    /// 只读视图。
+    /// 只读连续视图（零拷贝）。
     pub fn as_slice(&self) -> &[T] {
         &self.data
+    }
+
+    /// 可变连续视图（零拷贝）。
+    pub fn as_slice_mut(&mut self) -> &mut [T] {
+        &mut self.data
+    }
+
+    /// 取出内部向量。
+    pub fn into_vec(self) -> Vec<T> {
+        self.data
     }
 }
 

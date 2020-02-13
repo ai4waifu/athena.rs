@@ -12,4 +12,4 @@ athena-gc = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
-unsafe_code = "forbid"
+unsafe_code = "deny"

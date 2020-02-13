@@ -1,6 +1,6 @@
 //! 内存存储辅助测试。
 
-use athena_ndarray::{ArrayStorage, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities, array1d};
+use athena_ndarray::{ArrayStorage, ChunkedArray, LogicalShape, MemoryBudget, StorageCapabilities, array1d, array2d};
 
 #[derive(Debug)]
 struct Store(Vec<u64>);
@@ -42,4 +42,12 @@ fn array1d_reads_all_elements() {
     let a = array1d(vec![1u64, 2, 3], MemoryBudget::new(64).unwrap()).unwrap();
     let v = a.read_range(0, 3).unwrap();
     assert_eq!(v, vec![1, 2, 3]);
+}
+
+#[test]
+fn array2d_row_major_layout() {
+    let a = array2d(2, 3, vec![1u64, 2, 3, 4, 5, 6], MemoryBudget::new(256).unwrap()).unwrap();
+    assert_eq!(a.shape().dimensions(), &[2, 3]);
+    assert_eq!(a.row_major_offset(1, 2).unwrap(), 5);
+    assert_eq!(a.try_as_slice().unwrap(), &[1, 2, 3, 4, 5, 6]);
 }

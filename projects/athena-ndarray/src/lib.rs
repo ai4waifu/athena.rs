@@ -3,9 +3,11 @@
 //! 提供 NumPy 式 shape / indexing 合同与超内存存储，**不是** Titan Tensor 运行时。
 //! 不定义 `Device` / Autograd / kernel dispatch；逐元素数值语义委托给元素类型所属层。
 //! 身份 / 预算 / 简版 GC 合同与 `athena-gc` 对齐（`ArrayId` ≠ shape ≠ budget）。
+//!
+//! `unsafe` 默认 [`deny`]（与 `athena-numeric` 同形）：热路径 / 布局原语可在模块内 `allow`，**禁止**整 crate `forbid` 堵死高性能实现。
 
 #![deny(missing_docs)]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 mod array;
 mod budget;
@@ -15,7 +17,7 @@ mod lifecycle;
 mod shape;
 mod storage;
 
-pub use array::{Array, ArrayView, ChunkedArray, array1d};
+pub use array::{Array, Array2d, ArrayView, ChunkedArray, array1d, array2d, array2d_from_storage};
 pub use budget::{BudgetLedger, ChunkGuard};
 pub use error::ArrayError;
 pub use layout::{ArrayLayout, ArrayOrder, ArrayViewSpec, BroadcastSpec, permute_axes};

@@ -20,6 +20,9 @@ pub struct ChunkedArray<T, S> {
 /// 首轮 `Array` 合同别名：存储后端 逻辑数组。
 pub type Array<T, S> = ChunkedArray<T, S>;
 
+/// 行主序稠密二维数组别名（`shape = [nrows, ncols]`）。
+pub type Array2d<T, S> = ChunkedArray<T, S>;
+
 /// 内存驻留的只读连续视图（小数组便利路径，不是规模上限）。
 #[derive(Debug, Clone, Copy)]
 pub struct ArrayView<'a, T> {
@@ -59,6 +62,16 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
     /// Shape。
     pub const fn shape(&self) -> &LogicalShape {
         &self.shape
+    }
+
+    /// 底层 storage（只读）。
+    pub const fn store(&self) -> &S {
+        &self.store
+    }
+
+    /// 底层 storage（可变）。
+    pub fn store_mut(&mut self) -> &mut S {
+        &mut self.store
     }
 
     /// Memory budget。
@@ -160,4 +173,72 @@ pub fn array1d<T: Clone>(data: Vec<T>, budget: MemoryBudget) -> Result<ChunkedAr
     }
     let store = InMemoryStorage::from_vec(data);
     ChunkedArray::new(shape, store, budget)
+}
+
+/// 从行主序扁平向量创建二维逻辑数组 `shape = [nrows, ncols]`（POD / `T: Clone` 便利路径）。
+pub fn array2d<T: Clone>(
+    nrows: u64,
+    ncols: u64,
+    data: Vec<T>,
+    budget: MemoryBudget,
+) -> Result<Array2d<T, InMemoryStorage<T>>, ArrayError> {
+    let shape = LogicalShape::new([nrows, ncols])?;
+    if data.len() as u64 != shape.element_count() {
+        return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: data.len() as u64 });
+    }
+    let bytes = data.len().saturating_mul(std::mem::size_of::<T>());
+    if bytes > budget.bytes() {
+        return Err(ArrayError::FullMaterializeForbidden { elements: shape.element_count(), resident_limit: budget.bytes() });
+    }
+    let store = InMemoryStorage::from_vec(data);
+    ChunkedArray::new(shape, store, budget)
+}
+
+/// 用任意 [`ArrayStorage`] 绑定二维 shape（GC 元素经实现方 `try_clone_in`，不经 Rust [`Clone`]）。
+pub fn array2d_from_storage<T, S: ArrayStorage<T>>(
+    nrows: u64,
+    ncols: u64,
+    store: S,
+    budget: MemoryBudget,
+) -> Result<Array2d<T, S>, ArrayError> {
+    let shape = LogicalShape::new([nrows, ncols])?;
+    ChunkedArray::new(shape, store, budget)
+}
+
+impl<T> ChunkedArray<T, InMemoryStorage<T>> {
+    /// 在驻留预算内借用全表切片（零拷贝）。
+    pub fn try_as_slice(&self) -> Result<&[T], ArrayError> {
+        let bytes = (self.shape.element_count() as usize).saturating_mul(std::mem::size_of::<T>());
+        if bytes > self.budget.bytes() {
+            return Err(ArrayError::FullMaterializeForbidden {
+                elements: self.shape.element_count(),
+                resident_limit: self.budget.bytes(),
+            });
+        }
+        Ok(self.store.as_slice())
+    }
+
+    /// 在驻留预算内借用全表可变切片。
+    pub fn try_as_slice_mut(&mut self) -> Result<&mut [T], ArrayError> {
+        let bytes = (self.shape.element_count() as usize).saturating_mul(std::mem::size_of::<T>());
+        if bytes > self.budget.bytes() {
+            return Err(ArrayError::FullMaterializeForbidden {
+                elements: self.shape.element_count(),
+                resident_limit: self.budget.bytes(),
+            });
+        }
+        Ok(self.store.as_slice_mut())
+    }
+
+    /// 行主序二维索引 → 扁平偏移（仅 `rank == 2`）。
+    pub fn row_major_offset(&self, row: u64, col: u64) -> Result<u64, ArrayError> {
+        let dims = self.shape.dimensions();
+        if dims.len() != 2 {
+            return Err(ArrayError::LayoutMismatch);
+        }
+        if row >= dims[0] || col >= dims[1] {
+            return Err(ArrayError::OutOfBounds);
+        }
+        row.checked_mul(dims[1]).and_then(|v| v.checked_add(col)).ok_or(ArrayError::RangeOverflow)
+    }
 }
