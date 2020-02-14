@@ -4,10 +4,11 @@
 //! 不定义 `Device` / Autograd / kernel dispatch；逐元素数值语义委托给元素类型所属层。
 //! 身份 / 预算 / 简版 GC 合同与 `athena-gc` 对齐（`ArrayId` ≠ shape ≠ budget）。
 //!
-//! `unsafe` 默认 [`deny`]（与 `athena-numeric` 同形）：热路径 / 布局原语可在模块内 `allow`，**禁止**整 crate `forbid` 堵死高性能实现。
+//! `unsafe` 默认 [`allow`]：ndarray 是布局 / 拷贝 / 热路径库，与 `athena-numeric` kernel 同属可写 unsafe 层。
+//! 仍须局部审阅；禁止用 `forbid`/`deny` 整 crate 堵死实现。
 
 #![deny(missing_docs)]
-#![deny(unsafe_code)]
+#![allow(unsafe_code)]
 
 mod array;
 mod budget;
