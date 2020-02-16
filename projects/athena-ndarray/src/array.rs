@@ -161,6 +161,18 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
         let end = offset.checked_add(len64).ok_or(ArrayError::RangeOverflow)?;
         if end > self.shape.element_count() { Err(ArrayError::OutOfBounds) } else { Ok(()) }
     }
+
+    /// 行主序二维索引 → 扁平偏移（仅 `rank == 2`）。
+    pub fn row_major_offset(&self, row: u64, col: u64) -> Result<u64, ArrayError> {
+        let dims = self.shape.dimensions();
+        if dims.len() != 2 {
+            return Err(ArrayError::LayoutMismatch);
+        }
+        if row >= dims[0] || col >= dims[1] {
+            return Err(ArrayError::OutOfBounds);
+        }
+        row.checked_mul(dims[1]).and_then(|v| v.checked_add(col)).ok_or(ArrayError::RangeOverflow)
+    }
 }
 
 /// 从内存向量创建一维逻辑数组。
@@ -228,17 +240,5 @@ impl<T> ChunkedArray<T, InMemoryStorage<T>> {
             });
         }
         Ok(self.store.as_slice_mut())
-    }
-
-    /// 行主序二维索引 → 扁平偏移（仅 `rank == 2`）。
-    pub fn row_major_offset(&self, row: u64, col: u64) -> Result<u64, ArrayError> {
-        let dims = self.shape.dimensions();
-        if dims.len() != 2 {
-            return Err(ArrayError::LayoutMismatch);
-        }
-        if row >= dims[0] || col >= dims[1] {
-            return Err(ArrayError::OutOfBounds);
-        }
-        row.checked_mul(dims[1]).and_then(|v| v.checked_add(col)).ok_or(ArrayError::RangeOverflow)
     }
 }
