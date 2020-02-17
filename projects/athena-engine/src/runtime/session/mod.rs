@@ -12,8 +12,12 @@ use athena_rewriter::RuleSet;
 use crate::{
     api::request::AthenaRequest,
     domains::{
+        algebra::GroupTable,
         calculus::SeriesObjectStore,
+        field::{FieldRequest, FieldResult, execute_field_with_table_mut},
+        galois::{GaloisRequest, GaloisResult, execute_galois_with_tables},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
+        group::{GroupRequest, GroupResult, execute_group_with_table_mut},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, execute_linear_algebra},
         polynomial::{
             PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
@@ -65,6 +69,8 @@ pub struct Session {
     pub module_counter: u64,
     /// 多项式环 intern 表。
     pub rings: RingTable,
+    /// Session 级群 / presentation 注册表（Living `04` / 群论 DomainObject）。
+    pub groups: GroupTable,
     /// Living `28` 多项式 DomainObject 仓（`PolynomialRef` → payload）。
     pub polynomial_objects: PolynomialObjectStore,
     /// Living `28` 级数 DomainObject 仓（`SeriesRef` → payload）。
@@ -95,6 +101,7 @@ impl core::fmt::Debug for Session {
             .field("defs", &self.defs)
             .field("compiled_rules_len", &self.compiled_rules.len())
             .field("rings", &self.rings)
+            .field("groups", &self.groups)
             .field("polynomial_objects_len", &self.polynomial_objects.len())
             .field("series_objects_len", &self.series_objects.len())
             .field("matrix_objects_len", &self.matrix_objects.len())
@@ -130,6 +137,7 @@ impl Session {
             compiled_rules: CompiledRuleStore::new(),
             module_counter: 0,
             rings: RingTable::default(),
+            groups: GroupTable::new(),
             polynomial_objects: PolynomialObjectStore::new(),
             series_objects: SeriesObjectStore::new(),
             matrix_objects: MatrixObjectStore::new(),
@@ -259,6 +267,21 @@ impl Session {
     /// 执行线性代数域请求（经 `Session::matrix_objects` 解析）。
     pub fn execute_linear_algebra(&self, request: LinearAlgebraRequest) -> LinearAlgebraResult {
         execute_linear_algebra(request, &self.matrix_objects)
+    }
+
+    /// 经 `Session::groups` 执行群论域请求（可 intern）。
+    pub fn execute_group(&mut self, request: GroupRequest) -> GroupResult {
+        execute_group_with_table_mut(request, &mut self.groups)
+    }
+
+    /// 经 `Session::rings` 内嵌 [`crate::domains::algebra::FieldTable`] 执行域论请求（可 intern）。
+    pub fn execute_field(&mut self, request: FieldRequest) -> FieldResult {
+        execute_field_with_table_mut(request, self.rings.field_table_mut())
+    }
+
+    /// 经 field / group 表执行伽罗瓦域请求。
+    pub fn execute_galois(&mut self, request: GaloisRequest) -> GaloisResult {
+        execute_galois_with_tables(request, self.rings.field_table_mut(), &mut self.groups)
     }
 
     /// 在本 Session 的 scope-local E-Graph 上做预算内 saturation（只产候选，不写 M-Graph）。
