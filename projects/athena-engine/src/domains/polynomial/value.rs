@@ -34,6 +34,10 @@ pub struct GroebnerBasisValue {
     pub pending_pairs: Vec<(usize, usize)>,
     /// 已算得但因基大小上限未能插入的多项式。
     pub pending_insertion: Option<Polynomial>,
+    /// F4 候选 sugar（与 `basis` 等长）。Buchberger 为 `None`。
+    pub candidate_sugars: Option<Vec<u32>>,
+    /// 待插入多项式的 sugar（仅 F4 ResourceLimited）。
+    pub pending_insertion_sugar: Option<u32>,
 }
 
 impl GroebnerBasisValue {
@@ -47,6 +51,8 @@ impl GroebnerBasisValue {
                 status: GroebnerStatus::Verified,
                 pending_pairs: Vec::new(),
                 pending_insertion: None,
+                candidate_sugars: None,
+                pending_insertion_sugar: None,
             },
             GroebnerComputation::Partial(frontier) => Self::from_frontier(frontier, GroebnerStatus::Partial),
             GroebnerComputation::ResourceLimited(frontier) => Self::from_frontier(frontier, GroebnerStatus::ResourceLimited),
@@ -61,6 +67,8 @@ impl GroebnerBasisValue {
             status,
             pending_pairs: frontier.pending_pairs,
             pending_insertion: frontier.pending_insertion,
+            candidate_sugars: frontier.candidate_sugars,
+            pending_insertion_sugar: frontier.pending_insertion_sugar,
         }
     }
 
@@ -84,11 +92,13 @@ impl GroebnerBasisValue {
             candidates: self.basis,
             pending_pairs: self.pending_pairs,
             pending_insertion: self.pending_insertion,
+            candidate_sugars: self.candidate_sugars,
+            pending_insertion_sugar: self.pending_insertion_sugar,
             certificate: self.certificate,
         })
     }
 
-    /// 经 DomainObject 仓物化为 [`super::request::PolynomialRequest::ResumeGroebner`]。
+    /// 经 DomainObject 仓物化为 ResumeBuchberger / ResumeF4 请求。
     pub fn to_resume_request(
         &self,
         store: &mut super::object_ref::PolynomialObjectStore,
@@ -100,14 +110,26 @@ impl GroebnerBasisValue {
         }
         let candidates: Vec<_> = self.basis.iter().map(|p| store.intern(p.owning_copy(), rings)).collect();
         let pending_insertion = self.pending_insertion.as_ref().map(|p| store.intern(p.owning_copy(), rings));
-        Some(super::request::PolynomialRequest::ResumeGroebner {
-            candidates,
-            pending_pairs: self.pending_pairs.clone(),
-            pending_insertion,
-            input_generators: self.certificate.input_generators,
-            prior_s_pair_steps: self.certificate.s_pair_steps,
-            limits,
-        })
+        match self.certificate.algorithm {
+            super::certificate::GroebnerAlgorithm::F4 => Some(super::request::PolynomialRequest::ResumeGroebnerF4 {
+                candidates,
+                pending_pairs: self.pending_pairs.clone(),
+                pending_insertion,
+                input_generators: self.certificate.input_generators,
+                prior_s_pair_steps: self.certificate.s_pair_steps,
+                candidate_sugars: self.candidate_sugars.clone(),
+                pending_insertion_sugar: self.pending_insertion_sugar,
+                limits,
+            }),
+            super::certificate::GroebnerAlgorithm::Buchberger => Some(super::request::PolynomialRequest::ResumeGroebner {
+                candidates,
+                pending_pairs: self.pending_pairs.clone(),
+                pending_insertion,
+                input_generators: self.certificate.input_generators,
+                prior_s_pair_steps: self.certificate.s_pair_steps,
+                limits,
+            }),
+        }
     }
 }
 

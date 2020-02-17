@@ -11,6 +11,7 @@ use super::{
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate, GroebnerStatus},
     coefficient_kernel::CoefficientRing,
+    f4::{F4UpdateComputation, F4UpdateLimits, resume_f4_basis_update, run_f4_basis_update},
     ideal::Ideal,
     monomial_layout::MonomialLayout,
     object::Polynomial,
@@ -80,6 +81,10 @@ pub struct GroebnerFrontier {
     pub pending_pairs: Vec<(usize, usize)>,
     /// 已算得但因 `max_basis_size` 未能插入的多项式。
     pub pending_insertion: Option<Polynomial>,
+    /// F4 候选 sugar（与 `candidates` 等长）。Buchberger 为 `None`。
+    pub candidate_sugars: Option<Vec<u32>>,
+    /// 待插入多项式的 sugar（仅 F4 ResourceLimited）。
+    pub pending_insertion_sugar: Option<u32>,
     /// 证书（`verified = false`）。
     pub certificate: GroebnerCertificate,
 }
@@ -177,6 +182,173 @@ pub fn compute_groebner_basis(generators: Vec<Polynomial>, rings: &RingTable, li
     run_buchberger(ideal.ring, basis, pairs, None, input_count, 0, rings, limits)
 }
 
+/// 计算 Gröbner 基（F4 矩阵步进 · 完成后经独立 S-pair verifier）。
+///
+/// 仅 [`GroebnerComputation::Complete`] 可作 exact witness。`s_pair_steps` 记矩阵步数。
+pub fn compute_groebner_basis_f4(generators: Vec<Polynomial>, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
+    let ideal = Ideal::new(generators)?;
+    require_field_ring(ideal.ring, rings, "groebner_f4_requires_field")?;
+    let ring = ideal.ring;
+    let basis = normalize_generators(ideal.generators, rings)?;
+    let input_count = basis.len();
+    let f4_limits = F4UpdateLimits { max_matrix_steps: limits.max_s_pairs, max_basis_size: limits.max_basis_size };
+    match run_f4_basis_update(basis, rings, f4_limits)? {
+        F4UpdateComputation::Complete { basis, matrix_steps } => {
+            let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+            let coeff = rings.coefficient_kernel(ring)?;
+            let layout = &desc.monomial_layout;
+            let basis = autoreduce_basis(basis, rings, layout, &coeff)?;
+            let verification = verify_groebner_basis(&basis, rings)?;
+            if !verification.all_s_pairs_reduce_to_zero {
+                return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
+                    .detail("domain", "polynomial")
+                    .detail("operation", "f4_post_verify"));
+            }
+            let certificate = GroebnerCertificate {
+                algorithm: GroebnerAlgorithm::F4,
+                ring,
+                input_generators: input_count,
+                basis_elements: basis.len(),
+                s_pair_steps: matrix_steps,
+                complete: true,
+                verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") },
+                elimination_elements: None,
+            };
+            Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
+        }
+        F4UpdateComputation::Partial { basis, pending_pairs, matrix_steps, sugars } => Ok(GroebnerComputation::Partial(frontier(
+            GroebnerAlgorithm::F4,
+            ring,
+            basis,
+            pending_pairs,
+            None,
+            Some(sugars),
+            None,
+            input_count,
+            matrix_steps,
+            false,
+            None,
+        ))),
+        F4UpdateComputation::ResourceLimited { basis, pending_pairs, pending_insertion, pending_insertion_sugar, matrix_steps, sugars } => {
+            Ok(GroebnerComputation::ResourceLimited(frontier(
+                GroebnerAlgorithm::F4,
+                ring,
+                basis,
+                pending_pairs,
+                pending_insertion,
+                Some(sugars),
+                pending_insertion_sugar,
+                input_count,
+                matrix_steps,
+                false,
+                None,
+            )))
+        }
+    }
+}
+
+/// 从 Partial / ResourceLimited frontier 恢复 F4。
+///
+/// 恢复前重新校验环 / 域 / pair 下标。中间证书仍须经 `verify_groebner_basis` 才可 Complete。
+pub fn resume_groebner_basis_f4(frontier_in: GroebnerFrontier, rings: &RingTable, limits: GroebnerLimits) -> Result<GroebnerComputation> {
+    if frontier_in.certificate.algorithm != GroebnerAlgorithm::F4 {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "resume_f4_algorithm_mismatch"));
+    }
+    require_field_ring(frontier_in.ring, rings, "groebner_f4_resume_requires_field")?;
+    if frontier_in.candidates.is_empty() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "groebner_f4_resume_empty_basis"));
+    }
+    for p in &frontier_in.candidates {
+        if p.ring() != frontier_in.ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "groebner_f4_resume_ring_mismatch"));
+        }
+    }
+    if let Some(p) = &frontier_in.pending_insertion {
+        if p.ring() != frontier_in.ring {
+            return Err(Diagnostic::new(DiagnosticCode::DomainMismatch)
+                .detail("domain", "polynomial")
+                .detail("operation", "groebner_f4_resume_insertion_ring_mismatch"));
+        }
+    }
+    if !frontier_in.has_resumable_work() {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError)
+            .detail("domain", "polynomial")
+            .detail("operation", "groebner_f4_resume_no_pending_work"));
+    }
+    let ring = frontier_in.ring;
+    let input_count = frontier_in.certificate.input_generators.max(1);
+    let prior_steps = frontier_in.certificate.s_pair_steps;
+    let f4_limits = F4UpdateLimits { max_matrix_steps: limits.max_s_pairs, max_basis_size: limits.max_basis_size };
+    match resume_f4_basis_update(
+        frontier_in.candidates,
+        frontier_in.pending_pairs,
+        frontier_in.pending_insertion,
+        prior_steps,
+        frontier_in.candidate_sugars,
+        frontier_in.pending_insertion_sugar,
+        rings,
+        f4_limits,
+    )? {
+        F4UpdateComputation::Complete { basis, matrix_steps } => {
+            let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
+            let coeff = rings.coefficient_kernel(ring)?;
+            let layout = &desc.monomial_layout;
+            let basis = autoreduce_basis(basis, rings, layout, &coeff)?;
+            let verification = verify_groebner_basis(&basis, rings)?;
+            if !verification.all_s_pairs_reduce_to_zero {
+                return Err(Diagnostic::new(DiagnosticCode::GroebnerVerificationFailed)
+                    .detail("domain", "polynomial")
+                    .detail("operation", "f4_resume_post_verify"));
+            }
+            let certificate = GroebnerCertificate {
+                algorithm: GroebnerAlgorithm::F4,
+                ring,
+                input_generators: input_count,
+                basis_elements: basis.len(),
+                s_pair_steps: matrix_steps,
+                complete: true,
+                verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") },
+                elimination_elements: None,
+            };
+            Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
+        }
+        F4UpdateComputation::Partial { basis, pending_pairs, matrix_steps, sugars } => Ok(GroebnerComputation::Partial(frontier(
+            GroebnerAlgorithm::F4,
+            ring,
+            basis,
+            pending_pairs,
+            None,
+            Some(sugars),
+            None,
+            input_count,
+            matrix_steps,
+            false,
+            None,
+        ))),
+        F4UpdateComputation::ResourceLimited { basis, pending_pairs, pending_insertion, pending_insertion_sugar, matrix_steps, sugars } => {
+            Ok(GroebnerComputation::ResourceLimited(frontier(
+                GroebnerAlgorithm::F4,
+                ring,
+                basis,
+                pending_pairs,
+                pending_insertion,
+                Some(sugars),
+                pending_insertion_sugar,
+                input_count,
+                matrix_steps,
+                false,
+                None,
+            )))
+        }
+    }
+}
+
 /// 从 Partial / ResourceLimited frontier 恢复 Buchberger。
 ///
 /// 恢复前重新校验环 / 域 / pair 下标。中间证书仍须经 `verify_groebner_basis` 才可 Complete。
@@ -254,10 +426,13 @@ fn run_buchberger(
     if let Some(remainder) = pending_insertion.take() {
         if basis.len() as u32 >= limits.max_basis_size {
             return Ok(GroebnerComputation::ResourceLimited(frontier(
+                GroebnerAlgorithm::Buchberger,
                 ring,
                 basis,
                 pairs_from_pending(&pending),
                 Some(remainder),
+                None,
+                None,
                 input_count,
                 steps,
                 false,
@@ -313,10 +488,13 @@ fn run_buchberger(
 
     if resource_limited {
         return Ok(GroebnerComputation::ResourceLimited(frontier(
+            GroebnerAlgorithm::Buchberger,
             ring,
             basis,
             pairs_from_pending(&pending),
             deferred_insertion,
+            None,
+            None,
             input_count,
             steps,
             false,
@@ -325,9 +503,12 @@ fn run_buchberger(
     }
     if truncated_pairs {
         return Ok(GroebnerComputation::Partial(frontier(
+            GroebnerAlgorithm::Buchberger,
             ring,
             basis,
             pairs_from_pending(&pending),
+            None,
+            None,
             None,
             input_count,
             steps,
@@ -350,22 +531,14 @@ fn run_buchberger(
         basis_elements: basis.len(),
         s_pair_steps: steps,
         complete: true,
-        verification: PropertyState::Proven {
-            value: (),
-            witness: PropertyWitness::placeholder("groebner_independent_verifier"),
-        },
+        verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") },
         elimination_elements: None,
     };
     Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
 }
 
 fn ordered_pair(i: usize, j: usize) -> (usize, usize) {
-    if i < j {
-        (i, j)
-    }
-    else {
-        (j, i)
-    }
+    if i < j { (i, j) } else { (j, i) }
 }
 
 fn enqueue_pair(i: usize, j: usize, pairs: &mut Vec<(usize, usize)>, pending: &mut HashSet<(usize, usize)>) {
@@ -424,9 +597,7 @@ fn chain_criterion_applies(
 fn require_field_ring(ring: RingId, rings: &RingTable, operation: &str) -> Result<()> {
     let coeff = rings.coefficient_kernel(ring)?;
     if !coeff.is_field() {
-        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision)
-            .detail("domain", "polynomial")
-            .detail("operation", operation));
+        return Err(Diagnostic::new(DiagnosticCode::PolynomialNonFieldDivision).detail("domain", "polynomial").detail("operation", operation));
     }
     Ok(())
 }
@@ -560,17 +731,20 @@ pub fn verify_groebner_basis(basis: &[Polynomial], rings: &RingTable) -> Result<
 }
 
 fn frontier(
+    algorithm: GroebnerAlgorithm,
     ring: RingId,
     candidates: Vec<Polynomial>,
     pending_pairs: Vec<(usize, usize)>,
     pending_insertion: Option<Polynomial>,
+    candidate_sugars: Option<Vec<u32>>,
+    pending_insertion_sugar: Option<u32>,
     input_generators: usize,
     steps: u32,
     complete: bool,
     elimination_elements: Option<usize>,
 ) -> GroebnerFrontier {
     let certificate = GroebnerCertificate {
-        algorithm: GroebnerAlgorithm::Buchberger,
+        algorithm,
         ring,
         input_generators,
         basis_elements: candidates.len(),
@@ -579,7 +753,7 @@ fn frontier(
         verification: PropertyState::Unknown,
         elimination_elements,
     };
-    GroebnerFrontier { ring, candidates, pending_pairs, pending_insertion, certificate }
+    GroebnerFrontier { ring, candidates, pending_pairs, pending_insertion, candidate_sugars, pending_insertion_sugar, certificate }
 }
 
 fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<Polynomial>> {
@@ -744,11 +918,8 @@ mod criterion_tests {
         let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
         let layout = &rings.get(ring).unwrap().monomial_layout;
         // LM: x^2, y^2, xy — xy | lcm(x^2,y^2)=x^2y^2
-        let basis = vec![
-            poly(&rings, ring, &[(1, vec![2, 0])]),
-            poly(&rings, ring, &[(1, vec![0, 2])]),
-            poly(&rings, ring, &[(1, vec![1, 1])]),
-        ];
+        let basis =
+            vec![poly(&rings, ring, &[(1, vec![2, 0])]), poly(&rings, ring, &[(1, vec![0, 2])]), poly(&rings, ring, &[(1, vec![1, 1])])];
         let pending = HashSet::new();
         assert!(chain_criterion_applies(&basis, 0, 1, &pending, layout).unwrap());
     }
@@ -758,11 +929,8 @@ mod criterion_tests {
         let mut rings = RingTable::new();
         let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
         let layout = &rings.get(ring).unwrap().monomial_layout;
-        let basis = vec![
-            poly(&rings, ring, &[(1, vec![2, 0])]),
-            poly(&rings, ring, &[(1, vec![0, 2])]),
-            poly(&rings, ring, &[(1, vec![1, 1])]),
-        ];
+        let basis =
+            vec![poly(&rings, ring, &[(1, vec![2, 0])]), poly(&rings, ring, &[(1, vec![0, 2])]), poly(&rings, ring, &[(1, vec![1, 1])])];
         let mut pending = HashSet::new();
         pending.insert(ordered_pair(0, 2));
         pending.insert(ordered_pair(1, 2));

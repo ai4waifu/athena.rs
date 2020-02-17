@@ -1,8 +1,6 @@
 //! 多项式模同态 ℤ/ℚ → 𝔽_p。
 
-use athena_engine::domains::polynomial::{
-    CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable, map_polynomial_mod_prime,
-};
+use athena_engine::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable, map_polynomial_mod_prime};
 use athena_numeric::{Integer, Number};
 use athena_types::SymbolId;
 
@@ -153,11 +151,7 @@ fn reconstruct_modular_via_polynomial_request() {
     let image = map_polynomial_mod_prime(&poly, p, &rings).unwrap();
     let mut store = PolynomialObjectStore::new();
     let image_ref = store.intern(image.image.owning_copy(), &rings);
-    let result = execute_polynomial_with_rings(
-        PolynomialRequest::ReconstructModular { image: image_ref, target_ring: q },
-        &rings,
-        &store,
-    );
+    let result = execute_polynomial_with_rings(PolynomialRequest::ReconstructModular { image: image_ref, target_ring: q }, &rings, &store);
     match result {
         athena_engine::domains::polynomial::PolynomialResult::Exact {
             value: athena_engine::domains::polynomial::PolynomialDomainValue::Polynomial(v),

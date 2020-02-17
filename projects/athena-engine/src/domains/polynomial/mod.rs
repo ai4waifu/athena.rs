@@ -11,9 +11,9 @@ mod certificate;
 mod coefficient_kernel;
 mod coefficient_ring_table;
 mod exponent;
+mod f4;
 mod factor;
 mod fingerprint;
-mod f4;
 mod groebner;
 mod hash;
 mod ideal;
@@ -42,17 +42,23 @@ pub use coefficient_kernel::{
     CoefficientRing, FpBigKernel, FpWordKernel, QCoefficientKernel, SpecializedCoefficientKernel, ZCoefficientKernel,
 };
 pub use coefficient_ring_table::{CoefficientRingDescriptor, CoefficientRingTable};
+pub use f4::{
+    F4CriticalPair, F4SymbolicRow, F4UpdateComputation, F4UpdateLimits, MacaulayCsrMatrix, MacaulayMatrix, MacaulayRowInput,
+    build_macaulay_csr, build_macaulay_matrix, eliminate_macaulay_column, f4_matrix_reduce_pairs, macaulay_matrix_polynomials,
+    macaulay_row_to_polynomial, pair_sugar_degree, pair_sugar_with, polynomial_sugar, reduce_macaulay_matrix, resume_f4_basis_update,
+    run_f4_basis_update, select_minimal_sugar_pairs, select_minimal_sugar_pairs_with, symbolic_preprocess_closure, symbolic_preprocess_pairs,
+};
 pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,
 };
-pub use f4::{MacaulayCsrMatrix, MacaulayRowInput, build_macaulay_csr, eliminate_macaulay_column, macaulay_row_to_polynomial};
 pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint, polynomial_fingerprint_u64,
 };
 pub use groebner::{
     GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis, compute_elimination_basis,
-    compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, resume_groebner_basis, verify_groebner_basis,
+    compute_groebner_basis, compute_groebner_basis_f4, ideal_membership, reduce_by_verified, reduce_ideal, resume_groebner_basis,
+    resume_groebner_basis_f4, verify_groebner_basis,
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;

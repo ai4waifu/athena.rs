@@ -188,12 +188,7 @@ pub fn array1d<T: Clone>(data: Vec<T>, budget: MemoryBudget) -> Result<ChunkedAr
 }
 
 /// 从行主序扁平向量创建二维逻辑数组 `shape = [nrows, ncols]`（POD / `T: Clone` 便利路径）。
-pub fn array2d<T: Clone>(
-    nrows: u64,
-    ncols: u64,
-    data: Vec<T>,
-    budget: MemoryBudget,
-) -> Result<Array2d<T, InMemoryStorage<T>>, ArrayError> {
+pub fn array2d<T: Clone>(nrows: u64, ncols: u64, data: Vec<T>, budget: MemoryBudget) -> Result<Array2d<T, InMemoryStorage<T>>, ArrayError> {
     let shape = LogicalShape::new([nrows, ncols])?;
     if data.len() as u64 != shape.element_count() {
         return Err(ArrayError::LengthMismatch { expected: shape.element_count(), actual: data.len() as u64 });
@@ -222,10 +217,7 @@ impl<T> ChunkedArray<T, InMemoryStorage<T>> {
     pub fn try_as_slice(&self) -> Result<&[T], ArrayError> {
         let bytes = (self.shape.element_count() as usize).saturating_mul(std::mem::size_of::<T>());
         if bytes > self.budget.bytes() {
-            return Err(ArrayError::FullMaterializeForbidden {
-                elements: self.shape.element_count(),
-                resident_limit: self.budget.bytes(),
-            });
+            return Err(ArrayError::FullMaterializeForbidden { elements: self.shape.element_count(), resident_limit: self.budget.bytes() });
         }
         Ok(self.store.as_slice())
     }
@@ -234,10 +226,7 @@ impl<T> ChunkedArray<T, InMemoryStorage<T>> {
     pub fn try_as_slice_mut(&mut self) -> Result<&mut [T], ArrayError> {
         let bytes = (self.shape.element_count() as usize).saturating_mul(std::mem::size_of::<T>());
         if bytes > self.budget.bytes() {
-            return Err(ArrayError::FullMaterializeForbidden {
-                elements: self.shape.element_count(),
-                resident_limit: self.budget.bytes(),
-            });
+            return Err(ArrayError::FullMaterializeForbidden { elements: self.shape.element_count(), resident_limit: self.budget.bytes() });
         }
         Ok(self.store.as_slice_mut())
     }

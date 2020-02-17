@@ -9,6 +9,8 @@ use crate::domains::algebra::{PropertyState, PropertyWitness};
 pub enum GroebnerAlgorithm {
     /// Buchberger + 标准 S-pair 约化。
     Buchberger,
+    /// F4 Macaulay 矩阵批量消元（Living `04` / `30`）。
+    F4,
 }
 
 /// 计算终态（与 [`super::groebner::GroebnerComputation`] 对齐）。

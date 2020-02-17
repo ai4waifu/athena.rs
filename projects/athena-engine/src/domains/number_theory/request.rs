@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, Modulus};
 
 use super::factor::FactorLimits;
+use crate::runtime::values::numeric_clone::{clone_integer, clone_integers, clone_modulus};
 
 /// 数论域请求 — 宿主传入已解码整数 / 模数。
 #[derive(Debug, PartialEq, Eq)]
@@ -123,4 +124,43 @@ pub enum NumberTheoryRequest {
     },
     /// 代数整数相关（骨架占位）。
     AlgebraicScaffold,
+}
+
+impl Clone for NumberTheoryRequest {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Gcd { a, b } => Self::Gcd { a: clone_integer(a), b: clone_integer(b) },
+            Self::Lcm { a, b } => Self::Lcm { a: clone_integer(a), b: clone_integer(b) },
+            Self::ExtendedGcd { a, b } => Self::ExtendedGcd { a: clone_integer(a), b: clone_integer(b) },
+            Self::PrimalityTest { n, miller_rabin_rounds } => {
+                Self::PrimalityTest { n: clone_integer(n), miller_rabin_rounds: *miller_rabin_rounds }
+            }
+            Self::FactorInteger { n, limits } => Self::FactorInteger { n: clone_integer(n), limits: *limits },
+            Self::ModInverse { a, modulus } => Self::ModInverse { a: clone_integer(a), modulus: clone_modulus(modulus) },
+            Self::ModPow { base, exp, modulus } => {
+                Self::ModPow { base: clone_integer(base), exp: clone_integer(exp), modulus: clone_modulus(modulus) }
+            }
+            Self::BatchModInverse { residues, modulus } => {
+                Self::BatchModInverse { residues: clone_integers(residues), modulus: clone_modulus(modulus) }
+            }
+            Self::SolveLinearCongruence { a, b, modulus } => {
+                Self::SolveLinearCongruence { a: clone_integer(a), b: clone_integer(b), modulus: clone_modulus(modulus) }
+            }
+            Self::ChineseRemainder { residues, moduli } => {
+                Self::ChineseRemainder { residues: clone_integers(residues), moduli: moduli.iter().map(clone_modulus).collect() }
+            }
+            Self::RationalReconstruction { residue, modulus, max_numerator, max_denominator } => Self::RationalReconstruction {
+                residue: clone_integer(residue),
+                modulus: clone_modulus(modulus),
+                max_numerator: max_numerator.as_ref().map(clone_integer),
+                max_denominator: max_denominator.as_ref().map(clone_integer),
+            },
+            Self::Isqrt { n } => Self::Isqrt { n: clone_integer(n) },
+            Self::PerfectPower { n } => Self::PerfectPower { n: clone_integer(n) },
+            Self::JacobiSymbol { a, n } => Self::JacobiSymbol { a: clone_integer(a), n: clone_integer(n) },
+            Self::KroneckerSymbol { a, n } => Self::KroneckerSymbol { a: clone_integer(a), n: clone_integer(n) },
+            Self::PrimesUpTo { limit } => Self::PrimesUpTo { limit: *limit },
+            Self::AlgebraicScaffold => Self::AlgebraicScaffold,
+        }
+    }
 }

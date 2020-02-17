@@ -25,10 +25,14 @@ pub enum PolynomialCacheOp {
     Mul,
     /// Gröbner 基。
     Groebner,
+    /// Gröbner 基（F4）。
+    GroebnerF4,
     /// 消元理想。
     Eliminate,
     /// 从 frontier 恢复 Gröbner。
     ResumeGroebner,
+    /// 从 frontier 恢复 F4 Gröbner。
+    ResumeGroebnerF4,
     /// ℤ/ℚ → 𝔽_p 模同态。
     ModularImage,
     /// 𝔽_p → ℤ/ℚ Wang 有理重构。
@@ -45,8 +49,10 @@ impl PolynomialCacheOp {
             Self::Add => "add",
             Self::Mul => "mul",
             Self::Groebner => "groebner",
+            Self::GroebnerF4 => "groebner_f4",
             Self::Eliminate => "eliminate",
             Self::ResumeGroebner => "resume_groebner",
+            Self::ResumeGroebnerF4 => "resume_groebner_f4",
             Self::ModularImage => "modular_image",
             Self::ReconstructModular => "reconstruct_modular",
             Self::CrtCombineModular => "crt_combine_modular",
@@ -122,16 +128,39 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, sto
             let generators = resolve_polys(store, generators)?;
             many_input_key(PolynomialCacheOp::Groebner, &generators, rings, limits_fingerprint(limits))
         }
+        PolynomialRequest::GroebnerF4 { generators, limits } => {
+            let generators = resolve_polys(store, generators)?;
+            many_input_key(PolynomialCacheOp::GroebnerF4, &generators, rings, limits_fingerprint(limits))
+        }
         PolynomialRequest::Eliminate { generators, limits } => {
             let generators = resolve_polys(store, generators)?;
             many_input_key(PolynomialCacheOp::Eliminate, &generators, rings, limits_fingerprint(limits))
         }
-        PolynomialRequest::ResumeGroebner {
+        PolynomialRequest::ResumeGroebner { candidates, pending_pairs, pending_insertion, input_generators, prior_s_pair_steps, limits } => {
+            let candidates = resolve_polys(store, candidates)?;
+            let insertion = match pending_insertion {
+                Some(r) => Some(store.resolve_owning(*r)?),
+                None => None,
+            };
+            resume_groebner_key(
+                PolynomialCacheOp::ResumeGroebner,
+                &candidates,
+                insertion.as_ref(),
+                pending_pairs,
+                *input_generators,
+                *prior_s_pair_steps,
+                limits,
+                rings,
+            )
+        }
+        PolynomialRequest::ResumeGroebnerF4 {
             candidates,
             pending_pairs,
             pending_insertion,
             input_generators,
             prior_s_pair_steps,
+            candidate_sugars,
+            pending_insertion_sugar,
             limits,
         } => {
             let candidates = resolve_polys(store, candidates)?;
@@ -139,12 +168,14 @@ pub fn cache_key_for_request(request: &PolynomialRequest, rings: &RingTable, sto
                 Some(r) => Some(store.resolve_owning(*r)?),
                 None => None,
             };
-            resume_groebner_key(
+            resume_groebner_key_f4(
                 &candidates,
                 insertion.as_ref(),
                 pending_pairs,
                 *input_generators,
                 *prior_s_pair_steps,
+                candidate_sugars.as_deref(),
+                *pending_insertion_sugar,
                 limits,
                 rings,
             )
@@ -245,6 +276,7 @@ fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {
 
 /// Resume keys must preserve candidate order (pair indices) and pending work.
 fn resume_groebner_key(
+    operation: PolynomialCacheOp,
     candidates: &[Polynomial],
     insertion: Option<&Polynomial>,
     pending_pairs: &[(usize, usize)],
@@ -292,14 +324,45 @@ fn resume_groebner_key(
         j.hash(&mut h);
     }
     insertion.is_some().hash(&mut h);
-    Ok(PolynomialCacheKey {
-        operation: PolynomialCacheOp::ResumeGroebner,
-        ring,
-        ring_fingerprint,
-        input_fingerprints,
-        input_hashes,
-        limits_fingerprint: h.finish(),
-    })
+    Ok(PolynomialCacheKey { operation, ring, ring_fingerprint, input_fingerprints, input_hashes, limits_fingerprint: h.finish() })
+}
+
+fn resume_groebner_key_f4(
+    candidates: &[Polynomial],
+    insertion: Option<&Polynomial>,
+    pending_pairs: &[(usize, usize)],
+    input_generators: usize,
+    prior_s_pair_steps: u32,
+    candidate_sugars: Option<&[u32]>,
+    pending_insertion_sugar: Option<u32>,
+    limits: &GroebnerLimits,
+    rings: &RingTable,
+) -> Result<PolynomialCacheKey> {
+    let mut key = resume_groebner_key(
+        PolynomialCacheOp::ResumeGroebnerF4,
+        candidates,
+        insertion,
+        pending_pairs,
+        input_generators,
+        prior_s_pair_steps,
+        limits,
+        rings,
+    )?;
+    use std::collections::hash_map::DefaultHasher;
+    let mut h = DefaultHasher::new();
+    key.limits_fingerprint.hash(&mut h);
+    match candidate_sugars {
+        Some(s) => {
+            s.len().hash(&mut h);
+            for sugar in s {
+                sugar.hash(&mut h);
+            }
+        }
+        None => 0usize.hash(&mut h),
+    }
+    pending_insertion_sugar.hash(&mut h);
+    key.limits_fingerprint = h.finish();
+    Ok(key)
 }
 
 fn modular_image_key(poly: &Polynomial, image_ring: RingId, rings: &RingTable) -> Result<PolynomialCacheKey> {
@@ -314,7 +377,9 @@ fn modular_image_key(poly: &Polynomial, image_ring: RingId, rings: &RingTable) -
 
 fn reconstruct_modular_key(poly: &Polynomial, target_ring: RingId, rings: &RingTable) -> Result<PolynomialCacheKey> {
     let target_fp = rings.ring_fingerprint(target_ring).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_target_ring")
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_unknown_target_ring")
     })?;
     use std::collections::hash_map::DefaultHasher;
     let mut h = DefaultHasher::new();
@@ -322,22 +387,21 @@ fn reconstruct_modular_key(poly: &Polynomial, target_ring: RingId, rings: &RingT
     single_input_key(PolynomialCacheOp::ReconstructModular, poly, rings, h.finish())
 }
 
-fn crt_combine_modular_key(
-    images: &[Polynomial],
-    integer_ring: RingId,
-    target_ring: RingId,
-    rings: &RingTable,
-) -> Result<PolynomialCacheKey> {
+fn crt_combine_modular_key(images: &[Polynomial], integer_ring: RingId, target_ring: RingId, rings: &RingTable) -> Result<PolynomialCacheKey> {
     if images.len() < 2 {
         return Err(Diagnostic::new(DiagnosticCode::DomainError)
             .detail("domain", "polynomial")
             .detail("operation", "cache_key_crt_combine_too_few_images"));
     }
     let integer_fp = rings.ring_fingerprint(integer_ring).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_integer_ring")
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_unknown_integer_ring")
     })?;
     let target_fp = rings.ring_fingerprint(target_ring).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "cache_key_unknown_target_ring")
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("domain", "polynomial")
+            .detail("operation", "cache_key_unknown_target_ring")
     })?;
     use std::collections::hash_map::DefaultHasher;
     let mut h = DefaultHasher::new();

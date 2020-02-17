@@ -5,9 +5,7 @@
 //! **禁止**「存在证书 / provider 自称 exact ⇒ 接纳」。证书字段必须与命题重放一致。
 
 use crate::{
-    domains::polynomial::{
-        PolynomialCacheKey, PolynomialDomainValue, PolynomialResult, RingTable, verify_groebner_basis,
-    },
+    domains::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult, RingTable, verify_groebner_basis},
     reasoning::mgraph::{
         core::{state::MGraphState, types::CapabilityProviderId},
         facts::claim::{
@@ -254,12 +252,7 @@ impl AdmissionGate {
 
 /// 对多项式 Exact 值执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
-    EvidenceVerifier::verify_polynomial(
-        key,
-        &PolynomialResult::Exact { value: value.clone() },
-        &VerificationPolicy::default(),
-        None,
-    )
+    EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.clone() }, &VerificationPolicy::default(), None)
 }
 
 /// 对 [`PolynomialResult`] 执行 verifier（不写入 semantic core）。
@@ -268,11 +261,7 @@ pub fn admit_polynomial_result(key: &PolynomialCacheKey, result: &PolynomialResu
 }
 
 /// 带环表的多项式 verifier（Gröbner 独立重放）。
-pub fn admit_polynomial_result_with_rings(
-    key: &PolynomialCacheKey,
-    result: &PolynomialResult,
-    rings: &RingTable,
-) -> AdmissionOutcome {
+pub fn admit_polynomial_result_with_rings(key: &PolynomialCacheKey, result: &PolynomialResult, rings: &RingTable) -> AdmissionOutcome {
     EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default(), Some(rings))
 }
 

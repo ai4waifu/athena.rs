@@ -56,6 +56,13 @@ pub enum PolynomialRequest {
         /// 资源限制。
         limits: GroebnerLimits,
     },
+    /// Gröbner 基（F4 Macaulay 矩阵路径 · Living `04` / `30`）。
+    GroebnerF4 {
+        /// 理想生成元。
+        generators: Vec<PolynomialRef>,
+        /// 资源限制（`max_s_pairs` 映射为矩阵步预算）。
+        limits: GroebnerLimits,
+    },
     /// 消元理想（环须 [`super::order::MonomialOrder::Elimination`]）。
     Eliminate {
         /// 理想生成元。
@@ -78,6 +85,25 @@ pub enum PolynomialRequest {
         /// 已消耗的 S-pair 步数。
         prior_s_pair_steps: u32,
         /// 本轮资源限制。
+        limits: GroebnerLimits,
+    },
+    /// 从 Partial / ResourceLimited frontier 恢复 F4（Living `04` / `30`）。
+    ResumeGroebnerF4 {
+        /// 当前候选基。
+        candidates: Vec<PolynomialRef>,
+        /// 尚未处理的 critical pairs。
+        pending_pairs: Vec<(usize, usize)>,
+        /// 因基大小上限未能插入的多项式。
+        pending_insertion: Option<PolynomialRef>,
+        /// 原始输入生成元数量（证书字段）。
+        input_generators: usize,
+        /// 已消耗的矩阵步数（写入证书 `s_pair_steps`）。
+        prior_s_pair_steps: u32,
+        /// 与 `candidates` 等长的 Giovini sugar 表（缺省则 resume 时重算）。
+        candidate_sugars: Option<Vec<u32>>,
+        /// 待插入多项式的 sugar。
+        pending_insertion_sugar: Option<u32>,
+        /// 本轮资源限制（`max_s_pairs` 映射为矩阵步预算）。
         limits: GroebnerLimits,
     },
     /// ℤ / ℚ 多项式 → 已注册 𝔽_p 环上的模同态像（Living `30` G1）。

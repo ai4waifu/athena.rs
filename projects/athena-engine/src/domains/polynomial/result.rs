@@ -6,10 +6,11 @@ use super::{
     canonical::canonicalize_polynomial,
     certificate::{GroebnerAlgorithm, GroebnerCertificate},
     factor::factor_univariate,
-    groebner::{GroebnerFrontier, compute_elimination_basis, compute_groebner_basis, resume_groebner_basis},
-    modular_image::{
-        crt_combine_and_reconstruct_finite_field_polys, map_polynomial_mod_prime, reconstruct_polynomial_from_finite_field_ring,
+    groebner::{
+        GroebnerFrontier, compute_elimination_basis, compute_groebner_basis, compute_groebner_basis_f4, resume_groebner_basis,
+        resume_groebner_basis_f4,
     },
+    modular_image::{crt_combine_and_reconstruct_finite_field_polys, map_polynomial_mod_prime, reconstruct_polynomial_from_finite_field_ring},
     object_ref::PolynomialObjectStore,
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
@@ -124,6 +125,18 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
+        PolynomialRequest::GroebnerF4 { generators, limits } => {
+            let generators = match resolve_generators(store, &generators) {
+                Ok(g) => g,
+                Err(reason) => return PolynomialResult::Unevaluated { reason },
+            };
+            match compute_groebner_basis_f4(generators, rings, limits) {
+                Ok(computation) => {
+                    PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
+                }
+                Err(reason) => PolynomialResult::Unevaluated { reason },
+            }
+        }
         PolynomialRequest::Eliminate { generators, limits } => {
             let generators = match resolve_generators(store, &generators) {
                 Ok(g) => g,
@@ -136,14 +149,7 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
-        PolynomialRequest::ResumeGroebner {
-            candidates,
-            pending_pairs,
-            pending_insertion,
-            input_generators,
-            prior_s_pair_steps,
-            limits,
-        } => {
+        PolynomialRequest::ResumeGroebner { candidates, pending_pairs, pending_insertion, input_generators, prior_s_pair_steps, limits } => {
             let candidates = match resolve_generators(store, &candidates) {
                 Ok(g) => g,
                 Err(reason) => return PolynomialResult::Unevaluated { reason },
@@ -169,6 +175,8 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 candidates,
                 pending_pairs,
                 pending_insertion,
+                candidate_sugars: None,
+                pending_insertion_sugar: None,
                 certificate: GroebnerCertificate {
                     algorithm: GroebnerAlgorithm::Buchberger,
                     ring,
@@ -181,6 +189,61 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 },
             };
             match resume_groebner_basis(frontier, rings, limits) {
+                Ok(computation) => {
+                    PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
+                }
+                Err(reason) => PolynomialResult::Unevaluated { reason },
+            }
+        }
+        PolynomialRequest::ResumeGroebnerF4 {
+            candidates,
+            pending_pairs,
+            pending_insertion,
+            input_generators,
+            prior_s_pair_steps,
+            candidate_sugars,
+            pending_insertion_sugar,
+            limits,
+        } => {
+            let candidates = match resolve_generators(store, &candidates) {
+                Ok(g) => g,
+                Err(reason) => return PolynomialResult::Unevaluated { reason },
+            };
+            let pending_insertion = match pending_insertion {
+                Some(r) => match store.resolve_owning(r) {
+                    Ok(p) => Some(p),
+                    Err(reason) => return PolynomialResult::Unevaluated { reason },
+                },
+                None => None,
+            };
+            if candidates.is_empty() {
+                return PolynomialResult::Unevaluated {
+                    reason: Diagnostic::new(DiagnosticCode::DomainError)
+                        .detail("domain", "polynomial")
+                        .detail("operation", "resume_groebner_f4_empty_candidates"),
+                };
+            }
+            let ring = candidates[0].ring();
+            let basis_elements = candidates.len();
+            let frontier = GroebnerFrontier {
+                ring,
+                candidates,
+                pending_pairs,
+                pending_insertion,
+                candidate_sugars,
+                pending_insertion_sugar,
+                certificate: GroebnerCertificate {
+                    algorithm: GroebnerAlgorithm::F4,
+                    ring,
+                    input_generators,
+                    basis_elements,
+                    s_pair_steps: prior_s_pair_steps,
+                    complete: false,
+                    verification: PropertyState::Unknown,
+                    elimination_elements: None,
+                },
+            };
+            match resume_groebner_basis_f4(frontier, rings, limits) {
                 Ok(computation) => {
                     PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
                 }
@@ -236,8 +299,10 @@ fn operation_name(request: &PolynomialRequest) -> &'static str {
         PolynomialRequest::Gcd { .. } => "gcd",
         PolynomialRequest::Factor { .. } => "factor",
         PolynomialRequest::Groebner { .. } => "groebner",
+        PolynomialRequest::GroebnerF4 { .. } => "groebner_f4",
         PolynomialRequest::Eliminate { .. } => "eliminate",
         PolynomialRequest::ResumeGroebner { .. } => "resume_groebner",
+        PolynomialRequest::ResumeGroebnerF4 { .. } => "resume_groebner_f4",
         PolynomialRequest::ModularImage { .. } => "modular_image",
         PolynomialRequest::ReconstructModular { .. } => "reconstruct_modular",
         PolynomialRequest::CrtCombineModular { .. } => "crt_combine_modular",

@@ -39,7 +39,7 @@ pub struct PlanStepReport {
 /// - `Normalize` / `SelectRepresentation` — acknowledged markers (no hidden policy).
 /// - `CallDomainProvider` — invoke `provider` exactly once.
 /// - `CrossDomainView` — open TypedView after provider output exists.
-/// - `Verify` — recompute calculus/polynomial against claimed result; presence gate elsewhere.
+/// - `Verify` — recompute calculus/polynomial/linear-algebra/number-theory/graph-theory/optimization against claimed result; presence gate elsewhere.
 /// - `MaterializeResult` — seal the `DomainResult` for the host.
 /// - `EmitResidual` — allow completion alongside or instead of materialize.
 pub fn interpret_domain_plan<F>(

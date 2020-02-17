@@ -3,7 +3,8 @@
 use athena_engine::{
     domains::polynomial::{
         CoefficientDomain, GroebnerComputation, GroebnerLimits, GroebnerStatus, MonomialOrder, PolynomialBuilder, PolynomialRequest,
-        PolynomialResult, RingTable, compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, verify_groebner_basis,
+        PolynomialResult, RingTable, compute_groebner_basis, compute_groebner_basis_f4, ideal_membership, reduce_by_verified, reduce_ideal,
+        resume_groebner_basis_f4, verify_groebner_basis,
     },
     runtime::Session,
 };
@@ -58,6 +59,54 @@ fn groebner_trivial_generators_to_verified_basis() {
     assert!(gb.verification.all_s_pairs_reduce_to_zero);
     assert_eq!(gb.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::Buchberger);
     assert!(contains_poly_with_leading_exp(gb.basis(), &[1, 0]) || contains_poly_with_leading_exp(gb.basis(), &[0, 1]));
+}
+
+#[test]
+fn groebner_f4_trivial_generators_to_verified_basis() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    let computation = compute_groebner_basis_f4(vec![g1, g2], &rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(computation.status(), GroebnerStatus::Verified);
+    let gb = computation.as_verified().expect("verified");
+    assert!(gb.certificate.complete);
+    assert!(gb.certificate.verification.is_proven());
+    assert!(gb.verification.all_s_pairs_reduce_to_zero);
+    assert_eq!(gb.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+    assert!(contains_poly_with_leading_exp(gb.basis(), &[1, 0]) || contains_poly_with_leading_exp(gb.basis(), &[0, 1]));
+}
+
+#[test]
+fn groebner_f4_inserts_and_verifies() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let computation = compute_groebner_basis_f4(vec![g1, g2], &rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(computation.status(), GroebnerStatus::Verified);
+    let gb = computation.as_verified().expect("verified");
+    assert_eq!(gb.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+    assert!(gb.verification.all_s_pairs_reduce_to_zero);
+    assert!(contains_poly_with_leading_exp(gb.basis(), &[1, 0]));
+    assert!(contains_poly_with_leading_exp(gb.basis(), &[0, 3]) || gb.basis().len() >= 2);
+}
+
+#[test]
+fn groebner_f4_resume_from_partial_to_verified() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let partial = compute_groebner_basis_f4(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    assert_eq!(partial.status(), GroebnerStatus::Partial);
+    let frontier = match partial {
+        GroebnerComputation::Partial(f) => f,
+        other => panic!("expected Partial, got {other:?}"),
+    };
+    assert_eq!(frontier.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+    let resumed = resume_groebner_basis_f4(frontier, &rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(resumed.status(), GroebnerStatus::Verified);
+    let gb = resumed.as_verified().expect("verified");
+    assert_eq!(gb.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+    assert!(gb.verification.all_s_pairs_reduce_to_zero);
 }
 
 #[test]
@@ -127,6 +176,62 @@ fn session_groebner_via_execute_polynomial() {
 }
 
 #[test]
+fn session_groebner_f4_request_to_verified() {
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    let g1 = build(&session.rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&session.rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    let r1 = session.polynomial_objects.intern(g1, &session.rings);
+    let r2 = session.polynomial_objects.intern(g2, &session.rings);
+    let out = session.execute_polynomial(PolynomialRequest::GroebnerF4 { generators: vec![r1, r2], limits: GroebnerLimits::default() });
+    match out {
+        PolynomialResult::Exact { value } => match value {
+            athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(v) => {
+                assert_eq!(v.status, GroebnerStatus::Verified);
+                assert_eq!(v.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+                assert!(v.certificate.complete);
+                assert!(v.certificate.verification.is_proven());
+            }
+            _ => panic!("expected GroebnerBasis"),
+        },
+        other => panic!("expected Exact, got {other:?}"),
+    }
+}
+
+#[test]
+fn session_resume_groebner_f4_request_reaches_verified() {
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    let g1 = build(&session.rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&session.rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let r1 = session.polynomial_objects.intern(g1, &session.rings);
+    let r2 = session.polynomial_objects.intern(g2, &session.rings);
+    let partial = session.execute_polynomial(PolynomialRequest::GroebnerF4 {
+        generators: vec![r1, r2],
+        limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
+    });
+    let PolynomialResult::Exact { value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb) } = partial
+    else {
+        panic!("expected Partial GroebnerBasis, got {partial:?}");
+    };
+    assert_eq!(gb.status, GroebnerStatus::Partial);
+    assert_eq!(gb.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+    let resume = gb.to_resume_request(&mut session.polynomial_objects, &session.rings, GroebnerLimits::default()).expect("resume request");
+    assert!(matches!(resume, PolynomialRequest::ResumeGroebnerF4 { .. }));
+    let out = session.execute_polynomial(resume);
+    match out {
+        PolynomialResult::Exact { value } => match value {
+            athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(v) => {
+                assert_eq!(v.status, GroebnerStatus::Verified);
+                assert_eq!(v.certificate.algorithm, athena_engine::domains::polynomial::GroebnerAlgorithm::F4);
+            }
+            _ => panic!("expected GroebnerBasis"),
+        },
+        other => panic!("expected Exact, got {other:?}"),
+    }
+}
+
+#[test]
 fn session_partial_groebner_preserves_frontier_for_resume() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
@@ -138,9 +243,7 @@ fn session_partial_groebner_preserves_frontier_for_resume() {
         generators: vec![r1, r2],
         limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
     });
-    let PolynomialResult::Exact {
-        value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb),
-    } = out
+    let PolynomialResult::Exact { value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb) } = out
     else {
         panic!("expected Exact GroebnerBasis, got {out:?}");
     };
@@ -163,21 +266,15 @@ fn session_resume_groebner_request_reaches_verified() {
         generators: vec![r1, r2],
         limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
     });
-    let PolynomialResult::Exact {
-        value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb),
-    } = partial
+    let PolynomialResult::Exact { value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb) } = partial
     else {
         panic!("expected Partial GroebnerBasis, got {partial:?}");
     };
     assert_eq!(gb.status, GroebnerStatus::Partial);
-    let resume = gb
-        .to_resume_request(&mut session.polynomial_objects, &session.rings, GroebnerLimits::default())
-        .expect("resume request");
+    let resume = gb.to_resume_request(&mut session.polynomial_objects, &session.rings, GroebnerLimits::default()).expect("resume request");
     let out = session.execute_polynomial(resume);
     match out {
-        PolynomialResult::Exact {
-            value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(done),
-        } => {
+        PolynomialResult::Exact { value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(done) } => {
             assert_eq!(done.status, GroebnerStatus::Verified);
             assert!(done.is_exact_witness());
             assert!(!done.has_resumable_work());
@@ -206,7 +303,8 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
     assert!(!computation.certificate().verification.is_proven());
     assert!(!computation.certificate().complete);
     assert!(computation.as_verified().is_none());
-    let GroebnerComputation::Partial(frontier) = computation else {
+    let GroebnerComputation::Partial(frontier) = computation
+    else {
         panic!("expected Partial");
     };
     assert!(frontier.has_resumable_work());
@@ -219,7 +317,8 @@ fn resume_partial_groebner_frontier_to_verified() {
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let partial = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
-    let GroebnerComputation::Partial(frontier) = partial else {
+    let GroebnerComputation::Partial(frontier) = partial
+    else {
         panic!("expected Partial");
     };
     let resumed = athena_engine::domains::polynomial::resume_groebner_basis(frontier, &rings, GroebnerLimits::default()).unwrap();
@@ -258,16 +357,15 @@ fn resume_partial_with_tiny_budget_stays_partial() {
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let partial = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
-    let GroebnerComputation::Partial(frontier) = partial else {
+    let GroebnerComputation::Partial(frontier) = partial
+    else {
         panic!("expected Partial");
     };
-    let still = athena_engine::domains::polynomial::resume_groebner_basis(
-        frontier,
-        &rings,
-        GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
-    )
-    .unwrap();
-    let GroebnerComputation::Partial(again) = still else {
+    let still =
+        athena_engine::domains::polynomial::resume_groebner_basis(frontier, &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 })
+            .unwrap();
+    let GroebnerComputation::Partial(again) = still
+    else {
         panic!("expected Partial again");
     };
     assert!(again.has_resumable_work());

@@ -184,13 +184,7 @@ pub fn reconstruct_polynomial_from_finite_field_ring(
 /// 将已在 𝔽_p 环上的多项式包装为 [`ModularImage`]（`source_ring` 取像环，供 CRT 路径使用）。
 pub fn modular_image_from_finite_field_poly(image: &Polynomial, rings: &RingTable) -> Result<ModularImage> {
     let modulus = modulus_of_finite_field_ring(image.ring(), rings)?;
-    Ok(ModularImage {
-        source_ring: image.ring(),
-        image_ring: image.ring(),
-        image: image.owning_copy(),
-        modulus,
-        vanished: image.is_zero(),
-    })
+    Ok(ModularImage { source_ring: image.ring(), image_ring: image.ring(), image: image.owning_copy(), modulus, vanished: image.is_zero() })
 }
 
 /// 多个 𝔽_p 像多项式 CRT 合并后再 Wang 重构到 ℤ / ℚ。
@@ -305,11 +299,7 @@ pub struct CrtPolynomialCombination {
 /// - 至少两个像；任一侧 `vanished` 仍可作为零像参与（缺项按 0 剩余）。
 /// - 各像环须同变量 / 同序，且与 `integer_ring` 形状一致。
 /// - `integer_ring` 须为 [`CoefficientDomain::Integer`]。
-pub fn crt_combine_modular_images(
-    images: &[ModularImage],
-    integer_ring: RingId,
-    rings: &RingTable,
-) -> Result<CrtPolynomialCombination> {
+pub fn crt_combine_modular_images(images: &[ModularImage], integer_ring: RingId, rings: &RingTable) -> Result<CrtPolynomialCombination> {
     if images.len() < 2 {
         return Err(Diagnostic::new(DiagnosticCode::DomainError)
             .detail("domain", "polynomial")
@@ -381,14 +371,14 @@ pub fn crt_combine_and_reconstruct(
 
 fn crt_residue_system(residues: &[Integer], moduli: &[Modulus]) -> Result<(Integer, Modulus)> {
     match chinese_remainder(residues, moduli) {
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }),
-        } => Ok((solution.residue(), modulus_lcm)),
-        NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Crt(CrtResult::Inconsistent { .. }),
-        } => Err(Diagnostic::new(DiagnosticCode::CongruenceInconsistent)
-            .detail("domain", "polynomial")
-            .detail("operation", "crt_combine_inconsistent")),
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }) } => {
+            Ok((solution.residue(), modulus_lcm))
+        }
+        NumberTheoryResult::Exact { value: NumberTheoryValue::Crt(CrtResult::Inconsistent { .. }) } => {
+            Err(Diagnostic::new(DiagnosticCode::CongruenceInconsistent)
+                .detail("domain", "polynomial")
+                .detail("operation", "crt_combine_inconsistent"))
+        }
         NumberTheoryResult::Unevaluated { reason } | NumberTheoryResult::InvalidInput { reason } => Err(reason),
         NumberTheoryResult::Exact { .. } => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "polynomial")
@@ -437,12 +427,7 @@ fn clone_integer_from(n: &Integer) -> Integer {
 }
 
 fn number_from_rational(value: Rational) -> Number {
-    if value.is_integer() {
-        Number::integer(value.numerator())
-    }
-    else {
-        Number::rational(value)
-    }
+    if value.is_integer() { Number::integer(value.numerator()) } else { Number::rational(value) }
 }
 
 fn reduce_coefficient(coeff: &Number, modulus: &Modulus) -> Result<Number> {

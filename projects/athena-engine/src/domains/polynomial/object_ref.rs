@@ -106,9 +106,12 @@ pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
             vec![*lhs, *rhs]
         }
         PolynomialRequest::Div { dividend, divisor, .. } => vec![*dividend, *divisor],
-        PolynomialRequest::Groebner { generators, .. } | PolynomialRequest::Eliminate { generators, .. } => generators.clone(),
+        PolynomialRequest::Groebner { generators, .. }
+        | PolynomialRequest::GroebnerF4 { generators, .. }
+        | PolynomialRequest::Eliminate { generators, .. } => generators.clone(),
         PolynomialRequest::CrtCombineModular { images, .. } => images.clone(),
-        PolynomialRequest::ResumeGroebner { candidates, pending_insertion, .. } => {
+        PolynomialRequest::ResumeGroebner { candidates, pending_insertion, .. }
+        | PolynomialRequest::ResumeGroebnerF4 { candidates, pending_insertion, .. } => {
             let mut refs = candidates.clone();
             if let Some(ins) = pending_insertion {
                 refs.push(*ins);

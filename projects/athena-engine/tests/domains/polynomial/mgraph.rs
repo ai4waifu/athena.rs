@@ -130,10 +130,12 @@ fn probable_claim_blocked_by_verifier() {
 #[test]
 fn forged_verified_groebner_rejected_by_independent_replay() {
     use athena_engine::{
-        domains::algebra::{PropertyState, PropertyWitness},
-        domains::polynomial::{
-            GroebnerAlgorithm, GroebnerBasisValue, GroebnerCertificate, GroebnerStatus, PolynomialDomainValue, PolynomialRequest,
-            PolynomialResult, cache_key_for_request,
+        domains::{
+            algebra::{PropertyState, PropertyWitness},
+            polynomial::{
+                GroebnerAlgorithm, GroebnerBasisValue, GroebnerCertificate, GroebnerStatus, PolynomialDomainValue, PolynomialRequest,
+                PolynomialResult, cache_key_for_request,
+            },
         },
         reasoning::mgraph::{AdmissionOutcome, AdmissionRejectReason, admit_polynomial_result_with_rings},
     };
@@ -164,15 +166,14 @@ fn forged_verified_groebner_rejected_by_independent_replay() {
                 basis_elements: 2,
                 s_pair_steps: 1,
                 complete: true,
-                verification: PropertyState::Proven {
-                    value: (),
-                    witness: PropertyWitness::placeholder("forged"),
-                },
+                verification: PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("forged") },
                 elimination_elements: None,
             },
             status: GroebnerStatus::Verified,
             pending_pairs: Vec::new(),
             pending_insertion: None,
+            candidate_sugars: None,
+            pending_insertion_sugar: None,
         }),
     };
     match admit_polynomial_result_with_rings(&key, &forged, &session.rings) {
@@ -185,8 +186,10 @@ fn forged_verified_groebner_rejected_by_independent_replay() {
 fn groebner_second_goal_is_already_known_after_admit() {
     use athena_engine::{
         api::DomainGoal,
-        domains::dispatch::{DomainRequest, DomainResult},
-        domains::polynomial::{GroebnerLimits, PolynomialDomainValue, PolynomialRequest, PolynomialResult},
+        domains::{
+            dispatch::{DomainRequest, DomainResult},
+            polynomial::{GroebnerLimits, PolynomialDomainValue, PolynomialRequest, PolynomialResult},
+        },
         reasoning::mgraph::{DomainSemanticOutcome, domain_result_from_semantic_outcome, execute_domain_goal},
     };
 
@@ -218,9 +221,7 @@ fn groebner_second_goal_is_already_known_after_admit() {
             let replayed =
                 domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
             match replayed {
-                DomainResult::Polynomial(PolynomialResult::Exact {
-                    value: PolynomialDomainValue::GroebnerBasis(gb),
-                }) => {
+                DomainResult::Polynomial(PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(gb) }) => {
                     assert!(gb.is_exact_witness());
                     assert_eq!(gb.basis.len(), first_gb.basis.len());
                 }
