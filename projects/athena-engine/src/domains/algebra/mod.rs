@@ -33,6 +33,7 @@ pub use galois_field::{
     apply_frobenius_coords, field_automorphism, galois_group_of_extension, is_extension_normal, is_extension_separable, is_galois_extension,
 };
 pub use group_facts::GroupPropertyFacts;
+pub(crate) use group_facts::owning_copy_integer_property;
 pub use group_table::{GroupTable, PermutationGroupSpec};
 pub use map::{
     AlgebraMap, AlgebraMapKind, FieldEmbedding, GroupHomomorphism, MapVerification, MapVerificationKind, QuotientProjection, SubgroupInclusion,

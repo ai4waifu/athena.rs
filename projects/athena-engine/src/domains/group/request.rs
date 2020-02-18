@@ -3,6 +3,8 @@
 use athena_numeric::Integer;
 use athena_types::{AlgebraMapId, GroupId, SubgroupId};
 
+use crate::runtime::values::numeric_clone::clone_integer;
+
 use super::types::{GroupElement, Permutation};
 
 /// 群论域请求（骨架）。
@@ -82,4 +84,44 @@ pub enum GroupRequest {
         /// 父群元素。
         element: GroupElement,
     },
+}
+
+impl GroupRequest {
+    /// Owning 复制：`Integer` 经 GC [`clone_integer`]，元素经 [`GroupElement::owning_copy`]。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Cyclic { order } => Self::Cyclic { order: clone_integer(order) },
+            Self::PermutationGroup { degree, generators } => {
+                Self::PermutationGroup { degree: *degree, generators: generators.clone() }
+            }
+            Self::Order { group } => Self::Order { group: *group },
+            Self::Multiply { lhs, rhs } => Self::Multiply { lhs: lhs.owning_copy(), rhs: rhs.owning_copy() },
+            Self::Inverse { element } => Self::Inverse { element: element.owning_copy() },
+            Self::IsAbelian { group } => Self::IsAbelian { group: *group },
+            Self::SubgroupFromGenerators { parent, generators } => {
+                Self::SubgroupFromGenerators { parent: *parent, generators: generators.clone() }
+            }
+            Self::IsNormalSubgroup { subgroup } => Self::IsNormalSubgroup { subgroup: *subgroup },
+            Self::QuotientGroup { subgroup } => Self::QuotientGroup { subgroup: *subgroup },
+            Self::HomomorphismFromGeneratorImages { source, target, generator_images } => {
+                Self::HomomorphismFromGeneratorImages {
+                    source: *source,
+                    target: *target,
+                    generator_images: generator_images.clone(),
+                }
+            }
+            Self::ApplyHomomorphism { map, element } => {
+                Self::ApplyHomomorphism { map: *map, element: element.owning_copy() }
+            }
+            Self::ProjectQuotient { subgroup, element } => {
+                Self::ProjectQuotient { subgroup: *subgroup, element: element.owning_copy() }
+            }
+        }
+    }
+}
+
+impl Clone for GroupRequest {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }

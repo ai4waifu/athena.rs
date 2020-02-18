@@ -3,6 +3,8 @@
 use athena_numeric::Integer;
 use athena_types::FieldId;
 
+use crate::runtime::values::numeric_clone::clone_integer;
+
 use super::types::FieldElement;
 
 /// 域论域请求（骨架）。
@@ -39,4 +41,24 @@ pub enum FieldRequest {
         /// 域 id。
         field: FieldId,
     },
+}
+
+impl FieldRequest {
+    /// Owning 复制：`Integer` 经 GC [`clone_integer`]，元素经 [`FieldElement::owning_copy`]。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::PrimeField { characteristic } => Self::PrimeField { characteristic: clone_integer(characteristic) },
+            Self::Rationals => Self::Rationals,
+            Self::Add { lhs, rhs } => Self::Add { lhs: lhs.owning_copy(), rhs: rhs.owning_copy() },
+            Self::Mul { lhs, rhs } => Self::Mul { lhs: lhs.owning_copy(), rhs: rhs.owning_copy() },
+            Self::Inverse { element } => Self::Inverse { element: element.owning_copy() },
+            Self::Lookup { field } => Self::Lookup { field: *field },
+        }
+    }
+}
+
+impl Clone for FieldRequest {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }

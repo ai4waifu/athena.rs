@@ -1,8 +1,9 @@
 //! PlanIR `Verify` recalculation (Living `28` / `29` bootstrap).
 //!
 //! Re-runs calculus / polynomial / linear-algebra / number-theory / graph-theory /
-//! optimization providers and compares against the claimed `DomainResult`. Other
-//! domains keep a typed-presence gate until they gain independent verifiers.
+//! optimization / group-theory providers and compares against the claimed
+//! `DomainResult`. Other domains keep a typed-presence gate until they gain
+//! independent verifiers.
 //!
 //! **Does not** write AdmissionGate / SemanticCore. Certificate↔proposition
 //! matching remains in [`crate::reasoning::mgraph::EvidenceVerifier`].
@@ -14,6 +15,7 @@ use crate::{
         calculus::{CalculusRequest, CalculusResult, CalculusValue, execute_calculus},
         dispatch::{DomainRequest, DomainResult},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
+        group::{GroupRequest, GroupResult, execute_group_with_table_mut},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
         number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
@@ -37,6 +39,8 @@ pub enum VerifySnapshot {
     GraphTheory(GraphTheoryRequest),
     /// Clone of an optimization request.
     Optimization(OptimizationRequest),
+    /// Owning copy of a group-theory request (GC `owning_copy`).
+    GroupTheory(GroupRequest),
     /// Domains without independent recompute yet.
     PresenceOnly,
 }
@@ -51,6 +55,7 @@ impl VerifySnapshot {
             DomainRequest::NumberTheory(req) => Self::NumberTheory(req.clone()),
             DomainRequest::GraphTheory(req) => Self::GraphTheory(req.clone()),
             DomainRequest::Optimization(req) => Self::Optimization(req.clone()),
+            DomainRequest::GroupTheory(req) => Self::GroupTheory(req.owning_copy()),
             _ => Self::PresenceOnly,
         }
     }
@@ -108,6 +113,15 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             };
             let replay = execute_optimization(req.clone());
             assert_optimization_match(&replay, claimed_opt)
+        }
+        VerifySnapshot::GroupTheory(req) => {
+            let DomainResult::GroupTheory(claimed_group) = claimed
+            else {
+                return Err(verify_err("group_theory_result_kind_mismatch"));
+            };
+            // Recompute against Session `groups` table (independent of M-Graph cache admit).
+            let replay = execute_group_with_table_mut(req.owning_copy(), &mut session.groups);
+            assert_group_theory_match(&replay, claimed_group)
         }
         VerifySnapshot::PresenceOnly => match claimed {
             DomainResult::Calculus(_)
@@ -274,6 +288,28 @@ fn assert_optimization_match(replay: &OptimizationResult, claimed: &Optimization
         }
         (a, b) if a == b => Ok(()),
         _ => Err(verify_err("optimization_recompute_mismatch")),
+    }
+}
+
+fn assert_group_theory_match(replay: &GroupResult, claimed: &GroupResult) -> Result<(), Diagnostic> {
+    match (replay, claimed) {
+        (GroupResult::Exact { value: rv }, GroupResult::Exact { value: cv }) => {
+            if rv != cv {
+                return Err(verify_err("group_theory_recompute_mismatch"));
+            }
+            Ok(())
+        }
+        (GroupResult::Unevaluated { reason: rr }, GroupResult::Unevaluated { reason: cr }) => {
+            let rrs = rr.details.get("reason").map(|v| v.to_string());
+            let crs = cr.details.get("reason").map(|v| v.to_string());
+            let rop = rr.details.get("operation").map(|v| v.to_string());
+            let cop = cr.details.get("operation").map(|v| v.to_string());
+            if rrs != crs || rop != cop {
+                return Err(verify_err("group_theory_error_reason_mismatch"));
+            }
+            Ok(())
+        }
+        _ => Err(verify_err("group_theory_result_shape_mismatch")),
     }
 }
 
@@ -498,5 +534,46 @@ mod tests {
         });
         let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
         assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("optimization_recompute_mismatch"));
+    }
+
+    #[test]
+    fn group_theory_order_recompute_accepts_honest_claim() {
+        use crate::domains::group::{GroupRequest, Permutation, execute_group_with_table_mut};
+
+        let mut session = Session::new();
+        let gens = vec![Permutation { images: vec![1, 0, 2] }];
+        let group = match execute_group_with_table_mut(
+            GroupRequest::PermutationGroup { degree: 3, generators: gens },
+            &mut session.groups,
+        ) {
+            GroupResult::Exact { value: crate::domains::group::GroupDomainValue::Group(g) } => g.id,
+            other => panic!("expected group, got {other:?}"),
+        };
+        let request = GroupRequest::Order { group };
+        let honest = DomainResult::GroupTheory(execute_group_with_table_mut(request.owning_copy(), &mut session.groups));
+        let snapshot = VerifySnapshot::GroupTheory(request);
+        verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
+    }
+
+    #[test]
+    fn group_theory_forged_order_fails_recompute() {
+        use crate::domains::group::{GroupDomainValue, GroupRequest, GroupResult, Permutation, execute_group_with_table_mut};
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        let gens = vec![Permutation { images: vec![1, 0] }];
+        let group = match execute_group_with_table_mut(
+            GroupRequest::PermutationGroup { degree: 2, generators: gens },
+            &mut session.groups,
+        ) {
+            GroupResult::Exact { value: GroupDomainValue::Group(g) } => g.id,
+            other => panic!("expected group, got {other:?}"),
+        };
+        let snapshot = VerifySnapshot::GroupTheory(GroupRequest::Order { group });
+        let forged = DomainResult::GroupTheory(GroupResult::Exact {
+            value: GroupDomainValue::Integer(Integer::from_i64(99)),
+        });
+        let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("group_theory_recompute_mismatch"));
     }
 }

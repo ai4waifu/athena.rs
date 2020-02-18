@@ -3,7 +3,10 @@
 use athena_numeric::Integer;
 use athena_types::{GroupElementId, GroupId, GroupPresentationId, SubgroupId};
 
-use crate::domains::algebra::{GroupPropertyFacts, PropertyState};
+use crate::{
+    domains::algebra::{GroupPropertyFacts, PropertyState, owning_copy_integer_property},
+    runtime::values::numeric_clone::clone_integer,
+};
 
 /// 群数学描述（抽象性质；可运算性取决于 presentation）。
 #[derive(Debug, PartialEq)]
@@ -75,4 +78,88 @@ pub struct GroupElement {
     pub presentation: GroupPresentationId,
     /// 表示。
     pub repr: GroupElementRepr,
+}
+
+impl GroupDescriptor {
+    /// Owning 复制：`Integer` 经 GC [`clone_integer`]。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Abstract { order, properties } => Self::Abstract {
+                order: owning_copy_integer_property(order),
+                properties: properties.owning_copy(),
+            },
+            Self::Permutation { degree } => Self::Permutation { degree: *degree },
+        }
+    }
+}
+
+impl Clone for GroupDescriptor {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl Group {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            descriptor: self.descriptor.owning_copy(),
+            presentation: self.presentation,
+            order: self.order.as_ref().map(clone_integer),
+        }
+    }
+}
+
+impl Clone for Group {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl Subgroup {
+    /// Owning 复制（仅 id 句柄，无堆数值）。
+    pub fn owning_copy(&self) -> Self {
+        Self { id: self.id, parent: self.parent, group: self.group, inclusion: self.inclusion }
+    }
+}
+
+impl Clone for Subgroup {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl GroupElementRepr {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::TableIndex(i) => Self::TableIndex(*i),
+            Self::Permutation(p) => Self::Permutation(p.clone()),
+        }
+    }
+}
+
+impl Clone for GroupElementRepr {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl GroupElement {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            group: self.group,
+            presentation: self.presentation,
+            repr: self.repr.owning_copy(),
+        }
+    }
+}
+
+impl Clone for GroupElement {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }

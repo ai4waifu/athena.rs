@@ -3,6 +3,8 @@
 use athena_numeric::Integer;
 use athena_types::AlgebraMapId;
 
+use crate::runtime::values::numeric_clone::clone_integer;
+
 use super::types::{Group, GroupElement, Subgroup};
 
 /// 群论域返回值。
@@ -22,4 +24,25 @@ pub enum GroupDomainValue {
     AlgebraMap(AlgebraMapId),
     /// 占位。
     Placeholder,
+}
+
+impl GroupDomainValue {
+    /// Owning 复制：`Integer` 经 GC [`clone_integer`]。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Group(g) => Self::Group(g.owning_copy()),
+            Self::Element(e) => Self::Element(e.owning_copy()),
+            Self::Boolean(b) => Self::Boolean(*b),
+            Self::Integer(n) => Self::Integer(clone_integer(n)),
+            Self::Subgroup(s) => Self::Subgroup(s.owning_copy()),
+            Self::AlgebraMap(id) => Self::AlgebraMap(*id),
+            Self::Placeholder => Self::Placeholder,
+        }
+    }
+}
+
+impl Clone for GroupDomainValue {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }
