@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 群论 — 有限群 / 置换群对象与运算。
 //!
 //! 已实现：置换 presentation、BSGS、子群/同态/商。抽象群与 Cayley 表等待扩展。

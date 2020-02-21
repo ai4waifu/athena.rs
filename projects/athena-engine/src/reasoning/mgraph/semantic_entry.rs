@@ -251,9 +251,14 @@ mod tests {
 
     #[test]
     fn calculus_goal_computes_when_session_graph_empty() {
+        use athena_ir::{Atom, TermNode};
+        use athena_types::SourceSpan;
+
         let mut session = Session::new();
+        let expression =
+            session.arena.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), SourceSpan::default());
         let goal = DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
+            expression,
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),

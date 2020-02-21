@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 线性代数领域模块（`athena-engine` 内）。
 //!
 //! 矩阵父对象 / shape / layout / `IndexSpec` / 构造与基础算子。

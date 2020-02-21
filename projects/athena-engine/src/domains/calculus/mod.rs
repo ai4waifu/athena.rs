@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 高等数学 — 求导、积分、极限、级数、向量微积分、ODE、变换、留数。
 //!
 //! Living `28`：typed `CalculusRequest`（Goal）→ `DomainExecutionContext` → `CalculusResult`。

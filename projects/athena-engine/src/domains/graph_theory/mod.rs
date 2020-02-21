@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 图论领域模块（`athena-engine` 内，非独立 crate）。
 //!
 //! 图论算法调用 [`athena_graph`] 结构原语。数学结论与证书合同在本模块。

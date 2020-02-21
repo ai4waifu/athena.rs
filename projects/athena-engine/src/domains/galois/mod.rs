@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 伽罗瓦理论 — 扩张性质、自同构、伽罗瓦群。
 //!
 //! 已实现：`𝔽_{pⁿ}/𝔽_p` 上可分/正规/`IsGalois`、Frobenius 自同构，

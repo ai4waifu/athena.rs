@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 数论领域 — gcd / 素性 / 分解 / 模运算 / 同余（Gate 1 + P1/P2）。
 //!
 //! 结果带完整性与确定性元数据；禁止把 probable 素性当成确定 `Prime`，

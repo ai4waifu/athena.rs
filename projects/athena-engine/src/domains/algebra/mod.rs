@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 统一代数父对象内核：域/群/伽罗瓦/多项式共享的 parent、map、presentation 边界。
 //!
 //! `group` / `field` / `galois` / `polynomial` 均引用本模块的类型边界，

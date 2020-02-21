@@ -45,7 +45,7 @@ pub enum PlanBinding {
 /// A Reflector-selected plan waiting for a bound [`DomainRequest`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueuedPlan {
-    /// PlanIR steps (must include `CallDomainProvider` to run).
+    /// `DomainPlan` steps (must include `CallDomainProvider` to run).
     pub plan: DomainPlan,
     /// Obligation that produced `NeedComputation`.
     pub obligation: ProofObligation,
@@ -174,7 +174,7 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
 
 /// Execute one queued plan with a caller-bound request (AdmissionGate on exact results).
 ///
-/// Walks PlanIR via [`interpret_domain_plan`]. Polynomial provider uses
+/// Walks [`DomainPlan`] via [`interpret_domain_plan`]. Polynomial provider uses
 /// `execute_polynomial_mgraph`; calculus exact results admit after materialize.
 pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;

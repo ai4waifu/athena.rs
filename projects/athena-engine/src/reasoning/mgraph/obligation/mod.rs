@@ -111,7 +111,16 @@ mod tests {
         let obligation = ProofObligation { predicate: PredicateId(0), scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
         match AlwaysCompute.reflect(&obligation, &view) {
             Reflection::NeedComputation { plan } => {
-                assert_eq!(plan.steps, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
+                assert_eq!(
+                    plan.steps,
+                    vec![
+                        PlanStep::Normalize,
+                        PlanStep::SelectRepresentation,
+                        PlanStep::CallDomainProvider,
+                        PlanStep::Verify,
+                        PlanStep::MaterializeResult,
+                    ]
+                );
             }
             other => panic!("expected NeedComputation, got {other:?}"),
         }

@@ -1,6 +1,6 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
-//! Living `28`：`DomainRequest` → [`plan_domain`] → PlanIR → [`interpret_domain_plan`] → `DomainResult`。
+//! Living `28`：`DomainRequest` → [`plan_domain`] → [`DomainPlan`] → [`interpret_domain_plan`] → `DomainResult`。
 //! 微积分、数论、多项式、群、域、伽罗瓦、图论、线性代数、优化经此入口进入 `athena-engine`。
 
 use athena_types::Diagnostic;
@@ -69,7 +69,7 @@ pub enum DomainResult {
     Optimization(OptimizationResult),
 }
 
-/// 分派顶层 [`DomainRequest`]（经 DomainPlanner PlanIR 逐步解释）。
+/// 分派顶层 [`DomainRequest`]（经 DomainPlanner 产出 [`DomainPlan`] 并逐步解释）。
 ///
 /// 微积分分支读写 `session` arena；其余域暂不依赖 session。
 pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
@@ -78,7 +78,7 @@ pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<D
     Ok(result)
 }
 
-/// Invoke the owning domain provider (PlanIR `CallDomainProvider` body).
+/// Invoke the owning domain provider (`DomainPlan` `CallDomainProvider` body).
 pub(crate) fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),

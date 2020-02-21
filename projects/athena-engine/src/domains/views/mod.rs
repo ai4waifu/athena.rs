@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 跨领域 TypedView（Living `28`）。
 //!
 //! View 只读、带 fingerprint / revision，不拥有 DomainObject payload。

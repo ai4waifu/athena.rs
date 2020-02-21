@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 优化与规划领域模块（`athena-engine` 内，非独立 crate）。
 //!
 //! Living `16`：优化不是 [`crate::domains::solve`] 的别名。本模块拥有问题身份、变量/约束/目标、

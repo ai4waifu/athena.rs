@@ -1,15 +1,15 @@
-//! Domain planner / PlanIR scaffold (Living `28`).
+//! Domain planner / `DomainPlan` scaffold (Living `28`).
 //!
 //! Goal describes intent. Algorithm / representation / backend choices belong here —
 //! not inside domain providers as hidden `if len > …` policy.
 //!
 //! Bootstrap plans are interpreted by [`crate::domains::plan_exec::interpret_domain_plan`].
-//! Default shape: `Normalize` → `CallDomainProvider` → `Verify` → `MaterializeResult`.
+//! Default shape: `Normalize` → `SelectRepresentation` → `CallDomainProvider` → `Verify` → `MaterializeResult`.
 //! Series-family calculus goals insert `CrossDomainView` after the provider.
 
 use crate::domains::{calculus::CalculusRequest, dispatch::DomainRequest};
 
-/// One step in a domain execution plan (PlanIR atom).
+/// One step in a [`DomainPlan`] (planner atom · not an IR layer).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlanStep {
     /// Normalize / coerce inputs to the selected representation.
@@ -31,7 +31,7 @@ pub enum PlanStep {
 /// Planned execution for one [`DomainRequest`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainPlan {
-    /// Ordered PlanIR steps.
+    /// Ordered [`PlanStep`]s.
     pub steps: Vec<PlanStep>,
 }
 
@@ -45,6 +45,7 @@ pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
             DomainPlan {
                 steps: vec![
                     PlanStep::Normalize,
+                    PlanStep::SelectRepresentation,
                     PlanStep::CallDomainProvider,
                     PlanStep::CrossDomainView,
                     PlanStep::Verify,
@@ -52,7 +53,15 @@ pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
                 ],
             }
         }
-        _ => DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult] },
+        _ => DomainPlan {
+            steps: vec![
+                PlanStep::Normalize,
+                PlanStep::SelectRepresentation,
+                PlanStep::CallDomainProvider,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ],
+        },
     }
 }
 
@@ -71,7 +80,16 @@ mod tests {
             assumptions: AssumptionSet::empty(),
         });
         let plan = plan_domain(&request);
-        assert_eq!(plan.steps, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
+        assert_eq!(
+            plan.steps,
+            vec![
+                PlanStep::Normalize,
+                PlanStep::SelectRepresentation,
+                PlanStep::CallDomainProvider,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ]
+        );
     }
 
     #[test]
@@ -86,7 +104,14 @@ mod tests {
         let plan = plan_domain(&request);
         assert_eq!(
             plan.steps,
-            vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::CrossDomainView, PlanStep::Verify, PlanStep::MaterializeResult,]
+            vec![
+                PlanStep::Normalize,
+                PlanStep::SelectRepresentation,
+                PlanStep::CallDomainProvider,
+                PlanStep::CrossDomainView,
+                PlanStep::Verify,
+                PlanStep::MaterializeResult,
+            ]
         );
     }
 }

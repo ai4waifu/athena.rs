@@ -23,7 +23,7 @@ impl SemanticReflector for PolynomialReflector {
         if obligation.known_objects.is_empty() {
             return Reflection::NeedObject { object_kind: "PolynomialRef" };
         }
-        // PlanIR from DomainPlanner (Normalize → … → Materialize). Object identity
+        // `DomainPlan` from DomainPlanner (Normalize → … → Materialize). Object identity
         // is already carried by the obligation fingerprint; request is rebound at execute.
         let scaffold = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: crate::domains::polynomial::PolynomialRef(0) });
         Reflection::NeedComputation { plan: plan_domain(&scaffold) }

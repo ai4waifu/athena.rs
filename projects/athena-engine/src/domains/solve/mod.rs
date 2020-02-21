@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! Solve 数学合同：`Constraint` / `SolveProblem` / `SolutionSet`。
 //!
 //! 与 [`crate::reasoning::solver`] 调度协议分离：

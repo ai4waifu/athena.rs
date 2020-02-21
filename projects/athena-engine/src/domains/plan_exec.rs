@@ -1,4 +1,4 @@
-//! PlanIR step interpreter (Living `28` / `29`).
+//! `DomainPlan` step interpreter (Living `28` / `29`).
 //!
 //! Reflector / domain dispatch walk [`DomainPlan`] steps instead of treating
 //! `CallDomainProvider` as the only real action with the rest as comments.
@@ -9,6 +9,8 @@ use crate::{
     domains::{
         calculus::{CalculusResult, CalculusValue},
         dispatch::{DomainRequest, DomainResult},
+        plan_normalize::normalize_domain_request,
+        plan_select::select_domain_representation,
         planner::{DomainPlan, PlanStep},
         verify_replay::{VerifySnapshot, verify_recompute_domain_result},
         views::SeriesPolynomialView,
@@ -21,6 +23,14 @@ use crate::{
 pub struct PlanStepReport {
     /// Steps that successfully ran, in order.
     pub executed: Vec<PlanStep>,
+    /// Whether [`PlanStep::Normalize`] ran (validation / coercion).
+    pub normalized: bool,
+    /// Whether Normalize rewrote at least one polynomial handle.
+    pub normalize_coerced: bool,
+    /// Whether [`PlanStep::SelectRepresentation`] ran.
+    pub representation_selected: bool,
+    /// Selected representation family label (when SelectRepresentation ran).
+    pub selected_representation: Option<&'static str>,
     /// Whether [`PlanStep::CallDomainProvider`] ran.
     pub provider_invoked: bool,
     /// Whether [`PlanStep::Verify`] ran.
@@ -33,13 +43,15 @@ pub struct PlanStepReport {
     pub cross_domain_view: bool,
 }
 
-/// Run PlanIR steps with a single provider callback (invoked at most once).
+/// Run [`DomainPlan`] steps with a single provider callback (invoked at most once).
 ///
 /// Bootstrap semantics:
-/// - `Normalize` / `SelectRepresentation` — acknowledged markers (no hidden policy).
+/// - `Normalize` — validate DomainObject / term handles and coerce polynomial refs
+///   onto canonical interned identities. Refreshes the Verify snapshot.
+/// - `SelectRepresentation` — acknowledge the active representation family for the request.
 /// - `CallDomainProvider` — invoke `provider` exactly once.
 /// - `CrossDomainView` — open TypedView after provider output exists.
-/// - `Verify` — recompute calculus/polynomial/linear-algebra/number-theory/graph-theory/optimization against claimed result; presence gate elsewhere.
+/// - `Verify` — independent domain recompute against claimed result.
 /// - `MaterializeResult` — seal the `DomainResult` for the host.
 /// - `EmitResidual` — allow completion alongside or instead of materialize.
 pub fn interpret_domain_plan<F>(
@@ -60,13 +72,26 @@ where
 
     let mut report = PlanStepReport::default();
     let mut result: Option<DomainResult> = None;
-    let verify_snapshot = VerifySnapshot::from_request(&request);
     let mut pending_request = Some(request);
+    let mut verify_snapshot = VerifySnapshot::from_request(pending_request.as_ref().expect("pending request"));
     let mut provider = Some(provider);
 
     for step in &plan.steps {
         match *step {
-            PlanStep::Normalize | PlanStep::SelectRepresentation => {
+            PlanStep::Normalize => {
+                let req = pending_request.take().ok_or_else(|| plan_err("request_already_consumed"))?;
+                let outcome = normalize_domain_request(session, req)?;
+                verify_snapshot = VerifySnapshot::from_request(&outcome.request);
+                report.normalized = true;
+                report.normalize_coerced = outcome.coerced;
+                pending_request = Some(outcome.request);
+                report.executed.push(*step);
+            }
+            PlanStep::SelectRepresentation => {
+                let req = pending_request.as_ref().ok_or_else(|| plan_err("request_already_consumed"))?;
+                let selected = select_domain_representation(session, req)?;
+                report.representation_selected = true;
+                report.selected_representation = Some(selected.family);
                 report.executed.push(*step);
             }
             PlanStep::CallDomainProvider => {
@@ -142,13 +167,19 @@ mod tests {
         calculus::{CalculusRequest, DerivativeOrder},
         planner::plan_domain,
     };
-    use athena_types::{AssumptionSet, SymbolId, TermId};
+    use athena_ir::{Atom, TermNode};
+    use athena_types::{AssumptionSet, SourceSpan, SymbolId, TermId};
+
+    fn push_number_term(session: &mut Session, n: i64) -> TermId {
+        session.arena.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(n))), SourceSpan::default())
+    }
 
     #[test]
     fn interpret_runs_normalize_verify_materialize() {
         let mut session = Session::new();
+        let expression = push_number_term(&mut session, 1);
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
+            expression,
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
@@ -158,14 +189,15 @@ mod tests {
             .expect("interpret");
         assert!(matches!(result, DomainResult::Calculus(_)));
         assert_eq!(report.executed, vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult,]);
-        assert!(report.provider_invoked && report.verified && report.materialized);
+        assert!(report.provider_invoked && report.verified && report.materialized && report.normalized);
     }
 
     #[test]
     fn interpret_rejects_verify_before_provider() {
         let mut session = Session::new();
+        let expression = push_number_term(&mut session, 1);
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
+            expression,
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
@@ -179,8 +211,9 @@ mod tests {
     #[test]
     fn interpret_rejects_forged_calculus_on_verify() {
         let mut session = Session::new();
+        let expression = push_number_term(&mut session, 1);
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
+            expression,
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
@@ -199,8 +232,9 @@ mod tests {
     #[test]
     fn plan_domain_default_is_interpretable() {
         let mut session = Session::new();
+        let expression = push_number_term(&mut session, 2);
         let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
+            expression,
             variable: SymbolId(0),
             order: DerivativeOrder::First,
             assumptions: AssumptionSet::empty(),
@@ -210,5 +244,63 @@ mod tests {
             interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
                 .expect("default plan");
         assert!(report.provider_invoked && report.verified && report.materialized);
+        assert!(report.normalized);
+        assert!(report.representation_selected);
+        assert_eq!(report.selected_representation, Some("term_store"));
+    }
+
+    #[test]
+    fn normalize_rejects_missing_calculus_term() {
+        let mut session = Session::new();
+        let request = DomainRequest::Calculus(CalculusRequest::Derivative {
+            expression: TermId(0),
+            variable: SymbolId(0),
+            order: DerivativeOrder::First,
+            assumptions: AssumptionSet::empty(),
+        });
+        let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::MaterializeResult] };
+        let err = interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+            .expect_err("missing");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("missing_term_id"));
+    }
+
+    #[test]
+    fn normalize_rejects_missing_polynomial_ref() {
+        use crate::domains::polynomial::{PolynomialRef, PolynomialRequest};
+
+        let mut session = Session::new();
+        let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: PolynomialRef(99) });
+        let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::MaterializeResult] };
+        let err = interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+            .expect_err("missing");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("missing_polynomial_ref"));
+    }
+
+    #[test]
+    fn normalize_rejects_missing_matrix_ref() {
+        use crate::domains::linear_algebra::{LinearAlgebraRequest, MatrixRef};
+
+        let mut session = Session::new();
+        let request = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: MatrixRef(7) });
+        let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::MaterializeResult] };
+        let err = interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r))
+            .expect_err("missing");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("missing_matrix_ref"));
+    }
+
+    #[test]
+    fn normalize_accepts_existing_polynomial_ref() {
+        use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest};
+        use athena_types::SymbolId;
+
+        let mut session = Session::new();
+        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
+        let poly = PolynomialBuilder::new(ring).build(&session.rings).expect("zero");
+        let poly_ref = session.polynomial_objects.intern(poly, &session.rings);
+        let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
+        let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::Verify, PlanStep::MaterializeResult] };
+        let (_result, report) =
+            interpret_domain_plan(&mut session, &plan, request, |s, r| crate::domains::dispatch::call_domain_provider(s, r)).expect("ok");
+        assert!(report.normalized && report.provider_invoked && report.verified);
     }
 }

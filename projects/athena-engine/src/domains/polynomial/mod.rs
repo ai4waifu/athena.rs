@@ -1,3 +1,5 @@
+#![doc = include_str!("readme.md")]
+
 //! 多项式代数 — 环上的稀疏多项式（骨架）。
 //!
 //! 重型算法只在本模块；`athena-rewriter` 仅做轻量规范化。

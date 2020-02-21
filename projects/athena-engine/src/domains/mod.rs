@@ -12,6 +12,8 @@ pub mod linear_algebra;
 pub mod number_theory;
 pub mod optimization;
 pub mod plan_exec;
+pub mod plan_normalize;
+pub mod plan_select;
 pub mod planner;
 pub mod polynomial;
 pub mod solve;

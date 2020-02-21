@@ -1,9 +1,9 @@
-//! PlanIR `Verify` recalculation (Living `28` / `29` bootstrap).
+//! `DomainPlan` `Verify` recalculation (Living `28` / `29` bootstrap).
 //!
 //! Re-runs calculus / polynomial / linear-algebra / number-theory / graph-theory /
-//! optimization / group-theory providers and compares against the claimed
-//! `DomainResult`. Other domains keep a typed-presence gate until they gain
-//! independent verifiers.
+//! optimization / group-theory / field-theory / galois-theory providers and
+//! compares against the claimed `DomainResult`. Domains without independent
+//! verifiers keep a typed-presence gate.
 //!
 //! **Does not** write AdmissionGate / SemanticCore. Certificate↔proposition
 //! matching remains in [`crate::reasoning::mgraph::EvidenceVerifier`].
@@ -14,6 +14,8 @@ use crate::{
     domains::{
         calculus::{CalculusRequest, CalculusResult, CalculusValue, execute_calculus},
         dispatch::{DomainRequest, DomainResult},
+        field::{FieldRequest, FieldResult, execute_field_with_table_mut},
+        galois::{GaloisRequest, GaloisResult, execute_galois_with_tables},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         group::{GroupRequest, GroupResult, execute_group_with_table_mut},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
@@ -41,6 +43,10 @@ pub enum VerifySnapshot {
     Optimization(OptimizationRequest),
     /// Owning copy of a group-theory request (GC `owning_copy`).
     GroupTheory(GroupRequest),
+    /// Owning copy of a field-theory request (GC `owning_copy`).
+    FieldTheory(FieldRequest),
+    /// Clone of a galois-theory request (`Polynomial` via GC `owning_copy`).
+    GaloisTheory(GaloisRequest),
     /// Domains without independent recompute yet.
     PresenceOnly,
 }
@@ -56,12 +62,14 @@ impl VerifySnapshot {
             DomainRequest::GraphTheory(req) => Self::GraphTheory(req.clone()),
             DomainRequest::Optimization(req) => Self::Optimization(req.clone()),
             DomainRequest::GroupTheory(req) => Self::GroupTheory(req.owning_copy()),
+            DomainRequest::FieldTheory(req) => Self::FieldTheory(req.owning_copy()),
+            DomainRequest::GaloisTheory(req) => Self::GaloisTheory(req.clone()),
             _ => Self::PresenceOnly,
         }
     }
 }
 
-/// Recompute and compare claimed provider output (PlanIR Verify body).
+/// Recompute and compare claimed provider output (`DomainPlan` Verify body).
 pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySnapshot, claimed: &DomainResult) -> Result<(), Diagnostic> {
     match snapshot {
         VerifySnapshot::Calculus(req) => {
@@ -122,6 +130,23 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             // Recompute against Session `groups` table (independent of M-Graph cache admit).
             let replay = execute_group_with_table_mut(req.owning_copy(), &mut session.groups);
             assert_group_theory_match(&replay, claimed_group)
+        }
+        VerifySnapshot::FieldTheory(req) => {
+            let DomainResult::FieldTheory(claimed_field) = claimed
+            else {
+                return Err(verify_err("field_theory_result_kind_mismatch"));
+            };
+            // Recompute against Session field table (independent of M-Graph cache admit).
+            let replay = execute_field_with_table_mut(req.owning_copy(), session.rings.field_table_mut());
+            assert_field_theory_match(&replay, claimed_field)
+        }
+        VerifySnapshot::GaloisTheory(req) => {
+            let DomainResult::GaloisTheory(claimed_galois) = claimed
+            else {
+                return Err(verify_err("galois_theory_result_kind_mismatch"));
+            };
+            let replay = execute_galois_with_tables(req.clone(), session.rings.field_table_mut(), &mut session.groups);
+            assert_galois_theory_match(&replay, claimed_galois)
         }
         VerifySnapshot::PresenceOnly => match claimed {
             DomainResult::Calculus(_)
@@ -310,6 +335,50 @@ fn assert_group_theory_match(replay: &GroupResult, claimed: &GroupResult) -> Res
             Ok(())
         }
         _ => Err(verify_err("group_theory_result_shape_mismatch")),
+    }
+}
+
+fn assert_field_theory_match(replay: &FieldResult, claimed: &FieldResult) -> Result<(), Diagnostic> {
+    match (replay, claimed) {
+        (FieldResult::Exact { value: rv }, FieldResult::Exact { value: cv }) => {
+            if rv != cv {
+                return Err(verify_err("field_theory_recompute_mismatch"));
+            }
+            Ok(())
+        }
+        (FieldResult::Unevaluated { reason: rr }, FieldResult::Unevaluated { reason: cr }) => {
+            let rrs = rr.details.get("reason").map(|v| v.to_string());
+            let crs = cr.details.get("reason").map(|v| v.to_string());
+            let rop = rr.details.get("operation").map(|v| v.to_string());
+            let cop = cr.details.get("operation").map(|v| v.to_string());
+            if rrs != crs || rop != cop {
+                return Err(verify_err("field_theory_error_reason_mismatch"));
+            }
+            Ok(())
+        }
+        _ => Err(verify_err("field_theory_result_shape_mismatch")),
+    }
+}
+
+fn assert_galois_theory_match(replay: &GaloisResult, claimed: &GaloisResult) -> Result<(), Diagnostic> {
+    match (replay, claimed) {
+        (GaloisResult::Exact { value: rv }, GaloisResult::Exact { value: cv }) => {
+            if rv != cv {
+                return Err(verify_err("galois_theory_recompute_mismatch"));
+            }
+            Ok(())
+        }
+        (GaloisResult::Unevaluated { reason: rr }, GaloisResult::Unevaluated { reason: cr }) => {
+            let rrs = rr.details.get("reason").map(|v| v.to_string());
+            let crs = cr.details.get("reason").map(|v| v.to_string());
+            let rop = rr.details.get("operation").map(|v| v.to_string());
+            let cop = cr.details.get("operation").map(|v| v.to_string());
+            if rrs != crs || rop != cop {
+                return Err(verify_err("galois_theory_error_reason_mismatch"));
+            }
+            Ok(())
+        }
+        _ => Err(verify_err("galois_theory_result_shape_mismatch")),
     }
 }
 
@@ -575,5 +644,80 @@ mod tests {
         });
         let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
         assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("group_theory_recompute_mismatch"));
+    }
+
+    #[test]
+    fn field_theory_prime_field_recompute_accepts_honest_claim() {
+        use crate::domains::field::{FieldRequest, execute_field_with_table_mut};
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        let request = FieldRequest::PrimeField { characteristic: Integer::from_i64(5) };
+        let honest = DomainResult::FieldTheory(execute_field_with_table_mut(
+            request.owning_copy(),
+            session.rings.field_table_mut(),
+        ));
+        let snapshot = VerifySnapshot::FieldTheory(request);
+        verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
+    }
+
+    #[test]
+    fn field_theory_forged_lookup_fails_recompute() {
+        use crate::domains::field::{FieldDomainValue, FieldRequest, FieldResult, execute_field_with_table_mut};
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        let field = match execute_field_with_table_mut(
+            FieldRequest::PrimeField { characteristic: Integer::from_i64(7) },
+            session.rings.field_table_mut(),
+        ) {
+            FieldResult::Exact { value: FieldDomainValue::Field(f) } => f.id,
+            other => panic!("expected field, got {other:?}"),
+        };
+        let snapshot = VerifySnapshot::FieldTheory(FieldRequest::Lookup { field });
+        let forged = DomainResult::FieldTheory(FieldResult::Exact { value: FieldDomainValue::Placeholder });
+        let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("field_theory_recompute_mismatch"));
+    }
+
+    #[test]
+    fn galois_theory_is_galois_recompute_accepts_honest_claim() {
+        use crate::domains::galois::{GaloisRequest, execute_galois_with_tables};
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        // 𝔽₄ = 𝔽₂[x]/(x²+x+1)
+        let field = session
+            .rings
+            .field_table_mut()
+            .polynomial_basis_field(Integer::from_i64(2), vec![Integer::from_i64(1), Integer::from_i64(1), Integer::from_i64(1)])
+            .expect("F4");
+        let extension = session.rings.field_table().extension_by_field(field).expect("ext").id;
+        let request = GaloisRequest::IsGalois { extension };
+        let honest = DomainResult::GaloisTheory(execute_galois_with_tables(
+            request.clone(),
+            session.rings.field_table_mut(),
+            &mut session.groups,
+        ));
+        let snapshot = VerifySnapshot::GaloisTheory(request);
+        verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
+    }
+
+    #[test]
+    fn galois_theory_forged_is_galois_fails_recompute() {
+        use crate::domains::galois::{GaloisDomainValue, GaloisRequest, GaloisResult};
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        let field = session
+            .rings
+            .field_table_mut()
+            .polynomial_basis_field(Integer::from_i64(2), vec![Integer::from_i64(1), Integer::from_i64(1), Integer::from_i64(1)])
+            .expect("F4");
+        let extension = session.rings.field_table().extension_by_field(field).expect("ext").id;
+        let snapshot = VerifySnapshot::GaloisTheory(GaloisRequest::IsGalois { extension });
+        let forged = DomainResult::GaloisTheory(GaloisResult::Exact { value: GaloisDomainValue::Boolean(false) });
+        let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
+        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("galois_theory_recompute_mismatch"));
     }
 }
