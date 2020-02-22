@@ -53,7 +53,7 @@ fn execute_request_domain_goal_preserves_domain_payload() {
     let loaded = session.results.get(result_id).expect("payload");
     assert_eq!(loaded.status, athena_types::ComputationStatus::Exact);
     assert_eq!(loaded.coverage, CoverageStatus::Full);
-    assert_eq!(loaded.provider, Some(ResultProviderId::NUMBER_THEORY));
+    assert_eq!(loaded.provider, Some(ResultProviderId::NUMBER_THEORY.stamped()));
     let value_id = loaded.value.expect("value");
     match session.values.get(value_id).expect("runtime") {
         RuntimeValue::Domain(athena_engine::domains::dispatch::DomainResult::NumberTheory(NumberTheoryResult::Exact {

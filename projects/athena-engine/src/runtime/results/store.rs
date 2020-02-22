@@ -29,6 +29,37 @@ impl ResultProviderId {
     pub const LINEAR_ALGEBRA: Self = Self(8);
     /// 优化。
     pub const OPTIMIZATION: Self = Self(9);
+
+    /// 结果层 provider 合同版本（Living `30` Frontier resume 兼容检查）。
+    ///
+    /// Bootstrap：全域统一从 `1` 起。破坏性变更时递增，旧 `ResumeToken` 不得静默继续。
+    pub const CONTRACT_VERSION: u32 = 1;
+
+    /// 附上当前合同版本。
+    pub const fn stamped(self) -> ResultProviderStamp {
+        ResultProviderStamp { id: self, version: Self::CONTRACT_VERSION }
+    }
+}
+
+/// Provider 身份 + 合同版本（结果 / Frontier 共用戳）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ResultProviderStamp {
+    /// Provider 身份。
+    pub id: ResultProviderId,
+    /// 合同版本（与 [`ResultProviderId::CONTRACT_VERSION`] 对齐时方可 resume）。
+    pub version: u32,
+}
+
+impl ResultProviderStamp {
+    /// 身份相同且版本精确匹配则兼容（bootstrap：禁止静默跨版本恢复）。
+    pub const fn compatible_with(self, other: Self) -> bool {
+        self.id.0 == other.id.0 && self.version == other.version
+    }
+
+    /// 是否匹配当前进程的合同版本。
+    pub const fn matches_current_contract(self) -> bool {
+        self.compatible_with(self.id.stamped())
+    }
 }
 
 /// 结果证据引用（typed evidence store 落地前的结果层句柄）。
@@ -81,8 +112,8 @@ pub struct ComputationResult {
     pub diagnostics: Vec<Diagnostic>,
     /// 证据引用（typed store 接入前可为空）。
     pub evidence: Vec<ResultEvidence>,
-    /// 产出 provider。
-    pub provider: Option<ResultProviderId>,
+    /// 产出 provider（含合同版本 · Living `30`）。
+    pub provider: Option<ResultProviderStamp>,
     /// 来源审计。
     pub provenance: Option<ResultProvenance>,
 }
@@ -121,9 +152,15 @@ impl ComputationResult {
         self
     }
 
-    /// 附加 provider。
+    /// 附加 provider（自动盖上当前合同版本戳）。
     pub fn with_provider(mut self, provider: ResultProviderId) -> Self {
-        self.provider = Some(provider);
+        self.provider = Some(provider.stamped());
+        self
+    }
+
+    /// 附加已显式版本化的 provider 戳。
+    pub fn with_provider_stamp(mut self, stamp: ResultProviderStamp) -> Self {
+        self.provider = Some(stamp);
         self
     }
 
@@ -185,5 +222,37 @@ impl ResultStore {
     /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.results.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use athena_types::ComputationStatus;
+
+    use super::{ComputationResult, ResultProviderId, ResultProviderStamp};
+    use crate::runtime::results::CoverageStatus;
+
+    #[test]
+    fn provider_stamp_uses_contract_version() {
+        let stamp = ResultProviderId::POLYNOMIAL.stamped();
+        assert_eq!(stamp.id, ResultProviderId::POLYNOMIAL);
+        assert_eq!(stamp.version, ResultProviderId::CONTRACT_VERSION);
+        assert!(stamp.matches_current_contract());
+    }
+
+    #[test]
+    fn provider_stamp_rejects_stale_version() {
+        let current = ResultProviderId::CALCULUS.stamped();
+        let stale = ResultProviderStamp { id: ResultProviderId::CALCULUS, version: 0 };
+        assert!(!current.compatible_with(stale));
+        assert!(!stale.matches_current_contract());
+    }
+
+    #[test]
+    fn computation_result_with_provider_stamps_version() {
+        let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+            .with_provider(ResultProviderId::NUMBER_THEORY);
+        assert_eq!(result.provider, Some(ResultProviderId::NUMBER_THEORY.stamped()));
+        assert_eq!(result.coverage, CoverageStatus::Full);
     }
 }

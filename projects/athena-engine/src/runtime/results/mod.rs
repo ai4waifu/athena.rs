@@ -4,7 +4,7 @@ mod from_domain;
 mod store;
 
 pub use from_domain::computation_from_domain;
-pub use store::{ComputationResult, ResultEvidence, ResultProvenance, ResultProviderId, ResultStore};
+pub use store::{ComputationResult, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp, ResultStore};
 
 /// 结果覆盖范围：禁止用 `complete: bool` 冒充。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

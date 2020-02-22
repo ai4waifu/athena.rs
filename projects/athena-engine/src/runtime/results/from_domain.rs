@@ -16,7 +16,9 @@ use crate::{
         polynomial::PolynomialResult,
     },
     runtime::{
-        results::{ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId},
+        results::{
+            ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp,
+        },
         session::Session,
         values::RuntimeValue,
     },
@@ -29,8 +31,8 @@ pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> C
     let mut result = ComputationResult::with_status(mapped.status, mapped.coverage)
         .with_value(value_id)
         .with_provenance(ResultProvenance::kind("DomainGoal"));
-    if let Some(provider) = mapped.provider {
-        result = result.with_provider(provider);
+    if let Some(stamp) = mapped.provider {
+        result = result.with_provider_stamp(stamp);
     }
     if let Some(term) = mapped.symbolic_term {
         result = result.with_symbolic_term(term);
@@ -54,7 +56,7 @@ struct DomainMeta {
     conditions: Vec<Condition>,
     diagnostics: Vec<Diagnostic>,
     evidence: Vec<ResultEvidence>,
-    provider: Option<ResultProviderId>,
+    provider: Option<ResultProviderStamp>,
 }
 
 fn map_domain_meta(domain: &DomainResult) -> DomainMeta {
@@ -80,7 +82,7 @@ fn map_calculus(result: &CalculusResult<CalculusValue>) -> DomainMeta {
             conditions: conditions.clone(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::CALCULUS),
+            provider: Some(ResultProviderId::CALCULUS.stamped()),
         },
         CalculusResult::Conditional { value, conditions } => DomainMeta {
             status: ComputationStatus::Conditional,
@@ -89,7 +91,7 @@ fn map_calculus(result: &CalculusResult<CalculusValue>) -> DomainMeta {
             conditions: conditions.clone(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::CALCULUS),
+            provider: Some(ResultProviderId::CALCULUS.stamped()),
         },
         CalculusResult::Unevaluated { expression, reason } => DomainMeta {
             status: ComputationStatus::Unknown,
@@ -98,7 +100,7 @@ fn map_calculus(result: &CalculusResult<CalculusValue>) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: vec![reason.clone()],
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::CALCULUS),
+            provider: Some(ResultProviderId::CALCULUS.stamped()),
         },
     }
 }
@@ -120,7 +122,7 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::NUMBER_THEORY),
+            provider: Some(ResultProviderId::NUMBER_THEORY.stamped()),
         },
         NumberTheoryResult::Partial { .. } => DomainMeta {
             status: ComputationStatus::Partial,
@@ -129,7 +131,7 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::NUMBER_THEORY),
+            provider: Some(ResultProviderId::NUMBER_THEORY.stamped()),
         },
         NumberTheoryResult::ResourceLimited { .. } => DomainMeta {
             status: ComputationStatus::ResourceLimited,
@@ -138,7 +140,7 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::NUMBER_THEORY),
+            provider: Some(ResultProviderId::NUMBER_THEORY.stamped()),
         },
         NumberTheoryResult::Inconclusive { .. } => DomainMeta {
             status: ComputationStatus::Unknown,
@@ -147,7 +149,7 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::NUMBER_THEORY),
+            provider: Some(ResultProviderId::NUMBER_THEORY.stamped()),
         },
         NumberTheoryResult::InvalidInput { reason } => DomainMeta {
             status: ComputationStatus::Invalid,
@@ -156,7 +158,7 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: vec![reason.clone()],
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::NUMBER_THEORY),
+            provider: Some(ResultProviderId::NUMBER_THEORY.stamped()),
         },
         NumberTheoryResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::NUMBER_THEORY),
     }
@@ -207,7 +209,7 @@ fn map_linear_algebra(result: &LinearAlgebraResult) -> DomainMeta {
             conditions: Vec::new(),
             diagnostics: vec![diagnostic.clone()],
             evidence: Vec::new(),
-            provider: Some(ResultProviderId::LINEAR_ALGEBRA),
+            provider: Some(ResultProviderId::LINEAR_ALGEBRA.stamped()),
         },
     }
 }
@@ -237,7 +239,7 @@ fn map_optimization(result: &OptimizationResult) -> DomainMeta {
                 conditions: Vec::new(),
                 diagnostics: Vec::new(),
                 evidence: Vec::new(),
-                provider: Some(ResultProviderId::OPTIMIZATION),
+                provider: Some(ResultProviderId::OPTIMIZATION.stamped()),
             }
         }
         OptimizationResult::InvalidInput { reason } | OptimizationResult::Unevaluated { reason } => {
@@ -254,7 +256,7 @@ fn exact_provider(provider: ResultProviderId) -> DomainMeta {
         conditions: Vec::new(),
         diagnostics: Vec::new(),
         evidence: Vec::new(),
-        provider: Some(provider),
+        provider: Some(provider.stamped()),
     }
 }
 
@@ -266,6 +268,6 @@ fn unevaluated(reason: &Diagnostic, provider: ResultProviderId) -> DomainMeta {
         conditions: Vec::new(),
         diagnostics: vec![reason.clone()],
         evidence: Vec::new(),
-        provider: Some(provider),
+        provider: Some(provider.stamped()),
     }
 }

@@ -7,6 +7,8 @@ pub mod session;
 pub mod symbols;
 pub mod values;
 
-pub use results::{ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultStore};
+pub use results::{
+    ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp, ResultStore,
+};
 pub use session::{Session, TypedEgraphAdmitReport};
 pub use values::{RuntimeValue, ValueStore};
