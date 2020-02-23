@@ -16,7 +16,7 @@ use super::{
     solution::{BranchStatus, MultiplicityInfo, SolutionBranch, SolutionSet},
     value_table::{BindingValue, BindingValueTable},
 };
-use crate::runtime::values::numeric_clone::clone_number;
+use crate::runtime::{results::ResultProviderId, values::numeric_clone::clone_number};
 
 /// 一元根适配结果。
 #[derive(Debug, PartialEq)]
@@ -73,7 +73,7 @@ pub fn adapt_univariate_factorization(
     let frontier = match &coverage {
         CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
         _ if matches!(completeness, PolynomialFactorizationCompleteness::ResourceLimited) => {
-            Some(ResumeToken::empty(ResumeKind::UnivariateFactor))
+            Some(ResumeToken::empty_with_provider(ResumeKind::UnivariateFactor, ResultProviderId::POLYNOMIAL.stamped()))
         }
         _ => None,
     };

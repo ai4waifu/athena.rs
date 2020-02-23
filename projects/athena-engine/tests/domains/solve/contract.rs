@@ -6,6 +6,7 @@ use athena_engine::{
         SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SolveRelationKind,
     },
     reasoning::solver::{DomainRef, SolverOperation, SolverRequest},
+    runtime::ResultProviderId,
 };
 use athena_types::{AssumptionSetId, SymbolId, TermId};
 
@@ -49,7 +50,13 @@ fn coverage_gates_exact_union_find() {
     assert!(!CoverageStatus::LocalOnly.admits_exact_union_find());
     assert!(!CoverageStatus::CertifiedSubset.admits_exact_union_find());
     assert!(!CoverageStatus::Probable.admits_exact_union_find());
-    assert!(!CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::Cut) }.admits_exact_union_find());
+    assert!(!CoverageStatus::ResourceLimited {
+        frontier: ResumeToken::empty_with_provider(ResumeKind::Cut, ResultProviderId::POLYNOMIAL.stamped())
+    }
+    .admits_exact_union_find());
+    let stamped = ResumeToken::empty_with_provider(ResumeKind::Cut, ResultProviderId::POLYNOMIAL.stamped());
+    assert!(stamped.accepts_provider(ResultProviderId::POLYNOMIAL.stamped()));
+    assert!(!ResumeToken::empty(ResumeKind::Cut).accepts_provider(ResultProviderId::POLYNOMIAL.stamped()));
     assert!(CoverageStatus::LocalOnly.must_surface_to_renderer());
 }
 

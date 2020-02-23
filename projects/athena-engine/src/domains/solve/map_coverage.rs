@@ -1,8 +1,11 @@
 //! 覆盖状态映射（disposition / factorization → [`CoverageStatus`]）。
 
-use crate::domains::{
-    linear_algebra::{AlgorithmGuarantee, SolveDisposition},
-    polynomial::PolynomialFactorizationCompleteness,
+use crate::{
+    domains::{
+        linear_algebra::{AlgorithmGuarantee, SolveDisposition},
+        polynomial::PolynomialFactorizationCompleteness,
+    },
+    runtime::results::ResultProviderId,
 };
 
 use super::{
@@ -17,7 +20,9 @@ pub fn coverage_from_exact_disposition(disposition: &SolveDisposition) -> Covera
         // 仅有特解与自由列下标，尚无零空间基，不得声称完整参数族。
         SolveDisposition::Infinite { .. } => CoverageStatus::CertifiedSubset,
         SolveDisposition::Singular => CoverageStatus::Unsupported,
-        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::LinearExact) },
+        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited {
+            frontier: ResumeToken::empty_with_provider(ResumeKind::LinearExact, ResultProviderId::LINEAR_ALGEBRA.stamped()),
+        },
     }
 }
 
@@ -28,7 +33,9 @@ pub fn coverage_from_machine_disposition(disposition: &SolveDisposition, guarant
         SolveDisposition::Unique => CoverageStatus::LocalOnly,
         SolveDisposition::Singular | SolveDisposition::Inconsistent => CoverageStatus::LocalOnly,
         SolveDisposition::Infinite { .. } => CoverageStatus::CertifiedSubset,
-        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::LinearMachine) },
+        SolveDisposition::ResourceLimited => CoverageStatus::ResourceLimited {
+            frontier: ResumeToken::empty_with_provider(ResumeKind::LinearMachine, ResultProviderId::LINEAR_ALGEBRA.stamped()),
+        },
     }
 }
 
@@ -39,8 +46,8 @@ pub fn coverage_from_factorization(completeness: PolynomialFactorizationComplete
         PolynomialFactorizationCompleteness::Complete => CoverageStatus::Complete,
         PolynomialFactorizationCompleteness::Probable => CoverageStatus::Probable,
         PolynomialFactorizationCompleteness::Partial => CoverageStatus::CertifiedSubset,
-        PolynomialFactorizationCompleteness::ResourceLimited => {
-            CoverageStatus::ResourceLimited { frontier: ResumeToken::empty(ResumeKind::UnivariateFactor) }
-        }
+        PolynomialFactorizationCompleteness::ResourceLimited => CoverageStatus::ResourceLimited {
+            frontier: ResumeToken::empty_with_provider(ResumeKind::UnivariateFactor, ResultProviderId::POLYNOMIAL.stamped()),
+        },
     }
 }
