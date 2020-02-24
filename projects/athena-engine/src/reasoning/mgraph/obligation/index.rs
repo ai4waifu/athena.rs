@@ -103,7 +103,7 @@ mod tests {
         let local = ScopeRef(3);
         index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: local, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
-        scopes.add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines);
+        scopes.try_add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines).expect("refines");
 
         let miss = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::CONGRUENCE, FactId(1), &scopes);
         assert!(miss.wakes.is_empty());
@@ -121,7 +121,7 @@ mod tests {
         index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
         let local = ScopeRef(4);
-        scopes.add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines);
+        scopes.try_add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines).expect("refines");
         let report = index.wake_matching(local, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
         assert!(report.wakes.is_empty());
         assert_eq!(index.len(), 1);
@@ -134,15 +134,14 @@ mod tests {
         let b = ScopeRef(6);
         index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: a, known_objects: vec![] });
         let mut scopes = ScopeIndex::new();
-        scopes.add_relation(a, b, ScopeRelationKind::CompatibleWith);
-        scopes.add_relation(a, b, ScopeRelationKind::IncompatibleWith);
+        scopes.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith).expect("incompatible");
 
         let blocked = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
         assert!(blocked.wakes.is_empty());
         assert_eq!(index.len(), 1);
 
         let mut scopes2 = ScopeIndex::new();
-        scopes2.add_relation(a, b, ScopeRelationKind::CompatibleWith);
+        scopes2.try_add_relation(a, b, ScopeRelationKind::CompatibleWith).expect("compatible");
         let hit = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(10), &scopes2);
         assert_eq!(hit.wakes.len(), 1);
     }

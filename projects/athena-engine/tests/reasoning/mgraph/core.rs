@@ -92,7 +92,7 @@ fn scope_index_refines_edge() {
     let mut core = MGraphCore::new();
     let a = ScopeRef(1);
     let b = ScopeRef(2);
-    core.refine_scope(a, b);
+    core.refine_scope(a, b).expect("refines");
     assert!(core.scope_index().refines(a, b));
     let view = MGraphView::new(&core);
     assert_eq!(view.scope_edges().len(), 1);
@@ -107,7 +107,7 @@ fn find_accepted_transports_along_refines() {
     let mut semantic = SemanticCore::new();
     let local = Scope::UnderAssumptions(AssumptionSetId(0));
     let local_ref = scope_to_ref(local);
-    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL);
+    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL).expect("refines");
 
     admit_ok(&mut semantic, sample_claim(77));
     assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_some());
@@ -122,7 +122,7 @@ fn find_accepted_does_not_transport_upward() {
     let mut semantic = SemanticCore::new();
     let local = Scope::UnderAssumptions(AssumptionSetId(1));
     let local_ref = scope_to_ref(local);
-    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL);
+    semantic.core.refine_scope(local_ref, ScopeRef::UNCONDITIONAL).expect("refines");
 
     let mut claim = sample_claim(88);
     claim.scope = local;
@@ -219,7 +219,7 @@ fn find_accepted_consults_compatible_peer_locally() {
     let mut semantic = SemanticCore::new();
     let a = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(10)));
     let b = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(11)));
-    semantic.core.mark_scopes_compatible(a, b);
+    semantic.core.mark_scopes_compatible(a, b).expect("compatible");
 
     let mut claim = sample_claim(201);
     claim.scope = Scope::UnderAssumptions(AssumptionSetId(11));
@@ -236,8 +236,8 @@ fn find_accepted_skips_incompatible_ancestor() {
 
     let mut semantic = SemanticCore::new();
     let local = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(12)));
-    semantic.core.refine_scope(local, ScopeRef::UNCONDITIONAL);
-    semantic.core.mark_scopes_incompatible(local, ScopeRef::UNCONDITIONAL);
+    semantic.core.refine_scope(local, ScopeRef::UNCONDITIONAL).expect("refines");
+    semantic.core.mark_scopes_incompatible(local, ScopeRef::UNCONDITIONAL).expect("incompatible");
 
     admit_ok(&mut semantic, sample_claim(202));
     assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_some());
@@ -245,15 +245,27 @@ fn find_accepted_skips_incompatible_ancestor() {
 }
 
 #[test]
-fn incompatible_wins_over_compatible_peer() {
+fn registering_incompatible_after_compatible_is_rejected() {
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let a = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(13)));
+    let b = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(14)));
+    semantic.core.mark_scopes_compatible(a, b).expect("compatible");
+    let err = semantic.core.mark_scopes_incompatible(a, b).expect_err("merge conflict");
+    assert_eq!(err.reason_key(), "compatible_and_incompatible");
+    assert!(!semantic.core.scope_index().incompatible_with(a, b));
+}
+
+#[test]
+fn find_accepted_skips_incompatible_peer() {
     use athena_engine::reasoning::mgraph::predicates;
     use athena_types::AssumptionSetId;
 
     let mut semantic = SemanticCore::new();
     let a = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(13)));
     let b = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(14)));
-    semantic.core.mark_scopes_compatible(a, b);
-    semantic.core.mark_scopes_incompatible(a, b);
+    semantic.core.mark_scopes_incompatible(a, b).expect("incompatible");
 
     let mut claim = sample_claim(203);
     claim.scope = Scope::UnderAssumptions(AssumptionSetId(14));

@@ -7,4 +7,4 @@ pub mod theory;
 
 pub use derived::DerivedIndexes;
 pub use index::{RelationIndex, RelationRecord};
-pub use scope::{ScopeEdge, ScopeIndex};
+pub use scope::{ScopeEdge, ScopeIndex, ScopeRelationConflict};

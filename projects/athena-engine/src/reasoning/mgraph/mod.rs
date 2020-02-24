@@ -54,7 +54,7 @@ pub use polynomial::{
     POLYNOMIAL_PROVIDER_ID, PolynomialCacheEntry, PolynomialCacheTier, PolynomialMGraphStore, PolynomialWitness, witness_from_exact,
 };
 pub use reflectors::{CalculusReflector, PolynomialReflector};
-pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex};
+pub use relations::{DerivedIndexes, RelationIndex, RelationRecord, ScopeEdge, ScopeIndex, ScopeRelationConflict};
 pub use semantic_entry::{
     DomainSemanticOutcome, domain_result_from_semantic_outcome, execute_domain_goal, execute_domain_via_semantic_entry,
     obligation_from_domain_request,

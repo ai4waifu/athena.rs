@@ -24,7 +24,7 @@ use crate::reasoning::mgraph::{
     facts::claim::VerifiedClaim,
     relations::{
         index::{RelationIndex, RelationRecord},
-        scope::ScopeIndex,
+        scope::{ScopeIndex, ScopeRelationConflict},
     },
 };
 /// 闭包传播种子（按需扩展）。
@@ -71,18 +71,18 @@ impl MGraphCore {
     }
 
     /// 显式注册 scope 细化边（transport 规则的一部分）。
-    pub fn refine_scope(&mut self, from: ScopeRef, to: ScopeRef) {
-        self.scope_index.add_relation(from, to, ScopeRelationKind::Refines);
+    pub fn refine_scope(&mut self, from: ScopeRef, to: ScopeRef) -> Result<(), ScopeRelationConflict> {
+        self.scope_index.try_add_relation(from, to, ScopeRelationKind::Refines)
     }
 
     /// Register that `from` may consult local facts of `to` (Living `29` Compatible).
-    pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) {
-        self.scope_index.add_relation(from, to, ScopeRelationKind::CompatibleWith);
+    pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) -> Result<(), ScopeRelationConflict> {
+        self.scope_index.try_add_relation(from, to, ScopeRelationKind::CompatibleWith)
     }
 
     /// Register that `a` and `b` must not share query-time transport (Living `29` Incompatible).
-    pub fn mark_scopes_incompatible(&mut self, a: ScopeRef, b: ScopeRef) {
-        self.scope_index.add_relation(a, b, ScopeRelationKind::IncompatibleWith);
+    pub fn mark_scopes_incompatible(&mut self, a: ScopeRef, b: ScopeRef) -> Result<(), ScopeRelationConflict> {
+        self.scope_index.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith)
     }
 
     /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
