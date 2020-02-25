@@ -23,8 +23,8 @@ pub use collection::{CollectionKind, CollectionKindId};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, ExtensionOperatorId, FieldId,
-    FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, PolynomialId, PresentationId, ProofRef, ResultId,
-    RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
+    FieldPresentationId, FormId, FrontierId, GroupElementId, GroupId, GroupPresentationId, MatrixId, PolynomialId, PresentationId, ProofRef,
+    ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
 };
 pub use index_spec::{IndexSpec, IndexSpecId, IntegerIndex, IntegerOffset};
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};

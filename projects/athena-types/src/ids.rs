@@ -94,6 +94,12 @@ pub struct ValueId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResultId(pub u32);
 
+/// 可恢复计算前沿身份（Living `30` `FrontierStore` · Session-local）。
+///
+/// 不得与 [`TermId`] / [`ValueId`] / [`ResultId`] 互换。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct FrontierId(pub u32);
+
 /// 证明 / 证据引用身份。
 ///
 /// 不得混入表达式 equality，也不得与 [TermId] / [ValueId] / [ResultId] 互换。

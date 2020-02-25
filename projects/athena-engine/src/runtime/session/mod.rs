@@ -36,6 +36,7 @@ use crate::{
         mgraph::{AdmissionRejectReason, ClosureLimits, ClosureResult, FactId, MGraphState, VerificationPolicy},
     },
     runtime::{
+        frontier::FrontierStore,
         results::{ComputationResult, ResultStore},
         semantic::AssumptionScopeTable,
         values::{RuntimeValue, ValueStore},
@@ -87,6 +88,8 @@ pub struct Session {
     pub values: ValueStore,
     /// 计算结果存储（`ResultId` → [`ComputationResult`]）。
     pub results: ResultStore,
+    /// 可恢复前沿存储（`FrontierId` → [`crate::runtime::ComputationFrontier`] · Living `30`）。
+    pub frontiers: FrontierStore,
     /// 假设作用域 intern。
     pub assumption_scopes: AssumptionScopeTable,
     /// Session 级 `athena-gc` heap（object / numeric roots 编排）。
@@ -110,6 +113,7 @@ impl core::fmt::Debug for Session {
             .field("egraph_budget", &self.egraph_budget)
             .field("values", &self.values)
             .field("results", &self.results)
+            .field("frontiers", &self.frontiers)
             .field("assumption_scopes", &self.assumption_scopes)
             .field("heap_id", &self.heap.borrow().id())
             .finish()
@@ -146,6 +150,7 @@ impl Session {
             egraph_budget: SaturationBudget::smoke(),
             values: ValueStore::default(),
             results: ResultStore::default(),
+            frontiers: FrontierStore::new(),
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
         }
@@ -174,6 +179,11 @@ impl Session {
     /// 记录一次可观察计算结果。
     pub fn insert_result(&mut self, result: ComputationResult) -> athena_types::ResultId {
         self.results.insert(result)
+    }
+
+    /// 记录一次可恢复计算前沿（Living `30`）。
+    pub fn insert_frontier(&mut self, frontier: crate::runtime::ComputationFrontier) -> athena_types::FrontierId {
+        self.frontiers.insert(frontier)
     }
 
     /// 在本 Session 定义表上求值（唯一 `ExecutionIR` 路径）。

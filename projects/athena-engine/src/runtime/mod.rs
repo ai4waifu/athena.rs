@@ -6,7 +6,9 @@ pub mod semantic;
 pub mod session;
 pub mod symbols;
 pub mod values;
+pub mod frontier;
 
+pub use frontier::{ComputationFrontier, FrontierStore};
 pub use results::{
     ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp, ResultStore,
 };
