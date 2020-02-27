@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use athena_types::{AssumptionScope, AssumptionScopeId, Diagnostic, DiagnosticCode, Predicate};
+use athena_types::{AssumptionScope, AssumptionScopeId, Diagnostic, DiagnosticCode, Predicate, SymbolId};
 
 /// 假设作用域 intern 表。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -71,6 +71,30 @@ impl AssumptionScopeTable {
                 .detail("reason", "merge_conflict")
                 .detail("conflict_kind", format!("{:?}", c.kind))),
         }
+    }
+
+    /// 投影：展开继承谓词后，仅保留与给定符号相关的符号级谓词（Living `29` assumption projection bootstrap）。
+    ///
+    /// 返回**未 intern** 的扁平作用域（无 parent · 无 id）。项级谓词在符号未知时保守丢弃。
+    pub fn project_to_symbols(&self, id: AssumptionScopeId, symbols: &[SymbolId]) -> Result<AssumptionScope, Diagnostic> {
+        let scope = self.get(id).ok_or_else(|| missing(id))?;
+        let predicates = self.inherited_predicates(id)?;
+        let flat = AssumptionScope {
+            id: None,
+            parent: None,
+            predicates,
+            theory_context: scope.theory_context.clone(),
+            branch_policy: scope.branch_policy,
+            coefficient_domain: scope.coefficient_domain,
+            precision_policy: scope.precision_policy,
+        };
+        Ok(flat.project_to_symbols(symbols))
+    }
+
+    /// 投影并 intern 结果。
+    pub fn project_interned(&mut self, id: AssumptionScopeId, symbols: &[SymbolId]) -> Result<AssumptionScopeId, Diagnostic> {
+        let projected = self.project_to_symbols(id, symbols)?;
+        self.intern(projected)
     }
 
     /// 已登记数量。

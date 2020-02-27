@@ -93,6 +93,34 @@ fn assumption_scope_table_intern_inherit_and_merge() {
 }
 
 #[test]
+fn assumption_scope_table_projects_inherited_predicates_to_symbols() {
+    let mut table = AssumptionScopeTable::new();
+    let parent = table
+        .intern(AssumptionScope::from_predicates(vec![
+            Predicate::SymbolReal(SymbolId(0)),
+            Predicate::SymbolReal(SymbolId(1)),
+        ]))
+        .unwrap();
+    let child = table
+        .intern(AssumptionScope::inherit(
+            parent,
+            vec![Predicate::SymbolNonZero(SymbolId(0)), Predicate::Equal(TermId(9), TermId(10))],
+        ))
+        .unwrap();
+
+    let projected = table.project_to_symbols(child, &[SymbolId(0)]).unwrap();
+    assert!(projected.parent.is_none());
+    assert_eq!(
+        projected.predicates,
+        vec![Predicate::SymbolReal(SymbolId(0)), Predicate::SymbolNonZero(SymbolId(0))]
+    );
+
+    let projected_id = table.project_interned(child, &[SymbolId(1)]).unwrap();
+    let stored = table.get(projected_id).unwrap();
+    assert_eq!(stored.predicates, vec![Predicate::SymbolReal(SymbolId(1))]);
+}
+
+#[test]
 fn assumption_scope_table_rejects_local_conflict() {
     let mut table = AssumptionScopeTable::new();
     let bad = AssumptionScope::from_predicates(vec![Predicate::Equal(TermId(1), TermId(2)), Predicate::NotEqual(TermId(1), TermId(2))]);
