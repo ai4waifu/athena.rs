@@ -1,5 +1,32 @@
 # 群论
 
+## 问题：怎样计算一个抽象群
+
+Athena 当前用置换表示把群运算变成可执行问题：生成元作用在有限点集上，BSGS 链提供成员判定和群阶，子群与陪集进一步产生商群和同态。
+
+```mermaid
+flowchart LR
+    Gen["Permutation generators"] --> Validate[validate bijections]
+    Validate --> BSGS["BsgsChain\nbase + strong generators"]
+    BSGS --> Member[membership]
+    BSGS --> Order[group order]
+    BSGS --> Sub[subgroup from generators]
+    Sub --> Normal[normality]
+    Normal --> Quot[quotient generators]
+    BSGS --> Hom[group homomorphism]
+```
+
+| 表示 | 为什么使用 | 支持的计算 |
+|---|---|---|
+| `Permutation.images` | 有限、可验证、组合与逆明确 | 乘法、逆、作用 |
+| `BsgsChain` | 避免枚举整个群完成成员判定 | contains、order、元素生成 |
+| `SubgroupId` | 绑定 parent group | normality、coset、quotient |
+| `AlgebraMapId` | 固定同态 source/target | image、projection、inclusion |
+
+`GroupElement` 必须绑定 `GroupId`。相同 permutation images 在不同群里不是同一个元素。商群只有在正规性验证后才能登记 quotient projection，同态需要验证生成元关系后写入 `MapTable`。
+
+跨领域上，Galois 模块把域自同构组织成 permutation group，多项式与数域计算可查询群性质，但群模块不拥有域元素。源码阅读：[types.rs](./types.rs) → [canonical.rs](./canonical.rs) → [../algebra/bsgs.rs](../algebra/bsgs.rs) → [../algebra/group_table.rs](../algebra/group_table.rs) → [result.rs](./result.rs)。测试见 [algebra/group tests](../../../tests/domains/algebra/)。
+
 `group` 提供有限群和置换群的 typed 对象、元素运算与请求分派。元素携带所属群身份，跨群运算返回 `ATHENA_GROUP_MISMATCH` 类结构化诊断。
 
 ## 公开入口
@@ -19,63 +46,3 @@
 ## 测试
 
 群与相关扩张合同位于 `projects/athena-engine/tests/domains/algebra/`。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["group request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/group"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

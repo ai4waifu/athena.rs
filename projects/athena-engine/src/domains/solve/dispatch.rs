@@ -42,6 +42,20 @@ pub fn execute_linear_system_goal(
     }
 }
 
+/// 线性系统 goal，并将可选 `ResumeToken` 登记到 `Session.frontiers`。
+pub fn execute_linear_system_goal_with_session(
+    session: &mut crate::runtime::Session,
+    problem: &SolveProblem,
+    a: &MatrixValue,
+    b: &MatrixValue,
+    mode: LinearSolveMode,
+    goal_fingerprint: u64,
+) -> Result<LinearAdaptedSolution, Diagnostic> {
+    let mut adapted = execute_linear_system_goal(problem, a, b, mode)?;
+    adapted.register_frontier_on_session(session, goal_fingerprint);
+    Ok(adapted)
+}
+
 /// 校验 problem.goal 后执行一元多项式根 goal。
 pub fn execute_polynomial_root_goal(
     problem: &SolveProblem,
@@ -55,6 +69,20 @@ pub fn execute_polynomial_root_goal(
     }
     let unknown = problem.unknowns[0];
     solve_univariate_polynomial_roots(polynomial, rings, unknown, problem.domain.clone(), limits)
+}
+
+/// 一元根 goal，并将可选 `ResumeToken` 登记到 `Session.frontiers`。
+pub fn execute_polynomial_root_goal_with_session(
+    session: &mut crate::runtime::Session,
+    problem: &SolveProblem,
+    polynomial: Polynomial,
+    rings: &RingTable,
+    limits: PolynomialFactorLimits,
+    goal_fingerprint: u64,
+) -> Result<UnivariateAdaptedSolution, Diagnostic> {
+    let mut adapted = execute_polynomial_root_goal(problem, polynomial, rings, limits)?;
+    adapted.register_frontier_on_session(session, goal_fingerprint);
+    Ok(adapted)
 }
 
 /// Goal 不匹配时返回结构化诊断。

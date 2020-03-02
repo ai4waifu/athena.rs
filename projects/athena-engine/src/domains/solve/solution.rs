@@ -1,6 +1,8 @@
 //! 解集与分支。
 
-use athena_types::ProofRef;
+use athena_types::{FrontierId, ProofRef};
+
+use crate::runtime::{ComputationFrontier, Session};
 
 use super::{
     binding::{BindingMap, BoundSymbol},
@@ -68,28 +70,80 @@ pub struct SolutionSet {
     pub proof: Option<ProofRef>,
     /// 残差证书。
     pub residual: Option<ResidualCertificate>,
-    /// 可恢复前沿（亦可嵌在 `CoverageStatus::ResourceLimited`）。
+    /// 可恢复前沿令牌（亦可嵌在 `CoverageStatus::ResourceLimited`）。
     pub frontier: Option<ResumeToken>,
+    /// 已登记到 [`Session::frontiers`] 的统一前沿身份（Living `30`）。
+    pub frontier_id: Option<FrontierId>,
 }
 
 impl SolutionSet {
     /// 空解集且声明完整（无解的已证情形仍需单独 proof）。
     pub fn empty_complete(variables: Vec<BoundSymbol>, domain: SolveDomain) -> Self {
-        Self { variables, branches: Vec::new(), coverage: CoverageStatus::Complete, domain, proof: None, residual: None, frontier: None }
+        Self {
+            variables,
+            branches: Vec::new(),
+            coverage: CoverageStatus::Complete,
+            domain,
+            proof: None,
+            residual: None,
+            frontier: None,
+            frontier_id: None,
+        }
     }
 
     /// 局部-only 单分支包装（`FindRoot` / `fsolve` 路径）。
     pub fn local_only(variables: Vec<BoundSymbol>, domain: SolveDomain, branch: SolutionBranch) -> Self {
-        Self { variables, branches: vec![branch], coverage: CoverageStatus::LocalOnly, domain, proof: None, residual: None, frontier: None }
+        Self {
+            variables,
+            branches: vec![branch],
+            coverage: CoverageStatus::LocalOnly,
+            domain,
+            proof: None,
+            residual: None,
+            frontier: None,
+            frontier_id: None,
+        }
     }
 
     /// 模型查找子集（`FindInstance`，不得冒充完整）。
     pub fn certified_subset(variables: Vec<BoundSymbol>, domain: SolveDomain, branches: Vec<SolutionBranch>) -> Self {
-        Self { variables, branches, coverage: CoverageStatus::CertifiedSubset, domain, proof: None, residual: None, frontier: None }
+        Self {
+            variables,
+            branches,
+            coverage: CoverageStatus::CertifiedSubset,
+            domain,
+            proof: None,
+            residual: None,
+            frontier: None,
+            frontier_id: None,
+        }
     }
 
     /// 是否允许进入 exact union-find。
     pub fn admits_exact_union_find(&self) -> bool {
         self.coverage.admits_exact_union_find()
+    }
+
+    /// 若持有 `ResumeToken` 且尚未登记，则写入 `Session.frontiers` 并回填 `frontier_id`。
+    ///
+    /// 无令牌时为 no-op。已登记过则保持原 `frontier_id`。
+    pub fn register_frontier_on_session(
+        &mut self,
+        session: &mut Session,
+        goal_fingerprint: u64,
+        algorithm: Option<&'static str>,
+    ) -> Option<FrontierId> {
+        if self.frontier_id.is_some() {
+            return self.frontier_id;
+        }
+        let Some(resume) = self.frontier.clone()
+        else {
+            return None;
+        };
+        let mut record = ComputationFrontier::new(goal_fingerprint, resume);
+        record.algorithm = algorithm;
+        let id = session.insert_frontier(record);
+        self.frontier_id = Some(id);
+        Some(id)
     }
 }

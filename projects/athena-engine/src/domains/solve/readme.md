@@ -1,5 +1,62 @@
 # 方程求解
 
+## 问题：什么才算“解完了”
+
+求解并不等于找到一个代入后成立的值。Athena 必须区分完整解集、经过证明的子集、局部数值根、一个实例以及仍可继续的搜索。
+
+```mermaid
+flowchart LR
+    Input["constraints + variables + domain"] --> Normalize["normalize\nEquation · Inequality · Predicate"]
+    Normalize --> Problem["SolveProblem\ngoal · policy · limits"]
+    Problem --> Reflect["Reflector\n选择领域能力"]
+    Reflect --> Linear[linear algebra adapter]
+    Reflect --> Poly[univariate polynomial adapter]
+    Reflect --> Future[other providers]
+    Linear --> Branches[SolutionBranch]
+    Poly --> Branches
+    Future --> Branches
+    Branches --> Coverage[CoverageStatus]
+    Coverage --> Set[SolutionSet]
+```
+
+| 目标 | 结果语义 | 不能冒充 |
+|---|---|---|
+| 精确解集 | 所有 branch + full coverage | 一个可行实例 |
+| 数值根 | 局部收敛、误差和初值信息 | 全局解集 |
+| `FindInstance` 类目标 | 一个满足约束的 binding | 完备枚举 |
+| 参数解 | binding + conditions + free variables | 单个向量 |
+| 资源截断 | certified subset + `ResumeToken` | `Unknown` 或完整失败 |
+
+## 从约束到领域算法
+
+```mermaid
+sequenceDiagram
+    participant T as TermStore
+    participant N as normalize
+    participant S as SolveProblem
+    participant A as domain adapter
+    participant V as residual verifier
+    T->>N: relational applications
+    N->>S: ConstraintSet + BoundSymbol
+    S->>A: SolveGoal + domain + limits
+    A-->>V: candidate bindings / branches
+    V-->>S: ResidualCertificate
+    S-->>T: SolutionSet + CoverageStatus
+```
+
+`normalize_relational_application` 将中性 IR 变成 `Equation`、`Inequality`、逻辑连接和量词。`BoundSymbol` 与 `BindingId` 防止自由变量和局部绑定混淆。线性 adapter 消费 `ExactSolveResult` 或 machine witness，多项式 adapter 消费带完整性信息的因式分解。
+
+## 跨领域责任
+
+| 领域 | 向 Solve 提供什么 | Solve 额外负责什么 |
+|---|---|---|
+| 线性代数 | 唯一解、无解、欠定 disposition | 转成 branch、free variable 和 coverage |
+| 多项式 | 因子、根候选、分解完整性 | multiplicity、遗漏风险、solution branches |
+| 数值算法 | 局部近似根与误差 | 标记 local/approximate，不提升为 exact |
+| M-Graph | 已知关系与 proof ref | 复用事实并记录 residual certificate |
+
+源码阅读：[constraint.rs](./constraint.rs) → [normalize.rs](./normalize.rs) → [problem.rs](./problem.rs) / [goal.rs](./goal.rs) → [adapters_linear.rs](./adapters_linear.rs) / [adapters_univariate.rs](./adapters_univariate.rs) → [solution.rs](./solution.rs) / [coverage.rs](./coverage.rs)。测试见 [Solve tests](../../../tests/domains/solve/)。
+
 `solve` 定义跨领域求解的数学合同：约束、问题、目标、解集、覆盖度、条件和可恢复 frontier。调度协议位于 `reasoning::solver`，两者保持分离。
 
 ## 公开入口
@@ -19,63 +76,3 @@
 ## 边界与测试
 
 本模块不解析源语言，不定义 `SolverRequest`，也不创建 `athena-solver` crate。合同测试位于 `projects/athena-engine/tests/domains/solve/`。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["solve request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/solve"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

@@ -1,5 +1,62 @@
 # 多项式与环
 
+## 数学表示如何驱动算法
+
+```mermaid
+flowchart LR
+    Ring["RingDescriptor\n系数域 · 变量 · 单项式序"] --> Builder[PolynomialBuilder]
+    Builder --> Canon["canonicalize\n排序 · 合并 · 去零"]
+    Canon --> Sparse["CanonicalPolynomial\nMonomialTerm[]"]
+    Sparse --> Layout["MonomialLayout\npacked exponent"]
+    Layout --> Basic[加减乘除 / GCD]
+    Layout --> Buch[Buchberger]
+    Layout --> F4["F4 symbolic preprocessing\nMacaulay CSR"]
+    Buch --> Frontier[GroebnerFrontier]
+    F4 --> Frontier
+    Frontier --> Replay[verify_groebner_basis]
+    Replay --> Admission[M-Graph admission]
+```
+
+| 表示层 | 核心类型 | 不变量 | 直接影响的算法 |
+|---|---|---|---|
+| 环身份 | `RingDescriptor`、`RingFingerprint` | 系数域、变量序、单项式序共同决定身份 | 所有运算 |
+| 稀疏项 | `MonomialTerm` | 系数非零、指数长度等于变量数 | canonical、加乘、约化 |
+| 单项式布局 | `MonomialLayout`、`PackedMonomial` | exponent 宽度与 order 已编译 | F4、leading term、divides、LCM |
+| 物理表示 | `PolynomialRepr` | dense/sparse 转换保持数学相等 | kernel 选择 |
+| 对象引用 | `PolynomialRef` | 指向 `PolynomialObjectStore`，不携带 owning payload | request、cache、M-Graph |
+
+## 请求和算法分流
+
+| `PolynomialRequest` | 路径 | 中间资产 | 终态 |
+|---|---|---|---|
+| `Normalize` | canonicalize | 排序后的稀疏项 | `PolynomialValue` |
+| `Div` / `Gcd` | 单变量 Euclidean | quotient、remainder | `UnivariateDivisionValue` / polynomial |
+| `Factor` | 单变量因式分解 | factors、cofactor、limits | 完整或部分分解 |
+| `Groebner` | Buchberger | critical pairs、reduced basis | verified basis 或 frontier |
+| `GroebnerF4` | sugar 选择、symbolic preprocessing、Macaulay 消元 | CSR matrix、basis update | verified basis 或 frontier |
+| `ModularImage` | 映射到 `F_p` 环 | `ModularImage` | 模像 |
+| `CrtCombineModular` | CRT + Wang reconstruction | residue polynomial | 重构并 replay 的结果 |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Candidates: generators
+    Candidates --> Reducing: select S-pairs / F4 batch
+    Reducing --> Candidates: new leading term
+    Reducing --> Partial: limits exhausted
+    Partial --> Reducing: ResumeGroebner
+    Candidates --> Verify: no pending pairs
+    Verify --> Complete: all generators reduce and S-polynomials vanish
+    Verify --> Rejected: certificate replay fails
+```
+
+`GroebnerFrontier` 保存候选基、待处理 critical pairs、待插入多项式、sugar 和累计步数。它是可恢复算法状态，不是已经证明的 Gröbner 基。`GroebnerCertificate.complete` 与 verification 必须同时满足，结果才具备 exact witness。
+
+## 代码阅读路径
+
+[ring.rs](./ring.rs) / [ring_table.rs](./ring_table.rs) → [object.rs](./object.rs) / [object_ref.rs](./object_ref.rs) → [monomial_layout.rs](./monomial_layout.rs) / [repr.rs](./repr.rs) → [operations.rs](./operations.rs) / [univariate.rs](./univariate.rs) → [groebner.rs](./groebner.rs) / [f4.rs](./f4.rs) → [modular_image.rs](./modular_image.rs) → [certificate.rs](./certificate.rs) / [mgraph.rs](./mgraph.rs)。
+
+测试对应 [polynomial tests](../../../tests/domains/polynomial/)：[ring_contract.rs](../../../tests/domains/polynomial/ring_contract.rs) 验证环身份，[repr.rs](../../../tests/domains/polynomial/repr.rs) 与 [monomial_layout.rs](../../../tests/domains/polynomial/monomial_layout.rs) 验证表示，[f4.rs](../../../tests/domains/polynomial/f4.rs) / [groebner.rs](../../../tests/domains/polynomial/groebner.rs) 验证算法，[mgraph.rs](../../../tests/domains/polynomial/mgraph.rs) 验证 complete、partial、placeholder 和 admission。
+
 `polynomial` 是 Athena 的稀疏多项式领域，负责环身份、系数域、多项式对象、规范化和重型代数算法。长期表示使用 typed 对象和 monomial layout，不使用 `HashMap<String, Number>` 冒充数学对象。
 
 ## 能力
@@ -33,63 +90,3 @@
 ## 证据与失败
 
 引用失效、环不匹配、除零、预算耗尽和重构验证失败都返回结构化 `Diagnostic`。`complete=false` 的证书只能产生部分结果，不能写入 semantic M-Graph。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["polynomial request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/polynomial"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。重点顺序是 ring → object_ref → operations → groebner/f4 → modular_image → mgraph。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

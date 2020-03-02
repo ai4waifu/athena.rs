@@ -38,7 +38,10 @@ pub use constraint::{
     Constraint, ConstraintConnective, ConstraintSet, Equation, Inequality, InequalityOp, QuantifiedConstraint, Quantifier, SolvePredicate,
 };
 pub use coverage::CoverageStatus;
-pub use dispatch::{LinearSolveMode, execute_linear_system_goal, execute_polynomial_root_goal, require_goal};
+pub use dispatch::{
+    LinearSolveMode, execute_linear_system_goal, execute_linear_system_goal_with_session, execute_polynomial_root_goal,
+    execute_polynomial_root_goal_with_session, require_goal,
+};
 pub use domain::SolveDomain;
 pub use frontier::{ResumeKind, ResumeToken};
 pub use goal::SolveGoal;

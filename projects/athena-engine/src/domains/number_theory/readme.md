@@ -1,5 +1,60 @@
 # 数论
 
+## 从整数到可验证结论
+
+```mermaid
+flowchart TB
+    Z[Integer] --> Euclid["Euclidean core\ngcd · xgcd · lcm"]
+    Z --> Prime["primality pipeline"]
+    Prime --> PCert["PrimeCertificate / CompositeWitness"]
+    Z --> Producer["FactorProducer\ntrial · Fermat · Dixon · QS"]
+    Producer --> Frontier["FactorFrontier\nconfirmed factors · cofactor · budget"]
+    Z --> Modular["mod inverse / mod pow"]
+    Modular --> CRT["CRT / rational reconstruction"]
+    PCert --> Result[NumberTheoryResult]
+    Frontier --> Result
+    CRT --> Result
+```
+
+| 对象 | 它回答的问题 | 完整性信息 |
+|---|---|---|
+| `Primality` | `n` 是素数、合数还是概率素数 | certificate、witness 或 base selection |
+| `FactorComponent` | 某个因子及其指数 | prime/probable/composite 状态 |
+| `Factorization` | 已确认因子与剩余 cofactor | `FactorizationCompleteness` |
+| `FactorFrontier` | 分解从哪里继续 | producer、预算、待处理 cofactor |
+| `CongruenceSolution` | 线性同余的解类 | residue 与 modulus |
+| `RationalReconstruction` | residue 是否对应小有理数 | numerator、denominator、bound |
+
+## 分解状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> Strip: normalize sign / small factors
+    Strip --> Test: remaining cofactor
+    Test --> ProvenPrime: certificate succeeds
+    Test --> Split: composite witness
+    Split --> Test: enqueue factors
+    Split --> Frontier: budget exhausted
+    Frontier --> Split: factor_continue
+    ProvenPrime --> Verify: all components resolved
+    Verify --> Complete: product and certificates replay
+```
+
+`factor_integer_with_producer` 允许替换 factor producer，但不能改变结果合同。`factor_continue` 必须消费已有 frontier。`verify_factorization` 会重新乘回因子，并核对 cofactor 与素性证据。概率 Miller–Rabin 结果只能保持 `Probable`。
+
+## 算法族
+
+| 家族 | 实现入口 | 典型失败或非完成态 |
+|---|---|---|
+| 整数算术 | `isqrt`、`perfect_power_decomposition`、Jacobi/Kronecker | 负输入或非完全幂 |
+| Euclidean | `gcd`、`extended_gcd`、`lcm` | 仍返回精确 Bezout 关系 |
+| 素性 | `primality_test` | probable、composite witness |
+| 分解 | `fermat_split`、`dixon_split`、`qs_split` | frontier / resource limited |
+| 模算术 | `mod_inverse`、`mod_pow` | modulus 非法、逆不存在 |
+| 同余与重构 | `chinese_remainder`、`solve_linear_congruence`、`rational_reconstruction` | 非互素、不一致、超过界 |
+
+源码顺序为 [gcd.rs](./gcd.rs) / [arithmetic](./arithmetic/) → [primes.rs](./primes.rs) / [certificates.rs](./certificates.rs) → [factor](./factor/) → [modular.rs](./modular.rs) / [congruence](./congruence/) → [result.rs](./result.rs)。测试位于 [number theory tests](../../../tests/domains/number_theory/)，其中 [factor_pipeline.rs](../../../tests/domains/number_theory/factor_pipeline.rs) 与 [quadratic_sieve.rs](../../../tests/domains/number_theory/quadratic_sieve.rs) 负责分解完整性和恢复路径。
+
 `number_theory` 提供计算数论的精确例程、同余工具、素性与分解证据。结果使用 `NumberTheoryResult` 和 typed value，不让调用方从裸 `Vec` 猜测完整性。
 
 ## 能力
@@ -32,63 +87,3 @@
 ## 验证规则
 
 `verify_factorization` 重新计算乘积并检查素性证书。概率 Miller–Rabin 证据只能映射到 probable。资源耗尽保留已验证因子和剩余 cofactor，不能返回完整因式分解。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["number_theory request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/number_theory"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。重点顺序是 gcd/arithmetic → primes/certificates → factor/frontier → modular/congruence。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

@@ -1,4 +1,4 @@
-//! 数学领域 providers 与域分派。
+#![doc = include_str!("readme.md")]
 
 pub mod algebra;
 pub mod calculus;

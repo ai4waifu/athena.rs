@@ -79,10 +79,22 @@ pub fn adapt_univariate_factorization(
     };
 
     Ok(UnivariateAdaptedSolution {
-        solution: SolutionSet { variables: vec![unknown], branches, coverage, domain, proof: None, residual: None, frontier },
+        solution: SolutionSet { variables: vec![unknown], branches, coverage, domain, proof: None, residual: None, frontier, frontier_id: None },
         values,
         factorization_completeness: completeness,
     })
+}
+
+impl UnivariateAdaptedSolution {
+    /// 将资源截断 `ResumeToken` 登记到统一 [`crate::runtime::FrontierStore`]。
+    pub fn register_frontier_on_session(
+        &mut self,
+        session: &mut crate::runtime::Session,
+        goal_fingerprint: u64,
+    ) -> Option<athena_types::FrontierId> {
+        self.solution
+            .register_frontier_on_session(session, goal_fingerprint, Some("univariate_factor"))
+    }
 }
 
 /// 因式分解后适配一元根。

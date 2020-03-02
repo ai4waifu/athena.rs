@@ -1,5 +1,33 @@
 # 代数基础设施
 
+## 共享 parent、表示与映射
+
+```mermaid
+flowchart TB
+    Parent[CoefficientParent] --> Field[FieldTable]
+    Parent --> Group[GroupTable]
+    Field --> Extension[FieldExtension]
+    Field --> NumberField[NumberFieldSpec]
+    Field --> FiniteField[FiniteFieldPolySpec]
+    Group --> Perm[RawPerm / BsgsChain]
+    Group --> Subgroup[Subgroup / quotient]
+    Field --> Maps[MapTable]
+    Group --> Maps
+    Maps --> Evidence[MapVerification]
+```
+
+| 子系统 | 表示 | 关键算法 |
+|---|---|---|
+| 有限域 | polynomial-basis coordinates modulo `p` | canonical、mul、inverse、Frobenius |
+| 数域 | rational power-basis coordinates | minimal polynomial、tower multiplication/inverse |
+| 置换群 | `RawPerm` + generators | BSGS membership、enumeration |
+| 子群与商 | subgroup chain + coset representatives | normality、quotient generators |
+| 映射 | `AlgebraMap` + verification | embedding、automorphism、homomorphism、projection |
+
+`FieldFingerprint` 与 `GroupFingerprint` 标识 presentation，不能代替同构证明。`MapTable` 只登记已明确来源和目标的映射，`require_proven` 阻止未验证 map 被当作可靠 coercion。
+
+推荐阅读：`parent.rs` / `presentation.rs` → `table.rs` / `group_table.rs` → `finite_field_poly.rs` / `number_field.rs` / `bsgs.rs` / `subgroup.rs` → `map.rs` / `map_table.rs` → `property.rs`。
+
 `algebra` 是 Athena 各代数领域共享的父对象与表示层。它统一维护系数 parent、域扩张、群与域元素、presentation、映射、子群以及稳定 fingerprint。
 
 ## 负责什么
@@ -23,63 +51,3 @@
 ## 测试
 
 共享合同位于 `projects/athena-engine/tests/domains/algebra/`，覆盖 parent、有限域、扩张塔、置换 BSGS、子群商和 fingerprint。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["algebra request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/algebra"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

@@ -1,5 +1,33 @@
 # 伽罗瓦理论
 
+## 问题：扩张的对称性从哪里来
+
+伽罗瓦计算从一个已登记的 `FieldExtension` 开始，而不是从多项式名称猜群。有限域扩张中，Frobenius 作用给出可执行自同构，正规性与可分性决定这些自同构是否组成所求伽罗瓦群。
+
+```mermaid
+flowchart LR
+    Ext["FieldExtension\nbase → field · degree"] --> Sep[separability]
+    Ext --> Normal[normality]
+    Ext --> Frob["Frobenius powers\nx ↦ x^(p^k)"]
+    Sep --> Gate{Galois?}
+    Normal --> Gate
+    Frob --> Autos[FieldAutomorphism]
+    Gate --> Group[GaloisGroup]
+    Autos --> Group
+    Group --> GroupTable[permutation group registration]
+```
+
+| 问题 | 所需表示 | 当前处理 |
+|---|---|---|
+| 扩张是否可分 | minimal/irreducible polynomial 与 characteristic | `is_extension_separable` |
+| 扩张是否正规 | 扩张 presentation | `is_extension_normal` |
+| 自同构如何作用 | polynomial-basis coordinates | `apply_frobenius_coords` |
+| 群如何表示 | automorphism 对基/根的置换 | `GroupTable` 中的循环群 |
+
+`execute_galois_with_tables` 同时需要 `FieldTable` 与 `GroupTable`，因为答案跨越域和群两个对象系统。域表保存扩张、坐标和 automorphism map，群表保存生成元、群阶和 presentation。固定域或一般特征零扩张若缺少足够表示，结果保持 unevaluated。
+
+源码阅读：[request.rs](./request.rs) → [compute.rs](./compute.rs) → [../algebra/galois_field.rs](../algebra/galois_field.rs) → [value.rs](./value.rs) / [result.rs](./result.rs)。测试见 [extension tower Galois tests](../../../tests/domains/algebra/extension_tower_galois.rs)。
+
 `galois` 在已登记的域扩张上计算正规性、可分性、自同构与伽罗瓦群。它复用 `algebra` 的扩张和有限域表示，不复制域对象。
 
 ## 公开入口
@@ -15,63 +43,3 @@
 ## 测试
 
 扩张塔、Frobenius 和域表合同位于 `projects/athena-engine/tests/domains/algebra/`。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["galois request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/galois"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

@@ -1,5 +1,52 @@
 # 线性代数
 
+## 矩阵表示与算法分流
+
+```mermaid
+flowchart LR
+    Ref[MatrixRef] --> Meta["MatrixParent + Shape + Layout"]
+    Meta --> Domain{element domain}
+    Domain -->|exact rational| Exact["Bareiss / RREF"]
+    Domain -->|machine real| LU["partial-pivot LU"]
+    Exact --> EResult["ExactSolveResult\nexact rank / determinant"]
+    LU --> MResult["MachineSolveResult\npivot + residual + witness"]
+    EResult --> Result[LinearAlgebraResult]
+    MResult --> Result
+```
+
+| 层 | 类型 | 对算法的影响 |
+|---|---|---|
+| 身份 | `MatrixRef`、`MatrixParent` | 元素域和对象归属 |
+| 维度 | `MatrixShape` | matmul、solve、slice 的合法性 |
+| 布局 | `Layout`、`StorageOrder` | 索引和后端访问方式 |
+| 精确路径 | `ExactRrefResult`、`ExactSolveResult` | exact guarantee、解空间 |
+| 机器路径 | `MachineLuFactorization`、`MachineSolveWitness` | pivot threshold、误差与残差 |
+
+## 处理流程
+
+```mermaid
+sequenceDiagram
+    participant Q as LinearAlgebraRequest
+    participant O as MatrixObjectStore
+    participant P as shape / parent checks
+    participant A as exact or machine kernel
+    Q->>O: resolve MatrixRef
+    O->>P: validate element domain and dimensions
+    P->>A: select algorithm
+    A-->>Q: value + SolveDisposition + AlgorithmGuarantee
+```
+
+`det_bareiss`、`rank_exact`、`rref_rational` 和 `solve_exact` 不经机器浮点。`lu_partial_pivot`、`rank_machine` 和 `solve_machine` 必须暴露 pivot threshold 与 witness。欠定系统返回解空间信息，一个向量不能冒充完整解集。
+
+| 操作 | 预检查 | 结果 |
+|---|---|---|
+| `matmul` | inner dimension、parent | 新矩阵 |
+| `slice_matrix` | `IndexSpec`、一基边界 | 保留布局语义的切片 |
+| exact solve | 精确域、shape | 唯一解、仿射族或不相容 |
+| machine solve | pivot 与容差 | 近似解、残差、witness |
+
+源码从 [parent.rs](./parent.rs) / [shape.rs](./shape.rs) / [value.rs](./value.rs) 开始，随后读 [ops.rs](./ops.rs) / [index.rs](./index.rs)，最后对照 [exact.rs](./exact.rs)、[machine.rs](./machine.rs)、[status.rs](./status.rs) 与 [result.rs](./result.rs)。
+
 `linear_algebra` 负责矩阵身份、shape/layout、精确与机器数值路径，以及线性方程组的结果合同。
 
 ## 能力
@@ -31,63 +78,3 @@
 ## 语义约束
 
 矩阵运算前检查 parent、shape 和布局兼容性。机器 LU 的 pivot threshold、残差和 witness 必须可读取。pivot 失败或预算截断只能返回相应状态，不能降级为 exact rank 或完整 nullspace。
-
-
-## 架构图
-
-```mermaid
-flowchart LR
-    Request["linear_algebra request"] --> Object["typed object / reference"]
-    Object --> Execute["domain execution"]
-    Execute --> Result["value + status"]
-    Result --> Verify["verifier / evidence"]
-    Verify --> Publish["ComputationResult / M-Graph"]
-```
-
-## 合同表
-
-| 阶段 | 输入 | 输出 | 必须保留 |
-|---|---|---|---|
-| 构造 | domain object、parent、scope | typed reference | identity、revision |
-| 计划 | request、limits、capability | domain plan | algorithm、budget |
-| 执行 | canonical representation | value、candidate 或 frontier | provenance、diagnostic |
-| 验证 | value、certificate、dependencies | accepted claim 或 reject | replay evidence |
-| 发布 | verified result | structured result | status、coverage、conditions |
-
-## 源码阅读顺序
-
-```mermaid
-flowchart TD
-    A["request.rs"] --> B["object / value"]
-    B --> C["algorithm modules"]
-    C --> D["result.rs"]
-    D --> E["tests/domains/linear_algebra"]
-```
-
-先读 `request.rs`，确认输入的身份和资源字段。再读对象/值模块，确认 payload、parent 和生命周期。随后读算法实现，最后读 `result.rs` 与测试，核对成功、失败和资源受限分支。重点顺序是 parent/shape → object_ref → exact 或 machine → result。
-
-## 结果与证据
-
-| 情况 | 结果状态 | 可以做什么 |
-|---|---|---|
-| 独立验证通过 | `Exact` 或 `Verified` | 按证书保证继续组合 |
-| 依赖假设或分支 | `Conditional` | 携带条件继续查询 |
-| 只得到候选 | `Candidate` | 等待 verifier，不得准入 |
-| 算法被预算截断 | `Partial` / `ResourceLimited` | 保存 frontier 后恢复 |
-| 输入或能力不满足 | `Invalid` / `Unknown` | 读取结构化诊断 |
-
-证据不是日志字段。它必须能说明输入对象、算法前置条件、依赖关系和重放方式。缓存只能复用计算产物，不能代替验证和准入。
-
-## 测试矩阵
-
-| 测试层 | 必须证明 |
-|---|---|
-| 对象与规范化 | identity、parent、canonical form |
-| 算法 | 正常值、边界值、域不匹配、除零或无解 |
-| 结果 | payload、status、coverage、diagnostic |
-| 资源 | budget、取消、frontier、resume |
-| 证据 | replay、冲突、candidate 与 admission |
-
-## 明确边界
-
-本模块不解析源文本，不负责 UI、render、N-API 或平台对象。跨领域调用必须使用显式 capability、embedding 或 TypedView，并保留来源 fingerprint 与 revision。新增算法必须同步新增结果状态、失败路径和测试，不得只增加一个函数名。

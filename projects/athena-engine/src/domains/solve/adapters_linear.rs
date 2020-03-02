@@ -51,7 +51,7 @@ pub fn adapt_exact_linear_solve(
     };
     let frontier = coverage_frontier(&coverage);
     Ok(LinearAdaptedSolution {
-        solution: SolutionSet { variables: unknowns, branches, coverage, domain, proof: None, residual: None, frontier },
+        solution: SolutionSet { variables: unknowns, branches, coverage, domain, proof: None, residual: None, frontier, frontier_id: None },
         values,
         disposition,
     })
@@ -93,7 +93,7 @@ pub fn adapt_machine_linear_solve(
     });
     let frontier = coverage_frontier(&coverage);
     Ok(LinearAdaptedSolution {
-        solution: SolutionSet { variables: unknowns, branches, coverage, domain, proof: None, residual, frontier },
+        solution: SolutionSet { variables: unknowns, branches, coverage, domain, proof: None, residual, frontier, frontier_id: None },
         values,
         disposition,
     })
@@ -117,6 +117,21 @@ fn coverage_frontier(coverage: &CoverageStatus) -> Option<super::frontier::Resum
     match coverage {
         CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
         _ => None,
+    }
+}
+
+impl LinearAdaptedSolution {
+    /// 将资源截断 `ResumeToken` 登记到统一 [`crate::runtime::FrontierStore`]。
+    pub fn register_frontier_on_session(
+        &mut self,
+        session: &mut crate::runtime::Session,
+        goal_fingerprint: u64,
+    ) -> Option<athena_types::FrontierId> {
+        let algorithm = match self.disposition {
+            SolveDisposition::ResourceLimited => Some("linear_exact_or_machine"),
+            _ => Some("linear_solve"),
+        };
+        self.solution.register_frontier_on_session(session, goal_fingerprint, algorithm)
     }
 }
 

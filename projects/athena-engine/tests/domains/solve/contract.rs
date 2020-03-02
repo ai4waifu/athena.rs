@@ -61,6 +61,53 @@ fn coverage_gates_exact_union_find() {
 }
 
 #[test]
+fn resource_limited_solution_registers_on_session_frontier_store() {
+    use athena_engine::runtime::{ResumeCheck, Session};
+
+    let stamp = ResultProviderId::LINEAR_ALGEBRA.stamped();
+    let token = ResumeToken::empty_with_provider(ResumeKind::LinearExact, stamp);
+    let mut solution = SolutionSet {
+        variables: vec![BoundSymbol::free(SymbolId(0))],
+        branches: Vec::new(),
+        coverage: CoverageStatus::ResourceLimited { frontier: token.clone() },
+        domain: SolveDomain::Rationals,
+        proof: None,
+        residual: None,
+        frontier: Some(token),
+        frontier_id: None,
+    };
+
+    let mut session = Session::new();
+    let id = solution
+        .register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact"))
+        .expect("frontier id");
+    assert_eq!(solution.frontier_id, Some(id));
+    assert!(session.frontiers.contains(id));
+
+    let stored = session.frontiers.get(id).expect("stored");
+    assert_eq!(stored.goal_fingerprint, 0xDEAD_BEEF);
+    assert_eq!(stored.algorithm, Some("linear_exact"));
+    assert!(stored
+        .validate_resume(ResumeCheck {
+            provider: stamp,
+            assumption_scope: None,
+            goal_fingerprint: 0xDEAD_BEEF,
+            plan_fingerprint: None,
+            object_fingerprints: &[],
+            available_certificates: &[],
+            cancelled: false,
+            budget_limit: None,
+        })
+        .is_ok());
+    // Second register is idempotent.
+    assert_eq!(
+        solution.register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact")),
+        Some(id)
+    );
+    assert_eq!(session.frontiers.count(), 1);
+}
+
+#[test]
 fn find_instance_and_find_root_are_not_complete_sets() {
     let x = BoundSymbol::free(SymbolId(0));
     let mut bindings = BindingMap::empty();
