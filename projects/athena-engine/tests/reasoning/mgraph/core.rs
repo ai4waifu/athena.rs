@@ -274,6 +274,20 @@ fn find_accepted_skips_incompatible_peer() {
     assert!(semantic.view().find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT).is_none());
 }
 
+#[test]
+fn admit_claim_with_premises_records_proof_dependencies() {
+    use athena_engine::reasoning::mgraph::VerificationPolicy;
+
+    let mut semantic = SemanticCore::new();
+    let policy = VerificationPolicy::default();
+    let a = AdmissionGate::admit_claim(&mut semantic, sample_claim(501), &policy).expect("a");
+    let (b, dep) = AdmissionGate::admit_claim_with_premises(&mut semantic, sample_claim(502), &policy, &[a]).expect("b");
+    dep.expect("dependency ok");
+    assert!(semantic.proof_dependencies.depends_on(b, a));
+    assert_eq!(semantic.proof_dependencies.premises(b), &[a]);
+}
+
+
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
     AdmissionGate::admit_claim(semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }

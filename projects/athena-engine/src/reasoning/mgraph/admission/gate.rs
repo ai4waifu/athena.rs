@@ -176,6 +176,20 @@ impl AdmissionGate {
         }
     }
 
+    /// Admit claim and record proof premises（Living `29` 可重放证明依赖）。
+    ///
+    /// Dependency 登记失败时事实仍保留；调用方须处理诊断（bootstrap：不得静默丢依赖）。
+    pub fn admit_claim_with_premises(
+        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        claim: Claim,
+        policy: &VerificationPolicy,
+        premises: &[crate::reasoning::mgraph::facts::FactId],
+    ) -> Result<(crate::reasoning::mgraph::facts::FactId, Result<(), athena_types::Diagnostic>), AdmissionRejectReason> {
+        let id = Self::admit_claim(semantic, claim, policy)?;
+        let dep = semantic.record_proof_dependencies(id, premises);
+        Ok((id, dep))
+    }
+
     /// Admit into [`MGraphState`] and wake matching operational obligations (Living `29`).
     pub fn admit_claim_into_state(
         state: &mut MGraphState,

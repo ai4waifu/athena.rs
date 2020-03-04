@@ -2,10 +2,12 @@
 
 pub mod claim;
 pub mod journal;
+pub mod proof_dependency;
 pub mod witness;
 
 pub use claim::{
     CalculusRelationKind, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerifiedClaim, proposition_from_cache_key,
 };
 pub use journal::{AdmissionJournal, FactId};
+pub use proof_dependency::ProofDependencyIndex;
 pub use witness::witness_ref_from_evidence;

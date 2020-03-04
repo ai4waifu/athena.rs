@@ -5,6 +5,7 @@ use crate::reasoning::mgraph::{
     facts::{
         claim::VerifiedClaim,
         journal::{AdmissionJournal, FactId},
+        proof_dependency::ProofDependencyIndex,
     },
     relations::{
         derived::DerivedIndexes,
@@ -21,6 +22,8 @@ pub struct SemanticCore {
     pub admission_journal: AdmissionJournal,
     /// 由 journal 派生的索引（可丢弃后重建）。
     pub derived: DerivedIndexes,
+    /// 已接纳事实的证明依赖（Living `29` · 不随 `rebuild_derived` 丢弃）。
+    pub proof_dependencies: ProofDependencyIndex,
 }
 
 impl SemanticCore {
@@ -38,6 +41,31 @@ impl SemanticCore {
         debug_assert_eq!(id, index_id, "journal and relation index ids must stay aligned");
         self.derived.apply_verified_claim(&claim);
         id
+    }
+
+    /// 接纳后登记证明依赖（前提必须是更早的 `FactId`）。
+    pub fn record_proof_dependencies(
+        &mut self,
+        fact: FactId,
+        premises: &[FactId],
+    ) -> Result<(), athena_types::Diagnostic> {
+        if self.admission_journal.get(fact).is_none() {
+            return Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("domain", "mgraph")
+                .detail("operation", "proof_dependency")
+                .detail("reason", "unknown_fact")
+                .detail("fact", fact.0.to_string()));
+        }
+        for premise in premises {
+            if self.admission_journal.get(*premise).is_none() {
+                return Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                    .detail("domain", "mgraph")
+                    .detail("operation", "proof_dependency")
+                    .detail("reason", "unknown_premise")
+                    .detail("premise", premise.0.to_string()));
+            }
+        }
+        self.proof_dependencies.record(fact, premises)
     }
 
     /// 已接纳关系条数。
