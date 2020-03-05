@@ -249,6 +249,9 @@ fn session_partial_groebner_preserves_frontier_for_resume() {
     };
     assert_eq!(gb.status, GroebnerStatus::Partial);
     assert!(gb.has_resumable_work());
+    let frontier_id = gb.register_frontier_on_session(&mut session, 0x6B0B_0001).expect("frontier store");
+    assert!(session.frontiers.contains(frontier_id));
+    assert_eq!(session.frontiers.get(frontier_id).unwrap().algorithm, Some("groebner_buchberger"));
     let frontier = gb.into_frontier().expect("frontier");
     let resumed = athena_engine::domains::polynomial::resume_groebner_basis(frontier, &session.rings, GroebnerLimits::default()).unwrap();
     assert_eq!(resumed.status(), GroebnerStatus::Verified);

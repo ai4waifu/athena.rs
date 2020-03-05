@@ -71,6 +71,20 @@ impl ComputationFrontier {
         }
     }
 
+    /// 附加中间证书指纹（通常来自 [`crate::reasoning::mgraph::WitnessRef`]）。
+    pub fn push_certificate_fingerprint(&mut self, fingerprint: u64) {
+        if !self.certificate_fingerprints.contains(&fingerprint) {
+            self.certificate_fingerprints.push(fingerprint);
+        }
+    }
+
+    /// 批量附加证书指纹。
+    pub fn extend_certificate_fingerprints(&mut self, fingerprints: impl IntoIterator<Item = u64>) {
+        for fingerprint in fingerprints {
+            self.push_certificate_fingerprint(fingerprint);
+        }
+    }
+
     /// Provider 合同是否允许从此前沿恢复。
     pub fn accepts_provider(&self, current: ResultProviderStamp) -> bool {
         self.resume.accepts_provider(current)

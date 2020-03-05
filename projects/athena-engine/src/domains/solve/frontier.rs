@@ -13,6 +13,8 @@ pub enum ResumeKind {
     LinearMachine,
     /// 一元因式分解未完成。
     UnivariateFactor,
+    /// Gröbner / F4 基更新未完成。
+    Groebner,
 }
 
 /// 恢复令牌：待展开分支、未完成量词块、迭代态或 portfolio 状态。

@@ -98,6 +98,30 @@ impl GroebnerBasisValue {
         })
     }
 
+    /// 若仍有可恢复工作，登记统一 [`crate::runtime::FrontierStore`] 条目并返回身份。
+    pub fn register_frontier_on_session(
+        &self,
+        session: &mut crate::runtime::Session,
+        goal_fingerprint: u64,
+    ) -> Option<athena_types::FrontierId> {
+        if !self.has_resumable_work() {
+            return None;
+        }
+        use crate::{
+            domains::solve::{ResumeKind, ResumeToken},
+            runtime::{ComputationFrontier, results::ResultProviderId},
+        };
+        let stamp = ResultProviderId::POLYNOMIAL.stamped();
+        let resume = ResumeToken::empty_with_provider(ResumeKind::Groebner, stamp);
+        let mut record = ComputationFrontier::new(goal_fingerprint, resume);
+        record.algorithm = Some(match self.certificate.algorithm {
+            super::certificate::GroebnerAlgorithm::F4 => "groebner_f4",
+            super::certificate::GroebnerAlgorithm::Buchberger => "groebner_buchberger",
+        });
+        record.budget_consumed = u64::from(self.certificate.s_pair_steps);
+        Some(session.insert_frontier(record))
+    }
+
     /// 经 DomainObject 仓物化为 ResumeBuchberger / ResumeF4 请求。
     pub fn to_resume_request(
         &self,

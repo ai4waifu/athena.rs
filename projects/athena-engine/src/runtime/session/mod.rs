@@ -186,6 +186,17 @@ impl Session {
         self.frontiers.insert(frontier)
     }
 
+    /// 收集 Session M-Graph 中已接纳关系的证书指纹（供 `ResumeCheck.available_certificates`）。
+    pub fn available_certificate_fingerprints(&self) -> Vec<u64> {
+        let mut out = Vec::new();
+        for record in self.mgraph.semantic.core.relation_index().records() {
+            if let Some(witness) = record.witness {
+                out.push(witness.0);
+            }
+        }
+        out
+    }
+
     /// 在本 Session 定义表上求值（唯一 `ExecutionIR` 路径）。
     ///
     /// 返回归约后的 [`TermId`]。正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
