@@ -3,12 +3,53 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use super::Natural;
-use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext, storage::Mode};
+use crate::{
+    kernel::limb as limb_kernel,
+    policy::execution_budget::NumericContext,
+    storage::{MagnitudePair, Mode, OwnedLimbBuffer, RootedLimbBuffer},
+};
+
+/// Living `31`：唯一可变 destination。Published 路径不改变 ReclaimAuthority。
+enum UniqueDest {
+    Published(RootedLimbBuffer),
+    Temporary(OwnedLimbBuffer),
+}
+
+impl UniqueDest {
+    fn take(inner: &mut MagnitudePair) -> Option<Self> {
+        if let Some(buf) = inner.try_reuse_unique_published() {
+            return Some(Self::Published(buf));
+        }
+        inner.try_reuse_unique_buffer().map(Self::Temporary)
+    }
+
+    fn as_mut_slice(&mut self, len: usize) -> &mut [u64] {
+        match self {
+            Self::Published(buf) => buf.as_mut_slice(len),
+            Self::Temporary(buf) => buf.as_mut_slice(len),
+        }
+    }
+
+    fn as_slice(&self, len: usize) -> &[u64] {
+        match self {
+            Self::Published(buf) => buf.as_slice(len),
+            Self::Temporary(buf) => buf.as_slice(len),
+        }
+    }
+
+    fn finish(self, el: usize) -> Natural {
+        match self {
+            Self::Published(buf) => Natural::finish_rooted_limbs(buf, el),
+            // 过渡：临时 ExplicitRelease 仍可能出现在 ephemeral 路径。
+            Self::Temporary(buf) => Natural::finish_owned_limbs(buf, el),
+        }
+    }
+}
 
 impl Natural {
-    /// 消费 `self` 的加法：Heap 且 `capacity >= max(len)+1` 时经 [`MagnitudePair::try_reuse_unique_buffer`] 就地复用。
+    /// 消费 `self` 的加法：Heap 且容量足够时就地复用（优先唯一 published 块）。
     ///
-    /// 容量不足或非 Heap 时回退 [`Self::try_add`]。`rhs` 与 `self` 同缓冲（含自加）时先拷贝右操作数 limb。
+    /// 容量不足、非 Heap 或不唯一时回退 [`Self::try_add`]。
     pub fn try_add_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         if rhs.is_zero() {
@@ -47,14 +88,12 @@ impl Natural {
         let need = n + 1;
         debug_assert!(self.inner.heap_capacity().is_some_and(|c| c >= need));
 
-        // Living 31：TracingSweep 持久块暂不可 steal（待 UniqueMutationGuard）。失败回退 try_add。
-        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        let Some(mut buf) = UniqueDest::take(&mut self.inner)
         else {
             return self.try_add(rhs, ctx);
         };
         {
             let storage = buf.as_mut_slice(need);
-            // 超出原有效长度的槽位可能未初始化，就地 adc 前必须置零。
             for slot in &mut storage[la..] {
                 *slot = 0;
             }
@@ -70,7 +109,7 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[n] != 0 { n + 1 } else { limb_kernel::effective_len(&storage[..n]) }
         };
-        Ok(Self::finish_owned_limbs(buf, el))
+        Ok(buf.finish(el))
     }
 
     /// 消费 `self` 的 `× u64`：Heap 且 `capacity >= len+1` 时就地 `mul_1`。
@@ -92,7 +131,7 @@ impl Natural {
             return self.try_mul_u64(rhs, ctx);
         }
 
-        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        let Some(mut buf) = UniqueDest::take(&mut self.inner)
         else {
             return self.try_mul_u64(rhs, ctx);
         };
@@ -111,8 +150,9 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[la] != 0 { la + 1 } else { la }
         };
-        Ok(Self::finish_owned_limbs(buf, el))
+        Ok(buf.finish(el))
     }
+
     /// 消费 `self` 的减法：Heap 且容量足够时就地 SBB（要求 `self >= rhs`）。
     pub fn try_sub_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
@@ -141,7 +181,6 @@ impl Natural {
             _ => false,
         };
         if overlap {
-            // self - self = 0
             return Ok(Self::zero());
         }
 
@@ -149,7 +188,7 @@ impl Natural {
         let lb = limb_kernel::effective_len(rb);
         let n = la.max(lb);
 
-        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        let Some(mut buf) = UniqueDest::take(&mut self.inner)
         else {
             return self.try_sub(rhs, ctx);
         };
@@ -164,11 +203,10 @@ impl Natural {
             debug_assert_eq!(borrow, 0);
         }
         let el = limb_kernel::effective_len(buf.as_slice(n.max(1))).max(1);
-        Ok(Self::finish_owned_limbs(buf, el))
+        Ok(buf.finish(el))
     }
-    /// 消费 `self` 的乘法：仅在 planner 选 Schoolbook 且 Heap 容量 ≥ `la+lb` 时 `try_reuse_unique_buffer`。
-    ///
-    /// 更宽路径（Karatsuba/Toom）回退 [`Self::try_mul`]，避免就地清零破坏输入。
+
+    /// 消费 `self` 的乘法：仅 Schoolbook 且 Heap 容量 ≥ `la+lb` 时就地复用。
     pub fn try_mul_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         if self.is_zero() || rhs.is_zero() {
@@ -193,7 +231,6 @@ impl Natural {
             return self.try_mul(rhs, ctx);
         }
 
-        // Snapshot lhs before clearing destination (schoolbook zeros out).
         let lhs_snap = self.as_limbs()[..la].to_vec();
         let rhs_tmp;
         let rb: &[u64] = {
@@ -211,7 +248,7 @@ impl Natural {
         };
         let lb = limb_kernel::effective_len(rb);
 
-        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        let Some(mut buf) = UniqueDest::take(&mut self.inner)
         else {
             return self.try_mul(rhs, ctx);
         };
@@ -220,6 +257,6 @@ impl Natural {
             limb_kernel::mul_schoolbook_into(&lhs_snap, &rb[..lb], storage);
         }
         let el = limb_kernel::effective_len(buf.as_slice(need)).max(1);
-        Ok(Self::finish_owned_limbs(buf, el))
+        Ok(buf.finish(el))
     }
 }

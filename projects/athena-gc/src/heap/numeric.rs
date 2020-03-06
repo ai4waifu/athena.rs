@@ -103,6 +103,17 @@ impl GcHeap {
         registry::with_heap(heap_id, |heap| heap.may_root_numeric(limbs))?
     }
 
+    /// 指定 numeric payload 上的 root 条数。
+    pub fn numeric_root_count(&self, limbs: NonNull<u64>) -> Result<usize> {
+        let _ = self.header_for_limbs(limbs)?;
+        Ok(self.roots.numeric_root_count_for_payload(limbs.cast()))
+    }
+
+    /// 经注册表查询 [`Self::numeric_root_count`]。
+    pub fn numeric_root_count_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<usize> {
+        registry::with_heap(heap_id, |heap| heap.numeric_root_count(limbs))?
+    }
+
     /// 为可 root 的已发布块登记一条 [`NumericRoot`]。
     pub fn register_numeric_root(&mut self, block: &PublishedNumericBlock, kind: RootKind) -> Result<RootToken> {
         self.register_numeric_root_ptr(block.ptr, kind)

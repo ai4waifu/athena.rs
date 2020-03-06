@@ -389,8 +389,7 @@ impl MagnitudePair {
 
     /// 尝试接管 Heap buffer 供 destination reuse；仅 [`athena_gc::ReclaimAuthority::ExplicitRelease`] 时成功。
     ///
-    /// Living `24`：这是 unique mutable capability 判断，不是 ownership transfer。
-    /// TracingSweep / 未知 reclaim 禁止 reuse（可能被 root 别名）。
+    /// Living `24`/`31`：临时块路径。持久 TracingSweep 请用 [`Self::try_reuse_unique_published`]。
     pub(crate) fn try_reuse_unique_buffer(&mut self) -> Option<OwnedLimbBuffer> {
         if !matches!(self.mode(), Mode::Heap) || heap_is_rooted(self.meta) {
             return None;
@@ -403,6 +402,29 @@ impl MagnitudePair {
                 self.meta = encode_zero_meta();
                 self.magnitude = Magnitude { limb1: 0 };
                 Some(OwnedLimbBuffer::from_payload(payload))
+            }
+            _ => None,
+        }
+    }
+
+    /// 尝试接管唯一 rooted 持久块供原地写入（Living `31`：不改变 ReclaimAuthority）。
+    ///
+    /// 条件：Heap · rooted · `numeric_root_count == 1` · TracingSweep。
+    pub(crate) fn try_reuse_unique_published(&mut self) -> Option<RootedLimbBuffer> {
+        if !matches!(self.mode(), Mode::Heap) || !heap_is_rooted(self.meta) {
+            return None;
+        }
+        // SAFETY: Heap mode → heap active。
+        let payload = unsafe { self.magnitude.heap };
+        let heap_id = heap_id_for_limbs(payload.ptr);
+        match (
+            GcHeap::may_root_numeric_registered(heap_id, payload.ptr),
+            GcHeap::numeric_root_count_registered(heap_id, payload.ptr),
+        ) {
+            (Ok(true), Ok(1)) => {
+                self.meta = encode_zero_meta();
+                self.magnitude = Magnitude { limb1: 0 };
+                Some(RootedLimbBuffer::from_payload(payload))
             }
             _ => None,
         }
