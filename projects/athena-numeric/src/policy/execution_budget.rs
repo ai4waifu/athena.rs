@@ -132,8 +132,6 @@ pub struct NumericContext {
     capabilities: CapabilityBundle,
     /// Context 创建时绑定的 machine kernel 表。
     kernels: KernelTable,
-    /// Living `19`/`24`：Heap 发布是否使用 TracingSweep reclaim（Session 默认真；共享默认 heap 路径默认假）。
-    publish_gc_owned: bool,
 }
 
 impl core::fmt::Debug for NumericContext {
@@ -149,10 +147,6 @@ impl core::fmt::Debug for NumericContext {
 
 impl NumericContext {
     fn assemble(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>, capabilities: CapabilityBundle) -> Self {
-        Self::assemble_with(budget, heap, capabilities, false)
-    }
-
-    fn assemble_with(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>, capabilities: CapabilityBundle, publish_gc_owned: bool) -> Self {
         let kernels = KernelTable::bind(capabilities.machine);
         Self {
             budget,
@@ -163,7 +157,6 @@ impl NumericContext {
             out_buf2: Rc::new(RefCell::new(crate::kernel::LimbBuffer::zero())),
             capabilities,
             kernels,
-            publish_gc_owned,
         }
     }
 
@@ -211,7 +204,7 @@ impl NumericContext {
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::unlimited();
-        Self::assemble_with(ExecutionBudget::unlimited(), heap, caps, true)
+        Self::assemble(ExecutionBudget::unlimited(), heap, caps)
     }
 
     /// Kernel 微基准：隔离 heap + [`GcMode::Disabled`]（[`HeapBudget::for_microbench`]）。
@@ -338,12 +331,6 @@ impl NumericContext {
     #[inline]
     pub fn can_reuse_destination(&self) -> bool {
         self.capabilities.resource.can_reuse_destination
-    }
-
-    /// Living `19`/`24`：Heap 幅度是否以 TracingSweep reclaim 发布（Session 默认真）。
-    #[inline]
-    pub fn publishes_gc_owned(&self) -> bool {
-        self.publish_gc_owned
     }
 
     /// 借用可复用输出缓冲（热路径 publish）。

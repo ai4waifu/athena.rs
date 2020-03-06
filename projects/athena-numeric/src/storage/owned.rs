@@ -150,12 +150,36 @@ impl RootedLimbBuffer {
         Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
     }
 
+    /// 经 `HeapId` 分配已发布块并登记 root。
+    pub(crate) fn alloc_uninit_on(heap_id: HeapId, capacity: usize) -> athena_gc::Result<Self> {
+        if capacity == 0 {
+            return Err(GcError::InvalidCapacity);
+        }
+        athena_gc::with_registered_heap(heap_id, |heap| {
+            let block = heap.allocate_traced_numeric(capacity)?;
+            let _ = heap.register_numeric_root(&block, athena_gc::RootKind::Numeric)?;
+            Ok(Self { ptr: block.ptr, capacity: block.capacity, heap_id: block.heap_id })
+        })
+    }
+
     /// 分配并拷贝（已发布 + root）。
     pub(crate) fn alloc_copy_in(heap: &Rc<RefCell<GcHeap>>, src: &[u64], capacity: usize) -> athena_gc::Result<Self> {
         if capacity == 0 || capacity < src.len() {
             return Err(GcError::InvalidCapacity);
         }
         let mut buf = Self::alloc_uninit_in(heap, capacity)?;
+        unsafe {
+            core::ptr::copy_nonoverlapping(src.as_ptr(), buf.ptr.as_ptr(), src.len());
+        }
+        Ok(buf)
+    }
+
+    /// 同堆或经 `HeapId` 深复制为已发布块（Living `31`：`try_clone_in` 路径）。
+    pub(crate) fn alloc_copy_on(heap_id: HeapId, src: &[u64], capacity: usize) -> athena_gc::Result<Self> {
+        if capacity == 0 || capacity < src.len() {
+            return Err(GcError::InvalidCapacity);
+        }
+        let mut buf = Self::alloc_uninit_on(heap_id, capacity)?;
         unsafe {
             core::ptr::copy_nonoverlapping(src.as_ptr(), buf.ptr.as_ptr(), src.len());
         }

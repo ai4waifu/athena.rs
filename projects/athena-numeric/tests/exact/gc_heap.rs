@@ -135,7 +135,6 @@ fn session_default_publishes_tracing_sweep_heap() {
     use athena_numeric::natural::Natural;
 
     let ctx = NumericContext::session_default();
-    assert!(ctx.publishes_gc_owned());
     let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
     let ptr = n.as_limbs().as_ptr();
     let nn = core::ptr::NonNull::new(ptr as *mut u64).expect("non-null limbs");
@@ -154,18 +153,25 @@ fn session_tracing_try_clone_in_is_deep_copy() {
     let roots_before = ctx.heap().borrow().roots().numeric_len();
     let cloned = n.try_clone_in(&ctx).expect("deep copy");
     assert_eq!(n.as_limbs(), cloned.as_limbs());
-    assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "Living 19: try_clone_in must deep-copy Heap");
-    // 深复制经 alloc_copy → ExplicitRelease，不额外登记 root。
-    assert_eq!(ctx.heap().borrow().roots().numeric_len(), roots_before);
+    assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "Living 31: try_clone_in must deep-copy Heap");
+    // Living 31：深复制为新 PublishedNumericBlock + root。
+    assert_eq!(ctx.heap().borrow().roots().numeric_len(), roots_before + 1);
     let cptr = NonNull::new(cloned.as_limbs().as_ptr() as *mut u64).expect("ptr");
-    assert!(ctx.heap().borrow().may_explicit_release_numeric(cptr).expect("temp copy"));
-    assert!(!ctx.heap().borrow().may_root_numeric(cptr).expect("not published"));
+    assert!(ctx.heap().borrow().may_root_numeric(cptr).expect("published"));
+    assert!(!ctx.heap().borrow().may_explicit_release_numeric(cptr).expect("not temp"));
 }
 
 #[test]
-fn portable_default_does_not_publish_gc_owned() {
+fn portable_default_also_publishes_tracing_sweep_heap() {
+    use athena_numeric::natural::Natural;
+
+    // Living 31：删除 publishes_gc_owned 双轨；portable 持久发布同样是 TracingSweep。
     let ctx = NumericContext::portable_default();
-    assert!(!ctx.publishes_gc_owned());
+    let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
+    let ptr = n.as_limbs().as_ptr();
+    let nn = core::ptr::NonNull::new(ptr as *mut u64).expect("non-null limbs");
+    assert!(ctx.heap().borrow().may_root_numeric(nn).expect("rootable"));
+    assert!(!ctx.heap().borrow().may_explicit_release_numeric(nn).expect("not temp"));
 }
 
 #[test]

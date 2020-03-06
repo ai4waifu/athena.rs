@@ -1,5 +1,26 @@
 # 方程求解
 
+## 模块解决的问题
+
+求解模块要表达解集而不是单个成功值：唯一解、参数族、认证子集、局部根和实例都必须可区分。
+
+## 交叉问题
+
+linear_algebra 提供 exact/machine disposition，polynomial 提供根和因式分解，number_theory 提供重构，M-Graph 提供可复用关系。
+
+## 处理流
+
+把 TermStore 中的关系规范化为 ConstraintSet，建立 SolveProblem，Reflector 选择 adapter，生成 SolutionBranch，验证 residual，按 CoverageStatus 发布 SolutionSet。
+
+```mermaid
+flowchart LR
+    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
+    Decompose --> Algorithm["solve 专属算法"]
+    Algorithm --> Evidence["结果与证据"]
+    Evidence --> Cross["跨领域复用"]
+```
+
+
 ## 问题：什么才算“解完了”
 
 求解并不等于找到一个代入后成立的值。Athena 必须区分完整解集、经过证明的子集、局部数值根、一个实例以及仍可继续的搜索。
@@ -76,3 +97,17 @@ sequenceDiagram
 ## 边界与测试
 
 本模块不解析源语言，不定义 `SolverRequest`，也不创建 `athena-solver` crate。合同测试位于 `projects/athena-engine/tests/domains/solve/`。
+
+## 深入理解
+
+`ConstraintSet` 保留 And/Or 结构，`BoundSymbol` 区分自由变量和局部绑定，`SolutionBranch` 保存一组 binding 与 branch status。线性系统的欠定结果会转换成带自由变量的 branch，多项式根会转换成带 multiplicity 和条件的 branch。这样 Solve 不需要猜测下游算法的返回格式。
+
+`CoverageStatus` 是求解结果的核心：Full、CertifiedSubset、LocalOnly、Unknown 等状态决定关系能否进入 exact rewrite。`ResidualCertificate` 记录未消除的约束，`ResumeToken` 绑定 provider stamp。任何 adapter 都必须把自己的算法状态映射到这套覆盖语义。
+
+## 失败路径与验证
+
+约束规范化可能遇到非法关系、未绑定符号、空析取或域不匹配。adapter 返回的 branch 必须经过 residual replay，不能仅因为 provider 返回 success 就把 branch 标为 exact。`CoverageStatus` 还要反映遗漏风险：已找到的根、已证明的子集和完整解集是不同状态。
+
+## 维护者阅读清单
+
+修改 `constraint.rs` 或 `normalize.rs` 要检查自由变量、量词和 And/Or 结构。修改 adapter 要检查它如何映射下游的 exact、machine、partial 和 resource limited。修改 `solution.rs` 要检查 branch status、multiplicity、conditions 和 `ResumeToken`。新增 SolveGoal 必须先规定 coverage 和 completeness，不能只加一个枚举值。

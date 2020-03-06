@@ -155,10 +155,10 @@ impl Integer {
         MagnitudeView::from_parts(self.as_limbs(), self.inner.is_negative())
     }
 
-    /// 可失败 owning 复制（Heap 经 owner heap 分配；服从 `ctx` 入口预算）。
+    /// 可失败 owning 复制（Heap 经目标 `ctx` 发布为 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
+        Ok(Self::from_pair(self.inner.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?))
     }
 
     /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。

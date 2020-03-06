@@ -47,7 +47,11 @@ impl Natural {
         let need = n + 1;
         debug_assert!(self.inner.heap_capacity().is_some_and(|c| c >= need));
 
-        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
+        // Living 31：TracingSweep 持久块暂不可 steal（待 UniqueMutationGuard）。失败回退 try_add。
+        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        else {
+            return self.try_add(rhs, ctx);
+        };
         {
             let storage = buf.as_mut_slice(need);
             // 超出原有效长度的槽位可能未初始化，就地 adc 前必须置零。
@@ -88,7 +92,10 @@ impl Natural {
             return self.try_mul_u64(rhs, ctx);
         }
 
-        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
+        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        else {
+            return self.try_mul_u64(rhs, ctx);
+        };
         {
             let storage = buf.as_mut_slice(need);
             storage[la] = 0;
@@ -142,7 +149,10 @@ impl Natural {
         let lb = limb_kernel::effective_len(rb);
         let n = la.max(lb);
 
-        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
+        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        else {
+            return self.try_sub(rhs, ctx);
+        };
         {
             let storage = buf.as_mut_slice(n.max(1));
             let mut borrow = 0u64;
@@ -201,7 +211,10 @@ impl Natural {
         };
         let lb = limb_kernel::effective_len(rb);
 
-        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
+        let Some(mut buf) = self.inner.try_reuse_unique_buffer()
+        else {
+            return self.try_mul(rhs, ctx);
+        };
         {
             let storage = buf.as_mut_slice(need);
             limb_kernel::mul_schoolbook_into(&lhs_snap, &rb[..lb], storage);

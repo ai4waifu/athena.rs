@@ -15,10 +15,10 @@ impl Natural {
         self.inner.as_limbs()
     }
 
-    /// 可失败 owning 复制（Heap 经 owner heap 分配；服从 `ctx` 入口预算）。
+    /// 可失败 owning 复制（Heap 经目标 `ctx` 发布为 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
+        Ok(Self::from_pair(self.inner.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?))
     }
 
     /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。
@@ -41,9 +41,11 @@ impl Natural {
     }
 
     /// 由 limb 切片发布到 `ctx` heap（无额外 `Vec`）。
+    ///
+    /// Living `31`：Heap 结果恒为 `PublishedNumericBlock`（rooted），无所有权类别开关。
     pub(crate) fn from_limb_slice_in(ctx: &NumericContext, limbs: &[u64]) -> Result<Self> {
         ctx.check_entry()?;
-        let inner = MagnitudePair::from_limbs_in_with(ctx.heap(), limbs, ctx.publishes_gc_owned()).map_err(gc_alloc_error)?;
+        let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_error)?;
         Ok(Self::from_pair(inner))
     }
 
@@ -51,7 +53,7 @@ impl Natural {
     ///
     /// 供 `*_owned` 复用路径预留余量，以及合同测试构造「capacity > len」的 Heap 值。
     pub fn from_limbs_with_capacity_in(ctx: &NumericContext, limbs: &[u64], capacity: usize) -> Result<Self> {
-        use crate::storage::{OwnedLimbBuffer, RootedLimbBuffer};
+        use crate::storage::RootedLimbBuffer;
         ctx.check_entry()?;
         let el = limb_kernel::effective_len(limbs);
         if el <= 2 {
@@ -63,18 +65,14 @@ impl Natural {
                 .detail("operation", "natural_capacity_too_small"));
         }
         ctx.budget().check_limbs(capacity)?;
-        if ctx.publishes_gc_owned() {
-            let mut buf = RootedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
-            buf.as_mut_slice(el).copy_from_slice(&limbs[..el]);
-            Ok(Self::finish_rooted_limbs(buf, el))
-        }
-        else {
-            let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
-            buf.as_mut_slice(el).copy_from_slice(&limbs[..el]);
-            Ok(Self::finish_owned_limbs(buf, el))
-        }
+        let mut buf = RootedLimbBuffer::alloc_uninit_in(ctx.heap(), capacity).map_err(gc_alloc_error)?;
+        buf.as_mut_slice(el).copy_from_slice(&limbs[..el]);
+        Ok(Self::finish_rooted_limbs(buf, el))
     }
 
+    /// 将临时 ExplicitRelease 缓冲收成 inline 或（过渡）heap。
+    ///
+    /// Living `31`：持久 publish 不得再调用本函数的 heap 分支；`*_owned` 复用收口前仍可能经此路径。
     pub(super) fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Self {
         match el {
             0 | 1 => {
@@ -120,7 +118,7 @@ impl Natural {
     /// Kernel `*_into` 后 canonicalize 并发布。
     ///
     /// Living 17 步骤 6：当 [`NumericContext::can_reuse_destination`] 为真时复用 context
-    /// 输出 `LimbBuffer` 容量；否则使用临时缓冲。Heap 结果经临时 / rooted RAII 句柄接管。
+    /// 输出 `LimbBuffer` 容量；否则使用临时缓冲。Heap 结果经 rooted 句柄发布。
     pub(super) fn publish_into(
         ctx: &NumericContext,
         write: impl FnOnce(&mut LimbBuffer, &mut crate::kernel::ScratchWorkspace, &crate::policy::execution_budget::ExecutionBudget) -> Result<()>,
@@ -141,7 +139,7 @@ impl Natural {
 
     /// 将输出缓冲规范 limb 发布到 `ctx` heap，并保留缓冲容量供下次复用。
     fn publish_from_out_buf(ctx: &NumericContext, out: &mut LimbBuffer) -> Result<Self> {
-        use crate::storage::{OwnedLimbBuffer, RootedLimbBuffer};
+        use crate::storage::RootedLimbBuffer;
         let el = out.canonical_len();
         if el <= 2 {
             let n = Self::from_limb_slice_in(ctx, out.as_canonical())?;
@@ -149,18 +147,10 @@ impl Natural {
             return Ok(n);
         }
         let limbs = out.as_canonical();
-        if ctx.publishes_gc_owned() {
-            let mut buf = RootedLimbBuffer::alloc_uninit_in(ctx.heap(), el).map_err(gc_alloc_error)?;
-            buf.as_mut_slice(el).copy_from_slice(limbs);
-            let _ = out.set_zero(ctx.budget());
-            Ok(Self::from_pair(MagnitudePair::from_rooted_heap(buf, el)))
-        }
-        else {
-            let mut buf = OwnedLimbBuffer::alloc_uninit_in(ctx.heap(), el).map_err(gc_alloc_error)?;
-            buf.as_mut_slice(el).copy_from_slice(limbs);
-            let _ = out.set_zero(ctx.budget());
-            Ok(Self::from_pair(MagnitudePair::from_owned_heap(buf, el)))
-        }
+        let mut buf = RootedLimbBuffer::alloc_uninit_in(ctx.heap(), el).map_err(gc_alloc_error)?;
+        buf.as_mut_slice(el).copy_from_slice(limbs);
+        let _ = out.set_zero(ctx.budget());
+        Ok(Self::from_pair(MagnitudePair::from_rooted_heap(buf, el)))
     }
 
     /// 当前 storage mode（供 executor 宽度分派）。

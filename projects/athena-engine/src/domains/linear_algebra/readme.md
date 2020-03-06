@@ -1,5 +1,26 @@
 # 线性代数
 
+## 模块解决的问题
+
+矩阵算法必须知道元素域、维度、布局和精度保证。该模块同时支持 exact rational 与 machine real，但两条路径的结论不能混在一起。
+
+## 交叉问题
+
+field 提供元素 parent，polynomial 的 F4 通过矩阵视图调用消元，graph 通过 TypedView 暴露邻接结构，solve 消费 rank、nullspace 和 disposition。
+
+## 处理流
+
+LinearAlgebraRequest 解析 MatrixRef，检查 parent/shape/layout，选择 Bareiss 或 partial-pivot LU，生成解、秩、残差和 witness，再形成 LinearAlgebraResult。
+
+```mermaid
+flowchart LR
+    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
+    Decompose --> Algorithm["linear_algebra 专属算法"]
+    Algorithm --> Evidence["结果与证据"]
+    Evidence --> Cross["跨领域复用"]
+```
+
+
 ## 矩阵表示与算法分流
 
 ```mermaid
@@ -78,3 +99,13 @@ sequenceDiagram
 ## 语义约束
 
 矩阵运算前检查 parent、shape 和布局兼容性。机器 LU 的 pivot threshold、残差和 witness 必须可读取。pivot 失败或预算截断只能返回相应状态，不能降级为 exact rank 或完整 nullspace。
+
+## 深入理解
+
+矩阵 parent 说明元素域，shape 说明维度，layout 说明访问方式，三者不能用一个字符串替代。精确路径使用有理数消元，系数增长由 Bareiss 控制；machine 路径使用 partial pivot，并需要 threshold 和 residual 才能解释数值稳定性。
+
+`solve_exact` 可能返回唯一解、参数族或不相容诊断，`solve_machine` 则返回 witness 和误差信息。polynomial 的 F4 使用矩阵作为暂时 kernel artifact，不能把 Macaulay 矩阵自身当成语义对象。graph 的邻接 view 同理，视图生命周期和矩阵逻辑身份必须分开。
+
+## 为什么 exact 与 machine 必须分叉
+
+Bareiss 的中间值增长和机器 LU 的舍入误差属于不同问题。若共用一个“矩阵结果”类型，调用方会误把近似残差当成代数证明。`AlgorithmGuarantee` 和 `SolveDisposition` 让 exact solution、machine approximate、inconsistent 和 underdetermined 在类型上保持可区分。

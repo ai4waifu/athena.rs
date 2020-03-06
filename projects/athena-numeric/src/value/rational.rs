@@ -55,12 +55,12 @@ impl Rational {
         Some(Self { numer: self.numer.clone_inline()?, denom: self.denom.clone_inline()? })
     }
 
-    /// 可失败 owning 深复制（服从 `ctx`）。
+    /// 可失败 owning 深复制（Heap → 目标 `ctx` 的 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
         ctx.check_entry()?;
         Ok(Self {
-            numer: self.numer.try_clone().map_err(crate::storage::gc_alloc_error)?,
-            denom: self.denom.try_clone().map_err(crate::storage::gc_alloc_error)?,
+            numer: self.numer.try_clone_on(ctx.heap()).map_err(crate::storage::gc_alloc_error)?,
+            denom: self.denom.try_clone_on(ctx.heap()).map_err(crate::storage::gc_alloc_error)?,
         })
     }
 

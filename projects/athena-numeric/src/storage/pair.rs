@@ -18,7 +18,7 @@ use super::{
         mode_of, try_mode_of,
     },
     owned::{OwnedLimbBuffer, RootedLimbBuffer},
-    union::{HeapPayload, Magnitude},
+    union::Magnitude,
     view::LimbView,
 };
 
@@ -86,13 +86,8 @@ impl MagnitudePair {
 
     /// 由小端 limbs 构造，分配到指定 heap。
     ///
-    /// trim 后 ≤ 2 limb 不分配；更长幅度是**唯一**可进 Heap 的正式构造路径。
+    /// trim 后 ≤ 2 limb 不分配；更长幅度经 `PublishedNumericBlock` + root 发布（Living `31`）。
     pub(crate) fn from_limbs_in(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64]) -> athena_gc::Result<Self> {
-        Self::from_limbs_in_with(heap, limbs, false)
-    }
-
-    /// 同 [`Self::from_limbs_in`]；`gc_owned` 时经 traced numeric 分配。
-    pub(crate) fn from_limbs_in_with(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64], gc_owned: bool) -> athena_gc::Result<Self> {
         let el = effective_len(limbs);
         match el {
             0 => Ok(Self::zero()),
@@ -108,19 +103,15 @@ impl MagnitudePair {
             }
             _ => {
                 debug_assert!(limbs[el - 1] != 0);
-                if gc_owned {
-                    let buf = RootedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
-                    Ok(Self::from_rooted_heap(buf, el))
-                }
-                else {
-                    let buf = OwnedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
-                    Ok(Self::from_owned_heap(buf, el))
-                }
+                let buf = RootedLimbBuffer::alloc_copy_in(heap, &limbs[..el], el)?;
+                Ok(Self::from_rooted_heap(buf, el))
             }
         }
     }
 
-    /// 接管临时 ExplicitRelease heap 缓冲（`len >= 3`，且 `len <= capacity`）。
+    /// 接管临时 ExplicitRelease heap 缓冲（仅 `TemporaryNatural` / ephemeral；禁止构造持久 `Natural`）。
+    ///
+    /// Living `31`：本入口不得出现在 `Natural::from_*` / publish 路径。
     pub(crate) fn from_owned_heap(buf: OwnedLimbBuffer, len: usize) -> Self {
         debug_assert!(len >= 3);
         debug_assert!(len <= buf.capacity());
@@ -295,12 +286,46 @@ impl MagnitudePair {
         Ok(super::decode_magnitude(self.meta, &self.magnitude)?.limbs())
     }
 
-    /// 可失败 owning 深复制（Living `19`）。
+    /// 可失败 owning 深复制（Living `31`）。
     ///
     /// - Limb1 / Limb2：栈拷贝（无分配、无 root）。
-    /// - Heap：同堆 `alloc_copy`（**不** adopt、**不** share root）。
+    /// - Heap：目标堆上新 `PublishedNumericBlock` + root（**不** adopt 源 root）。
     ///
-    /// 共享请走显式 `share` / Session root API；禁止经本函数改变 ownership class。
+    /// 共享请走显式 `share_in` / Session root API。
+    pub(crate) fn try_clone_on(&self, heap: &Rc<RefCell<GcHeap>>) -> athena_gc::Result<Self> {
+        match try_mode_of(self.meta).map_err(|_| athena_gc::GcError::UnknownAllocation)? {
+            Mode::Limb1 => {
+                // SAFETY: Limb1 active。
+                let limb = unsafe { self.magnitude.limb1 };
+                Ok(Self { meta: self.meta, magnitude: Magnitude { limb1: limb } })
+            }
+            Mode::Limb2 => {
+                // SAFETY: Limb2 active。
+                let limbs = unsafe { self.magnitude.limb2 };
+                Ok(Self { meta: self.meta, magnitude: Magnitude { limb2: limbs } })
+            }
+            Mode::Heap => {
+                let len = heap_len(self.meta);
+                let negative = is_negative(self.meta);
+                // SAFETY: Heap active。
+                let (ptr, capacity) = unsafe {
+                    let heap = self.magnitude.heap;
+                    (heap.ptr, heap.capacity)
+                };
+                let n = len.min(capacity);
+                // SAFETY: n <= capacity。
+                let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
+                let buf = RootedLimbBuffer::alloc_copy_in(heap, src, capacity.max(n.max(1)))?;
+                let payload = buf.into_payload();
+                debug_assert!(n >= 3);
+                Ok(Self { meta: encode_heap_meta(n, negative, true), magnitude: Magnitude { heap: payload } })
+            }
+        }
+    }
+
+    /// 同堆深复制（无显式目标 heap 时：Heap 落在源 `heap_id`）。
+    ///
+    /// Living `31`：Heap 结果仍为 `PublishedNumericBlock`。优先 [`Self::try_clone_on`]。
     pub(crate) fn try_clone(&self) -> athena_gc::Result<Self> {
         match try_mode_of(self.meta).map_err(|_| athena_gc::GcError::UnknownAllocation)? {
             Mode::Limb1 => {
@@ -324,11 +349,10 @@ impl MagnitudePair {
                 let n = len.min(capacity);
                 // SAFETY: n <= capacity。
                 let src = unsafe { core::slice::from_raw_parts(ptr.as_ptr(), n) };
-                // Living `19`/`24`：深复制恒为临时 ExplicitRelease，不 adopt / 不复制 rooted 责任。
-                let buf = OwnedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
+                let buf = RootedLimbBuffer::alloc_copy_on(heap_id, src, capacity.max(n.max(1)))?;
                 let payload = buf.into_payload();
                 debug_assert!(n >= 3);
-                Ok(Self { meta: encode_heap_meta(n, negative, false), magnitude: Magnitude { heap: payload } })
+                Ok(Self { meta: encode_heap_meta(n, negative, true), magnitude: Magnitude { heap: payload } })
             }
         }
     }

@@ -1,5 +1,26 @@
 # 数论
 
+## 模块解决的问题
+
+大整数分解不是返回一个因子数组，而是逐步确认素因子、保存剩余 cofactor，并允许预算中断后继续。
+
+## 交叉问题
+
+numeric 提供 Integer 和模 kernel，field 提供 prime field，polynomial 使用模像与 CRT，M-Graph 复用经过验证的整除和素性事实。
+
+## 处理流
+
+NumberTheoryRequest 先做 Euclidean 预处理，再进入 primality 或 factor producer，生成 certificate 或 FactorFrontier，最后 verify product 和 evidence 后发布结果。
+
+```mermaid
+flowchart LR
+    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
+    Decompose --> Algorithm["number_theory 专属算法"]
+    Algorithm --> Evidence["结果与证据"]
+    Evidence --> Cross["跨领域复用"]
+```
+
+
 ## 从整数到可验证结论
 
 ```mermaid

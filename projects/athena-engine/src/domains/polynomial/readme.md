@@ -1,5 +1,26 @@
 # 多项式与环
 
+## 模块解决的问题
+
+多项式算法依赖环、系数域、变量序和单项式序。模块解决规范化、约化、因式分解、理想消元和 Gröbner 证书的完整链路。
+
+## 交叉问题
+
+field 提供系数域，linear_algebra 执行 F4 的 Macaulay 消元，number_theory 提供模像/CRT/Wang 重构，solve 消费消元后的解集关系。
+
+## 处理流
+
+PolynomialRef 先在 object store 解析并校验 RingId，再 canonicalize，按请求选择基础运算、Buchberger、F4 或 modular path，形成 frontier/certificate，最后经 verifier 和 AdmissionGate。
+
+```mermaid
+flowchart LR
+    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
+    Decompose --> Algorithm["polynomial 专属算法"]
+    Algorithm --> Evidence["结果与证据"]
+    Evidence --> Cross["跨领域复用"]
+```
+
+
 ## 数学表示如何驱动算法
 
 ```mermaid
