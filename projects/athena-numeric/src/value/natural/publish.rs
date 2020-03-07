@@ -70,23 +70,30 @@ impl Natural {
         Ok(Self::finish_rooted_limbs(buf, el))
     }
 
-    /// 将临时 ExplicitRelease 缓冲收成 inline 或（过渡）heap。
+    /// 将临时 ExplicitRelease 缓冲收成 `Natural`。
     ///
-    /// Living `31`：持久 publish 不得再调用本函数的 heap 分支；`*_owned` 复用收口前仍可能经此路径。
-    pub(super) fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Self {
+    /// Living `31`：`el >= 3` 时拷贝提升为 `PublishedNumericBlock`，再释放临时块。
+    /// 禁止 `from_owned_heap` 直接进入持久 `Natural`。
+    pub(super) fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Result<Self> {
         match el {
             0 | 1 => {
                 let limb = if el == 0 { 0 } else { buf.as_slice(1)[0] };
                 drop(buf);
-                Self::from_u64(limb)
+                Ok(Self::from_u64(limb))
             }
             2 => {
                 let limbs = buf.as_slice(2);
                 let pair = [limbs[0], limbs[1]];
                 drop(buf);
-                Self::from_limb2(pair)
+                Ok(Self::from_limb2(pair))
             }
-            _ => Self::from_pair(MagnitudePair::from_owned_heap(buf, el)),
+            _ => {
+                let heap_id = buf.heap_id();
+                let capacity = buf.capacity().max(el);
+                let rooted = crate::storage::RootedLimbBuffer::alloc_copy_on(heap_id, buf.as_slice(el), capacity).map_err(gc_alloc_error)?;
+                drop(buf);
+                Ok(Self::from_pair(MagnitudePair::from_rooted_heap(rooted, el)))
+            }
         }
     }
 

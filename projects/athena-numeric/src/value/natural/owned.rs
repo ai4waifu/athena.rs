@@ -37,10 +37,9 @@ impl UniqueDest {
         }
     }
 
-    fn finish(self, el: usize) -> Natural {
+    fn finish(self, el: usize) -> Result<Natural> {
         match self {
-            Self::Published(buf) => Natural::finish_rooted_limbs(buf, el),
-            // 过渡：临时 ExplicitRelease 仍可能出现在 ephemeral 路径。
+            Self::Published(buf) => Ok(Natural::finish_rooted_limbs(buf, el)),
             Self::Temporary(buf) => Natural::finish_owned_limbs(buf, el),
         }
     }
@@ -109,7 +108,7 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[n] != 0 { n + 1 } else { limb_kernel::effective_len(&storage[..n]) }
         };
-        Ok(buf.finish(el))
+        Ok(buf.finish(el)?)
     }
 
     /// 消费 `self` 的 `× u64`：Heap 且 `capacity >= len+1` 时就地 `mul_1`。
@@ -150,7 +149,7 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[la] != 0 { la + 1 } else { la }
         };
-        Ok(buf.finish(el))
+        Ok(buf.finish(el)?)
     }
 
     /// 消费 `self` 的减法：Heap 且容量足够时就地 SBB（要求 `self >= rhs`）。
@@ -203,7 +202,7 @@ impl Natural {
             debug_assert_eq!(borrow, 0);
         }
         let el = limb_kernel::effective_len(buf.as_slice(n.max(1))).max(1);
-        Ok(buf.finish(el))
+        Ok(buf.finish(el)?)
     }
 
     /// 消费 `self` 的乘法：仅 Schoolbook 且 Heap 容量 ≥ `la+lb` 时就地复用。
@@ -257,6 +256,6 @@ impl Natural {
             limb_kernel::mul_schoolbook_into(&lhs_snap, &rb[..lb], storage);
         }
         let el = limb_kernel::effective_len(buf.as_slice(need)).max(1);
-        Ok(buf.finish(el))
+        Ok(buf.finish(el)?)
     }
 }

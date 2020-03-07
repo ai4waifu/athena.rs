@@ -109,9 +109,9 @@ impl MagnitudePair {
         }
     }
 
-    /// 接管临时 ExplicitRelease heap 缓冲（仅 `TemporaryNatural` / ephemeral；禁止构造持久 `Natural`）。
+    /// 接管临时 ExplicitRelease heap 缓冲（仅 ephemeral / `Temporary*`；禁止构造持久 `Natural`）。
     ///
-    /// Living `31`：本入口不得出现在 `Natural::from_*` / publish 路径。
+    /// Living `31`：`Natural` 发布路径不得调用本函数。
     pub(crate) fn from_owned_heap(buf: OwnedLimbBuffer, len: usize) -> Self {
         debug_assert!(len >= 3);
         debug_assert!(len <= buf.capacity());
