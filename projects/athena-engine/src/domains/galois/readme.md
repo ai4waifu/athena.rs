@@ -1,23 +1,23 @@
 # 伽罗瓦理论
 
-## 模块解决的问题
+## 域扩张的对称性计算
 
 给定一个已登记的域扩张，模块要回答它是否可分、是否正规、有哪些自同构，以及这些自同构如何组成群。
 
-## 交叉问题
+## 交叉领域协作
 
 field 提供扩张坐标和模多项式，algebra 提供 Frobenius map，group 保存自同构生成的 permutation presentation。缺少任何一层都不能可靠构造 GaloisGroup。
 
-## 处理流
+## 扩张请求如何成为自同构证据
 
 GaloisRequest 解析 ExtensionId，先计算 separable/normal 状态，再生成 Frobenius powers，登记 FieldAutomorphism，最后把自同构映射为群对象并返回 GaloisResult。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["galois 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ X["FieldExtension"] --> SN["Separable + normal"]
+ SN --> F["Frobenius powers"]
+ F --> A["FieldAutomorphism"]
+ A --> G["GroupTable permutation"]
 ```
 
 
@@ -71,7 +71,7 @@ flowchart LR
 
 ## 深入理解
 
-Frobenius 不是一个显示名称，而是坐标上的可执行变换。对 polynomial-basis element，模块计算每个坐标在 p 次幂下的结果，再按扩张 modulus 约化。重复作用的 power 对应自同构组合，只有在扩张可分且正规时，才可把这些自同构组织成完整伽罗瓦群。
+Frobenius 是坐标上的可执行变换。对 polynomial-basis element，模块计算每个坐标在 p 次幂下的结果，再按扩张 modulus 约化。重复作用的 power 对应自同构组合，只有在扩张可分且正规时，才可把这些自同构组织成完整伽罗瓦群。
 
 `FieldAutomorphism` 保存扩张、Frobenius power 和 map id，`GaloisGroup` 保存生成元与群 presentation。这样下游 group 可以做成员判定，field 仍能应用自同构到具体元素。缺少正规性证据时，结果只能是 property state，不能伪装成群对象。
 

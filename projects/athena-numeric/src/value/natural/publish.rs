@@ -247,6 +247,8 @@ impl Natural {
                 n => {
                     debug_assert!(n >= 3);
                     debug_assert!(matches!(self.inner.mode(), Mode::Heap));
+                    // Living 31：持久 Natural 的 Heap payload 必须是 PublishedNumericBlock。
+                    debug_assert!(self.inner.is_heap_rooted(), "Natural Heap must be rooted PublishedNumericBlock");
                 }
             }
         }

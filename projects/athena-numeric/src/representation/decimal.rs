@@ -80,10 +80,10 @@ impl Decimal {
         Some(Self::from_parts(self.significand.clone_inline()?, self.exponent, self.precision_bits))
     }
 
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制（Living `31`：目标 heap 上 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self::from_parts(self.significand.try_clone().map_err(gc_alloc_error)?, self.exponent, self.precision_bits))
+        Ok(Self::from_parts(self.significand.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?, self.exponent, self.precision_bits))
     }
 
     fn from_parts(significand: MagnitudePair, exponent: i64, precision_bits: u32) -> Self {

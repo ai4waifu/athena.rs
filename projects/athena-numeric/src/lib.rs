@@ -90,4 +90,4 @@ pub use crate::{
 };
 
 #[cfg(feature = "ephemeral")]
-pub use value::ephemeral::{EphemeralInteger, EphemeralNatural};
+pub use value::ephemeral::{EphemeralInteger, EphemeralNatural, TemporaryInteger, TemporaryNatural};

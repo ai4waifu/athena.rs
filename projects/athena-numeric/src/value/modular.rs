@@ -54,10 +54,10 @@ impl Modulus {
         Some(Self { value: self.value.clone_inline()? })
     }
 
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制（Living `31`：目标 heap 上 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self { value: self.value.try_clone().map_err(gc_alloc_error)? })
+        Ok(Self { value: self.value.try_clone_on(ctx.heap()).map_err(gc_alloc_error)? })
     }
 
     /// 模数值（始终 `> 1`）。观察者路径优先 [`Self::as_limbs`]。
@@ -125,7 +125,10 @@ impl ModularValue {
     /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self { residue: self.residue.try_clone().map_err(gc_alloc_error)?, binding: self.binding.try_clone_in(ctx)? })
+        Ok(Self {
+            residue: self.residue.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?,
+            binding: self.binding.try_clone_in(ctx)?,
+        })
     }
 
     /// 在给定模数下构造（自动化约，嵌入模数）。

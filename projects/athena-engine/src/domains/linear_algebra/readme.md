@@ -1,23 +1,23 @@
 # 线性代数
 
-## 模块解决的问题
+## 精确与机器矩阵求解的契约
 
 矩阵算法必须知道元素域、维度、布局和精度保证。该模块同时支持 exact rational 与 machine real，但两条路径的结论不能混在一起。
 
-## 交叉问题
+## 交叉领域协作
 
 field 提供元素 parent，polynomial 的 F4 通过矩阵视图调用消元，graph 通过 TypedView 暴露邻接结构，solve 消费 rank、nullspace 和 disposition。
 
-## 处理流
+## 矩阵请求如何选择数值路径
 
 LinearAlgebraRequest 解析 MatrixRef，检查 parent/shape/layout，选择 Bareiss 或 partial-pivot LU，生成解、秩、残差和 witness，再形成 LinearAlgebraResult。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["linear_algebra 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ M["MatrixParent + shape"] --> E["Exact or machine policy"]
+ E --> F["Bareiss/RREF or pivot LU"]
+ F --> W["Rank · residual · witness"]
+ W --> S["Solve disposition"]
 ```
 
 

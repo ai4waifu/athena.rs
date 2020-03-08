@@ -175,6 +175,22 @@ fn portable_default_also_publishes_tracing_sweep_heap() {
 }
 
 #[test]
+fn portable_and_session_heap_naturals_are_rooted_published() {
+    use athena_numeric::natural::Natural;
+    use core::ptr::NonNull;
+
+    for ctx in [NumericContext::portable_default(), NumericContext::session_default()] {
+        let n = Natural::from_limbs_in(&ctx, vec![3, 4, 5, 6]).expect("heap natural");
+        let nn = NonNull::new(n.as_limbs().as_ptr() as *mut u64).expect("ptr");
+        assert!(ctx.heap().borrow().may_root_numeric(nn).expect("rootable"));
+        assert!(!ctx.heap().borrow().may_explicit_release_numeric(nn).expect("not ExplicitRelease"));
+        let cloned = n.try_clone_in(&ctx).expect("clone");
+        let cn = NonNull::new(cloned.as_limbs().as_ptr() as *mut u64).expect("cptr");
+        assert!(ctx.heap().borrow().may_root_numeric(cn).expect("clone published"));
+    }
+}
+
+#[test]
 fn session_rooted_drop_unregisters_without_free_mismatch() {
     use athena_numeric::natural::Natural;
 

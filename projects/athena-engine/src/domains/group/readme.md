@@ -1,23 +1,23 @@
 # 群论
 
-## 模块解决的问题
+## 有限群的可计算表示
 
 群模块解决有限群的可计算表示问题：不枚举所有元素，也能进行成员判定、求群阶、构造子群和商群。
 
-## 交叉问题
+## 交叉领域协作
 
 galois 把自同构交给 GroupTable，algebra 统一 parent 和 map，field 保留自同构作用的元素坐标。群模块不拥有域语义，只验证群结构。
 
-## 处理流
+## 生成元如何进入群算法
 
 GroupRequest 解析 GroupId，验证生成元是双射，建立 BsgsChain，按目标执行 membership、subgroup、homomorphism 或 quotient，并在 MapTable 中记录验证结果。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["group 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ G["Generators as RawPerm"] --> B["BSGS stabilizer chain"]
+ B --> M["Membership / order"]
+ M --> H["Subgroup · quotient"]
+ H --> V["Map verification"]
 ```
 
 
@@ -76,7 +76,7 @@ flowchart LR
 
 BSGS 的价值在于把群阶和成员判定从“枚举全部元素”变成一组 stabilizer 层。`BsgsChain::contains` 逐层消解点轨道，`all_elements` 只在确实需要枚举时使用。子群通过同一表示构造，正规性通过共轭闭包检查，商群再依据陪集代表元生成。
 
-同态不是两个 permutation 数组相等，而是生成元关系在 target 中仍成立。`MapTable` 因此保存 source、target、generator images 和 verification。Galois 使用这条路径注册自同构，Solve 或 polynomial 不应绕过它直接把群元素降成整数。
+同态同态验证检查 target 中的生成元关系。`MapTable` 因此保存 source、target、generator images 和 verification。Galois 使用这条路径注册自同构，Solve 或 polynomial 不应绕过它直接把群元素降成整数。
 
 ## 失败路径与验证
 

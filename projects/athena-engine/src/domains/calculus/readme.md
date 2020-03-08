@@ -1,23 +1,23 @@
 # 微积分
 
-## 模块解决的问题
+## 带假设的符号分析结果
 
-符号微积分真正困难的部分不是把 `x^2` 改成 `2*x`，而是处理假设、分支、余项、收敛域和未完成推导。该模块将这些信息保留在结果中。
+符号微积分核心工作在于处理假设、分支、余项、收敛域和未完成推导。该模块将这些信息保留在结果中。
 
-## 交叉问题
+## 交叉领域协作
 
 Solve 提供 ODE 的约束与解集，polynomial 提供代数化简，field/numeric 提供系数域，plot 只消费采样后的值。微积分结果不能用一个 `TermId` 覆盖这些协作关系。
 
-## 处理流
+## 请求如何保留条件与证据
 
 读取 TermStore 和 AssumptionSet，按 CalculusRequest 分支到导数、积分、极限、级数或变换算法，生成 ConditionalResult，再由 value mapper 保存 SeriesRef、ROC 或验证状态。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["calculus 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ A["AssumptionSet"] --> R["Rewrite / branch"]
+ R --> K["Derivative · integral · limit"]
+ K --> S["Series / transform / ODE"]
+ S --> C["Condition · remainder · verification"]
 ```
 
 
@@ -111,6 +111,6 @@ sequenceDiagram
 
 ## 深入理解
 
-微积分算法的中间结果不是普通 Term。`Series` 记录中心、阶数、项和 `Remainder`，`TransformResult` 记录表达式和 `RegionOfConvergence`，`DifferentialSolution` 记录回代后的 `VerificationStatus`。这些信息决定结果能否继续用于 Solve 或 Plot。
+微积分算法的中间结果必须保留专属结果结构。`Series` 记录中心、阶数、项和 `Remainder`，`TransformResult` 记录表达式和 `RegionOfConvergence`，`DifferentialSolution` 记录回代后的 `VerificationStatus`。这些信息决定结果能否继续用于 Solve 或 Plot。
 
 假设集通过 `DomainExecutionContext` 进入规则匹配。比如积分规则产生的条件、极限的单侧方向、ODE 的初值要求都不能在 `materialize_expression` 时丢失。`CalculusValue` 只是把不同 payload 统一放进结果，不意味着它们数学上可以互换。

@@ -1,23 +1,23 @@
 # 图论领域
 
-## 模块解决的问题
+## 带版本边界的图论结论
 
 图论模块要把存储中的边集合变成带方向、权重、revision 和证书的数学对象。CSR 能加速访问，但本身不能证明最短路或生成树。
 
-## 交叉问题
+## 交叉领域协作
 
 athena-graph 持有 snapshot，views 可提供 GraphMatrixView，linear_algebra 消费矩阵投影，M-Graph 保存已验证性质。
 
-## 处理流
+## 图快照如何生成可复核结论
 
 GraphTheoryRequest 绑定 GraphRevision，检查权重域和驻留能力，运行连通性、SCC、路径、MST 或二分算法，生成 GraphCertificate 并发布结果。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["graph_theory 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ S["GraphSnapshot + revision"] --> R["CSR/CSC traversal"]
+ R --> C["Connectivity · path · MST"]
+ C --> Q["Property state"]
+ Q --> Z["GraphCertificate"]
 ```
 
 
@@ -53,7 +53,7 @@ flowchart LR
 
 跨领域读取通过 [GraphMatrixView](../views/graph_matrix.rs) 提供 adjacency 投影，图论结论仍由本模块验证。源码阅读：[object.rs](./object.rs) / [lifecycle.rs](./lifecycle.rs) → [connectivity.rs](./connectivity.rs) / [path.rs](./path.rs) / [mst.rs](./mst.rs) / [bipartite.rs](./bipartite.rs) → [property.rs](./property.rs) / [result.rs](./result.rs)。测试见 [graph theory tests](../../../tests/domains/graph_theory/)。
 
-`graph_theory` 在 `athena-graph` 的普通图存储之上提供图论语义、算法结果和证书。它属于 `athena-engine`，不是独立的图论 crate。
+`graph_theory` 在 `athena-graph` 的普通图存储之上提供图论语义、算法结果和证书。它属于 `athena-engine`，属于 `athena-engine` 的图论语义层。
 
 ## 能力
 

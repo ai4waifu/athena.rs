@@ -1,23 +1,23 @@
 # 优化与规划
 
-## 模块解决的问题
+## 可行性、界与最优性
 
 优化问题必须同时描述可行域、目标、当前最好解、上下界和是否已经证明最优。可行点不等于最优点。
 
-## 交叉问题
+## 交叉领域协作
 
 solve 提供约束规范化，linear_algebra 提供矩阵 kernel，numeric 提供精确或机器值，reasoning::solver 提供调度和 frontier。
 
-## 处理流
+## 优化请求如何形成前沿
 
 OptimizationRequest 建立 ProblemId 和 fingerprint，分类问题，选择 policy，搜索 incumbent 和 bound，生成 certificate 或 frontier，再返回 OptimizationResult。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["optimization 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ P["Problem + feasible set"] --> O["Objective"]
+ O --> B["Bounds and incumbent"]
+ B --> F["Frontier / gap"]
+ F --> C["Optimality certificate"]
 ```
 
 

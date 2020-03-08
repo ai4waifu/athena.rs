@@ -1,23 +1,24 @@
 # 方程求解
 
-## 模块解决的问题
+## 解集覆盖度与完整性
 
 求解模块要表达解集而不是单个成功值：唯一解、参数族、认证子集、局部根和实例都必须可区分。
 
-## 交叉问题
+## 交叉领域协作
 
 linear_algebra 提供 exact/machine disposition，polynomial 提供根和因式分解，number_theory 提供重构，M-Graph 提供可复用关系。
 
-## 处理流
+## 约束如何形成可审计解集
 
 把 TermStore 中的关系规范化为 ConstraintSet，建立 SolveProblem，Reflector 选择 adapter，生成 SolutionBranch，验证 residual，按 CoverageStatus 发布 SolutionSet。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["solve 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ C["ConstraintSet"] --> N["Normalization"]
+ N --> A["Linear / univariate adapter"]
+ A --> B["Solution branches"]
+ B --> R["Residual certificate"]
+ R --> K["Coverage status"]
 ```
 
 

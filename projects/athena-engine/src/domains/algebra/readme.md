@@ -1,23 +1,23 @@
 # 代数基础设施
 
-## 模块解决的问题
+## 共享代数对象的身份与合法性
 
 Athena 的域、群、伽罗瓦和多项式不能各自定义 parent、presentation 和 map。这个共享层解决的是同一个数学对象在不同领域中身份不一致的问题。
 
-## 交叉问题
+## 交叉领域协作
 
 field 需要它登记 `FieldTable` 和 embedding，group 需要 `GroupTable` 与 BSGS，galois 需要把域自同构注册为群元素，polynomial 需要系数 parent。缺少共享层时，跨域转换只能靠字符串或裸整数，无法验证 source/target。
 
-## 处理流
+## 请求如何穿过代数身份层
 
 先登记 parent 和 presentation，再构造元素和 fingerprint，随后登记 map 并附 verification。下游领域只消费已登记的 ID，不复制对象身份。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["algebra 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ P["Parent 与 presentation"] --> E["Element identity"]
+ E --> M["MapTable source/target"]
+ M --> V["Verification"]
+ V --> D["field · group · galois · polynomial"]
 ```
 
 
@@ -79,7 +79,7 @@ flowchart TB
 
 ## 深入理解
 
-parent 是运算合法性的第一道门。FieldId、GroupId、ExtensionId 和 AlgebraMapId 不是缓存索引，而是数学对象的组成部分。`FieldTable` 负责登记 characteristic、presentation 和扩张塔，`GroupTable` 负责生成元、BSGS chain、子群与商群。两张表通过 `MapTable` 连接，但连接必须记录 source、target 和 verification。这样同一个元素在不同坐标系中转换时，调用方仍能追溯它来自哪个对象。
+parent 是运算合法性的第一道门。FieldId、GroupId、ExtensionId 和 AlgebraMapId 这些 ID 构成数学对象身份。`FieldTable` 负责登记 characteristic、presentation 和扩张塔，`GroupTable` 负责生成元、BSGS chain、子群与商群。两张表通过 `MapTable` 连接，但连接必须记录 source、target 和 verification。这样同一个元素在不同坐标系中转换时，调用方仍能追溯它来自哪个对象。
 
 扩张域的坐标乘法先做多项式卷积，再按 modulus 约化。置换群则先验证 images 是双射，再把生成元送入 stabilizer chain。两种算法完全不同，却共享 fingerprint、property state 和 map verification。这正是本模块存在的理由：共享的是对象语义，而不是把所有算法揉成一个大接口。
 

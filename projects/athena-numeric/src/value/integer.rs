@@ -129,11 +129,21 @@ impl Integer {
     }
 
     pub(crate) fn from_pair(inner: MagnitudePair) -> Self {
-        Self { inner }
+        let i = Self { inner };
+        #[cfg(debug_assertions)]
+        i.debug_assert_invariants();
+        i
     }
 
     pub(crate) fn into_pair(self) -> MagnitudePair {
         self.inner
+    }
+
+    #[cfg(debug_assertions)]
+    fn debug_assert_invariants(&self) {
+        if matches!(self.inner.mode(), crate::storage::Mode::Heap) {
+            debug_assert!(self.inner.is_heap_rooted(), "Integer Heap must be rooted PublishedNumericBlock");
+        }
     }
 
     /// 无符号幅度（可失败 owning 复制；仅供确需 `Natural` 所有权的路径）。

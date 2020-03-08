@@ -129,6 +129,12 @@ impl MagnitudePair {
         Self { meta: encode_heap_meta(len, false, true), magnitude: Magnitude { heap: payload } }
     }
 
+    /// Heap 且已发布（rooted / TracingSweep）。
+    #[inline]
+    pub(crate) fn is_heap_rooted(&self) -> bool {
+        matches!(self.mode(), Mode::Heap) && heap_is_rooted(self.meta)
+    }
+
     /// Heap limb 指针（仅 Heap mode）。
     pub(crate) fn heap_ptr(&self) -> Option<NonNull<u64>> {
         if matches!(self.mode(), Mode::Heap) {

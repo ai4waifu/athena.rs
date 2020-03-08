@@ -1,23 +1,23 @@
 # 域与有限域
 
-## 模块解决的问题
+## 域元素的归属与合法运算
 
 域模块解决元素归属和合法运算问题：同样的坐标在 `Q`、`F_p` 和 `Q(alpha)` 中含义不同，不能仅凭数值相等判断可相加。
 
-## 交叉问题
+## 交叉领域协作
 
 polynomial 使用 FieldId 解释系数，galois 读取 FieldExtension 和 Frobenius，algebra 保存 embedding，number_theory 提供 prime modulus。域模块必须让这些消费者共享同一 parent。
 
-## 处理流
+## 元素请求如何获得域语义
 
 FieldRequest 先解析 FieldTable，再规范化元素，执行加乘逆或显式 embedding，最后把 FieldResult 连同 parent 和诊断交回调用方。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["field 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ T["FieldTable"] --> P["Parent + modulus"]
+ P --> N["Canonical coordinates"]
+ N --> O["Add · multiply · inverse"]
+ O --> I["Embedding / result"]
 ```
 
 
@@ -76,7 +76,7 @@ flowchart LR
 
 域的表示直接决定错误能否被发现。`canonical_rational` 会检查分母并约分，prime residue 会使用 Euclidean remainder，扩张域坐标必须符合 degree 和 modulus shape。若将这些值统一成 `Integer`，polynomial 可能把不同域的系数相加，galois 也无法判断 Frobenius 是否适用。
 
-显式 embedding 是跨域计算的唯一安全路径。`Q → F_p` 需要确认分母在模 p 下可逆，`F_p → F_{p^n}` 需要固定基嵌入，数域扩张需要登记 minimal polynomial。失败时返回诊断而不是静默 coercion，因此上层 Solve 可以把“域不兼容”作为结构化分支处理。
+显式 embedding 是跨域计算的唯一安全路径。`Q → F_p` 需要确认分母在模 p 下可逆，`F_p → F_{p^n}` 需要固定基嵌入，数域扩张需要登记 minimal polynomial。失败时返回诊断并禁止静默 coercion，因此上层 Solve 可以把“域不兼容”作为结构化分支处理。
 
 ## 失败路径与验证
 
@@ -88,11 +88,11 @@ flowchart LR
 
 ## 为什么表示必须留在域对象内
 
-`FieldElement` 的 payload 必须知道 parent，因为 inverse、embedding 和 characteristic 都依赖 parent。调用方看到两个坐标数组相等，不能据此省略域检查。这样的冗余是有意的：它让错误在 canonicalization 阶段暴露，而不是在更高层产生错误关系。域结果被 polynomial 或 galois 消费时，parent 信息仍随 object reference 传递。
+`FieldElement` 的 payload 必须知道 parent，因为 inverse、embedding 和 characteristic 都依赖 parent。调用方看到两个坐标数组相等，不能据此省略域检查。这样的冗余是有意的：它让错误在 canonicalization 阶段暴露，从而避免更高层产生错误关系。域结果被 polynomial 或 galois 消费时，parent 信息仍随 object reference 传递。
 
-这些测试不是 API 例子，而是表示合同：同一个域重复登记必须得到稳定 identity，等价坐标必须得到相同 canonical value，不同 parent 的相同坐标必须被拒绝。这样 polynomial 和 galois 才能依赖域层，而不必在每个算法中重新实现域检查。
+这些测试定义表示合同：同一个域重复登记必须得到稳定 identity，等价坐标必须得到相同 canonical value，不同 parent 的相同坐标必须被拒绝。这样 polynomial 和 galois 才能依赖域层，而不必在每个算法中重新实现域检查。
 
-调用方因此可以把域错误当成可组合的诊断：多项式请求可以在进入系数 kernel 前拒绝 ring mismatch，伽罗瓦请求可以在生成 Frobenius 前拒绝错误 characteristic，Solve 可以把 embedding 失败保留为条件分支，而不是得到一个悄悄转换后的错误答案。
+调用方因此可以把域错误当成可组合的诊断：多项式请求可以在进入系数 kernel 前拒绝 ring mismatch，伽罗瓦请求可以在生成 Frobenius 前拒绝错误 characteristic，Solve 可以把 embedding 失败保留为条件分支，避免悄悄转换后的错误答案。
 
 域层的约束会沿请求进入结果，调用方无需重新猜测数值的数学含义。
 

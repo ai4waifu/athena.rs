@@ -1,23 +1,23 @@
 # 跨领域 TypedView
 
-## 模块解决的问题
+## 跨域读取与对象身份
 
 跨领域算法需要读取对象，却不能复制成第二个数学身份。TypedView 解决的是只读投影、来源追踪和 revision 失效问题。
 
-## 交叉问题
+## 交叉领域协作
 
 GraphMatrixView 给线代提供图矩阵，PolynomialMatrixView 给 F4 提供项结构，SeriesPolynomialView 给多项式提供有限前缀。源领域仍然拥有对象。
 
-## 处理流
+## 视图如何连接源对象与目标内核
 
 从 source object 打开 view，写入 fingerprint、revision 和 lease，目标 kernel 在视图有效期内读取，结果发布时由目标领域重新 intern。
 
 ```mermaid
 flowchart LR
-    Problem["领域问题"] --> Decompose["对象、关系、转换、计算"]
-    Decompose --> Algorithm["views 专属算法"]
-    Algorithm --> Evidence["结果与证据"]
-    Evidence --> Cross["跨领域复用"]
+ S["Source owner"] --> H["TypedViewHeader"]
+ H --> L["Lease + revision"]
+ L --> T["Graph / polynomial / series view"]
+ T --> K["Target kernel"]
 ```
 
 
@@ -62,7 +62,7 @@ View 不拥有 `DomainObject` payload，也不创建第二份长期对象身份�
 
 ## 边界
 
-TypedView 不能通过 `Vec` 全量复制或裸 `TermId` 冒充跨域对象。物理存储、chunk 驻留、GC root 和算法预算由源对象及 runtime 管理。View 只是受约束的读取和转换入口，不是新的数学领域。
+TypedView 不能通过 `Vec` 全量复制或裸 `TermId` 冒充跨域对象。物理存储、chunk 驻留、GC root 和算法预算由源对象及 runtime 管理。View 只是受约束的读取和转换入口，只提供视图协议。
 
 ## 使用场景
 

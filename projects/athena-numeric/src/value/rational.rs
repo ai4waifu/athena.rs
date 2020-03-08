@@ -70,7 +70,20 @@ impl Rational {
 
     fn from_parts(numer: Integer, denom: Natural) -> Self {
         debug_assert!(!denom.is_zero());
-        Self { numer: numer.into_pair(), denom: denom.into_pair() }
+        let r = Self { numer: numer.into_pair(), denom: denom.into_pair() };
+        #[cfg(debug_assertions)]
+        r.debug_assert_invariants();
+        r
+    }
+
+    #[cfg(debug_assertions)]
+    fn debug_assert_invariants(&self) {
+        if matches!(self.numer.mode(), crate::storage::Mode::Heap) {
+            debug_assert!(self.numer.is_heap_rooted(), "Rational numer Heap must be rooted PublishedNumericBlock");
+        }
+        if matches!(self.denom.mode(), crate::storage::Mode::Heap) {
+            debug_assert!(self.denom.is_heap_rooted(), "Rational denom Heap must be rooted PublishedNumericBlock");
+        }
     }
 
     /// 由整数构造。
