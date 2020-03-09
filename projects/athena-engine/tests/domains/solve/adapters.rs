@@ -101,7 +101,7 @@ fn univariate_quadratic_irreducible_is_unsupported_solution() {
     b.push_term(Number::small_int(1), vec![2]).unwrap();
     b.push_term(Number::small_int(1), vec![0]).unwrap();
     let p = b.build(&rings).unwrap();
-    let f = factor_univariate(p.clone(), &rings, PolynomialFactorLimits::default()).unwrap();
+    let f = factor_univariate(p.owning_copy(), &rings, PolynomialFactorLimits::default()).unwrap();
     let adapted = adapt_univariate_factorization(&f, BoundSymbol::free(SymbolId(0)), SolveDomain::Rationals).unwrap();
     assert!(matches!(adapted.solution.coverage, CoverageStatus::Unsupported));
     assert!(!adapted.solution.admits_exact_union_find());

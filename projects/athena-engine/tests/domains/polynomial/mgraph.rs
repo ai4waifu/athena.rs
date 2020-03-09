@@ -151,8 +151,8 @@ fn forged_verified_groebner_rejected_by_independent_replay() {
     b2.push_term(Number::small_int(1), vec![1, 1]).unwrap();
     b2.push_term(Number::small_int(-1), vec![0, 0]).unwrap();
     let g2 = b2.build(&session.rings).unwrap();
-    let r1 = session.polynomial_objects.intern(g1.clone(), &session.rings);
-    let r2 = session.polynomial_objects.intern(g2.clone(), &session.rings);
+    let r1 = session.polynomial_objects.intern(g1.owning_copy(), &session.rings);
+    let r2 = session.polynomial_objects.intern(g2.owning_copy(), &session.rings);
     let req = PolynomialRequest::Groebner { generators: vec![r1, r2], limits: GroebnerLimits::default() };
     let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();
     let forged = PolynomialResult::Exact {

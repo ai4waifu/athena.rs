@@ -8,7 +8,9 @@ use crate::reasoning::mgraph::{
 };
 
 /// 操作层状态（非单调；可驱逐、可重建）。
-#[derive(Debug, Clone, Default, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（`result_cache` 含多项式 owning 载荷）。
+#[derive(Debug, Default, PartialEq)]
 pub struct OperationalState {
     /// Solver 调度前沿。
     pub frontier: SolverFrontier,

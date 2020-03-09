@@ -5,7 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::object::Polynomial;
 
 /// 多项式理想 ⟨generators⟩ ⊂ R[x]。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct Ideal {
     /// 所属环。
     pub ring: RingId,
@@ -14,6 +16,11 @@ pub struct Ideal {
 }
 
 impl Ideal {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { ring: self.ring, generators: self.generators.iter().map(Polynomial::owning_copy).collect() }
+    }
+
     /// 由生成元构造（校验同环）。
     pub fn new(generators: Vec<Polynomial>) -> Result<Self> {
         if generators.is_empty() {

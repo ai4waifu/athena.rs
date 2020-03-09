@@ -5,7 +5,9 @@ use athena_types::{ExtensionId, FieldId, SubgroupId};
 use crate::domains::polynomial::Polynomial;
 
 /// 伽罗瓦域请求。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。含多项式载荷时用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum GaloisRequest {
     /// 多项式在基域上是否可分。
     IsPolynomialSeparable {
@@ -48,4 +50,25 @@ pub enum GaloisRequest {
         /// 自同构子群。
         automorphism_subgroup: SubgroupId,
     },
+}
+
+impl GaloisRequest {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::IsPolynomialSeparable { polynomial, base_field } => {
+                Self::IsPolynomialSeparable { polynomial: polynomial.owning_copy(), base_field: *base_field }
+            }
+            Self::IsExtensionNormal { extension } => Self::IsExtensionNormal { extension: *extension },
+            Self::IsExtensionSeparable { extension } => Self::IsExtensionSeparable { extension: *extension },
+            Self::IsGalois { extension } => Self::IsGalois { extension: *extension },
+            Self::GaloisGroupOfPolynomial { polynomial, base_field } => {
+                Self::GaloisGroupOfPolynomial { polynomial: polynomial.owning_copy(), base_field: *base_field }
+            }
+            Self::GaloisGroupOfExtension { extension } => Self::GaloisGroupOfExtension { extension: *extension },
+            Self::FixedField { extension, automorphism_subgroup } => {
+                Self::FixedField { extension: *extension, automorphism_subgroup: *automorphism_subgroup }
+            }
+        }
+    }
 }

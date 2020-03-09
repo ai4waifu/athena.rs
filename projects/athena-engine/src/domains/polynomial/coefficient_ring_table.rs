@@ -80,8 +80,8 @@ impl CoefficientRingTable {
         let id = CoefficientRingId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
         let parent = coefficient_parent_for(id, &domain);
-        let descriptor = CoefficientRingDescriptor { id, domain: domain.clone(), characteristic, parent };
-        self.by_key.insert(intern_key(&domain), id);
+        let descriptor = CoefficientRingDescriptor { id, domain, characteristic, parent };
+        self.by_key.insert(key, id);
         self.by_id.insert(id, CoefficientRingEntry { descriptor, prime_modulus, kernel });
         Ok(id)
     }
@@ -125,7 +125,7 @@ impl CoefficientRingTable {
 fn intern_key(domain: &CoefficientDomain) -> CoefficientRingInternKey {
     match domain {
         CoefficientDomain::FiniteField { field } => CoefficientRingInternKey::Field(*field),
-        other => CoefficientRingInternKey::Domain(other.clone()),
+        other => CoefficientRingInternKey::Domain(other.owning_copy()),
     }
 }
 

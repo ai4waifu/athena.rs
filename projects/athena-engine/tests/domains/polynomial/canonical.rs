@@ -34,7 +34,7 @@ fn builder_returns_canonical_polynomial_identity() {
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::small_int(1), vec![0, 0]).unwrap();
     let p: CanonicalPolynomial = b.build(&rings).unwrap();
-    let again = canonicalize_polynomial(p.clone(), &rings).unwrap();
+    let again = canonicalize_polynomial(p.owning_copy(), &rings).unwrap();
     assert_eq!(p, again);
 }
 
@@ -87,7 +87,7 @@ fn canonical_hash_stable_after_canonicalize() {
     b.push_term(Number::small_int(3), vec![1, 0]).unwrap();
     b.push_term(Number::small_int(1), vec![0, 1]).unwrap();
     let raw = b.build(&rings).unwrap();
-    let again = canonicalize_polynomial(raw.clone(), &rings).unwrap();
+    let again = canonicalize_polynomial(raw.owning_copy(), &rings).unwrap();
     let h1 = polynomial_canonical_hash(&raw, &rings).unwrap();
     let h2 = polynomial_canonical_hash(&again, &rings).unwrap();
     assert_eq!(h1, h2);

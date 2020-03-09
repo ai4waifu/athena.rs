@@ -102,7 +102,7 @@ impl RingTable {
     ) -> Result<RingHandle, Diagnostic> {
         let coefficients = normalize_coefficient_domain(coefficients, &mut self.fields)?;
         let (domain, variables, order, characteristic) = RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
-        let coefficient_ring = self.coefficient_rings.intern(domain.clone(), &self.fields)?;
+        let coefficient_ring = self.coefficient_rings.intern(domain.owning_copy(), &self.fields)?;
         let coefficients = self.coefficient_rings.coefficient_parent(coefficient_ring);
         let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
         if let Some(&id) = self.by_key.get(&key) {

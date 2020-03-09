@@ -10,17 +10,28 @@ use super::{
 use athena_types::RingId;
 
 /// 擦除后的多项式句柄（不暴露泛型多项式）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct PolynomialValue {
     /// 内部多项式对象。
     pub inner: Polynomial,
+}
+
+impl PolynomialValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { inner: self.inner.owning_copy() }
+    }
 }
 
 /// Gröbner / 消元基结果。
 ///
 /// Partial / ResourceLimited 时保留 `pending_pairs` / `pending_insertion`，
 /// 以便 Session 层诚实 resume（Living `30` G1）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct GroebnerBasisValue {
     /// 所属环。
     pub ring: RingId,
@@ -41,6 +52,20 @@ pub struct GroebnerBasisValue {
 }
 
 impl GroebnerBasisValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            ring: self.ring,
+            basis: self.basis.iter().map(Polynomial::owning_copy).collect(),
+            certificate: self.certificate.clone(),
+            status: self.status,
+            pending_pairs: self.pending_pairs.clone(),
+            pending_insertion: self.pending_insertion.as_ref().map(Polynomial::owning_copy),
+            candidate_sugars: self.candidate_sugars.clone(),
+            pending_insertion_sugar: self.pending_insertion_sugar,
+        }
+    }
+
     /// 从 [`GroebnerComputation`] 构造域值。
     pub fn from_computation(computation: GroebnerComputation) -> Self {
         match computation {
@@ -158,7 +183,9 @@ impl GroebnerBasisValue {
 }
 
 /// 单变量除法结果值。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct UnivariateDivisionValue {
     /// 商。
     pub quotient: PolynomialValue,
@@ -166,8 +193,17 @@ pub struct UnivariateDivisionValue {
     pub remainder: PolynomialValue,
 }
 
+impl UnivariateDivisionValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { quotient: self.quotient.owning_copy(), remainder: self.remainder.owning_copy() }
+    }
+}
+
 /// 多项式域返回值。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum PolynomialDomainValue {
     /// 单个多项式。
     Polynomial(PolynomialValue),
@@ -181,4 +217,18 @@ pub enum PolynomialDomainValue {
     ModularImage(ModularImage),
     /// 占位。
     Placeholder,
+}
+
+impl PolynomialDomainValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Polynomial(v) => Self::Polynomial(v.owning_copy()),
+            Self::UnivariateDivision(v) => Self::UnivariateDivision(v.owning_copy()),
+            Self::Factorization(v) => Self::Factorization(v.owning_copy()),
+            Self::GroebnerBasis(v) => Self::GroebnerBasis(v.owning_copy()),
+            Self::ModularImage(v) => Self::ModularImage(v.owning_copy()),
+            Self::Placeholder => Self::Placeholder,
+        }
+    }
 }

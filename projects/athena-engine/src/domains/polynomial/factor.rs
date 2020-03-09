@@ -100,20 +100,14 @@ pub struct PolynomialFactorization {
 }
 
 impl PolynomialFactorComponent {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { base: self.base.owning_copy(), exponent: self.exponent, status: self.status }
     }
 }
 
-impl Clone for PolynomialFactorComponent {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
-
 impl PolynomialFactorization {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self {
             ring: self.ring,
@@ -144,12 +138,6 @@ impl PolynomialFactorization {
     /// 是否可作为 M-Graph exact witness。
     pub fn is_exact_witness(&self) -> bool {
         self.completeness() == PolynomialFactorizationCompleteness::Complete
-    }
-}
-
-impl Clone for PolynomialFactorization {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }
 

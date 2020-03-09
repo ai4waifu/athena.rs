@@ -22,7 +22,7 @@ pub enum JitParityOutcome {
 
 /// 带 parity 门的多项式乘法（eager 始终返回）。
 pub fn mul_with_jit_parity(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Result<(Polynomial, JitParityOutcome)> {
-    let eager = mul_polynomial(lhs.clone(), rhs.clone(), rings)?;
+    let eager = mul_polynomial(lhs.owning_copy(), rhs.owning_copy(), rings)?;
     let parity = check_mul_parity(&eager, rings);
     Ok((eager, parity))
 }

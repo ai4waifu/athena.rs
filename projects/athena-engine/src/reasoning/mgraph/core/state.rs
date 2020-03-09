@@ -3,7 +3,9 @@
 use crate::reasoning::mgraph::{admission::semantic::SemanticCore, closure::operational::OperationalState};
 
 /// M-Graph 状态：semantic core 与 operational 层分离。
-#[derive(Debug, Clone, Default, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（operational 缓存含多项式 owning 载荷）。
+#[derive(Debug, Default, PartialEq)]
 pub struct MGraphState {
     /// 单调 verified claims + 派生索引。
     pub semantic: SemanticCore,

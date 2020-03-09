@@ -97,7 +97,7 @@ fn sub_matches_add_neg() {
     let (rings, ring) = z_x_ring();
     let a = build_univariate(&rings, ring, &[(3, 2), (1, 0)]);
     let b = build_univariate(&rings, ring, &[(1, 1)]);
-    let diff = sub_polynomial(a.clone(), b.clone(), &rings).unwrap();
+    let diff = sub_polynomial(a.owning_copy(), b.owning_copy(), &rings).unwrap();
     let via_add = add_polynomial(a, build_univariate(&rings, ring, &[(-1, 1)]), &rings).unwrap();
     assert_eq!(diff, via_add);
 }
@@ -132,8 +132,8 @@ fn distributive_law_smoke() {
     let a = build_univariate(&rings, ring, &[(2, 1)]);
     let b = build_univariate(&rings, ring, &[(1, 1), (1, 0)]);
     let c = build_univariate(&rings, ring, &[(3, 0)]);
-    let left = mul_polynomial(a.clone(), add_polynomial(b.clone(), c.clone(), &rings).unwrap(), &rings).unwrap();
-    let right = add_polynomial(mul_polynomial(a.clone(), b, &rings).unwrap(), mul_polynomial(a, c, &rings).unwrap(), &rings).unwrap();
+    let left = mul_polynomial(a.owning_copy(), add_polynomial(b.owning_copy(), c.owning_copy(), &rings).unwrap(), &rings).unwrap();
+    let right = add_polynomial(mul_polynomial(a.owning_copy(), b, &rings).unwrap(), mul_polynomial(a, c, &rings).unwrap(), &rings).unwrap();
     assert_eq!(left, right);
 }
 

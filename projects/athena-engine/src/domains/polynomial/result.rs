@@ -21,7 +21,9 @@ use super::{
 use crate::domains::algebra::PropertyState;
 
 /// 多项式域结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum PolynomialResult {
     /// 精确结果。
     Exact {
@@ -33,6 +35,16 @@ pub enum PolynomialResult {
         /// 原因。
         reason: Diagnostic,
     },
+}
+
+impl PolynomialResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Exact { value } => Self::Exact { value: value.owning_copy() },
+            Self::Unevaluated { reason } => Self::Unevaluated { reason: reason.clone() },
+        }
+    }
 }
 
 /// 无 Session 仓时不可执行（须 [`execute_polynomial_with_rings`]）。

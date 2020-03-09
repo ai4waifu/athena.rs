@@ -105,7 +105,7 @@ fn resultant_symmetry_under_swap() {
     let (rings, ring) = q_x();
     let a = uni(&rings, ring, &[(1, 1), (2, 0)]);
     let b = uni(&rings, ring, &[(1, 1), (3, 0)]);
-    let rab = resultant_univariate(a.clone(), b.clone(), &rings).unwrap();
+    let rab = resultant_univariate(a.owning_copy(), b.owning_copy(), &rings).unwrap();
     let rba = resultant_univariate(b, a, &rings).unwrap();
     assert_eq!(rab.to_render_string(), "1");
     assert_eq!(rba.to_render_string(), "-1");

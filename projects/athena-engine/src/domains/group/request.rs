@@ -87,7 +87,7 @@ pub enum GroupRequest {
 }
 
 impl GroupRequest {
-    /// Owning 复制：`Integer` 经 GC [`clone_integer`]，元素经 [`GroupElement::owning_copy`]。
+    /// Owning 复制（Living `31`）：`Integer` 经 GC [`clone_integer`]，元素经 [`GroupElement::owning_copy`]。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Cyclic { order } => Self::Cyclic { order: clone_integer(order) },
@@ -117,11 +117,5 @@ impl GroupRequest {
                 Self::ProjectQuotient { subgroup: *subgroup, element: element.owning_copy() }
             }
         }
-    }
-}
-
-impl Clone for GroupRequest {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }

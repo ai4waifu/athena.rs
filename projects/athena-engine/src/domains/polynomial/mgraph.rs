@@ -24,10 +24,10 @@ pub fn execute_polynomial_mgraph(
         Err(reason) => return PolynomialResult::Unevaluated { reason },
     };
     if let Some(entry) = state.operational.result_cache.polynomial.get(&key) {
-        return entry.result.clone();
+        return entry.result.owning_copy();
     }
     let result = execute_polynomial_with_rings(request, rings, store);
-    record_polynomial_cache(key, result.clone(), state, rings);
+    record_polynomial_cache(key, result.owning_copy(), state, rings);
     result
 }
 

@@ -52,41 +52,23 @@ pub struct ExactRrefResult {
 }
 
 impl ExactDetResult {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { det: clone_rational(&self.det), guarantee: self.guarantee }
     }
 }
 
-impl Clone for ExactDetResult {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
-
 impl ExactSolveResult {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { disposition: self.disposition.clone(), particular: self.particular.as_ref().map(|m| m.owning_copy()), guarantee: self.guarantee }
     }
 }
 
-impl Clone for ExactSolveResult {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
-
 impl ExactRrefResult {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { matrix: self.matrix.owning_copy(), pivot_cols: self.pivot_cols.clone(), rank: self.rank, guarantee: self.guarantee }
-    }
-}
-
-impl Clone for ExactRrefResult {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }
 

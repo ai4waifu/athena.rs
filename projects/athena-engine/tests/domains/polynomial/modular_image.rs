@@ -105,7 +105,7 @@ fn smoke_groebner_over_fp_then_reconstruct() {
     b.push_term(Number::rational_i64(-1, 2).unwrap(), vec![0]).unwrap(); // x - 1/2
     let poly = b.build(&rings).unwrap();
     let image = map_polynomial_mod_prime(&poly, p, &rings).unwrap();
-    let gb = compute_groebner_basis(vec![image.image.clone()], &rings, GroebnerLimits::default()).unwrap();
+    let gb = compute_groebner_basis(vec![image.image.owning_copy()], &rings, GroebnerLimits::default()).unwrap();
     let verified = gb.as_verified().expect("verified over Fp");
     assert_eq!(verified.basis().len(), 1);
     let rebuilt = reconstruct_polynomial_from_modular_image(&verified.basis()[0], &image.modulus, q, &rings).unwrap();
@@ -202,7 +202,7 @@ fn reconstruct_single_generator_groebner_via_two_primes() {
     b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
     b.push_term(Number::small_int(-1), vec![0]).unwrap(); // (2/3)x - 1 → monic GB is x - 3/2
     let poly = b.build(&rings).unwrap();
-    let basis = reconstruct_groebner_basis_via_crt(&[poly.clone()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
+    let basis = reconstruct_groebner_basis_via_crt(&[poly.owning_copy()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
     assert_eq!(basis.len(), 1);
     // Current Buchberger path does not force monic bases. CRT recovers the modular images of the generator.
     assert_eq!(basis[0], poly);
@@ -221,7 +221,7 @@ fn reconstruct_and_verify_single_generator_groebner_via_crt() {
     b.push_term(Number::small_int(-1), vec![0]).unwrap();
     let poly = b.build(&rings).unwrap();
     let (basis, report) =
-        reconstruct_and_verify_groebner_basis_via_crt(&[poly.clone()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
+        reconstruct_and_verify_groebner_basis_via_crt(&[poly.owning_copy()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
     assert!(report.all_s_pairs_reduce_to_zero);
     assert_eq!(basis, vec![poly]);
 }

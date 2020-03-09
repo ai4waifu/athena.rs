@@ -27,7 +27,9 @@ use crate::{
 };
 
 /// Request snapshot retained across `CallDomainProvider` for Verify recompute.
-#[derive(Debug, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]（`GaloisTheory` / group / field 含 owning 数学载荷）。
+#[derive(Debug)]
 pub enum VerifySnapshot {
     /// Clone of a calculus request.
     Calculus(CalculusRequest),
@@ -35,7 +37,7 @@ pub enum VerifySnapshot {
     Polynomial(PolynomialRequest),
     /// Clone of a linear-algebra request.
     LinearAlgebra(LinearAlgebraRequest),
-    /// Clone of a number-theory request.
+    /// Owning copy of a number-theory request.
     NumberTheory(NumberTheoryRequest),
     /// Clone of a graph-theory request.
     GraphTheory(GraphTheoryRequest),
@@ -45,7 +47,7 @@ pub enum VerifySnapshot {
     GroupTheory(GroupRequest),
     /// Owning copy of a field-theory request (GC `owning_copy`).
     FieldTheory(FieldRequest),
-    /// Clone of a galois-theory request (`Polynomial` via GC `owning_copy`).
+    /// Owning copy of a galois-theory request (`Polynomial` via GC `owning_copy`).
     GaloisTheory(GaloisRequest),
     /// Domains without independent recompute yet.
     PresenceOnly,
@@ -58,12 +60,12 @@ impl VerifySnapshot {
             DomainRequest::Calculus(req) => Self::Calculus(req.clone()),
             DomainRequest::Polynomial(req) => Self::Polynomial(req.clone()),
             DomainRequest::LinearAlgebra(req) => Self::LinearAlgebra(req.clone()),
-            DomainRequest::NumberTheory(req) => Self::NumberTheory(req.clone()),
+            DomainRequest::NumberTheory(req) => Self::NumberTheory(req.owning_copy()),
             DomainRequest::GraphTheory(req) => Self::GraphTheory(req.clone()),
             DomainRequest::Optimization(req) => Self::Optimization(req.clone()),
             DomainRequest::GroupTheory(req) => Self::GroupTheory(req.owning_copy()),
             DomainRequest::FieldTheory(req) => Self::FieldTheory(req.owning_copy()),
-            DomainRequest::GaloisTheory(req) => Self::GaloisTheory(req.clone()),
+            DomainRequest::GaloisTheory(req) => Self::GaloisTheory(req.owning_copy()),
             _ => Self::PresenceOnly,
         }
     }
@@ -103,7 +105,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             else {
                 return Err(verify_err("number_theory_result_kind_mismatch"));
             };
-            let replay = execute_number_theory(req.clone());
+            let replay = execute_number_theory(req.owning_copy());
             assert_number_theory_match(&replay, claimed_nt)
         }
         VerifySnapshot::GraphTheory(req) => {
@@ -145,7 +147,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             else {
                 return Err(verify_err("galois_theory_result_kind_mismatch"));
             };
-            let replay = execute_galois_with_tables(req.clone(), session.rings.field_table_mut(), &mut session.groups);
+            let replay = execute_galois_with_tables(req.owning_copy(), session.rings.field_table_mut(), &mut session.groups);
             assert_galois_theory_match(&replay, claimed_galois)
         }
         VerifySnapshot::PresenceOnly => match claimed {
@@ -449,7 +451,7 @@ mod tests {
 
         let mut session = Session::new();
         let request = NumberTheoryRequest::Gcd { a: Integer::from_i64(48), b: Integer::from_i64(18) };
-        let honest = DomainResult::NumberTheory(execute_number_theory(request.clone()));
+        let honest = DomainResult::NumberTheory(execute_number_theory(request.owning_copy()));
         let snapshot = VerifySnapshot::NumberTheory(request);
         verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
     }
@@ -695,7 +697,7 @@ mod tests {
         let extension = session.rings.field_table().extension_by_field(field).expect("ext").id;
         let request = GaloisRequest::IsGalois { extension };
         let honest = DomainResult::GaloisTheory(execute_galois_with_tables(
-            request.clone(),
+            request.owning_copy(),
             session.rings.field_table_mut(),
             &mut session.groups,
         ));

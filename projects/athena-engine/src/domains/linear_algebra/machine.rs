@@ -8,7 +8,9 @@ use super::{
 };
 
 /// 机器 LU 分解（`PA = LU`，`A` 被原地覆盖为组合矩阵）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct MachineLuFactorization {
     /// 组合 `L`/`U`（单位对角 L 的严格下三角 + U）。
     pub combined: MatrixValue,
@@ -22,8 +24,23 @@ pub struct MachineLuFactorization {
     pub guarantee: AlgorithmGuarantee,
 }
 
+impl MachineLuFactorization {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            combined: self.combined.owning_copy(),
+            pivots: self.pivots.clone(),
+            numerical_rank: self.numerical_rank,
+            pivot_threshold: self.pivot_threshold,
+            guarantee: self.guarantee,
+        }
+    }
+}
+
 /// 机器求解结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct MachineSolveResult {
     /// 分类。
     pub disposition: SolveDisposition,
@@ -33,6 +50,18 @@ pub struct MachineSolveResult {
     pub witness: Option<MachineSolveWitness>,
     /// 保证级别。
     pub guarantee: AlgorithmGuarantee,
+}
+
+impl MachineSolveResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            disposition: self.disposition.clone(),
+            solution: self.solution.as_ref().map(MatrixValue::owning_copy),
+            witness: self.witness.clone(),
+            guarantee: self.guarantee,
+        }
+    }
 }
 
 fn idx(cols: u64, r: u64, c: u64) -> usize {

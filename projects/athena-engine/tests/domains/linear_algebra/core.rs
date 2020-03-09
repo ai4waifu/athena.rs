@@ -37,7 +37,7 @@ fn l0_transpose_view_shares_buffer_and_cow_on_write() {
     assert_eq!(t.shape(), MatrixShape::new(2, 2).transpose());
     assert!(m.buffer_strong_count() >= 2);
     assert_eq!(t.get(0, 1).unwrap(), MatrixEntry::Integer(i(3)));
-    let mut owned = m.clone();
+    let mut owned = m.owning_copy();
     owned.set_owned(0, 0, MatrixEntry::Integer(i(9))).unwrap();
     assert_eq!(m.get(0, 0).unwrap(), MatrixEntry::Integer(i(1)));
     assert_eq!(owned.get(0, 0).unwrap(), MatrixEntry::Integer(i(9)));

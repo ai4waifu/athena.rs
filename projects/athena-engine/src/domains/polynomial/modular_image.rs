@@ -35,7 +35,7 @@ pub struct ModularImage {
 }
 
 impl ModularImage {
-    /// Owning 复制（[`Modulus`] 无 `Clone`）。
+    /// Owning 复制（Living `31`：[`Modulus`] / 多项式载荷禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self {
             source_ring: self.source_ring,
@@ -44,12 +44,6 @@ impl ModularImage {
             modulus: clone_modulus(&self.modulus),
             vanished: self.vanished,
         }
-    }
-}
-
-impl Clone for ModularImage {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }
 

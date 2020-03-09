@@ -32,7 +32,9 @@ pub struct PolynomialWitness {
 }
 
 /// 单条缓存项。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（结果含多项式 owning 载荷）。
+#[derive(Debug, PartialEq)]
 pub struct PolynomialCacheEntry {
     /// 缓存键。
     pub key: PolynomialCacheKey,
@@ -45,7 +47,9 @@ pub struct PolynomialCacheEntry {
 }
 
 /// M-Graph 内多项式子图状态。
-#[derive(Debug, Clone, Default, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。
+#[derive(Debug, Default, PartialEq)]
 pub struct PolynomialMGraphStore {
     /// 已接纳结果（semantic core 关联层）。
     verified: HashMap<PolynomialCacheKey, PolynomialCacheEntry>,

@@ -187,7 +187,7 @@ fn f4_matrix_step_reduces_x_plus_1_and_x2_minus_1() {
     b1.push_term(Number::small_int(-1), vec![0]).unwrap();
     let f1 = b1.build(&rings).unwrap();
 
-    let basis = vec![f0.clone(), f1.clone()];
+    let basis = vec![f0.owning_copy(), f1.owning_copy()];
     let polys = f4_matrix_reduce_pairs(&basis, &[(0, 1)], &rings).unwrap();
     assert_eq!(polys.len(), 2);
 

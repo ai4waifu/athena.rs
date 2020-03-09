@@ -93,14 +93,9 @@ impl GroupDescriptor {
     }
 }
 
-impl Clone for GroupDescriptor {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
 
 impl Group {
-    /// Owning 复制。
+    /// Owning 复制（Living 31）。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,
@@ -111,27 +106,17 @@ impl Group {
     }
 }
 
-impl Clone for Group {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
 
 impl Subgroup {
-    /// Owning 复制（仅 id 句柄，无堆数值）。
+    /// Owning 复制（Living 31：仅 id 句柄，无堆数值）。
     pub fn owning_copy(&self) -> Self {
         Self { id: self.id, parent: self.parent, group: self.group, inclusion: self.inclusion }
     }
 }
 
-impl Clone for Subgroup {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
 
 impl GroupElementRepr {
-    /// Owning 复制。
+    /// Owning 复制（Living 31）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::TableIndex(i) => Self::TableIndex(*i),
@@ -140,14 +125,9 @@ impl GroupElementRepr {
     }
 }
 
-impl Clone for GroupElementRepr {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
 
 impl GroupElement {
-    /// Owning 复制。
+    /// Owning 复制（Living 31）。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,
@@ -158,8 +138,3 @@ impl GroupElement {
     }
 }
 
-impl Clone for GroupElement {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}

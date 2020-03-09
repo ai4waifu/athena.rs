@@ -211,7 +211,7 @@ impl MatrixValue {
         Ok(idx as usize)
     }
 
-    /// Owning 复制（共享 `Arc` 缓冲）。
+    /// Owning 复制（Living `31`：共享 `Arc` 缓冲，禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { parent: self.parent, shape: self.shape, layout: self.layout, offset: self.offset, data: self.data.owning_copy() }
     }
@@ -397,24 +397,12 @@ impl MatrixEntry {
         })
     }
 
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Integer(x) => Self::Integer(clone_integer(x)),
             Self::Rational(x) => Self::Rational(clone_rational(x)),
             Self::MachineF64(x) => Self::MachineF64(*x),
         }
-    }
-}
-
-impl Clone for MatrixValue {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}
-
-impl Clone for MatrixEntry {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }

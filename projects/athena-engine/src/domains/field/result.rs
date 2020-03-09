@@ -11,7 +11,9 @@ use super::{
 };
 
 /// 域论结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum FieldResult {
     /// 精确结果。
     Exact {
@@ -23,6 +25,16 @@ pub enum FieldResult {
         /// 原因。
         reason: Diagnostic,
     },
+}
+
+impl FieldResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Exact { value } => Self::Exact { value: value.owning_copy() },
+            Self::Unevaluated { reason } => Self::Unevaluated { reason: reason.clone() },
+        }
+    }
 }
 
 /// 执行域论请求（无 Session 上下文；仍返回 Unevaluated）。

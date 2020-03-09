@@ -5,6 +5,8 @@ use athena_numeric::{Integer, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode, ExtensionId, FieldId, Result};
 
 /// 不可变 𝔽_{p^n} 多项式基规格（由 [`super::table::FieldTable`] 持有）。
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct FiniteFieldPolySpec {
     /// 扩张 id。
@@ -17,6 +19,19 @@ pub struct FiniteFieldPolySpec {
     pub degree: u32,
     /// 首一不可约多项式，升幂系数 `[c0, …, c_{n-1}, 1]`。
     pub modulus: Vec<Integer>,
+}
+
+impl FiniteFieldPolySpec {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            extension: self.extension,
+            base: self.base,
+            characteristic: clone_integer(&self.characteristic),
+            degree: self.degree,
+            modulus: clone_integers(&self.modulus),
+        }
+    }
 }
 
 /// 将模多项式系数规范到 `[0, p)`。

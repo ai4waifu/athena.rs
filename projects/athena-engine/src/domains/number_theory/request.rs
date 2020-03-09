@@ -126,8 +126,9 @@ pub enum NumberTheoryRequest {
     AlgebraicScaffold,
 }
 
-impl Clone for NumberTheoryRequest {
-    fn clone(&self) -> Self {
+impl NumberTheoryRequest {
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
         match self {
             Self::Gcd { a, b } => Self::Gcd { a: clone_integer(a), b: clone_integer(b) },
             Self::Lcm { a, b } => Self::Lcm { a: clone_integer(a), b: clone_integer(b) },

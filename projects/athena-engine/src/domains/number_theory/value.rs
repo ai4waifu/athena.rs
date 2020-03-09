@@ -35,20 +35,14 @@ pub enum Primality {
 }
 
 impl Primality {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Prime { certificate } => Self::Prime { certificate: certificate.clone() },
-            Self::Composite { witness } => Self::Composite { witness: witness.clone() },
+            Self::Composite { witness } => Self::Composite { witness: witness.owning_copy() },
             Self::ProbablePrime { evidence } => Self::ProbablePrime { evidence: evidence.clone() },
             Self::Unknown => Self::Unknown,
         }
-    }
-}
-
-impl Clone for Primality {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }
 

@@ -266,7 +266,7 @@ impl AdmissionGate {
 
 /// 对多项式 Exact 值执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
-    EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.clone() }, &VerificationPolicy::default(), None)
+    EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.owning_copy() }, &VerificationPolicy::default(), None)
 }
 
 /// 对 [`PolynomialResult`] 执行 verifier（不写入 semantic core）。

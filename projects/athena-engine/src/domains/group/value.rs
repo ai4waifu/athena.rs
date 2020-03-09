@@ -41,8 +41,3 @@ impl GroupDomainValue {
     }
 }
 
-impl Clone for GroupDomainValue {
-    fn clone(&self) -> Self {
-        self.owning_copy()
-    }
-}

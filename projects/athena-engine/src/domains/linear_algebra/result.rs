@@ -16,7 +16,9 @@ use super::{
 pub const DEFAULT_PIVOT_THRESHOLD: f64 = 1e-12;
 
 /// 线性代数域值。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum LinearAlgebraValue {
     /// 矩阵。
     Matrix(MatrixValue),
@@ -37,6 +39,21 @@ pub enum LinearAlgebraValue {
     ExactSolve(ExactSolveResult),
     /// 机器求解。
     MachineSolve(MachineSolveResult),
+}
+
+impl LinearAlgebraValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Matrix(m) => Self::Matrix(m.owning_copy()),
+            Self::ExactRank(r) => Self::ExactRank(*r),
+            Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
+            Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
+            Self::ExactRref(r) => Self::ExactRref(r.owning_copy()),
+            Self::ExactSolve(r) => Self::ExactSolve(r.owning_copy()),
+            Self::MachineSolve(r) => Self::MachineSolve(r.owning_copy()),
+        }
+    }
 }
 
 /// 线性代数结果。

@@ -63,7 +63,7 @@ pub enum CompositeWitness {
 }
 
 impl CompositeWitness {
-    /// Owning 复制。
+    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::NonPositiveOrOne => Self::NonPositiveOrOne,
@@ -71,11 +71,5 @@ impl CompositeWitness {
             Self::SmallFactor { divisor } => Self::SmallFactor { divisor: clone_integer(divisor) },
             Self::MillerRabin { base } => Self::MillerRabin { base: *base },
         }
-    }
-}
-
-impl Clone for CompositeWitness {
-    fn clone(&self) -> Self {
-        self.owning_copy()
     }
 }

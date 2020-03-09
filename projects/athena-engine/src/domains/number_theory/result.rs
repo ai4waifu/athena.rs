@@ -127,11 +127,16 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
 }
 
 fn wrap_primality(p: Primality) -> NumberTheoryResult {
-    let value = NumberTheoryValue::Primality(p.clone());
-    match p {
-        Primality::Prime { .. } | Primality::Composite { .. } => NumberTheoryResult::Exact { value },
-        Primality::ProbablePrime { .. } => NumberTheoryResult::Probable { value },
-        Primality::Unknown => NumberTheoryResult::Inconclusive { value },
+    let tier = match &p {
+        Primality::Prime { .. } | Primality::Composite { .. } => 0u8,
+        Primality::ProbablePrime { .. } => 1,
+        Primality::Unknown => 2,
+    };
+    let value = NumberTheoryValue::Primality(p);
+    match tier {
+        0 => NumberTheoryResult::Exact { value },
+        1 => NumberTheoryResult::Probable { value },
+        _ => NumberTheoryResult::Inconclusive { value },
     }
 }
 

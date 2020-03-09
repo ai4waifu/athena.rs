@@ -38,7 +38,7 @@ fn prime_subfield_embedding_embeds_constants() {
 fn frobenius_on_gf4_x_gives_x_plus_one() {
     let mut table = FieldTable::new();
     let f4 = table.polynomial_basis_field(Integer::from_i64(2), gf4_modulus()).unwrap();
-    let spec = table.finite_field_poly_spec(f4).unwrap().clone();
+    let spec = table.finite_field_poly_spec(f4).unwrap().owning_copy();
     let p = table.prime_modulus(f4).unwrap();
     let frob = frobenius_coords(&[Integer::zero(), Integer::one()], &spec, &p);
     assert_eq!(frob, vec![Integer::one(), Integer::one()]);

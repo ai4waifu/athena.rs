@@ -113,10 +113,10 @@ fn groebner_f4_resume_from_partial_to_verified() {
 fn reduce_by_verified_groebner_basis() {
     let (rings, ring) = q_xy_lex();
     let g = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 0])]);
-    let computation = compute_groebner_basis(vec![g.clone()], &rings, GroebnerLimits::default()).unwrap();
+    let computation = compute_groebner_basis(vec![g.owning_copy()], &rings, GroebnerLimits::default()).unwrap();
     let gb = computation.as_verified().unwrap();
     let f = build(&rings, ring, &[(1, 1, vec![2, 0])]);
-    let rem = reduce_by_verified(f.clone(), gb, &rings).unwrap();
+    let rem = reduce_by_verified(f.owning_copy(), gb, &rings).unwrap();
     assert_eq!(rem.terms().len(), 1);
     assert_eq!(rem.terms()[0].exponents(), vec![0, 0]);
     assert!(!ideal_membership(f, gb, &rings).unwrap());

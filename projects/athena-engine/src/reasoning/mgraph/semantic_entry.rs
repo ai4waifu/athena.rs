@@ -160,7 +160,7 @@ fn materialize_already_known(session: &Session, relation: RelationRef) -> Result
                     .detail("reason", "polynomial_cache_miss")
                     .arg("relation", relation.0));
             };
-            Ok(DomainResult::Polynomial(entry.result.clone()))
+            Ok(DomainResult::Polynomial(entry.result.owning_copy()))
         }
         _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("domain", "semantic_entry")
