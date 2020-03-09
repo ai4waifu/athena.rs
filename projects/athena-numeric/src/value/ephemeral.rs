@@ -5,7 +5,7 @@
 //! 跨 batch 存活必须 [`TemporaryNatural::promote`] / [`TemporaryInteger::promote`]。
 //! **禁止**静默 `Into`/`From` 把临时类型转成持久值。
 //!
-//! 历史名 [`EphemeralNatural`] / [`EphemeralInteger`] 为同类型别名。
+//! 历史名 [`EphemeralNatural`] / [`EphemeralInteger`] 仍为同类型别名。
 
 use core::marker::PhantomData;
 
@@ -23,29 +23,28 @@ use crate::{
 };
 
 /// Living `31`：批内临时非负幅度（生命周期绑在 [`NumericBatch`] 独占借用上）。
-pub type TemporaryNatural<'batch> = EphemeralNatural<'batch>;
-
-/// Living `31`：批内临时有符号整数。
-pub type TemporaryInteger<'batch> = EphemeralInteger<'batch>;
-
-/// 批内非负幅度：生命周期绑在对 [`NumericBatch`] 的独占借用上。
 ///
 /// Heap 模式结果位于 ephemeral bump；不得逃逸 batch，除非 [`Self::promote`]。
-/// Living `31` 优选公开名：[`TemporaryNatural`]。
-pub struct EphemeralNatural<'batch> {
+pub struct TemporaryNatural<'batch> {
     inner: MagnitudePair,
     _batch: PhantomData<&'batch mut ()>,
 }
 
-/// 批内有符号整数（同 [`EphemeralNatural`] 生命周期合同）。
+/// Living `31`：批内临时有符号整数（同 [`TemporaryNatural`] 生命周期合同）。
 ///
-/// Living `31` 优选公开名：[`TemporaryInteger`]。
-pub struct EphemeralInteger<'batch> {
+/// Heap 模式结果位于 ephemeral bump；不得逃逸 batch，除非 [`Self::promote`]。
+pub struct TemporaryInteger<'batch> {
     inner: MagnitudePair,
     _batch: PhantomData<&'batch mut ()>,
 }
 
-impl<'batch> EphemeralNatural<'batch> {
+/// 历史别名（Living `31` 优选 [`TemporaryNatural`]）。
+pub type EphemeralNatural<'batch> = TemporaryNatural<'batch>;
+
+/// 历史别名（Living `31` 优选 [`TemporaryInteger`]）。
+pub type EphemeralInteger<'batch> = TemporaryInteger<'batch>;
+
+impl<'batch> TemporaryNatural<'batch> {
     fn from_pair(inner: MagnitudePair) -> Self {
         Self { inner, _batch: PhantomData }
     }
@@ -85,7 +84,7 @@ impl<'batch> EphemeralNatural<'batch> {
     }
 }
 
-impl<'batch> EphemeralInteger<'batch> {
+impl<'batch> TemporaryInteger<'batch> {
     fn from_pair(inner: MagnitudePair) -> Self {
         Self { inner, _batch: PhantomData }
     }

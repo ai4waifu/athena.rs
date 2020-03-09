@@ -1,10 +1,10 @@
-//! `EphemeralNatural` batch lease / promote 合同（需 feature `ephemeral`）。
+//! `TemporaryNatural` batch lease / promote 合同（需 feature `ephemeral`）。
 
 use athena_gc::{GcHeap, HeapBudget};
-use athena_numeric::{EphemeralNatural, ExecutionBudget, NumericContext};
+use athena_numeric::{ExecutionBudget, NumericContext, TemporaryNatural};
 
 #[test]
-fn ephemeral_natural_batch_lease_and_promote() {
+fn temporary_natural_batch_lease_and_promote() {
     let batch_heap = GcHeap::new_shared(HeapBudget::default());
     let persist_heap = GcHeap::new_shared(HeapBudget::default());
     let persist_ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), persist_heap.clone());
@@ -16,7 +16,7 @@ fn ephemeral_natural_batch_lease_and_promote() {
             let block = batch.allocate_limbs(4).expect("alloc");
             let _ = block;
         }
-        let n = EphemeralNatural::try_add(&[1, 2, 3, 4], &[5, 6, 7, 8], batch).expect("add");
+        let n = TemporaryNatural::try_add(&[1, 2, 3, 4], &[5, 6, 7, 8], batch).expect("add");
         assert!(!n.is_zero());
         promoted = Some(n.promote(&persist_ctx).expect("promote"));
         drop(n);
