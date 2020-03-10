@@ -112,7 +112,7 @@ fn bench_allocation_modes(c: &mut Criterion) {
                 let start = Instant::now();
                 h.with_numeric_batch(|batch| {
                     for _ in 0..iters {
-                        let n = athena_numeric::EphemeralNatural::try_add(&LIMBS4, &LIMBS4_B, batch).expect("add");
+                        let n = athena_numeric::TemporaryNatural::try_add(&LIMBS4, &LIMBS4_B, batch).expect("add");
                         black_box(n.as_limbs());
                         drop(n);
                     }
@@ -135,7 +135,7 @@ fn bench_allocation_modes(c: &mut Criterion) {
                     let mut h = batch_heap.borrow_mut();
                     let promoted = h
                         .with_numeric_batch(|batch| {
-                            let e = athena_numeric::EphemeralNatural::try_add(&LIMBS4, &LIMBS4_B, batch).expect("add");
+                            let e = athena_numeric::TemporaryNatural::try_add(&LIMBS4, &LIMBS4_B, batch).expect("add");
                             let start = Instant::now();
                             let n = e.promote(&persist).expect("promote");
                             let elapsed = start.elapsed();

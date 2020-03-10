@@ -4,7 +4,7 @@ use std::hint::black_box;
 
 use athena_engine::runtime::values::numeric_clone::{clone_integer, clone_natural};
 use athena_gc::HeapBudget;
-use athena_numeric::{EphemeralInteger, EphemeralNatural, Integer, NumericContext, natural::Natural, number_from_wire};
+use athena_numeric::{TemporaryInteger, TemporaryNatural, Integer, NumericContext, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;
 
 use super::{
@@ -178,12 +178,12 @@ impl BigIntPrepared {
             for _ in 0..iters {
                 match self.case.operation {
                     BigIntOp::Add => {
-                        let e = EphemeralInteger::try_add(a_limbs, a_neg, b_limbs, b_neg, batch).expect("ephemeral add");
+                        let e = TemporaryInteger::try_add(a_limbs, a_neg, b_limbs, b_neg, batch).expect("ephemeral add");
                         black_box(e.as_limbs());
                         drop(e);
                     }
                     BigIntOp::Mul => {
-                        let e = EphemeralNatural::try_mul_schoolbook(a_limbs, b_limbs, batch).expect("ephemeral mul");
+                        let e = TemporaryNatural::try_mul_schoolbook(a_limbs, b_limbs, batch).expect("ephemeral mul");
                         black_box(e.as_limbs());
                         drop(e);
                     }
@@ -204,12 +204,12 @@ impl BigIntPrepared {
         heap.borrow_mut()
             .with_numeric_batch(|batch| match self.case.operation {
                 BigIntOp::Add => {
-                    let e = EphemeralInteger::try_add(ops.a.as_limbs(), ops.a.is_negative(), ops.b.as_limbs(), ops.b.is_negative(), batch)
+                    let e = TemporaryInteger::try_add(ops.a.as_limbs(), ops.a.is_negative(), ops.b.as_limbs(), ops.b.is_negative(), batch)
                         .expect("ephemeral add");
                     out = Some(e.promote(persist).expect("promote add"));
                 }
                 BigIntOp::Mul => {
-                    let e = EphemeralNatural::try_mul_schoolbook(ops.a.as_limbs(), ops.b.as_limbs(), batch).expect("ephemeral mul");
+                    let e = TemporaryNatural::try_mul_schoolbook(ops.a.as_limbs(), ops.b.as_limbs(), batch).expect("ephemeral mul");
                     let n = e.promote(persist).expect("promote mul mag");
                     let mut i = Integer::from_limbs_in(persist, n.as_limbs()).expect("int from limbs");
                     if ops.a.is_negative() != ops.b.is_negative() && !i.is_zero() {
