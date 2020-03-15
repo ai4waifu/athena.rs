@@ -1,4 +1,4 @@
-//! Living 17/24：destination reuse / `try_reuse_unique_buffer` / `can_reuse_destination` 合同。
+//! Living `31`：destination reuse / `try_reuse_unique_published` / `UniqueMutationGuard` 合同。
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{CapabilityBundle, ExecutionBudget, Integer, NumericContext, ResourceCapability, natural::Natural};

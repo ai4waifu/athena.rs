@@ -9,13 +9,16 @@ use crate::{
     storage::{MagnitudePair, Mode, OwnedLimbBuffer, RootedLimbBuffer},
 };
 
-/// Living `31`：唯一可变 destination。Published 路径不改变 ReclaimAuthority。
-enum UniqueDest {
+/// Living `31`：唯一可变 destination 能力令牌（不是数值类型）。
+///
+/// Published 路径经 [`MagnitudePair::try_reuse_unique_published`] 取得，
+/// **不**改变 `ReclaimAuthority`（仍为 TracingSweep）。
+enum UniqueMutationGuard {
     Published(RootedLimbBuffer),
     Temporary(OwnedLimbBuffer),
 }
 
-impl UniqueDest {
+impl UniqueMutationGuard {
     fn take(inner: &mut MagnitudePair) -> Option<Self> {
         if let Some(buf) = inner.try_reuse_unique_published() {
             return Some(Self::Published(buf));
@@ -87,7 +90,7 @@ impl Natural {
         let need = n + 1;
         debug_assert!(self.inner.heap_capacity().is_some_and(|c| c >= need));
 
-        let Some(mut buf) = UniqueDest::take(&mut self.inner)
+        let Some(mut buf) = UniqueMutationGuard::take(&mut self.inner)
         else {
             return self.try_add(rhs, ctx);
         };
@@ -130,7 +133,7 @@ impl Natural {
             return self.try_mul_u64(rhs, ctx);
         }
 
-        let Some(mut buf) = UniqueDest::take(&mut self.inner)
+        let Some(mut buf) = UniqueMutationGuard::take(&mut self.inner)
         else {
             return self.try_mul_u64(rhs, ctx);
         };
@@ -187,7 +190,7 @@ impl Natural {
         let lb = limb_kernel::effective_len(rb);
         let n = la.max(lb);
 
-        let Some(mut buf) = UniqueDest::take(&mut self.inner)
+        let Some(mut buf) = UniqueMutationGuard::take(&mut self.inner)
         else {
             return self.try_sub(rhs, ctx);
         };
@@ -247,7 +250,7 @@ impl Natural {
         };
         let lb = limb_kernel::effective_len(rb);
 
-        let Some(mut buf) = UniqueDest::take(&mut self.inner)
+        let Some(mut buf) = UniqueMutationGuard::take(&mut self.inner)
         else {
             return self.try_mul(rhs, ctx);
         };
