@@ -97,3 +97,9 @@ flowchart LR
 域层的约束会沿请求进入结果，调用方无需重新猜测数值的数学含义。
 
 这也是 field 与 numeric 的边界：numeric 负责数值块，field 负责这些数值在代数结构中的解释。
+
+## 维护任务：元素为什么会被拒绝
+
+排查顺序固定为 parent、characteristic、模多项式、坐标长度和规范化结果。`$\mathbb{Q}$` 的分母必须为正并与分子约分。`$\mathbb{F}_p$` 使用 Euclidean residue。`$\mathbb{F}_{p^n}$` 的向量长度必须等于扩张次数，乘法结果按不可约多项式约化。`$\mathbb{Q}(\alpha)$` 的坐标受 minimal polynomial 约束。错误坐标应在 canonicalization 阶段拒绝，不能拖到多项式或伽罗瓦算法。
+
+维护者应把失败分成对象描述错误、元素表示错误和跨域语义错误。三类错误虽然都表现为请求失败，修复位置完全不同。前两类检查 `types.rs` 与 `canonical.rs`，第三类检查 `request.rs`、embedding 和 `MapTable`。从 `$\mathbb{Q}$` 到 `$\mathbb{F}_p$` 需要分母在模 `$p$` 下可逆。扩张元素映射必须携带 source、target 和坐标转换证据。

@@ -164,7 +164,10 @@ impl GroupTable {
 
     /// 经已验证同态映射元素像。
     pub fn apply_homomorphism(&self, map: AlgebraMapId, element_images: &[u32]) -> Result<RawPerm> {
-        self.map_table.homomorphism_image(map, element_images).cloned().ok_or_else(|| hom_invalid("unknown_preimage"))
+        self.map_table
+            .homomorphism_image(map, element_images)
+            .map(RawPerm::owning_copy)
+            .ok_or_else(|| hom_invalid("unknown_preimage"))
     }
 
     /// 经商投影将父群元素映到商群置换元素。

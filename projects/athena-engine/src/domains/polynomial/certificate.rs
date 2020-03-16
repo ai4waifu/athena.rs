@@ -27,7 +27,9 @@ pub enum GroebnerStatus {
 /// Gröbner / 消元结果证书（运行统计 + 验证状态）。
 ///
 /// 禁止薄 `verified: bool`：独立 verifier 结果用 [`PropertyState`]。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct GroebnerCertificate {
     /// 算法。
     pub algorithm: GroebnerAlgorithm,
@@ -48,6 +50,20 @@ pub struct GroebnerCertificate {
 }
 
 impl GroebnerCertificate {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            algorithm: self.algorithm,
+            ring: self.ring,
+            input_generators: self.input_generators,
+            basis_elements: self.basis_elements,
+            s_pair_steps: self.s_pair_steps,
+            complete: self.complete,
+            verification: self.verification.owning_copy(),
+            elimination_elements: self.elimination_elements,
+        }
+    }
+
     /// 独立 verifier 已通过。
     pub fn mark_verified(&mut self) {
         self.verification = PropertyState::Proven { value: (), witness: PropertyWitness::placeholder("groebner_independent_verifier") };

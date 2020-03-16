@@ -1,7 +1,7 @@
 //! 问题 fingerprint（稳定身份；`ProblemId` 只是 Session 句柄）。
 
 /// 优化问题稳定指纹（占位：完整 canonical 编码待接入）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct OptimizationFingerprint {
     /// 64-bit digest（算法版本变更必须换键）。
     pub digest: u64,

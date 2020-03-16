@@ -11,7 +11,9 @@ use super::{
 /// 禁止只返回一个向量并默认称为最优。
 /// `Feasible` ≠ `Optimal`；局部 KKT ≠ 全局；迭代收敛 ≠ 证明；
 /// incumbent ≠ 整数全局最优；资源耗尽只能是 `ResourceLimited` / `Inconclusive`。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum OptimizationResult {
     /// 已证明最优（必须携带最优性种类，见证书）。
     Optimal {
@@ -110,6 +112,70 @@ pub enum OptimizationResult {
         /// 原因。
         reason: Diagnostic,
     },
+}
+
+impl OptimizationResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Optimal { fingerprint, status, point, value, certificate } => Self::Optimal {
+                fingerprint: *fingerprint,
+                status: *status,
+                point: point.clone(),
+                value: *value,
+                certificate: certificate.owning_copy(),
+            },
+            Self::Feasible { fingerprint, status, point, value, bound } => Self::Feasible {
+                fingerprint: *fingerprint,
+                status: *status,
+                point: point.clone(),
+                value: *value,
+                bound: bound.as_ref().map(BoundCertificate::owning_copy),
+            },
+            Self::Infeasible { fingerprint, status, certificate } => Self::Infeasible {
+                fingerprint: *fingerprint,
+                status: *status,
+                certificate: certificate.owning_copy(),
+            },
+            Self::Unbounded { fingerprint, status, ray_or_direction, certificate } => Self::Unbounded {
+                fingerprint: *fingerprint,
+                status: *status,
+                ray_or_direction: ray_or_direction.clone(),
+                certificate: certificate.owning_copy(),
+            },
+            Self::Inconclusive { fingerprint, status, incumbent, bounds, frontier } => Self::Inconclusive {
+                fingerprint: *fingerprint,
+                status: *status,
+                incumbent: incumbent.clone(),
+                bounds: bounds.as_ref().map(BoundCertificate::owning_copy),
+                frontier: frontier.owning_copy(),
+            },
+            Self::ResourceLimited { fingerprint, status, incumbent, bounds, frontier } => Self::ResourceLimited {
+                fingerprint: *fingerprint,
+                status: *status,
+                incumbent: incumbent.clone(),
+                bounds: bounds.as_ref().map(BoundCertificate::owning_copy),
+                frontier: frontier.owning_copy(),
+            },
+            Self::NumericalCandidate {
+                fingerprint,
+                status,
+                point,
+                residual,
+                gap,
+                diagnostics,
+            } => Self::NumericalCandidate {
+                fingerprint: *fingerprint,
+                status: *status,
+                point: point.clone(),
+                residual: *residual,
+                gap: *gap,
+                diagnostics: diagnostics.clone(),
+            },
+            Self::InvalidInput { reason } => Self::InvalidInput { reason: reason.clone() },
+            Self::Unevaluated { reason } => Self::Unevaluated { reason: reason.clone() },
+        }
+    }
 }
 
 /// 请求对应的操作名（审计 / 诊断）。

@@ -38,9 +38,9 @@ impl Primality {
     /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
-            Self::Prime { certificate } => Self::Prime { certificate: certificate.clone() },
+            Self::Prime { certificate } => Self::Prime { certificate: certificate.owning_copy() },
             Self::Composite { witness } => Self::Composite { witness: witness.owning_copy() },
-            Self::ProbablePrime { evidence } => Self::ProbablePrime { evidence: evidence.clone() },
+            Self::ProbablePrime { evidence } => Self::ProbablePrime { evidence: evidence.owning_copy() },
             Self::Unknown => Self::Unknown,
         }
     }
@@ -254,8 +254,8 @@ pub enum RationalReconstructionFailure {
 /// 由素性结果构造因子底状态。
 pub(crate) fn factor_status_from_primality(p: &Primality) -> Option<FactorBaseStatus> {
     match p {
-        Primality::Prime { certificate } => Some(FactorBaseStatus::ProvenPrime { certificate: certificate.clone() }),
-        Primality::ProbablePrime { evidence } => Some(FactorBaseStatus::ProbablePrime { evidence: evidence.clone() }),
+        Primality::Prime { certificate } => Some(FactorBaseStatus::ProvenPrime { certificate: certificate.owning_copy() }),
+        Primality::ProbablePrime { evidence } => Some(FactorBaseStatus::ProbablePrime { evidence: evidence.owning_copy() }),
         Primality::Composite { .. } | Primality::Unknown => None,
     }
 }

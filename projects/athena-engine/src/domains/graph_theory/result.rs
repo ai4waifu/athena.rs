@@ -13,7 +13,9 @@ use super::{
 };
 
 /// 连通分量结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct ConnectedComponentsResult {
     /// 每节点分量代表（最小 `GraphNodeId`）。
     pub labels: Vec<GraphNodeId>,
@@ -23,8 +25,21 @@ pub struct ConnectedComponentsResult {
     pub property: GraphPropertyResult<u64>,
 }
 
+impl ConnectedComponentsResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            labels: self.labels.clone(),
+            component_count: self.component_count,
+            property: self.property.owning_copy(),
+        }
+    }
+}
+
 /// 强连通分量结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct StronglyConnectedComponentsResult {
     /// 每节点 SCC 代表（最小 `GraphNodeId`）。
     pub labels: Vec<GraphNodeId>,
@@ -34,8 +49,21 @@ pub struct StronglyConnectedComponentsResult {
     pub property: GraphPropertyResult<u64>,
 }
 
+impl StronglyConnectedComponentsResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            labels: self.labels.clone(),
+            component_count: self.component_count,
+            property: self.property.owning_copy(),
+        }
+    }
+}
+
 /// 二部性结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum BipartiteResult {
     /// 已证二部。
     Bipartite {
@@ -53,6 +81,18 @@ pub enum BipartiteResult {
     },
 }
 
+impl BipartiteResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Bipartite { left, right, property } => {
+                Self::Bipartite { left: left.clone(), right: right.clone(), property: property.owning_copy() }
+            }
+            Self::NotBipartite { property } => Self::NotBipartite { property: property.owning_copy() },
+        }
+    }
+}
+
 /// 生成树边。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpanningEdge {
@@ -65,7 +105,9 @@ pub struct SpanningEdge {
 }
 
 /// 最小生成森林结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct MinimumSpanningForestResult {
     /// 选中边。
     pub edges: Vec<SpanningEdge>,
@@ -77,8 +119,22 @@ pub struct MinimumSpanningForestResult {
     pub property: GraphPropertyResult<u64>,
 }
 
+impl MinimumSpanningForestResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            edges: self.edges.clone(),
+            total_weight: self.total_weight,
+            tree_count: self.tree_count,
+            property: self.property.owning_copy(),
+        }
+    }
+}
+
 /// 最短路结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum ShortestPathResult {
     /// 找到路径。
     Found {
@@ -107,8 +163,26 @@ pub enum ShortestPathResult {
     Incomplete,
 }
 
+impl ShortestPathResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Found { distance, path, property } => {
+                Self::Found { distance: *distance, path: path.clone(), property: property.owning_copy() }
+            }
+            Self::Unreachable { property } => Self::Unreachable { property: property.owning_copy() },
+            Self::NegativeCycle { cycle } => Self::NegativeCycle { cycle: cycle.clone() },
+            Self::UnsupportedWeightDomain => Self::UnsupportedWeightDomain,
+            Self::ResourceLimit => Self::ResourceLimit,
+            Self::Incomplete => Self::Incomplete,
+        }
+    }
+}
+
 /// 图论值载荷。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum GraphTheoryValue {
     /// 连通分量。
     ConnectedComponents(ConnectedComponentsResult),
@@ -122,8 +196,23 @@ pub enum GraphTheoryValue {
     ShortestPath(ShortestPathResult),
 }
 
+impl GraphTheoryValue {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::ConnectedComponents(v) => Self::ConnectedComponents(v.owning_copy()),
+            Self::StronglyConnectedComponents(v) => Self::StronglyConnectedComponents(v.owning_copy()),
+            Self::Bipartite(v) => Self::Bipartite(v.owning_copy()),
+            Self::MinimumSpanningForest(v) => Self::MinimumSpanningForest(v.owning_copy()),
+            Self::ShortestPath(v) => Self::ShortestPath(v.owning_copy()),
+        }
+    }
+}
+
 /// 图论域结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum GraphTheoryResult {
     /// 精确结果。
     Exact {
@@ -135,6 +224,16 @@ pub enum GraphTheoryResult {
         /// 原因。
         reason: Diagnostic,
     },
+}
+
+impl GraphTheoryResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Exact { value } => Self::Exact { value: value.owning_copy() },
+            Self::Unevaluated { reason } => Self::Unevaluated { reason: reason.clone() },
+        }
+    }
 }
 
 /// 执行图论请求（E0：经 [`DomainRequest::GraphTheory`] 入口）。

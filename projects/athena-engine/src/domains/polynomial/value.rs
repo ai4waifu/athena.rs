@@ -57,7 +57,7 @@ impl GroebnerBasisValue {
         Self {
             ring: self.ring,
             basis: self.basis.iter().map(Polynomial::owning_copy).collect(),
-            certificate: self.certificate.clone(),
+            certificate: self.certificate.owning_copy(),
             status: self.status,
             pending_pairs: self.pending_pairs.clone(),
             pending_insertion: self.pending_insertion.as_ref().map(Polynomial::owning_copy),

@@ -31,17 +31,17 @@ use crate::{
 /// Living `31`：**不**实现 [`Clone`]（`GaloisTheory` / group / field 含 owning 数学载荷）。
 #[derive(Debug)]
 pub enum VerifySnapshot {
-    /// Clone of a calculus request.
+    /// Owning copy of a calculus request.
     Calculus(CalculusRequest),
-    /// Clone of a polynomial request.
+    /// Owning copy of a polynomial request.
     Polynomial(PolynomialRequest),
-    /// Clone of a linear-algebra request.
+    /// Owning copy of a linear-algebra request.
     LinearAlgebra(LinearAlgebraRequest),
     /// Owning copy of a number-theory request.
     NumberTheory(NumberTheoryRequest),
-    /// Clone of a graph-theory request.
+    /// Owning copy of a graph-theory request.
     GraphTheory(GraphTheoryRequest),
-    /// Clone of an optimization request.
+    /// Owning copy of an optimization request.
     Optimization(OptimizationRequest),
     /// Owning copy of a group-theory request (GC `owning_copy`).
     GroupTheory(GroupRequest),
@@ -57,12 +57,12 @@ impl VerifySnapshot {
     /// Capture a verify snapshot before the provider consumes the request.
     pub fn from_request(request: &DomainRequest) -> Self {
         match request {
-            DomainRequest::Calculus(req) => Self::Calculus(req.clone()),
-            DomainRequest::Polynomial(req) => Self::Polynomial(req.clone()),
-            DomainRequest::LinearAlgebra(req) => Self::LinearAlgebra(req.clone()),
+            DomainRequest::Calculus(req) => Self::Calculus(req.owning_copy()),
+            DomainRequest::Polynomial(req) => Self::Polynomial(req.owning_copy()),
+            DomainRequest::LinearAlgebra(req) => Self::LinearAlgebra(req.owning_copy()),
             DomainRequest::NumberTheory(req) => Self::NumberTheory(req.owning_copy()),
-            DomainRequest::GraphTheory(req) => Self::GraphTheory(req.clone()),
-            DomainRequest::Optimization(req) => Self::Optimization(req.clone()),
+            DomainRequest::GraphTheory(req) => Self::GraphTheory(req.owning_copy()),
+            DomainRequest::Optimization(req) => Self::Optimization(req.owning_copy()),
             DomainRequest::GroupTheory(req) => Self::GroupTheory(req.owning_copy()),
             DomainRequest::FieldTheory(req) => Self::FieldTheory(req.owning_copy()),
             DomainRequest::GaloisTheory(req) => Self::GaloisTheory(req.owning_copy()),
@@ -79,7 +79,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             else {
                 return Err(verify_err("calculus_result_kind_mismatch"));
             };
-            let replay = execute_calculus(session, req.clone());
+            let replay = execute_calculus(session, req.owning_copy());
             assert_calculus_match(session, &replay, claimed_calc)
         }
         VerifySnapshot::Polynomial(req) => {
@@ -88,7 +88,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
                 return Err(verify_err("polynomial_result_kind_mismatch"));
             };
             // Always recompute via rings path (independent of M-Graph cache admit).
-            let replay = execute_polynomial_with_rings(req.clone(), &session.rings, &session.polynomial_objects);
+            let replay = execute_polynomial_with_rings(req.owning_copy(), &session.rings, &session.polynomial_objects);
             assert_polynomial_match(session, &replay, claimed_poly)
         }
         VerifySnapshot::LinearAlgebra(req) => {
@@ -97,7 +97,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
                 return Err(verify_err("linear_algebra_result_kind_mismatch"));
             };
             // Recompute against Session matrix store (independent of M-Graph cache admit).
-            let replay = execute_linear_algebra(req.clone(), &session.matrix_objects);
+            let replay = execute_linear_algebra(req.owning_copy(), &session.matrix_objects);
             assert_linear_algebra_match(&replay, claimed_la)
         }
         VerifySnapshot::NumberTheory(req) => {
@@ -113,7 +113,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             else {
                 return Err(verify_err("graph_theory_result_kind_mismatch"));
             };
-            let replay = execute_graph_theory(req.clone());
+            let replay = execute_graph_theory(req.owning_copy());
             assert_graph_theory_match(&replay, claimed_gt)
         }
         VerifySnapshot::Optimization(req) => {
@@ -121,7 +121,7 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             else {
                 return Err(verify_err("optimization_result_kind_mismatch"));
             };
-            let replay = execute_optimization(req.clone());
+            let replay = execute_optimization(req.owning_copy());
             assert_optimization_match(&replay, claimed_opt)
         }
         VerifySnapshot::GroupTheory(req) => {
@@ -439,7 +439,7 @@ mod tests {
         .expect("matrix");
         let matrix_ref = session.matrix_objects.intern(matrix);
         let request = LinearAlgebraRequest::Det { matrix: matrix_ref };
-        let honest = DomainResult::LinearAlgebra(execute_linear_algebra(request.clone(), &session.matrix_objects));
+        let honest = DomainResult::LinearAlgebra(execute_linear_algebra(request.owning_copy(), &session.matrix_objects));
         let snapshot = VerifySnapshot::LinearAlgebra(request);
         verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
     }
@@ -508,7 +508,7 @@ mod tests {
             vec![(athena_graph::NodeId(0), athena_graph::NodeId(1), 1), (athena_graph::NodeId(1), athena_graph::NodeId(2), 1)],
         );
         let request = GraphTheoryRequest::ConnectedComponents { graph };
-        let honest = DomainResult::GraphTheory(execute_graph_theory(request.clone()));
+        let honest = DomainResult::GraphTheory(execute_graph_theory(request.owning_copy()));
         let snapshot = VerifySnapshot::GraphTheory(request);
         verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
     }
@@ -528,7 +528,7 @@ mod tests {
             vec![(athena_graph::NodeId(0), athena_graph::NodeId(1), 1)],
         );
         let request = GraphTheoryRequest::ConnectedComponents { graph };
-        let honest = execute_graph_theory(request.clone());
+        let honest = execute_graph_theory(request.owning_copy());
         let GraphTheoryResult::Exact { value: GraphTheoryValue::ConnectedComponents(mut forged_cc) } = honest
         else {
             panic!("expected connected components");
@@ -561,7 +561,7 @@ mod tests {
         )
         .expect("lp");
         let request = OptimizationRequest::ValidateProblem { problem };
-        let honest = DomainResult::Optimization(execute_optimization(request.clone()));
+        let honest = DomainResult::Optimization(execute_optimization(request.owning_copy()));
         let snapshot = VerifySnapshot::Optimization(request);
         verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
     }

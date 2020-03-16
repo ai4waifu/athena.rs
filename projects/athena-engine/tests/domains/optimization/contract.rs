@@ -77,7 +77,7 @@ fn rejects_empty_objectives() {
 #[test]
 fn execute_optimization_is_unevaluated_bootstrap() {
     let problem = sample_lp();
-    let result = execute_optimization(OptimizationRequest::Solve { problem: problem.clone() });
+    let result = execute_optimization(OptimizationRequest::Solve { problem: problem.owning_copy() });
     match result {
         OptimizationResult::Unevaluated { reason } => {
             assert_eq!(reason.details.get("operation").map(|v| v.to_string()).as_deref(), Some("solve"));

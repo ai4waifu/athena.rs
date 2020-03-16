@@ -22,7 +22,9 @@ pub enum ClosureStatus {
 /// 可行集：约束 + 域 + 闭包状态。
 ///
 /// 可行性 ≠ 最优性。本对象不携带目标值。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct FeasibleSet {
     /// 约束列表。
     pub constraints: Vec<Constraint>,
@@ -33,6 +35,15 @@ pub struct FeasibleSet {
 }
 
 impl FeasibleSet {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            constraints: self.constraints.iter().map(Constraint::owning_copy).collect(),
+            domain: self.domain,
+            closure_status: self.closure_status,
+        }
+    }
+
     /// 空约束集（尚未判定）。
     pub fn empty(domain: DomainId) -> Self {
         Self { constraints: Vec::new(), domain, closure_status: ClosureStatus::Open }

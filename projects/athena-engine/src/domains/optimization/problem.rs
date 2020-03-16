@@ -35,12 +35,21 @@ pub enum ProblemClass {
 }
 
 /// 算法策略版本（进入 fingerprint / 缓存键）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct AlgorithmPolicy {
     /// 策略标识（如 `primal-simplex` / `bnb-v0`）。
     pub name: String,
     /// 策略版本。
     pub version: u32,
+}
+
+impl AlgorithmPolicy {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { name: self.name.clone(), version: self.version }
+    }
 }
 
 impl Default for AlgorithmPolicy {
@@ -52,7 +61,9 @@ impl Default for AlgorithmPolicy {
 /// 优化问题。
 ///
 /// 稳定身份是 [`OptimizationFingerprint`]；[`ProblemId`] 仅 Session-local。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct OptimizationProblem {
     /// Session-local 句柄。
     pub id: ProblemId,
@@ -75,6 +86,21 @@ pub struct OptimizationProblem {
 }
 
 impl OptimizationProblem {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            fingerprint: self.fingerprint,
+            class: self.class,
+            variables: self.variables.iter().map(DecisionVariable::owning_copy).collect(),
+            feasible_set: self.feasible_set.owning_copy(),
+            objectives: self.objectives.clone(),
+            assumptions: self.assumptions,
+            policy: self.policy.owning_copy(),
+            limits: self.limits,
+        }
+    }
+
     /// 构造骨架问题；拒绝整数性/域不一致。
     pub fn try_new(
         id: ProblemId,

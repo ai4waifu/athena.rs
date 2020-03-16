@@ -13,7 +13,9 @@ use super::{
 use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 候选 ODE 解是否已通过残差代入验证。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum VerificationStatus {
     /// 残差求值为零。
     Verified {
@@ -27,8 +29,20 @@ pub enum VerificationStatus {
     },
 }
 
+impl VerificationStatus {
+    /// Owning 复制（Living `31`：仅 `TermId` 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Verified { residual } => Self::Verified { residual: *residual },
+            Self::Failed { residual } => Self::Failed { residual: *residual },
+        }
+    }
+}
+
 /// 显式一阶 ODE 解对象（非裸项）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct DifferentialSolution {
     /// 因变量名（桥接）。
     pub dependent: SymbolId,
@@ -41,6 +55,16 @@ pub struct DifferentialSolution {
 }
 
 impl DifferentialSolution {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            dependent: self.dependent,
+            independent: self.independent,
+            explicit: self.explicit,
+            verified: self.verified.owning_copy(),
+        }
+    }
+
     /// 桥接项 `Equal[y[x], explicit]`（扩展头为因变量显示名 · 自变量为参量）。
     pub fn to_equal_term(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
         let head = cc.intern_extension(cc.symbol_resolve(self.dependent));

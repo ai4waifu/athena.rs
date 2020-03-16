@@ -110,13 +110,7 @@ mod tests {
     fn intern_dedupes_identical_series() {
         let mut store = SeriesObjectStore::new();
         let s = Series { variable: SymbolId(0), center: TermId(0), terms: Vec::new(), order: 1, remainder: Remainder::ExactTruncation };
-        let a = store.intern(Series {
-            variable: s.variable,
-            center: s.center,
-            terms: s.terms.clone(),
-            order: s.order,
-            remainder: Remainder::ExactTruncation,
-        });
+        let a = store.intern(s.owning_copy());
         let b = store.intern(s);
         assert_eq!(a, b);
         assert_eq!(store.len(), 1);

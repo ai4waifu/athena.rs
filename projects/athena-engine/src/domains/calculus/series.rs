@@ -11,7 +11,9 @@ use super::{
 use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 截断级数的余项标注。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum Remainder {
     /// 精确截断（多项式次数 ≤ order）。
     ExactTruncation,
@@ -23,8 +25,22 @@ pub enum Remainder {
     Unknown,
 }
 
+impl Remainder {
+    /// Owning 复制（Living `31`：仅 `TermId` 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::ExactTruncation => Self::ExactTruncation,
+            Self::BigO(t) => Self::BigO(*t),
+            Self::LittleO(t) => Self::LittleO(*t),
+            Self::Unknown => Self::Unknown,
+        }
+    }
+}
+
 /// 独立级数值（非裸多项式列表）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct Series {
     /// 展开变量。
     pub variable: SymbolId,
@@ -41,6 +57,17 @@ pub struct Series {
 }
 
 impl Series {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            variable: self.variable,
+            center: self.center,
+            terms: self.terms.clone(),
+            order: self.order,
+            remainder: self.remainder.owning_copy(),
+        }
+    }
+
     /// 展开基幂：有限中心用 `(x-c)^p`，无穷用 `x^p`。
     fn delta_power(&self, cc: &mut DomainExecutionContext<'_>, power: i64) -> TermId {
         if self.center_is_infinity(cc) {

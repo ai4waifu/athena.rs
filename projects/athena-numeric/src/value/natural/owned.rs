@@ -13,7 +13,10 @@ use crate::{
 ///
 /// Published 路径经 [`MagnitudePair::try_reuse_unique_published`] 取得，
 /// **不**改变 `ReclaimAuthority`（仍为 TracingSweep）。
-enum UniqueMutationGuard {
+///
+/// 当前仅供 `Natural` destination-reuse 入口消费；对外数值 API 仍是
+/// [`Natural::try_add_owned`] 等，不直接暴露构造。
+pub(crate) enum UniqueMutationGuard {
     Published(RootedLimbBuffer),
     Temporary(OwnedLimbBuffer),
 }

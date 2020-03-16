@@ -85,14 +85,14 @@ pub enum GraphPresentation {
 }
 
 /// 假设上下文占位（完整 assumption solver 外置）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GraphAssumptions {
     /// 附着假设集 id（0 = 无条件）。
     pub assumption_set_id: u64,
 }
 
 /// 构造来源。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GraphProvenance {
     /// 调用方直接构造。
     Explicit,
@@ -101,7 +101,9 @@ pub enum GraphProvenance {
 }
 
 /// 内存图载体（引导实现）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct MemoryGraph {
     /// 语义。
     pub semantics: GraphDomainSemantics,
@@ -129,10 +131,17 @@ impl MemoryGraph {
         });
         builder.finish()
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { semantics: self.semantics, edges: self.edges.clone() }
+    }
 }
 
 /// 图论领域对象（绑定 [`GraphSnapshot`]）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct GraphObject {
     /// 句柄（与 `snapshot.graph_id` 对齐）。
     pub handle: GraphHandle,
@@ -194,5 +203,18 @@ impl GraphObject {
     /// 快照修订号。
     pub const fn revision(&self) -> GraphRevision {
         self.snapshot.revision
+    }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            handle: self.handle,
+            snapshot: self.snapshot,
+            semantics: self.semantics,
+            presentation: self.presentation,
+            assumptions: self.assumptions,
+            provenance: self.provenance,
+            memory: self.memory.owning_copy(),
+        }
     }
 }

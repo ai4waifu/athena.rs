@@ -80,9 +80,9 @@ pub fn verify_homomorphism_and_cache(
     let mut cache: HashMap<Vec<u32>, RawPerm> = HashMap::new();
     let id_src = RawPerm::identity(source.degree);
     let id_tgt = RawPerm::identity(target.degree);
-    cache.insert(id_src.images().to_vec(), id_tgt.clone());
+    cache.insert(id_src.images().to_vec(), id_tgt.owning_copy());
 
-    let mut queue = VecDeque::from([(id_src.clone(), id_tgt)]);
+    let mut queue = VecDeque::from([(id_src.owning_copy(), id_tgt)]);
     let mut seen = HashSet::from([id_src.images().to_vec()]);
 
     let steps: Vec<(RawPerm, RawPerm)> = source_generators
@@ -91,7 +91,7 @@ pub fn verify_homomorphism_and_cache(
         .flat_map(|(g, im)| {
             let gi = g.inverse();
             let imi = im.inverse();
-            [(g.clone(), im.clone()), (gi, imi)]
+            [(g.owning_copy(), im.owning_copy()), (gi, imi)]
         })
         .collect();
 
@@ -109,7 +109,7 @@ pub fn verify_homomorphism_and_cache(
             if !target.contains(&t2) {
                 return Err(subgroup_error("image_not_in_target"));
             }
-            cache.insert(key.clone(), t2.clone());
+            cache.insert(key.clone(), t2.owning_copy());
             seen.insert(key);
             queue.push_back((s2, t2));
         }

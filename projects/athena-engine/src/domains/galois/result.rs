@@ -5,7 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use super::{request::GaloisRequest, value::GaloisDomainValue};
 
 /// 伽罗瓦结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum GaloisResult {
     /// 精确结果。
     Exact {
@@ -17,6 +19,16 @@ pub enum GaloisResult {
         /// 原因。
         reason: Diagnostic,
     },
+}
+
+impl GaloisResult {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Exact { value } => Self::Exact { value: value.owning_copy() },
+            Self::Unevaluated { reason } => Self::Unevaluated { reason: reason.clone() },
+        }
+    }
 }
 
 /// 执行伽罗瓦请求。

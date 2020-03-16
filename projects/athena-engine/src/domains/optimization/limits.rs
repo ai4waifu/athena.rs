@@ -1,7 +1,7 @@
 //! 算法策略与资源上限。
 
 /// 优化资源与精度上限。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct OptimizationLimits {
     /// 最大变量数。
     pub max_variables: Option<u32>,

@@ -31,7 +31,7 @@ fn mgraph_polynomial_cache_hit() {
     let lhs = session.polynomial_objects.intern(a, &session.rings);
     let rhs = session.polynomial_objects.intern(c, &session.rings);
     let req = PolynomialRequest::Add { lhs, rhs };
-    let r1 = session.execute_polynomial_mgraph(req.clone());
+    let r1 = session.execute_polynomial_mgraph(req.owning_copy());
     assert!(matches!(r1, PolynomialResult::Exact { .. }));
     assert_eq!(session.mgraph.operational.result_cache.polynomial.len(), 1);
     assert_eq!(session.mgraph.semantic.derived.rewrite_witnesses.len(), 1);
@@ -50,7 +50,7 @@ fn groebner_complete_admitted_to_claims() {
     let g = b.build(&session.rings).unwrap();
     let generator = session.polynomial_objects.intern(g, &session.rings);
     let req = PolynomialRequest::Groebner { generators: vec![generator], limits: GroebnerLimits::default() };
-    session.execute_polynomial_mgraph(req.clone());
+    session.execute_polynomial_mgraph(req.owning_copy());
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 1);
     let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();
     let vc = session.mgraph.semantic.admission_journal.get(athena_engine::reasoning::mgraph::FactId(0)).unwrap();
@@ -74,7 +74,7 @@ fn groebner_partial_cached_but_not_admitted() {
     let r1 = session.polynomial_objects.intern(g1, &session.rings);
     let r2 = session.polynomial_objects.intern(g2, &session.rings);
     let req = PolynomialRequest::Groebner { generators: vec![r1, r2], limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 } };
-    session.execute_polynomial_mgraph(req.clone());
+    session.execute_polynomial_mgraph(req.owning_copy());
     assert_eq!(session.mgraph.semantic.admission_journal.count(), 0);
     assert_eq!(session.mgraph.operational.result_cache.polynomial.partial_len(), 1);
     let key = cache_key_for_request(&req, &session.rings, &session.polynomial_objects).unwrap();

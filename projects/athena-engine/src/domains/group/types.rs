@@ -52,10 +52,19 @@ pub struct Subgroup {
 }
 
 /// 置换：像列表 `π(i) = images[i]`（0-based；度数由 presentation 解释）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct Permutation {
     /// 像（长度须等于 presentation 的 degree）。
     pub images: Vec<u32>,
+}
+
+impl Permutation {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { images: self.images.clone() }
+    }
 }
 
 /// 群元素表示。
@@ -120,7 +129,7 @@ impl GroupElementRepr {
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::TableIndex(i) => Self::TableIndex(*i),
-            Self::Permutation(p) => Self::Permutation(p.clone()),
+            Self::Permutation(p) => Self::Permutation(p.owning_copy()),
         }
     }
 }

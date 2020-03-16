@@ -5,7 +5,9 @@ use athena_types::RingId;
 use super::{factor::PolynomialFactorLimits, groebner::GroebnerLimits, object_ref::PolynomialRef, ring::DivisionPolicy};
 
 /// 多项式域请求 — 骨架变体，算法逐步填充。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum PolynomialRequest {
     /// 规范化（合并同类项、去零）。
     Normalize {
@@ -129,4 +131,84 @@ pub enum PolynomialRequest {
         /// 目标 ℤ 或 ℚ 环。
         target_ring: RingId,
     },
+}
+
+impl PolynomialRequest {
+    /// Owning 复制（Living `31`：仅 `PolynomialRef` / 限制句柄与向量）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Normalize { polynomial } => Self::Normalize { polynomial: *polynomial },
+            Self::Add { lhs, rhs } => Self::Add { lhs: *lhs, rhs: *rhs },
+            Self::Mul { lhs, rhs } => Self::Mul { lhs: *lhs, rhs: *rhs },
+            Self::Div { dividend, divisor, policy } => Self::Div {
+                dividend: *dividend,
+                divisor: *divisor,
+                policy: *policy,
+            },
+            Self::Gcd { lhs, rhs } => Self::Gcd { lhs: *lhs, rhs: *rhs },
+            Self::Factor { polynomial, limits } => Self::Factor {
+                polynomial: *polynomial,
+                limits: *limits,
+            },
+            Self::Groebner { generators, limits } => Self::Groebner {
+                generators: generators.clone(),
+                limits: *limits,
+            },
+            Self::GroebnerF4 { generators, limits } => Self::GroebnerF4 {
+                generators: generators.clone(),
+                limits: *limits,
+            },
+            Self::Eliminate { generators, limits } => Self::Eliminate {
+                generators: generators.clone(),
+                limits: *limits,
+            },
+            Self::ResumeGroebner {
+                candidates,
+                pending_pairs,
+                pending_insertion,
+                input_generators,
+                prior_s_pair_steps,
+                limits,
+            } => Self::ResumeGroebner {
+                candidates: candidates.clone(),
+                pending_pairs: pending_pairs.clone(),
+                pending_insertion: *pending_insertion,
+                input_generators: *input_generators,
+                prior_s_pair_steps: *prior_s_pair_steps,
+                limits: *limits,
+            },
+            Self::ResumeGroebnerF4 {
+                candidates,
+                pending_pairs,
+                pending_insertion,
+                input_generators,
+                prior_s_pair_steps,
+                candidate_sugars,
+                pending_insertion_sugar,
+                limits,
+            } => Self::ResumeGroebnerF4 {
+                candidates: candidates.clone(),
+                pending_pairs: pending_pairs.clone(),
+                pending_insertion: *pending_insertion,
+                input_generators: *input_generators,
+                prior_s_pair_steps: *prior_s_pair_steps,
+                candidate_sugars: candidate_sugars.clone(),
+                pending_insertion_sugar: *pending_insertion_sugar,
+                limits: *limits,
+            },
+            Self::ModularImage { polynomial, image_ring } => Self::ModularImage {
+                polynomial: *polynomial,
+                image_ring: *image_ring,
+            },
+            Self::ReconstructModular { image, target_ring } => Self::ReconstructModular {
+                image: *image,
+                target_ring: *target_ring,
+            },
+            Self::CrtCombineModular { images, integer_ring, target_ring } => Self::CrtCombineModular {
+                images: images.clone(),
+                integer_ring: *integer_ring,
+                target_ring: *target_ring,
+            },
+        }
+    }
 }

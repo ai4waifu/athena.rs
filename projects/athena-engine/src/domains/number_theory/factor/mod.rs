@@ -181,7 +181,11 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
             e += 1;
         }
         if e > 0 {
-            factors.push(FactorComponent { base: pb, exponent: e, status: FactorBaseStatus::ProvenPrime { certificate: trial_cert.clone() } });
+            factors.push(FactorComponent {
+                base: pb,
+                exponent: e,
+                status: FactorBaseStatus::ProvenPrime { certificate: trial_cert.owning_copy() },
+            });
         }
         p = p.saturating_add(2);
         if p > trial_cap {

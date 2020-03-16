@@ -21,7 +21,9 @@ pub enum MapVerificationKind {
 }
 
 /// 映射验证状态（禁止薄 `verified: bool`）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct MapVerification {
     /// 验证种类。
     pub kind: MapVerificationKind,
@@ -49,10 +51,18 @@ impl MapVerification {
     pub fn is_proven(&self) -> bool {
         self.status.is_proven()
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            kind: self.kind,
+            status: self.status.owning_copy(),
+        }
+    }
 }
 
 /// 映射种类（不含元素 payload，images 由领域模块填充）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlgebraMapKind {
     /// 域嵌入 K → L。
     FieldEmbedding,
@@ -65,7 +75,9 @@ pub enum AlgebraMapKind {
 }
 
 /// 统一代数映射。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct AlgebraMap {
     /// 稳定 id。
     pub id: AlgebraMapId,
@@ -92,10 +104,23 @@ impl AlgebraMap {
                 .detail("map_id", self.id.0.to_string()))
         }
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            source: self.source,
+            target: self.target,
+            kind: self.kind,
+            verification: self.verification.owning_copy(),
+        }
+    }
 }
 
 /// 域嵌入（K → L）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct FieldEmbedding {
     /// 底层映射 id。
     pub map: AlgebraMapId,
@@ -105,8 +130,21 @@ pub struct FieldEmbedding {
     pub target_presentation: FieldPresentationId,
 }
 
+impl FieldEmbedding {
+    /// Owning 复制（Living `31`：仅 id 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            map: self.map,
+            source_presentation: self.source_presentation,
+            target_presentation: self.target_presentation,
+        }
+    }
+}
+
 /// 群同态（G → H）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GroupHomomorphism {
     /// 底层映射 id。
     pub map: AlgebraMapId,
@@ -116,8 +154,21 @@ pub struct GroupHomomorphism {
     pub target_presentation: GroupPresentationId,
 }
 
+impl GroupHomomorphism {
+    /// Owning 复制（Living `31`：仅 id 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            map: self.map,
+            source_presentation: self.source_presentation,
+            target_presentation: self.target_presentation,
+        }
+    }
+}
+
 /// 子群包含 H ↪ G。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct SubgroupInclusion {
     /// 底层映射 id。
     pub map: AlgebraMapId,
@@ -129,8 +180,22 @@ pub struct SubgroupInclusion {
     pub target_presentation: GroupPresentationId,
 }
 
+impl SubgroupInclusion {
+    /// Owning 复制（Living `31`：仅 id 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            map: self.map,
+            subgroup: self.subgroup,
+            source_presentation: self.source_presentation,
+            target_presentation: self.target_presentation,
+        }
+    }
+}
+
 /// 商投影 G → G/N。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct QuotientProjection {
     /// 底层映射 id。
     pub map: AlgebraMapId,
@@ -140,4 +205,16 @@ pub struct QuotientProjection {
     pub source_presentation: GroupPresentationId,
     /// 商 presentation。
     pub target_presentation: GroupPresentationId,
+}
+
+impl QuotientProjection {
+    /// Owning 复制（Living `31`：仅 id 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            map: self.map,
+            subgroup: self.subgroup,
+            source_presentation: self.source_presentation,
+            target_presentation: self.target_presentation,
+        }
+    }
 }

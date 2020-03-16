@@ -123,8 +123,8 @@ impl FieldTable {
 
     /// 自基域到 L 的域塔（升序，如 `[𝔽_p, …, L]`）。
     pub fn extension_tower(&self, extension: ExtensionId) -> Option<Vec<FieldId>> {
-        let record = self.extensions.get(&extension)?.clone();
-        Some(extension_tower_fields(&record, |field| self.extension_by_field(field).cloned()))
+        let record = self.extensions.get(&extension)?;
+        Some(extension_tower_fields(record, |field| self.extension_by_field(field)))
     }
 
     /// 注册扩张 Frobenius 自同构 σ^k（幂等）。

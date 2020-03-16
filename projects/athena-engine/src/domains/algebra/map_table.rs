@@ -14,13 +14,13 @@ use super::{
     property::PropertyWitness,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct FieldEmbeddingRecord {
     map: AlgebraMap,
     embedding: FieldEmbedding,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct GroupHomomorphismRecord {
     map: AlgebraMap,
     homomorphism: GroupHomomorphism,
@@ -29,7 +29,7 @@ struct GroupHomomorphismRecord {
     element_images: HashMap<Vec<u32>, RawPerm>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct SubgroupInclusionRecord {
     map: AlgebraMap,
     inclusion: SubgroupInclusion,
@@ -37,7 +37,7 @@ struct SubgroupInclusionRecord {
     subgroup_group: GroupId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct QuotientProjectionRecord {
     map: AlgebraMap,
     projection: QuotientProjection,
@@ -45,7 +45,7 @@ struct QuotientProjectionRecord {
     quotient: GroupId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct PrimeSubfieldEmbeddingRecord {
     map: AlgebraMap,
     embedding: FieldEmbedding,
@@ -53,7 +53,7 @@ struct PrimeSubfieldEmbeddingRecord {
     extension: FieldId,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct FieldAutomorphismRecord {
     map: AlgebraMap,
     extension: ExtensionId,
@@ -198,7 +198,7 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
-        self.maps.insert(id, map.clone());
+        self.maps.insert(id, map.owning_copy());
         self.embeddings.insert((source, target), FieldEmbeddingRecord { map, embedding });
         id
     }
@@ -224,7 +224,7 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let embedding = FieldEmbedding { map: id, source_presentation, target_presentation };
-        self.maps.insert(id, map.clone());
+        self.maps.insert(id, map.owning_copy());
         self.prime_subfield_embeddings
             .insert((prime_field, extension), PrimeSubfieldEmbeddingRecord { map, embedding, prime_field, extension });
         id
@@ -258,8 +258,8 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let embedding = FieldEmbedding { map: map_id, source_presentation: presentation, target_presentation: presentation };
-        self.maps.insert(map_id, map.clone());
-        self.embeddings.insert((field, field), FieldEmbeddingRecord { map: map.clone(), embedding });
+        self.maps.insert(map_id, map.owning_copy());
+        self.embeddings.insert((field, field), FieldEmbeddingRecord { map: map.owning_copy(), embedding });
         self.automorphisms.insert(id, FieldAutomorphismRecord { map, extension, field, frobenius_power });
         self.extension_automorphisms.entry(extension).or_default().push(id);
         id
@@ -287,7 +287,7 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::DegreeCheck, PropertyWitness::placeholder("degree_check")),
         };
         let inclusion = SubgroupInclusion { map: id, subgroup, source_presentation, target_presentation };
-        self.maps.insert(id, map.clone());
+        self.maps.insert(id, map.owning_copy());
         self.subgroup_inclusions.insert(subgroup, SubgroupInclusionRecord { map, inclusion, parent, subgroup_group });
         id
     }
@@ -311,7 +311,7 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let homomorphism = GroupHomomorphism { map: id, source_presentation, target_presentation };
-        self.maps.insert(id, map.clone());
+        self.maps.insert(id, map.owning_copy());
         self.homomorphisms.insert(id, GroupHomomorphismRecord { map, homomorphism, source, target, element_images });
         id
     }
@@ -338,7 +338,7 @@ impl MapTable {
             verification: MapVerification::proven(MapVerificationKind::GeneratorRelations, PropertyWitness::placeholder("generator_relations")),
         };
         let projection = QuotientProjection { map: id, subgroup, source_presentation, target_presentation };
-        self.maps.insert(id, map.clone());
+        self.maps.insert(id, map.owning_copy());
         self.quotient_projections.insert(subgroup, QuotientProjectionRecord { map, projection, parent, quotient });
         id
     }

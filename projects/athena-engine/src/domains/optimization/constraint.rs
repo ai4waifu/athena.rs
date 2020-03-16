@@ -23,7 +23,9 @@ pub enum ConstraintRelation {
 }
 
 /// 优化约束。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct Constraint {
     /// Session-local id。
     pub id: ConstraintId,
@@ -35,4 +37,17 @@ pub struct Constraint {
     pub domain: DomainId,
     /// 来源说明（非证书）。
     pub provenance: Option<String>,
+}
+
+impl Constraint {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            relation: self.relation,
+            expression: self.expression,
+            domain: self.domain,
+            provenance: self.provenance.clone(),
+        }
+    }
 }

@@ -74,7 +74,7 @@ fn neutral_matmul_and_hadamard_requests_are_distinct() {
     let had = LinearAlgebraRequest::Hadamard { lhs: a, rhs: b };
     assert_ne!(mm, had);
 
-    let r1 = execute_linear_algebra(mm.clone(), &store);
+    let r1 = execute_linear_algebra(mm.owning_copy(), &store);
     let r2 = execute_linear_algebra(mm, &store);
     assert_eq!(r1, r2);
     let _ = execute_linear_algebra(had, &store);

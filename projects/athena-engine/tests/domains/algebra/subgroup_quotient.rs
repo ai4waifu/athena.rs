@@ -28,7 +28,7 @@ fn klein_four_gens() -> [Permutation; 2] {
 fn subgroup_from_generators_and_membership() {
     let mut table = GroupTable::new();
     let k4 = table.permutation_group(4, &klein_four_gens()).unwrap();
-    let subgroup_id = table.subgroup_from_generators(k4, &[klein_four_gens()[0].clone()]).unwrap();
+    let subgroup_id = table.subgroup_from_generators(k4, &[klein_four_gens()[0].owning_copy()]).unwrap();
     let sub = table.subgroup_record(subgroup_id).unwrap();
     assert_eq!(table.order(sub.group).unwrap(), Integer::from_i64(2));
     let h = canonical_permutation(&table, sub.group, klein_four_gens()[0].images.clone(), GroupElementId(1)).unwrap();
@@ -39,7 +39,7 @@ fn subgroup_from_generators_and_membership() {
 fn klein_four_subgroup_is_normal_and_quotient_order_two() {
     let mut table = GroupTable::new();
     let k4 = table.permutation_group(4, &klein_four_gens()).unwrap();
-    let subgroup_id = table.subgroup_from_generators(k4, &[klein_four_gens()[0].clone()]).unwrap();
+    let subgroup_id = table.subgroup_from_generators(k4, &[klein_four_gens()[0].owning_copy()]).unwrap();
     assert!(table.is_normal_subgroup(subgroup_id).unwrap());
     let q = table.quotient_group(subgroup_id).unwrap();
     assert_eq!(table.order(q).unwrap(), Integer::from_i64(2));

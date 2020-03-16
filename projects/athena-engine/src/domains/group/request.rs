@@ -91,23 +91,25 @@ impl GroupRequest {
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Cyclic { order } => Self::Cyclic { order: clone_integer(order) },
-            Self::PermutationGroup { degree, generators } => {
-                Self::PermutationGroup { degree: *degree, generators: generators.clone() }
-            }
+            Self::PermutationGroup { degree, generators } => Self::PermutationGroup {
+                degree: *degree,
+                generators: generators.iter().map(Permutation::owning_copy).collect(),
+            },
             Self::Order { group } => Self::Order { group: *group },
             Self::Multiply { lhs, rhs } => Self::Multiply { lhs: lhs.owning_copy(), rhs: rhs.owning_copy() },
             Self::Inverse { element } => Self::Inverse { element: element.owning_copy() },
             Self::IsAbelian { group } => Self::IsAbelian { group: *group },
-            Self::SubgroupFromGenerators { parent, generators } => {
-                Self::SubgroupFromGenerators { parent: *parent, generators: generators.clone() }
-            }
+            Self::SubgroupFromGenerators { parent, generators } => Self::SubgroupFromGenerators {
+                parent: *parent,
+                generators: generators.iter().map(Permutation::owning_copy).collect(),
+            },
             Self::IsNormalSubgroup { subgroup } => Self::IsNormalSubgroup { subgroup: *subgroup },
             Self::QuotientGroup { subgroup } => Self::QuotientGroup { subgroup: *subgroup },
             Self::HomomorphismFromGeneratorImages { source, target, generator_images } => {
                 Self::HomomorphismFromGeneratorImages {
                     source: *source,
                     target: *target,
-                    generator_images: generator_images.clone(),
+                    generator_images: generator_images.iter().map(Permutation::owning_copy).collect(),
                 }
             }
             Self::ApplyHomomorphism { map, element } => {

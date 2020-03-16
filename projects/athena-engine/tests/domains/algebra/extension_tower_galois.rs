@@ -86,7 +86,7 @@ fn field_automorphism_applies_frobenius() {
 fn extension_record_roundtrip_by_id() {
     let mut table = FieldTable::new();
     let f4 = table.polynomial_basis_field(Integer::from_i64(2), gf4_modulus()).unwrap();
-    let by_field: FieldExtension = table.extension_by_field(f4).unwrap().clone();
+    let by_field: FieldExtension = table.extension_by_field(f4).unwrap().owning_copy();
     let by_id = table.extension_record(by_field.id).unwrap();
     assert_eq!(by_id, &by_field);
 }

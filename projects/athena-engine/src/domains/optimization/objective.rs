@@ -14,7 +14,7 @@ pub enum ObjectiveSense {
 }
 
 /// 目标。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Objective {
     /// Session-local id。
     pub id: ObjectiveId,

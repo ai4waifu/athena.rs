@@ -57,7 +57,9 @@ pub enum GraphPropertyKind {
 }
 
 /// 可独立验证的图论证书（摘要级变体仍保留，但不得 admission）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum GraphCertificate {
     /// 遍历见证（摘要；不可 admission）。
     TraversalWitness {
@@ -178,8 +180,68 @@ pub enum GraphCertificate {
     },
 }
 
+impl GraphCertificate {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::TraversalWitness { algorithm, visited_count } => {
+                Self::TraversalWitness { algorithm: *algorithm, visited_count: *visited_count }
+            }
+            Self::ComponentPartition { algorithm, labels } => {
+                Self::ComponentPartition { algorithm: *algorithm, labels: labels.clone() }
+            }
+            Self::SccPartition { algorithm, labels } => Self::SccPartition { algorithm: *algorithm, labels: labels.clone() },
+            Self::ShortestPathDual {
+                algorithm,
+                source,
+                target,
+                dist,
+                pred,
+                edge_weights,
+                nonnegative_assumed,
+                relaxations,
+            } => Self::ShortestPathDual {
+                algorithm: *algorithm,
+                source: *source,
+                target: *target,
+                dist: dist.clone(),
+                pred: pred.clone(),
+                edge_weights: edge_weights.clone(),
+                nonnegative_assumed: *nonnegative_assumed,
+                relaxations: *relaxations,
+            },
+            Self::BipartiteColoring { algorithm, left, right } => {
+                Self::BipartiteColoring { algorithm: *algorithm, left: left.clone(), right: right.clone() }
+            }
+            Self::OddCycle { algorithm, cycle } => Self::OddCycle { algorithm: *algorithm, cycle: cycle.clone() },
+            Self::KruskalForest { algorithm, edge_count, tree_count } => {
+                Self::KruskalForest { algorithm: *algorithm, edge_count: *edge_count, tree_count: *tree_count }
+            }
+            Self::MstCut { algorithm, edges, total_weight, tree_count, weight_domain } => Self::MstCut {
+                algorithm: *algorithm,
+                edges: edges.clone(),
+                total_weight: *total_weight,
+                tree_count: *tree_count,
+                weight_domain: *weight_domain,
+            },
+            Self::TopologicalOrder { algorithm, order } => Self::TopologicalOrder { algorithm: *algorithm, order: order.clone() },
+            Self::DirectedCycle { algorithm, cycle } => Self::DirectedCycle { algorithm: *algorithm, cycle: cycle.clone() },
+            Self::ForestProof { algorithm, edge_count, component_count, is_tree } => Self::ForestProof {
+                algorithm: *algorithm,
+                edge_count: *edge_count,
+                component_count: *component_count,
+                is_tree: *is_tree,
+            },
+            Self::BridgeSet { algorithm, bridges } => Self::BridgeSet { algorithm: *algorithm, bridges: bridges.clone() },
+            Self::ArticulationSet { algorithm, nodes } => Self::ArticulationSet { algorithm: *algorithm, nodes: nodes.clone() },
+        }
+    }
+}
+
 /// 带状态与证书的性质结果。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]（`T: Copy`）。
+#[derive(Debug, PartialEq)]
 pub struct GraphPropertyResult<T> {
     /// 性质种类。
     pub kind: GraphPropertyKind,
@@ -195,6 +257,21 @@ pub struct GraphPropertyResult<T> {
     pub algorithm: &'static str,
     /// 所证图快照。
     pub snapshot: GraphSnapshot,
+}
+
+impl<T: Copy> GraphPropertyResult<T> {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            kind: self.kind,
+            state: self.state,
+            value: self.value,
+            certificate: self.certificate.as_ref().map(GraphCertificate::owning_copy),
+            strength: self.strength,
+            algorithm: self.algorithm,
+            snapshot: self.snapshot,
+        }
+    }
 }
 
 impl<T> GraphPropertyResult<T> {

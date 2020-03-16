@@ -5,7 +5,9 @@ use athena_types::{AlgebraMapId, ExtensionId, FieldId};
 use super::property::{PropertyState, PropertyWitness};
 
 /// 域扩张 L/K（含已验证嵌入 K → L）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct FieldExtension {
     /// 稳定扩张 id。
     pub id: ExtensionId,
@@ -31,7 +33,7 @@ impl FieldExtension {
             id,
             base,
             field,
-            degree: PropertyState::Proven { value: degree, witness: witness.clone() },
+            degree: PropertyState::Proven { value: degree, witness: witness.owning_copy() },
             separable: PropertyState::Proven { value: true, witness: PropertyWitness::placeholder("char_p_separable") },
             normal: PropertyState::Proven { value: true, witness: PropertyWitness::placeholder("finite_field_normal") },
             embedding,
@@ -58,10 +60,26 @@ impl FieldExtension {
             _ => None,
         }
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            base: self.base,
+            field: self.field,
+            degree: self.degree.owning_copy(),
+            separable: self.separable.owning_copy(),
+            normal: self.normal.owning_copy(),
+            embedding: self.embedding,
+        }
+    }
 }
 
 /// 沿 base 链自素域（或链顶基域）到 L 的域 id 塔（升序）。
-pub fn extension_tower_fields(extension: &FieldExtension, resolve_field_extension: impl Fn(FieldId) -> Option<FieldExtension>) -> Vec<FieldId> {
+pub fn extension_tower_fields<'a>(
+    extension: &FieldExtension,
+    resolve_field_extension: impl Fn(FieldId) -> Option<&'a FieldExtension>,
+) -> Vec<FieldId> {
     let mut chain = vec![extension.base, extension.field];
     let mut cursor = extension.base;
     while let Some(parent) = resolve_field_extension(cursor) {

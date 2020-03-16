@@ -23,9 +23,9 @@ impl GroupPropertyFacts {
     /// Owning 复制：`Integer` 阶经 GC [`clone_integer`]，不用 Rust [`Clone`] 推导。
     pub fn owning_copy(&self) -> Self {
         Self {
-            is_finite: self.is_finite.clone(),
-            is_abelian: self.is_abelian.clone(),
-            is_solvable: self.is_solvable.clone(),
+            is_finite: self.is_finite.owning_copy(),
+            is_abelian: self.is_abelian.owning_copy(),
+            is_solvable: self.is_solvable.owning_copy(),
             order: owning_copy_integer_property(&self.order),
         }
     }
@@ -33,20 +33,5 @@ impl GroupPropertyFacts {
 
 
 pub(crate) fn owning_copy_integer_property(state: &PropertyState<Integer>) -> PropertyState<Integer> {
-    match state {
-        PropertyState::Proven { value, witness } => PropertyState::Proven {
-            value: clone_integer(value),
-            witness: witness.clone(),
-        },
-        PropertyState::Disproven { witness } => PropertyState::Disproven { witness: witness.clone() },
-        PropertyState::Probable { value, confidence, method } => PropertyState::Probable {
-            value: clone_integer(value),
-            confidence: *confidence,
-            method: method.clone(),
-        },
-        PropertyState::Unknown => PropertyState::Unknown,
-        PropertyState::ResourceLimited { partial } => PropertyState::ResourceLimited {
-            partial: partial.as_ref().map(clone_integer),
-        },
-    }
+    state.owning_copy_with(clone_integer)
 }

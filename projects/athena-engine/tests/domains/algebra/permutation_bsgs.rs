@@ -64,7 +64,7 @@ fn klein_generators() -> (Permutation, Permutation) {
 fn bsgs_membership_and_inverse() {
     let mut table = GroupTable::new();
     let (a, b) = klein_generators();
-    let g = table.permutation_group(4, &[a.clone(), b]).unwrap();
+    let g = table.permutation_group(4, &[a.owning_copy(), b]).unwrap();
     assert_eq!(table.order(g).unwrap(), Integer::from_i64(4));
     let x = canonical_permutation(&table, g, a.images, GroupElementId(1)).unwrap();
     assert!(group_membership(&table, g, &x).unwrap());

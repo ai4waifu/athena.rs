@@ -6,7 +6,9 @@
 use super::{certificate::BoundCertificate, fingerprint::OptimizationFingerprint};
 
 /// 优化搜索前沿（骨架）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct OptimizationFrontier {
     /// 绑定的问题指纹。
     pub problem_fingerprint: OptimizationFingerprint,
@@ -29,6 +31,21 @@ pub struct OptimizationFrontier {
 }
 
 impl OptimizationFrontier {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            problem_fingerprint: self.problem_fingerprint,
+            algorithm: self.algorithm.clone(),
+            algorithm_version: self.algorithm_version,
+            random_seed: self.random_seed,
+            incumbent_value: self.incumbent_value,
+            best_bound: self.best_bound,
+            relative_gap: self.relative_gap,
+            certificates: self.certificates.iter().map(BoundCertificate::owning_copy).collect(),
+            resume_token: self.resume_token.clone(),
+        }
+    }
+
     /// 空前沿。
     pub fn empty(problem_fingerprint: OptimizationFingerprint, algorithm: impl Into<String>, algorithm_version: u32) -> Self {
         Self {

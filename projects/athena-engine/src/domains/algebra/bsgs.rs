@@ -37,7 +37,7 @@ impl BsgsChain {
             base.push(beta);
             let (trans, schreier) = schreier_tree(beta, &gen_set, degree);
             transversals.push(trans);
-            strong_generators.push(gen_set.clone());
+            strong_generators.push(gen_set.iter().map(RawPerm::owning_copy).collect());
             gen_set.extend(schreier);
             gen_set = dedupe_perms(gen_set);
             gen_set = filter_stabilizer(&gen_set, &base, degree);
@@ -70,7 +70,7 @@ impl BsgsChain {
         if element.degree() != self.degree {
             return false;
         }
-        let mut h = element.clone();
+        let mut h = element.owning_copy();
         for (k, beta) in self.base.iter().enumerate() {
             let img = h.apply(*beta);
             let Some(rep) = self.transversals[k].get(&img)
@@ -87,7 +87,7 @@ fn generators_with_inverses(generators: &[RawPerm]) -> Vec<RawPerm> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     for g in generators {
-        for p in [g.clone(), g.inverse()] {
+        for p in [g.owning_copy(), g.inverse()] {
             if seen.insert(p.images().to_vec()) {
                 out.push(p);
             }
@@ -137,7 +137,11 @@ fn orbit(point: u32, gens: &[RawPerm], _degree: u32) -> HashSet<u32> {
 }
 
 fn filter_stabilizer(gens: &[RawPerm], base: &[u32], _degree: u32) -> Vec<RawPerm> {
-    let filtered: Vec<RawPerm> = gens.iter().filter(|g| base.iter().all(|&b| g.apply(b) == b)).cloned().collect();
+    let filtered: Vec<RawPerm> = gens
+        .iter()
+        .filter(|g| base.iter().all(|&b| g.apply(b) == b))
+        .map(RawPerm::owning_copy)
+        .collect();
     dedupe_perms(filtered)
 }
 
@@ -148,7 +152,7 @@ fn schreier_tree(beta: u32, gens: &[RawPerm], degree: u32) -> (HashMap<u32, RawP
     let mut schreier = Vec::new();
 
     while let Some(v) = queue.pop_front() {
-        let tv = trans.get(&v).cloned().unwrap_or_else(|| RawPerm::identity(degree));
+        let tv = trans.get(&v).map(RawPerm::owning_copy).unwrap_or_else(|| RawPerm::identity(degree));
         for g in gens {
             let w = g.apply(v);
             if !trans.contains_key(&w) {
@@ -156,7 +160,7 @@ fn schreier_tree(beta: u32, gens: &[RawPerm], degree: u32) -> (HashMap<u32, RawP
                 trans.insert(w, tw);
                 queue.push_back(w);
             }
-            let tw = trans.get(&w).cloned().unwrap_or_else(|| RawPerm::identity(degree));
+            let tw = trans.get(&w).map(RawPerm::owning_copy).unwrap_or_else(|| RawPerm::identity(degree));
             let s = tw.inverse().compose(g).expect("same degree").compose(&tv).expect("same degree");
             if !s.is_identity() {
                 schreier.push(s);

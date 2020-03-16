@@ -3,7 +3,9 @@
 use super::object_ref::MatrixRef;
 
 /// 线性代数域请求（禁止字符串算法名）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub enum LinearAlgebraRequest {
     /// 转置。
     Transpose {
@@ -55,4 +57,24 @@ pub enum LinearAlgebraRequest {
         /// 右端 `m×1`。
         b: MatrixRef,
     },
+}
+
+impl LinearAlgebraRequest {
+    /// Owning 复制（Living `31`：仅 `MatrixRef` 句柄）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Transpose { matrix } => Self::Transpose { matrix: *matrix },
+            Self::Index { matrix, row, col } => Self::Index {
+                matrix: *matrix,
+                row: *row,
+                col: *col,
+            },
+            Self::MatMul { lhs, rhs } => Self::MatMul { lhs: *lhs, rhs: *rhs },
+            Self::Hadamard { lhs, rhs } => Self::Hadamard { lhs: *lhs, rhs: *rhs },
+            Self::Rank { matrix } => Self::Rank { matrix: *matrix },
+            Self::Det { matrix } => Self::Det { matrix: *matrix },
+            Self::Rref { matrix } => Self::Rref { matrix: *matrix },
+            Self::Solve { a, b } => Self::Solve { a: *a, b: *b },
+        }
+    }
 }
