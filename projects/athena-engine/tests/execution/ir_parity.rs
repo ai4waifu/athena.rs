@@ -154,6 +154,17 @@ fn map_sin_list() {
 }
 
 #[test]
+fn map_sin_list_keeps_symbolic_nonexact() {
+    let mut c = C::new();
+    let sin = sem(SemanticOperator::from_unary(UnaryFunction::Sin), vec![], &mut c);
+    let e = sem(SemanticOperator::Map, vec![sin, lst(vec![i(0, &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let got = t(e, &mut c);
+    assert!(got.contains("0"), "got {got}");
+    assert!(got.contains("Sin"), "got {got}");
+    assert!(!got.contains('.'), "must not auto-N Sin[1] to machine float, got {got}");
+}
+
+#[test]
 fn map_function_var_body() {
     let mut c = C::new();
     let body = sem(SemanticOperator::Add, vec![symbol("x", &mut c), i(1, &mut c)], &mut c);
