@@ -771,6 +771,59 @@ impl Integer {
         Ok(lo)
     }
 
+    /// 非负整数的精确 `n` 次根。若不是完全方幂则 `Ok(None)`。`n == 0` 为域错误。
+    pub fn int_nth_root(&self, n: u32) -> Result<Option<Self>> {
+        if n == 0 {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "numeric")
+                .detail("operation", "int_nth_root")
+                .detail("reason", "zero_index"));
+        }
+        if self.is_negative() {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError)
+                .detail("domain", "numeric")
+                .detail("operation", "int_nth_root")
+                .detail("reason", "negative"));
+        }
+        if n == 1 {
+            return Ok(Some(self.try_clone_in(&NumericContext::portable_default())?));
+        }
+        if self.is_zero() {
+            return Ok(Some(Self::zero()));
+        }
+        if self.is_one() {
+            return Ok(Some(Self::one()));
+        }
+        if n == 2 {
+            let root = self.int_sqrt()?;
+            return Ok(if root.mul(&root) == *self { Some(root) } else { None });
+        }
+        let mut lo = Self::one();
+        let mut hi = self.try_clone_in(&NumericContext::portable_default())?.add(&Self::one());
+        let two = Integer::from_i64(2);
+        while lo.add(&Integer::one()).cmp(&hi) == std::cmp::Ordering::Less {
+            let mid = lo.add(&hi).div(&two).expect("divisor two");
+            let powered = match mid.pow_u32(n) {
+                Ok(p) => p,
+                Err(()) => {
+                    hi = mid;
+                    continue;
+                }
+            };
+            match powered.cmp(self) {
+                std::cmp::Ordering::Less => lo = mid,
+                std::cmp::Ordering::Greater => hi = mid,
+                std::cmp::Ordering::Equal => return Ok(Some(mid)),
+            }
+        }
+        let powered = lo.pow_u32(n).map_err(|_| {
+            Diagnostic::new(DiagnosticCode::ExponentOutOfRange)
+                .detail("domain", "numeric")
+                .detail("operation", "int_nth_root")
+        })?;
+        Ok(if powered == *self { Some(lo) } else { None })
+    }
+
     /// 二进制 wire 符号码：`0` 零 · `1` 正 · `2` 负。
     pub(crate) fn wire_sign_code(&self) -> u8 {
         match self.sign() {

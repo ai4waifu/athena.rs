@@ -104,7 +104,37 @@ pub fn pow(base: &NumericValue, exp: &NumericValue) -> Result<NumericValue> {
             if let Some(i) = e.is_integer().then(|| e.numerator().to_i64()).flatten() {
                 return pow(base, &NumericValue::small_int(i));
             }
-            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation))
+            // Exact rational power for perfect integer roots: (-8)^(1/3) → -2.
+            let numer = e.numerator();
+            let denom = e.denominator();
+            let Some(q64) = denom.to_u64()
+            else {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation));
+            };
+            if q64 == 0 || q64 > u32::MAX as u64 {
+                return Err(Diagnostic::new(DiagnosticCode::DomainError));
+            }
+            let q = q64 as u32;
+            let Some(p) = numer.to_i64()
+            else {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation));
+            };
+            let root = match lift(base)? {
+                Lifted::Integer(n) => integer_rational_root(&n, q)?,
+                Lifted::Rational(r) => {
+                    let num_root = integer_rational_root(&r.numerator(), q)?;
+                    let den_root = integer_rational_root(&r.denominator(), q)?;
+                    match (lift(&num_root)?, lift(&den_root)?) {
+                        (Lifted::Integer(a), Lifted::Integer(b)) => unlift_exact_rat(Rational::try_new(a, b)?),
+                        _ => return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)),
+                    }
+                }
+                _ => return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)),
+            };
+            if p == 1 {
+                return Ok(root);
+            }
+            pow(&root, &NumericValue::small_int(p))
         }
         (Lifted::Real(b), Lifted::Integer(e)) => {
             let ef = e.try_to_f64_exact().ok_or_else(|| Diagnostic::new(DiagnosticCode::ExponentOutOfRange))?;
@@ -210,4 +240,21 @@ fn to_f64(v: &Lifted) -> Result<f64> {
         Lifted::Rational(r) => r.try_to_f64_exact().ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed)),
         Lifted::Real(x) => Ok(*x),
     }
+}
+
+/// Exact integer `q`-th root for rational powers (`(-8)^(1/3)` → `-2`).
+fn integer_rational_root(base: &Integer, q: u32) -> Result<NumericValue> {
+    if q == 0 {
+        return Err(Diagnostic::new(DiagnosticCode::DomainError));
+    }
+    let negative = base.is_negative();
+    if negative && q % 2 == 0 {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation));
+    }
+    let mag = base.abs();
+    let Some(root) = mag.int_nth_root(q)?
+    else {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation));
+    };
+    Ok(unlift_exact_int(if negative { root.neg() } else { root }))
 }

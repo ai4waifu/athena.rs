@@ -17,3 +17,12 @@ fn div_by_zero_is_athena_code() {
     assert_eq!(err.code, DiagnosticCode::DivideByZero);
     assert_eq!(err.code.as_str(), "ATHENA_DIVIDE_BY_ZERO");
 }
+
+#[test]
+fn rational_power_perfect_cube_root() {
+    use athena_numeric::pow;
+    let got = pow(&NumericValue::small_int(-8), &NumericValue::rational_i64(1, 3).unwrap()).unwrap();
+    assert_eq!(got, NumericValue::small_int(-2));
+    let got = pow(&NumericValue::small_int(16), &NumericValue::rational_i64(1, 4).unwrap()).unwrap();
+    assert_eq!(got, NumericValue::small_int(2));
+}
