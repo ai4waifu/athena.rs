@@ -3,12 +3,24 @@
 use athena_types::Precision;
 
 /// 求解策略（初值、精度、停止准则等操作性状态）。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct SolvePolicy {
     /// 目标精度。
     pub precision: Option<Precision>,
     /// 机器可读策略标签（非用户文案）。
     pub tags: Vec<String>,
+}
+
+impl SolvePolicy {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            precision: self.precision,
+            tags: self.tags.clone(),
+        }
+    }
 }
 
 /// 执行资源限制（可恢复截断的预算）。

@@ -35,9 +35,9 @@ pub fn execute_linear_system_goal(
 ) -> Result<LinearAdaptedSolution, Diagnostic> {
     require_goal(problem, SolveGoal::LinearSystemSolve)?;
     match mode {
-        LinearSolveMode::Exact => solve_linear_system_exact(a, b, problem.unknowns.clone(), problem.domain.clone()),
+        LinearSolveMode::Exact => solve_linear_system_exact(a, b, problem.unknowns.clone(), problem.domain),
         LinearSolveMode::Machine { pivot_threshold } => {
-            solve_linear_system_machine(a, b, problem.unknowns.clone(), problem.domain.clone(), pivot_threshold)
+            solve_linear_system_machine(a, b, problem.unknowns.clone(), problem.domain, pivot_threshold)
         }
     }
 }
@@ -68,7 +68,7 @@ pub fn execute_polynomial_root_goal(
         return Err(diag("univariate_expects_one_unknown"));
     }
     let unknown = problem.unknowns[0];
-    solve_univariate_polynomial_roots(polynomial, rings, unknown, problem.domain.clone(), limits)
+    solve_univariate_polynomial_roots(polynomial, rings, unknown, problem.domain, limits)
 }
 
 /// 一元根 goal，并将可选 `ResumeToken` 登记到 `Session.frontiers`。

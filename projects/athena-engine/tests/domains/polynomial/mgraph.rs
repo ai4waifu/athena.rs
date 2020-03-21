@@ -91,7 +91,7 @@ fn placeholder_exact_result_not_admitted() {
     let poly = session.polynomial_objects.intern(PolynomialBuilder::new(ring).build(&session.rings).unwrap(), &session.rings);
     let key = cache_key_for_request(&PolynomialRequest::Normalize { polynomial: poly }, &session.rings, &session.polynomial_objects).unwrap();
     record_polynomial_result(
-        key.clone(),
+        key.owning_copy(),
         PolynomialResult::Exact { value: PolynomialDomainValue::Placeholder },
         &mut session.mgraph,
         Some(&session.rings),

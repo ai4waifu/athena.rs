@@ -3,7 +3,9 @@
 use crate::reasoning::mgraph::facts::claim::Claim;
 
 /// 尚未接纳的候选关系（来自 solver / verifier 输入；存于 operational `CandidatePool` 或栈上）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning [`Claim`]）。
+#[derive(Debug, PartialEq, Eq)]
 pub struct OuterCandidate {
     /// 候选 claim（未验证）。
     pub claim: Claim,

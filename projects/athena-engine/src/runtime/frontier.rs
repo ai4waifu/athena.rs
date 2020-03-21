@@ -12,7 +12,9 @@ use crate::{
 };
 
 /// 统一前沿记录（goal / plan / objects / budget / certificates / resume）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ComputationFrontier {
     /// 目标指纹。
     pub goal_fingerprint: u64,
@@ -68,6 +70,21 @@ impl ComputationFrontier {
             certificate_fingerprints: Vec::new(),
             assumption_scope: None,
             resume,
+        }
+    }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            goal_fingerprint: self.goal_fingerprint,
+            plan_fingerprint: self.plan_fingerprint,
+            object_fingerprints: self.object_fingerprints.clone(),
+            representation: self.representation,
+            algorithm: self.algorithm,
+            budget_consumed: self.budget_consumed,
+            certificate_fingerprints: self.certificate_fingerprints.clone(),
+            assumption_scope: self.assumption_scope,
+            resume: self.resume.owning_copy(),
         }
     }
 
@@ -272,7 +289,7 @@ mod tests {
         frontier.budget_consumed = 4;
 
         let mut store = FrontierStore::new();
-        let id = store.insert(frontier.clone());
+        let id = store.insert(frontier.owning_copy());
         assert!(store.contains(id));
         assert_eq!(store.get(id), Some(&frontier));
         assert_eq!(store.count(), 1);

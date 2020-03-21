@@ -42,7 +42,9 @@ pub enum AdmissionRejectReason {
 }
 
 /// Admission 判定结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（`Admitted` 变体含 owning [`VerifiedClaim`]）。
+#[derive(Debug, PartialEq, Eq)]
 pub enum AdmissionOutcome {
     /// 已验证并接纳。
     Admitted(VerifiedClaim),
@@ -99,7 +101,7 @@ impl EvidenceVerifier {
         if !certificate_replays_proposition(claim, policy) {
             return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, guarantee: claim.guarantee };
         }
-        AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim.clone()))
+        AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim.owning_copy()))
     }
 
     /// 验证多项式 solver 产出（Claim 合同判据，非 `PolynomialResult::Exact` 名称）。

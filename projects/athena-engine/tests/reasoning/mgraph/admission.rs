@@ -1,7 +1,7 @@
 //! Semantic core 合同：AdmissionJournal 单调性 · 派生索引可重建。
 
 use athena_engine::reasoning::mgraph::{
-    AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_PROVIDER_ID, Proposition, Scope, SemanticCore,
+    AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_PROVIDER_ID, Proposition, RelationIndex, Scope, SemanticCore,
     VerificationPolicy,
 };
 
@@ -32,10 +32,10 @@ fn relation_index_rebuild_from_journal_matches_incremental() {
     let mut core = SemanticCore::new();
     admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 10));
     admit_ok(&mut core, sample_claim(Guarantee::ProvenExact, 20));
-    let before = core.core.relation_index().records().to_vec();
-    assert_eq!(before.len(), 2);
+    let expected = RelationIndex::rebuild_from(&core.admission_journal);
+    assert_eq!(core.core.relation_index().records(), expected.records());
     core.rebuild_from_journal();
-    assert_eq!(core.core.relation_index().records(), before.as_slice());
+    assert_eq!(core.core.relation_index().records(), expected.records());
     assert_eq!(core.relation_count(), core.admission_journal.count());
 }
 

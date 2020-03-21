@@ -17,7 +17,9 @@ use crate::reasoning::mgraph::{
 };
 
 /// 单条已接纳关系记录（M-Graph **拥有索引元数据**，**不**复制领域对象本体）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning [`VerifiedClaim`]）。
+#[derive(Debug, PartialEq, Eq)]
 pub struct RelationRecord {
     /// 稳定语义谓词（禁止 `String` 标签）。
     pub predicate: PredicateId,
@@ -131,7 +133,9 @@ fn relation_status_from_guarantee(g: Guarantee) -> RelationStatus {
 }
 
 /// `ScopeRef` → 该 scope 下 [`RelationRef`] 列表。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning [`RelationRecord`]；可从 journal 重建）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct RelationIndex {
     records: Vec<RelationRecord>,
     by_scope: HashMap<ScopeRef, Vec<RelationRef>>,
@@ -157,7 +161,7 @@ impl RelationIndex {
     pub fn rebuild_from(journal: &AdmissionJournal) -> Self {
         let mut index = Self::new();
         for claim in journal.claims() {
-            index.append(RelationRecord::from_verified(claim.clone()));
+            index.append(RelationRecord::from_verified(claim.owning_copy()));
         }
         index
     }

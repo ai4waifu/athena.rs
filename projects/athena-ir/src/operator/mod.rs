@@ -15,7 +15,9 @@ pub use semantic::{ApplicationHead, SemanticOperator, UnaryFunction};
 /// Extension display-name ↔ [`ExtensionOperatorId`] bidirectional table.
 ///
 /// Not a core operator catalog. Core ops use [`SemanticOperator`].
-#[derive(Debug, Clone, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct ExtensionRegistry {
     names: Vec<String>,
     by_name: HashMap<String, ExtensionOperatorId>,
@@ -25,6 +27,14 @@ impl ExtensionRegistry {
     /// Empty registry.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Owning 复制（Living `31`：显示名表）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            names: self.names.clone(),
+            by_name: self.by_name.clone(),
+        }
     }
 
     /// Allocate or look up an extension operator id.

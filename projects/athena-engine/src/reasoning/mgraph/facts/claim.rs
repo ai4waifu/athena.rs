@@ -42,7 +42,9 @@ pub enum Guarantee {
 }
 
 /// 可验证证据证书（机器可读字段；`summary` 仅展示）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum EvidenceCertificate {
     /// 多项式精确运算证书。
     PolynomialExact {
@@ -107,8 +109,38 @@ pub enum EvidenceCertificate {
     },
 }
 
+impl EvidenceCertificate {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::PolynomialExact { operation, request_fingerprint, input_hashes, groebner_steps } => Self::PolynomialExact {
+                operation: *operation,
+                request_fingerprint: *request_fingerprint,
+                input_hashes: input_hashes.clone(),
+                groebner_steps: *groebner_steps,
+            },
+            Self::Rejected { guarantee } => Self::Rejected { guarantee: *guarantee },
+            Self::TestHarness => Self::TestHarness,
+            Self::CalculusExact { kind, expression_fingerprint, variable_fingerprint, result_term } => Self::CalculusExact {
+                kind: *kind,
+                expression_fingerprint: *expression_fingerprint,
+                variable_fingerprint: *variable_fingerprint,
+                result_term: *result_term,
+            },
+            Self::StructuralTermEquality { left, right } => Self::StructuralTermEquality { left: *left, right: *right },
+            Self::CongruenceExact { modulus_fingerprint, left, right } => {
+                Self::CongruenceExact { modulus_fingerprint: *modulus_fingerprint, left: *left, right: *right }
+            }
+            Self::ApplicationCongruence { left, right } => Self::ApplicationCongruence { left: *left, right: *right },
+            Self::TypedRewriteReplay { rule, left, right } => Self::TypedRewriteReplay { rule: *rule, left: *left, right: *right },
+        }
+    }
+}
+
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum Evidence {
     /// 来自已验证纯 Rust 内核。
     TrustedKernel {
@@ -119,6 +151,19 @@ pub enum Evidence {
         /// 人类可读审计摘要（仅展示，不得单独充当证明本体）。
         summary: String,
     },
+}
+
+impl Evidence {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::TrustedKernel { provider, certificate, summary } => Self::TrustedKernel {
+                provider: *provider,
+                certificate: certificate.owning_copy(),
+                summary: summary.clone(),
+            },
+        }
+    }
 }
 
 /// 微积分已接纳关系种类（闭合枚举，非前端名）。
@@ -133,7 +178,7 @@ pub enum CalculusRelationKind {
 }
 
 /// 命题（当前覆盖多项式 / 微积分 / 同余；后续扩展等式 / hyper-predicate）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Proposition {
     /// 多项式域精确求值结果。
     PolynomialResult {
@@ -172,7 +217,9 @@ pub enum Proposition {
 }
 
 /// 未验证候选事实（solver 产出；不得直接进入 exact closure）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct Claim {
     /// 所述命题。
     pub proposition: Proposition,
@@ -184,8 +231,22 @@ pub struct Claim {
     pub evidence: Evidence,
 }
 
+impl Claim {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            proposition: self.proposition,
+            scope: self.scope,
+            guarantee: self.guarantee,
+            evidence: self.evidence.owning_copy(),
+        }
+    }
+}
+
 /// 经 admission gate 接纳的已验证事实。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedClaim {
     /// 底层 claim。
     pub claim: Claim,
@@ -197,6 +258,11 @@ impl VerifiedClaim {
     /// 禁止任意代码伪造已验证事实（Living `26`）。
     pub(crate) fn from_admission(claim: Claim) -> Self {
         Self { claim }
+    }
+
+    /// Owning 复制（Living `31`）。复制嵌套 [`Claim`]。
+    pub fn owning_copy(&self) -> Self {
+        Self { claim: self.claim.owning_copy() }
     }
 
     /// 是否可进入无条件 exact union-find（当前仅 `Unconditional + ProvenExact`）。

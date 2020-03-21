@@ -9,7 +9,7 @@ use super::ids::EClassId;
 ///
 /// Must pass Verifier + [`crate::reasoning::mgraph::AdmissionGate`] before becoming
 /// an admitted relation. Holding this value does **not** change Session / M-Graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CandidateEquivalence {
     /// Left term root in the host [`athena_ir::TermStore`].
     pub left_term: TermId,

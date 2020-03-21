@@ -33,7 +33,7 @@ pub fn adapt_exact_linear_solve(
     unknowns: Vec<BoundSymbol>,
     domain: SolveDomain,
 ) -> Result<LinearAdaptedSolution, Diagnostic> {
-    let disposition = result.disposition.clone();
+    let disposition = result.disposition.owning_copy();
     let coverage = coverage_from_exact_disposition(&disposition);
     let mut values = BindingValueTable::new();
     let branches = match &disposition {
@@ -76,7 +76,7 @@ pub fn adapt_machine_linear_solve(
     unknowns: Vec<BoundSymbol>,
     domain: SolveDomain,
 ) -> Result<LinearAdaptedSolution, Diagnostic> {
-    let disposition = result.disposition.clone();
+    let disposition = result.disposition.owning_copy();
     let coverage = coverage_from_machine_disposition(&disposition, result.guarantee);
     let mut values = BindingValueTable::new();
     let branches = match &disposition {
@@ -115,7 +115,7 @@ pub fn solve_linear_system_machine(
 
 fn coverage_frontier(coverage: &CoverageStatus) -> Option<super::frontier::ResumeToken> {
     match coverage {
-        CoverageStatus::ResourceLimited { frontier } => Some(frontier.clone()),
+        CoverageStatus::ResourceLimited { frontier } => Some(frontier.owning_copy()),
         _ => None,
     }
 }

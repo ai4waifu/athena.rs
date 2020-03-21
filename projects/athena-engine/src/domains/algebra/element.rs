@@ -17,7 +17,7 @@ pub enum ElementProvenance {
 }
 
 /// 跨域元素共享形状（具体 repr 由 presentation kind 解释）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AlgebraElement {
     /// 所属父对象。
     pub parent: AlgebraParentId,

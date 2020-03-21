@@ -27,7 +27,7 @@ pub enum BranchStatus {
 }
 
 /// 重数信息（不可去重后冒充完整）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MultiplicityInfo {
     /// 代数重数（若已知）。
     pub algebraic: Option<u32>,
@@ -36,7 +36,9 @@ pub struct MultiplicityInfo {
 }
 
 /// 单个解分支。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct SolutionBranch {
     /// 变量绑定。
     pub bindings: BindingMap,
@@ -53,10 +55,22 @@ impl SolutionBranch {
     pub fn candidate(bindings: BindingMap) -> Self {
         Self { bindings, conditions: ConstraintSet::empty_and(), multiplicity: None, status: BranchStatus::Candidate }
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            bindings: self.bindings.owning_copy(),
+            conditions: self.conditions.owning_copy(),
+            multiplicity: self.multiplicity,
+            status: self.status,
+        }
+    }
 }
 
 /// 统一解集模型（不是 `Vec<Binding>`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct SolutionSet {
     /// 解集涉及的变量（通常对齐 problem.unknowns）。
     pub variables: Vec<BoundSymbol>,
@@ -119,6 +133,20 @@ impl SolutionSet {
         }
     }
 
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            variables: self.variables.clone(),
+            branches: self.branches.iter().map(SolutionBranch::owning_copy).collect(),
+            coverage: self.coverage.owning_copy(),
+            domain: self.domain,
+            proof: self.proof,
+            residual: self.residual.as_ref().map(ResidualCertificate::owning_copy),
+            frontier: self.frontier.as_ref().map(ResumeToken::owning_copy),
+            frontier_id: self.frontier_id,
+        }
+    }
+
     /// 是否允许进入 exact union-find。
     pub fn admits_exact_union_find(&self) -> bool {
         self.coverage.admits_exact_union_find()
@@ -136,7 +164,7 @@ impl SolutionSet {
         if self.frontier_id.is_some() {
             return self.frontier_id;
         }
-        let Some(resume) = self.frontier.clone()
+        let Some(resume) = self.frontier.as_ref().map(ResumeToken::owning_copy)
         else {
             return None;
         };

@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use super::shape::MatrixShape;
 
 /// 轴上的范围说明（内核 0-based，半开区间）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AxisRange {
     /// 整轴。
     All,
@@ -42,7 +42,7 @@ impl AxisRange {
 }
 
 /// 内核索引规格（禁止方言偷偷改基）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexSpec {
     /// 单元素 `(row, col)`，0-based。
     Scalar {

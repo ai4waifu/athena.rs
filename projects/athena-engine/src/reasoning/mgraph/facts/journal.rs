@@ -11,7 +11,9 @@ use crate::reasoning::mgraph::facts::claim::VerifiedClaim;
 pub struct FactId(pub u64);
 
 /// 已验证 claim 的 append-only journal。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning [`VerifiedClaim`]；重建走 journal 本身）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct AdmissionJournal {
     claims: Vec<VerifiedClaim>,
 }

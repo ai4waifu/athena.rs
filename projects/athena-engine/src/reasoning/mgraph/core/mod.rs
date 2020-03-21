@@ -28,14 +28,18 @@ use crate::reasoning::mgraph::{
     },
 };
 /// 闭包传播种子（按需扩展）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（语义路径容器；优先按值移动 / 重建）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct ClosureSeeds {
     /// 起始 scope（空 = 全图按需）。
     pub scopes: Vec<ScopeRef>,
 }
 
 /// 实现层 M-Graph 语义核心（**无** RootUniverse / OuterWorld / 全局对象表）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning [`RelationIndex`]）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct MGraphCore {
     scope_index: ScopeIndex,
     relation_index: RelationIndex,

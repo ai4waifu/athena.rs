@@ -1,12 +1,36 @@
 # 域与有限域
 
-## 域元素的归属与合法运算
+`field` 模块解决的是域元素的归属、规范化和合法运算问题。域对象的数学身份由 characteristic、底域、扩张模多项式、坐标约定和 `FieldId` 共同确定。单独查看坐标数组、名称或字符串标签，无法完成这个判断。
 
-域模块解决元素归属和合法运算问题：同样的坐标在 `Q`、`F_p` 和 `Q(alpha)` 中含义不同，不能仅凭数值相等判断可相加。
+## 领域问题
 
-## 交叉领域协作
+下面的问题由 `field` 自己负责。它们描述域内对象是否成立，以及域内运算是否可以执行。
 
-polynomial 使用 FieldId 解释系数，galois 读取 FieldExtension 和 Frobenius，algebra 保存 embedding，number_theory 提供 prime modulus。域模块必须让这些消费者共享同一 parent。
+| 领域问题 | 维护者要检查的对象 | 通过条件 | 失败后的结果 |
+|---|---|---|---|
+| 域描述是否合法 | `FieldDescriptor`、characteristic、modulus | 参数满足对应域的构造条件 | 拒绝登记并返回诊断 |
+| 元素是否属于当前域 | `FieldId`、`FieldElementRepr` | parent 与坐标表示一致 | 返回 domain mismatch |
+| 坐标是否规范 | `canonical_rational`、`canonical_prime_residue`、`canonical_extension_element` | 同一元素得到唯一表示 | 规范化失败 |
+| 加法与乘法是否封闭 | `add_field_elements`、`mul_field_elements` | 两个操作数共享兼容 parent | 返回不兼容错误 |
+| 元素是否可逆 | `inv_field_element` | 非零元素在当前域中存在逆元 | 返回 inverse unavailable |
+| 扩张坐标是否有效 | degree、basis、不可约模多项式 | 坐标长度和模多项式匹配 | 拒绝进入运算 kernel |
+
+例如，有理数 `$\\frac{2}{4}$` 应规范化为 `$\\frac{1}{2}$`。素域中的 `$-1$` 应归约为 `$p-1$`。扩张域元素的坐标长度必须等于扩张次数，乘法结果需要按不可约模多项式约化。上述规则属于域内部语义，不能交给调用方猜测。
+
+## 交叉领域问题
+
+跨领域问题处理对象如何被其他模块引用。它们需要单独检查来源、目标、转换证据和版本状态。
+
+| 协作领域 | 交叉领域问题 | `field` 输出 | 下游使用方式 |
+|---|---|---|---|
+| `algebra` | parent 和 embedding 是否具有统一身份 | `FieldId`、descriptor、embedding 条件 | 登记共享对象和映射 |
+| `polynomial` | 多项式系数是否属于同一个系数域 | canonical field element、系数运算 | 构造 `RingDescriptor` 和 Gröbner 输入 |
+| `galois` | Frobenius 是否适用于当前扩张 | characteristic、扩张坐标、模多项式 | 计算 `$x\\mapsto x^{p^k}$` 并组织自同构 |
+| `number_theory` | 素数 characteristic 和模逆是否可信 | prime modulus 检查结果 | 支持有限域构造和模运算 |
+| `solve` | 域不兼容如何影响解集 | 结构化 mismatch 或 embedding 结果 | 形成拒绝、条件分支或 residual |
+| `views` | 下游读取元素时如何保留身份 | 带 parent 的 typed view | 在 revision 有效期内消费坐标 |
+
+跨领域调用必须通过显式 embedding 或已验证的 map。`$\\mathbb{Q}$` 到 `$\\mathbb{F}_p$` 的转换要求分母在模 `$p$` 下可逆。`$\\mathbb{F}_p$` 到 `$\\mathbb{F}_{p^n}$` 的转换要求目标扩张保存固定的底域嵌入。数值相等只说明两个坐标的整数值相同，不能推出它们代表同一个代数元素。
 
 ## 元素请求如何获得域语义
 

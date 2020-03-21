@@ -10,7 +10,9 @@ use crate::reasoning::mgraph::{
 };
 
 /// One Reflector wake produced after an admit.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ReflectorWake {
     /// Obligation that can now re-reflect.
     pub obligation: ProofObligation,
@@ -18,15 +20,38 @@ pub struct ReflectorWake {
     pub relation: RelationRef,
 }
 
+impl ReflectorWake {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            obligation: self.obligation.owning_copy(),
+            relation: self.relation,
+        }
+    }
+}
+
 /// Report from draining wakes for one admit.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct WakeReport {
     /// Obligations removed from the pending index and handed to the caller.
     pub wakes: Vec<ReflectorWake>,
 }
 
+impl WakeReport {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            wakes: self.wakes.iter().map(ReflectorWake::owning_copy).collect(),
+        }
+    }
+}
+
 /// Pending obligations keyed for predicate / scope wake matching.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct ObligationIndex {
     pending: Vec<ProofObligation>,
 }

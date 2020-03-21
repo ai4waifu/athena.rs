@@ -5,7 +5,7 @@ use athena_types::{ExtensionId, FieldId, TermId};
 use crate::domains::algebra::AlgebraParentId;
 
 /// 求解定义域（必须显式，禁止默认吞掉）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolveDomain {
     /// `ℤ`
     Integers,

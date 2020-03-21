@@ -14,7 +14,9 @@ use crate::reasoning::mgraph::{
 };
 
 /// 数学语义状态（admission journal + scoped relation index + 派生索引）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（含 owning journal / relation 载荷）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct SemanticCore {
     /// Scoped relation 索引与 admit/close 入口（查询面，可从 journal 重建）。
     pub core: MGraphCore,
@@ -36,8 +38,8 @@ impl SemanticCore {
     ///
     /// 写入顺序：先 append journal（权威），再更新查询索引与派生索引。
     pub(crate) fn commit(&mut self, claim: VerifiedClaim) -> FactId {
-        let id = self.admission_journal.append(claim.clone());
-        let index_id = self.core.admit(claim.clone());
+        let id = self.admission_journal.append(claim.owning_copy());
+        let index_id = self.core.admit(claim.owning_copy());
         debug_assert_eq!(id, index_id, "journal and relation index ids must stay aligned");
         self.derived.apply_verified_claim(&claim);
         id

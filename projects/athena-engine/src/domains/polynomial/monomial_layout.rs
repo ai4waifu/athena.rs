@@ -10,7 +10,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use super::{exponent::add_exponent_vectors, order::MonomialOrder};
 
 /// 环 intern 时编译的单项式序（内循环 infallible 比较）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum CompiledMonomialOrder {
     /// 字典序。
     Lex {
@@ -46,8 +48,24 @@ pub enum CompiledMonomialOrder {
     },
 }
 
+impl CompiledMonomialOrder {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Lex { variables } => Self::Lex { variables: *variables },
+            Self::GrLex { variables } => Self::GrLex { variables: *variables },
+            Self::GrevLex { variables } => Self::GrevLex { variables: *variables },
+            Self::Weighted { weights } => Self::Weighted { weights: weights.clone() },
+            Self::Block { segments } => Self::Block { segments: segments.iter().map(CompiledBlockSegment::owning_copy).collect() },
+            Self::Elimination { front, rest } => Self::Elimination { front: *front, rest: Box::new(rest.owning_copy()) },
+        }
+    }
+}
+
 /// 分块序的一段。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct CompiledBlockSegment {
     /// 段起始（含）。
     pub start: usize,
@@ -57,13 +75,27 @@ pub struct CompiledBlockSegment {
     pub order: CompiledMonomialOrder,
 }
 
+impl CompiledBlockSegment {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { start: self.start, end: self.end, order: self.order.owning_copy() }
+    }
+}
+
 /// packed word 单项式指数（arena 友好；比较经 layout 解码）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct PackedMonomial {
     words: Vec<u64>,
 }
 
 impl PackedMonomial {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { words: self.words.clone() }
+    }
+
     /// 空 packed 单项式（全零指数）。
     pub fn zero(words: usize) -> Self {
         Self { words: vec![0u64; words] }
@@ -76,7 +108,9 @@ impl PackedMonomial {
 }
 
 /// 环上的单项式布局（intern 时固定）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct MonomialLayout {
     variable_count: usize,
     bits_per_exponent: u8,
@@ -86,6 +120,17 @@ pub struct MonomialLayout {
 }
 
 impl MonomialLayout {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            variable_count: self.variable_count,
+            bits_per_exponent: self.bits_per_exponent,
+            packed_words_per_monomial: self.packed_words_per_monomial,
+            max_exponent: self.max_exponent,
+            compiled_order: self.compiled_order.owning_copy(),
+        }
+    }
+
     /// 由声明式序与变量数编译布局（环构造时调用一次）。
     pub fn compile(order: &MonomialOrder, variable_count: usize) -> Result<Self> {
         order.validate_for_variables(variable_count)?;

@@ -24,7 +24,9 @@ pub use index::{ObligationIndex, ReflectorWake, WakeReport};
 pub use schedule::{ReflectorScheduleReport, resume_reflector_frontier, schedule_reflector_wakes};
 
 /// 待证明 / 待填补的语义缺口。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ProofObligation {
     /// 闭合谓词（禁止字符串 label）。
     pub predicate: PredicateId,
@@ -34,8 +36,21 @@ pub struct ProofObligation {
     pub known_objects: Vec<ObjectRef>,
 }
 
+impl ProofObligation {
+    /// Owning 复制（Living `31`：仅句柄向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            predicate: self.predicate,
+            scope: self.scope,
+            known_objects: self.known_objects.clone(),
+        }
+    }
+}
+
 /// Reflector 对一次 obligation / query 的回应（Living `29`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum Reflection {
     /// M-Graph 中已有足够强的 admitted relation。
     AlreadyKnown {
@@ -66,6 +81,24 @@ pub enum Reflection {
     },
     /// 资源 / 搜索未完成，保留 frontier 身份（payload 稍后挂接）。
     Inconclusive,
+}
+
+impl Reflection {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::AlreadyKnown { relation } => Self::AlreadyKnown { relation: *relation },
+            Self::NeedRelation { obligation } => Self::NeedRelation {
+                obligation: obligation.owning_copy(),
+            },
+            Self::NeedObject { object_kind } => Self::NeedObject { object_kind },
+            Self::NeedConversion { source, target } => Self::NeedConversion { source, target },
+            Self::NeedComputation { plan } => Self::NeedComputation {
+                plan: plan.owning_copy(),
+            },
+            Self::Inconclusive => Self::Inconclusive,
+        }
+    }
 }
 
 /// Living `29` 语义 Reflector（缺口驱动）。

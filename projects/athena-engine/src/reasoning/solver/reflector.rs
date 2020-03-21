@@ -21,7 +21,9 @@ pub struct SolverContext {
 }
 
 /// Reflection 结果 — solver 不直改 `TermStore`。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ReflectionResult {
     /// 等式。
     pub equalities: Vec<EqualityWitness>,
@@ -39,6 +41,17 @@ impl ReflectionResult {
     /// 空结果。
     pub fn empty() -> Self {
         Self { equalities: Vec::new(), hyper_edges: Vec::new(), guarantees: Vec::new(), residual: None, metadata: SolverMetadata::default() }
+    }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            equalities: self.equalities.iter().map(EqualityWitness::owning_copy).collect(),
+            hyper_edges: self.hyper_edges.iter().map(HyperEdge::owning_copy).collect(),
+            guarantees: self.guarantees.clone(),
+            residual: self.residual,
+            metadata: self.metadata.owning_copy(),
+        }
     }
 }
 

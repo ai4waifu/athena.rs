@@ -9,10 +9,19 @@ use crate::reasoning::mgraph::core::refs::PredicateId;
 pub struct CapabilityProviderId(pub u32);
 
 /// 等价类划分（`TermId` → 代表元）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct EquivalenceClasses {
     /// 父子指针（骨架：空表）。
     pub parent: Vec<(TermId, TermId)>,
+}
+
+impl EquivalenceClasses {
+    /// Owning 复制（Living `31`：仅 `TermId` 句柄对）。
+    pub fn owning_copy(&self) -> Self {
+        Self { parent: self.parent.clone() }
+    }
 }
 
 /// 精确性层级。
@@ -32,7 +41,7 @@ pub enum ExactnessLevel {
 }
 
 /// 确定性状态。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct DeterminacyState {
     /// 精确性。
     pub exactness: ExactnessLevel,
@@ -41,7 +50,7 @@ pub struct DeterminacyState {
 }
 
 /// 确定性保证条目。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DeterminacyGuarantee {
     /// 作用的项。
     pub term: TermId,
@@ -52,7 +61,9 @@ pub struct DeterminacyGuarantee {
 /// 超边（多参数联合约束）。
 ///
 /// Living `26`：用 [`PredicateId`] 标识关系，禁止任意 `String` 标签。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct HyperEdge {
     /// 参与项。
     pub nodes: Vec<TermId>,
@@ -60,8 +71,20 @@ pub struct HyperEdge {
     pub predicate: PredicateId,
 }
 
+impl HyperEdge {
+    /// Owning 复制（Living `31`：仅 `TermId` / `PredicateId`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            nodes: self.nodes.clone(),
+            predicate: self.predicate,
+        }
+    }
+}
+
 /// 重写 / 求解 witness。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct RewriteWitness {
     /// 能力 provider。
     pub provider: CapabilityProviderId,
@@ -71,8 +94,21 @@ pub struct RewriteWitness {
     pub outputs: Vec<TermId>,
 }
 
+impl RewriteWitness {
+    /// Owning 复制（Living `31`：仅句柄向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            provider: self.provider,
+            inputs: self.inputs.clone(),
+            outputs: self.outputs.clone(),
+        }
+    }
+}
+
 /// 等式 witness。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct EqualityWitness {
     /// 左。
     pub left: TermId,
@@ -82,13 +118,36 @@ pub struct EqualityWitness {
     pub witness: RewriteWitness,
 }
 
+impl EqualityWitness {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            left: self.left,
+            right: self.right,
+            witness: self.witness.owning_copy(),
+        }
+    }
+}
+
 /// 求解候选。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct SolverCandidate {
     /// 能力 provider。
     pub provider: CapabilityProviderId,
     /// 根项。
     pub roots: Vec<TermId>,
+}
+
+impl SolverCandidate {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            provider: self.provider,
+            roots: self.roots.clone(),
+        }
+    }
 }
 
 /// 调度评分（量化整数 + 稳定 tie-breaker；占位策略仍可用浮点估计推导）。
@@ -108,10 +167,22 @@ impl SolverScore {
 }
 
 /// 求解前沿。
-#[derive(Debug, Clone, Default, PartialEq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default, PartialEq)]
 pub struct SolverFrontier {
     /// 候选。
     pub candidates: Vec<SolverCandidate>,
     /// 评分（与 candidates 对齐）。
     pub scores: Vec<SolverScore>,
+}
+
+impl SolverFrontier {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            candidates: self.candidates.iter().map(SolverCandidate::owning_copy).collect(),
+            scores: self.scores.clone(),
+        }
+    }
 }

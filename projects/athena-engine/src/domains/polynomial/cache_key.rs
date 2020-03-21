@@ -61,7 +61,9 @@ impl PolynomialCacheOp {
 }
 
 /// M-Graph / 重写缓存键。
-#[derive(Debug, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct PolynomialCacheKey {
     /// 操作。
     pub operation: PolynomialCacheOp,
@@ -98,6 +100,18 @@ impl Hash for PolynomialCacheKey {
 }
 
 impl PolynomialCacheKey {
+    /// Owning 复制（Living `31`：指纹向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            operation: self.operation,
+            ring: self.ring,
+            ring_fingerprint: self.ring_fingerprint,
+            input_fingerprints: self.input_fingerprints.clone(),
+            input_hashes: self.input_hashes.clone(),
+            limits_fingerprint: self.limits_fingerprint,
+        }
+    }
+
     /// 稳定 hash（用于 M-Graph 边标签）。
     pub fn fingerprint(&self) -> u64 {
         use std::collections::hash_map::DefaultHasher;

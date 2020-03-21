@@ -61,7 +61,7 @@ impl ExactDetResult {
 impl ExactSolveResult {
     /// Owning 复制（Living `31`：禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
-        Self { disposition: self.disposition.clone(), particular: self.particular.as_ref().map(|m| m.owning_copy()), guarantee: self.guarantee }
+        Self { disposition: self.disposition.owning_copy(), particular: self.particular.as_ref().map(|m| m.owning_copy()), guarantee: self.guarantee }
     }
 }
 

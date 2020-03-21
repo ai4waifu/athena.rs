@@ -15,7 +15,9 @@ use crate::reasoning::mgraph::{
 };
 
 /// 派生索引（非真相源；可从 [`AdmissionJournal`] 全量重建）。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]（语义容器；重建用 [`Self::rebuild_from`]）。
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct DerivedIndexes {
     /// 无条件 exact 等式 union-find。
     pub exact_uf: ExactUnionFind,

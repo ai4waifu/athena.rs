@@ -6,7 +6,9 @@ use super::frontier::ResumeToken;
 ///
 /// 只有 [`CoverageStatus::Complete`] 或经证明的
 /// [`CoverageStatus::CompleteUnderAssumptions`] 才能声称覆盖指定域内全部解。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum CoverageStatus {
     /// 在指定 domain / assumptions / policy 下已证明覆盖全部解。
     Complete,
@@ -32,6 +34,23 @@ pub enum CoverageStatus {
 }
 
 impl CoverageStatus {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Complete => Self::Complete,
+            Self::CompleteUnderAssumptions => Self::CompleteUnderAssumptions,
+            Self::CertifiedSubset => Self::CertifiedSubset,
+            Self::CertifiedSuperset => Self::CertifiedSuperset,
+            Self::LocalOnly => Self::LocalOnly,
+            Self::Probable => Self::Probable,
+            Self::ResourceLimited { frontier } => Self::ResourceLimited {
+                frontier: frontier.owning_copy(),
+            },
+            Self::Unsupported => Self::Unsupported,
+            Self::Invalid => Self::Invalid,
+        }
+    }
+
     /// 是否允许进入 exact union-find / 无条件 exact rewrite。
     pub fn admits_exact_union_find(&self) -> bool {
         matches!(self, Self::Complete | Self::CompleteUnderAssumptions)

@@ -56,9 +56,9 @@ impl MachineSolveResult {
     /// Owning 复制（Living `31`）。
     pub fn owning_copy(&self) -> Self {
         Self {
-            disposition: self.disposition.clone(),
+            disposition: self.disposition.owning_copy(),
             solution: self.solution.as_ref().map(MatrixValue::owning_copy),
-            witness: self.witness.clone(),
+            witness: self.witness,
             guarantee: self.guarantee,
         }
     }

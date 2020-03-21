@@ -60,7 +60,7 @@ fn apply_reflections<'a>(
             }
             Reflection::NeedComputation { plan } => {
                 // Wake path has no DomainRequest yet — fingerprint binds at execute time.
-                state.operational.pending_plans.push(QueuedPlan::unbound(plan, obligation.clone()));
+                state.operational.pending_plans.push(QueuedPlan::unbound(plan, obligation.owning_copy()));
                 report.need_computation = report.need_computation.saturating_add(1);
             }
             Reflection::NeedRelation { obligation: nested } => {
@@ -74,7 +74,7 @@ fn apply_reflections<'a>(
                 report.need_conversion = report.need_conversion.saturating_add(1);
             }
             Reflection::Inconclusive => {
-                state.operational.resume_queue.push(obligation.clone());
+                state.operational.resume_queue.push(obligation.owning_copy());
                 report.inconclusive_resumed = report.inconclusive_resumed.saturating_add(1);
             }
         }

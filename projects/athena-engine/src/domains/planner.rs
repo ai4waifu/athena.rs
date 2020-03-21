@@ -29,10 +29,21 @@ pub enum PlanStep {
 }
 
 /// Planned execution for one [`DomainRequest`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct DomainPlan {
     /// Ordered [`PlanStep`]s.
     pub steps: Vec<PlanStep>,
+}
+
+impl DomainPlan {
+    /// Owning 复制（Living `31`：仅 `PlanStep` 句柄向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            steps: self.steps.clone(),
+        }
+    }
 }
 
 /// Build a [`DomainPlan`] for `request` (Living `28` DomainPlanner entry).

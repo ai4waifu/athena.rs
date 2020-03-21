@@ -11,7 +11,9 @@ use super::{
 };
 
 /// 统一求解问题对象。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct SolveProblem {
     /// 约束。
     pub constraints: ConstraintSet,
@@ -32,6 +34,20 @@ pub struct SolveProblem {
 }
 
 impl SolveProblem {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            constraints: self.constraints.owning_copy(),
+            unknowns: self.unknowns.clone(),
+            parameters: self.parameters.clone(),
+            domain: self.domain,
+            assumptions: self.assumptions,
+            goal: self.goal,
+            policy: self.policy.owning_copy(),
+            limits: self.limits,
+        }
+    }
+
     /// 构造并校验基本不变量。
     pub fn try_new(
         constraints: ConstraintSet,

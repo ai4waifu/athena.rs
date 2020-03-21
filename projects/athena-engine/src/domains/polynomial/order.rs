@@ -7,7 +7,9 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use super::monomial_layout::CompiledMonomialOrder;
 
 /// 单项式比较序（环身份的一部分）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum MonomialOrder {
     /// 字典序（变量表顺序即 `x0 > x1 > …`）。
     Lex,
@@ -35,6 +37,18 @@ pub enum MonomialOrder {
 }
 
 impl MonomialOrder {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Lex => Self::Lex,
+            Self::GrLex => Self::GrLex,
+            Self::GrevLex => Self::GrevLex,
+            Self::Weighted { weights } => Self::Weighted { weights: weights.clone() },
+            Self::Block { blocks } => Self::Block { blocks: blocks.iter().map(Self::owning_copy).collect() },
+            Self::Elimination { eliminate, rest } => Self::Elimination { eliminate: *eliminate, rest: Box::new(rest.owning_copy()) },
+        }
+    }
+
     /// 校验序与变量数是否一致（在环构造时调用）。
     pub fn validate_for_variables(&self, variable_count: usize) -> Result<(), Diagnostic> {
         match self {

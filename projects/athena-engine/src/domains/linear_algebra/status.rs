@@ -16,7 +16,9 @@ pub enum AlgorithmGuarantee {
 }
 
 /// 线性方程组求解分类。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum SolveDisposition {
     /// 唯一解。
     Unique,
@@ -33,8 +35,23 @@ pub enum SolveDisposition {
     ResourceLimited,
 }
 
+impl SolveDisposition {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Unique => Self::Unique,
+            Self::Infinite { free_vars } => Self::Infinite {
+                free_vars: free_vars.clone(),
+            },
+            Self::Inconsistent => Self::Inconsistent,
+            Self::Singular => Self::Singular,
+            Self::ResourceLimited => Self::ResourceLimited,
+        }
+    }
+}
+
 /// 数值残差与条件信息（机器路径）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MachineSolveWitness {
     /// `‖Ax − b‖_∞`。
     pub residual_inf: f64,

@@ -18,7 +18,9 @@ pub enum ResumeKind {
 }
 
 /// 恢复令牌：待展开分支、未完成量词块、迭代态或 portfolio 状态。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ResumeToken {
     /// 前沿种类（操作性，不得参与语义 fingerprint / admission）。
     pub kind: ResumeKind,
@@ -31,6 +33,16 @@ pub struct ResumeToken {
 }
 
 impl ResumeToken {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            kind: self.kind,
+            version: self.version,
+            provider: self.provider,
+            payload: self.payload.clone(),
+        }
+    }
+
     /// 空载荷前沿（无 provider 戳 · 仅用于尚未盖戳的 bootstrap 路径）。
     pub fn empty(kind: ResumeKind) -> Self {
         Self { kind, version: 0, provider: None, payload: Vec::new() }

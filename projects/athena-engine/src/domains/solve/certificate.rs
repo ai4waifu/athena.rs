@@ -12,7 +12,9 @@ pub fn proof_ref_from_witness(witness: WitnessRef) -> ProofRef {
 }
 
 /// 残差 / 回代证书（结构化，非「残差通过 = 唯一」）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ResidualCertificate {
     /// 残差项（可为向量残差的编码根）。
     pub residual: TermId,
@@ -20,4 +22,15 @@ pub struct ResidualCertificate {
     pub residual_is_zero: bool,
     /// 可选条件估计标签。
     pub condition_note: Option<String>,
+}
+
+impl ResidualCertificate {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            residual: self.residual,
+            residual_is_zero: self.residual_is_zero,
+            condition_note: self.condition_note.clone(),
+        }
+    }
 }

@@ -82,7 +82,7 @@ impl PolynomialMGraphStore {
             debug_assert!(entry.witness.is_none());
             None
         };
-        let key = entry.key.clone();
+        let key = entry.key.owning_copy();
         match entry.tier {
             PolynomialCacheTier::Verified => {
                 self.partial.remove(&key);

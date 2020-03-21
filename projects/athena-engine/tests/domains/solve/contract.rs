@@ -69,7 +69,7 @@ fn resource_limited_solution_registers_on_session_frontier_store() {
     let mut solution = SolutionSet {
         variables: vec![BoundSymbol::free(SymbolId(0))],
         branches: Vec::new(),
-        coverage: CoverageStatus::ResourceLimited { frontier: token.clone() },
+        coverage: CoverageStatus::ResourceLimited { frontier: token.owning_copy() },
         domain: SolveDomain::Rationals,
         proof: None,
         residual: None,
@@ -114,7 +114,7 @@ fn find_instance_and_find_root_are_not_complete_sets() {
     bindings.insert(x, TermId(42));
     let branch = SolutionBranch::candidate(bindings);
 
-    let instance = SolutionSet::certified_subset(vec![x], SolveDomain::Integers, vec![branch.clone()]);
+    let instance = SolutionSet::certified_subset(vec![x], SolveDomain::Integers, vec![branch.owning_copy()]);
     assert!(!instance.admits_exact_union_find());
     assert!(matches!(instance.coverage, CoverageStatus::CertifiedSubset));
 

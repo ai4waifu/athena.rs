@@ -4,8 +4,8 @@ use athena_types::{SourceSpan, TermId};
 
 use super::{binding::BoundSymbol, domain::SolveDomain};
 
-/// 不等式关系（保留方向，不在构造时压成 `lhs - rhs = 0`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 等式关系（保留方向，不在构造时压成 `lhs - rhs = 0`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Equation {
     /// 左端。
     pub lhs: TermId,
@@ -31,7 +31,7 @@ pub enum InequalityOp {
 }
 
 /// 不等式。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Inequality {
     /// 左端。
     pub lhs: TermId,
@@ -44,7 +44,7 @@ pub struct Inequality {
 }
 
 /// 类型化布尔谓词（Solve 约束侧，非假设集 [`athena_types::Predicate`] 替身）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SolvePredicate {
     /// 谓词项（已是布尔语义的 AthenaIR）。
     pub formula: TermId,
@@ -62,7 +62,9 @@ pub enum ConstraintConnective {
 }
 
 /// 约束集合。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct ConstraintSet {
     /// 成员间连接词。
     pub connective: ConstraintConnective,
@@ -92,6 +94,15 @@ impl ConstraintSet {
     pub fn is_empty(&self) -> bool {
         self.members.is_empty()
     }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            connective: self.connective,
+            members: self.members.iter().map(Constraint::owning_copy).collect(),
+            span: self.span,
+        }
+    }
 }
 
 /// 量词。
@@ -108,7 +119,9 @@ pub enum Quantifier {
 }
 
 /// 带量词的约束。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct QuantifiedConstraint {
     /// 量词。
     pub quantifier: Quantifier,
@@ -122,8 +135,23 @@ pub struct QuantifiedConstraint {
     pub span: Option<SourceSpan>,
 }
 
+impl QuantifiedConstraint {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            quantifier: self.quantifier,
+            binders: self.binders.clone(),
+            domain: self.domain,
+            body: Box::new(self.body.owning_copy()),
+            span: self.span,
+        }
+    }
+}
+
 /// 统一约束。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum Constraint {
     /// 方程。
     Equation(Equation),
@@ -151,5 +179,16 @@ impl Constraint {
     /// 谓词便捷构造。
     pub fn predicate(formula: TermId) -> Self {
         Self::Predicate(SolvePredicate { formula, span: None })
+    }
+
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Equation(e) => Self::Equation(*e),
+            Self::Inequality(i) => Self::Inequality(*i),
+            Self::Predicate(p) => Self::Predicate(*p),
+            Self::Set(s) => Self::Set(s.owning_copy()),
+            Self::Quantified(q) => Self::Quantified(q.owning_copy()),
+        }
     }
 }

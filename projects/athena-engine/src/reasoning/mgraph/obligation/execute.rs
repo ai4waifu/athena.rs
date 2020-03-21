@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// Verifiable link from a queued plan to the DomainRequest that may execute it.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PlanBinding {
     /// Wake-scheduled plan without a request yet (caller must bind carefully).
     #[default]
@@ -43,7 +43,9 @@ pub enum PlanBinding {
 }
 
 /// A Reflector-selected plan waiting for a bound [`DomainRequest`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct QueuedPlan {
     /// `DomainPlan` steps (must include `CallDomainProvider` to run).
     pub plan: DomainPlan,
@@ -54,6 +56,15 @@ pub struct QueuedPlan {
 }
 
 impl QueuedPlan {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            plan: self.plan.owning_copy(),
+            obligation: self.obligation.owning_copy(),
+            binding: self.binding,
+        }
+    }
+
     /// Queue a plan without a request fingerprint (wake path).
     pub fn unbound(plan: DomainPlan, obligation: ProofObligation) -> Self {
         Self { plan, obligation, binding: PlanBinding::Unbound }
@@ -178,7 +189,7 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
 /// `execute_polynomial_mgraph`; calculus exact results admit after materialize.
 pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;
-    let obligation = queued.obligation.clone();
+    let obligation = queued.obligation.owning_copy();
     let (result, _report) = interpret_domain_plan(session, &queued.plan, request, |session, req| match req {
         DomainRequest::Polynomial(poly_req) => {
             let poly = execute_polynomial_mgraph(poly_req, &session.rings, &session.polynomial_objects, &mut session.mgraph);
@@ -195,7 +206,7 @@ pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: 
 /// Returns `Ok(None)` when the queue is empty. On provider/admit/binding errors the
 /// plan stays at the front of the queue (except malformed plans missing CallDomainProvider).
 pub fn run_next_queued_plan(session: &mut Session, request: DomainRequest) -> Result<Option<DomainResult>, Diagnostic> {
-    let Some(queued) = session.mgraph.operational.pending_plans.first().cloned()
+    let Some(queued) = session.mgraph.operational.pending_plans.first().map(QueuedPlan::owning_copy)
     else {
         return Ok(None);
     };
@@ -341,7 +352,7 @@ mod tests {
             obligation,
             &request,
         );
-        session.mgraph.operational.pending_plans.push(plan.clone());
+        session.mgraph.operational.pending_plans.push(plan.owning_copy());
         session.mgraph.operational.pending_plans.push(plan);
         let report = run_queued_plans(
             &mut session,
