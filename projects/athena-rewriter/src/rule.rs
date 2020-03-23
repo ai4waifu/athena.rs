@@ -16,7 +16,9 @@ pub struct RewriteRuleId(pub u32);
 ///
 /// Bootstrap payloads stay as host [`TermId`] roots for structural [`RuleSet`] matching.
 /// Typed [`crate::TermPattern`] rules are owned here and consumed by engine E-Graph saturation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯 `Copy` 句柄载荷。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewriteRule {
     /// Rule identity.
     pub id: RewriteRuleId,
@@ -29,13 +31,20 @@ pub struct RewriteRule {
 }
 
 /// Ordered collection of rewrite rules for one saturation scope.
-#[derive(Debug, Default, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct RuleSet {
     rules: Vec<RewriteRule>,
     next_id: u32,
 }
 
 impl RuleSet {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { rules: self.rules.clone(), next_id: self.next_id }
+    }
+
     /// Empty set.
     pub fn new() -> Self {
         Self::default()
@@ -71,7 +80,9 @@ impl RuleSet {
 }
 
 /// Local rewrite witness (conditions / provenance filled later).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯 `Copy` 句柄载荷。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalRewriteWitness {
     /// Rule that fired.
     pub rule: RewriteRuleId,

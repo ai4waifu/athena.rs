@@ -12,7 +12,9 @@ use super::{
 };
 
 /// Session / heap 发布后的图身份与 Trace 记录（不含邻接 payload 本身）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GraphPublication {
     /// 逻辑图。
     pub graph_id: GraphId,
@@ -37,11 +39,27 @@ pub struct GraphPublication {
 }
 
 impl GraphPublication {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            graph_id: self.graph_id,
+            revision: self.revision,
+            revision_id: self.revision_id,
+            snapshot_id: self.snapshot_id,
+            snapshot_root: self.snapshot_root,
+            revision_root: self.revision_root,
+            chunk_roots: self.chunk_roots.clone(),
+            chunks: self.chunks.owning_copy(),
+            snapshot_record: self.snapshot_record.owning_copy(),
+            revision_record: self.revision_record.owning_copy(),
+        }
+    }
+
     /// 构造 collect 用 [`GraphTraceIndex`]。
     pub fn trace_index(&self) -> GraphTraceIndex {
         let mut index = GraphTraceIndex::new();
-        index.insert_snapshot(self.snapshot_record.clone());
-        index.insert_revision(self.revision_record.clone());
+        index.insert_snapshot(self.snapshot_record.owning_copy());
+        index.insert_revision(self.revision_record.owning_copy());
         for id in &self.chunks.chunks {
             index.insert_chunk(GraphChunkRecord { id: *id, spill: None });
         }
@@ -85,13 +103,19 @@ pub fn publish_immutable_graph<N, E>(
     let snapshot_id = allocate_snapshot_id(heap)?;
     let wire = GraphSnapshot::new(graph.id(), graph.revision(), graph.semantics(), representation);
     let chunks = ChunkSet::new();
-    let snapshot_record = GraphSnapshotRecord { id: snapshot_id, snapshot: wire, revision_id, chunks: chunks.clone(), view_id: None };
+    let snapshot_record = GraphSnapshotRecord {
+        id: snapshot_id,
+        snapshot: wire,
+        revision_id,
+        chunks: chunks.owning_copy(),
+        view_id: None,
+    };
     let revision_record = GraphRevisionRecord {
         id: revision_id,
         graph_id: graph.id(),
         revision: graph.revision(),
         snapshot_id: Some(snapshot_id),
-        chunks: chunks.clone(),
+        chunks: chunks.owning_copy(),
     };
     let snapshot_root = heap.roots_mut().register(snapshot_id.as_object(), RootKind::Graph);
     let revision_root = heap.roots_mut().register(revision_id.as_object(), RootKind::Graph);
@@ -119,10 +143,10 @@ pub fn publication_attach_chunks(heap: &mut GcHeap, publication: &mut GraphPubli
     for token in publication.chunk_roots.drain(..) {
         let _ = heap.roots_mut().unregister(token);
     }
-    publication.chunks = chunks.clone();
-    publication.snapshot_record.chunks = chunks.clone();
-    publication.revision_record.chunks = chunks.clone();
+    publication.snapshot_record.chunks = chunks.owning_copy();
+    publication.revision_record.chunks = chunks.owning_copy();
     publication.chunk_roots = chunks.chunks.iter().map(|id| heap.roots_mut().register(id.as_object(), RootKind::Graph)).collect();
+    publication.chunks = chunks;
 }
 
 /// Builder 完成并在 heap 上发布（邻接表示，空 ChunkSet）。

@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use crate::{GraphError, NodeId};
 
 /// 协作式取消标志（单线程算法轮询）。
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct CancelFlag {
     cancelled: bool,
 }
@@ -33,7 +33,9 @@ impl CancelFlag {
 }
 
 /// 可恢复 BFS frontier 检查点。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct FrontierCheckpoint {
     /// 待处理队列（FIFO 前端在前）。
     pub queue: Vec<NodeId>,
@@ -43,8 +45,17 @@ pub struct FrontierCheckpoint {
     pub visited_prefix: Vec<NodeId>,
 }
 
+impl FrontierCheckpoint {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { queue: self.queue.clone(), discovered: self.discovered.clone(), visited_prefix: self.visited_prefix.clone() }
+    }
+}
+
 /// 确定性 FIFO frontier。
-#[derive(Debug, Clone, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct DeterministicFrontier {
     queue: VecDeque<NodeId>,
 }
@@ -53,6 +64,13 @@ impl DeterministicFrontier {
     /// 空 frontier。
     pub fn new() -> Self {
         Self { queue: VecDeque::new() }
+    }
+
+    /// Owning 复制（Living `31`：队列）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            queue: self.queue.clone(),
+        }
     }
 
     /// 从检查点恢复队列（不恢复 `discovered` / 前缀，由调用方持有）。
@@ -92,7 +110,9 @@ pub fn sort_neighbors_deterministic(neighbors: &mut [NodeId]) {
 }
 
 /// 确定性 BFS 结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum DeterministicBfsOutcome {
     /// 完整访问序（仅可达子图）。
     Complete(Vec<NodeId>),
@@ -103,6 +123,18 @@ pub enum DeterministicBfsOutcome {
         /// 恢复点。
         checkpoint: FrontierCheckpoint,
     },
+}
+
+impl DeterministicBfsOutcome {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Complete(order) => Self::Complete(order.clone()),
+            Self::Cancelled { partial, checkpoint } => {
+                Self::Cancelled { partial: partial.clone(), checkpoint: checkpoint.owning_copy() }
+            }
+        }
+    }
 }
 
 fn run_deterministic_bfs_loop<N, E>(

@@ -472,7 +472,8 @@ impl ReferenceExecutor {
                 Ok(Slot::Unit)
             }
             OperationKind::RegisterCompiledRule { table, rule } => {
-                let Some((pattern, replacement)) = session.compiled_rules.get(*rule).cloned()
+                let Some((pattern, replacement)) =
+                    session.compiled_rules.get(*rule).map(|(pattern, replacement)| (pattern.owning_copy(), *replacement))
                 else {
                     return Err(diag("compiled_rule_missing"));
                 };

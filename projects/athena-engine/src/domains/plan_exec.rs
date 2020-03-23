@@ -19,7 +19,9 @@ use crate::{
 };
 
 /// Audit trail from interpreting one [`DomainPlan`].
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct PlanStepReport {
     /// Steps that successfully ran, in order.
     pub executed: Vec<PlanStep>,
@@ -41,6 +43,24 @@ pub struct PlanStepReport {
     pub residual_emitted: bool,
     /// Whether [`PlanStep::CrossDomainView`] opened a view.
     pub cross_domain_view: bool,
+}
+
+impl PlanStepReport {
+    /// Owning 复制（Living `31`：[`PlanStep`] 为 `Copy`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            executed: self.executed.clone(),
+            normalized: self.normalized,
+            normalize_coerced: self.normalize_coerced,
+            representation_selected: self.representation_selected,
+            selected_representation: self.selected_representation,
+            provider_invoked: self.provider_invoked,
+            verified: self.verified,
+            materialized: self.materialized,
+            residual_emitted: self.residual_emitted,
+            cross_domain_view: self.cross_domain_view,
+        }
+    }
 }
 
 /// Run [`DomainPlan`] steps with a single provider callback (invoked at most once).

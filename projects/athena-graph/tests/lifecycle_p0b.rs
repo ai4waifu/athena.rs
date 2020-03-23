@@ -106,7 +106,7 @@ fn snapshot_and_revision_trace_edges() {
         id: snapshot_id,
         snapshot: GraphSnapshot::new(GraphId::allocate(), GraphRevision(1), Default::default(), RepresentationId::CSR),
         revision_id,
-        chunks: chunks.clone(),
+        chunks: chunks.owning_copy(),
         view_id: None,
     };
     let rev = GraphRevisionRecord {
@@ -233,7 +233,7 @@ fn shared_chunks_survive_dropping_one_snapshot_root() {
         registry.share(*id).unwrap();
     }
     let mut second = GraphBuilder::<(), ()>::from_direction(GraphDirection::Directed).finish_on_heap(&mut h).unwrap();
-    publication_attach_chunks(&mut h, &mut second.publication, csr.chunks.clone());
+    publication_attach_chunks(&mut h, &mut second.publication, csr.chunks.owning_copy());
 
     for token in first.publication.chunk_roots.iter().copied() {
         assert!(h.roots_mut().unregister(token));

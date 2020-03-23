@@ -10,10 +10,19 @@ use super::{
 };
 
 /// 测试 / 诊断用 Tracer：记录 `mark_object` 调用。
-#[derive(Debug, Default, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct RecordingTracer {
     /// 被标记的对象（含重复）。
     pub marked: Vec<GcObjectId>,
+}
+
+impl RecordingTracer {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { marked: self.marked.clone() }
+    }
 }
 
 impl Tracer for RecordingTracer {
@@ -25,7 +34,9 @@ impl Tracer for RecordingTracer {
 }
 
 /// 不可变 revision 记录（Trace 边 → snapshot / chunk set）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GraphRevisionRecord {
     /// GC 身份。
     pub id: GraphRevisionId,
@@ -39,6 +50,19 @@ pub struct GraphRevisionRecord {
     pub chunks: ChunkSet,
 }
 
+impl GraphRevisionRecord {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            graph_id: self.graph_id,
+            revision: self.revision,
+            snapshot_id: self.snapshot_id,
+            chunks: self.chunks.owning_copy(),
+        }
+    }
+}
+
 impl Trace for GraphRevisionRecord {
     fn trace(&self, tracer: &mut dyn Tracer) {
         tracer.mark_object(self.id.as_object());
@@ -50,7 +74,9 @@ impl Trace for GraphRevisionRecord {
 }
 
 /// 算法可读 snapshot 记录。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GraphSnapshotRecord {
     /// GC 身份。
     pub id: GraphSnapshotId,
@@ -62,6 +88,19 @@ pub struct GraphSnapshotRecord {
     pub chunks: ChunkSet,
     /// 可选挂载视图。
     pub view_id: Option<GraphViewId>,
+}
+
+impl GraphSnapshotRecord {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            snapshot: self.snapshot,
+            revision_id: self.revision_id,
+            chunks: self.chunks.owning_copy(),
+            view_id: self.view_id,
+        }
+    }
 }
 
 impl Trace for GraphSnapshotRecord {
@@ -76,7 +115,9 @@ impl Trace for GraphSnapshotRecord {
 }
 
 /// Chunk 级 Trace 记录（含可选 spill）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯句柄载荷，实现 [`Copy`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GraphChunkRecord {
     /// Chunk 身份。
     pub id: GraphChunkId,
@@ -94,7 +135,9 @@ impl Trace for GraphChunkRecord {
 }
 
 /// 视图 Trace 记录。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯句柄载荷，实现 [`Copy`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GraphViewRecord {
     /// 视图身份。
     pub id: GraphViewId,
@@ -112,7 +155,9 @@ impl Trace for GraphViewRecord {
 }
 
 /// 算法 workspace / checkpoint Trace 记录。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GraphWorkspaceRecord {
     /// Workspace 身份。
     pub id: GraphWorkspaceId,
@@ -122,6 +167,18 @@ pub struct GraphWorkspaceRecord {
     pub revision_id: GraphRevisionId,
     /// 需要的 chunk 集合。
     pub chunks: ChunkSet,
+}
+
+impl GraphWorkspaceRecord {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            snapshot_id: self.snapshot_id,
+            revision_id: self.revision_id,
+            chunks: self.chunks.owning_copy(),
+        }
+    }
 }
 
 impl Trace for GraphWorkspaceRecord {
@@ -134,7 +191,9 @@ impl Trace for GraphWorkspaceRecord {
 }
 
 /// 供 [`athena_gc::GcHeap::collect_traced`] 使用的图对象出边表。
-#[derive(Debug, Default, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct GraphTraceIndex {
     snapshots: std::collections::HashMap<GcObjectId, GraphSnapshotRecord>,
     revisions: std::collections::HashMap<GcObjectId, GraphRevisionRecord>,
@@ -144,6 +203,17 @@ pub struct GraphTraceIndex {
 }
 
 impl GraphTraceIndex {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            snapshots: self.snapshots.iter().map(|(k, v)| (*k, v.owning_copy())).collect(),
+            revisions: self.revisions.iter().map(|(k, v)| (*k, v.owning_copy())).collect(),
+            chunks: self.chunks.clone(),
+            views: self.views.clone(),
+            workspaces: self.workspaces.iter().map(|(k, v)| (*k, v.owning_copy())).collect(),
+        }
+    }
+
     /// 空表。
     pub fn new() -> Self {
         Self::default()

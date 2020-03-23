@@ -12,7 +12,9 @@ use super::{
 };
 
 /// Report from one saturation attempt.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct SaturationReport {
     /// Why the run stopped.
     pub stop: SaturationStopReason,
@@ -20,6 +22,17 @@ pub struct SaturationReport {
     pub iterations: u32,
     /// Candidate equalities discovered (unverified).
     pub candidates: Vec<CandidateEquivalence>,
+}
+
+impl SaturationReport {
+    /// Owning 复制（Living `31`：[`CandidateEquivalence`] 为 `Copy`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            stop: self.stop,
+            iterations: self.iterations,
+            candidates: self.candidates.clone(),
+        }
+    }
 }
 
 /// Run scope-local saturation under `budget` with structural [`RuleSet`] rules.

@@ -44,7 +44,9 @@ use crate::{
 };
 
 /// Report from typed saturation followed by structural, rewrite-replay, and application-congruence admit.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypedEgraphAdmitReport {
     /// Unverified candidates from saturation.
     pub saturation: SaturationReport,
@@ -54,6 +56,18 @@ pub struct TypedEgraphAdmitReport {
     pub rewrite_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
     /// ExactUF application-congruence admit outcomes.
     pub congruence_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
+}
+
+impl TypedEgraphAdmitReport {
+    /// Owning 复制（Living `31`：经 [`SaturationReport::owning_copy`]）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            saturation: self.saturation.owning_copy(),
+            structural_admitted: self.structural_admitted.clone(),
+            rewrite_admitted: self.rewrite_admitted.clone(),
+            congruence_admitted: self.congruence_admitted.clone(),
+        }
+    }
 }
 
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。

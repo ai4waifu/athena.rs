@@ -72,7 +72,7 @@ pub fn graph_to_csr_on_heap<N, E>(
 
 /// 将 [`CsrOnHeap::chunks`] 挂到已发布 snapshot（登记 chunk object roots）。
 pub fn attach_csr_chunks(heap: &mut GcHeap, publication: &mut GraphPublication, csr: &CsrOnHeap) {
-    publication_attach_chunks(heap, publication, csr.chunks.clone());
+    publication_attach_chunks(heap, publication, csr.chunks.owning_copy());
 }
 
 /// `finish()` 正式路径：immutable snapshot + GraphIndex CSR chunks。

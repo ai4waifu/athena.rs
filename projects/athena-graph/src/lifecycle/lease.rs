@@ -75,7 +75,7 @@ impl ChunkRegistry {
         if share <= 1 {
             return Ok(id);
         }
-        let old = self.chunks.get(&id).expect("checked").clone();
+        let old = *self.chunks.get(&id).expect("checked");
         let new_id = GraphChunkId::allocate();
         let mut neu = old;
         neu.id = new_id;

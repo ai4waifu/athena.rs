@@ -141,7 +141,9 @@ impl ReferenceExecutor {
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
-        let Some(rules) = session.defs.extension_dispatch_rules(op).map(|r| r.to_vec())
+        let Some(rules) = session.defs.extension_dispatch_rules(op).map(|r| {
+            r.iter().map(|(pattern, replacement)| (pattern.owning_copy(), *replacement)).collect::<Vec<_>>()
+        })
         else {
             return Ok(None);
         };

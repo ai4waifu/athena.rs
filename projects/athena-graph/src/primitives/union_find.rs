@@ -1,7 +1,9 @@
 //! 并查集（结构原语，非图论 claim）。
 
 /// 并查集（结构原语）。
-#[derive(Debug, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct UnionFind {
     parent: Vec<usize>,
     rank: Vec<u8>,
@@ -11,6 +13,14 @@ impl UnionFind {
     /// 创建 `size` 个独立集合 `{0..size}`。
     pub fn new(size: usize) -> Self {
         Self { parent: (0..size).collect(), rank: vec![0; size] }
+    }
+
+    /// Owning 复制（Living `31`：parent / rank 向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            parent: self.parent.clone(),
+            rank: self.rank.clone(),
+        }
     }
 
     /// 查找代表元（路径压缩）。

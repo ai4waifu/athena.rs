@@ -7,7 +7,9 @@ use athena_rewriter::{RewriteRuleId, TermPattern};
 use athena_types::TermId;
 
 /// One typed rewrite rule (pattern → replacement template).
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypedRewriteRule {
     /// Rule identity (same id space as [`athena_rewriter::RuleSet`] when mixed carefully).
     pub id: RewriteRuleId,
@@ -19,14 +21,36 @@ pub struct TypedRewriteRule {
     pub debug_label: Option<&'static str>,
 }
 
+impl TypedRewriteRule {
+    /// Owning 复制（Living `31`：经 [`TermPattern::owning_copy`]）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            pattern: self.pattern.owning_copy(),
+            replacement: self.replacement,
+            debug_label: self.debug_label,
+        }
+    }
+}
+
 /// Ordered collection of typed rewrite rules for one saturation scope.
-#[derive(Debug, Default, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, Default)]
 pub struct TypedRuleSet {
     rules: Vec<TypedRewriteRule>,
     next_id: u32,
 }
 
 impl TypedRuleSet {
+    /// Owning 复制（Living `31`：经 [`TypedRewriteRule::owning_copy`]）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            rules: self.rules.iter().map(TypedRewriteRule::owning_copy).collect(),
+            next_id: self.next_id,
+        }
+    }
+
     /// Empty set.
     pub fn new() -> Self {
         Self::default()

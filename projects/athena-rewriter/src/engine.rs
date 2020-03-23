@@ -4,14 +4,18 @@ use athena_ir::{TermNode, TermStore};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 /// 重写 pass 选项。
-#[derive(Debug, Clone, Default)]
+///
+/// Living `31`：纯 `Copy` 选项袋。
+#[derive(Debug, Clone, Copy, Default)]
 pub struct RewriteOptions {
     /// 启用常量折叠。
     pub constant_fold: bool,
 }
 
 /// 重写 pass 结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯 `Copy` 结果袋。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewriteResult {
     /// 重写后的根 term（可与输入相同）。
     pub root: TermId,

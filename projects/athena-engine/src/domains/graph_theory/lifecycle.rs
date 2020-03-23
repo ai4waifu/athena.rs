@@ -124,7 +124,7 @@ pub fn bind_algorithm_checkpoint(
         graph_id: publication.graph_id,
         revision: publication.revision,
         revision_id: publication.revision_id,
-        chunks: publication.chunks.clone(),
+        chunks: publication.chunks.owning_copy(),
         workspace_id,
         frontier,
     };

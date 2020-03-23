@@ -26,7 +26,7 @@ fn ensure_view_ref(fingerprint: ViewFingerprint, view_ref: ViewFingerprint) -> R
 }
 
 /// 有向图反向视图（沿原图入边前进）。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReversedGraphView<'a, N, E> {
     graph: &'a MutableGraph<N, E>,
     mapping: ViewMapping,
@@ -132,7 +132,9 @@ impl<'a, N, E> ReversedGraphView<'a, N, E> {
 }
 
 /// 诱导子图视图（仅保留给定节点及其内部边）。
-#[derive(Debug, Clone)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct InducedSubgraphView<'a, N, E> {
     graph: &'a MutableGraph<N, E>,
     nodes: HashSet<u64>,
@@ -146,6 +148,15 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
         let transform_hash = hash_nodes(&nodes);
         let mapping = ViewMapping::new(graph.id(), graph.revision(), ViewTransform::Induced, transform_hash);
         Self { graph, nodes, mapping }
+    }
+
+    /// Owning 复制（Living `31`：节点过滤集；底图仍为借用）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            graph: self.graph,
+            nodes: self.nodes.clone(),
+            mapping: self.mapping,
+        }
     }
 
     /// 底图映射合同。
@@ -242,7 +253,7 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
 }
 
 /// 边过滤视图（保留满足谓词的边）。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct EdgeFilteredView<'a, N, E, F> {
     graph: &'a MutableGraph<N, E>,
     predicate: F,

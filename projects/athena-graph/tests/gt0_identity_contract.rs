@@ -107,7 +107,7 @@ fn view_stale_after_base_mutation() {
     let expected_rev;
     {
         let rev = ReversedGraphView::new(b.graph()).unwrap();
-        mapping = rev.mapping().clone();
+        mapping = *rev.mapping();
         vn = rev.view_node_ref(a).unwrap();
         expected_rev = mapping.base_revision;
     }

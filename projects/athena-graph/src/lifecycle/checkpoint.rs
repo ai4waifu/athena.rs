@@ -10,7 +10,9 @@ use super::{
 /// 图算法可恢复检查点（frontier 形状在 graph，策略在 engine）。
 ///
 /// **禁止**内嵌 resident pointer。resume 须重新获取 lease / pin。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct GraphAlgorithmCheckpoint {
     /// 稳定观测身份。
     pub snapshot_id: GraphSnapshotId,
@@ -29,6 +31,19 @@ pub struct GraphAlgorithmCheckpoint {
 }
 
 impl GraphAlgorithmCheckpoint {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            snapshot_id: self.snapshot_id,
+            graph_id: self.graph_id,
+            revision: self.revision,
+            revision_id: self.revision_id,
+            chunks: self.chunks.owning_copy(),
+            workspace_id: self.workspace_id,
+            frontier: self.frontier.owning_copy(),
+        }
+    }
+
     /// 由 wire 身份与算法态构造。
     pub fn new(
         snapshot_id: GraphSnapshotId,

@@ -32,12 +32,24 @@ pub struct F4CriticalPair {
 }
 
 /// 符号预处理产出的一行：乘子 × 基多项式下标。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct F4SymbolicRow {
     /// 单项式乘子指数。
     pub multiplier: Vec<u32>,
     /// 基多项式下标。
     pub poly_index: usize,
+}
+
+impl F4SymbolicRow {
+    /// Owning 复制（Living `31`：乘子指数向量）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            multiplier: self.multiplier.clone(),
+            poly_index: self.poly_index,
+        }
+    }
 }
 
 /// 一行 Macaulay 输入：单项式乘子 × 基多项式。

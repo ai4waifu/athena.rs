@@ -139,7 +139,7 @@ pub struct ViewFingerprint {
 }
 
 /// 视图 ↔ 底图映射合同（节点/边在 view 中仍使用 base 的 local id 时，映射为恒等过滤）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewMapping {
     /// 底图身份。
     pub base_graph_id: GraphId,
@@ -175,7 +175,7 @@ impl ViewMapping {
 }
 
 /// CSR/CSC 等存储元数据（使表示可回溯到逻辑图状态）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GraphStorageMetadata {
     /// 表示身份。
     pub representation_id: RepresentationId,

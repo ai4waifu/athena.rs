@@ -8,19 +8,44 @@ use athena_types::TermId;
 use super::ids::{EClassId, ENodeId};
 
 /// Structural enode key (operator + child class ids).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub(crate) struct ENodeKey {
     pub head: ApplicationHead,
     pub children: Vec<EClassId>,
 }
 
+impl ENodeKey {
+    /// Owning 复制（Living `31`：child class 句柄向量）。
+    pub(crate) fn owning_copy(&self) -> Self {
+        Self {
+            head: self.head,
+            children: self.children.clone(),
+        }
+    }
+}
+
 /// One enode payload.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ENode {
     pub key: ENodeKey,
     /// Optional originating TermStore root (atom / app root).
     pub term: Option<TermId>,
     pub eclass: EClassId,
+}
+
+impl ENode {
+    /// Owning 复制（Living `31`：经 [`ENodeKey::owning_copy`]）。
+    pub(crate) fn owning_copy(&self) -> Self {
+        Self {
+            key: self.key.owning_copy(),
+            term: self.term,
+            eclass: self.eclass,
+        }
+    }
 }
 
 /// Scope-local equality graph for **candidate** search only.
@@ -168,7 +193,7 @@ impl EGraph {
         }
         let class = self.alloc_class();
         let enode_id = ENodeId(self.enodes.len() as u32);
-        self.enodes.push(ENode { key: key.clone(), term: Some(term), eclass: class });
+        self.enodes.push(ENode { key: key.owning_copy(), term: Some(term), eclass: class });
         self.by_key.insert(key, enode_id);
         class
     }

@@ -37,13 +37,22 @@ impl ResultCost {
 }
 
 /// Non-dominated extract candidates for one e-class (Living `16` Pareto bootstrap).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct ParetoFrontier {
     /// Undominated `(term, cost)` points, sorted by [`ResultCost::rank_key`] then [`TermId`].
     pub points: Vec<(TermId, ResultCost)>,
 }
 
 impl ParetoFrontier {
+    /// Owning 复制（Living `31`：`(TermId, ResultCost)` 均为 `Copy`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            points: self.points.clone(),
+        }
+    }
+
     /// Whether the frontier is empty.
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()

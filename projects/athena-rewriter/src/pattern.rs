@@ -4,7 +4,9 @@ use athena_ir::ApplicationHead;
 use athena_types::{CollectionKind, DomainId, PredicateId, SymbolId, TermId, ValueTypeId};
 
 /// 模式约束（闭集身份，禁止 `head_name: String`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：纯身份枚举，实现 [`Copy`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PatternConstraint {
     /// 算子身份（semantic or extension head）。
     Operator(ApplicationHead),
@@ -19,7 +21,9 @@ pub enum PatternConstraint {
 }
 
 /// 中性 TRS 模式（内部规则系统本体）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum TermPattern {
     /// 匹配任意项。
     Any,
@@ -50,4 +54,25 @@ pub enum TermPattern {
         /// 约束。
         constraint: PatternConstraint,
     },
+}
+
+impl TermPattern {
+    /// Owning 复制（Living `31`）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Any => Self::Any,
+            Self::Bind { name, inner } => Self::Bind { name: *name, inner: Box::new(inner.owning_copy()) },
+            Self::Exact(id) => Self::Exact(*id),
+            Self::Sequence(items) => Self::Sequence(items.iter().map(Self::owning_copy).collect()),
+            Self::Application { operator, arguments } => {
+                Self::Application { operator: *operator, arguments: arguments.iter().map(Self::owning_copy).collect() }
+            }
+            Self::StructuralApplication(arguments) => {
+                Self::StructuralApplication(arguments.iter().map(Self::owning_copy).collect())
+            }
+            Self::Constrained { pattern, constraint } => {
+                Self::Constrained { pattern: Box::new(pattern.owning_copy()), constraint: *constraint }
+            }
+        }
+    }
 }
