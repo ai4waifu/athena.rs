@@ -38,7 +38,7 @@ pub enum RoundingStatus {
 }
 
 /// 有限精度二进制浮点（自有 significand Magnitude + 声明精度）。
-// Living 19: no Clone on Heap-capable significand
+//  no Clone on Heap-capable significand
 #[repr(C)]
 pub struct Decimal {
     significand: MagnitudePair,
@@ -80,7 +80,7 @@ impl Decimal {
         Some(Self::from_parts(self.significand.clone_inline()?, self.exponent, self.precision_bits))
     }
 
-    /// Owning 深复制（Living `31`：目标 heap 上 `PublishedNumericBlock`）。
+    /// Owning 深复制（目标 heap 上 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         Ok(Self::from_parts(self.significand.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?, self.exponent, self.precision_bits))

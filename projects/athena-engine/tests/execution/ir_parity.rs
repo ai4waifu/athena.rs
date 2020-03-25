@@ -1,4 +1,4 @@
-//! `ExecutionIR` reference parity (Living `25` L2).
+//! `ExecutionIR` reference parity (L2).
 
 use athena_engine::{
     api::request::{AthenaRequest, ControlPlan},
@@ -147,7 +147,7 @@ fn session_setdelayed_evaluates_on_use() {
 #[test]
 fn map_sin_list() {
     let mut c = C::new();
-    // Living `27`: Map over a 0-ary semantic operator value, not a display-name symbol.
+    // 映射到 0 元语义算子值，而非显示名符号。
     let sin = sem(SemanticOperator::from_unary(UnaryFunction::Sin), vec![], &mut c);
     let e = sem(SemanticOperator::Map, vec![sin, lst(vec![i(0, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "OrderedCollection[0]");

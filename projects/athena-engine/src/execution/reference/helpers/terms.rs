@@ -1,4 +1,4 @@
-//! Term / matrix / iterator helpers for the reference executor.
+//! Reference 执行器的项 / 矩阵 / 迭代器辅助。
 
 use athena_numeric::{Integer, Number, Rational, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Result, SymbolId, TermId};
@@ -57,10 +57,8 @@ pub(crate) fn term_as_f64_session(session: &Session, arg: TermId) -> Option<f64>
 }
 
 pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Option<i64> {
-    if let Some(n) = number_of(session, arg).and_then(|n| n.as_exact_integer()) {
-        if n == 0 {
-            return Some(0);
-        }
+    if number_of(session, arg).is_some_and(|n| n.is_zero()) {
+        return Some(0);
     }
     if is_math_constant(session, arg, MathematicalConstant::Pi) {
         return Some(1);
@@ -83,7 +81,7 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
     None
 }
 
-/// Debug / diagnostics head label only — **not** for semantic dispatch (Living `27`).
+/// 仅用于调试 / 诊断的头标签 — **不得**用于语义分派。
 pub(crate) fn debug_head_label_session(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         athena_ir::TermNode::Application { head, .. } => head_label(session, *head),
@@ -133,7 +131,7 @@ pub(crate) fn expand_span_3(a: i64, step: i64, b: i64) -> Option<Vec<i64>> {
     Some(out)
 }
 
-/// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` for iterator `Sum`.
+/// 为迭代器 `Sum` 展开 `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}`。
 pub(crate) fn expand_iterator_session(session: &mut Session, spec: TermId) -> Option<(Option<SymbolId>, Vec<TermId>)> {
     let items = match session.arena.get(spec) {
         Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
@@ -180,7 +178,7 @@ pub(crate) fn range_int_terms(session: &mut Session, a: i64, b: i64, step: i64) 
 
 pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -> TermId {
     match session.arena.get(head) {
-        // 0-ary semantic / extension application used as an operator value (not a Symbol name).
+        // 零元语义 / 扩展应用用作算子值（不是 Symbol 名）。
         Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(op), arguments }) if arguments.is_empty() => {
             push_semantic(session, *op, args)
         }
@@ -424,7 +422,7 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
     Ok(push_list(session, out))
 }
 
-/// Project domain results that lack a built-in symbolic term (e.g. exact linear solve).
+/// 投影缺少内置符号项的领域结果（例如精确线性求解）。
 pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate::domains::dispatch::DomainResult) -> Option<TermId> {
     use crate::domains::{
         dispatch::DomainResult,

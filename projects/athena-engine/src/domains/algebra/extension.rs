@@ -6,7 +6,7 @@ use super::property::{PropertyState, PropertyWitness};
 
 /// 域扩张 L/K（含已验证嵌入 K → L）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct FieldExtension {
     /// 稳定扩张 id。
@@ -61,7 +61,7 @@ impl FieldExtension {
         }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,

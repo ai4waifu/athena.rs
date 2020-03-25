@@ -6,7 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, FieldId, FieldPresentationId, Res
 
 use crate::value::integer::Integer;
 
-/// 有限域元素物理表示（Living `19`）。
+/// 有限域元素物理表示。
 ///
 /// `Coefficients` 仅 bootstrap / wire。扩域热路径终局为 packed residue（后续）。
 #[derive(Debug, PartialEq, Eq)]
@@ -27,7 +27,7 @@ pub struct FiniteFieldValue {
 }
 
 impl FiniteFieldValue {
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
         let repr = match &self.repr {
             FiniteFieldRepr::Coefficients(c) => {

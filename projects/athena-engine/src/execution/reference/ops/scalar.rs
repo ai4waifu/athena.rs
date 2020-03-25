@@ -1,8 +1,8 @@
-//! Scalar / rewrite / pattern operator evaluation.
+//! 标量 / 重写 / pattern 算子求值。
 
 use std::collections::HashMap;
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Result, SymbolId, TermId};
 
@@ -103,11 +103,11 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        // Extension residuals only — core trig/specials evaluate via SemanticOperator::Unary.
+        // 仅扩展残差 — 核心三角/特殊函数经 `SemanticOperator::Unary` 求值。
         Ok(Slot::Term(push_extension(session, op, terms)))
     }
 
-    /// Apply the first matching Session dispatch rule and re-evaluate the replacement.
+    /// 应用首条匹配的 Session 分派规则并重新求值替换式。
 
     pub(crate) fn eval_residual_semantic(
         &self,
@@ -127,8 +127,20 @@ impl ReferenceExecutor {
                 if let Some(exact) = eval_trig_exact_session(session, uf, arg) {
                     return Ok(Slot::Term(exact));
                 }
-                // Do not auto-`N` trig/specials via `f64`. Residual `Sin[1]` must stay symbolic
-                // (Map / Hold / exact pipelines). Explicit numericization is a separate request.
+                // 仅当参数已是 machine 实数时折叠。禁止把精确 `Sin[1]` 经 `f64` 自动 `N`。
+                if let Some(x) = number_of(session, arg).and_then(|n| n.as_machine_f64()) {
+                    let y = match uf {
+                        UnaryFunction::Sin => x.sin(),
+                        UnaryFunction::Cos => x.cos(),
+                        UnaryFunction::Tan => x.tan(),
+                        UnaryFunction::Exp => x.exp(),
+                        UnaryFunction::Log => x.ln(),
+                        _ => f64::NAN,
+                    };
+                    if y.is_finite() {
+                        return Ok(Slot::Term(push_number(session, Number::machine(y))));
+                    }
+                }
             }
         }
         Ok(Slot::Term(push_semantic(session, op, terms)))
@@ -141,9 +153,10 @@ impl ReferenceExecutor {
         args: &[SsaValueId],
         slots: &HashMap<SsaValueId, Slot>,
     ) -> Result<Option<Slot>> {
-        let Some(rules) = session.defs.extension_dispatch_rules(op).map(|r| {
-            r.iter().map(|(pattern, replacement)| (pattern.owning_copy(), *replacement)).collect::<Vec<_>>()
-        })
+        let Some(rules) = session
+            .defs
+            .extension_dispatch_rules(op)
+            .map(|r| r.iter().map(|(pattern, replacement)| (pattern.owning_copy(), *replacement)).collect::<Vec<_>>())
         else {
             return Ok(None);
         };
@@ -249,7 +262,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// `CollectMatches[list, pat]` — filter list items by pattern.
+    /// `CollectMatches[list, pat]` — 按 pattern 过滤列表元素。
     pub(crate) fn eval_collect_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
@@ -270,7 +283,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    /// `Matches[expr, pat]` — boolean pattern test.
+    /// `Matches[expr, pat]` — 布尔 pattern 测试。
     pub(crate) fn eval_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
@@ -360,7 +373,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// Apply `func` to one list element: 0-ary operator value, symbol head, or `Function[var, body]`.
+    /// 将 `func` 作用于单个列表元素：零元算子值、符号头，或 `Function[var, body]`。
     fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
         if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(func) {
             if arguments.is_empty() {
@@ -422,7 +435,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// `Application[head, args…]` — apply `Function[var, body]` or symbol head.
+    /// `Application[head, args…]` — 应用 `Function[var, body]` 或符号头。
     pub(crate) fn eval_application_form(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.is_empty() {
             return Err(diag("semantic_operator_arity"));
@@ -433,8 +446,8 @@ impl ReferenceExecutor {
             let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
             call_args.push(self.slot_as_term(session, slot)?);
         }
-        // Function[var, body][arg…] → substitute and re-eval.
-        // Pure Function[body] requires AnonymousArgument from dialect lowering (not string Slot).
+        // `Function[var, body][arg…]` → 替换并重新求值。
+        // 纯 `Function[body]` 需要方言 lowering 的 `AnonymousArgument`（不是字符串 Slot）。
         if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
             if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) && call_args.len() == 1 {
                 let arguments = arguments.clone();

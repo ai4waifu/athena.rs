@@ -6,7 +6,7 @@ use crate::domains::algebra::PropertyState;
 
 /// 域自同构：L → L 的特殊嵌入，固定基域。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct FieldAutomorphism {
     /// 稳定 id。
@@ -22,7 +22,7 @@ pub struct FieldAutomorphism {
 }
 
 impl FieldAutomorphism {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,
@@ -36,7 +36,7 @@ impl FieldAutomorphism {
 
 /// 伽罗瓦群计算结果完整性。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum GaloisComputation {
     /// 完整算出并验证。
@@ -69,7 +69,7 @@ pub enum GaloisComputation {
 }
 
 impl GaloisComputation {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Complete { group } => Self::Complete { group: *group },
@@ -83,7 +83,7 @@ impl GaloisComputation {
 
 /// 伽罗瓦群（相对基域与扩张）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct GaloisGroup {
     /// 基域。
@@ -95,19 +95,15 @@ pub struct GaloisGroup {
 }
 
 impl GaloisGroup {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            base_field: self.base_field,
-            extension: self.extension,
-            computation: self.computation.owning_copy(),
-        }
+        Self { base_field: self.base_field, extension: self.extension, computation: self.computation.owning_copy() }
     }
 }
 
 /// 伽罗瓦域返回值。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum GaloisDomainValue {
     /// 布尔性质（可分 / 正规等）。
@@ -128,7 +124,7 @@ pub enum GaloisDomainValue {
 }
 
 impl GaloisDomainValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Boolean(b) => Self::Boolean(*b),

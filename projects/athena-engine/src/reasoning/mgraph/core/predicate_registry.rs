@@ -1,20 +1,20 @@
-//! Closed predicate registry (Living `26` / `29`).
+//! 封闭谓词注册表。
 //!
-//! Descriptors document theory context and subject arity for each [`PredicateId`].
-//! Admission and hyper-edge staging must consult this table — never invent string labels.
+//! 描述符记录每个 [`PredicateId`] 的理论上下文与主体元数。
+//! 接纳与超边暂存必须查阅本表 —— 绝不可发明字符串标签。
 
 use std::ops::RangeInclusive;
 
 use super::refs::{PredicateId, TheoryContextId, predicates};
 
-/// Static descriptor for one closed [`PredicateId`].
+/// 单个封闭 [`PredicateId`] 的静态描述符。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PredicateDescriptor {
-    /// Predicate identity.
+    /// 谓词标识。
     pub id: PredicateId,
-    /// Owning theory context.
+    /// 所属理论上下文。
     pub theory: TheoryContextId,
-    /// Inclusive subject arity range (`SemanticRef` count on [`crate::reasoning::mgraph::RelationRecord`]).
+    /// 主体元数闭区间（[`crate::reasoning::mgraph::RelationRecord`] 上的 `SemanticRef` 个数）。
     pub subject_arity: RangeInclusive<usize>,
 }
 
@@ -28,45 +28,17 @@ const DESCRIPTORS: &[PredicateDescriptor] = &[
     PredicateDescriptor { id: predicates::INTEGRAL_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
 ];
 
-/// Look up a closed predicate descriptor.
+/// 查找封闭谓词描述符。
 pub fn descriptor(id: PredicateId) -> Option<&'static PredicateDescriptor> {
     DESCRIPTORS.iter().find(|d| d.id == id)
 }
 
-/// Whether `subject_count` is legal for `id`.
+/// `subject_count` 对 `id` 是否合法。
 pub fn arity_ok(id: PredicateId, subject_count: usize) -> bool {
     descriptor(id).is_some_and(|d| d.subject_arity.contains(&subject_count))
 }
 
-/// All registered descriptors (stable order by [`PredicateId`]).
+/// 全部已注册描述符（按 [`PredicateId`] 稳定排序）。
 pub fn all_descriptors() -> &'static [PredicateDescriptor] {
     DESCRIPTORS
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_builtin_predicate_has_descriptor() {
-        for id in [
-            predicates::POLYNOMIAL_RESULT,
-            predicates::CONGRUENCE,
-            predicates::REWRITE_EQUIVALENT,
-            predicates::EVALUATION_RESULT,
-            predicates::DERIVATIVE_OF,
-            predicates::SERIES_EXPANSION,
-            predicates::INTEGRAL_OF,
-        ] {
-            assert!(descriptor(id).is_some(), "missing descriptor for {id:?}");
-            assert!(arity_ok(id, *descriptor(id).unwrap().subject_arity.start()));
-        }
-    }
-
-    #[test]
-    fn unknown_predicate_has_no_descriptor() {
-        assert!(descriptor(PredicateId(0)).is_none());
-        assert!(descriptor(PredicateId(99)).is_none());
-        assert!(!arity_ok(PredicateId(99), 2));
-    }
 }

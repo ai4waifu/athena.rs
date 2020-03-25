@@ -2,14 +2,14 @@
 //!
 //! 子树职责：
 //! - [`admission`] — 证据门控与候选
-//! - [`facts`] — claim / admission journal
+//! - [`facts`] —— 声明 / 接纳日志
 //! - [`equivalence`] — exact UF / 同余
 //! - [`relations`] — scope / relation 索引与理论规格
 //! - [`closure`] — 闭包步进与 operational state
 //! - [`cache`] — 结果缓存
 //! - [`core`] — 实现层核心类型与状态
-//! - [`obligation`] — ProofObligation / SemanticReflector（Living `29`）
-//! - [`semantic_entry`] — Living `29` 顶层 Goal → Reflector → Plan（非裸 `execute_domain`）
+//! [`obligation`] —— ProofObligation / SemanticReflector
+//! [`semantic_entry`] — 顶层 Goal → Reflector → Plan（非裸 `execute_domain`）
 //! - [`polynomial`] — 多项式域 M-Graph 存储 / witness
 
 pub mod admission;

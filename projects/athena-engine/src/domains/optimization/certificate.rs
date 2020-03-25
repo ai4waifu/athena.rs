@@ -38,7 +38,7 @@ pub enum CertificateKind {
 
 /// 界证书：上界/下界/不可行等可独立验证或明确降级的证据。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct BoundCertificate {
     /// 证书种类。
@@ -58,7 +58,7 @@ pub struct BoundCertificate {
 }
 
 impl BoundCertificate {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             kind: self.kind,

@@ -1,4 +1,4 @@
-//! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · Living `25`）。
+//! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · ）。
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};

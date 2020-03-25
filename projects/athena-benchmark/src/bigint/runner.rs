@@ -4,7 +4,7 @@ use std::hint::black_box;
 
 use athena_engine::runtime::values::numeric_clone::{clone_integer, clone_natural};
 use athena_gc::HeapBudget;
-use athena_numeric::{TemporaryInteger, TemporaryNatural, Integer, NumericContext, natural::Natural, number_from_wire};
+use athena_numeric::{Integer, NumericContext, TemporaryInteger, TemporaryNatural, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;
 
 use super::{

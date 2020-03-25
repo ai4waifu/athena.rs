@@ -1,4 +1,4 @@
-//! Non-hot-path `Vec` convenience wrappers (tests and non-executor callers).
+//! 非热路径 `Vec` 便利包装（测试与非执行器调用方）。
 
 use athena_types::Result;
 

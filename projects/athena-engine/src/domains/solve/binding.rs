@@ -33,7 +33,7 @@ impl BoundSymbol {
 
 /// 解分支上的变量绑定：[`BoundSymbol`] → 解表达式 [`TermId`]。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct BindingMap {
     /// 有序绑定表（稳定比较）。
@@ -61,7 +61,7 @@ impl BindingMap {
         self.entries.is_empty()
     }
 
-    /// Owning 复制（Living `31`：仅 `BoundSymbol` / `TermId` 句柄表）。
+    /// Owning 复制（仅 `BoundSymbol` / `TermId` 句柄表）。
     pub fn owning_copy(&self) -> Self {
         Self { entries: self.entries.clone() }
     }

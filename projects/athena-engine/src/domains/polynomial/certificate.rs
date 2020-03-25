@@ -9,7 +9,7 @@ use crate::domains::algebra::{PropertyState, PropertyWitness};
 pub enum GroebnerAlgorithm {
     /// Buchberger + 标准 S-pair 约化。
     Buchberger,
-    /// F4 Macaulay 矩阵批量消元（Living `04` / `30`）。
+    /// F4 Macaulay 矩阵批量消元。
     F4,
 }
 
@@ -28,7 +28,7 @@ pub enum GroebnerStatus {
 ///
 /// 禁止薄 `verified: bool`：独立 verifier 结果用 [`PropertyState`]。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct GroebnerCertificate {
     /// 算法。
@@ -50,7 +50,7 @@ pub struct GroebnerCertificate {
 }
 
 impl GroebnerCertificate {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             algorithm: self.algorithm,

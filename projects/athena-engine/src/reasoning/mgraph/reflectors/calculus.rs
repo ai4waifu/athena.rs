@@ -1,4 +1,4 @@
-//! 微积分 SemanticReflector（Living `29`）。
+//! 微积分 SemanticReflector。
 
 use athena_types::{AssumptionSet, SymbolId, TermId};
 
@@ -19,7 +19,7 @@ use crate::{
 pub struct CalculusReflector;
 
 impl CalculusReflector {
-    /// Scaffold request from obligation known objects (placeholders when unbound).
+    /// 由义务已知对象搭请求骨架（未绑定时为占位）。
     fn request_for(obligation: &ProofObligation) -> Option<DomainRequest> {
         let expression = obligation.known_objects.first().map(|o| TermId(o.fingerprint as u32)).unwrap_or(TermId(0));
         let variable = obligation.known_objects.get(1).map(|o| SymbolId(o.fingerprint as u32)).unwrap_or(SymbolId(0));
@@ -61,37 +61,6 @@ impl SemanticReflector for CalculusReflector {
         match Self::request_for(obligation) {
             Some(request) => Reflection::NeedComputation { plan: plan_domain(&request) },
             None => Reflection::Inconclusive,
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domains::planner::PlanStep,
-        reasoning::mgraph::core::{MGraphCore, ScopeRef},
-    };
-
-    #[test]
-    fn derivative_obligation_needs_computation_when_empty() {
-        let core = MGraphCore::new();
-        let view = MGraphView::new(&core);
-        let obligation = ProofObligation { predicate: predicates::DERIVATIVE_OF, scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
-        match CalculusReflector.reflect(&obligation, &view) {
-            Reflection::NeedComputation { plan } => {
-                assert_eq!(
-                    plan.steps,
-                    vec![
-                        PlanStep::Normalize,
-                        PlanStep::SelectRepresentation,
-                        PlanStep::CallDomainProvider,
-                        PlanStep::Verify,
-                        PlanStep::MaterializeResult,
-                    ]
-                );
-            }
-            other => panic!("expected NeedComputation, got {other:?}"),
         }
     }
 }

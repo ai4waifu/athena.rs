@@ -1,4 +1,4 @@
-//! Extract a representative term from an e-class (Living `13` / `26` bootstrap).
+//! 从 e-class 抽取代表项（引导实现）。
 
 use athena_ir::{TermNode, TermStore};
 use athena_types::TermId;
@@ -7,26 +7,26 @@ use crate::reasoning::mgraph::ExactUnionFind;
 
 use super::{graph::EGraph, ids::EClassId};
 
-/// Local extraction cost (objectives for single-winner and Pareto extract).
+/// 局部抽取代价（单胜者与 Pareto 抽取的目标）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResultCost {
-    /// DAG node count in [`TermStore`] (shared subtrees counted once).
+    /// [`TermStore`] 中的 DAG 节点数（共享子树只计一次）。
     pub ast_nodes: u32,
-    /// Whether this term is an ExactUF representative present in the e-class.
+    /// 该项是否为仍在该 e-class 中的 ExactUF 代表元。
     pub admitted_exact: bool,
 }
 
 impl ResultCost {
-    /// Lexicographic key: prefer admitted, then fewer AST nodes.
+    /// 字典序键：优先已接纳，再优先更少的 AST 节点。
     pub fn rank_key(self) -> (u8, u32) {
         let admitted_rank = if self.admitted_exact { 0 } else { 1 };
         (admitted_rank, self.ast_nodes)
     }
 
-    /// Pareto dominance on `(admitted_exact maximize, ast_nodes minimize)`.
+    /// 在 `(admitted_exact 最大化, ast_nodes 最小化)` 上的 Pareto 支配。
     ///
-    /// `self` dominates `other` when it is at least as good on every objective and
-    /// strictly better on at least one.
+    /// 当 `self` 在每个目标上都不劣于 `other`，且至少在一个目标上严格更优时，
+    /// `self` 支配 `other`。
     pub fn dominates(self, other: Self) -> bool {
         let adm_ge = (self.admitted_exact as u8) >= (other.admitted_exact as u8);
         let ast_le = self.ast_nodes <= other.ast_nodes;
@@ -36,80 +36,78 @@ impl ResultCost {
     }
 }
 
-/// Non-dominated extract candidates for one e-class (Living `16` Pareto bootstrap).
+/// 单个 e-class 的非支配抽取候选集（Pareto 引导实现）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct ParetoFrontier {
-    /// Undominated `(term, cost)` points, sorted by [`ResultCost::rank_key`] then [`TermId`].
+    /// 未被支配的 `(term, cost)` 点，按 [`ResultCost::rank_key`] 再按 [`TermId`] 排序。
     pub points: Vec<(TermId, ResultCost)>,
 }
 
 impl ParetoFrontier {
-    /// Owning 复制（Living `31`：`(TermId, ResultCost)` 均为 `Copy`）。
+    /// Owning 复制（`(TermId, ResultCost)` 均为 `Copy`）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            points: self.points.clone(),
-        }
+        Self { points: self.points.clone() }
     }
 
-    /// Whether the frontier is empty.
+    /// 前沿是否为空。
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
 
-    /// Number of undominated points.
+    /// 非支配点的数量。
     pub fn len(&self) -> usize {
         self.points.len()
     }
 
-    /// Lexicographic single pick (same order as [`ExtractionPreference::ResultCost`]).
+    /// 字典序单点选取（顺序同 [`ExtractionPreference::ResultCost`]）。
     pub fn lexicographic_pick(&self) -> Option<(TermId, ResultCost)> {
         self.points.first().copied()
     }
 }
 
-/// Preference for extraction.
+/// 抽取偏好。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExtractionPreference {
-    /// Prefer the first recorded term root for the class (stable by [`TermId`] order).
+    /// 优先该类首次记录的项根（按 [`TermId`] 顺序稳定）。
     #[default]
     FirstTerm,
-    /// Prefer the term with the fewest DAG nodes in [`TermStore`].
+    /// 优先 [`TermStore`] 中 DAG 节点数最少的项。
     SmallestAst,
-    /// Prefer the [`ExactUnionFind`] representative when it still sits in the e-class.
+    /// 当 [`ExactUnionFind`] 代表元仍在该 e-class 中时优先选取。
     ///
-    /// Falls back to [`Self::SmallestAst`] when no admitted representative is present.
+    /// 若无已接纳代表元，则回退到 [`Self::SmallestAst`]。
     AdmittedExact,
-    /// Lexicographic on [`ResultCost`]: admitted ExactUF reps first, then smallest AST.
+    /// 对 [`ResultCost`] 做字典序：先 ExactUF 代表元，再最小 AST。
     ResultCost,
 }
 
-/// Extracts a host [`TermId`] from a local e-class when available.
+/// 在可用时从局部 e-class 抽取宿主 [`TermId`]。
 #[derive(Debug, Default)]
 pub struct Extractor {
     preference: ExtractionPreference,
 }
 
 impl Extractor {
-    /// Default extractor.
+    /// 默认抽取器。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Construct with preference.
+    /// 按偏好构造。
     pub fn with_preference(preference: ExtractionPreference) -> Self {
         Self { preference }
     }
 
-    /// Score a term under optional ExactUF admission.
+    /// 在可选 ExactUF 接纳信息下为项打分。
     pub fn score(store: &TermStore, term: TermId, exact_uf: Option<&ExactUnionFind>) -> ResultCost {
         let ast_nodes = ast_size(store, term);
         let admitted_exact = exact_uf.is_some_and(|uf| uf.find(term) == term);
         ResultCost { ast_nodes, admitted_exact }
     }
 
-    /// Score with e-class membership for ExactUF representatives.
+    /// 结合 e-class 成员关系为 ExactUF 代表元打分。
     fn score_in_class(store: &TermStore, term: TermId, class_terms: &[TermId], exact_uf: Option<&ExactUnionFind>) -> ResultCost {
         let mut cost = Self::score(store, term, exact_uf);
         if let Some(uf) = exact_uf {
@@ -119,15 +117,15 @@ impl Extractor {
         cost
     }
 
-    /// Extract a term for `class`.
+    /// 为 `class` 抽取一项。
     ///
-    /// `exact_uf` is consulted for [`ExtractionPreference::AdmittedExact`] and
-    /// [`ExtractionPreference::ResultCost`].
+    /// [`ExtractionPreference::AdmittedExact`] 与
+    /// [`ExtractionPreference::ResultCost`] 会查阅 `exact_uf`。
     pub fn extract(&self, graph: &EGraph, store: &TermStore, class: EClassId, exact_uf: Option<&ExactUnionFind>) -> Option<TermId> {
         self.extract_with_cost(graph, store, class, exact_uf).map(|(term, _)| term)
     }
 
-    /// Extract a term plus its [`ResultCost`].
+    /// 抽取一项及其 [`ResultCost`]。
     pub fn extract_with_cost(
         &self,
         graph: &EGraph,
@@ -166,7 +164,7 @@ impl Extractor {
         Some((chosen, Self::score(store, chosen, exact_uf)))
     }
 
-    /// Multi-objective undominated extract set for `class` (does not pick a single winner).
+    /// 为 `class` 做多目标非支配抽取集合（不选出单一胜者）。
     pub fn extract_pareto(graph: &EGraph, store: &TermStore, class: EClassId, exact_uf: Option<&ExactUnionFind>) -> ParetoFrontier {
         let root = graph.find(class);
         let mut terms = graph.terms_in_class(root);

@@ -44,7 +44,7 @@ pub enum FieldRequest {
 }
 
 impl FieldRequest {
-    /// Owning 复制（Living `31`）：`Integer` 经 GC [`clone_integer`]，元素经 [`FieldElement::owning_copy`]。
+    /// Owning 复制：`Integer` 经 GC [`clone_integer`]，元素经 [`FieldElement::owning_copy`]。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::PrimeField { characteristic } => Self::PrimeField { characteristic: clone_integer(characteristic) },

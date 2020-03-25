@@ -9,7 +9,7 @@ use super::{
 
 /// Chunk 元数据（可达性 · 驻留 · lease/pin · COW 共享计数）。
 ///
-/// Living `31`：纯句柄 / 计数载荷，实现 [`Copy`]。
+/// 纯句柄 / 计数载荷，实现 [`Copy`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChunkMeta {
     /// Chunk 身份。
@@ -46,7 +46,7 @@ impl Trace for ChunkMeta {
 
 /// Snapshot 持有的 chunk 集合（可共享；COW 由 [`super::ChunkRegistry`] 记账）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct ChunkSet {
     /// 可选 Trace 对象身份（登记进 heap 对象表时填写）。
@@ -56,7 +56,7 @@ pub struct ChunkSet {
 }
 
 impl ChunkSet {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { object: self.object, chunks: self.chunks.clone() }
     }

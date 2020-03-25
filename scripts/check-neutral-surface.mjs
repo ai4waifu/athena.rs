@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Living 27 source gate: ban Mathematica-shaped semantic dispatch in core crates.
+ * Source gate: ban Mathematica-shaped semantic dispatch in core crates.
  * Allows diagnostics / debug_label / residual Extension display / test fixtures.
  */
 import fs from "node:fs";
@@ -22,7 +22,7 @@ const scanRoots = [
 
 /** Patterns that must not appear in production src (dispatch / construction). */
 const banned = [
-  { re: /\bCalculusCtx\b/, why: "CalculusCtx mini-evaluator (Living 28)" },
+  { re: /\bCalculusCtx\b/, why: "CalculusCtx mini-evaluator" },
   { re: /\bextension_named\s*\(/, why: "extension display-name semantic check" },
   { re: /fn\s+apply\s*\(\s*&self,\s*head:\s*&str/, why: "string apply construction API" },
   { re: /\blookup_function\s*\(/, why: "string function registry" },

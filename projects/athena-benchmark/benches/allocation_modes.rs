@@ -3,7 +3,7 @@
 //! 与 bigint 算术矩阵正交：本文件回答「慢在 bump 还是 header/stats/RefCell」。
 //!
 //! ```sh
-//! cargo bench -p athena-benchmark --bench allocation_modes
+//! 运行：`cargo bench -p athena-benchmark --bench allocation_modes`
 //! ```
 
 #![allow(missing_docs)]

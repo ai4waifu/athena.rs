@@ -19,7 +19,7 @@ use crate::{
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。
 ///
-/// Living `19`：**不** derive [`Clone`]。用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
+/// **不** derive [`Clone`]。用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
 pub enum NumericValue {
     /// 精确整数 ℤ。
@@ -296,7 +296,7 @@ impl NumericValue {
         }
     }
 
-    /// Stable domain/kind tag for IR fingerprints (never `Debug` formatting).
+    /// IR 指纹用的稳定域/种类标签（禁止用 `Debug` 格式化）。
     pub fn fingerprint_domain_tag(&self) -> u64 {
         const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
         let mix = |h: u64, v: u64| h.wrapping_mul(FNV_PRIME).wrapping_add(v);
@@ -328,9 +328,9 @@ impl NumericValue {
         }
     }
 
-    /// Binary-stable content hash for IR fingerprints (Integer/Rational limb wire; no render string).
+    /// IR 指纹用的二进制稳定内容哈希（Integer/Rational limb 线；不用渲染字符串）。
     ///
-    /// Other variants still mix a domain tag and a best-effort payload; full ANV1 wire coverage is later.
+    /// 其它变体仍混入域标签与尽力而为的载荷；完整 ANV1 线覆盖稍后。
     pub fn fingerprint_content_hash(&self) -> u64 {
         const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -443,7 +443,7 @@ impl NumericValue {
         }
     }
 
-    /// 可失败 owning 深复制（Living `19`）。
+    /// 可失败 owning 深复制。
     pub fn try_clone_in(&self, ctx: &crate::policy::execution_budget::NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         Ok(match self {
@@ -458,21 +458,5 @@ impl NumericValue {
             Self::FiniteField(v) => Self::FiniteField(v.try_clone_in(ctx)?),
             Self::PAdic(v) => Self::PAdic(v.try_clone_in(ctx)?),
         })
-    }
-}
-
-#[cfg(test)]
-mod fingerprint_content_tests {
-    use super::*;
-    use crate::integer::Integer;
-
-    #[test]
-    fn integer_content_hash_is_limb_stable() {
-        let a = Number::Integer(Integer::from_i64(42));
-        let b = Number::Integer(Integer::from_i64(42));
-        let c = Number::Integer(Integer::from_i64(43));
-        assert_eq!(a.fingerprint_content_hash(), b.fingerprint_content_hash());
-        assert_ne!(a.fingerprint_content_hash(), c.fingerprint_content_hash());
-        assert_eq!(a.fingerprint_domain_tag(), 1);
     }
 }

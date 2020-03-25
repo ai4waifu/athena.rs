@@ -1,19 +1,19 @@
-//! Closed mathematical constants (Living `27` frontend-neutral atoms).
+//! 封闭数学常量（前端中立原子）。
 //!
-//! Dialect surface names (`Pi`, `pi`, `π`, `E`, `e`, `ℯ`) map here only in SXO lowering.
-//! Athena execution must never re-infer these from user symbol display names.
+//! 方言表层名（`Pi`、`pi`、`π`、`E`、`e`、`ℯ`）仅在 SXO lowering 映射到此。
+//! Athena 执行不得从用户符号显示名反向推断这些常量。
 
-/// Typed mathematical constant atom payload.
+/// 类型化数学常量原子载荷。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MathematicalConstant {
-    /// Circle constant $\pi$.
+    /// 圆周率常量 π。
     Pi,
-    /// Base of the natural logarithm $e$.
+    /// 自然对数底 e。
     EulerNumber,
 }
 
 impl MathematicalConstant {
-    /// Stable discriminant for fingerprints / wire.
+    /// 指纹 / wire 用的稳定 discriminant。
     pub const fn discriminant(self) -> u8 {
         match self {
             Self::Pi => 1,
@@ -21,7 +21,7 @@ impl MathematicalConstant {
         }
     }
 
-    /// Debug / diagnostics label (not a dialect surface name contract).
+    /// 调试 / 诊断标签（不是方言表层名合同）。
     pub const fn debug_label(self) -> &'static str {
         match self {
             Self::Pi => "Pi",

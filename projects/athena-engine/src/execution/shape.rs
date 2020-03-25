@@ -1,11 +1,11 @@
-//! Cheap structural snapshot of a `TermId` (no numeric payload copy).
+//! `TermId` 的廉价结构快照（不复制数值载荷）。
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::{SymbolId, TermId};
 
 use crate::runtime::session::Session;
 
-/// Cheap structural snapshot (numbers are tagged `Number` without copying payload).
+/// 廉价结构快照（数字仅打 `Number` 标签，不复制载荷）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Shape {
     Number,
@@ -18,7 +18,7 @@ pub(crate) enum Shape {
     Application(ApplicationHead, Vec<TermId>),
 }
 
-/// Structural snapshot from a Session arena (no VM).
+/// 从 Session arena 取结构快照（无 VM）。
 pub(crate) fn term_shape(session: &Session, id: TermId) -> Option<Shape> {
     match session.arena.get(id)? {
         TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
@@ -32,9 +32,9 @@ pub(crate) fn term_shape(session: &Session, id: TermId) -> Option<Shape> {
     }
 }
 
-/// Debug / diagnostics head label (Session path).
+/// 调试 / 诊断用的头标签（Session 路径）。
 ///
-/// **Not for semantic dispatch** (Living `27`). Prefer [`crate::runtime::values::arena::application_head`].
+/// **不得用于语义分派**。优先使用 [`crate::runtime::values::arena::application_head`]。
 pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<String> {
     match session.arena.get(id)? {
         TermNode::Application { head, .. } => match *head {
@@ -48,13 +48,13 @@ pub(crate) fn debug_term_head_label(session: &Session, id: TermId) -> Option<Str
     }
 }
 
-/// Rebuild a semantic operator application in the Session arena.
+/// 在 Session arena 中重建语义算子应用。
 pub(crate) fn push_application_semantic(session: &mut Session, op: SemanticOperator, args: Vec<TermId>) -> TermId {
     let span = TermNode::default_span();
     session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(op), arguments: args }, span)
 }
 
-/// Rebuild an application from an [`ApplicationHead`].
+/// 从 [`ApplicationHead`] 重建应用。
 pub(crate) fn push_application_head(session: &mut Session, head: ApplicationHead, args: Vec<TermId>) -> TermId {
     let span = TermNode::default_span();
     session.arena.push(TermNode::Application { head, arguments: args }, span)

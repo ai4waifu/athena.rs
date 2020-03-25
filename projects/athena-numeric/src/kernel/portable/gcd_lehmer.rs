@@ -1,38 +1,36 @@
-//! # Purpose
-//! Lehmer-accelerated Euclidean GCD with binary-GCD fallback.
+//! # 用途
+//! Lehmer 加速的 Euclid GCD，失败时回退到二进制 GCD。
 //!
-//! # Mathematical model
-//! Euclidean algorithm preserves $\gcd(a,b)$. Lehmer simulates several quotient
-//! steps using only leading limbs, accumulating a unimodular $2 \times 2$ matrix
-//! applied as signed linear combinations to the full operands.
+//! # 数学模型
+//! Euclid 算法保持 `gcd(a,b)`。Lehmer 仅用前导 limb 模拟多步商，
+//! 累积幺模 `2×2` 矩阵，再以带符号线性组合施加到完整操作数。
 //!
-//! # Derivation
-//! Leading-limb bounds certify that a block of quotients matches the true
-//! Euclidean quotients; applying the matrix is then an exact multi-limb update.
-//! If certification fails, fall through to `binary_gcd`.
+//! # 推导
+//! 前导 limb 界证明一块商与真 Euclid 商一致；施加矩阵即为
+//! 精确的多 limb 更新。认证失败则落入 `binary_gcd`。
 //!
-//! # Algorithm steps
-//! 1. Normalize; swap so $a \ge b$.
-//! 2. While both widths $\ge$ LEHMER_THRESHOLD, try lehmer_step.
-//! 3. Finish with `binary_gcd`.
+//! # 算法步骤
+//! 1. 规范化；交换使 `a ≥ b`。
+//! 2. 当两端宽度均 `≥ LEHMER_THRESHOLD` 时尝试 `lehmer_step`。
+//! 3. 以 `binary_gcd` 收尾。
 //!
-//! # Preconditions
-//! - Canonical non-negative limb magnitudes (Vec convenience path today).
+//! # 前置条件
+//! - 规范的非负 limb 量级（当前为 `Vec` 便利路径）。
 //!
-//! # Postconditions
-//! - Returns $\gcd(a,b)$ as a canonical limb vector.
+//! # 后置条件
+//! - 返回 `gcd(a,b)` 的规范 limb 向量。
 //!
-//! # Complexity
-//! Similar to Euclidean with fewer full-precision divisions when Lehmer succeeds.
+//! # 复杂度
+//! 类似 Euclid；Lehmer 成功时全精度除法更少。
 //!
-//! # Crossover
-//! Small operands skip Lehmer and go straight to binary GCD.
+//! # 交叉阈值
+//! 小操作数跳过 Lehmer，直走二进制 GCD。
 //!
-//! # Failure modes
-//! lehmer_step returns `false` on unstable leading quotients (not an error).
+//! # 失败模式
+//! `lehmer_step` 在前导商不稳定时返回 `false`（非错误）。
 //!
-//! # Tests
-//! `tests/exact/limb_kernel.rs`, `tests/exact/algorithms.rs`.
+//! # 测试
+//! `tests/exact/limb_kernel.rs`、`tests/exact/algorithms.rs`。
 
 use std::cmp::Ordering;
 
@@ -73,14 +71,12 @@ pub(crate) fn gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
     binary_gcd(a, b)
 }
 
-/// Apply one Lehmer block of Euclidean quotients using leading limbs only.
+/// 仅用前导 limb 施加一块 Euclid 商的 Lehmer 步。
 ///
-/// A 2×2 matrix accumulates candidate quotients while the leading-limb bounds
-/// prove they are stable. The matrix is then applied as signed linear
-/// combinations to the full operands. Returning `false` means the prediction
-/// was not certified or no progress was made, so the caller must perform one
-/// exact remainder step. This preserves gcd because unimodular Euclidean
-/// transforms preserve the common-divisor set.
+/// `2×2` 矩阵在前导 limb 界证明稳定时累积候选商，再以带符号
+/// 线性组合施加到完整操作数。返回 `false` 表示预测未认证
+/// 或无进度，调用方须做一次精确取余。因幺模 Euclid
+/// 变换保持公因子集合，故仍保持 gcd。
 fn lehmer_step(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
     let na = effective_len(a);
     let nb = effective_len(b);

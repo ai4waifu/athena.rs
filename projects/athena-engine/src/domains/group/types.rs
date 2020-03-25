@@ -53,7 +53,7 @@ pub struct Subgroup {
 
 /// 置换：像列表 `π(i) = images[i]`（0-based；度数由 presentation 解释）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct Permutation {
     /// 像（长度须等于 presentation 的 degree）。
@@ -61,7 +61,7 @@ pub struct Permutation {
 }
 
 impl Permutation {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { images: self.images.clone() }
     }
@@ -93,18 +93,16 @@ impl GroupDescriptor {
     /// Owning 复制：`Integer` 经 GC [`clone_integer`]。
     pub fn owning_copy(&self) -> Self {
         match self {
-            Self::Abstract { order, properties } => Self::Abstract {
-                order: owning_copy_integer_property(order),
-                properties: properties.owning_copy(),
-            },
+            Self::Abstract { order, properties } => {
+                Self::Abstract { order: owning_copy_integer_property(order), properties: properties.owning_copy() }
+            }
             Self::Permutation { degree } => Self::Permutation { degree: *degree },
         }
     }
 }
 
-
 impl Group {
-    /// Owning 复制（Living 31）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,
@@ -115,17 +113,15 @@ impl Group {
     }
 }
 
-
 impl Subgroup {
-    /// Owning 复制（Living 31：仅 id 句柄，无堆数值）。
+    /// Owning 复制（仅 id 句柄，无堆数值）。
     pub fn owning_copy(&self) -> Self {
         Self { id: self.id, parent: self.parent, group: self.group, inclusion: self.inclusion }
     }
 }
 
-
 impl GroupElementRepr {
-    /// Owning 复制（Living 31）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::TableIndex(i) => Self::TableIndex(*i),
@@ -134,16 +130,9 @@ impl GroupElementRepr {
     }
 }
 
-
 impl GroupElement {
-    /// Owning 复制（Living 31）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            id: self.id,
-            group: self.group,
-            presentation: self.presentation,
-            repr: self.repr.owning_copy(),
-        }
+        Self { id: self.id, group: self.group, presentation: self.presentation, repr: self.repr.owning_copy() }
     }
 }
-

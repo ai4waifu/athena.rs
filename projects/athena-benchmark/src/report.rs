@@ -12,7 +12,7 @@ use crate::{
     validate::ValidationSummary,
 };
 
-/// Living `15`/`12` 三类报告分层（禁止互相冒充）。
+/// 三类报告分层（禁止互相冒充）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReportTier {
@@ -125,7 +125,7 @@ impl Report {
         let other: Vec<&FixtureReport> = self.fixtures.iter().filter(|f| f.group != "bigint" && f.group != "path").collect();
 
         if !path_rows.is_empty() {
-            out.push_str("## path segments（Living 18）\n\n");
+            out.push_str("## path segments\n\n");
             out.push_str("| id | layer | ctx | gc | ok | arena | scratch | notes |\n|---|---|---|---|---|---:|---:|---|\n");
             for f in path_rows {
                 let _ = writeln!(

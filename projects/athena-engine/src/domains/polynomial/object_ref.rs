@@ -1,4 +1,4 @@
-//! Living `28` 多项式 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
+//! 多项式 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
@@ -11,7 +11,7 @@ use super::{
     ring_table::RingTable,
 };
 
-/// Session-local polynomial DomainObject handle（Living `28`）。
+/// Session 局部多项式 DomainObject 句柄。
 ///
 /// 稳定数学身份用 [`PolynomialFingerprint`] / [`ObjectRef`]；本类型只在当前 Session 内寻址 payload。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -95,7 +95,7 @@ fn fingerprint_or_provisional(poly: &Polynomial, rings: &RingTable) -> Polynomia
     }
 }
 
-/// Collect DomainObject handles already present on a typed request.
+/// 收集 typed 请求上已有的 DomainObject 句柄。
 pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
     match request {
         PolynomialRequest::Normalize { polynomial }
@@ -121,12 +121,12 @@ pub fn refs_from_request(request: &PolynomialRequest) -> Vec<PolynomialRef> {
     }
 }
 
-/// Build M-Graph [`ObjectRef`] list for handles (skips missing slots).
+/// 为句柄构造 M-Graph [`ObjectRef`] 列表（跳过缺失槽）。
 pub fn object_refs_for(store: &PolynomialObjectStore, refs: &[PolynomialRef]) -> Vec<ObjectRef> {
     refs.iter().filter_map(|r| store.object_ref(*r)).collect()
 }
 
-/// Convenience: collect [`ObjectRef`]s for a request's handles.
+/// 便利：收集请求句柄对应的 [`ObjectRef`]。
 pub fn intern_request_object_refs(
     request: &PolynomialRequest,
     _rings: &RingTable,
@@ -134,21 +134,4 @@ pub fn intern_request_object_refs(
 ) -> Result<Vec<ObjectRef>> {
     let refs = refs_from_request(request);
     Ok(object_refs_for(store, &refs))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use athena_types::RingId;
-
-    #[test]
-    fn intern_dedupes_by_fingerprint() {
-        let rings = RingTable::default();
-        let mut store = PolynomialObjectStore::new();
-        let a = store.intern(Polynomial::zero(RingId(0)), &rings);
-        let b = store.intern(Polynomial::zero(RingId(0)), &rings);
-        assert_eq!(a, b);
-        assert_eq!(store.len(), 1);
-        assert!(store.object_ref(a).is_some());
-    }
 }

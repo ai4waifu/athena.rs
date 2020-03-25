@@ -67,19 +67,3 @@ impl CongruenceIndex {
 pub fn congruence_proposition(modulus_fingerprint: u64, left: u64, right: u64) -> crate::reasoning::mgraph::facts::claim::Proposition {
     crate::reasoning::mgraph::facts::claim::Proposition::Congruence { modulus_fingerprint, left, right }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn distinct_moduli_do_not_share_equivalence() {
-        let mut index = CongruenceIndex::default();
-        index.union(7, 10, 20);
-        index.union(11, 10, 30);
-        assert_eq!(index.find(7, 10), index.find(7, 20));
-        assert_ne!(index.find(7, 10), index.find(7, 30));
-        assert_eq!(index.find(11, 10), index.find(11, 30));
-        assert_eq!(index.modulus_count(), 2);
-    }
-}

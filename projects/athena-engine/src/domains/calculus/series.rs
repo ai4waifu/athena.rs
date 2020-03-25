@@ -1,4 +1,4 @@
-//! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
+//! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · ）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
@@ -12,7 +12,7 @@ use crate::{domains::context::DomainExecutionContext, execution::shape::Shape};
 
 /// 截断级数的余项标注。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum Remainder {
     /// 精确截断（多项式次数 ≤ order）。
@@ -26,7 +26,7 @@ pub enum Remainder {
 }
 
 impl Remainder {
-    /// Owning 复制（Living `31`：仅 `TermId` 句柄）。
+    /// Owning 复制（仅 `TermId` 句柄）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::ExactTruncation => Self::ExactTruncation,
@@ -39,7 +39,7 @@ impl Remainder {
 
 /// 独立级数值（非裸多项式列表）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct Series {
     /// 展开变量。
@@ -57,7 +57,7 @@ pub struct Series {
 }
 
 impl Series {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             variable: self.variable,

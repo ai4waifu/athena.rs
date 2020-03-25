@@ -1,6 +1,6 @@
 //! 稳定标识符 newtype（IR 与注册表）。
 
-/// 不可变符号项身份（Living `25`：`TermStore` 原生引用，不是二级映射句柄）。
+/// 不可变符号项身份（`TermStore` 原生引用，不是二级映射句柄）。
 ///
 /// 已计算值用 [`ValueId`]；结果容器用 [`ResultId`]。禁止与二者互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -94,7 +94,7 @@ pub struct ValueId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ResultId(pub u32);
 
-/// 可恢复计算前沿身份（Living `30` `FrontierStore` · Session-local）。
+/// 可恢复计算前沿身份（`FrontierStore` · Session-local）。
 ///
 /// 不得与 [`TermId`] / [`ValueId`] / [`ResultId`] 互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

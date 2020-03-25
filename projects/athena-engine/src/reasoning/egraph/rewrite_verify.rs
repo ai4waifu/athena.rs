@@ -1,4 +1,4 @@
-//! Replay-verify typed rewrite candidates before M-Graph admission (Living `03` R-2.5 / `26`).
+//! 在 M-Graph 接纳前，回放验证带类型的重写候选。
 
 use athena_ir::TermStore;
 use athena_rewriter::{PatternBindings, match_pattern, substitute};
@@ -14,7 +14,7 @@ use crate::reasoning::{
 
 use super::pipeline::EGRAPH_PROVIDER_ID;
 
-/// Replay `match_pattern` + `substitute` and upgrade to ProvenExact when the candidate right-hand side matches.
+/// 回放 `match_pattern` + `substitute`；当候选右侧匹配时升级为 `ProvenExact`。
 pub fn verify_typed_rewrite_candidate(
     store: &mut TermStore,
     rules: &TypedRuleSet,
@@ -44,7 +44,7 @@ pub fn verify_typed_rewrite_candidate(
     })
 }
 
-/// Verify then admit one typed rewrite candidate.
+/// 验证并接纳一条带类型的重写候选。
 pub fn admit_typed_rewrite_candidate(
     store: &mut TermStore,
     semantic: &mut SemanticCore,
@@ -56,7 +56,7 @@ pub fn admit_typed_rewrite_candidate(
     AdmissionGate::admit_claim(semantic, claim, policy)
 }
 
-/// Admit all candidates that replay successfully under `rules` (skips non-rule / failed replay).
+/// 接纳在 `rules` 下回放成功的全部候选（跳过非规则 / 回放失败者）。
 pub fn admit_typed_rewrite_candidates(
     store: &mut TermStore,
     semantic: &mut SemanticCore,

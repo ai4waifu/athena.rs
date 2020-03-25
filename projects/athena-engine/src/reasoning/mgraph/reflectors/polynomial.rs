@@ -1,4 +1,4 @@
-//! 多项式 SemanticReflector（Living `29`）。
+//! 多项式 SemanticReflector。
 
 use crate::{
     domains::{DomainRequest, planner::plan_domain, polynomial::PolynomialRequest},
@@ -23,47 +23,9 @@ impl SemanticReflector for PolynomialReflector {
         if obligation.known_objects.is_empty() {
             return Reflection::NeedObject { object_kind: "PolynomialRef" };
         }
-        // `DomainPlan` from DomainPlanner (Normalize → … → Materialize). Object identity
-        // is already carried by the obligation fingerprint; request is rebound at execute.
+        // `DomainPlan` 来自 DomainPlanner（Normalize → … → Materialize）。
+        // 对象身份已由义务指纹携带；请求在执行时再绑定。
         let scaffold = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: crate::domains::polynomial::PolynomialRef(0) });
         Reflection::NeedComputation { plan: plan_domain(&scaffold) }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domains::planner::PlanStep,
-        reasoning::mgraph::{MGraphCore, ObjectRef, ScopeRef, TheoryContextId},
-    };
-
-    #[test]
-    fn polynomial_result_needs_object_when_empty() {
-        let core = MGraphCore::new();
-        let view = MGraphView::new(&core);
-        let obligation =
-            ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
-        match PolynomialReflector.reflect(&obligation, &view) {
-            Reflection::NeedObject { object_kind } => assert_eq!(object_kind, "PolynomialRef"),
-            other => panic!("expected NeedObject, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn polynomial_result_needs_computation_when_object_present() {
-        let core = MGraphCore::new();
-        let view = MGraphView::new(&core);
-        let obligation = ProofObligation {
-            predicate: predicates::POLYNOMIAL_RESULT,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![ObjectRef::new(TheoryContextId::POLYNOMIAL, 1)],
-        };
-        match PolynomialReflector.reflect(&obligation, &view) {
-            Reflection::NeedComputation { plan } => {
-                assert!(plan.steps.iter().any(|s| matches!(s, PlanStep::CallDomainProvider)));
-            }
-            other => panic!("expected NeedComputation, got {other:?}"),
-        }
     }
 }

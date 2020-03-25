@@ -6,7 +6,7 @@ use crate::domains::polynomial::Polynomial;
 
 /// 伽罗瓦域请求。
 ///
-/// Living `31`：**不**实现 [`Clone`]。含多项式载荷时用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。含多项式载荷时用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum GaloisRequest {
     /// 多项式在基域上是否可分。
@@ -53,7 +53,7 @@ pub enum GaloisRequest {
 }
 
 impl GaloisRequest {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::IsPolynomialSeparable { polynomial, base_field } => {

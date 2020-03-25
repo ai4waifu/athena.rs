@@ -29,7 +29,7 @@ use crate::reasoning::mgraph::{
 };
 /// 闭包传播种子（按需扩展）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（语义路径容器；优先按值移动 / 重建）。
+/// **不**实现 [`Clone`]（语义路径容器；优先按值移动 / 重建）。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ClosureSeeds {
     /// 起始 scope（空 = 全图按需）。
@@ -38,7 +38,7 @@ pub struct ClosureSeeds {
 
 /// 实现层 M-Graph 语义核心（**无** RootUniverse / OuterWorld / 全局对象表）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（含 owning [`RelationIndex`]）。
+/// **不**实现 [`Clone`]（含 owning [`RelationIndex`]）。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct MGraphCore {
     scope_index: ScopeIndex,
@@ -79,12 +79,12 @@ impl MGraphCore {
         self.scope_index.try_add_relation(from, to, ScopeRelationKind::Refines)
     }
 
-    /// Register that `from` may consult local facts of `to` (Living `29` Compatible).
+    /// 登记 `from` 可查阅 `to` 的局部事实（Compatible）。
     pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) -> Result<(), ScopeRelationConflict> {
         self.scope_index.try_add_relation(from, to, ScopeRelationKind::CompatibleWith)
     }
 
-    /// Register that `a` and `b` must not share query-time transport (Living `29` Incompatible).
+    /// 登记 `a` 与 `b` 不得共享查询期传输（Incompatible）。
     pub fn mark_scopes_incompatible(&mut self, a: ScopeRef, b: ScopeRef) -> Result<(), ScopeRelationConflict> {
         self.scope_index.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith)
     }
@@ -92,11 +92,11 @@ impl MGraphCore {
     /// 对已接纳关系做必要闭包传播（当前：经 [`crate::reasoning::mgraph::run_closure_step`] 物化传递性证明边）。
     ///
     /// `seeds` 预留 scope 过滤；bootstrap 忽略并在全 semantic 上运行。
-    /// Scope `Refines` transport remains **query-time** via [`MGraphView::find_accepted`]
-    /// (no fiber copying into unconditional closure).
+    /// 作用域 `Refines` 传输仍为 **查询期**，经 [`MGraphView::find_accepted`]
+    /// （不会把 fiber 复制进无条件闭包）。
     pub fn close(&mut self, _seeds: &ClosureSeeds) {
         let _ = self;
-        // Equality-forest closure runs on [`MGraphState`] via [`run_closure_step`].
+        // 等式森林闭包在 [`MGraphState`] 上经 [`run_closure_step`] 运行。
     }
 
     /// 关系条数。
@@ -127,24 +127,24 @@ impl<'a> MGraphView<'a> {
         self.core.relation_index().get(id)
     }
 
-    /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Living `29` Reflector 短路）。
+    /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Reflector 短路）。
     ///
-    /// Query-time transport: also search scopes reachable via registered
-    /// [`ScopeRelationKind::Refines`] edges (`scope ⊑ ancestor`), plus local
-    /// [`ScopeRelationKind::CompatibleWith`] peers. Fibers marked
-    /// [`ScopeRelationKind::IncompatibleWith`] the query scope are skipped.
-    /// Does **not** copy relations into other fibers or the unconditional closure.
+    /// 查询期传输：同时搜索经已登记
+    /// [`ScopeRelationKind::Refines`] 边可达的作用域（`scope ⊑ ancestor`），以及局部
+    /// [`ScopeRelationKind::CompatibleWith`] 对等体。标记为
+    /// [`ScopeRelationKind::IncompatibleWith`] 查询作用域的 fiber 会被跳过。
+    /// **不会** 把关系复制到其他 fiber 或无条件闭包。
     pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
         self.find_accepted(scope, predicate, &[])
     }
 
     /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
     ///
-    /// Transport rules (bootstrap):
-    /// - Walk `Refines` ancestors (`scope ⊑* ancestor`), skipping fibers marked
-    ///   `IncompatibleWith` the query scope.
-    /// - Additionally consult **local** facts of `CompatibleWith` peers (no peer
-    ///   ancestor expansion). `IncompatibleWith` wins over `CompatibleWith`.
+    /// 传输规则（引导实现）：
+    /// - 沿 `Refines` 祖先行走（`scope ⊑* ancestor`），跳过标记为
+    ///   与查询作用域 `IncompatibleWith` 的 fiber。
+    /// - 额外查阅 `CompatibleWith` 对等体的 **局部** 事实（不扩展对等体
+    ///   的祖先）。`IncompatibleWith` 优先于 `CompatibleWith`。
     pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
         let scopes = self.core.scope_index();
         let mut visited = std::collections::HashSet::new();
@@ -164,7 +164,7 @@ impl<'a> MGraphView<'a> {
                     stack.push(ancestor);
                 }
             }
-            // Compatible peers: local fiber only (do not push onto Refines walk).
+            // Compatible 对等体：仅局部 fiber（不压入 Refines 行走）。
             for peer in scopes.compatible_peers(current) {
                 if visited.contains(&peer) || scopes.incompatible_with(scope, peer) {
                     continue;

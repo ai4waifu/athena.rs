@@ -52,7 +52,7 @@ pub enum Interval {
 }
 
 impl Interval {
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
         Ok(match self {
             Self::Empty => Self::Empty,

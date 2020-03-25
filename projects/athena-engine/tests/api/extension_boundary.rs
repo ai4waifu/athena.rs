@@ -1,4 +1,4 @@
-//! Extension surface names must not become core semantic dispatch.
+//! 扩展表面名不得变成核心语义分派。
 
 use athena_engine::runtime::values::arena::push_extension;
 use athena_ir::{ApplicationHead, Atom, TermNode};

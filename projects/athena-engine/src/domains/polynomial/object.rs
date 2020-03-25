@@ -8,7 +8,7 @@ use crate::runtime::values::numeric_clone::clone_number;
 /// 单项式项：系数 × 指数向量（与环变量表对齐）。
 ///
 /// 字段私有：禁止外部构造出零系数、错误宽度或未校验的项。
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct MonomialTerm {
     pub(crate) coefficient: Number,
@@ -41,27 +41,27 @@ impl MonomialTerm {
         self.exponents.clone()
     }
 
-    /// Owning 复制（Living `31`：显式深复制，禁止默认 `Clone`）。
+    /// Owning 复制（显式深复制，禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { coefficient: clone_number(&self.coefficient), exponents: self.exponents.clone() }
     }
 }
 
-/// 规范多项式对象身份（Living `30` G1 / 对象边界冻结名）。
+/// 规范多项式对象身份。
 ///
 /// 不变量：同环、非零项、每单项式至多一项、按环单项式序排序。
 /// 仅 [`super::PolynomialBuilder`]、[`super::canonicalize_polynomial`] 与 crate 内受信任路径可构造。
 /// 这是多项式域实体，不是 Athena `Term`，也不是方言 Expression。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]（后续应改为目标 heap 的显式 GC clone）。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]（后续应改为目标 heap 的显式 GC clone）。
 #[derive(Debug, PartialEq)]
 pub struct CanonicalPolynomial {
     pub(crate) ring: RingId,
     pub(crate) terms: Vec<MonomialTerm>,
 }
 
-/// 算法层历史名；与 [`CanonicalPolynomial`] 同一类型（非第二身份）。
-pub type Polynomial = CanonicalPolynomial;
+/// 算法调用点短名：与 [`CanonicalPolynomial`] 同一类型。
+pub use CanonicalPolynomial as Polynomial;
 
 impl CanonicalPolynomial {
     /// 零多项式。
@@ -94,7 +94,7 @@ impl CanonicalPolynomial {
         (self.ring, self.terms)
     }
 
-    /// Owning 复制（Living `31`：显式深复制，禁止默认 `Clone`）。
+    /// Owning 复制（显式深复制，禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { ring: self.ring, terms: self.terms.iter().map(MonomialTerm::owning_copy).collect() }
     }

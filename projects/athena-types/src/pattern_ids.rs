@@ -1,4 +1,4 @@
-//! 模式与值类型约束句柄（Living `27` · 禁止字符串 head 约束）。
+//! 模式与值类型约束句柄（· 禁止字符串 head 约束）。
 
 /// 值类型身份（模式 / 守卫用，非方言表面名）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

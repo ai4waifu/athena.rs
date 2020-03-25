@@ -63,7 +63,7 @@ fn roundtrip_rational_poly_via_large_prime_image() {
     use athena_engine::domains::polynomial::reconstruct_polynomial_from_modular_image;
     let mut rings = RingTable::new();
     let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    // Large enough for default Wang bound on small rationals.
+    // 对小有理数足够覆盖默认 Wang 界。
     let p = rings.intern_over_prime_field(Integer::from_i64(97), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b = PolynomialBuilder::new(q);
     b.push_term(Number::rational_i64(2, 3).unwrap(), vec![1]).unwrap();
@@ -109,7 +109,7 @@ fn smoke_groebner_over_fp_then_reconstruct() {
     let verified = gb.as_verified().expect("verified over Fp");
     assert_eq!(verified.basis().len(), 1);
     let rebuilt = reconstruct_polynomial_from_modular_image(&verified.basis()[0], &image.modulus, q, &rings).unwrap();
-    // Monic Fp basis reconstructs to a non-zero bivariate-shaped univariate with two terms.
+    // 首一 Fp 基重构为非零、双变量形态的两项一元多项式。
     assert!(!rebuilt.is_zero());
     assert_eq!(rebuilt.terms().len(), 2);
 }
@@ -204,7 +204,7 @@ fn reconstruct_single_generator_groebner_via_two_primes() {
     let poly = b.build(&rings).unwrap();
     let basis = reconstruct_groebner_basis_via_crt(&[poly.owning_copy()], &[p5, p7], z, q, &rings, GroebnerLimits::default()).unwrap();
     assert_eq!(basis.len(), 1);
-    // Current Buchberger path does not force monic bases. CRT recovers the modular images of the generator.
+    // 当前 Buchberger 路径不强制首一基。CRT 恢复生成元的模像。
     assert_eq!(basis[0], poly);
 }
 

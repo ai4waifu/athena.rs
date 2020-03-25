@@ -19,7 +19,9 @@ pub enum PolynomialCacheTier {
 }
 
 /// 多项式运算 witness（可验证 metadata）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq, Eq)]
 pub struct PolynomialWitness {
     /// 操作。
     pub operation: PolynomialCacheOp,
@@ -31,9 +33,21 @@ pub struct PolynomialWitness {
     pub groebner_steps: Option<u32>,
 }
 
+impl PolynomialWitness {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            operation: self.operation,
+            input_hashes: self.input_hashes.clone(),
+            output_summary: self.output_summary.clone(),
+            groebner_steps: self.groebner_steps,
+        }
+    }
+}
+
 /// 单条缓存项。
 ///
-/// Living `31`：**不**实现 [`Clone`]（结果含多项式 owning 载荷）。
+/// **不**实现 [`Clone`]（结果含多项式 owning 载荷）。
 #[derive(Debug, PartialEq)]
 pub struct PolynomialCacheEntry {
     /// 缓存键。
@@ -48,7 +62,7 @@ pub struct PolynomialCacheEntry {
 
 /// M-Graph 内多项式子图状态。
 ///
-/// Living `31`：**不**实现 [`Clone`]。
+/// **不**实现 [`Clone`]。
 #[derive(Debug, Default, PartialEq)]
 pub struct PolynomialMGraphStore {
     /// 已接纳结果（semantic core 关联层）。

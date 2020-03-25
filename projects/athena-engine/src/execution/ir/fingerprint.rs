@@ -1,4 +1,4 @@
-//! Source-independent module fingerprint (not `TermId` indices or renderer text).
+//! 与源无关的 module 指纹（不是 `TermId` 下标或渲染文本）。
 
 use std::{
     collections::hash_map::DefaultHasher,
@@ -7,16 +7,15 @@ use std::{
 
 use super::module::ExecutionModule;
 
-/// Stable fingerprint over structural module content.
+/// 对 module 结构内容的稳定指纹。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ModuleFingerprint(pub u64);
 
 impl ModuleFingerprint {
-    /// Compute a structural fingerprint.
+    /// 计算结构指纹。
     ///
-    /// Uses a dedicated seed so default hasher instability across processes is
-    /// not silently treated as a cache key. Callers that need cross-process
-    /// stability must replace this with a fixed-byte canonical encode later.
+    /// 使用专用种子，避免默认 hasher 跨进程不稳定被静默当作缓存键。
+    /// 需要跨进程稳定性的调用方，日后须换成固定字节的规范编码。
     pub fn of_module(module: &ExecutionModule) -> Self {
         let mut hasher = DefaultHasher::new();
         0x4154_4845_4e41_4558u64.hash(&mut hasher); // "ATHENAEX"

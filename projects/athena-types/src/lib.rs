@@ -54,7 +54,7 @@ pub enum RoundingMode {
 pub enum Precision {
     /// 精确算术。
     Exact,
-    /// IEEE binary64。
+    /// IEEE binary64 浮点。
     Machine,
     /// 任意比特精度。
     ArbitraryBits(u32),

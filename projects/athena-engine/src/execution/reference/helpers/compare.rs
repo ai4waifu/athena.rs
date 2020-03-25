@@ -1,4 +1,4 @@
-//! Compare / boolean helpers for the reference executor.
+//! Reference 执行器的比较 / 布尔辅助。
 
 use std::cmp::Ordering;
 
@@ -76,7 +76,7 @@ pub(crate) fn compare_pair_term(
     right: TermId,
     pick: fn(Ordering) -> bool,
 ) -> Result<TermId> {
-    // Nested lists recurse through broadcast.
+    // 嵌套列表经广播递归。
     if matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { elements: _, .. }))
         || matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { elements: _, .. }))
     {
@@ -91,7 +91,7 @@ pub(crate) fn compare_pair_term(
     }
 }
 
-/// Logic ops: Boolean atoms · `True`/`False` · exact `0`/`1`.
+/// 逻辑运算：Boolean 原子 · `True`/`False` · 精确 `0`/`1`。
 pub(crate) fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
     match slot {
         Slot::Boolean(v) => Some(v),

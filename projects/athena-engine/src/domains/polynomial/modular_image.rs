@@ -1,4 +1,4 @@
-//! 多项式模同态：ℤ / ℚ → 𝔽_p 系数像（Living `30` G1 modular image）。
+//! 多项式模同态：ℤ / ℚ → 𝔽_p 系数像（G1 modular image）。
 
 use athena_numeric::{Integer, Modulus, Number, Rational};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
@@ -35,7 +35,7 @@ pub struct ModularImage {
 }
 
 impl ModularImage {
-    /// Owning 复制（Living `31`：[`Modulus`] / 多项式载荷禁止默认 `Clone`）。
+    /// Owning 复制（[`Modulus`] / 多项式载荷禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self {
             source_ring: self.source_ring,
@@ -231,7 +231,7 @@ pub fn reconstruct_groebner_basis_via_crt(
             .detail("domain", "polynomial")
             .detail("operation", "crt_groebner_basis_length_mismatch"));
     }
-    // Align by leading monomial exponents (stable sort within each prime).
+    // 按首项指数对齐（各素数内稳定排序）。
     for basis in &mut modular_bases {
         basis.sort_by(|a, b| leading_exponents(&a.image).cmp(&leading_exponents(&b.image)));
     }
@@ -253,7 +253,7 @@ pub fn reconstruct_groebner_basis_via_crt(
     Ok(reconstructed)
 }
 
-/// CRT 重构后再在目标环上独立 `verify_groebner_basis`（Living `30` G1 候选→可验证）。
+/// CRT 重构后再在目标环上独立 `verify_groebner_basis`（G1 候选→可验证）。
 ///
 /// 验证失败返回稳定诊断 token，不把未通过的基标成 ProvenExact。
 pub fn reconstruct_and_verify_groebner_basis_via_crt(
@@ -451,7 +451,7 @@ fn reduce_rational(r: &Rational, modulus: &Modulus) -> Result<Number> {
     if d.is_one() {
         return Ok(Number::integer(n));
     }
-    // n * d^{-1} mod p via Fp kernel path on Integer residues.
+    // n * d^{-1} mod p，经 Fp kernel 在 Integer 剩余上走。
     let inv = crate::domains::number_theory::mod_inverse(&d, modulus)?;
     let inv_res = inv.residue();
     let product = n.mul(&inv_res);

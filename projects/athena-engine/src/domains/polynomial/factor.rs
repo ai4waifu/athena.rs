@@ -1,4 +1,4 @@
-//! 多项式因式分解（骨架合同 · Living `08`）。
+//! 多项式因式分解（骨架合同 · ）。
 //!
 //! 完整性模型对齐数论 [`crate::domains::number_theory::Factorization`]：禁止裸 `Vec<Polynomial>`。
 //! 常数 / 一次完整；ℚ/ℤ 上有理根试除 + 二次判别式；更高未裂余式显式 `Partial`。
@@ -100,14 +100,14 @@ pub struct PolynomialFactorization {
 }
 
 impl PolynomialFactorComponent {
-    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { base: self.base.owning_copy(), exponent: self.exponent, status: self.status }
     }
 }
 
 impl PolynomialFactorization {
-    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self {
             ring: self.ring,
@@ -397,7 +397,7 @@ fn find_rational_root(poly: &Polynomial) -> Result<Option<Number>> {
     else {
         return Ok(None);
     };
-    // Clear denominators: work with integer constant/leading of content-cleared poly.
+    // 清分母：在去内容后的多项式上对常数/首项做整数运算。
     let c_int = c_r.numerator();
     let a_int = a_r.numerator();
     for p in signed_divisors(&c_int) {
@@ -429,7 +429,7 @@ fn eval_poly_at(poly: &Polynomial, x: &Number) -> Result<Number> {
 }
 
 fn linear_factor_for_root(ring: RingId, rings: &RingTable, root: &Number) -> Result<Polynomial> {
-    // q x - p for root p/q
+    // 根 p/q 对应一次因子 q x − p
     let Some(r) = number_as_rational(root)
     else {
         return Err(diag_poly("root_not_rational"));

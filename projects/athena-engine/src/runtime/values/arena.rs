@@ -53,27 +53,27 @@ pub fn push_symbol_name(session: &mut Session, name: &str) -> TermId {
     b.symbol(name, default_span())
 }
 
-/// Construct a closed mathematical constant atom.
+/// 构造封闭数学常量原子。
 pub fn push_constant(session: &mut Session, value: athena_ir::MathematicalConstant) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
     b.constant(value, default_span())
 }
 
-/// Construct a core semantic application.
+/// 构造核心语义应用。
 pub fn push_semantic(session: &mut Session, op: SemanticOperator, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
     b.application_semantic(op, args, default_span())
 }
 
-/// Construct an extension application from a registered [`athena_types::ExtensionOperatorId`].
+/// 由已注册的 [`athena_types::ExtensionOperatorId`] 构造扩展应用。
 ///
-/// Never maps a display string onto core [`SemanticOperator`] semantics (Living `27`).
+/// 禁止把显示名映射到核心 [`SemanticOperator`] 语义。
 pub fn push_extension(session: &mut Session, op: athena_types::ExtensionOperatorId, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
     b.application_extension_id(op, args, default_span())
 }
 
-/// Construct an application from an explicit head.
+/// 由显式 head 构造应用。
 pub fn push_application_head(session: &mut Session, head: ApplicationHead, args: Vec<TermId>) -> TermId {
     let mut b = TermBuilder::new(&mut session.arena);
     b.application(head, args, default_span())
@@ -90,10 +90,10 @@ pub fn get_kind<'a>(session: &'a Session, id: TermId) -> Option<&'a TermNode> {
     session.arena.get(id)
 }
 
-/// Display / diagnostics / render label for an application head.
+/// 应用 head 的显示 / 诊断 / 渲染标签。
 ///
-/// **Not for semantic dispatch** (Living `27`). Prefer [`application_head`] +
-/// `match` on [`ApplicationHead`] / [`SemanticOperator`] in core paths.
+/// **不作语义分派**。核心路径请用 [`application_head`]，再 `match`
+/// [`ApplicationHead`] / [`SemanticOperator`]。
 pub fn application_display_name(session: &Session, id: TermId) -> Option<String> {
     let TermNode::Application { head, .. } = session.arena.get(id)?
     else {
@@ -105,7 +105,7 @@ pub fn application_display_name(session: &Session, id: TermId) -> Option<String>
     }
 }
 
-/// Application head enum if present.
+/// 若存在则返回应用 head 枚举。
 pub fn application_head(session: &Session, id: TermId) -> Option<ApplicationHead> {
     match session.arena.get(id)? {
         TermNode::Application { head, .. } => Some(*head),
@@ -140,7 +140,7 @@ pub fn number_from_id<'a>(session: &'a Session, id: TermId) -> Option<&'a Number
 
 /// 将节点解释为 typed Boolean（仅 `Atom::Boolean` 与精确 `0`/`1` 数字）。
 ///
-/// Living `27`：禁止用用户符号显示名 `"True"` / `"False"` 反推布尔语义。
+/// 禁止用用户符号显示名 `"True"` / `"False"` 反推布尔语义。
 pub fn as_boolean_id(session: &Session, id: TermId) -> Option<bool> {
     match session.arena.get(id)? {
         TermNode::Atom(Atom::Boolean(b)) => Some(*b),

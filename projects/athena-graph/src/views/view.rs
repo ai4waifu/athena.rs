@@ -83,7 +83,7 @@ impl<'a, N, E> ReversedGraphView<'a, N, E> {
         Ok(SourceNodeRef::new(self.mapping.base_graph_id, self.mapping.base_revision, base))
     }
 
-    /// [`ViewEdgeRef`] → [`SourceEdgeRef`]。
+    /// [`ViewEdgeRef`] 映射到 [`SourceEdgeRef`]。
     pub fn map_view_edge_to_source(&self, view_ref: ViewEdgeRef) -> Result<SourceEdgeRef, GraphError> {
         self.ensure_fresh()?;
         ensure_view_ref(self.mapping.view_fingerprint, view_ref.view)?;
@@ -133,7 +133,7 @@ impl<'a, N, E> ReversedGraphView<'a, N, E> {
 
 /// 诱导子图视图（仅保留给定节点及其内部边）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug)]
 pub struct InducedSubgraphView<'a, N, E> {
     graph: &'a MutableGraph<N, E>,
@@ -150,13 +150,9 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
         Self { graph, nodes, mapping }
     }
 
-    /// Owning 复制（Living `31`：节点过滤集；底图仍为借用）。
+    /// Owning 复制（节点过滤集；底图仍为借用）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            graph: self.graph,
-            nodes: self.nodes.clone(),
-            mapping: self.mapping,
-        }
+        Self { graph: self.graph, nodes: self.nodes.clone(), mapping: self.mapping }
     }
 
     /// 底图映射合同。
@@ -190,7 +186,7 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
         Ok(ViewEdgeRef::new(self.mapping.view_fingerprint, edge))
     }
 
-    /// [`ViewNodeRef`] → [`SourceNodeRef`]。
+    /// [`ViewNodeRef`] 映射到 [`SourceNodeRef`]。
     pub fn map_view_node_to_source(&self, view_ref: ViewNodeRef) -> Result<SourceNodeRef, GraphError> {
         self.ensure_fresh()?;
         ensure_view_ref(self.mapping.view_fingerprint, view_ref.view)?;
@@ -198,7 +194,7 @@ impl<'a, N, E> InducedSubgraphView<'a, N, E> {
         Ok(SourceNodeRef::new(self.mapping.base_graph_id, self.mapping.base_revision, base))
     }
 
-    /// [`ViewEdgeRef`] → [`SourceEdgeRef`]。
+    /// [`ViewEdgeRef`] 映射到 [`SourceEdgeRef`]。
     pub fn map_view_edge_to_source(&self, view_ref: ViewEdgeRef) -> Result<SourceEdgeRef, GraphError> {
         self.ensure_fresh()?;
         ensure_view_ref(self.mapping.view_fingerprint, view_ref.view)?;
@@ -306,7 +302,7 @@ where
         Ok(ViewEdgeRef::new(self.mapping.view_fingerprint, edge))
     }
 
-    /// [`ViewNodeRef`] → [`SourceNodeRef`]。
+    /// [`ViewNodeRef`] 映射到 [`SourceNodeRef`]。
     pub fn map_view_node_to_source(&self, view_ref: ViewNodeRef) -> Result<SourceNodeRef, GraphError> {
         self.ensure_fresh()?;
         ensure_view_ref(self.mapping.view_fingerprint, view_ref.view)?;
@@ -314,7 +310,7 @@ where
         Ok(SourceNodeRef::new(self.mapping.base_graph_id, self.mapping.base_revision, base))
     }
 
-    /// [`ViewEdgeRef`] → [`SourceEdgeRef`]。
+    /// [`ViewEdgeRef`] 映射到 [`SourceEdgeRef`]。
     pub fn map_view_edge_to_source(&self, view_ref: ViewEdgeRef) -> Result<SourceEdgeRef, GraphError> {
         self.ensure_fresh()?;
         ensure_view_ref(self.mapping.view_fingerprint, view_ref.view)?;

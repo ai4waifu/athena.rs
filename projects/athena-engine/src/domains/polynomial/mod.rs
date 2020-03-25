@@ -10,12 +10,12 @@ mod builder;
 mod cache_key;
 mod canonical;
 mod certificate;
-mod coefficient_kernel;
+pub mod coefficient_kernel;
 mod coefficient_ring_table;
 mod exponent;
 mod f4;
 mod factor;
-mod fingerprint;
+pub mod fingerprint;
 mod groebner;
 mod hash;
 mod ideal;
@@ -23,15 +23,15 @@ mod jit_gate;
 mod mgraph;
 mod modular_image;
 mod monomial_layout;
-mod object;
+pub mod object;
 mod object_ref;
 mod operations;
 mod order;
 mod repr;
-mod request;
+pub mod request;
 mod result;
 mod ring;
-mod ring_table;
+pub mod ring_table;
 mod univariate;
 mod value;
 
@@ -58,9 +58,9 @@ pub use fingerprint::{
     FINGERPRINT_ALGORITHM, PolynomialFingerprint, RingFingerprint, RingHandle, fnv1a64, polynomial_fingerprint, polynomial_fingerprint_u64,
 };
 pub use groebner::{
-    GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis, compute_elimination_basis,
-    compute_groebner_basis, compute_groebner_basis_f4, ideal_membership, reduce_by_verified, reduce_ideal, resume_groebner_basis,
-    resume_groebner_basis_f4, verify_groebner_basis,
+    GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis, chain_criterion_applies,
+    compute_elimination_basis, compute_groebner_basis, compute_groebner_basis_f4, ideal_membership, ordered_pair, reduce_by_verified,
+    reduce_ideal, resume_groebner_basis, resume_groebner_basis_f4, verify_groebner_basis,
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;

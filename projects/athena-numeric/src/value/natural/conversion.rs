@@ -9,7 +9,7 @@ use crate::kernel::limb as limb_kernel;
 impl Natural {
     /// 十进制字符串（无符号）。
     ///
-    /// Living `19`：只借用 limb 并在本地 `Vec` 上辗转相除，**不** `Clone` / 不登记 root / 不走 GC 分配。
+    /// 只借用 limb 并在本地 `Vec` 上辗转相除，**不** `Clone` / 不登记 root / 不走 GC 分配。
     pub fn to_decimal_string(&self) -> String {
         Self::decimal_from_limbs(self.as_limbs())
     }

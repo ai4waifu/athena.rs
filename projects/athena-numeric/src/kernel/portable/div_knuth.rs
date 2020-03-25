@@ -1,39 +1,39 @@
-//! # Purpose
-//! Knuth Algorithm D: normalized multi-limb division with quotient correction.
+//! # 用途
+//! Knuth 算法 D：归一化多 limb 除法，带商修正。
 //!
-//! # Mathematical model
-//! For $u = q v + r$ with $0 \le r < v$, after left-shifting so $v$ has top
-//! bit 1, each quotient digit estimated from the top two limbs of the working
-//! dividend differs from the true digit by a small, correctable amount.
+//! # 数学模型
+//! 对 `u = q v + r` 且 `0 ≤ r < v`，左移使 `v` 最高位为 1 后，
+//! 由工作被除数顶两 limb 估计的每位商数字与真值仅差一个
+//! 可修正的小量。
 //!
-//! # Derivation
-//! Normalization maximizes the leading divisor limb. The estimate
-//! $\hat q = \lfloor u_{j+n:j+n-1} / v_{n-1} \rfloor$ (capped) is refined by the
-//! $v_{n-2}$ test, then by multiply-subtract; a borrow forces add-back.
+//! # 推导
+//! 归一化最大化除数前导 limb。估计
+//! `q̂ = ⌊u_{j+n:j+n-1} / v_{n-1}⌋`（封顶）经 `v_{n-2}` 检验
+//! 再细化，随后乘减；借位则加回。
 //!
-//! # Algorithm steps
-//! 1. Compute shift = leading zeros of top divisor limb; shift $u,v$ into scratch.
-//! 2. For $j = m..0$: estimate $\hat q$, correct, submul, optional add-back.
-//! 3. Write quotient; right-shift remainder by the normalization amount.
+//! # 算法步骤
+//! 1. `shift` = 除数顶 limb 前导零；将 `u,v` 移入 scratch。
+//! 2. 对 `j = m..0`：估计 `q̂`、修正、`submul`、可选加回。
+//! 3. 写商；按归一化量右移余数。
 //!
-//! # Preconditions
-//! - effective_len(v) >= 2 (single-limb uses div_single).
-//! - Scratch capacity div_scratch_limbs; budget checked by caller/glue.
+//! # 前置条件
+//! - `effective_len(v) >= 2`（单 limb 走 `div_single`）。
+//! - scratch 容量 `div_scratch_limbs`；预算由调用方/glue 检查。
 //!
-//! # Postconditions
-//! - $u = q v + r$, $0 \le r < v$ (canonical limbs).
+//! # 后置条件
+//! - `u = q v + r`，`0 ≤ r < v`（规范 limbs）。
 //!
-//! # Complexity
-//! $\Theta((m+1) n)$ digit steps for $m+1$ quotient limbs and $n$-limb divisor.
+//! # 复杂度
+//! 对 `m+1` 个商 limb 与 `n`-limb 除数，每位步为 `Θ((m+1) n)`。
 //!
-//! # Crossover
-//! Planner default for multi-limb division; BZ only when dividend much wider.
+//! # 交叉阈值
+//! 多 limb 除法的规划器默认；仅当被除数远宽时用 BZ。
 //!
-//! # Failure modes
-//! Division by zero rejected in glue. Budget / capacity errors returned as Result.
+//! # 失败模式
+//! 除零在 glue 中拒绝。预算 / 容量错误以 `Result` 返回。
 //!
-//! # Tests
-//! tests/exact/algorithms.rs, natural div_rem identity suites.
+//! # 测试
+//! `tests/exact/algorithms.rs`、自然数 `div_rem` 恒等式套件。
 
 use athena_types::Result;
 
@@ -62,7 +62,7 @@ pub(crate) fn shl_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
         return el;
     }
     if bits >= 64 {
-        // only used with bits < 64 in Knuth normalize
+        // 仅在 Knuth 归一化且 bits < 64 时使用
         debug_assert!(bits < 64);
     }
     let mut carry = 0u64;
@@ -95,14 +95,13 @@ pub(crate) fn shr_into(v: &[u64], bits: u32, out: &mut [u64]) -> usize {
     trim_slice_len(out).max(1)
 }
 
-/// Knuth Algorithm D for normalized multi-limb division.
+/// Knuth 算法 D：归一化多 limb 除法。
 ///
-/// Left-shifting makes the divisor's top bit 1, so the quotient digit estimated
-/// from the dividend's top two limbs differs from the true digit by at most a
-/// small correction. After subtracting `q̂·v`, a borrow proves `q̂` was one too
-/// large; decrement and add `v` back. The final right shift restores the original
-/// scale. The invariant is `u = q·v + r` with `0 ≤ r < v`. Division by zero,
-/// insufficient output capacity, and budget overflow are rejected before writes.
+/// 左移使除数最高位为 1，从而由被除数顶两 limb 估计的商数字
+/// 与真值至多差一个小修正。减去 `q̂·v` 后若有借位，说明 `q̂`
+/// 大了 1；减一并加回 `v`。最终右移恢复原尺度。
+/// 不变量为 `u = q·v + r` 且 `0 ≤ r < v`。除零、
+/// 输出容量不足与预算溢出在写入前拒绝。
 pub(super) fn div_rem_knuth_into(
     u: &[u64],
     v: &[u64],
@@ -145,9 +144,9 @@ pub(super) fn div_rem_knuth_into(
     else {
         v_work.copy_from_slice(&v[..n]);
     }
-    // ensure u has m+n+1 limbs
+    // 确保 u 有 m+n+1 个 limb
     if u_work.len() > m + n + 1 {
-        // truncated by split
+        // 已被 split 截断
     }
 
     let v_n1 = v_work[n - 1];

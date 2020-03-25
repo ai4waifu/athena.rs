@@ -1,7 +1,7 @@
-//! Portable algorithm property / cross-capability checks.
+//! 可移植算法性质 / 跨能力检查。
 //!
-//! Exercises planner-selected paths against schoolbook or Knuth baselines without
-//! depending on kernel-private helpers.
+//! 相对小学乘法或 Knuth 基线演练 planner 选定路径，
+//! 且不依赖 kernel 私有辅助。
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{

@@ -2,7 +2,7 @@
 
 //! 高等数学 — 求导、积分、极限、级数、向量微积分、ODE、变换、留数。
 //!
-//! Living `28`：typed `CalculusRequest`（Goal）→ `DomainExecutionContext` → `CalculusResult`。
+//! 类型化的 `CalculusRequest`（`Goal`）→ `DomainExecutionContext` → `CalculusResult`。
 //! 禁止源码文本解析与 `CalculusCtx`。
 
 mod derivative;
@@ -13,7 +13,7 @@ mod object_ref;
 mod request;
 mod residue;
 mod result;
-mod series;
+pub mod series;
 mod symbol_rewrite;
 mod transform;
 mod value;
@@ -122,38 +122,4 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
 #[allow(dead_code)]
 fn domain_unsupported(_name: &str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "calculus")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::context::DomainExecutionContext;
-    use athena_ir::SemanticOperator;
-    use athena_types::AssumptionSet;
-
-    #[test]
-    fn series_goal_interns_series_ref_into_session() {
-        let mut session = Session::new();
-        let (expression, variable, center) = {
-            let dc = DomainExecutionContext::new(&mut session);
-            let variable = dc.intern("x");
-            let xs = dc.symbol_id(variable);
-            let center = dc.in_(0);
-            let expression = dc.apply_semantic(SemanticOperator::Unary(athena_ir::UnaryFunction::Sin), vec![xs]);
-            (expression, variable, center)
-        };
-        let result = execute_calculus(
-            &mut session,
-            CalculusRequest::Series { expression, variable, center, order: 2, assumptions: AssumptionSet::empty() },
-        );
-        match result {
-            CalculusResult::Exact { value: CalculusValue::Series(r), .. }
-            | CalculusResult::Conditional { value: CalculusValue::Series(r), .. }
-            | CalculusResult::Unevaluated { expression: CalculusValue::Series(r), .. } => {
-                assert!(session.series_objects.get(r).is_some());
-                assert_eq!(session.series_objects.len(), 1);
-            }
-            other => panic!("expected SeriesRef payload, got {other:?}"),
-        }
-    }
 }

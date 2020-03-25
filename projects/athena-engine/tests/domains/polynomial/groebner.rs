@@ -297,7 +297,7 @@ fn eliminate_requires_elimination_order() {
 #[test]
 fn pair_budget_exhaustion_yields_partial_not_verified() {
     let (rings, ring) = q_xy_lex();
-    // Leading monomials share `x` so Buchberger criterion 1 does not skip the pair.
+    // 首项共享 `x`，Buchberger 判据 1 不会跳过该对。
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
@@ -345,7 +345,7 @@ fn buchberger_skips_coprime_leading_monomial_pairs() {
 #[test]
 fn buchberger_with_chain_criterion_still_verifies() {
     let (rings, ring) = q_xy_lex();
-    // Generators that create opportunities for criterion 2 during growth.
+    // 增长过程中会触发判据 2 的生成元。
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let g3 = build(&rings, ring, &[(1, 1, vec![0, 2]), (-1, 1, vec![1, 0])]);

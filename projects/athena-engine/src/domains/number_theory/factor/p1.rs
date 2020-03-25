@@ -1,8 +1,8 @@
-//! Pollard p−1（stage 1）。
+//! Pollard p−1（第 1 阶段）。
 
 use athena_numeric::Integer;
 
-/// Stage 1：`a^{M(B1)} ≡ 1 (mod p)` 当 `p−1` 为 `B1`-smooth 时，返回非平凡因子。
+/// 第 1 阶段：`a^{M(B1)} ≡ 1 (mod p)` 当 `p−1` 为 `B1`-smooth 时，返回非平凡因子。
 pub fn pollard_p1(n: &Integer, seed: u64, b1: u32) -> Option<Integer> {
     if n.is_one() || !n.is_odd() {
         return None;

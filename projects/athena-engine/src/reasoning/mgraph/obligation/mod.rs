@@ -1,4 +1,4 @@
-//! ProofObligation · Reflection · SemanticReflector（Living `29`）。
+//! ProofObligation · Reflection · SemanticReflector。
 //!
 //! 领域算法不是顶层真相源。它们通过 Reflector 观察 M-Graph 缺口并返回
 //! `AlreadyKnown` / `Need*` / `Inconclusive`。`execute_domain` 只应出现在
@@ -25,7 +25,7 @@ pub use schedule::{ReflectorScheduleReport, resume_reflector_frontier, schedule_
 
 /// 待证明 / 待填补的语义缺口。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProofObligation {
     /// 闭合谓词（禁止字符串 label）。
@@ -37,19 +37,15 @@ pub struct ProofObligation {
 }
 
 impl ProofObligation {
-    /// Owning 复制（Living `31`：仅句柄向量）。
+    /// Owning 复制（仅句柄向量）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            predicate: self.predicate,
-            scope: self.scope,
-            known_objects: self.known_objects.clone(),
-        }
+        Self { predicate: self.predicate, scope: self.scope, known_objects: self.known_objects.clone() }
     }
 }
 
-/// Reflector 对一次 obligation / query 的回应（Living `29`）。
+/// Reflector 对一次 obligation / query 的回应。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reflection {
     /// M-Graph 中已有足够强的 admitted relation。
@@ -74,7 +70,7 @@ pub enum Reflection {
         /// 目标域标签。
         target: &'static str,
     },
-    /// 需要执行 DomainPlan（Living `28`，嵌于本分支）。
+    /// 需要执行 DomainPlan（，嵌于本分支）。
     NeedComputation {
         /// 已规划步骤。
         plan: DomainPlan,
@@ -84,78 +80,24 @@ pub enum Reflection {
 }
 
 impl Reflection {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::AlreadyKnown { relation } => Self::AlreadyKnown { relation: *relation },
-            Self::NeedRelation { obligation } => Self::NeedRelation {
-                obligation: obligation.owning_copy(),
-            },
+            Self::NeedRelation { obligation } => Self::NeedRelation { obligation: obligation.owning_copy() },
             Self::NeedObject { object_kind } => Self::NeedObject { object_kind },
             Self::NeedConversion { source, target } => Self::NeedConversion { source, target },
-            Self::NeedComputation { plan } => Self::NeedComputation {
-                plan: plan.owning_copy(),
-            },
+            Self::NeedComputation { plan } => Self::NeedComputation { plan: plan.owning_copy() },
             Self::Inconclusive => Self::Inconclusive,
         }
     }
 }
 
-/// Living `29` 语义 Reflector（缺口驱动）。
+/// 语义 Reflector（缺口驱动）。
 ///
 /// 与 [`crate::reasoning::solver::Reflector`]（旧调度侧 `ReflectionResult`）不同：
 /// 本 trait 返回 [`Reflection`] 枚举，不得直接写 admitted relation。
 pub trait SemanticReflector: Send + Sync {
     /// 观察 M-Graph 视图并报告缺口或已知事实。
     fn reflect(&self, obligation: &ProofObligation, view: &MGraphView<'_>) -> Reflection;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domains::{
-            DomainRequest,
-            calculus::{CalculusRequest, DerivativeOrder},
-            planner::{PlanStep, plan_domain},
-        },
-        reasoning::mgraph::core::MGraphCore,
-    };
-    use athena_types::{AssumptionSet, SymbolId, TermId};
-
-    struct AlwaysCompute;
-
-    impl SemanticReflector for AlwaysCompute {
-        fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-                expression: TermId(0),
-                variable: SymbolId(0),
-                order: DerivativeOrder::First,
-                assumptions: AssumptionSet::empty(),
-            });
-            Reflection::NeedComputation { plan: plan_domain(&request) }
-        }
-    }
-
-    #[test]
-    fn need_computation_carries_living28_plan() {
-        let core = MGraphCore::new();
-        let view = MGraphView::new(&core);
-        let obligation = ProofObligation { predicate: PredicateId(0), scope: ScopeRef::UNCONDITIONAL, known_objects: Vec::new() };
-        match AlwaysCompute.reflect(&obligation, &view) {
-            Reflection::NeedComputation { plan } => {
-                assert_eq!(
-                    plan.steps,
-                    vec![
-                        PlanStep::Normalize,
-                        PlanStep::SelectRepresentation,
-                        PlanStep::CallDomainProvider,
-                        PlanStep::Verify,
-                        PlanStep::MaterializeResult,
-                    ]
-                );
-            }
-            other => panic!("expected NeedComputation, got {other:?}"),
-        }
-    }
 }

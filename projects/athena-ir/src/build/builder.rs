@@ -53,23 +53,23 @@ impl<'a> TermBuilder<'a> {
         self.arena.push(TermNode::Collection { kind, elements }, span)
     }
 
-    /// 算子应用 term（semantic or extension head）。
+    /// 算子应用 term（语义或扩展 head）。
     pub fn application(&mut self, head: ApplicationHead, args: Vec<TermId>, span: SourceSpan) -> TermId {
         self.arena.push(TermNode::Application { head, arguments: args }, span)
     }
 
-    /// Core semantic operator application.
+    /// 核心语义算子应用。
     pub fn application_semantic(&mut self, op: SemanticOperator, args: Vec<TermId>, span: SourceSpan) -> TermId {
         self.application(ApplicationHead::Semantic(op), args, span)
     }
 
-    /// Extension operator application (display name via registry — never maps to core semantics).
+    /// 扩展算子应用（经 registry 取显示名 — 永不映射到核心语义）。
     pub fn application_extension(&mut self, registry: &mut ExtensionRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
         let op = registry.intern(head);
         self.application(ApplicationHead::Extension(op), args, span)
     }
 
-    /// Extension application from an existing [`ExtensionOperatorId`].
+    /// 由已有 [`ExtensionOperatorId`] 构造扩展应用。
     pub fn application_extension_id(&mut self, op: ExtensionOperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
         self.application(ApplicationHead::Extension(op), args, span)
     }
@@ -84,7 +84,7 @@ impl<'a> TermBuilder<'a> {
         self.arena.push(TermNode::Atom(Atom::Null), span)
     }
 
-    /// Closed mathematical constant atom.
+    /// 封闭数学常量原子。
     pub fn constant(&mut self, value: MathematicalConstant, span: SourceSpan) -> TermId {
         self.arena.push(TermNode::Atom(Atom::Constant(value)), span)
     }

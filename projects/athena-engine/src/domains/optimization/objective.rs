@@ -16,7 +16,7 @@ pub enum ObjectiveSense {
 /// 目标。
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Objective {
-    /// Session-local id。
+    /// 会话局部 id。
     pub id: ObjectiveId,
     /// 方向。
     pub sense: ObjectiveSense,

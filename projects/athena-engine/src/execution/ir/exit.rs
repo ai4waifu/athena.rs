@@ -1,42 +1,42 @@
-//! Declared guard / failure / deoptimization exits.
+//! 已声明的 guard / failure / deoptimization 出口。
 
 use super::{
     ids::{BlockId, ExitId},
     types::ExecutionValueType,
 };
 
-/// Why an exit edge may be taken.
+/// 可能走出口边的原因。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitKind {
-    /// Guard predicate failed.
+    /// Guard 谓词失败。
     GuardRejected,
-    /// Required capability missing.
+    /// 缺少所需能力。
     CapabilityMissing,
-    /// Budget exhausted → partial result path.
+    /// 预算耗尽 → 部分结果路径。
     BudgetExhausted,
-    /// Cancellation requested.
+    /// 已请求取消。
     Cancelled,
-    /// Explicit deoptimization to a declared runtime exit (never an old VM).
+    /// 显式去优化到已声明的运行时出口（绝非旧 VM）。
     Deoptimize,
-    /// Provider returned typed unsupported / unknown.
+    /// Provider 返回了类型化的 unsupported / unknown。
     ProviderDiagnostic,
 }
 
-/// One declared module exit.
+/// 一个已声明的 module 出口。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclaredExit {
-    /// Exit table index.
+    /// 出口表下标。
     pub id: ExitId,
-    /// Classification.
+    /// 分类。
     pub kind: ExitKind,
-    /// Optional continuation block inside the module.
+    /// 可选的 module 内延续块。
     pub continuation: Option<BlockId>,
-    /// Values expected on the exit edge.
+    /// 出口边上期望的值类型。
     pub result_types: Vec<ExecutionValueType>,
 }
 
 impl DeclaredExit {
-    /// Guard rejection without in-module continuation.
+    /// 无 module 内延续的 guard 拒绝。
     pub fn guard_reject(id: ExitId) -> Self {
         Self { id, kind: ExitKind::GuardRejected, continuation: None, result_types: Vec::new() }
     }

@@ -1,4 +1,4 @@
-//! 会话 arena 上的符号求导（Living `25`/`27` · typed `DomainExecutionContext`）。
+//! 会话 arena 上的符号求导（· typed `DomainExecutionContext`）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{CollectionKind, Predicate, SymbolId, TermId};

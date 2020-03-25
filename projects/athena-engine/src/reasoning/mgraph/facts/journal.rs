@@ -12,7 +12,7 @@ pub struct FactId(pub u64);
 
 /// 已验证 claim 的 append-only journal。
 ///
-/// Living `31`：**不**实现 [`Clone`]（含 owning [`VerifiedClaim`]；重建走 journal 本身）。
+/// **不**实现 [`Clone`]（含 owning [`VerifiedClaim`]；重建走 journal 本身）。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct AdmissionJournal {
     claims: Vec<VerifiedClaim>,
@@ -25,7 +25,7 @@ impl AdmissionJournal {
     }
 
     /// 追加已验证 claim（单调增长，不可撤销）。仅 admission 路径可写。
-    pub(crate) fn append(&mut self, claim: VerifiedClaim) -> FactId {
+    pub fn append(&mut self, claim: VerifiedClaim) -> FactId {
         let id = FactId(self.claims.len() as u64);
         self.claims.push(claim);
         id

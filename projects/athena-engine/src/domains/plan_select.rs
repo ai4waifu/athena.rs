@@ -1,8 +1,8 @@
-//! `DomainPlan` `SelectRepresentation` (Living `28`).
+//! `DomainPlan` 的 `SelectRepresentation`。
 //!
-//! Records the active DomainObject / term representation family for the request.
-//! Bootstrap: acknowledge the only supported family per domain (no silent algorithm
-//! branching). Future planners may choose among competing presentations here.
+//! 记录请求当前活跃的 `DomainObject` / 项表示族。
+//! 引导期：确认每个领域唯一支持的表示族（无静默算法分支）。
+//! 日后规划器可在此于竞争表示之间择优。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -15,14 +15,14 @@ use crate::{
     runtime::session::Session,
 };
 
-/// Selected representation label for audit / resume (stable string · not a dialect name).
+/// 供审计 / 恢复用的所选表示标签（稳定字符串 · 非方言名）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedRepresentation {
-    /// Machine-readable family id.
+    /// 机器可读的表示族 id。
     pub family: &'static str,
 }
 
-/// Choose / acknowledge representation for `request` against Session stores.
+/// 相对 `Session` 存储为 `request` 选择 / 确认表示。
 pub fn select_domain_representation(session: &Session, request: &DomainRequest) -> Result<SelectedRepresentation, Diagnostic> {
     match request {
         DomainRequest::Polynomial(req) => select_polynomial(session, req),
@@ -59,7 +59,8 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
     let check = |r: crate::domains::linear_algebra::MatrixRef| -> Result<(), Diagnostic> {
         if session.matrix_objects.get(r).is_some() {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "plan_select")
                 .detail("reason", "missing_matrix_ref")

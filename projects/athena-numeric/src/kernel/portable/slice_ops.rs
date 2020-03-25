@@ -1,4 +1,4 @@
-//! Shared slice helpers for divide-and-conquer multiplication.
+//! 分治乘法共用的切片辅助。
 
 use std::cmp::Ordering;
 

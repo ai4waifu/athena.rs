@@ -1,8 +1,8 @@
-//! 分层定义表与作用域帧（Living `25` / `27` · `SymbolId` 绑定 · `DispatchTableId` 规则）。
+//! 分层定义表与作用域帧（· `SymbolId` 绑定 · `DispatchTableId` 规则）。
 //!
 //! - [`DefinitionLayer`]：语句层立即绑定 / 残余绑定 / 规则分派（Session 全局为底层）。
 //! - [`ScopeFrame`]：局部遮蔽（读取优先，不写回全局）。
-//! - 规则表按 [`DispatchTableId`] 存储；[`ExtensionOperatorId`] 仅作 Extension apply 索引（Living `27`）。
+//! 规则表按 [`DispatchTableId`] 存储；[`ExtensionOperatorId`] 仅作 Extension apply 索引。
 
 use std::collections::HashMap;
 
@@ -15,7 +15,7 @@ use crate::reasoning::trs::TermPattern;
 pub struct DefinitionLayer {
     bindings: HashMap<SymbolId, TermId>,
     residual_bindings: HashMap<SymbolId, TermId>,
-    /// 规则分派表（Living `27` 一等键）。
+    /// 规则分派表（一等键）。
     dispatch_tables: HashMap<DispatchTableId, Vec<(TermPattern, TermId)>>,
     /// Extension head → 其分派表（apply 路径索引，非字符串）。
     operator_tables: HashMap<ExtensionOperatorId, DispatchTableId>,

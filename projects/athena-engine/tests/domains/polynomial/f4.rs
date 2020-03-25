@@ -229,7 +229,7 @@ fn f4_symbolic_closure_adds_reducer_rows() {
 fn f4_basis_update_completes_when_pair_reduces_to_known_lms() {
     let mut rings = RingTable::new();
     let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
-    // Non-coprime LMs: x^2 and xy so criterion 1 does not skip the pair.
+    // 首项不互素：x² 与 xy，判据 1 不会跳过该对。
     let mut b1 = PolynomialBuilder::new(q);
     b1.push_term(Number::small_int(1), vec![2, 0]).unwrap();
     b1.push_term(Number::small_int(-1), vec![0, 1]).unwrap();

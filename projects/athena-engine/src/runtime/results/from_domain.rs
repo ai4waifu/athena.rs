@@ -16,9 +16,7 @@ use crate::{
         polynomial::PolynomialResult,
     },
     runtime::{
-        results::{
-            ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp,
-        },
+        results::{ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp},
         session::Session,
         values::RuntimeValue,
     },

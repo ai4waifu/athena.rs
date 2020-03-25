@@ -18,7 +18,7 @@ use std::{
 /// 布局：`meta`（mode+heap_len；sign 位 don't-care）+ `union Magnitude`，LP64 上 24 bytes。
 /// 经私有 [`MagnitudePair`] 做 Drop；读取时不解释 sign，语义恒为非负。
 ///
-/// # 复制合同（Living `19`）
+/// # 复制合同
 ///
 /// **不**实现 [`Clone`]。Limb1/Limb2 用 [`Self::clone_inline`]；Heap owning 深复制用
 /// [`Self::try_clone_in`]。

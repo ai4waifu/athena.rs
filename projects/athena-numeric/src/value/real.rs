@@ -4,7 +4,7 @@ use crate::{execution_budget::NumericContext, representation::decimal::Decimal};
 
 /// 实数值表示。
 ///
-/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+/// 不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
 pub enum Real {
     /// IEEE binary64（含非有限值）。
@@ -22,7 +22,7 @@ impl Real {
         }
     }
 
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> athena_types::Result<Self> {
         Ok(match self {
             Self::Machine(x) => Self::Machine(*x),

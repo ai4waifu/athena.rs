@@ -1,4 +1,4 @@
-//! Typed domain goals — never construct dialect-shaped applications.
+//! 类型化领域目标 — 绝不构造方言形态的应用。
 
 use athena_engine::{
     api::DomainGoal,
@@ -9,22 +9,22 @@ use athena_engine::{
 };
 use athena_types::{AssumptionSet, SymbolId, TermId};
 
-/// Constructs [`DomainGoal`] values from typed calculus / domain requests.
+/// 由类型化微积分 / 领域请求构造 [`DomainGoal`]。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DomainRequestBuilder;
 
 impl DomainRequestBuilder {
-    /// `CalculusRequest::Derivative` wrapped as [`DomainGoal`].
+    /// 将 `CalculusRequest::Derivative` 包装为 [`DomainGoal`]。
     pub fn derivative(self, expression: TermId, variable: SymbolId, order: DerivativeOrder, assumptions: AssumptionSet) -> DomainGoal {
         DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative { expression, variable, order, assumptions }))
     }
 
-    /// First-order derivative convenience.
+    /// 一阶导数便捷构造。
     pub fn derivative_first(self, expression: TermId, variable: SymbolId) -> DomainGoal {
         self.derivative(expression, variable, DerivativeOrder::First, AssumptionSet::empty())
     }
 
-    /// Indefinite integral.
+    /// 不定积分。
     pub fn integral(self, expression: TermId, variable: SymbolId) -> DomainGoal {
         DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Integral { expression, variable, assumptions: AssumptionSet::empty() }))
     }
@@ -40,7 +40,7 @@ impl DomainRequestBuilder {
         }))
     }
 
-    /// Wrap an existing [`DomainRequest`].
+    /// 包装已有 [`DomainRequest`]。
     pub fn dispatch(self, request: DomainRequest) -> DomainGoal {
         DomainGoal::Dispatch(request)
     }

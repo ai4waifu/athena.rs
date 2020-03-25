@@ -62,7 +62,7 @@ impl PolynomialCacheOp {
 
 /// M-Graph / 重写缓存键。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug)]
 pub struct PolynomialCacheKey {
     /// 操作。
@@ -100,7 +100,7 @@ impl Hash for PolynomialCacheKey {
 }
 
 impl PolynomialCacheKey {
-    /// Owning 复制（Living `31`：指纹向量）。
+    /// Owning 复制（指纹向量）。
     pub fn owning_copy(&self) -> Self {
         Self {
             operation: self.operation,
@@ -288,7 +288,7 @@ fn limits_fingerprint(limits: &GroebnerLimits) -> u64 {
     h.finish()
 }
 
-/// Resume keys must preserve candidate order (pair indices) and pending work.
+/// 恢复键须保持候选顺序（对下标）与待处理工作。
 fn resume_groebner_key(
     operation: PolynomialCacheOp,
     candidates: &[Polynomial],
@@ -429,7 +429,7 @@ fn crt_combine_modular_key(images: &[Polynomial], integer_ring: RingId, target_r
         input_fingerprints.push(poly_fingerprint(g, rings)?);
         input_hashes.push(polynomial_canonical_hash(g, rings)?);
     }
-    // Order-independent: CRT inputs commute.
+    // 与顺序无关：CRT 输入可交换。
     input_fingerprints.sort_unstable();
     input_hashes.sort_unstable();
     Ok(PolynomialCacheKey {

@@ -59,7 +59,7 @@ impl<'a> MutableLimbView<'a> {
     }
 }
 
-/// 已校验的 magnitude 视图（Living `19` checked decoder）。
+/// 已校验的 magnitude 视图（checked decoder）。
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct CheckedMagnitudeView<'a> {
     mode: Mode,

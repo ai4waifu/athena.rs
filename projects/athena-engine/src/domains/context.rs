@@ -1,8 +1,7 @@
-//! Shared domain execution capabilities (Living `27`).
+//! 领域共享的执行能力。
 //!
-//! All domains that need term read/build share this context. It is **not** a
-//! calculus-specific mini-evaluator: no string head apply, no extension display-name
-//! dispatch, no symbol-name operator guessing.
+//! 凡需读/建项的领域共用本上下文。**不是**微积分专用迷你求值器：不做字符串 head 应用、
+//! 不做扩展显示名分派、不按符号名猜测算子。
 
 #![allow(unsafe_code)]
 
@@ -18,26 +17,26 @@ use crate::{
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
 
-/// Pre-interned residual extension identities (compare by [`ExtensionOperatorId`], never by display name).
+/// 预驻留的残差扩展标识（按 [`ExtensionOperatorId`] 比较，绝不按显示名）。
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResidualExtensionIds {
-    /// Residual indeterminate form marker.
+    /// 残差不定式标记。
     pub indeterminate: ExtensionOperatorId,
-    /// Real-part residual used in ROC predicates.
+    /// 收敛域谓词中使用的实部残差。
     pub re: ExtensionOperatorId,
-    /// Element-of residual used in ROC / domain predicates.
+    /// 收敛域 / 定义域谓词中使用的属于残差。
     pub element: ExtensionOperatorId,
-    /// Unit step / Heaviside causal marker.
+    /// 单位阶跃 / Heaviside 因果标记。
     pub unit_step: ExtensionOperatorId,
-    /// Alternate Heaviside name (same semantic residual family).
+    /// Heaviside 别名（同一语义残差族）。
     pub heaviside_theta: ExtensionOperatorId,
-    /// Kronecker delta residual.
+    /// Kronecker δ 残差。
     pub kronecker_delta: ExtensionOperatorId,
-    /// Discrete delta residual.
+    /// 离散 δ 残差。
     pub discrete_delta: ExtensionOperatorId,
 }
 
-/// Shared term read/build capability for domain providers.
+/// 领域提供者共享的项读/建能力。
 pub struct DomainExecutionContext<'a> {
     s: *mut Session,
     ext: ResidualExtensionIds,
@@ -45,7 +44,7 @@ pub struct DomainExecutionContext<'a> {
 }
 
 impl<'a> DomainExecutionContext<'a> {
-    /// Bind an exclusive session borrow for the duration of a domain call.
+    /// 在领域调用期间绑定独占的会话借用。
     pub fn new(s: &'a mut Session) -> Self {
         let ext = ResidualExtensionIds {
             indeterminate: s.extensions.intern("Indeterminate"),
@@ -59,17 +58,17 @@ impl<'a> DomainExecutionContext<'a> {
         Self { s: s as *mut Session, ext, _marker: PhantomData }
     }
 
-    /// Residual extension id table for this session.
+    /// 本会话的残差扩展 id 表。
     pub(crate) fn residual_extensions(&self) -> ResidualExtensionIds {
         self.ext
     }
 
-    /// Whether `head` is the pre-interned Indeterminate residual.
+    /// `head` 是否为预驻留的 `Indeterminate` 残差。
     pub(crate) fn is_indeterminate_extension(&self, head: ApplicationHead) -> bool {
         matches!(head, ApplicationHead::Extension(id) if id == self.ext.indeterminate)
     }
 
-    /// UnitStep or HeavisideTheta residual head.
+    /// `UnitStep` 或 `HeavisideTheta` 残差头。
     pub(crate) fn is_unit_step_extension(&self, head: ApplicationHead) -> bool {
         matches!(
             head,
@@ -77,7 +76,7 @@ impl<'a> DomainExecutionContext<'a> {
         )
     }
 
-    /// KroneckerDelta or DiscreteDelta residual head.
+    /// `KroneckerDelta` 或 `DiscreteDelta` 残差头。
     pub(crate) fn is_delta_extension(&self, head: ApplicationHead) -> bool {
         matches!(
             head,
@@ -85,34 +84,34 @@ impl<'a> DomainExecutionContext<'a> {
         )
     }
 
-    /// Element residual head.
+    /// `Element` 残差头。
     pub(crate) fn is_element_extension(&self, head: ApplicationHead) -> bool {
         matches!(head, ApplicationHead::Extension(id) if id == self.ext.element)
     }
 
-    /// Intern an extension operator id (ODE dependent head etc. · not core math).
-    pub(crate) fn intern_extension(&self, name: &str) -> ExtensionOperatorId {
+    /// 驻留扩展算子 id（ODE 因变量头等 · 非核心数学）。
+    pub fn intern_extension(&self, name: &str) -> ExtensionOperatorId {
         self.session_mut().extensions.intern(name)
     }
 
-    /// Extension application by [`ExtensionOperatorId`].
+    /// 按 [`ExtensionOperatorId`] 做扩展应用。
     pub(crate) fn apply_extension(&self, id: ExtensionOperatorId, args: Vec<TermId>) -> TermId {
         self.apply_head(ApplicationHead::Extension(id), args)
     }
 
     #[inline]
     pub(crate) fn session(&self) -> &Session {
-        // SAFETY: lifetime exclusivity matches former CalculusCtx invariant.
+        // SAFETY: 生命周期独占性与原先 `CalculusCtx` 不变量一致。
         unsafe { &*self.s }
     }
 
     #[inline]
     pub(crate) fn session_mut(&self) -> &mut Session {
-        // SAFETY: serial builder / fold use; no overlapping `&mut Session`.
+        // SAFETY: 串行建造 / 折叠使用；无重叠的 `&mut Session`。
         unsafe { &mut *self.s }
     }
 
-    /// Cheap structural snapshot (does not clone numeric payloads).
+    /// 廉价结构快照（不克隆数值载荷）。
     pub(crate) fn shape(&self, id: TermId) -> Option<Shape> {
         match self.session().arena.get(id)? {
             athena_ir::TermNode::Atom(Atom::Number(_)) => Some(Shape::Number),
@@ -126,7 +125,7 @@ impl<'a> DomainExecutionContext<'a> {
         }
     }
 
-    /// Typed application head + arguments.
+    /// 带类型的应用头与参数。
     pub(crate) fn application_head(&self, id: TermId) -> Option<(ApplicationHead, Vec<TermId>)> {
         match self.shape(id)? {
             Shape::Application(op, args) => Some((op, args)),
@@ -134,7 +133,7 @@ impl<'a> DomainExecutionContext<'a> {
         }
     }
 
-    /// Arena number reference.
+    /// 堆上数值引用。
     pub(crate) fn number_of(&self, id: TermId) -> Option<&Number> {
         match self.session().arena.get(id) {
             Some(athena_ir::TermNode::Atom(Atom::Number(n))) => Some(n),
@@ -142,27 +141,27 @@ impl<'a> DomainExecutionContext<'a> {
         }
     }
 
-    /// Integer exponent when the atom is an exact small integer.
+    /// 当原子为精确小整数时取其整数指数。
     pub(crate) fn int_exp(&self, id: TermId) -> Option<i64> {
         self.number_of(id).and_then(|n| n.as_integer_exp())
     }
 
-    /// Owning numeric copy for portable fold paths.
+    /// 可移植折叠路径用的拥有式数值副本。
     pub(crate) fn copy(&self, n: &Number) -> Number {
         clone_number(n)
     }
 
-    /// Structural equality in the session arena.
+    /// 会话堆上的结构相等。
     pub(crate) fn eq(&self, a: TermId, b: TermId) -> bool {
         self.session().arena.structural_eq(a, b)
     }
 
-    /// Whether a symbol atom equals the given [`SymbolId`].
+    /// 符号原子是否等于给定 [`SymbolId`]。
     pub(crate) fn symbol_id_is(&self, symbol: SymbolId, expected: SymbolId) -> bool {
         symbol == expected
     }
 
-    /// Fold via the sole `ExecutionIR` path (explicit term request, never string heads).
+    /// 经唯一的 `ExecutionIR` 路径折叠（显式项请求，绝不用字符串头）。
     pub(crate) fn fold_term(&self, id: TermId) -> TermId {
         match execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id)) {
             Ok(result_id) => self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id),
@@ -170,65 +169,65 @@ impl<'a> DomainExecutionContext<'a> {
         }
     }
 
-    /// Number atom.
+    /// 数值原子。
     pub(crate) fn num(&self, n: Number) -> TermId {
         execution::push_number(self.session_mut(), n)
     }
 
-    /// Exact small integer.
-    pub(crate) fn in_(&self, n: i64) -> TermId {
+    /// 精确小整数。
+    pub fn in_(&self, n: i64) -> TermId {
         crate::runtime::values::arena::push_int(self.session_mut(), n)
     }
 
-    /// Machine float atom.
+    /// 机器浮点原子。
     pub(crate) fn real(&self, x: f64) -> TermId {
         execution::push_number(self.session_mut(), Number::machine(x))
     }
 
-    /// Symbol atom by display name (user symbol, not an operator).
+    /// 按显示名构造符号原子（用户符号，非算子）。
     pub(crate) fn symbol(&self, name: &str) -> TermId {
         crate::runtime::values::arena::push_symbol_name(self.session_mut(), name)
     }
 
-    /// Closed mathematical constant atom (Living `27`).
+    /// 闭数学常量原子。
     pub(crate) fn math_constant(&self, value: athena_ir::MathematicalConstant) -> TermId {
         crate::runtime::values::arena::push_constant(self.session_mut(), value)
     }
 
-    /// Intern a user symbol name.
-    pub(crate) fn intern(&self, name: &str) -> SymbolId {
+    /// 驻留用户符号名。
+    pub fn intern(&self, name: &str) -> SymbolId {
         self.session_mut().arena.symbols_mut().intern(name)
     }
 
-    /// Resolve a [`SymbolId`] to its display name (user symbol table only).
+    /// 将 [`SymbolId`] 解析为显示名（仅用户符号表）。
     pub(crate) fn symbol_resolve(&self, id: SymbolId) -> &str {
         self.session().arena.symbols().resolve(id).unwrap_or("")
     }
 
-    /// Symbol atom from an existing [`SymbolId`].
-    pub(crate) fn symbol_id(&self, id: SymbolId) -> TermId {
+    /// 由已有 [`SymbolId`] 构造符号原子。
+    pub fn symbol_id(&self, id: SymbolId) -> TermId {
         let span = athena_ir::TermNode::default_span();
         self.session_mut().arena.push(athena_ir::TermNode::Atom(Atom::Symbol(id)), span)
     }
 
-    /// Explicit collection kind (never a silent `"List"` head).
+    /// 显式集合种类（绝不静默使用 `"List"` 头）。
     pub(crate) fn collection(&self, kind: CollectionKind, items: Vec<TermId>) -> TermId {
         let span = athena_ir::TermNode::default_span();
         self.session_mut().arena.push(athena_ir::TermNode::Collection { kind, elements: items }, span)
     }
 
-    /// Ordered collection convenience.
+    /// 有序集合便捷构造。
     pub(crate) fn ordered(&self, items: Vec<TermId>) -> TermId {
         self.collection(CollectionKind::OrderedCollection, items)
     }
 
-    /// Preserve an existing [`ApplicationHead`] when rebuilding.
+    /// 重建时保留已有 [`ApplicationHead`]。
     pub(crate) fn apply_head(&self, head: ApplicationHead, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_application_head(self.session_mut(), head, args)
     }
 
-    /// Core semantic application.
-    pub(crate) fn apply_semantic(&self, op: SemanticOperator, args: Vec<TermId>) -> TermId {
+    /// 核心语义应用。
+    pub fn apply_semantic(&self, op: SemanticOperator, args: Vec<TermId>) -> TermId {
         crate::runtime::values::arena::push_semantic(self.session_mut(), op, args)
     }
 }

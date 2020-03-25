@@ -36,7 +36,7 @@ pub enum ProblemClass {
 
 /// 算法策略版本（进入 fingerprint / 缓存键）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct AlgorithmPolicy {
     /// 策略标识（如 `primal-simplex` / `bnb-v0`）。
@@ -46,7 +46,7 @@ pub struct AlgorithmPolicy {
 }
 
 impl AlgorithmPolicy {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { name: self.name.clone(), version: self.version }
     }
@@ -62,7 +62,7 @@ impl Default for AlgorithmPolicy {
 ///
 /// 稳定身份是 [`OptimizationFingerprint`]；[`ProblemId`] 仅 Session-local。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct OptimizationProblem {
     /// Session-local 句柄。
@@ -86,7 +86,7 @@ pub struct OptimizationProblem {
 }
 
 impl OptimizationProblem {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,

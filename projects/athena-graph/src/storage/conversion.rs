@@ -14,7 +14,7 @@ use crate::{
 /// CSR 物化结果（offsets / indices 在 GraphIndex segment）+ 登记的 [`ChunkSet`]。
 #[derive(Debug)]
 pub struct CsrOnHeap {
-    /// CSR（GC payload storage）。
+    /// CSR（GC 载荷存储）。
     pub csr: CsrGraph<GcPayloadStorage, GcPayloadStorage>,
     /// offsets + indices 两个 chunk。
     pub chunks: ChunkSet,

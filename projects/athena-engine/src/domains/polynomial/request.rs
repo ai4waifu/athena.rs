@@ -1,4 +1,4 @@
-//! 多项式域请求（Living `28`：输入为 [`PolynomialRef`]，禁止 owning payload）。
+//! 多项式域请求（输入为 [`PolynomialRef`]，禁止 owning payload）。
 
 use athena_types::RingId;
 
@@ -6,7 +6,7 @@ use super::{factor::PolynomialFactorLimits, groebner::GroebnerLimits, object_ref
 
 /// 多项式域请求 — 骨架变体，算法逐步填充。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum PolynomialRequest {
     /// 规范化（合并同类项、去零）。
@@ -58,7 +58,7 @@ pub enum PolynomialRequest {
         /// 资源限制。
         limits: GroebnerLimits,
     },
-    /// Gröbner 基（F4 Macaulay 矩阵路径 · Living `04` / `30`）。
+    /// Gröbner 基（F4 Macaulay 矩阵路径 · ）。
     GroebnerF4 {
         /// 理想生成元。
         generators: Vec<PolynomialRef>,
@@ -72,7 +72,7 @@ pub enum PolynomialRequest {
         /// 资源限制。
         limits: GroebnerLimits,
     },
-    /// 从 Partial / ResourceLimited frontier 恢复 Buchberger（Living `30` G1）。
+    /// 从 Partial / ResourceLimited frontier 恢复 Buchberger（G1）。
     ///
     /// 输入均为 [`PolynomialRef`]；`pending_pairs` 下标相对 `candidates`。
     ResumeGroebner {
@@ -89,7 +89,7 @@ pub enum PolynomialRequest {
         /// 本轮资源限制。
         limits: GroebnerLimits,
     },
-    /// 从 Partial / ResourceLimited frontier 恢复 F4（Living `04` / `30`）。
+    /// 从 Partial / ResourceLimited frontier 恢复 F4。
     ResumeGroebnerF4 {
         /// 当前候选基。
         candidates: Vec<PolynomialRef>,
@@ -108,7 +108,7 @@ pub enum PolynomialRequest {
         /// 本轮资源限制（`max_s_pairs` 映射为矩阵步预算）。
         limits: GroebnerLimits,
     },
-    /// ℤ / ℚ 多项式 → 已注册 𝔽_p 环上的模同态像（Living `30` G1）。
+    /// ℤ / ℚ 多项式 → 已注册 𝔽_p 环上的模同态像（G1）。
     ModularImage {
         /// 源多项式 DomainObject。
         polynomial: PolynomialRef,
@@ -122,7 +122,7 @@ pub enum PolynomialRequest {
         /// 目标 ℤ 或 ℚ 多项式环。
         target_ring: RingId,
     },
-    /// 多个 𝔽_p 像 CRT 合并后 Wang 重构到 ℤ / ℚ（Living `30` G1）。
+    /// 多个 𝔽_p 像 CRT 合并后 Wang 重构到 ℤ / ℚ（G1）。
     CrtCombineModular {
         /// 各素数环上的像多项式（至少两个）。
         images: Vec<PolynomialRef>,
@@ -134,49 +134,28 @@ pub enum PolynomialRequest {
 }
 
 impl PolynomialRequest {
-    /// Owning 复制（Living `31`：仅 `PolynomialRef` / 限制句柄与向量）。
+    /// Owning 复制（仅 `PolynomialRef` / 限制句柄与向量）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Normalize { polynomial } => Self::Normalize { polynomial: *polynomial },
             Self::Add { lhs, rhs } => Self::Add { lhs: *lhs, rhs: *rhs },
             Self::Mul { lhs, rhs } => Self::Mul { lhs: *lhs, rhs: *rhs },
-            Self::Div { dividend, divisor, policy } => Self::Div {
-                dividend: *dividend,
-                divisor: *divisor,
-                policy: *policy,
-            },
+            Self::Div { dividend, divisor, policy } => Self::Div { dividend: *dividend, divisor: *divisor, policy: *policy },
             Self::Gcd { lhs, rhs } => Self::Gcd { lhs: *lhs, rhs: *rhs },
-            Self::Factor { polynomial, limits } => Self::Factor {
-                polynomial: *polynomial,
-                limits: *limits,
-            },
-            Self::Groebner { generators, limits } => Self::Groebner {
-                generators: generators.clone(),
-                limits: *limits,
-            },
-            Self::GroebnerF4 { generators, limits } => Self::GroebnerF4 {
-                generators: generators.clone(),
-                limits: *limits,
-            },
-            Self::Eliminate { generators, limits } => Self::Eliminate {
-                generators: generators.clone(),
-                limits: *limits,
-            },
-            Self::ResumeGroebner {
-                candidates,
-                pending_pairs,
-                pending_insertion,
-                input_generators,
-                prior_s_pair_steps,
-                limits,
-            } => Self::ResumeGroebner {
-                candidates: candidates.clone(),
-                pending_pairs: pending_pairs.clone(),
-                pending_insertion: *pending_insertion,
-                input_generators: *input_generators,
-                prior_s_pair_steps: *prior_s_pair_steps,
-                limits: *limits,
-            },
+            Self::Factor { polynomial, limits } => Self::Factor { polynomial: *polynomial, limits: *limits },
+            Self::Groebner { generators, limits } => Self::Groebner { generators: generators.clone(), limits: *limits },
+            Self::GroebnerF4 { generators, limits } => Self::GroebnerF4 { generators: generators.clone(), limits: *limits },
+            Self::Eliminate { generators, limits } => Self::Eliminate { generators: generators.clone(), limits: *limits },
+            Self::ResumeGroebner { candidates, pending_pairs, pending_insertion, input_generators, prior_s_pair_steps, limits } => {
+                Self::ResumeGroebner {
+                    candidates: candidates.clone(),
+                    pending_pairs: pending_pairs.clone(),
+                    pending_insertion: *pending_insertion,
+                    input_generators: *input_generators,
+                    prior_s_pair_steps: *prior_s_pair_steps,
+                    limits: *limits,
+                }
+            }
             Self::ResumeGroebnerF4 {
                 candidates,
                 pending_pairs,
@@ -196,19 +175,11 @@ impl PolynomialRequest {
                 pending_insertion_sugar: *pending_insertion_sugar,
                 limits: *limits,
             },
-            Self::ModularImage { polynomial, image_ring } => Self::ModularImage {
-                polynomial: *polynomial,
-                image_ring: *image_ring,
-            },
-            Self::ReconstructModular { image, target_ring } => Self::ReconstructModular {
-                image: *image,
-                target_ring: *target_ring,
-            },
-            Self::CrtCombineModular { images, integer_ring, target_ring } => Self::CrtCombineModular {
-                images: images.clone(),
-                integer_ring: *integer_ring,
-                target_ring: *target_ring,
-            },
+            Self::ModularImage { polynomial, image_ring } => Self::ModularImage { polynomial: *polynomial, image_ring: *image_ring },
+            Self::ReconstructModular { image, target_ring } => Self::ReconstructModular { image: *image, target_ring: *target_ring },
+            Self::CrtCombineModular { images, integer_ring, target_ring } => {
+                Self::CrtCombineModular { images: images.clone(), integer_ring: *integer_ring, target_ring: *target_ring }
+            }
         }
     }
 }

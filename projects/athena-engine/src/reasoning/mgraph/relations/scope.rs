@@ -16,7 +16,7 @@ pub struct ScopeEdge {
     pub kind: ScopeRelationKind,
 }
 
-/// Scope 关系注册冲突（transport / merge 诊断 · Living `29`）。
+/// Scope 关系注册冲突（transport / merge 诊断 · ）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopeRelationConflict {
     /// 同一对 scope 上同时要求 Compatible 与 Incompatible。
@@ -87,12 +87,7 @@ impl ScopeIndex {
     /// 注册 scope 关系（显式 transport 规则的一部分）。
     ///
     /// 冲突时返回 [`ScopeRelationConflict`] 且**不**写入边。
-    pub fn try_add_relation(
-        &mut self,
-        from: ScopeRef,
-        to: ScopeRef,
-        kind: ScopeRelationKind,
-    ) -> Result<(), ScopeRelationConflict> {
+    pub fn try_add_relation(&mut self, from: ScopeRef, to: ScopeRef, kind: ScopeRelationKind) -> Result<(), ScopeRelationConflict> {
         if self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == kind) {
             return Ok(());
         }
@@ -111,7 +106,7 @@ impl ScopeIndex {
                 }
             }
             ScopeRelationKind::Refines => {
-                // `from ⊑ to` while `to ⊑* from` would close a cycle.
+                // `from ⊑ to` 且已有 `to ⊑* from` 会成环。
                 if from != to && self.is_refines_ancestor(to, from) {
                     return Err(ScopeRelationConflict::RefinesWouldCycle { from, to });
                 }
@@ -124,7 +119,7 @@ impl ScopeIndex {
 
     /// 注册 scope 关系（冲突时 panic · 仅用于已证明无冲突的内部路径）。
     ///
-    /// Prefer [`Self::try_add_relation`] at public / planner boundaries.
+    /// 公共 / planner 边界请优先用 [`Self::try_add_relation`]。
     pub fn add_relation(&mut self, from: ScopeRef, to: ScopeRef, kind: ScopeRelationKind) {
         self.try_add_relation(from, to, kind).unwrap_or_else(|conflict| {
             panic!("scope relation conflict: {}", conflict.reason_key());
@@ -141,27 +136,27 @@ impl ScopeIndex {
         self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::Refines)
     }
 
-    /// Direct `Refines` targets of `from` (`from ⊑ to`).
+    /// `from` 的直接 `Refines` 目标（`from ⊑ to`）。
     pub fn refines_targets(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
         self.edges.iter().filter(move |e| e.from == from && e.kind == ScopeRelationKind::Refines).map(|e| e.to)
     }
 
-    /// Whether an undirected `IncompatibleWith` edge links `a` and `b`.
+    /// 无向 `IncompatibleWith` 边是否连接 `a` 与 `b`。
     pub fn incompatible_with(&self, a: ScopeRef, b: ScopeRef) -> bool {
         self.edges.iter().any(|e| e.kind == ScopeRelationKind::IncompatibleWith && ((e.from == a && e.to == b) || (e.from == b && e.to == a)))
     }
 
-    /// Whether a directed `CompatibleWith` edge `from → to` exists.
+    /// 是否存在有向 `CompatibleWith` 边 `from → to`。
     pub fn compatible_with(&self, from: ScopeRef, to: ScopeRef) -> bool {
         self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::CompatibleWith)
     }
 
-    /// Direct `CompatibleWith` peers of `from` (`from` may consult `to` locally).
+    /// `from` 的直接 `CompatibleWith` 对端（`from` 可在局部查阅 `to`）。
     pub fn compatible_peers(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
         self.edges.iter().filter(move |e| e.from == from && e.kind == ScopeRelationKind::CompatibleWith).map(|e| e.to)
     }
 
-    /// Whether `from` reaches `ancestor` by zero or more `Refines` steps (`from ⊑* ancestor`).
+    /// `from` 是否经零步或多步 `Refines` 到达 `ancestor`（`from ⊑* ancestor`）。
     pub fn is_refines_ancestor(&self, from: ScopeRef, ancestor: ScopeRef) -> bool {
         if from == ancestor {
             return true;
@@ -180,52 +175,5 @@ impl ScopeIndex {
             }
         }
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ScopeIndex, ScopeRelationConflict};
-    use crate::reasoning::mgraph::core::refs::{ScopeRef, ScopeRelationKind};
-
-    #[test]
-    fn rejects_compatible_then_incompatible() {
-        let mut scopes = ScopeIndex::new();
-        let a = ScopeRef(1);
-        let b = ScopeRef(2);
-        scopes.try_add_relation(a, b, ScopeRelationKind::CompatibleWith).expect("compatible");
-        let err = scopes.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith).expect_err("conflict");
-        assert_eq!(err, ScopeRelationConflict::CompatibleAndIncompatible { a, b });
-        assert!(!scopes.incompatible_with(a, b));
-        assert_eq!(err.into_diagnostic().details.get("reason").map(|v| v.to_string()).as_deref(), Some("compatible_and_incompatible"));
-    }
-
-    #[test]
-    fn rejects_incompatible_then_compatible() {
-        let mut scopes = ScopeIndex::new();
-        let a = ScopeRef(3);
-        let b = ScopeRef(4);
-        scopes.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith).expect("incompatible");
-        let err = scopes.try_add_relation(a, b, ScopeRelationKind::CompatibleWith).expect_err("conflict");
-        assert!(matches!(err, ScopeRelationConflict::CompatibleAndIncompatible { .. }));
-        assert!(!scopes.compatible_with(a, b));
-    }
-
-    #[test]
-    fn rejects_refines_cycle() {
-        let mut scopes = ScopeIndex::new();
-        let a = ScopeRef(5);
-        let b = ScopeRef(6);
-        scopes.try_add_relation(a, b, ScopeRelationKind::Refines).expect("a ⊑ b");
-        let err = scopes.try_add_relation(b, a, ScopeRelationKind::Refines).expect_err("cycle");
-        assert_eq!(err, ScopeRelationConflict::RefinesWouldCycle { from: b, to: a });
-    }
-
-    #[test]
-    fn rejects_self_incompatible() {
-        let s = ScopeRef(7);
-        let mut scopes = ScopeIndex::new();
-        let err = scopes.try_add_relation(s, s, ScopeRelationKind::IncompatibleWith).expect_err("self");
-        assert_eq!(err, ScopeRelationConflict::SelfIncompatible { scope: s });
     }
 }

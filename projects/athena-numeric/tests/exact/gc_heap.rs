@@ -126,7 +126,7 @@ fn session_default_try_add_publishes_on_session_heap() {
     sum.trace(&mut cap);
     assert!(!cap.marked.is_empty(), "heap result must mark session allocation");
     assert!(ctx.heap().borrow().resident_bytes() > 0);
-    // Living 18：结果发布在隔离 session 堆，不得污染 shared Auto。
+    // 结果发布在隔离 session 堆，不得污染 shared Auto。
     assert_eq!(GcHeap::shared_default().borrow().resident_bytes(), shared_before);
 }
 
@@ -153,8 +153,8 @@ fn session_tracing_try_clone_in_is_deep_copy() {
     let roots_before = ctx.heap().borrow().roots().numeric_len();
     let cloned = n.try_clone_in(&ctx).expect("deep copy");
     assert_eq!(n.as_limbs(), cloned.as_limbs());
-    assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "Living 31: try_clone_in must deep-copy Heap");
-    // Living 31：深复制为新 PublishedNumericBlock + root。
+    assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "try_clone_in must deep-copy Heap");
+    // 深复制为新 PublishedNumericBlock + root。
     assert_eq!(ctx.heap().borrow().roots().numeric_len(), roots_before + 1);
     let cptr = NonNull::new(cloned.as_limbs().as_ptr() as *mut u64).expect("ptr");
     assert!(ctx.heap().borrow().may_root_numeric(cptr).expect("published"));
@@ -165,7 +165,7 @@ fn session_tracing_try_clone_in_is_deep_copy() {
 fn portable_default_also_publishes_tracing_sweep_heap() {
     use athena_numeric::natural::Natural;
 
-    // Living 31：删除 publishes_gc_owned 双轨；portable 持久发布同样是 TracingSweep。
+    // 删除 publishes_gc_owned 双轨；portable 持久发布同样是 TracingSweep。
     let ctx = NumericContext::portable_default();
     let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
     let ptr = n.as_limbs().as_ptr();

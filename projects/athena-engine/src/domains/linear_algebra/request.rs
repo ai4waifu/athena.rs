@@ -1,10 +1,10 @@
-//! 线性代数强类型请求（Living `28`：输入为 [`MatrixRef`]）。
+//! 线性代数强类型请求（输入为 [`MatrixRef`]）。
 
 use super::object_ref::MatrixRef;
 
 /// 线性代数域请求（禁止字符串算法名）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum LinearAlgebraRequest {
     /// 转置。
@@ -60,15 +60,11 @@ pub enum LinearAlgebraRequest {
 }
 
 impl LinearAlgebraRequest {
-    /// Owning 复制（Living `31`：仅 `MatrixRef` 句柄）。
+    /// Owning 复制（仅 `MatrixRef` 句柄）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Transpose { matrix } => Self::Transpose { matrix: *matrix },
-            Self::Index { matrix, row, col } => Self::Index {
-                matrix: *matrix,
-                row: *row,
-                col: *col,
-            },
+            Self::Index { matrix, row, col } => Self::Index { matrix: *matrix, row: *row, col: *col },
             Self::MatMul { lhs, rhs } => Self::MatMul { lhs: *lhs, rhs: *rhs },
             Self::Hadamard { lhs, rhs } => Self::Hadamard { lhs: *lhs, rhs: *rhs },
             Self::Rank { matrix } => Self::Rank { matrix: *matrix },

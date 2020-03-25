@@ -1,4 +1,4 @@
-//! Pure helpers for [`super::ReferenceExecutor`] (no SSA frame state).
+//! [`super::ReferenceExecutor`] 的纯辅助（无 SSA 帧状态）。
 
 mod arithmetic;
 mod compare;

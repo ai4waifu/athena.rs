@@ -162,7 +162,7 @@ impl NumericContext {
 
     /// 宿主可见便利入口：[`GcHeap::shared_default`] + Auto + portable 上限。
     ///
-    /// Living 18：共享默认 heap 路径。Session 算术请用 [`Self::session_default`]。
+    /// 共享默认 heap 路径。Session 算术请用 [`Self::session_default`]。
     pub fn portable_default() -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PortableBackend::default()).limits);
@@ -193,7 +193,7 @@ impl NumericContext {
 
     /// Session / numeric 层默认：隔离 heap + [`GcMode::Deferred`] + 无 limb 上限。
     ///
-    /// Living 18 复用 context 算术发布目标。不等于 [`Self::portable_default`]（shared Auto）。
+    /// 复用 context 算术发布目标。不等于 [`Self::portable_default`]（shared Auto）。
     pub fn session_default() -> Self {
         Self::session_with_heap_budget(HeapBudget::default())
     }
@@ -327,7 +327,7 @@ impl NumericContext {
         result
     }
 
-    /// 是否允许复用 context 级输出 `LimbBuffer`（Living 17 destination reuse）。
+    /// 是否允许复用 context 级输出 `LimbBuffer`（destination reuse）。
     #[inline]
     pub fn can_reuse_destination(&self) -> bool {
         self.capabilities.resource.can_reuse_destination

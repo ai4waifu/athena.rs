@@ -1,7 +1,6 @@
-//! Portable (ISA-agnostic) limb kernel.
+//! 可移植（与 ISA 无关）limb 核。
 //!
-//! Split by algorithm family. Default machine-kernel path for `limb` and
-//! `KernelTable::portable` binding.
+//! 按算法族拆分。limb 与 KernelTable::portable 绑定的默认机器核路径。
 
 #![allow(unused_imports)] // module facade re-exports for `kernel::limb`
 

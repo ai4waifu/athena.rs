@@ -11,7 +11,9 @@ use crate::{GraphAlgorithmRequirements, GraphCapabilities, GraphError};
 ///
 /// 公开稳定路径：[`GraphBuilder`] → [`ImmutableGraph`]。本类型的构造函数为 `pub(crate)`，
 /// 外部 crate 只能经 builder 的 [`GraphBuilder::graph_mut`] 在构造期写入。
-#[derive(Debug, Clone)]
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct MutableGraph<N, E> {
     id: GraphId,
     semantics: GraphSemantics,
@@ -24,6 +26,23 @@ pub struct MutableGraph<N, E> {
     txn_depth: u32,
     /// 当前事务内是否发生过 mutation。
     txn_dirty: bool,
+}
+
+impl<N: Clone, E: Clone> MutableGraph<N, E> {
+    /// Owning 复制（邻接与节点/边载荷）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            semantics: self.semantics,
+            revision: self.revision,
+            nodes: self.nodes.clone(),
+            edges: self.edges.clone(),
+            outgoing: self.outgoing.clone(),
+            incoming: self.incoming.clone(),
+            txn_depth: self.txn_depth,
+            txn_dirty: self.txn_dirty,
+        }
+    }
 }
 
 impl<N, E> MutableGraph<N, E> {
@@ -362,9 +381,18 @@ impl<N, E> GraphBuilder<N, E> {
 /// 稳定只读图（算法与视图的主路径）。
 ///
 /// 通过 [`Deref`](std::ops::Deref) 暴露 [`MutableGraph`] 的只读 API；不可再 mutation。
-#[derive(Debug, Clone)]
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct ImmutableGraph<N, E> {
     inner: MutableGraph<N, E>,
+}
+
+impl<N: Clone, E: Clone> ImmutableGraph<N, E> {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self { inner: self.inner.owning_copy() }
+    }
 }
 
 impl<N, E> ImmutableGraph<N, E> {

@@ -576,7 +576,7 @@ fn reject_finite_field_trailing() {
 
 #[test]
 fn reject_finite_field_oversized_count_without_oom() {
-    // Fuzz can claim ~10^9 coefficients with a tiny rest; decode must reject before allocate.
+    // Fuzz 可声称约 10^9 个系数而剩余很小；decode 必须在分配前拒绝。
     let mut payload = 4u32.to_le_bytes().to_vec();
     payload.extend_from_slice(&2u32.to_le_bytes());
     payload.extend_from_slice(&0x0FFF_FFFFu32.to_le_bytes());

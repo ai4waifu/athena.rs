@@ -1,4 +1,4 @@
-//! Living `31`：destination reuse / `try_reuse_unique_published` / `UniqueMutationGuard` 合同。
+//! destination reuse / `try_reuse_unique_published` / `UniqueMutationGuard` 合同。
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{CapabilityBundle, ExecutionBudget, Integer, NumericContext, ResourceCapability, natural::Natural};
@@ -30,7 +30,7 @@ fn spare_capacity_add_owned_reuses_unique_published_block() {
     let expected = a.try_add(&b, &ctx).expect("ref");
     let sum = a.try_add_owned(&b, &ctx).expect("owned");
     assert_eq!(sum.as_limbs(), expected.as_limbs());
-    // Living 31：唯一 published 块原地复用，指针不变且仍为 TracingSweep。
+    // 唯一 published 块原地复用，指针不变且仍为 TracingSweep。
     assert_eq!(sum.as_limbs().as_ptr(), ptr_before);
     let nn = NonNull::new(sum.as_limbs().as_ptr() as *mut u64).expect("ptr");
     assert!(ctx.heap().borrow().may_root_numeric(nn).expect("still published"));
@@ -38,10 +38,10 @@ fn spare_capacity_add_owned_reuses_unique_published_block() {
 }
 
 #[test]
-fn try_reuse_unique_buffer_refuses_when_not_explicit_release_spare_path_still_correct() {
+fn published_add_owned_falls_back_when_capacity_tight() {
     let heap = GcHeap::new_shared(HeapBudget::default());
     let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
-    // Tight capacity：无法 reuse 时回退 try_add，结果仍正确。
+    // Tight capacity：无法 reuse 唯一 published 块时回退 try_add，结果仍正确。
     let a = Natural::from_limbs_in(&ctx, vec![u64::MAX, u64::MAX, u64::MAX]).expect("a");
     let b = Natural::from_u64(1);
     let expected = a.try_add(&b, &ctx).expect("ref");

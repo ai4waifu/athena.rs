@@ -1,7 +1,7 @@
-//! Typed provider call surface for `ExecutionIR` (capability + verifier handoff).
+//! `ExecutionIR` 的类型化 provider 调用面（能力 + 校验器交接）。
 //!
-//! Provider-private kernel artifacts are not a second Athena IR. They bind to a
-//! [`ProviderCallDescriptor`](crate::execution::ir::ProviderCallDescriptor) only.
+//! Provider 私有的 kernel 产物不是第二套 Athena IR。它们仅绑定到
+//! [`ProviderCallDescriptor`](crate::execution::ir::ProviderCallDescriptor) 描述符。
 
 use std::{
     collections::hash_map::DefaultHasher,
@@ -12,15 +12,15 @@ use athena_types::ExtensionOperatorId;
 
 use crate::execution::ir::{ExecutionValueType, ProviderCallDescriptor, ProviderCallId};
 
-/// Capability snapshot required by a provider call site.
+/// Provider 调用点所需的能力快照。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProviderCapabilitySnapshot {
-    /// Opaque capability fingerprint (backend-defined bits).
+    /// 不透明能力指纹（由后端定义各位）。
     pub fingerprint: u64,
 }
 
 impl ProviderCapabilitySnapshot {
-    /// Derive a session-local capability fingerprint from a closed operator id.
+    /// 由封闭算子 id 推导会话局部能力指纹。
     pub fn from_operator(operator: ExtensionOperatorId) -> Self {
         let mut hasher = DefaultHasher::new();
         0x5052_4f56_4341_5045u64.hash(&mut hasher); // "PROVCAPE"
@@ -29,17 +29,17 @@ impl ProviderCapabilitySnapshot {
     }
 }
 
-/// Handoff from executor to provider verifier / admission.
+/// 从执行器到 provider 校验器 / 准入的交接。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderCallHandoff {
-    /// Descriptor from the module table.
+    /// 来自 module 表的描述符。
     pub descriptor: ProviderCallDescriptor,
-    /// Required capabilities.
+    /// 所需能力。
     pub capabilities: ProviderCapabilitySnapshot,
 }
 
 impl ProviderCallHandoff {
-    /// Build a handoff from operator identity.
+    /// 由算子标识构建交接。
     pub fn from_operator(id: ProviderCallId, operator: ExtensionOperatorId) -> Self {
         Self {
             descriptor: ProviderCallDescriptor::new(id, operator, ExecutionValueType::Unknown),
@@ -47,33 +47,9 @@ impl ProviderCallHandoff {
         }
     }
 
-    /// Build a handoff from a compiled descriptor table entry.
+    /// 由已编译描述符表条目构建交接。
     pub fn from_descriptor(descriptor: ProviderCallDescriptor) -> Self {
         let capabilities = ProviderCapabilitySnapshot::from_operator(descriptor.operator);
         Self { descriptor, capabilities }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::execution::ir::ProviderCallId;
-
-    #[test]
-    fn capability_fingerprint_is_stable_for_operator() {
-        let a = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(7));
-        let b = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(7));
-        let c = ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(8));
-        assert_eq!(a, b);
-        assert_ne!(a.fingerprint, c.fingerprint);
-        assert_ne!(a.fingerprint, 0);
-    }
-
-    #[test]
-    fn handoff_from_descriptor_binds_operator_capability() {
-        let descriptor = ProviderCallDescriptor::new(ProviderCallId(0), ExtensionOperatorId(3), ExecutionValueType::Unit);
-        let handoff = ProviderCallHandoff::from_descriptor(descriptor.clone());
-        assert_eq!(handoff.descriptor, descriptor);
-        assert_eq!(handoff.capabilities, ProviderCapabilitySnapshot::from_operator(ExtensionOperatorId(3)));
     }
 }

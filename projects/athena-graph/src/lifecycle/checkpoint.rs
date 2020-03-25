@@ -11,7 +11,7 @@ use super::{
 ///
 /// **禁止**内嵌 resident pointer。resume 须重新获取 lease / pin。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct GraphAlgorithmCheckpoint {
     /// 稳定观测身份。
@@ -31,7 +31,7 @@ pub struct GraphAlgorithmCheckpoint {
 }
 
 impl GraphAlgorithmCheckpoint {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             snapshot_id: self.snapshot_id,

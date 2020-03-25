@@ -102,7 +102,7 @@ pub enum GraphProvenance {
 
 /// 内存图载体（引导实现）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct MemoryGraph {
     /// 语义。
@@ -132,7 +132,7 @@ impl MemoryGraph {
         builder.finish()
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { semantics: self.semantics, edges: self.edges.clone() }
     }
@@ -140,7 +140,7 @@ impl MemoryGraph {
 
 /// 图论领域对象（绑定 [`GraphSnapshot`]）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct GraphObject {
     /// 句柄（与 `snapshot.graph_id` 对齐）。
@@ -205,7 +205,7 @@ impl GraphObject {
         self.snapshot.revision
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             handle: self.handle,

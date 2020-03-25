@@ -30,7 +30,7 @@ impl ResultProviderId {
     /// 优化。
     pub const OPTIMIZATION: Self = Self(9);
 
-    /// 结果层 provider 合同版本（Living `30` Frontier resume 兼容检查）。
+    /// 结果层 provider 合同版本（Frontier resume 兼容检查）。
     ///
     /// Bootstrap：全域统一从 `1` 起。破坏性变更时递增，旧 `ResumeToken` 不得静默继续。
     pub const CONTRACT_VERSION: u32 = 1;
@@ -84,12 +84,12 @@ pub struct ResultProvenance {
 }
 
 impl ResultProvenance {
-    /// Provenance without a provider capability edge.
+    /// 无 provider capability 边的由来。
     pub fn kind(request_kind: &'static str) -> Self {
         Self { request_kind, capability_fingerprint: None }
     }
 
-    /// Provenance for a `CallProvider` edge.
+    /// `CallProvider` 边的由来。
     pub fn call_provider(capability_fingerprint: u64) -> Self {
         Self { request_kind: "CallProvider", capability_fingerprint: Some(capability_fingerprint) }
     }
@@ -112,7 +112,7 @@ pub struct ComputationResult {
     pub diagnostics: Vec<Diagnostic>,
     /// 证据引用（typed store 接入前可为空）。
     pub evidence: Vec<ResultEvidence>,
-    /// 产出 provider（含合同版本 · Living `30`）。
+    /// 产出 provider（含合同版本 · ）。
     pub provider: Option<ResultProviderStamp>,
     /// 来源审计。
     pub provenance: Option<ResultProvenance>,
@@ -222,37 +222,5 @@ impl ResultStore {
     /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.results.is_empty()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_types::ComputationStatus;
-
-    use super::{ComputationResult, ResultProviderId, ResultProviderStamp};
-    use crate::runtime::results::CoverageStatus;
-
-    #[test]
-    fn provider_stamp_uses_contract_version() {
-        let stamp = ResultProviderId::POLYNOMIAL.stamped();
-        assert_eq!(stamp.id, ResultProviderId::POLYNOMIAL);
-        assert_eq!(stamp.version, ResultProviderId::CONTRACT_VERSION);
-        assert!(stamp.matches_current_contract());
-    }
-
-    #[test]
-    fn provider_stamp_rejects_stale_version() {
-        let current = ResultProviderId::CALCULUS.stamped();
-        let stale = ResultProviderStamp { id: ResultProviderId::CALCULUS, version: 0 };
-        assert!(!current.compatible_with(stale));
-        assert!(!stale.matches_current_contract());
-    }
-
-    #[test]
-    fn computation_result_with_provider_stamps_version() {
-        let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-            .with_provider(ResultProviderId::NUMBER_THEORY);
-        assert_eq!(result.provider, Some(ResultProviderId::NUMBER_THEORY.stamped()));
-        assert_eq!(result.coverage, CoverageStatus::Full);
     }
 }

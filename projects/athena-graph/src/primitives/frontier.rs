@@ -34,7 +34,7 @@ impl CancelFlag {
 
 /// 可恢复 BFS frontier 检查点。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct FrontierCheckpoint {
     /// 待处理队列（FIFO 前端在前）。
@@ -46,7 +46,7 @@ pub struct FrontierCheckpoint {
 }
 
 impl FrontierCheckpoint {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { queue: self.queue.clone(), discovered: self.discovered.clone(), visited_prefix: self.visited_prefix.clone() }
     }
@@ -54,7 +54,7 @@ impl FrontierCheckpoint {
 
 /// 确定性 FIFO frontier。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, Default)]
 pub struct DeterministicFrontier {
     queue: VecDeque<NodeId>,
@@ -66,11 +66,9 @@ impl DeterministicFrontier {
         Self { queue: VecDeque::new() }
     }
 
-    /// Owning 复制（Living `31`：队列）。
+    /// Owning 复制（队列）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            queue: self.queue.clone(),
-        }
+        Self { queue: self.queue.clone() }
     }
 
     /// 从检查点恢复队列（不恢复 `discovered` / 前缀，由调用方持有）。
@@ -111,7 +109,7 @@ pub fn sort_neighbors_deterministic(neighbors: &mut [NodeId]) {
 
 /// 确定性 BFS 结果。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeterministicBfsOutcome {
     /// 完整访问序（仅可达子图）。
@@ -126,13 +124,11 @@ pub enum DeterministicBfsOutcome {
 }
 
 impl DeterministicBfsOutcome {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Complete(order) => Self::Complete(order.clone()),
-            Self::Cancelled { partial, checkpoint } => {
-                Self::Cancelled { partial: partial.clone(), checkpoint: checkpoint.owning_copy() }
-            }
+            Self::Cancelled { partial, checkpoint } => Self::Cancelled { partial: partial.clone(), checkpoint: checkpoint.owning_copy() },
         }
     }
 }

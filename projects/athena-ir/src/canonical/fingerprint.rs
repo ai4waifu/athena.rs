@@ -1,9 +1,9 @@
 //! IR term 规范结构 hash（缓存键 · wire · JIT kernel key）。
 //!
 //! FNV-1a 64 稳定实现：同结构同 hash，与插入顺序、进程无关。
-//! Semantic ops hash via [`SemanticOperator::discriminant`](crate::SemanticOperator::discriminant)
-//! (registry-independent). Extension ops hash by id, or by display name when using
-//! [`canonical_hash_named`].
+//! 语义算子经 [`SemanticOperator::discriminant`](crate::SemanticOperator::discriminant) 参与 hash
+//! （与 registry 无关）。扩展算子按 id 参与 hash；使用下列函数时按显示名：
+//! [`canonical_hash_named`]。
 
 use athena_types::{CollectionKind, TermId};
 
@@ -13,9 +13,9 @@ use crate::{
     store::TermStore,
 };
 
-/// FNV-1a 64 offset basis。
+/// FNV-1a 64 偏移基底。
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-/// FNV-1a 64 prime。
+/// FNV-1a 64 素数。
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// FNV-1a 64 字节流 hash（IR 与领域指纹共用基元）。
@@ -61,7 +61,7 @@ pub fn canonical_hash(arena: &TermStore, root: TermId) -> u64 {
     hash_walk(arena, None, root).state
 }
 
-/// Cross-registry stable hash: semantic via discriminant, extension via display name.
+/// 跨 registry 稳定 hash：语义用 discriminant，扩展用显示名。
 pub fn canonical_hash_named(arena: &TermStore, registry: &ExtensionRegistry, root: TermId) -> u64 {
     hash_walk(arena, Some(registry), root).state
 }

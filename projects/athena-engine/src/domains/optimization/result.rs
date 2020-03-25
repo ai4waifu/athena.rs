@@ -12,7 +12,7 @@ use super::{
 /// `Feasible` ≠ `Optimal`；局部 KKT ≠ 全局；迭代收敛 ≠ 证明；
 /// incumbent ≠ 整数全局最优；资源耗尽只能是 `ResourceLimited` / `Inconclusive`。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum OptimizationResult {
     /// 已证明最优（必须携带最优性种类，见证书）。
@@ -115,7 +115,7 @@ pub enum OptimizationResult {
 }
 
 impl OptimizationResult {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Optimal { fingerprint, status, point, value, certificate } => Self::Optimal {
@@ -132,11 +132,9 @@ impl OptimizationResult {
                 value: *value,
                 bound: bound.as_ref().map(BoundCertificate::owning_copy),
             },
-            Self::Infeasible { fingerprint, status, certificate } => Self::Infeasible {
-                fingerprint: *fingerprint,
-                status: *status,
-                certificate: certificate.owning_copy(),
-            },
+            Self::Infeasible { fingerprint, status, certificate } => {
+                Self::Infeasible { fingerprint: *fingerprint, status: *status, certificate: certificate.owning_copy() }
+            }
             Self::Unbounded { fingerprint, status, ray_or_direction, certificate } => Self::Unbounded {
                 fingerprint: *fingerprint,
                 status: *status,
@@ -157,14 +155,7 @@ impl OptimizationResult {
                 bounds: bounds.as_ref().map(BoundCertificate::owning_copy),
                 frontier: frontier.owning_copy(),
             },
-            Self::NumericalCandidate {
-                fingerprint,
-                status,
-                point,
-                residual,
-                gap,
-                diagnostics,
-            } => Self::NumericalCandidate {
+            Self::NumericalCandidate { fingerprint, status, point, residual, gap, diagnostics } => Self::NumericalCandidate {
                 fingerprint: *fingerprint,
                 status: *status,
                 point: point.clone(),

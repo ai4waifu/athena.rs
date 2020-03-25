@@ -1,4 +1,4 @@
-//! Proof dependency index：已接纳事实对前提事实的可重放依赖（Living `29`）。
+//! Proof dependency index：已接纳事实对前提事实的可重放依赖。
 //!
 //! 禁止用 cache 命中 / 耗时冒充证明依赖。依赖边只记录 [`FactId`]，不复制 claim 载荷。
 
@@ -35,9 +35,7 @@ impl ProofDependencyIndex {
                 return Err(diag("self_dependency").detail("fact", fact.0.to_string()));
             }
             if premise.0 >= fact.0 {
-                return Err(diag("premise_not_prior")
-                    .detail("fact", fact.0.to_string())
-                    .detail("premise", premise.0.to_string()));
+                return Err(diag("premise_not_prior").detail("fact", fact.0.to_string()).detail("premise", premise.0.to_string()));
             }
             unique.insert(*premise);
         }
@@ -92,30 +90,4 @@ fn diag(reason: &str) -> Diagnostic {
         .detail("domain", "mgraph")
         .detail("operation", "proof_dependency")
         .detail("reason", reason)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{FactId, ProofDependencyIndex};
-
-    #[test]
-    fn records_and_queries_transitive_dependency() {
-        let mut index = ProofDependencyIndex::new();
-        index.record(FactId(1), &[]).unwrap();
-        index.record(FactId(2), &[FactId(1)]).unwrap();
-        index.record(FactId(3), &[FactId(2)]).unwrap();
-        assert!(index.depends_on(FactId(3), FactId(1)));
-        assert!(index.depends_on(FactId(3), FactId(2)));
-        assert!(!index.depends_on(FactId(1), FactId(3)));
-        assert_eq!(index.premises(FactId(3)), &[FactId(2)]);
-    }
-
-    #[test]
-    fn rejects_self_and_future_premises() {
-        let mut index = ProofDependencyIndex::new();
-        let err = index.record(FactId(1), &[FactId(1)]).expect_err("self");
-        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("self_dependency"));
-        let err = index.record(FactId(1), &[FactId(2)]).expect_err("future");
-        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("premise_not_prior"));
-    }
 }

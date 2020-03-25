@@ -1,55 +1,52 @@
-//! Domain planner / `DomainPlan` scaffold (Living `28`).
+//! 领域规划器 / [`DomainPlan`] 骨架。
 //!
-//! Goal describes intent. Algorithm / representation / backend choices belong here —
-//! not inside domain providers as hidden `if len > …` policy.
+//! Goal 描述意图。算法 / 表示 / 后端选择落在此处——
+//! 不要藏在领域 provider 里用隐式 `if len > …` 策略。
 //!
-//! Bootstrap plans are interpreted by [`crate::domains::plan_exec::interpret_domain_plan`].
-//! Default shape: `Normalize` → `SelectRepresentation` → `CallDomainProvider` → `Verify` → `MaterializeResult`.
-//! Series-family calculus goals insert `CrossDomainView` after the provider.
+//! Bootstrap 计划由 [`crate::domains::plan_exec::interpret_domain_plan`] 解释。
+//! 默认形状：`Normalize` → `SelectRepresentation` → `CallDomainProvider` → `Verify` → `MaterializeResult`。
+//! 级数族微积分目标在 provider 之后插入 `CrossDomainView`。
 
 use crate::domains::{calculus::CalculusRequest, dispatch::DomainRequest};
 
-/// One step in a [`DomainPlan`] (planner atom · not an IR layer).
+/// [`DomainPlan`] 中的一步（规划原子 · 不是 IR 层）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlanStep {
-    /// Normalize / coerce inputs to the selected representation.
+    /// 将输入规范化 / 强制到所选表示。
     Normalize,
-    /// Choose representation family for DomainObjects involved.
+    /// 为涉及的 DomainObject 选择表示族。
     SelectRepresentation,
-    /// Borrow a cross-domain TypedView (no Vec copy).
+    /// 借用跨域 TypedView（禁止 `Vec` 拷贝）。
     CrossDomainView,
-    /// Invoke the owning domain provider / kernel.
+    /// 调用所属领域 provider / kernel。
     CallDomainProvider,
-    /// Replay certificates / fingerprints (kernel must not admit facts alone).
+    /// 重放证书 / fingerprint（kernel 不得单独接纳事实）。
     Verify,
-    /// Project provider output into [`crate::domains::DomainResult`].
+    /// 将 provider 输出投影为 [`crate::domains::DomainResult`]。
     MaterializeResult,
-    /// Emit an unevaluated residual when the plan cannot complete.
+    /// 计划无法完成时发出未求值残差。
     EmitResidual,
 }
 
-/// Planned execution for one [`DomainRequest`].
+/// 一次 [`DomainRequest`] 的计划执行。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct DomainPlan {
-    /// Ordered [`PlanStep`]s.
+    /// 有序 [`PlanStep`]。
     pub steps: Vec<PlanStep>,
 }
 
 impl DomainPlan {
-    /// Owning 复制（Living `31`：仅 `PlanStep` 句柄向量）。
+    /// 拥有式深复制（仅 `PlanStep` 句柄向量）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            steps: self.steps.clone(),
-        }
+        Self { steps: self.steps.clone() }
     }
 }
 
-/// Build a [`DomainPlan`] for `request` (Living `28` DomainPlanner entry).
+/// 为 `request` 构建 [`DomainPlan`]（DomainPlanner 入口）。
 ///
-/// Domain-specific algorithm selection lands here — not inside `execute_*` helpers
-/// as silent strategy branches.
+/// 领域相关算法选择落在此处——不要在 `execute_*` 助手里做成静默策略分支。
 pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
     match request {
         DomainRequest::Calculus(CalculusRequest::Series { .. } | CalculusRequest::Laurent { .. } | CalculusRequest::Asymptotic { .. }) => {
@@ -73,56 +70,5 @@ pub fn plan_domain(request: &DomainRequest) -> DomainPlan {
                 PlanStep::MaterializeResult,
             ],
         },
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::calculus::DerivativeOrder;
-    use athena_types::{AssumptionSet, SymbolId, TermId};
-
-    #[test]
-    fn calculus_goal_gets_normalize_provider_verify_materialize() {
-        let request = DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression: TermId(0),
-            variable: SymbolId(0),
-            order: DerivativeOrder::First,
-            assumptions: AssumptionSet::empty(),
-        });
-        let plan = plan_domain(&request);
-        assert_eq!(
-            plan.steps,
-            vec![
-                PlanStep::Normalize,
-                PlanStep::SelectRepresentation,
-                PlanStep::CallDomainProvider,
-                PlanStep::Verify,
-                PlanStep::MaterializeResult,
-            ]
-        );
-    }
-
-    #[test]
-    fn series_goal_inserts_cross_domain_view_step() {
-        let request = DomainRequest::Calculus(CalculusRequest::Series {
-            expression: TermId(0),
-            variable: SymbolId(0),
-            center: TermId(1),
-            order: 2,
-            assumptions: AssumptionSet::empty(),
-        });
-        let plan = plan_domain(&request);
-        assert_eq!(
-            plan.steps,
-            vec![
-                PlanStep::Normalize,
-                PlanStep::SelectRepresentation,
-                PlanStep::CallDomainProvider,
-                PlanStep::CrossDomainView,
-                PlanStep::Verify,
-                PlanStep::MaterializeResult,
-            ]
-        );
     }
 }

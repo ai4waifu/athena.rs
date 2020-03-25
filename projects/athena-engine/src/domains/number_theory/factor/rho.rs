@@ -1,4 +1,4 @@
-//! Pollard rho（`f(x)=x²+c`）。
+//! Pollard ρ（`f(x)=x²+c`）。
 
 use crate::runtime::values::numeric_clone::{clone_integer, clone_modulus};
 use athena_numeric::Integer;

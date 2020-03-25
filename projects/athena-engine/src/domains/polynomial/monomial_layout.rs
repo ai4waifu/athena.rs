@@ -11,7 +11,7 @@ use super::{exponent::add_exponent_vectors, order::MonomialOrder};
 
 /// 环 intern 时编译的单项式序（内循环 infallible 比较）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompiledMonomialOrder {
     /// 字典序。
@@ -49,7 +49,7 @@ pub enum CompiledMonomialOrder {
 }
 
 impl CompiledMonomialOrder {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Lex { variables } => Self::Lex { variables: *variables },
@@ -64,7 +64,7 @@ impl CompiledMonomialOrder {
 
 /// 分块序的一段。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct CompiledBlockSegment {
     /// 段起始（含）。
@@ -76,7 +76,7 @@ pub struct CompiledBlockSegment {
 }
 
 impl CompiledBlockSegment {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { start: self.start, end: self.end, order: self.order.owning_copy() }
     }
@@ -84,14 +84,14 @@ impl CompiledBlockSegment {
 
 /// packed word 单项式指数（arena 友好；比较经 layout 解码）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct PackedMonomial {
     words: Vec<u64>,
 }
 
 impl PackedMonomial {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { words: self.words.clone() }
     }
@@ -109,7 +109,7 @@ impl PackedMonomial {
 
 /// 环上的单项式布局（intern 时固定）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct MonomialLayout {
     variable_count: usize,
@@ -120,7 +120,7 @@ pub struct MonomialLayout {
 }
 
 impl MonomialLayout {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             variable_count: self.variable_count,

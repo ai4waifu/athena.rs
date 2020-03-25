@@ -17,7 +17,7 @@ pub enum AlgorithmGuarantee {
 
 /// 线性方程组求解分类。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolveDisposition {
     /// 唯一解。
@@ -36,13 +36,11 @@ pub enum SolveDisposition {
 }
 
 impl SolveDisposition {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Unique => Self::Unique,
-            Self::Infinite { free_vars } => Self::Infinite {
-                free_vars: free_vars.clone(),
-            },
+            Self::Infinite { free_vars } => Self::Infinite { free_vars: free_vars.clone() },
             Self::Inconsistent => Self::Inconsistent,
             Self::Singular => Self::Singular,
             Self::ResourceLimited => Self::ResourceLimited,

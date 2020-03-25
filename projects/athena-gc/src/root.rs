@@ -9,15 +9,15 @@ use crate::ids::{GcObjectId, RootToken};
 pub enum RootKind {
     /// 活动 Session。
     Session,
-    /// TS opaque handle。
+    /// TS 不透明句柄。
     TsHandle,
-    /// M-Graph root。
+    /// M-Graph 根。
     MGraph,
-    /// E-Graph root。
+    /// E-Graph 根。
     EGraph,
-    /// IR root。
+    /// IR 根。
     Ir,
-    /// Solver frontier。
+    /// Solver 前沿。
     SolverFrontier,
     /// 进行中计算。
     InFlight,

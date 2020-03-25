@@ -9,7 +9,7 @@ use crate::reasoning::mgraph::{
 
 /// 操作层状态（非单调；可驱逐、可重建）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（`result_cache` 含多项式 owning 载荷）。
+/// **不**实现 [`Clone`]（`result_cache` 含多项式 owning 载荷）。
 #[derive(Debug, Default, PartialEq)]
 pub struct OperationalState {
     /// Solver 调度前沿。
@@ -20,11 +20,11 @@ pub struct OperationalState {
     pub hyper_edges: Vec<HyperEdge>,
     /// 已从 hyper-edge 映射、仍未经验证的外候选（**不得**直接进入 ExactUF）。
     pub outer_candidates: Vec<OuterCandidate>,
-    /// Pending ProofObligations awaiting Reflector wake on admit.
+    /// 等待接纳时 Reflector 唤醒的挂起 `ProofObligation`。
     pub obligation_index: ObligationIndex,
-    /// DomainPlans queued from Reflector `NeedComputation` (not yet executed).
+    /// 由 Reflector `NeedComputation` 入队的 `DomainPlan`（尚未执行）。
     pub pending_plans: Vec<QueuedPlan>,
-    /// Inconclusive obligations retained for frontier resume.
+    /// 为 frontier 恢复而保留的未决义务。
     pub resume_queue: Vec<ProofObligation>,
     /// 全局 determinacy 占位（后续改为 per-claim）。
     pub determinacy: DeterminacyState,

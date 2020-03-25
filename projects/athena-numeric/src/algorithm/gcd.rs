@@ -11,7 +11,7 @@ pub const GCD_HALF_THRESHOLD: usize = GCD_LEHMER_THRESHOLD * 4;
 /// GCD 算法族。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GcdStrategy {
-    /// Stein binary GCD。
+    /// Stein 二进制 GCD。
     Binary,
     /// Lehmer 加速 Euclid，收尾 binary。
     Lehmer,

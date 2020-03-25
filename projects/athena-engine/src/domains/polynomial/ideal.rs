@@ -6,7 +6,7 @@ use super::object::Polynomial;
 
 /// 多项式理想 ⟨generators⟩ ⊂ R[x]。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct Ideal {
     /// 所属环。
@@ -16,7 +16,7 @@ pub struct Ideal {
 }
 
 impl Ideal {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { ring: self.ring, generators: self.generators.iter().map(Polynomial::owning_copy).collect() }
     }

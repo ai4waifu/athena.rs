@@ -35,7 +35,7 @@ pub enum Primality {
 }
 
 impl Primality {
-    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Prime { certificate } => Self::Prime { certificate: certificate.owning_copy() },
@@ -133,7 +133,7 @@ impl Factorization {
     }
 }
 
-/// extended Euclidean：`s·a + t·b = g`。
+/// 扩展欧几里得：`s·a + t·b = g`。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtendedGcd {
     /// `gcd(|a|,|b|)`（非负）。

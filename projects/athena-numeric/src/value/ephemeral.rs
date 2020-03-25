@@ -1,6 +1,6 @@
 //! Batch-local temporary magnitudes（绑定 [`NumericBatch`] 借用期）。
 //!
-//! Living `31`：[`TemporaryNatural`] / [`TemporaryInteger`] 是与持久 [`super::natural::Natural`] /
+//! [`TemporaryNatural`] / [`TemporaryInteger`] 是与持久 [`super::natural::Natural`] /
 //! [`super::integer::Integer`] **不同名义类型**的临时值。Heap 结果位于 ephemeral bump；
 //! 跨 batch 存活必须 [`TemporaryNatural::promote`] / [`TemporaryInteger::promote`]。
 //! **禁止**静默 `Into`/`From` 把临时类型转成持久值。
@@ -22,7 +22,7 @@ use crate::{
     },
 };
 
-/// Living `31`：批内临时非负幅度（生命周期绑在 [`NumericBatch`] 独占借用上）。
+/// 批内临时非负幅度（生命周期绑在 [`NumericBatch`] 独占借用上）。
 ///
 /// Heap 模式结果位于 ephemeral bump；不得逃逸 batch，除非 [`Self::promote`]。
 pub struct TemporaryNatural<'batch> {
@@ -30,7 +30,7 @@ pub struct TemporaryNatural<'batch> {
     _batch: PhantomData<&'batch mut ()>,
 }
 
-/// Living `31`：批内临时有符号整数（同 [`TemporaryNatural`] 生命周期合同）。
+/// 批内临时有符号整数（同 [`TemporaryNatural`] 生命周期合同）。
 ///
 /// Heap 模式结果位于 ephemeral bump；不得逃逸 batch，除非 [`Self::promote`]。
 pub struct TemporaryInteger<'batch> {
@@ -38,10 +38,10 @@ pub struct TemporaryInteger<'batch> {
     _batch: PhantomData<&'batch mut ()>,
 }
 
-/// 历史别名（Living `31` 优选 [`TemporaryNatural`]）。
+/// 历史别名（优选 [`TemporaryNatural`]）。
 pub type EphemeralNatural<'batch> = TemporaryNatural<'batch>;
 
-/// 历史别名（Living `31` 优选 [`TemporaryInteger`]）。
+/// 历史别名（优选 [`TemporaryInteger`]）。
 pub type EphemeralInteger<'batch> = TemporaryInteger<'batch>;
 
 impl<'batch> TemporaryNatural<'batch> {

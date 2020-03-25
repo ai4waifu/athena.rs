@@ -1,8 +1,8 @@
-//! Living `12` / `27` contract smoke — typed construction and evaluation only.
+//! 合同冒烟 — 仅类型化构造与求值。
 //!
-//! These lib tests seed the neutral acceptance suite. Product crates still own
-//! large integration coverage under `tests/main.rs`. This package must never
-//! grow a `tests/` integration binary or dialect fixtures.
+//! 这些 lib 测试为中立验收套件播种。产品 crate 仍拥有
+//! `tests/main.rs` 下的大型集成覆盖。本包绝不可
+//! 扩展出 `tests/` 集成二进制或方言 fixture。
 
 use athena_engine::{
     api::{AthenaRequest, request::SessionCommand},
@@ -18,7 +18,7 @@ use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, T
 use athena_numeric::Integer;
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, ComputationStatus};
 
-use crate::{SessionFixture, assert_exact_integer, goal_request};
+use athena_testing::{SessionFixture, assert_exact_integer, goal_request};
 
 #[test]
 fn math_constant_pi_is_typed_atom_not_user_symbol() {
@@ -295,7 +295,7 @@ fn egraph_ruleset_saturation_emits_unverified_candidates() {
     assert_eq!(report.candidates[0].left_term, zero);
     assert_eq!(report.candidates[0].right_term, one);
     assert_eq!(report.candidates[0].rule, Some(rule_id));
-    // Candidates stay outside M-Graph until explicit admit.
+    // 候选在显式准入前停留在 M-Graph 之外。
     assert_eq!(fx.session().mgraph.semantic.derived.proof_forest.len(), 0);
     let admitted = fx.session_mut().admit_structural_egraph_candidates(&report.candidates);
     assert!(admitted.is_empty());

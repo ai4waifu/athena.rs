@@ -1,47 +1,47 @@
-//! Proof forest for admitted equalities (Living `03` R-2.4 · bootstrap).
+//! 已接纳等式的证明森林（引导实现）。
 //!
-//! Records *why* two terms are equal after AdmissionGate. Distinct from
-//! scope-local E-Graph candidate unions and from operational [`ExactUnionFind`].
+//! 记录经 AdmissionGate 后两项相等的 *原因*。有别于
+//! 作用域局部 E-Graph 候选合并，也有别于操作层 [`ExactUnionFind`]。
 
 use athena_types::TermId;
 
-/// One justified equality edge in the forest.
+/// 森林中一条有理据的等式边。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofEdge {
     /// Left term.
     pub left: TermId,
     /// Right term.
     pub right: TermId,
-    /// Opaque step kind (filled by verifiers later).
+    /// 不透明步骤种类（稍后由验证器填充）。
     pub step_kind: ProofStepKind,
 }
 
-/// Closed step taxonomy for bootstrap (expand with certificates later).
+/// 引导用的封闭步骤分类（稍后用证书扩展）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofStepKind {
-    /// Direct admitted equality (structural / harness / generic).
+    /// 直接接纳的等式（结构 / harness / 通用）。
     AdmittedEquality,
-    /// Congruence under a common head (ExactUF application congruence).
+    /// 相同头部下的同余（ExactUF 应用同余）。
     Congruence,
-    /// Typed rewrite replay (`match_pattern` + `substitute`).
+    /// 带类型重写回放（`match_pattern` + `substitute`）。
     TypedRewrite,
-    /// Transitivity step.
+    /// 传递性步骤。
     Transitivity,
 }
 
-/// Forest of equality justifications (append-only bootstrap).
+/// 等式理据森林（仅追加的引导实现）。
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProofForest {
     edges: Vec<ProofEdge>,
 }
 
 impl ProofForest {
-    /// Empty forest.
+    /// 空森林。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Record a justified equality (does not itself admit M-Graph facts).
+    /// 记录一条有理据等式（本身不接纳 M-Graph 事实）。
     pub fn record(&mut self, left: TermId, right: TermId, step_kind: ProofStepKind) {
         self.edges.push(ProofEdge { left, right, step_kind });
     }
@@ -51,28 +51,13 @@ impl ProofForest {
         self.edges.len()
     }
 
-    /// Whether empty.
+    /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.edges.is_empty()
     }
 
-    /// Iterate edges.
+    /// 迭代边。
     pub fn edges(&self) -> &[ProofEdge] {
         &self.edges
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_types::TermId;
-
-    use super::*;
-
-    #[test]
-    fn proof_forest_records_admitted_equality_edges() {
-        let mut forest = ProofForest::new();
-        forest.record(TermId(1), TermId(2), ProofStepKind::AdmittedEquality);
-        assert_eq!(forest.len(), 1);
-        assert_eq!(forest.edges()[0].step_kind, ProofStepKind::AdmittedEquality);
     }
 }

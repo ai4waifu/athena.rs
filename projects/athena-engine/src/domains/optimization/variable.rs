@@ -35,7 +35,7 @@ pub enum Integrality {
 
 /// 非身份元数据（名称、注释等；不进 fingerprint 主体时可剥离）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct VariableMetadata {
     /// 展示名（非稳定身份）。
@@ -43,7 +43,7 @@ pub struct VariableMetadata {
 }
 
 impl VariableMetadata {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { display_name: self.display_name.clone() }
     }
@@ -51,10 +51,10 @@ impl VariableMetadata {
 
 /// 决策变量。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct DecisionVariable {
-    /// Session-local id。
+    /// 会话局部 id。
     pub id: VariableId,
     /// 取值域。
     pub domain: VariableDomain,
@@ -69,7 +69,7 @@ pub struct DecisionVariable {
 }
 
 impl DecisionVariable {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             id: self.id,

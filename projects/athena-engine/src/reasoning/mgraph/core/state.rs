@@ -4,7 +4,7 @@ use crate::reasoning::mgraph::{admission::semantic::SemanticCore, closure::opera
 
 /// M-Graph 状态：semantic core 与 operational 层分离。
 ///
-/// Living `31`：**不**实现 [`Clone`]（operational 缓存含多项式 owning 载荷）。
+/// **不**实现 [`Clone`]（operational 缓存含多项式 owning 载荷）。
 #[derive(Debug, Default, PartialEq)]
 pub struct MGraphState {
     /// 单调 verified claims + 派生索引。
@@ -19,7 +19,7 @@ impl MGraphState {
         Self::default()
     }
 
-    /// Run equality-forest closure in place (Living `26` / `29` bootstrap).
+    /// 原地运行等式森林闭包（引导实现）。
     pub fn run_closure(
         &mut self,
         store: &athena_ir::TermStore,

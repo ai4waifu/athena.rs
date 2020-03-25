@@ -18,7 +18,7 @@ pub enum BlockKind {
     GraphProperty = 5,
 }
 
-/// 单一 reclaim 权限（Living `24`：正交属性中的 reclaim authority，不是 ownership 实体）。
+/// 单一 reclaim 权限（正交属性中的 reclaim authority，不是 ownership 实体）。
 ///
 /// 构造时写入，禁止同一 pointer 原地翻转。`ExplicitRelease` 与 `TracingSweep` 互斥。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

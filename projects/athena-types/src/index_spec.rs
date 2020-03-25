@@ -1,4 +1,4 @@
-//! 中性索引规格（Living `27` · 禁止 `Part` / `Span` 进入核心）。
+//! 中性索引规格（· 禁止 `Part` / `Span` 进入核心）。
 
 /// 整数下标（已由方言 lowering 规范化）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

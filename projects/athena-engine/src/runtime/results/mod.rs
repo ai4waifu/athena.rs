@@ -1,7 +1,7 @@
 //! 结果覆盖状态与 [`ResultStore`]。
 
 mod from_domain;
-mod store;
+pub mod store;
 
 pub use from_domain::computation_from_domain;
 pub use store::{ComputationResult, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp, ResultStore};

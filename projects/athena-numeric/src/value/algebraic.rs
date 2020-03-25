@@ -35,7 +35,7 @@ pub struct AlgebraicNumber {
 }
 
 impl AlgebraicNumber {
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
         let representation = match &self.representation {
             AlgebraicRepresentation::Placeholder => AlgebraicRepresentation::Placeholder,

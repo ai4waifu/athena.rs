@@ -63,7 +63,7 @@ pub enum ConstraintConnective {
 
 /// 约束集合。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ConstraintSet {
     /// 成员间连接词。
@@ -95,13 +95,9 @@ impl ConstraintSet {
         self.members.is_empty()
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            connective: self.connective,
-            members: self.members.iter().map(Constraint::owning_copy).collect(),
-            span: self.span,
-        }
+        Self { connective: self.connective, members: self.members.iter().map(Constraint::owning_copy).collect(), span: self.span }
     }
 }
 
@@ -120,7 +116,7 @@ pub enum Quantifier {
 
 /// 带量词的约束。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct QuantifiedConstraint {
     /// 量词。
@@ -136,7 +132,7 @@ pub struct QuantifiedConstraint {
 }
 
 impl QuantifiedConstraint {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             quantifier: self.quantifier,
@@ -150,7 +146,7 @@ impl QuantifiedConstraint {
 
 /// 统一约束。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum Constraint {
     /// 方程。
@@ -181,7 +177,7 @@ impl Constraint {
         Self::Predicate(SolvePredicate { formula, span: None })
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Equation(e) => Self::Equation(*e),

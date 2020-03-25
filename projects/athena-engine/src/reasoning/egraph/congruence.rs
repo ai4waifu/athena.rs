@@ -1,7 +1,7 @@
-//! Application congruence over ExactUF (Living `03` R-2.4 / `26`).
+//! 基于 `ExactUF` 的应用同余。
 //!
-//! When `ExactUnionFind` already equates arguments pairwise and heads match,
-//! emit / admit `f(a…) ≈ f(b…)` without treating rewrite heuristics as facts.
+//! 当 `ExactUnionFind` 已逐元相等参数且头部一致时，
+//! 发出 / 接纳 `f(a…) ≈ f(b…)`，且不把重写启发式当作事实。
 
 use athena_ir::{TermNode, TermStore};
 use athena_types::TermId;
@@ -17,9 +17,9 @@ use crate::reasoning::{
 
 use super::pipeline::EGRAPH_PROVIDER_ID;
 
-/// Scan known application terms and emit congruence candidates under `exact_uf`.
+/// 扫描已知应用项，在 `exact_uf` 下发出同余候选。
 ///
-/// Does **not** admit. Pairwise scan is bounded by `max_pairs`.
+/// **不会** 接纳。成对扫描受 `max_pairs` 限制。
 pub fn application_congruence_candidates(
     store: &TermStore,
     graph: &EGraph,
@@ -66,7 +66,7 @@ pub fn application_congruence_candidates(
     out
 }
 
-/// True when both terms are applications with equal heads and ExactUF-equal args.
+/// 当两项均为应用、头部相等且参数在 ExactUF 下相等时为真。
 pub fn applications_congruent(store: &TermStore, exact_uf: &ExactUnionFind, left: TermId, right: TermId) -> bool {
     match (store.get(left), store.get(right)) {
         (Some(TermNode::Application { head: head_l, arguments: args_l }), Some(TermNode::Application { head: head_r, arguments: args_r })) => {
@@ -78,7 +78,7 @@ pub fn applications_congruent(store: &TermStore, exact_uf: &ExactUnionFind, left
     }
 }
 
-/// Build a ProvenExact claim when application congruence holds under `exact_uf`.
+/// 当应用同余在 `exact_uf` 下成立时，构造 `ProvenExact` 声明。
 pub fn verify_application_congruence(
     store: &TermStore,
     exact_uf: &ExactUnionFind,
@@ -100,7 +100,7 @@ pub fn verify_application_congruence(
     })
 }
 
-/// Admit one application-congruence equality into semantic core.
+/// 将一条应用同余等式接纳进语义核心。
 pub fn admit_application_congruence(
     store: &TermStore,
     semantic: &mut SemanticCore,
@@ -112,7 +112,7 @@ pub fn admit_application_congruence(
     AdmissionGate::admit_claim(semantic, claim, policy)
 }
 
-/// Admit all application-congruence candidates that still verify under current ExactUF.
+/// 接纳在当前 ExactUF 下仍能通过验证的全部应用同余候选。
 pub fn admit_application_congruence_candidates(
     store: &TermStore,
     semantic: &mut SemanticCore,

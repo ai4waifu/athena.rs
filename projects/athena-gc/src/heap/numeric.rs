@@ -22,7 +22,7 @@ pub struct NumericBumpMark {
 
 /// 临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]）。
 ///
-/// Living `24`：仅本句柄可交给 [`GcHeap::release_numeric_block`]。禁止与已发布块共用类型。
+/// 仅本句柄可交给 [`GcHeap::release_numeric_block`]。禁止与已发布块共用类型。
 #[derive(Debug, Clone, Copy)]
 pub struct TemporaryNumericBlock {
     /// Limb 起点。
@@ -121,7 +121,7 @@ impl GcHeap {
 
     /// 为可 root 的 limbs 登记一条 [`NumericRoot`]（内部 / Drop 路径）。
     ///
-    /// Living `24`：校验 block kind + reclaim authority（可 root 能力），不查询 ownership 实体。
+    /// 校验 block kind + reclaim authority（可 root 能力），不查询 ownership 实体。
     pub fn register_numeric_root_ptr(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
         if !self.may_root_numeric(limbs)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
@@ -130,7 +130,7 @@ impl GcHeap {
         Ok(self.roots.register_numeric(limbs.cast(), kind))
     }
 
-    /// 撤掉一条指向该载荷的 [`NumericRoot`]（Living `19`：`Drop` 只撤根，不释放）。
+    /// 撤掉一条指向该载荷的 [`NumericRoot`]（`Drop` 只撤根，不释放）。
     pub fn unregister_one_numeric_root(&mut self, limbs: NonNull<u64>) -> Result<()> {
         if !self.may_root_numeric(limbs)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
@@ -206,12 +206,12 @@ impl GcHeap {
         self.limbs(block.ptr, block.capacity)
     }
 
-    /// Limb 可写视图（兼容临时句柄；Living `24` 请优先 [`Self::temporary_limbs_mut`]）。
+    /// Limb 可写视图（兼容临时句柄；请优先 [`Self::temporary_limbs_mut`]）。
     pub fn numeric_limbs_mut(&mut self, block: &TemporaryNumericBlock) -> Result<&mut [u64]> {
         self.temporary_limbs_mut(block)
     }
 
-    /// Limb 只读视图（兼容临时句柄；Living `24` 请优先 [`Self::temporary_limbs`]）。
+    /// Limb 只读视图（兼容临时句柄；请优先 [`Self::temporary_limbs`]）。
     pub fn numeric_limbs(&self, block: &TemporaryNumericBlock) -> Result<&[u64]> {
         self.temporary_limbs(block)
     }
@@ -238,7 +238,7 @@ impl GcHeap {
 
     /// 经注册表显式释放临时数值块（仅 [`ReclaimAuthority::ExplicitRelease`]）。
     ///
-    /// Living `24`：禁止对裸 pointer 猜类别；已发布块请用 [`Self::unregister_one_numeric_root_registered`]。
+    /// 禁止对裸 pointer 猜类别；已发布块请用 [`Self::unregister_one_numeric_root_registered`]。
     pub fn release_temporary_numeric_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
         registry::with_heap(heap_id, |heap| {
             if !heap.may_explicit_release_numeric(limbs)? {

@@ -1,10 +1,8 @@
-//! Queued DomainPlan execution (Living `29` · pending_plans bootstrap).
+//! 排队的 `DomainPlan` 执行（· `pending_plans` bootstrap）。
 //!
-//! Plans are queued without forging facts. Execution still goes through domain
-//! providers and [`AdmissionGate`] admit helpers — never direct ExactUF writes.
+//! 计划入队时不伪造事实。执行仍经域 provider 与 [`AdmissionGate`] 接纳辅助 — 禁止直接写 ExactUF。
 //!
-//! [`PlanBinding`] ties a queued plan to a verifiable request fingerprint so a
-//! caller-supplied [`DomainRequest`] cannot silently mismatch the obligation.
+//! [`PlanBinding`] 把排队计划绑到可核验的请求指纹，避免调用方提供的 [`DomainRequest`] 与义务静默错配。
 
 use athena_ir::fnv1a64;
 use athena_types::{Diagnostic, DiagnosticCode};
@@ -25,59 +23,55 @@ use crate::{
     runtime::session::Session,
 };
 
-/// Verifiable link from a queued plan to the DomainRequest that may execute it.
+/// 排队计划与可执行 [`DomainRequest`] 之间的可核验链接。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PlanBinding {
-    /// Wake-scheduled plan without a request yet (caller must bind carefully).
+    /// 已由唤醒调度、尚无请求（调用方须谨慎绑定）。
     #[default]
     Unbound,
-    /// Stable fingerprint gate: execute only if the supplied request matches.
+    /// 稳定指纹门：仅当提供的请求匹配时才执行。
     Fingerprint {
-        /// Theory context expected for the request.
+        /// 请求期望的理论上下文。
         theory: TheoryContextId,
-        /// Predicate expected on the obligation / relation family.
+        /// 义务 / 关系族上期望的谓词。
         predicate: PredicateId,
-        /// Request identity fingerprint (domain-defined).
+        /// 请求身份指纹（由域定义）。
         request_fingerprint: u64,
     },
 }
 
-/// A Reflector-selected plan waiting for a bound [`DomainRequest`].
+/// Reflector 选出、等待绑定 [`DomainRequest`] 的计划。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct QueuedPlan {
-    /// `DomainPlan` steps (must include `CallDomainProvider` to run).
+    /// `DomainPlan` 步骤（要能跑必须含 `CallDomainProvider`）。
     pub plan: DomainPlan,
-    /// Obligation that produced `NeedComputation`.
+    /// 产生 `NeedComputation` 的义务。
     pub obligation: ProofObligation,
-    /// Request/goal binding (fingerprint gate or unbound).
+    /// 请求 / 目标绑定（指纹门或未绑定）。
     pub binding: PlanBinding,
 }
 
 impl QueuedPlan {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            plan: self.plan.owning_copy(),
-            obligation: self.obligation.owning_copy(),
-            binding: self.binding,
-        }
+        Self { plan: self.plan.owning_copy(), obligation: self.obligation.owning_copy(), binding: self.binding }
     }
 
-    /// Queue a plan without a request fingerprint (wake path).
+    /// 无请求指纹地入队（唤醒路径）。
     pub fn unbound(plan: DomainPlan, obligation: ProofObligation) -> Self {
         Self { plan, obligation, binding: PlanBinding::Unbound }
     }
 
-    /// Queue a plan with a fingerprint derived from `request`.
+    /// 用由 `request` 导出的指纹入队。
     pub fn bound(session: &Session, plan: DomainPlan, obligation: ProofObligation, request: &DomainRequest) -> Self {
         let binding = plan_binding_for_request(session, request, &obligation).unwrap_or(PlanBinding::Unbound);
         Self { plan, obligation, binding }
     }
 }
 
-/// Derive a [`PlanBinding`] fingerprint for calculus / polynomial requests.
+/// 为微积分 / 多项式请求导出 [`PlanBinding`] 指纹。
 pub fn plan_binding_for_request(session: &Session, request: &DomainRequest, obligation: &ProofObligation) -> Option<PlanBinding> {
     match request {
         DomainRequest::Polynomial(req) => {
@@ -93,8 +87,7 @@ pub fn plan_binding_for_request(session: &Session, request: &DomainRequest, obli
             Some(PlanBinding::Fingerprint { theory: TheoryContextId::CALCULUS, predicate, request_fingerprint: fingerprint })
         }
         _ => {
-            // Fallback: mix obligation identity so unbound domains still get a gate
-            // when an obligation exists with known objects.
+            // 回退：混入义务身份，使尚未单独建模的域在义务有已知对象时仍有门控。
             if obligation.known_objects.is_empty() {
                 return None;
             }
@@ -151,7 +144,7 @@ fn mix_u64(state: &mut u64, v: u64) {
     *state = state.wrapping_mul(0x0000_0100_0000_01b3);
 }
 
-/// Reject requests that do not match a fingerprint-gated queued plan.
+/// 拒绝与指纹门排队计划不匹配的请求。
 pub fn verify_plan_binding(
     session: &Session,
     binding: &PlanBinding,
@@ -183,10 +176,10 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
         .detail("detail", reason)
 }
 
-/// Execute one queued plan with a caller-bound request (AdmissionGate on exact results).
+/// 用调用方绑定的请求执行一条排队计划（精确结果走 `AdmissionGate`）。
 ///
-/// Walks [`DomainPlan`] via [`interpret_domain_plan`]. Polynomial provider uses
-/// `execute_polynomial_mgraph`; calculus exact results admit after materialize.
+/// 经 [`interpret_domain_plan`] 走 [`DomainPlan`]。多项式 provider 用
+/// `execute_polynomial_mgraph`；微积分精确结果在 materialize 后接纳。
 pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;
     let obligation = queued.obligation.owning_copy();
@@ -201,10 +194,10 @@ pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: 
     Ok(result)
 }
 
-/// Pop and execute the front queued plan with a bound request.
+/// 弹出并执行队首排队计划（带绑定请求）。
 ///
-/// Returns `Ok(None)` when the queue is empty. On provider/admit/binding errors the
-/// plan stays at the front of the queue (except malformed plans missing CallDomainProvider).
+/// 队列空时返回 `Ok(None)`。provider / 接纳 / 绑定失败时计划留在队首
+/// （结构畸形、缺 `CallDomainProvider` 的计划除外，会被丢弃）。
 pub fn run_next_queued_plan(session: &mut Session, request: DomainRequest) -> Result<Option<DomainResult>, Diagnostic> {
     let Some(queued) = session.mgraph.operational.pending_plans.first().map(QueuedPlan::owning_copy)
     else {
@@ -216,7 +209,7 @@ pub fn run_next_queued_plan(session: &mut Session, request: DomainRequest) -> Re
             Ok(Some(result))
         }
         Err(err) => {
-            // Drop malformed plans that the interpreter rejects for structure.
+            // 丢弃解释器因结构拒绝的畸形计划。
             let reason = err.details.get("reason").map(|v| v.to_string());
             if matches!(reason.as_deref(), Some("plan_missing_CallDomainProvider") | Some("plan_missing_MaterializeResult_or_EmitResidual")) {
                 let _ = session.mgraph.operational.pending_plans.remove(0);
@@ -226,11 +219,10 @@ pub fn run_next_queued_plan(session: &mut Session, request: DomainRequest) -> Re
     }
 }
 
-/// Batch-execute queued plans, pairing each with the next bound request.
+/// 批量执行排队计划，每条配下一个绑定请求。
 ///
-/// Stops on the first provider/binding error (that plan remains at the front). Extra
-/// requests beyond the queue length are ignored. When requests run out, remaining
-/// plans stay queued.
+/// 遇到第一个 provider / 绑定错误即停（该计划留在队首）。超出队列长度的多余请求忽略。
+/// 请求用尽后，剩余计划继续排队。
 pub fn run_queued_plans(session: &mut Session, requests: impl IntoIterator<Item = DomainRequest>) -> Result<QueuedPlanBatchReport, Diagnostic> {
     let mut report = QueuedPlanBatchReport::default();
     for request in requests {
@@ -249,122 +241,13 @@ pub fn run_queued_plans(session: &mut Session, requests: impl IntoIterator<Item 
     Ok(report)
 }
 
-/// Report from batch-executing queued plans.
+/// 批量执行排队计划的报告。
 #[derive(Debug, PartialEq, Default)]
 pub struct QueuedPlanBatchReport {
-    /// Plans executed successfully in this call.
+    /// 本次成功执行的计划数。
     pub executed: u32,
-    /// Plans still waiting in the queue.
+    /// 仍在队列中等待的计划数。
     pub remaining: u32,
-    /// Domain results in execution order.
+    /// 按执行顺序的域结果。
     pub results: Vec<DomainResult>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domains::planner::{DomainPlan, PlanStep},
-        reasoning::mgraph::{ProofObligation, ScopeRef, predicates},
-        runtime::session::Session,
-    };
-
-    fn poly_session() -> (Session, crate::domains::polynomial::PolynomialRef) {
-        use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder};
-        use athena_types::SymbolId;
-
-        let mut session = Session::new();
-        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
-        let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
-        let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
-        (session, poly_ref)
-    }
-
-    #[test]
-    fn run_next_queued_plan_executes_polynomial_and_admits() {
-        use crate::domains::polynomial::PolynomialRequest;
-
-        let (mut session, poly_ref) = poly_session();
-        let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
-        session.mgraph.operational.pending_plans.push(QueuedPlan::bound(
-            &session,
-            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
-            obligation,
-            &request,
-        ));
-        let result = run_next_queued_plan(&mut session, request).expect("run").expect("some");
-        assert!(matches!(result, DomainResult::Polynomial(_)));
-        assert!(session.mgraph.operational.pending_plans.is_empty());
-        assert!(session.mgraph.semantic.relation_count() >= 1);
-    }
-
-    #[test]
-    fn fingerprint_binding_rejects_mismatched_request() {
-        use crate::domains::polynomial::PolynomialRequest;
-
-        let (mut session, poly_ref) = poly_session();
-        let bound_req = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
-        session.mgraph.operational.pending_plans.push(QueuedPlan::bound(
-            &session,
-            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
-            obligation,
-            &bound_req,
-        ));
-        // Different ring/poly identity → different fingerprint when possible; use Add-shaped mismatch via second poly.
-        let ring2 = session
-            .rings
-            .intern(
-                crate::domains::polynomial::CoefficientDomain::Integer,
-                vec![athena_types::SymbolId(1)],
-                crate::domains::polynomial::MonomialOrder::Lex,
-            )
-            .expect("ring2");
-        let poly2 = crate::domains::polynomial::PolynomialBuilder::new(ring2).build(&session.rings).expect("poly2");
-        let poly_ref2 = session.polynomial_objects.intern(poly2, &session.rings);
-        let mismatch = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref2 });
-        let err = run_next_queued_plan(&mut session, mismatch).expect_err("mismatch");
-        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("plan_binding_mismatch"));
-        assert_eq!(session.mgraph.operational.pending_plans.len(), 1);
-    }
-
-    #[test]
-    fn empty_queue_returns_none() {
-        use crate::domains::polynomial::PolynomialRequest;
-
-        let (mut session, poly_ref) = poly_session();
-        let out =
-            run_next_queued_plan(&mut session, DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref })).expect("ok");
-        assert!(out.is_none());
-    }
-
-    #[test]
-    fn run_queued_plans_drains_matching_requests() {
-        use crate::domains::polynomial::PolynomialRequest;
-
-        let (mut session, poly_ref) = poly_session();
-        let request = DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref });
-        let obligation = ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] };
-        let plan = QueuedPlan::bound(
-            &session,
-            DomainPlan { steps: vec![PlanStep::CallDomainProvider, PlanStep::MaterializeResult] },
-            obligation,
-            &request,
-        );
-        session.mgraph.operational.pending_plans.push(plan.owning_copy());
-        session.mgraph.operational.pending_plans.push(plan);
-        let report = run_queued_plans(
-            &mut session,
-            [
-                DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }),
-                DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }),
-            ],
-        )
-        .expect("batch");
-        assert_eq!(report.executed, 2);
-        assert_eq!(report.remaining, 0);
-        assert_eq!(report.results.len(), 2);
-        assert!(session.mgraph.operational.pending_plans.is_empty());
-    }
 }

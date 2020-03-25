@@ -1,4 +1,4 @@
-//! 会话 arena 上的不定 / 定积分（初等子集 · `DomainExecutionContext` · Living `27`）。
+//! 会话 arena 上的不定 / 定积分（初等子集 · `DomainExecutionContext` · ）。
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};

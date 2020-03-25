@@ -1,48 +1,48 @@
-//! Effect kinds and ordered effect chains.
+//! Effect 种类与有序 effect 链。
 
 use super::ids::EffectToken;
 
-/// Kind of observable runtime effect.
+/// 可观察运行时 effect 的种类。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectKind {
-    /// Read Session / scope binding.
+    /// 读取 Session / 作用域绑定。
     ReadBinding,
-    /// Write Session / scope binding.
+    /// 写入 Session / 作用域绑定。
     WriteBinding,
-    /// Enter lexical or dynamic scope.
+    /// 进入词法或动态作用域。
     EnterScope,
-    /// Exit lexical or dynamic scope.
+    /// 退出词法或动态作用域。
     ExitScope,
-    /// Call a typed provider.
+    /// 调用类型化 provider。
     CallProvider,
-    /// Publish into `ResultStore`.
+    /// 发布到 `ResultStore`。
     PublishResult,
-    /// Explicit GC safepoint.
+    /// 显式 GC safepoint。
     Safepoint,
-    /// Budget checkpoint.
+    /// 预算检查点。
     BudgetCheck,
-    /// Cancellation checkpoint.
+    /// 取消检查点。
     CancellationCheck,
 }
 
-/// One link in the module effect chain.
+/// Module effect 链中的一条边。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectEdge {
-    /// Token produced / consumed by this edge.
+    /// 本边产生 / 消费的 token。
     pub token: EffectToken,
-    /// Predecessor token (entry edges use `None`).
+    /// 前驱 token（入口边为 `None`）。
     pub precedes_from: Option<EffectToken>,
-    /// Effect classification.
+    /// Effect 分类。
     pub kind: EffectKind,
 }
 
 impl EffectEdge {
-    /// Entry effect with no predecessor.
+    /// 无前驱的入口 effect。
     pub fn entry(token: EffectToken, kind: EffectKind) -> Self {
         Self { token, precedes_from: None, kind }
     }
 
-    /// Ordered successor effect.
+    /// 有序后继 effect。
     pub fn after(token: EffectToken, precedes_from: EffectToken, kind: EffectKind) -> Self {
         Self { token, precedes_from: Some(precedes_from), kind }
     }

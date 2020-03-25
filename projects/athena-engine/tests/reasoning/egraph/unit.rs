@@ -1,13 +1,15 @@
-//! E-Graph bootstrap contracts (Living `26` / `29`).
+//! E-Graph 引导契约。
 
 use athena_ir::{SemanticOperator, TermNode};
 use athena_types::SourceSpan;
 
-use super::{
-    CandidateEquivalence, EGraph, ExtractionPreference, Extractor, SaturationBudget, SaturationStopReason, admit_structural_term_equality,
-    candidate_to_outer, saturate, verify_structural_term_equality,
+use athena_engine::reasoning::{
+    egraph::{
+        CandidateEquivalence, EGraph, ExtractionPreference, Extractor, SaturationBudget, SaturationStopReason, admit_structural_term_equality,
+        candidate_to_outer, saturate, verify_structural_term_equality,
+    },
+    mgraph::{Guarantee, ProofStepKind, Proposition, SemanticCore, VerificationPolicy},
 };
-use crate::reasoning::mgraph::{Guarantee, ProofStepKind, Proposition, SemanticCore, VerificationPolicy};
 
 #[test]
 fn add_term_builds_eclasses_without_mgraph_side_effects() {
@@ -69,8 +71,8 @@ fn candidate_to_outer_stays_unverified() {
     let outer = candidate_to_outer(&CandidateEquivalence {
         left_term: left,
         right_term: right,
-        left_class: super::EClassId(0),
-        right_class: super::EClassId(1),
+        left_class: athena_engine::reasoning::egraph::EClassId(0),
+        right_class: athena_engine::reasoning::egraph::EClassId(1),
         rule: None,
     });
     assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
@@ -110,7 +112,7 @@ fn structural_verify_rejects_unequal_terms() {
 
 #[test]
 fn session_saturation_and_structural_admit() {
-    use crate::runtime::Session;
+    use athena_engine::runtime::Session;
 
     let mut session = Session::new();
     let span = SourceSpan::default();
@@ -152,7 +154,7 @@ fn saturate_emits_candidates_from_structural_rule_match() {
 
 #[test]
 fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
-    use crate::runtime::Session;
+    use athena_engine::runtime::Session;
     use athena_rewriter::RuleSet;
 
     let mut session = Session::new();
@@ -172,8 +174,8 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
     let structural = CandidateEquivalence {
         left_term: zero,
         right_term: twin,
-        left_class: session.egraph.class_of_term(zero).unwrap_or(super::EClassId(0)),
-        right_class: super::EClassId(0),
+        left_class: session.egraph.class_of_term(zero).unwrap_or(athena_engine::reasoning::egraph::EClassId(0)),
+        right_class: athena_engine::reasoning::egraph::EClassId(0),
         rule: None,
     };
     let admitted = session.admit_structural_egraph_candidates(&[structural]);
@@ -184,10 +186,10 @@ fn admit_structural_candidates_skips_rewrite_shaped_pairs() {
 
 #[test]
 fn saturate_typed_binds_and_substitutes_replacement() {
-    use crate::reasoning::trs::TermPattern;
+    use athena_engine::reasoning::trs::TermPattern;
     use athena_ir::{ApplicationHead, SemanticOperator};
 
-    use super::{TypedRuleSet, saturate_typed};
+    use athena_engine::reasoning::egraph::{TypedRuleSet, saturate_typed};
 
     let mut store = athena_ir::TermStore::new();
     let span = SourceSpan::default();
@@ -232,8 +234,8 @@ fn extract_smallest_ast_prefers_shorter_term() {
 
 #[test]
 fn typed_rewrite_replay_admits_add_same_candidate() {
-    use super::{TypedRuleSet, admit_typed_rewrite_candidate, saturate_typed};
-    use crate::reasoning::{
+    use athena_engine::reasoning::{
+        egraph::{TypedRuleSet, admit_typed_rewrite_candidate, saturate_typed},
         mgraph::{SemanticCore, VerificationPolicy},
         trs::TermPattern,
     };
@@ -267,7 +269,9 @@ fn typed_rewrite_replay_admits_add_same_candidate() {
 
 #[test]
 fn application_congruence_admits_when_args_exact_equal() {
-    use crate::reasoning::mgraph::{AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy};
+    use athena_engine::reasoning::mgraph::{
+        AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy,
+    };
     use athena_ir::{ApplicationHead, Atom, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
@@ -289,7 +293,7 @@ fn application_congruence_admits_when_args_exact_equal() {
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
-                provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
                 certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
@@ -302,20 +306,20 @@ fn application_congruence_admits_when_args_exact_equal() {
     graph.add_term(&store, fx).expect("fx");
     graph.add_term(&store, fy).expect("fy");
 
-    let candidates = super::application_congruence_candidates(&store, &graph, &semantic.derived.exact_uf, 8);
+    let candidates = athena_engine::reasoning::egraph::application_congruence_candidates(&store, &graph, &semantic.derived.exact_uf, 8);
     assert_eq!(candidates.len(), 1);
     let pair = (candidates[0].left_term, candidates[0].right_term);
     assert!(pair == (fx, fy) || pair == (fy, fx));
 
-    let fact =
-        super::admit_application_congruence(&store, &mut semantic, fx, fy, &VerificationPolicy::default()).expect("admit app congruence");
+    let fact = athena_engine::reasoning::egraph::admit_application_congruence(&store, &mut semantic, fx, fy, &VerificationPolicy::default())
+        .expect("admit app congruence");
     assert_eq!(fact.0, 1);
     assert_eq!(semantic.derived.exact_uf.find(fx), semantic.derived.exact_uf.find(fy));
 }
 
 #[test]
 fn typed_admit_pipeline_runs_congruence_after_seed() {
-    use crate::{
+    use athena_engine::{
         reasoning::mgraph::{AdmissionGate, Claim, Evidence, EvidenceCertificate, Guarantee, Proposition, Scope, VerificationPolicy},
         runtime::Session,
     };
@@ -340,7 +344,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
-                provider: crate::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
                 certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
                 summary: "seed-xy".into(),
             },
@@ -359,7 +363,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
 
 #[test]
 fn extract_result_cost_prefers_admitted_then_smallest() {
-    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_engine::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
@@ -374,7 +378,7 @@ fn extract_result_cost_prefers_admitted_then_smallest() {
     graph.union_classes(c_add, c_one);
     graph.union_classes(c_add, c_two);
     let mut uf = ExactUnionFind::default();
-    // Make `two` the ExactUF representative of the merged class.
+    // 使 `two` 成为合并类的 ExactUF 代表元。
     uf.union(two, add);
     uf.union(two, one);
     assert_eq!(uf.find(add), two);
@@ -387,7 +391,7 @@ fn extract_result_cost_prefers_admitted_then_smallest() {
 
 #[test]
 fn extract_pareto_keeps_admitted_large_and_unadmitted_small() {
-    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_engine::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
@@ -400,7 +404,7 @@ fn extract_pareto_keeps_admitted_large_and_unadmitted_small() {
     assert!(graph.union_classes(c_add, c_one));
 
     let mut uf = ExactUnionFind::default();
-    // Force `add` (larger AST) as ExactUF representative.
+    // 强制将 `add`（更大 AST）作为 ExactUF 代表元。
     uf.union(add, one);
     assert_eq!(uf.find(one), add);
 
@@ -416,7 +420,7 @@ fn extract_pareto_keeps_admitted_large_and_unadmitted_small() {
 
 #[test]
 fn extract_admitted_exact_prefers_union_find_rep() {
-    use crate::reasoning::mgraph::ExactUnionFind;
+    use athena_engine::reasoning::mgraph::ExactUnionFind;
     use athena_ir::{ApplicationHead, SemanticOperator};
 
     let mut store = athena_ir::TermStore::new();
@@ -428,7 +432,7 @@ fn extract_admitted_exact_prefers_union_find_rep() {
     let c_one = graph.add_term(&store, one).unwrap();
     graph.union_classes(c_add, c_one);
     let mut uf = ExactUnionFind::default();
-    // Force the admitted representative to be `one` (lower id after hash-cons still one).
+    // 强制已接纳代表元为 `one`（hash-cons 后较小 id 仍为 one）。
     uf.union(add, one);
     let extracted = Extractor::with_preference(ExtractionPreference::AdmittedExact).extract(&graph, &store, c_add, Some(&uf)).expect("term");
     assert_eq!(extracted, uf.find(one));

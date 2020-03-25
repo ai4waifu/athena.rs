@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 /// 重写 pass 选项。
 ///
-/// Living `31`：纯 `Copy` 选项袋。
+/// 纯 `Copy` 选项袋。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RewriteOptions {
     /// 启用常量折叠。
@@ -14,7 +14,7 @@ pub struct RewriteOptions {
 
 /// 重写 pass 结果。
 ///
-/// Living `31`：纯 `Copy` 结果袋。
+/// 纯 `Copy` 结果袋。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RewriteResult {
     /// 重写后的根 term（可与输入相同）。
@@ -40,8 +40,8 @@ impl Rewriter {
         Self { options: opts }
     }
 
-    /// Leaf constant-fold pass only (local). Typed match/substitute live on this crate's
-    /// [`crate::match_pattern`] / [`crate::substitute`]; E-Graph saturation is engine-owned.
+    /// 仅叶子常量折叠（局部）。类型化 match/substitute 在本 crate 的
+    /// [`crate::match_pattern`] / [`crate::substitute`]；E-Graph 饱和由 engine 拥有。
     pub fn simplify(&self, arena: &mut TermStore, root: TermId) -> Result<RewriteResult> {
         arena.verify(root)?;
         if !self.options.constant_fold {
@@ -53,7 +53,7 @@ impl Rewriter {
 }
 
 fn fold_constants(arena: &mut TermStore, id: TermId) -> Result<bool> {
-    // 只拷贝 `TermId` 子列表，避免复制含 `NumericValue` 的 `Atom`（Living `19`：无隐式 Clone）。
+    // 只拷贝 `TermId` 子列表，避免复制含 `NumericValue` 的 `Atom`（无隐式 Clone）。
     let children: Option<Vec<TermId>> = match arena.get(id) {
         None => return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)),
         Some(TermNode::Collection { elements: items, .. }) => Some(items.clone()),

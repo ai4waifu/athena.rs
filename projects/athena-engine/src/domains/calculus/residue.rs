@@ -1,4 +1,4 @@
-//! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 Living `25`）。
+//! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 ）。
 
 use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};

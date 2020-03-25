@@ -11,7 +11,9 @@ use athena_graph::{
 };
 
 /// 图 chunk 驻留 / spill 策略控制器。
-#[derive(Debug, Clone)]
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug)]
 pub struct GraphResidencyController {
     /// 同时允许的 resident chunk 上限（超过则 LRU spill）。
     pub max_resident_chunks: usize,
@@ -28,6 +30,11 @@ impl GraphResidencyController {
     /// 构造；`max_resident_chunks == 0` 视为 1。
     pub fn new(max_resident_chunks: usize) -> Self {
         Self { max_resident_chunks: max_resident_chunks.max(1), lru: VecDeque::new() }
+    }
+
+    /// Owning 复制（LRU 队列）。
+    pub fn owning_copy(&self) -> Self {
+        Self { max_resident_chunks: self.max_resident_chunks, lru: self.lru.clone() }
     }
 
     /// 记录一次访问（lease / 算法读路径调用）。

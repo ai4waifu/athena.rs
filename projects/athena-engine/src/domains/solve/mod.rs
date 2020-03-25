@@ -17,7 +17,7 @@ mod constraint;
 mod coverage;
 mod dispatch;
 mod domain;
-mod frontier;
+pub mod frontier;
 mod goal;
 mod map_coverage;
 mod normalize;

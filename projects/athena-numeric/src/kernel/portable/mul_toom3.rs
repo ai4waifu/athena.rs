@@ -1,48 +1,48 @@
-//! # Purpose
-//! Toom-3 (Bodrato) multiplication via five-point evaluation / interpolation.
+//! # 用途
+//! Toom-3（Bodrato）乘法：五点求值 / 插值。
 //!
-//! # Mathematical model
-//! View each operand as a degree-2 polynomial over radix $X=\beta^m$:
-//! $A(X)=a_0+a_1 X+a_2 X^2$. The product $C(X)=A(X)B(X)$ has degree 4, so
-//! five independent evaluations determine it uniquely.
+//! # 数学模型
+//! 将每个操作数视为基数 `X=βᵐ` 上的二次多项式：
+//! `A(X)=a₀+a₁X+a₂X²`。乘积 `C(X)=A(X)B(X)` 为四次，故
+//! 五个独立求值即可唯一确定。
 //!
-//! # Derivation
-//! Evaluation points $0,1,-1,2,\infty$:
-//! - $0$ → lowest block $a_0 b_0$
-//! - $\infty$ → leading blocks $a_2 b_2$ (homogeneous highest coefficient)
-//! - $1$ and $-1$ separate even/odd combinations cheaply
-//! - $2$ adds a third nonzero finite point without needing large multipliers
+//! # 推导
+//! 求值点 `0,1,-1,2,∞`：
+//! - `0` → 最低块 `a₀b₀`
+//! - `∞` → 最高块 `a₂b₂`（齐次最高次系数）
+//! - `1` 与 `-1` 廉价分离偶/奇组合
+//! - `2` 再给一个非零有限点，且无需大乘数
 //!
-//! Bodrato interpolation recovers coefficients using exact divisions by 2 and 3
-//! (limb shifts / exact divexact). A nonzero remainder means the evaluation
-//! arithmetic or scratch layout is wrong — not a recoverable runtime error.
+//! Bodrato 插值用精确除以 2 与 3 恢复系数
+//! （limb 移位 / 精确 `divexact`）。非零余数表示求值
+//! 算术或 scratch 布局有误——不是可恢复的运行时错误。
 //!
-//! # Algorithm steps
-//! 1. If width < MUL_TOOM_THRESHOLD, fall back to Karatsuba (mul_rec).
-//! 2. split_three into $a_0,a_1,a_2$ / $b_0,b_1,b_2$.
-//! 3. Evaluate both operands at the five points (signed handling at $-1$).
-//! 4. Five recursive products via mul_rec.
-//! 5. `toom_interpolate_bodrato` → recompose into out at shifts $0..4m$.
+//! # 算法步骤
+//! 1. 若宽度 < `MUL_TOOM_THRESHOLD`，回退到 Karatsuba（`mul_rec`）。
+//! 2. `split_three` 得到 `a₀,a₁,a₂` / `b₀,b₁,b₂`。
+//! 3. 在五点求值两端操作数（`-1` 处处理符号）。
+//! 4. 经 `mul_rec` 做五次递归乘积。
+//! 5. `toom_interpolate_bodrato` → 按移位 `0..4m` 重组到 `out`。
 //!
-//! # Preconditions
-//! - out.len() >= la+lb; scratch sized by `toom3_scratch_limbs`.
-//! - Planner should reject tiny / badly unbalanced pairs.
+//! # 前置条件
+//! - `out.len() >= la+lb`；scratch 容量由 `toom3_scratch_limbs` 给出。
+//! - 规划器应拒绝过小 / 严重失衡的对。
 //!
-//! # Postconditions
-//! - out equals $a \cdot b$ as integers.
+//! # 后置条件
+//! - `out` 等于整数 `a · b`。
 //!
-//! # Complexity
-//! $\Theta(n^{\log_3 5})$ for balanced large $n$, with large constant factors.
+//! # 复杂度
+//! 对平衡的大 `n` 为 `Θ(n^{log₃ 5})`，常数因子较大。
 //!
-//! # Crossover
-//! MUL_TOOM_THRESHOLD and capability `toom` gate selection in AlgorithmPlanner.
+//! # 交叉阈值
+//! `MUL_TOOM_THRESHOLD` 与能力位 `toom` 在 `AlgorithmPlanner` 中门控选择。
 //!
-//! # Failure modes
-//! Exact-div asserts on 2/3; scratch underrun; signed $-1$ eval must track sign.
+//! # 失败模式
+//! 对 2/3 的精确除断言；scratch 不足；带符号 `-1` 求值须跟踪符号。
 //!
-//! # Tests
-//! `tests/exact/algorithms.rs` (`toom_matches_schoolbook_capability_gate`),
-//! `tests/runtime/kernel_parity.rs`.
+//! # 测试
+//! `tests/exact/algorithms.rs`（`toom_matches_schoolbook_capability_gate`）、
+//! `tests/runtime/kernel_parity.rs`。
 
 use std::cmp::Ordering;
 
@@ -56,16 +56,15 @@ use super::{
 };
 
 /// Toom-3（Bodrato）：五点求值 `0,1,-1,2,∞` + 插值；子乘积走 `mul_rec`（无 `Vec`）。
-/// Toom–3 multiplication by polynomial evaluation and interpolation.
 ///
-/// Regard each operand as `A(X)=a₀+a₁X+a₂X²` with `X=βᵏ`. Five values determine
-/// the degree-four product: evaluate at `0, 1, −1, 2, ∞`, multiply pointwise,
-/// and interpolate. The `∞` value is the leading coefficient `a₂b₂`.
-/// Interpolation divides by 2 and 3 exactly; a non-zero remainder is a bug.
-/// This saves products asymptotically (Θ(nˡᵒᵍ³⁵)) but performs many signed
-/// evaluations and temporaries, so the planner must reject small and badly
-/// unbalanced inputs. `out` is zeroed, has `a.len()+b.len()` capacity, and
-/// `scratch` must satisfy `toom3_scratch_limbs`.
+/// 将每个操作数视为 `A(X)=a₀+a₁X+a₂X²`（`X=βᵏ`）。五个值确定
+/// 四次乘积：在 `0, 1, −1, 2, ∞` 求值，逐点相乘，再插值。
+/// `∞` 值为最高次系数 `a₂b₂`。
+/// 插值精确除以 2 与 3；非零余数即为缺陷。
+/// 渐近上节省乘积次数（`Θ(n^{log₃ 5})`），但有大量带符号
+/// 求值与临时量，故规划器必须拒绝过小与严重失衡的输入。
+/// `out` 会清零，容量为 `a.len()+b.len()`，且
+/// `scratch` 须满足 `toom3_scratch_limbs`。
 pub(super) fn toom3_mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
     let la = effective_len(a);
     let lb = effective_len(b);

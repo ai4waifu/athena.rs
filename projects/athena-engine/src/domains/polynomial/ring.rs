@@ -106,7 +106,7 @@ impl RingDescriptor {
 }
 
 impl CoefficientDomain {
-    /// Owning 复制（Living `31`：[`Modulus`] 载荷禁止默认 `Clone`）。
+    /// Owning 复制（[`Modulus`] 载荷禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Integer => Self::Integer,
@@ -119,7 +119,7 @@ impl CoefficientDomain {
 }
 
 impl RingCharacteristic {
-    /// Owning 复制（Living `31`：[`Integer`] 载荷禁止默认 `Clone`）。
+    /// Owning 复制（[`Integer`] 载荷禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Zero => Self::Zero,

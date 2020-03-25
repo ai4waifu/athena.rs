@@ -14,7 +14,7 @@ use crate::{
 
 /// 正整数模数（`m > 1`）。
 ///
-/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+/// 不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 pub struct Modulus {
     value: MagnitudePair,
 }
@@ -54,7 +54,7 @@ impl Modulus {
         Some(Self { value: self.value.clone_inline()? })
     }
 
-    /// Owning 深复制（Living `31`：目标 heap 上 `PublishedNumericBlock`）。
+    /// Owning 深复制（目标 heap 上 `PublishedNumericBlock`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         Ok(Self { value: self.value.try_clone_on(ctx.heap()).map_err(gc_alloc_error)? })
@@ -78,7 +78,7 @@ impl Modulus {
 
 /// 模数绑定：嵌入完整 [`Modulus`] 或 session 内 [`ModulusId`]。
 ///
-/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+/// 不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ModulusBinding {
     /// 自包含模数（无 intern 表时）。
@@ -99,7 +99,7 @@ impl ModulusBinding {
 
 /// 绑定模数的剩余类代表。
 ///
-/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+/// 不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 pub struct ModularValue {
     /// 规范剩余 `[0, modulus)`（unsigned Magnitude）。
     residue: MagnitudePair,
@@ -125,10 +125,7 @@ impl ModularValue {
     /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self {
-            residue: self.residue.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?,
-            binding: self.binding.try_clone_in(ctx)?,
-        })
+        Ok(Self { residue: self.residue.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?, binding: self.binding.try_clone_in(ctx)? })
     }
 
     /// 在给定模数下构造（自动化约，嵌入模数）。

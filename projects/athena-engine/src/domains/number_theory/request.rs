@@ -22,7 +22,7 @@ pub enum NumberTheoryRequest {
         /// 右操作数。
         b: Integer,
     },
-    /// extended Euclidean。
+    /// 扩展欧几里得。
     ExtendedGcd {
         /// `a`。
         a: Integer,
@@ -127,7 +127,7 @@ pub enum NumberTheoryRequest {
 }
 
 impl NumberTheoryRequest {
-    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Gcd { a, b } => Self::Gcd { a: clone_integer(a), b: clone_integer(b) },

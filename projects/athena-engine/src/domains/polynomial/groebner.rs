@@ -454,11 +454,11 @@ fn run_buchberger(
         if !pending.remove(&key) {
             continue;
         }
-        // Buchberger criterion 1: coprime leading monomials ⇒ S-pair reduces to 0.
+        // Buchberger 判据 1：首项互素 ⇒ S-对约化到 0。
         if leading_monomials_coprime(&basis[i], &basis[j]) {
             continue;
         }
-        // Buchberger criterion 2 (chain): ∃k with LM(k)|lcm(LM(i),LM(j)) and pairs (i,k),(j,k) already treated.
+        // Buchberger 判据 2（链）：∃k 使 LM(k)|lcm(LM(i),LM(j)) 且对 (i,k)、(j,k) 已处理。
         if chain_criterion_applies(&basis, i, j, &pending, layout)? {
             continue;
         }
@@ -537,7 +537,8 @@ fn run_buchberger(
     Ok(GroebnerComputation::Complete(VerifiedGroebnerBasis { ring, basis, certificate, verification }))
 }
 
-fn ordered_pair(i: usize, j: usize) -> (usize, usize) {
+/// 将基下标对规范为有序对 `(min, max)`。
+pub fn ordered_pair(i: usize, j: usize) -> (usize, usize) {
     if i < j { (i, j) } else { (j, i) }
 }
 
@@ -557,8 +558,8 @@ fn pairs_from_pending(pending: &HashSet<(usize, usize)>) -> Vec<(usize, usize)> 
     out
 }
 
-/// Buchberger chain criterion: ∃`k` s.t. `LM(bk) | lcm(LM(bi), LM(bj))` and pairs `(i,k)`, `(j,k)` already treated.
-fn chain_criterion_applies(
+/// Buchberger 链判据：存在 `k` 使 `LM(bk) | lcm(LM(bi), LM(bj))` 且对 `(i,k)`、`(j,k)` 已处理。
+pub fn chain_criterion_applies(
     basis: &[Polynomial],
     i: usize,
     j: usize,
@@ -774,7 +775,7 @@ fn leading_term(poly: &Polynomial) -> Option<super::object::MonomialTerm> {
     poly.terms().first().map(|t| t.owning_copy())
 }
 
-/// Buchberger first criterion: `LM(f)` and `LM(g)` coprime ⇒ `S(f,g)` → 0.
+/// Buchberger 第一判据：`LM(f)` 与 `LM(g)` 互素 ⇒ `S(f,g)` → 0。
 fn leading_monomials_coprime(f: &Polynomial, g: &Polynomial) -> bool {
     let Some(lf) = f.terms().first()
     else {
@@ -895,45 +896,4 @@ fn ring_unknown(ring: RingId) -> Diagnostic {
         .detail("domain", "polynomial")
         .detail("operation", "unknown_ring")
         .detail("ring_id", ring.0.to_string())
-}
-
-#[cfg(test)]
-mod criterion_tests {
-    use super::*;
-    use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable};
-    use athena_numeric::Number;
-    use athena_types::SymbolId;
-
-    fn poly(rings: &RingTable, ring: RingId, terms: &[(i64, Vec<u32>)]) -> Polynomial {
-        let mut b = PolynomialBuilder::new(ring);
-        for &(c, ref exp) in terms {
-            b.push_term(Number::small_int(c), exp.clone()).unwrap();
-        }
-        b.build(rings).unwrap()
-    }
-
-    #[test]
-    fn chain_criterion_true_when_third_lm_divides_lcm_and_pairs_treated() {
-        let mut rings = RingTable::new();
-        let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
-        let layout = &rings.get(ring).unwrap().monomial_layout;
-        // LM: x^2, y^2, xy — xy | lcm(x^2,y^2)=x^2y^2
-        let basis =
-            vec![poly(&rings, ring, &[(1, vec![2, 0])]), poly(&rings, ring, &[(1, vec![0, 2])]), poly(&rings, ring, &[(1, vec![1, 1])])];
-        let pending = HashSet::new();
-        assert!(chain_criterion_applies(&basis, 0, 1, &pending, layout).unwrap());
-    }
-
-    #[test]
-    fn chain_criterion_false_while_side_pairs_still_pending() {
-        let mut rings = RingTable::new();
-        let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
-        let layout = &rings.get(ring).unwrap().monomial_layout;
-        let basis =
-            vec![poly(&rings, ring, &[(1, vec![2, 0])]), poly(&rings, ring, &[(1, vec![0, 2])]), poly(&rings, ring, &[(1, vec![1, 1])])];
-        let mut pending = HashSet::new();
-        pending.insert(ordered_pair(0, 2));
-        pending.insert(ordered_pair(1, 2));
-        assert!(!chain_criterion_applies(&basis, 0, 1, &pending, layout).unwrap());
-    }
 }

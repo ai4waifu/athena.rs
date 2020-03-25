@@ -1,7 +1,6 @@
-//! Obligation index and Reflector wake queue (Living `29` · bootstrap).
+//! 义务索引与 Reflector 唤醒队列（· bootstrap）。
 //!
-//! Pending [`ProofObligation`]s live in operational state. Admission may wake
-//! matching obligations; waking does **not** write SemanticCore.
+//! 挂起的 [`ProofObligation`] 住在运行态。接纳可唤醒匹配义务；唤醒本身 **不**写入 SemanticCore。
 
 use crate::reasoning::mgraph::{
     core::refs::{PredicateId, RelationRef, ScopeRef},
@@ -9,79 +8,73 @@ use crate::reasoning::mgraph::{
     relations::scope::ScopeIndex,
 };
 
-/// One Reflector wake produced after an admit.
+/// 一次接纳后产生的 Reflector 唤醒。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReflectorWake {
-    /// Obligation that can now re-reflect.
+    /// 现在可以再次反射的义务。
     pub obligation: ProofObligation,
-    /// Newly admitted relation that matched.
+    /// 匹配到的新接纳关系。
     pub relation: RelationRef,
 }
 
 impl ReflectorWake {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            obligation: self.obligation.owning_copy(),
-            relation: self.relation,
-        }
+        Self { obligation: self.obligation.owning_copy(), relation: self.relation }
     }
 }
 
-/// Report from draining wakes for one admit.
+/// 单次接纳后排空唤醒的报告。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Default)]
 pub struct WakeReport {
-    /// Obligations removed from the pending index and handed to the caller.
+    /// 已从挂起索引移除并交给调用方的义务。
     pub wakes: Vec<ReflectorWake>,
 }
 
 impl WakeReport {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            wakes: self.wakes.iter().map(ReflectorWake::owning_copy).collect(),
-        }
+        Self { wakes: self.wakes.iter().map(ReflectorWake::owning_copy).collect() }
     }
 }
 
-/// Pending obligations keyed for predicate / scope wake matching.
+/// 按谓词 / 作用域匹配键索引的挂起义务。
 ///
-/// Living `31`：**不**实现 [`Clone`]。
+/// **不**实现 [`Clone`]。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ObligationIndex {
     pending: Vec<ProofObligation>,
 }
 
 impl ObligationIndex {
-    /// Empty index.
+    /// 空索引。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Register a pending semantic gap.
+    /// 登记一条挂起的语义缺口。
     pub fn register(&mut self, obligation: ProofObligation) {
         self.pending.push(obligation);
     }
 
-    /// Number of pending obligations.
+    /// 挂起义务条数。
     pub fn len(&self) -> usize {
         self.pending.len()
     }
 
-    /// Whether no obligations are pending.
+    /// 是否没有挂起义务。
     pub fn is_empty(&self) -> bool {
         self.pending.is_empty()
     }
 
-    /// Wake and remove obligations that can observe `admitted_scope` for `predicate`.
+    /// 唤醒并移除可在 `admitted_scope` 上观察 `predicate` 的义务。
     ///
-    /// An obligation matches when predicates equal, scopes are not
-    /// `IncompatibleWith`, and the obligation can see the admitted fiber via
-    /// identity / `Refines` ancestors / directed `CompatibleWith`.
+    /// 匹配条件：谓词相同、作用域非 `IncompatibleWith`，且义务能经
+    /// 恒等 / `Refines` 祖先 / 有向 `CompatibleWith` 看见被接纳的纤维。
     pub fn wake_matching(
         &mut self,
         admitted_scope: ScopeRef,
@@ -104,70 +97,5 @@ impl ObligationIndex {
         }
         self.pending = retained;
         WakeReport { wakes }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::reasoning::mgraph::{ScopeRelationKind, core::refs::predicates, facts::FactId};
-
-    #[test]
-    fn wake_removes_matching_obligation() {
-        let mut index = ObligationIndex::new();
-        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] });
-        let scopes = ScopeIndex::new();
-        let report = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT, FactId(0), &scopes);
-        assert_eq!(report.wakes.len(), 1);
-        assert!(index.is_empty());
-    }
-
-    #[test]
-    fn wake_respects_refines_visibility() {
-        let mut index = ObligationIndex::new();
-        let local = ScopeRef(3);
-        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: local, known_objects: vec![] });
-        let mut scopes = ScopeIndex::new();
-        scopes.try_add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines).expect("refines");
-
-        let miss = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::CONGRUENCE, FactId(1), &scopes);
-        assert!(miss.wakes.is_empty());
-        assert_eq!(index.len(), 1);
-
-        let hit = index.wake_matching(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT, FactId(2), &scopes);
-        assert_eq!(hit.wakes.len(), 1);
-        assert_eq!(hit.wakes[0].relation, FactId(2));
-        assert!(index.is_empty());
-    }
-
-    #[test]
-    fn finer_admit_does_not_wake_coarser_obligation() {
-        let mut index = ObligationIndex::new();
-        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] });
-        let mut scopes = ScopeIndex::new();
-        let local = ScopeRef(4);
-        scopes.try_add_relation(local, ScopeRef::UNCONDITIONAL, ScopeRelationKind::Refines).expect("refines");
-        let report = index.wake_matching(local, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
-        assert!(report.wakes.is_empty());
-        assert_eq!(index.len(), 1);
-    }
-
-    #[test]
-    fn wake_respects_compatible_and_incompatible() {
-        let mut index = ObligationIndex::new();
-        let a = ScopeRef(5);
-        let b = ScopeRef(6);
-        index.register(ProofObligation { predicate: predicates::POLYNOMIAL_RESULT, scope: a, known_objects: vec![] });
-        let mut scopes = ScopeIndex::new();
-        scopes.try_add_relation(a, b, ScopeRelationKind::IncompatibleWith).expect("incompatible");
-
-        let blocked = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(9), &scopes);
-        assert!(blocked.wakes.is_empty());
-        assert_eq!(index.len(), 1);
-
-        let mut scopes2 = ScopeIndex::new();
-        scopes2.try_add_relation(a, b, ScopeRelationKind::CompatibleWith).expect("compatible");
-        let hit = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(10), &scopes2);
-        assert_eq!(hit.wakes.len(), 1);
     }
 }

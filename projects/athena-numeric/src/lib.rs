@@ -2,7 +2,7 @@
 //!
 //! unsafe 边界：仅 `storage` 窄模块（纯 `union Magnitude` + `OwnedLimbBuffer`）允许 unsafe。
 //!
-//! 四层正交（Living `13`）：
+//! 四层正交：
 //! ```text
 //! storage    — Magnitude / meta / views
 //! algorithm  — 数学策略（`AlgorithmPlanner`）

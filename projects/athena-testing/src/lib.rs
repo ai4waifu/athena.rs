@@ -1,8 +1,8 @@
-//! Athena neutral **test helpers** (Living `12` / `27`).
+//! Athena 中立 **测试辅助**。
 //!
-//! Builders and typed asserts for use from other crates' `cargo test`
-//! (`athena-engine`, `athena`, …). This package is a library only — not a
-//! standalone test binary and not `@sxo/harness`.
+//! 供其他 crate 的 `cargo test` 使用的构造器与类型化断言
+//! （`athena-engine`、`athena`、…）。本包仅为库 — 不是
+//! 独立测试二进制，也不是 `@sxo/harness`。
 
 #![deny(missing_docs)]
 
@@ -20,9 +20,6 @@ pub mod results;
 pub mod rewrite;
 pub mod terms;
 pub mod values;
-
-#[cfg(test)]
-mod contract;
 
 pub use assertions::{assert_exact_integer, assert_structural_eq, expect_diagnostic};
 pub use builders::{DomainRequestBuilder, SessionFixture, TermBuilder};

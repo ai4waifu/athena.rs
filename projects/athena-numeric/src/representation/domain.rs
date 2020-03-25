@@ -6,7 +6,7 @@ use crate::{integer::Integer, modular::Modulus};
 
 /// 运算所处的数值域。
 ///
-/// Living `19`：含 `Modulus` / `Integer` 时不 derive [`Clone`]。
+/// 含 `Modulus` / `Integer` 时不 derive [`Clone`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum NumericDomain {
     /// ℤ。

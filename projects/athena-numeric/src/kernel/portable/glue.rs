@@ -1,6 +1,6 @@
 //! Portable `LimbKernel` binding (operation entry points).
 //!
-//! Strategy is chosen by `AlgorithmPlanner` and passed in. This module only executes.
+//! 策略由 `AlgorithmPlanner` 选定并传入。本模块只执行。
 
 use athena_types::Result;
 use std::cmp::Ordering;

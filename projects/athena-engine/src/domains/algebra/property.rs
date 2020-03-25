@@ -2,7 +2,7 @@
 
 /// 性质见证（witness id / 证书载荷待扩展）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct PropertyWitness {
     /// 见证描述（算法名或 witness 句柄字符串；非数学对象身份）。
@@ -15,7 +15,7 @@ impl PropertyWitness {
         Self { kind: kind.into() }
     }
 
-    /// Owning 复制（Living `31`：描述字符串）。
+    /// Owning 复制（描述字符串）。
     pub fn owning_copy(&self) -> Self {
         Self { kind: self.kind.clone() }
     }
@@ -23,7 +23,7 @@ impl PropertyWitness {
 
 /// 代数性质：已知 / 否证 / 或然 / 未知 / 资源截断。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]（`T: Copy`）
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]（`T: Copy`）
 /// 或 [`Self::owning_copy_with`]。
 #[derive(Debug, PartialEq)]
 pub enum PropertyState<T> {
@@ -71,31 +71,22 @@ impl<T> PropertyState<T> {
         }
     }
 
-    /// Owning 复制（Living `31`：值经 `copy_value`）。
+    /// Owning 复制（值经 `copy_value`）。
     pub fn owning_copy_with(&self, copy_value: impl Fn(&T) -> T) -> Self {
         match self {
-            Self::Proven { value, witness } => Self::Proven {
-                value: copy_value(value),
-                witness: witness.owning_copy(),
-            },
-            Self::Disproven { witness } => Self::Disproven {
-                witness: witness.owning_copy(),
-            },
-            Self::Probable { value, confidence, method } => Self::Probable {
-                value: copy_value(value),
-                confidence: *confidence,
-                method: method.clone(),
-            },
+            Self::Proven { value, witness } => Self::Proven { value: copy_value(value), witness: witness.owning_copy() },
+            Self::Disproven { witness } => Self::Disproven { witness: witness.owning_copy() },
+            Self::Probable { value, confidence, method } => {
+                Self::Probable { value: copy_value(value), confidence: *confidence, method: method.clone() }
+            }
             Self::Unknown => Self::Unknown,
-            Self::ResourceLimited { partial } => Self::ResourceLimited {
-                partial: partial.as_ref().map(&copy_value),
-            },
+            Self::ResourceLimited { partial } => Self::ResourceLimited { partial: partial.as_ref().map(&copy_value) },
         }
     }
 }
 
 impl<T: Copy> PropertyState<T> {
-    /// Owning 复制（Living `31`：`T` 为 Copy 载荷）。
+    /// Owning 复制（`T` 为 Copy 载荷）。
     pub fn owning_copy(&self) -> Self {
         self.owning_copy_with(|v| *v)
     }

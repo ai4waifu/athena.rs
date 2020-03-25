@@ -8,7 +8,7 @@
 //! Athena numeric 其余 op 与 kernel 同 bump+clear；`e2e` / peer 测真实 owning / Drop。
 //!
 //! ```sh
-//! cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint
+//! 运行：`cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint`
 //! ```
 
 #![allow(missing_docs)]

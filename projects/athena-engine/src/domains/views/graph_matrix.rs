@@ -63,25 +63,3 @@ fn provisional_graph_view_fingerprint(graph: &GraphObject) -> u64 {
     }
     hash
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::graph_theory::{GraphDomainSemantics, GraphHandle, WeightDomain};
-    use athena_graph::{GraphDirection, NodeId};
-
-    #[test]
-    fn graph_matrix_view_borrows_edges() {
-        let handle = GraphHandle { id: 1, node_count: 2 };
-        let graph = GraphObject::from_edges(
-            handle,
-            GraphDomainSemantics::new(GraphDirection::Directed, WeightDomain::Unweighted),
-            vec![(NodeId(0), NodeId(1), 1)],
-        );
-        let view = GraphMatrixView::open(&graph);
-        assert_eq!(view.header().kind, ViewKind::GraphMatrix);
-        assert_eq!(view.node_count(), 2);
-        assert_eq!(view.nnz(), 1);
-        assert_eq!(view.edges()[0].0, NodeId(0));
-    }
-}

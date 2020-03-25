@@ -1,128 +1,128 @@
-//! Static types carried by SSA values inside `ExecutionIR`.
+//! `ExecutionIR` 内 SSA 值携带的静态类型。
 
 use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, ValueId};
 
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
 
-/// Closed value-type lattice for SSA values.
+/// SSA 值的封闭值类型格。
 ///
-/// Identities from other Athena domains appear only as typed handles, never as
-/// overlapping id namespaces with [`super::ids::SsaValueId`].
+/// 其他 Athena 域的标识仅以类型化句柄出现，绝不与
+/// [`super::ids::SsaValueId`] 共用 id 命名空间。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutionValueType {
-    /// Untyped / not yet constrained (verifier rejects in final modules).
+    /// 未类型化 / 尚未约束（最终 module 中校验器会拒绝）。
     Unknown,
-    /// Typed Boolean.
+    /// 类型化 Boolean。
     Boolean,
-    /// Symbol binding key (`SymbolId` handle, not a Term).
+    /// 符号绑定键（`SymbolId` 句柄，不是 Term）。
     Symbol,
-    /// Symbolic term handle (`TermStore` identity).
+    /// 符号项句柄（`TermStore` 标识）。
     Term,
-    /// Runtime value handle (`ValueStore` identity).
+    /// 运行时值句柄（`ValueStore` 标识）。
     Value,
-    /// Published computation result handle.
+    /// 已发布计算结果句柄。
     Result,
-    /// Opaque provider payload handle.
+    /// 不透明 provider 载荷句柄。
     ProviderPayload,
-    /// Runtime scope frame handle (from `EnterScope`).
+    /// 运行时作用域帧句柄（来自 `EnterScope`）。
     Scope,
-    /// Unit / void (side-effect-only operations).
+    /// Unit / void（仅副作用的操作）。
     Unit,
 }
 
-/// Module-level constant payload (compile-time known).
+/// Module 级常量载荷（编译期已知）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstantValue {
-    /// Boolean literal.
+    /// Boolean 字面量。
     Boolean(bool),
-    /// Binding key symbol.
+    /// 绑定键符号。
     Symbol(SymbolId),
-    /// Interned term root already present in `TermStore`.
+    /// 已存在于 `TermStore` 的 intern 项根。
     Term(TermId),
-    /// Unit constant.
+    /// Unit 常量。
     Unit,
 }
 
-/// Module input binding (request / snapshot edge).
+/// Module 输入绑定（请求 / 快照边）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleInput {
-    /// Stable input slot.
+    /// 稳定输入槽。
     pub id: InputId,
-    /// Static type of the input SSA value.
+    /// 输入 SSA 值的静态类型。
     pub ty: ExecutionValueType,
 }
 
-/// Captured GC / Session root referenced by the module (not owned by IR).
+/// Module 引用的捕获 GC / Session 根（非 IR 拥有）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CapturedRoot {
-    /// TermStore node root.
+    /// TermStore 节点根。
     Term(TermId),
-    /// ValueStore object root.
+    /// ValueStore 对象根。
     Value(ValueId),
-    /// ResultStore entry root.
+    /// ResultStore 条目根。
     Result(ResultId),
 }
 
-/// Descriptor for a typed provider call site (language-neutral).
+/// 类型化 provider 调用点的描述符（语言中立）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderCallDescriptor {
-    /// Descriptor table index.
+    /// 描述符表下标。
     pub id: ProviderCallId,
-    /// Closed semantic operator identity (not a dialect surface name).
+    /// 封闭语义算子标识（不是方言表层名）。
     pub operator: ExtensionOperatorId,
-    /// Expected argument types.
+    /// 期望的实参类型。
     pub argument_types: Vec<ExecutionValueType>,
-    /// Result type.
+    /// 结果类型。
     pub result_type: ExecutionValueType,
-    /// Whether the call is a GC / budget / cancellation safepoint.
+    /// 该调用是否为 GC / 预算 / 取消 safepoint。
     pub safepoint: bool,
 }
 
-/// Convenience constructors for module tables.
+/// Module 表的便捷构造。
 impl ConstantValue {
-    /// Boolean constant.
+    /// Boolean 常量。
     pub fn boolean(value: bool) -> Self {
         Self::Boolean(value)
     }
 
-    /// Symbol constant.
+    /// Symbol 常量。
     pub fn symbol(symbol: SymbolId) -> Self {
         Self::Symbol(symbol)
     }
 
-    /// Term constant.
+    /// Term 常量。
     pub fn term(term: TermId) -> Self {
         Self::Term(term)
     }
 }
 
 impl ModuleInput {
-    /// Typed module input.
+    /// 类型化 module 输入。
     pub fn new(id: InputId, ty: ExecutionValueType) -> Self {
         Self { id, ty }
     }
 }
 
 impl CapturedRoot {
-    /// Wrap a term root.
+    /// 包装项根。
     pub fn term(term: TermId) -> Self {
         Self::Term(term)
     }
 }
 
 impl ProviderCallDescriptor {
-    /// Minimal provider descriptor.
+    /// 最小 provider 描述符。
     pub fn new(id: ProviderCallId, operator: ExtensionOperatorId, result_type: ExecutionValueType) -> Self {
         Self { id, operator, argument_types: Vec::new(), result_type, safepoint: true }
     }
 }
 
-/// Resolve table ids used by freeze tests / builders.
+/// 冻结测试 / 构建器用的表 id 解析。
 pub fn unused_constant_id() -> ConstantId {
     ConstantId(0)
 }
 
-/// Resolve captured-root table id used by freeze tests / builders.
+/// 冻结测试 / 构建器用的捕获根表 id 解析。
 pub fn unused_captured_root_id() -> CapturedRootId {
     CapturedRootId(0)
 }

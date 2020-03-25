@@ -52,7 +52,7 @@ fn modes_upgrade_downgrade() {
 
 #[test]
 fn as_limbs_uses_checked_decode_for_heap() {
-    // Heap values must round-trip through decode_magnitude (capacity clamp, no panic).
+    // 堆值必须经 decode_magnitude 往返（容量夹紧，不 panic）。
     let n = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
     assert_eq!(n.as_limbs(), &[1, 2, 3, 4]);
     let m = n.try_clone_in(&NumericContext::portable_default()).unwrap();
@@ -79,7 +79,7 @@ fn clone_inline_limb_only_rejects_heap() {
     let heap = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
     assert_eq!(limb1.clone_inline().expect("Limb1").as_limbs(), &[7]);
     assert_eq!(limb2.clone_inline().expect("Limb2").as_limbs(), &[1, 2]);
-    assert!(heap.clone_inline().is_none(), "Living 19: Heap has no clone_inline");
+    assert!(heap.clone_inline().is_none(), "Heap has no clone_inline");
 
     let i_limb = Integer::from_i64(-3);
     let i_heap = Integer::from_limbs_in(&NumericContext::portable_default(), vec![1, 2, 3, 4]).unwrap();

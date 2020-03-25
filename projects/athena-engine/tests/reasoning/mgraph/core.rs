@@ -287,7 +287,6 @@ fn admit_claim_with_premises_records_proof_dependencies() {
     assert_eq!(semantic.proof_dependencies.premises(b), &[a]);
 }
 
-
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
     AdmissionGate::admit_claim(semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }

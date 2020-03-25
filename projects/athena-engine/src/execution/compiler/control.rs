@@ -1,4 +1,4 @@
-//! Control-plan and scope lowering for [`super::ExecutionCompiler`].
+//! [`super::ExecutionCompiler`] 的控制计划与作用域 lowering。
 
 use athena_ir::{Atom, TermNode};
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, TermId};
@@ -46,7 +46,7 @@ impl ExecutionCompiler {
         }
     }
 
-    /// Compile-time match against a materialised target (Living `27` · no string heads).
+    /// 对已物化目标的编译期匹配（· 无字符串头）。
     pub(crate) fn lower_match_pattern(
         &self,
         session: &mut Session,
@@ -62,7 +62,7 @@ impl ExecutionCompiler {
         self.lower_term(session, builder, blocks, entry, term)
     }
 
-    /// Compile-time filter of a materialised collection by [`TermPattern`].
+    /// 用 [`TermPattern`] 在编译期过滤已物化集合。
     pub(crate) fn lower_collect_matches(
         &self,
         session: &mut Session,
@@ -91,7 +91,7 @@ impl ExecutionCompiler {
         self.lower_term(session, builder, blocks, entry, collection)
     }
 
-    /// Load target term then emit neutral [`OperationKind::Index`].
+    /// 加载目标项，再发出中立的 [`OperationKind::Index`]。
     pub(crate) fn lower_index(
         &self,
         session: &mut Session,
@@ -129,7 +129,7 @@ impl ExecutionCompiler {
         Ok(indexed)
     }
 
-    /// Compile-time expand a constant range, substitute the binder, then lower a collection of bodies.
+    /// 编译期展开常量范围、替换绑定符，再 lowering 为 body 集合。
     pub(crate) fn lower_iterate(
         &self,
         session: &mut Session,
@@ -193,7 +193,7 @@ impl ExecutionCompiler {
             return Ok(value);
         }
 
-        // Bootstrap: unroll constant atom lists into Define + body Term steps.
+        // 引导：将常量原子列表展开为 Define + body Term 步骤。
         let mut steps = Vec::with_capacity(items.len().saturating_mul(2));
         for item in items {
             steps.push(AthenaRequest::Command(SessionCommand::Define {
@@ -302,7 +302,7 @@ impl ExecutionCompiler {
         let budget_in = builder.push_effect(EffectKind::BudgetCheck, None);
         let budget_out = builder.push_effect(EffectKind::BudgetCheck, Some(budget_in));
 
-        // entry → header(Unit)
+        // 入口跳转到 header（初值为 `Unit`）
         blocks.push(BasicBlock {
             id: entry,
             parameters: Vec::new(),
@@ -329,7 +329,7 @@ impl ExecutionCompiler {
             },
         });
 
-        // Header re-evaluates the predicate each iteration (ReadBinding / compares).
+        // Header 每次迭代重新求值谓词（`ReadBinding` / 比较）。
         let mut header_ops = Vec::new();
         let loop_cond = match self.require_boolean_atom(session, condition) {
             Ok(cond_bool) => {
@@ -358,7 +358,7 @@ impl ExecutionCompiler {
         });
 
         let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
-        // Body returns continue at header with the new accumulator.
+        // Body 返回后带着新累加器继续到 header。
         self.rewrite_returns_to_join(builder, blocks, header, body_value)?;
 
         blocks.push(BasicBlock {
@@ -562,7 +562,7 @@ impl ExecutionCompiler {
         Ok(result_param)
     }
 
-    /// Rewrite current `Return` terminators into jumps to `join` with a block argument.
+    /// 将当前 `Return` 终结器改写为带块参数跳转到 `join`。
     pub(crate) fn rewrite_returns_to_join(
         &self,
         builder: &mut ModuleBuilder,
@@ -642,7 +642,7 @@ impl ExecutionCompiler {
         });
 
         let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
-        // Any body Return (including Sequence tails) continues to ExitScope.
+        // 任意 body `Return`（含 Sequence 尾）继续到 `ExitScope`。
         let return_block_ids: Vec<BlockId> =
             blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
         for block_id in return_block_ids {
@@ -726,15 +726,15 @@ impl ExecutionCompiler {
             last_value = self.lower_request(session, builder, blocks, block_id, step)?;
             if index + 1 < steps.len() {
                 let next = step_blocks[index + 1];
-                // Rewrite every Return produced by this step (including nested eval/bind
-                // blocks from Immediate compound `Define`) into a jump to the next step.
+                // 将本步产生的每个 `Return`（含立即复合 `Define` 的嵌套
+                // eval/bind 块）改写为跳到下一步。
                 self.rewrite_returns_to_continue(builder, blocks, next)?;
             }
         }
         Ok(last_value)
     }
 
-    /// Chain sequence steps: turn outstanding `Return` terminators into jumps to `next`.
+    /// 串联 sequence 步骤：将未处理的 `Return` 终结器改为跳到 `next`。
     pub(crate) fn rewrite_returns_to_continue(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, next: BlockId) -> Result<()> {
         let return_block_ids: Vec<BlockId> =
             blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
@@ -781,7 +781,7 @@ impl ExecutionCompiler {
                 cond_value
             }
             Err(_) => {
-                // Runtime predicate: `Equal[...]`, `True`/`False` symbols, numeric truthiness, etc.
+                // 运行时谓词：`Equal[...]`、`True`/`False` 符号、数值真值等。
                 self.lower_pure_expr(session, builder, &mut operations, condition)?
             }
         };
@@ -814,7 +814,7 @@ impl ExecutionCompiler {
         else_block: BlockId,
         then_value: SsaValueId,
     ) -> Result<SsaValueId> {
-        // Missing else of `If`/`Branch` publishes as `Null` (Unit → Null at result materialization).
+        // 缺失的 `If`/`Branch` else 发布为 `Null`（结果物化时 Unit → Null）。
         let value = builder.ssa();
         let constant = builder.push_constant(ConstantValue::Unit);
         blocks.push(BasicBlock {

@@ -1,6 +1,6 @@
 #![doc = include_str!("readme.md")]
 
-//! 跨领域 TypedView（Living `28`）。
+//! 跨领域 TypedView。
 //!
 //! View 只读、带 fingerprint / revision，不拥有 DomainObject payload。
 //! 禁止领域间通过 `Vec` 全量复制或裸 `TermId` 冒充跨域对象。
@@ -23,7 +23,7 @@ pub struct ViewFingerprint(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct ViewRevision(pub u64);
 
-/// 租约集合占位（chunk / pin / spill 后续挂接 Living `21`/`24`）。
+/// 租约集合占位（chunk / pin / spill 后续挂接 ）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LeaseSet {
     /// 非空表示仍依赖运行时租约（当前脚手架恒为空）。
@@ -41,7 +41,7 @@ pub enum ViewKind {
     GraphMatrix,
 }
 
-/// TypedView 公共头（Living `28` `CrossDomainView`）。
+/// TypedView 公共头（`CrossDomainView`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypedViewHeader {
     /// 源 DomainObject。

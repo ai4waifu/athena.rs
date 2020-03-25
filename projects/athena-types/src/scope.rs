@@ -8,7 +8,7 @@ use crate::{
     ids::{AssumptionScopeId, AssumptionSetId, DomainId, SymbolId, TheoryContextId},
 };
 
-/// 理论 / 猜想上下文（与 Living `23` ANT0 对齐，禁止平行字符串假设）。
+/// 理论 / 猜想上下文（与 ANT0 对齐，禁止平行字符串假设）。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum TheoryContext {
     /// 经典无额外猜想。

@@ -1,4 +1,4 @@
-//! 独立 limb 级 mpn 参考实现（Living `13` foreign oracle）。
+//! 独立 limb 级 mpn 参考实现（foreign oracle）。
 //!
 //! **不进**默认 [`crate::kernel::KernelTable`]。仅用于差分 / fuzz：
 //! Athena limbs 拷入本模块临时缓冲 → schoolbook 运算 → 拷回 `Vec<u64>`。
@@ -98,7 +98,7 @@ pub fn cmp_slice(a: &[u64], b: &[u64]) -> core::cmp::Ordering {
     core::cmp::Ordering::Equal
 }
 
-/// Schoolbook `out = a * b`。
+/// 小学乘法 `out = a * b`。
 pub fn mul_n(a: &[u64], b: &[u64]) -> Vec<u64> {
     let la = effective_len(a);
     let lb = effective_len(b);
@@ -159,7 +159,7 @@ pub fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
         return div_rem_1(u, v[0]);
     }
 
-    // Normalize divisor so top bit of v[lv-1] is set.
+    // 规范化除数，使 v[lv-1] 最高位为 1。
     let shift = v[lv - 1].leading_zeros();
     let mut vn = vec![0u64; lv];
     let mut un = vec![0u64; lu + 1];
@@ -168,12 +168,12 @@ pub fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
 
     let mut q = vec![0u64; lu - lv + 1];
     for j in (0..=(lu - lv)).rev() {
-        // Estimate qhat from two high limbs of remainder vs vn[lv-1].
+        // 用余数高两位相对 vn[lv-1] 估计 qhat。
         let uj_hi = un[j + lv];
         let uj_lo = un[j + lv - 1];
         let mut qhat = if uj_hi == vn[lv - 1] { u64::MAX } else { ((((uj_hi as u128) << 64) | (uj_lo as u128)) / (vn[lv - 1] as u128)) as u64 };
 
-        // Adjust while qhat * vn > un[j..j+lv+1] (at most twice).
+        // 当 qhat * vn > un[j..j+lv+1] 时下调（至多两次）。
         loop {
             let prod = mul_1(&vn, qhat);
             let window = &un[j..j + lv + 1];
@@ -195,7 +195,7 @@ pub fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
             borrow = u64::from(b0) + u64::from(b1);
         }
         if borrow != 0 {
-            // Add back (should be rare after adjustment).
+            // 加回（下调后应少见）。
             let mut carry = 0u64;
             for i in 0..lv {
                 let (s0, c0) = un[j + i].overflowing_add(vn[i]);

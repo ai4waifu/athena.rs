@@ -8,7 +8,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use crate::{integer::Sign, natural::Natural, storage::MagnitudePair};
 
 /// 精确二进制有理：`sign · significand · 2^exponent`（非零时尾数为奇）。
-// Living 19: no Clone on Heap-capable significand
+//  no Clone on Heap-capable significand
 #[repr(C)]
 pub struct Dyadic {
     significand: MagnitudePair,
@@ -152,7 +152,7 @@ impl Dyadic {
             return;
         }
         let negative = self.significand.is_negative();
-        // Living `24`：就地 reuse unique buffer，禁止 owning Clone 再写回。
+        // 就地 reuse unique buffer，禁止 owning Clone 再写回。
         let mut pair = core::mem::replace(&mut self.significand, MagnitudePair::zero());
         pair.set_sign_bit(false);
         let mut mag = Natural::from_pair(pair);

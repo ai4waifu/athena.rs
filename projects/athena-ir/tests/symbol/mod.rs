@@ -13,8 +13,8 @@ fn intern_stable() {
 fn extension_registry_starts_empty_without_surface_catalog() {
     let mut registry = ExtensionRegistry::new();
     assert!(registry.is_empty());
-    // Display-name reverse lookup is not a public core API. Intern is the only
-    // allocate path; identity is `ExtensionOperatorId`, not a Mathematica catalog.
+    // 显示名反向查找不是公开核心 API。`intern` 是唯一
+    // 分配路径；标识为 `ExtensionOperatorId`，不是 Mathematica 目录。
     let plus = registry.intern("user_extension_plus");
     let again = registry.intern("user_extension_plus");
     assert_eq!(plus, again);

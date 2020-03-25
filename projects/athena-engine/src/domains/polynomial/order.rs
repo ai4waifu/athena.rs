@@ -8,7 +8,7 @@ use super::monomial_layout::CompiledMonomialOrder;
 
 /// 单项式比较序（环身份的一部分）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum MonomialOrder {
     /// 字典序（变量表顺序即 `x0 > x1 > …`）。
@@ -37,7 +37,7 @@ pub enum MonomialOrder {
 }
 
 impl MonomialOrder {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Lex => Self::Lex,

@@ -16,7 +16,7 @@ pub struct PAdicValue {
 }
 
 impl PAdicValue {
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         Ok(Self { prime: self.prime.try_clone_in(ctx)?, precision: self.precision, digits: self.digits.clone() })
     }

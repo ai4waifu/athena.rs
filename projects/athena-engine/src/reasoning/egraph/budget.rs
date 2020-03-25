@@ -1,15 +1,15 @@
-//! Budget and stop reasons for scope-local saturation (Living `03` R-2.5).
+//! 作用域内饱和的预算与停止原因。
 
-/// Hard caps for one saturation run. Zero means “disabled / immediate stop”.
+/// 单次饱和运行的硬上限。零表示「禁用 / 立即停止」。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SaturationBudget {
-    /// Maximum equality-class count.
+    /// 等价类数量上限。
     pub max_eclasses: u32,
-    /// Maximum enode count.
+    /// enode 数量上限。
     pub max_enodes: u32,
-    /// Maximum rewrite / merge iterations.
+    /// 重写 / 合并迭代次数上限。
     pub max_iterations: u32,
-    /// Maximum candidate unions emitted this run.
+    /// 本次运行可发出的候选并查集合并次数上限。
     pub max_candidate_unions: u32,
 }
 
@@ -20,21 +20,21 @@ impl Default for SaturationBudget {
 }
 
 impl SaturationBudget {
-    /// Tiny budget for smoke / contract tests.
+    /// 冒烟 / 契约测试用的小预算。
     pub const fn smoke() -> Self {
         Self { max_eclasses: 32, max_enodes: 128, max_iterations: 8, max_candidate_unions: 16 }
     }
 }
 
-/// Why saturation stopped (never “ran forever”).
+/// 饱和停止原因（绝不会「永远跑下去」）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaturationStopReason {
-    /// Fixed point within budget (no pending work).
+    /// 在预算内到达不动点（无待处理工作）。
     FixedPoint,
-    /// Hit iteration cap.
+    /// 触达迭代上限。
     IterationBudget,
-    /// Hit eclass / enode / union caps.
+    /// 触达 eclass / enode / union 资源上限。
     ResourceBudget,
-    /// Caller cancelled (future hook).
+    /// 调用方取消（预留钩子）。
     Cancelled,
 }

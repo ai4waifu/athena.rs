@@ -1,4 +1,4 @@
-//! Stage typed [`HyperEdge`] values as unverified [`OuterCandidate`]s (Living `26`).
+//! 将带类型的 [`HyperEdge`] 暂存为未验证的 [`OuterCandidate`]。
 
 use athena_ir::{TermStore, canonical_hash};
 use athena_types::TermId;
@@ -16,20 +16,20 @@ use crate::{
     },
 };
 
-/// Capability provider identity for staged hyper-edge candidates (not a trusted kernel).
+/// 暂存超边候选的能力提供者标识（非受信任内核）。
 pub const HYPER_EDGE_STAGING_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(22);
 
-/// Turn a typed hyper-edge into an unverified outer candidate.
+/// 将带类型超边转为未验证的外层候选。
 ///
-/// Does **not** admit. Stageable predicates:
+/// **不会** 接纳。可暂存的谓词：
 /// - [`predicates::REWRITE_EQUIVALENT`] / [`predicates::EVALUATION_RESULT`] → `TermEquality`
 /// - [`predicates::DERIVATIVE_OF`] / [`predicates::INTEGRAL_OF`] / [`predicates::SERIES_EXPANSION`]
-///   → `CalculusRelation` (expression/variable via [`canonical_hash`], result as `TermId`)
-/// - [`predicates::CONGRUENCE`] → `Congruence` (left/right/modulus fingerprints)
-/// - [`predicates::POLYNOMIAL_RESULT`] → `PolynomialResult` (request fingerprint; staging op
-///   [`PolynomialCacheOp::Normalize`])
+///   → `CalculusRelation`（表达式/变量经 [`canonical_hash`]，结果为 `TermId`）
+/// - [`predicates::CONGRUENCE`] → `Congruence`（左/右/模的指纹）
+/// - [`predicates::POLYNOMIAL_RESULT`] → `PolynomialResult`（请求指纹；暂存操作
+///   [`PolynomialCacheOp::Normalize`]）
 ///
-/// Other predicates remain solver/reflector-local until a proposition mapping exists.
+/// 其余谓词在命题映射就绪前仍留在 solver/reflector 局部。
 pub fn hyper_edge_to_outer_candidate(store: &TermStore, edge: &HyperEdge) -> Result<OuterCandidate, AdmissionRejectReason> {
     if descriptor(edge.predicate).is_none() || !arity_ok(edge.predicate, edge.nodes.len()) {
         return Err(AdmissionRejectReason::MalformedRelation);
@@ -67,7 +67,7 @@ pub fn hyper_edge_to_outer_candidate(store: &TermStore, edge: &HyperEdge) -> Res
         let request_fingerprint = term_fingerprint(store, request)?;
         return Ok(candidate_claim(
             Proposition::PolynomialResult {
-                // Staging placeholder: hyper-edges carry only the request object identity.
+                // 暂存占位：超边仅携带请求对象标识。
                 operation: PolynomialCacheOp::Normalize,
                 request_fingerprint,
             },
@@ -136,110 +136,4 @@ fn require_present(store: &TermStore, id: TermId) -> Result<(), AdmissionRejectR
 fn term_fingerprint(store: &TermStore, id: TermId) -> Result<u64, AdmissionRejectReason> {
     require_present(store, id)?;
     Ok(canonical_hash(store, id))
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_ir::{Atom, TermNode};
-    use athena_types::SourceSpan;
-
-    use super::*;
-
-    fn store_with_symbols() -> (TermStore, TermId, TermId, TermId) {
-        let mut store = TermStore::new();
-        let span = SourceSpan::default();
-        let a = store.symbols_mut().intern("a");
-        let b = store.symbols_mut().intern("b");
-        let c = store.symbols_mut().intern("c");
-        let t0 = store.push(TermNode::Atom(Atom::Symbol(a)), span);
-        let t1 = store.push(TermNode::Atom(Atom::Symbol(b)), span);
-        let t2 = store.push(TermNode::Atom(Atom::Symbol(c)), span);
-        (store, t0, t1, t2)
-    }
-
-    #[test]
-    fn rewrite_hyper_edge_stages_candidate_term_equality() {
-        let (store, left, right, _) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![left, right], predicate: predicates::REWRITE_EQUIVALENT };
-        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
-        assert_eq!(outer.claim.guarantee, Guarantee::Candidate);
-        assert_eq!(outer.claim.proposition, Proposition::TermEquality { left, right });
-    }
-
-    #[test]
-    fn evaluation_result_hyper_edge_stages_term_equality() {
-        let (store, left, right, _) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![left, right], predicate: predicates::EVALUATION_RESULT };
-        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
-        match &outer.claim.evidence {
-            Evidence::TrustedKernel { summary, .. } => {
-                assert!(summary.starts_with("hyper-edge-eval:"));
-            }
-        }
-    }
-
-    #[test]
-    fn derivative_hyper_edge_stages_calculus_relation() {
-        let (store, expr, var, result) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![expr, var, result], predicate: predicates::DERIVATIVE_OF };
-        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
-        match outer.claim.proposition {
-            Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
-                assert_eq!(kind, CalculusRelationKind::DerivativeOf);
-                assert_eq!(expression_fingerprint, canonical_hash(&store, expr));
-                assert_eq!(variable_fingerprint, canonical_hash(&store, var));
-                assert_eq!(result_term, result);
-            }
-            other => panic!("expected CalculusRelation, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn congruence_hyper_edge_stages_fingerprints() {
-        let (store, left, right, modulus) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![left, right, modulus], predicate: predicates::CONGRUENCE };
-        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
-        assert_eq!(
-            outer.claim.proposition,
-            Proposition::Congruence {
-                left: canonical_hash(&store, left),
-                right: canonical_hash(&store, right),
-                modulus_fingerprint: canonical_hash(&store, modulus),
-            }
-        );
-    }
-
-    #[test]
-    fn polynomial_result_hyper_edge_stages_request_fingerprint() {
-        let (store, request, _, _) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![request], predicate: predicates::POLYNOMIAL_RESULT };
-        let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
-        assert_eq!(
-            outer.claim.proposition,
-            Proposition::PolynomialResult { operation: PolynomialCacheOp::Normalize, request_fingerprint: canonical_hash(&store, request) }
-        );
-    }
-
-    #[test]
-    fn missing_term_is_malformed() {
-        let store = TermStore::new();
-        let edge = HyperEdge { nodes: vec![TermId(1), TermId(2)], predicate: predicates::REWRITE_EQUIVALENT };
-        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
-    }
-
-    #[test]
-    fn bad_arity_is_malformed() {
-        let (store, left, _, _) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![left], predicate: predicates::REWRITE_EQUIVALENT };
-        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
-    }
-
-    #[test]
-    fn unknown_predicate_is_malformed() {
-        use crate::reasoning::mgraph::PredicateId;
-
-        let (store, only, _, _) = store_with_symbols();
-        let edge = HyperEdge { nodes: vec![only], predicate: PredicateId(99) };
-        assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
-    }
 }

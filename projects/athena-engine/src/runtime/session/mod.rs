@@ -43,23 +43,23 @@ use crate::{
     },
 };
 
-/// Report from typed saturation followed by structural, rewrite-replay, and application-congruence admit.
+/// 类型化 saturation 之后，再经结构接纳、改写回放接纳与应用同余接纳的报告。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct TypedEgraphAdmitReport {
-    /// Unverified candidates from saturation.
+    /// saturation 产生的未验证候选。
     pub saturation: SaturationReport,
-    /// Structural admit outcomes for those candidates (rewrite-shaped pairs are skipped upstream).
+    /// 上述候选的结构接纳结果（改写形态对已在上游跳过）。
     pub structural_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
-    /// Typed rewrite replay admit outcomes (`match_pattern` + `substitute`).
+    /// 类型化改写回放接纳结果（`match_pattern` + `substitute`）。
     pub rewrite_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
-    /// ExactUF application-congruence admit outcomes.
+    /// ExactUF 应用同余接纳结果。
     pub congruence_admitted: Vec<Result<FactId, AdmissionRejectReason>>,
 }
 
 impl TypedEgraphAdmitReport {
-    /// Owning 复制（Living `31`：经 [`SaturationReport::owning_copy`]）。
+    /// Owning 复制（经 [`SaturationReport::owning_copy`]）。
     pub fn owning_copy(&self) -> Self {
         Self {
             saturation: self.saturation.owning_copy(),
@@ -76,21 +76,21 @@ pub struct Session {
     pub arena: TermStore,
     /// 扩展显示名注册表（非核心算子 catalog）。
     pub extensions: ExtensionRegistry,
-    /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
+    /// Interp 语句定义层（`SymbolId` 键 · 终态）。
     pub defs: DefinitionLayer,
-    /// 已编译规则仓（`CompiledRuleId` · Living `27` `SessionCommand::RegisterRuleDispatch`）。
+    /// 已编译规则仓（`CompiledRuleId` · `SessionCommand::RegisterRuleDispatch`）。
     pub compiled_rules: CompiledRuleStore,
     /// `LexicalScope` 局部唯一化计数器。
     pub module_counter: u64,
     /// 多项式环 intern 表。
     pub rings: RingTable,
-    /// Session 级群 / presentation 注册表（Living `04` / 群论 DomainObject）。
+    /// Session 级群 / presentation 注册表（/ 群论 DomainObject）。
     pub groups: GroupTable,
-    /// Living `28` 多项式 DomainObject 仓（`PolynomialRef` → payload）。
+    /// 多项式 DomainObject 仓（`PolynomialRef` → payload）。
     pub polynomial_objects: PolynomialObjectStore,
-    /// Living `28` 级数 DomainObject 仓（`SeriesRef` → payload）。
+    /// 级数 DomainObject 仓（`SeriesRef` → payload）。
     pub series_objects: SeriesObjectStore,
-    /// Living `28` 矩阵 DomainObject 仓（`MatrixRef` → payload · Living `07` `MatrixId` 语义）。
+    /// 矩阵 DomainObject 仓（`MatrixRef` → payload · `MatrixId` 语义）。
     pub matrix_objects: MatrixObjectStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
@@ -102,7 +102,7 @@ pub struct Session {
     pub values: ValueStore,
     /// 计算结果存储（`ResultId` → [`ComputationResult`]）。
     pub results: ResultStore,
-    /// 可恢复前沿存储（`FrontierId` → [`crate::runtime::ComputationFrontier`] · Living `30`）。
+    /// 可恢复前沿存储（`FrontierId` → [`crate::runtime::ComputationFrontier`] · ）。
     pub frontiers: FrontierStore,
     /// 假设作用域 intern。
     pub assumption_scopes: AssumptionScopeTable,
@@ -143,7 +143,7 @@ impl Default for Session {
 impl Session {
     /// 空 session（隔离登记 heap · 基准 [`GcMode::Deferred`]）。
     ///
-    /// Living 18：session 算术经 [`Self::numeric_context`] 发布。宿主可见便利入口仍用
+    /// session 算术经 [`Self::numeric_context`] 发布。宿主可见便利入口仍用
     /// [`NumericContext::portable_default`]（共享默认 heap · Auto）。
     pub fn new() -> Self {
         let heap = GcHeap::new_shared(HeapBudget::default());
@@ -195,7 +195,7 @@ impl Session {
         self.results.insert(result)
     }
 
-    /// 记录一次可恢复计算前沿（Living `30`）。
+    /// 记录一次可恢复计算前沿。
     pub fn insert_frontier(&mut self, frontier: crate::runtime::ComputationFrontier) -> athena_types::FrontierId {
         self.frontiers.insert(frontier)
     }
@@ -226,7 +226,7 @@ impl Session {
         self.defs.clear();
     }
 
-    /// Session runtime heap。
+    /// Session 运行时 heap。
     pub fn heap(&self) -> &Rc<RefCell<GcHeap>> {
         &self.heap
     }
@@ -324,12 +324,12 @@ impl Session {
         saturate(&mut self.egraph, &self.arena, roots, self.egraph_budget, rules)
     }
 
-    /// Typed [`TermPattern`] saturation（`match_pattern` + `substitute` · 不写 M-Graph）。
+    /// 类型化 [`TermPattern`] saturation（`match_pattern` + `substitute` · 不写 M-Graph）。
     pub fn run_egraph_saturation_typed(&mut self, roots: &[TermId], rules: Option<&TypedRuleSet>) -> SaturationReport {
         saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules)
     }
 
-    /// Extract a representative term from a local e-class.
+    /// 从局部 e-class 提取代表项。
     pub fn extract_egraph_class(
         &self,
         class: crate::reasoning::egraph::EClassId,
@@ -339,7 +339,7 @@ impl Session {
         Extractor::with_preference(preference).extract(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
     }
 
-    /// Extract a representative term and its local [`crate::reasoning::egraph::ResultCost`].
+    /// 提取代表项及其局部 [`crate::reasoning::egraph::ResultCost`]。
     pub fn extract_egraph_class_with_cost(
         &self,
         class: crate::reasoning::egraph::EClassId,
@@ -349,7 +349,7 @@ impl Session {
         Extractor::with_preference(preference).extract_with_cost(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
     }
 
-    /// Multi-objective undominated extract set for a local e-class.
+    /// 局部 e-class 的多目标非支配提取集合。
     pub fn extract_egraph_class_pareto(&self, class: crate::reasoning::egraph::EClassId) -> crate::reasoning::egraph::ParetoFrontier {
         use crate::reasoning::egraph::Extractor;
         Extractor::extract_pareto(&self.egraph, &self.arena, class, Some(&self.mgraph.semantic.derived.exact_uf))
@@ -370,27 +370,26 @@ impl Session {
         admit_structural_candidates(&self.arena, &mut self.mgraph.semantic, candidates, &VerificationPolicy::default())
     }
 
-    /// Emit ExactUF application-congruence candidates from known egraph terms (no admit).
+    /// 由已知 egraph 项发出 ExactUF 应用同余候选（不接纳）。
     pub fn emit_application_congruence_candidates(&self, max_pairs: u32) -> Vec<CandidateEquivalence> {
         application_congruence_candidates(&self.arena, &self.egraph, &self.mgraph.semantic.derived.exact_uf, max_pairs)
     }
 
-    /// Admit `f(a…) ≈ f(b…)` when heads match and args are ExactUF-equal.
+    /// 当头相同且参数 ExactUF 相等时接纳 `f(a…) ≈ f(b…)`。
     pub fn admit_application_congruence(&mut self, left: TermId, right: TermId) -> Result<FactId, AdmissionRejectReason> {
         admit_application_congruence(&self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
     }
 
-    /// Scan known apps under ExactUF and admit congruence equalities (bounded by `max_pairs`).
+    /// 在 ExactUF 下扫描已知应用并接纳同余等式（受 `max_pairs` 约束）。
     pub fn rebuild_and_admit_application_congruence(&mut self, max_pairs: u32) -> Vec<Result<FactId, AdmissionRejectReason>> {
         let candidates = application_congruence_candidates(&self.arena, &self.egraph, &self.mgraph.semantic.derived.exact_uf, max_pairs);
         admit_application_congruence_candidates(&self.arena, &mut self.mgraph.semantic, &candidates, &VerificationPolicy::default())
     }
 
-    /// Typed saturation then structural admit, typed rewrite replay admit, then ExactUF congruence.
+    /// 类型化 saturation，再结构接纳、类型化改写回放接纳，最后 ExactUF 同余。
     ///
-    /// Structural admit only upgrades `structural_eq` pairs. Rewrite candidates require
-    /// `rules` so replay can re-run `match_pattern` + `substitute`. Congruence fires when
-    /// ExactUF already equates application arguments.
+    /// 结构接纳只升级 `structural_eq` 对。改写候选需要 `rules`，以便回放重跑
+    /// `match_pattern` + `substitute`。当 ExactUF 已使应用参数相等时触发同余。
     pub fn run_typed_egraph_admit_pipeline(
         &mut self,
         roots: &[TermId],
@@ -414,7 +413,7 @@ impl Session {
         TypedEgraphAdmitReport { saturation, structural_admitted, rewrite_admitted, congruence_admitted }
     }
 
-    /// Replay-verify typed rewrite candidates (`match_pattern` + `substitute`) then admit.
+    /// 回放核验类型化改写候选（`match_pattern` + `substitute`）后接纳。
     pub fn admit_typed_rewrite_egraph_candidates(
         &mut self,
         rules: &TypedRuleSet,
@@ -434,27 +433,27 @@ impl Session {
         )
     }
 
-    /// Run M-Graph equality-forest closure (transitivity proof edges · bootstrap).
+    /// 运行 M-Graph 相等森林闭包（传递性证明边 · bootstrap）。
     pub fn run_mgraph_closure(&mut self, limits: ClosureLimits) -> ClosureResult {
         self.mgraph.run_closure(&self.arena, &limits)
     }
 
-    /// Drain stageable operational hyper-edges into OuterCandidate pool (no admit).
+    /// 将可暂存的运行态超边排入 OuterCandidate 池（不接纳）。
     pub fn drain_mgraph_hyper_edges(&mut self) -> crate::reasoning::mgraph::HyperEdgeDrainReport {
         crate::reasoning::mgraph::drain_hyper_edges_to_outer_pool(&self.arena, &mut self.mgraph)
     }
 
-    /// Admit OuterCandidate pool entries that pass TermStore structural equality (upgrade to ProvenExact).
+    /// 接纳通过 TermStore 结构相等的 OuterCandidate（升级为 ProvenExact）。
     pub fn admit_mgraph_outer_pool_if_structural(&mut self) -> crate::reasoning::mgraph::OuterAdmitReport {
         crate::reasoning::mgraph::admit_outer_pool_if_structural(&self.arena, &mut self.mgraph, &VerificationPolicy::default())
     }
 
-    /// Register a pending ProofObligation for Reflector wake-on-admit.
+    /// 登记挂起的 ProofObligation，供 Reflector 在接纳时唤醒。
     pub fn register_mgraph_obligation(&mut self, obligation: crate::reasoning::mgraph::ProofObligation) {
         self.mgraph.operational.obligation_index.register(obligation);
     }
 
-    /// Admit a claim into M-Graph state and wake matching obligations.
+    /// 将声明接纳进 M-Graph 状态并唤醒匹配义务。
     pub fn admit_mgraph_claim_with_wake(
         &mut self,
         claim: crate::reasoning::mgraph::Claim,
@@ -462,7 +461,7 @@ impl Session {
         crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.mgraph, claim, &VerificationPolicy::default())
     }
 
-    /// Schedule Reflector outcomes for a wake batch into operational queues.
+    /// 将一批唤醒的 Reflector 结果写入运行态队列。
     pub fn schedule_mgraph_reflector_wakes(
         &mut self,
         wakes: &[crate::reasoning::mgraph::ReflectorWake],
@@ -471,7 +470,7 @@ impl Session {
         crate::reasoning::mgraph::schedule_reflector_wakes(&mut self.mgraph, wakes, reflector)
     }
 
-    /// Resume inconclusive obligations from the operational frontier queue.
+    /// 从运行态 frontier 队列续跑未决义务。
     pub fn resume_mgraph_reflector_frontier(
         &mut self,
         reflector: &dyn crate::reasoning::mgraph::SemanticReflector,
@@ -479,10 +478,10 @@ impl Session {
         crate::reasoning::mgraph::resume_reflector_frontier(&mut self.mgraph, reflector)
     }
 
-    /// Execute the front queued DomainPlan with a bound [`crate::domains::DomainRequest`].
+    /// 用绑定的 [`crate::domains::DomainRequest`] 执行队首 `DomainPlan`。
     ///
-    /// Exact calculus results admit via AdmissionGate. Polynomial path uses
-    /// `execute_polynomial_mgraph` (cache + AdmissionGate). Returns `Ok(None)` if empty.
+    /// 精确微积分结果经 AdmissionGate 接纳。多项式路径用 `execute_polynomial_mgraph`
+    /// （缓存 + AdmissionGate）。队列空时返回 `Ok(None)`。
     pub fn run_next_queued_domain_plan(
         &mut self,
         request: crate::domains::DomainRequest,
@@ -490,7 +489,7 @@ impl Session {
         crate::reasoning::mgraph::run_next_queued_plan(self, request)
     }
 
-    /// Batch-execute queued DomainPlans paired with bound requests.
+    /// 批量执行排队 DomainPlan，每条配绑定请求。
     pub fn run_queued_domain_plans(
         &mut self,
         requests: impl IntoIterator<Item = crate::domains::DomainRequest>,

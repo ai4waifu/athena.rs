@@ -1,45 +1,43 @@
-//! # Purpose
-//! Half-GCD (Jebelean / Lehmer-matrix style) for wide non-negative limb magnitudes.
+//! # 用途
+//! Half-GCD（Jebelean / Lehmer 矩阵风格），用于宽的非负 limb 量级。
 //!
-//! # Mathematical model
-//! Euclidean transforms preserve $\gcd(a,b)$. A unimodular $2\times 2$ matrix
-//! accumulated from leading-limb quotients is applied as signed linear
-//! combinations. Half-GCD stops once the smaller operand is about half the
-//! original width, then finishes with ordinary Lehmer/binary GCD.
+//! # 数学模型
+//! Euclid 变换保持 `gcd(a,b)`。由前导 limb 商累积的幺模
+//! `2×2` 矩阵以带符号线性组合施加。Half-GCD 在较小操作数
+//! 约为原宽度一半时停止，再以普通 Lehmer/二进制 GCD 收尾。
 //!
-//! # Derivation
-//! Leading double-limb Euclid mirrors full Euclid while the quotient sequence
-//! is certified; the matrix product is then exact on the full operands.
-//! Negative matrix entries are required (unlike the conservative non-negative
-//! Lehmer path). When certification fails, one exact remainder restores
-//! progress.
+//! # 推导
+//! 前导双 limb 的 Euclid 在商序列可认证时镜像完整 Euclid；
+//! 矩阵乘积随后对完整操作数精确成立。
+//! 需要负矩阵元（与保守的非负 Lehmer 路径不同）。
+//! 认证失败时，一次精确取余即可恢复进度。
 //!
-//! # Algorithm steps
-//! 1. Normalize; swap so $a \ge b$.
-//! 2. While $\min(|a|,|b|)$ is at least the half-GCD threshold, reduce toward
-//!    half width via signed Lehmer blocks (or one exact rem on failure).
-//! 3. Finish with [`super::gcd_lehmer::gcd`].
+//! # 算法步骤
+//! 1. 规范化；交换使 `a ≥ b`。
+//! 2. 当 `min(|a|,|b|)` 至少达到 half-GCD 阈值时，经带符号
+//!    Lehmer 块（或失败时一次精确 `rem`）向半宽缩减。
+//! 3. 以 [`super::gcd_lehmer::gcd`] 收尾。
 //!
-//! # Preconditions
-//! - Canonical non-negative little-endian `$u64$` limbs (`Vec` convenience path).
+//! # 前置条件
+//! - 规范的非负小端 `u64` limbs（`Vec` 便利路径）。
 //!
-//! # Postconditions
-//! - Returns $\gcd(a,b)$ as a canonical limb vector.
+//! # 后置条件
+//! - 返回 `gcd(a,b)` 的规范 limb 向量。
 //!
-//! # Complexity
-//! Fewer full-precision divisions than plain Euclid on wide inputs; asymptotic
-//! still dominated by the finishing GCD.
+//! # 复杂度
+//! 相对纯 Euclid，宽输入上全精度除法更少；渐近
+//! 仍由收尾 GCD 主导。
 //!
-//! # Crossover
-//! Planner selects HalfGcd when both operands have at least
-//! `GCD_LEHMER_THRESHOLD * 4` limbs and `half_gcd` capability is set.
+//! # 交叉阈值
+//! 当两端操作数至少有 `GCD_LEHMER_THRESHOLD * 4` 个 limb
+//! 且设有 `half_gcd` 能力时，规划器选择 HalfGcd。
 //!
-//! # Failure modes
-//! A Lehmer block may return false (unstable leading quotients); the outer loop
-//! then performs one exact `div_rem`.
+//! # 失败模式
+//! Lehmer 块可能返回 false（前导商不稳定）；外层循环
+//! 随后执行一次精确 `div_rem`。
 //!
-//! # Tests
-//! `tests/exact/algorithms.rs` half-GCD capability cross-check.
+//! # 测试
+//! `tests/exact/algorithms.rs` 中 half-GCD 能力交叉校验。
 
 use std::cmp::Ordering;
 
@@ -49,11 +47,11 @@ use super::{
     primitive::{cmp_slice, effective_len, is_zero, normalize_trim},
 };
 
-/// Match planner threshold (`GCD_LEHMER_THRESHOLD * 4`).
+/// 与规划器阈值一致（`GCD_LEHMER_THRESHOLD * 4`）。
 const HALF_GCD_THRESHOLD: usize = 12;
 const LEHMER_THRESHOLD: usize = 3;
 
-/// Half-GCD then Lehmer/binary finish.
+/// Half-GCD，再以 Lehmer/二进制收尾。
 pub(crate) fn half_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
     a = normalize_trim(a);
     b = normalize_trim(b);
@@ -78,7 +76,7 @@ pub(crate) fn half_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
                 progressed = true;
             }
             else {
-                // Exact Euclidean step when leading prediction fails.
+                // 前导预测失败时做一次精确 Euclid 步。
                 let (_q, r) = div_rem(&a, &b);
                 a = b;
                 b = normalize_trim(r);
@@ -106,7 +104,7 @@ pub(crate) fn half_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
     lehmer_gcd(a, b)
 }
 
-/// One signed-matrix Lehmer block (Jebelean-style HGCD step fragment).
+/// 一次带符号矩阵的 Lehmer 块（Jebelean 风格 HGCD 步片段）。
 fn hgcd_lehmer_block(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
     let na = effective_len(a);
     let nb = effective_len(b);
@@ -177,7 +175,7 @@ fn hgcd_lehmer_block(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
         *b = nb_new;
         return true;
     }
-    // Require non-increasing smaller operand for progress.
+    // 要求较小操作数不增，以保证进度。
     if effective_len(&nb_new) >= nb && cmp_slice(&nb_new, b) != Ordering::Less {
         return false;
     }
@@ -189,7 +187,7 @@ fn hgcd_lehmer_block(a: &mut Vec<u64>, b: &mut Vec<u64>) -> bool {
     true
 }
 
-/// $|c_0|·v_0 \pm |c_1|·v_1$ as a non-negative magnitude (signs choose add/sub).
+/// `|c₀|·v₀ ± |c₁|·v₁` 作为非负量级（符号选择加/减）。
 fn lincomb_signed(c0: i64, v0: &[u64], c1: i64, v1: &[u64]) -> Option<Vec<u64>> {
     let zero = || vec![0u64];
     let mag = |c: i64, v: &[u64]| -> Vec<u64> { if c == 0 { zero() } else { mul_1(v, c.unsigned_abs()) } };

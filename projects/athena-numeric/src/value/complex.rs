@@ -29,7 +29,7 @@ pub struct Complex {
 }
 
 impl Complex {
-    /// Owning 深复制（Living `19`）。
+    /// Owning 深复制。
     pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
         Ok(Self { re: self.re.try_clone_in(ctx)?, im: self.im.try_clone_in(ctx)?, branch: self.branch })
     }

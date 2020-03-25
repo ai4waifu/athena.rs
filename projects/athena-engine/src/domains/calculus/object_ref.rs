@@ -1,10 +1,10 @@
-//! Living `28` 级数 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
+//! 级数 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
 
 use crate::reasoning::mgraph::{ObjectRef, TheoryContextId};
 
 use super::series::{Remainder, Series};
 
-/// Session-local series DomainObject handle（Living `28`）。
+/// 会话局部的级数 `DomainObject` 句柄。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SeriesRef(pub u64);
 
@@ -57,7 +57,7 @@ impl SeriesObjectStore {
         self.entries.get(r.0 as usize).map(|e| e.fingerprint)
     }
 
-    /// M-Graph [`ObjectRef`]（`TheoryContextId::CALCULUS`）。
+    /// M-Graph 的 [`ObjectRef`]（`TheoryContextId::CALCULUS`）。
     pub fn object_ref(&self, r: SeriesRef) -> Option<ObjectRef> {
         self.fingerprint(r).map(|fp| ObjectRef::new(TheoryContextId::CALCULUS, fp))
     }
@@ -99,21 +99,4 @@ fn provisional_series_fingerprint(series: &Series) -> u64 {
         Remainder::Unknown => body.push(3),
     }
     fnv1a64(&body)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use athena_types::{SymbolId, TermId};
-
-    #[test]
-    fn intern_dedupes_identical_series() {
-        let mut store = SeriesObjectStore::new();
-        let s = Series { variable: SymbolId(0), center: TermId(0), terms: Vec::new(), order: 1, remainder: Remainder::ExactTruncation };
-        let a = store.intern(s.owning_copy());
-        let b = store.intern(s);
-        assert_eq!(a, b);
-        assert_eq!(store.len(), 1);
-        assert!(store.object_ref(a).is_some());
-    }
 }

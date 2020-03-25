@@ -11,7 +11,7 @@ use athena_types::RingId;
 
 /// 擦除后的多项式句柄（不暴露泛型多项式）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct PolynomialValue {
     /// 内部多项式对象。
@@ -19,7 +19,7 @@ pub struct PolynomialValue {
 }
 
 impl PolynomialValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { inner: self.inner.owning_copy() }
     }
@@ -28,9 +28,9 @@ impl PolynomialValue {
 /// Gröbner / 消元基结果。
 ///
 /// Partial / ResourceLimited 时保留 `pending_pairs` / `pending_insertion`，
-/// 以便 Session 层诚实 resume（Living `30` G1）。
+/// 以便 Session 层诚实 resume（G1）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct GroebnerBasisValue {
     /// 所属环。
@@ -52,7 +52,7 @@ pub struct GroebnerBasisValue {
 }
 
 impl GroebnerBasisValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             ring: self.ring,
@@ -184,7 +184,7 @@ impl GroebnerBasisValue {
 
 /// 单变量除法结果值。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct UnivariateDivisionValue {
     /// 商。
@@ -194,7 +194,7 @@ pub struct UnivariateDivisionValue {
 }
 
 impl UnivariateDivisionValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { quotient: self.quotient.owning_copy(), remainder: self.remainder.owning_copy() }
     }
@@ -202,7 +202,7 @@ impl UnivariateDivisionValue {
 
 /// 多项式域返回值。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum PolynomialDomainValue {
     /// 单个多项式。
@@ -220,7 +220,7 @@ pub enum PolynomialDomainValue {
 }
 
 impl PolynomialDomainValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Polynomial(v) => Self::Polynomial(v.owning_copy()),

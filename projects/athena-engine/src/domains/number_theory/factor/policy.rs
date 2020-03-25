@@ -18,18 +18,18 @@ pub enum ProofRequirement {
 pub struct FactorAlgorithms {
     /// 试除。
     pub trial: bool,
-    /// Pollard rho。
+    /// Pollard ρ。
     pub pollard_rho: bool,
     /// Pollard p−1。
     pub pollard_p1: bool,
-    /// ECM（Montgomery stage 1）。
+    /// ECM（Montgomery 第 1 阶段）。
     pub ecm: bool,
     /// QS 引导实现（Fermat 近距分解）。
     pub quadratic_sieve: bool,
 }
 
 impl FactorAlgorithms {
-    /// Gate 1 默认：仅试除。
+    /// 引导默认：仅试除。
     pub fn bootstrap() -> Self {
         Self { trial: true, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: false }
     }

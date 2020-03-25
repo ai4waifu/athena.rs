@@ -74,7 +74,7 @@ impl<T, S: ArrayStorage<T>> ChunkedArray<T, S> {
         &mut self.store
     }
 
-    /// Memory budget。
+    /// 内存预算。
     pub const fn memory_budget(&self) -> MemoryBudget {
         self.budget
     }

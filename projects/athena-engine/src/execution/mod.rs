@@ -1,4 +1,4 @@
-//! 执行层 — typed [`ir::ExecutionIR`] + backends（Living `25` 终态）。
+//! 执行层 — typed [`ir::ExecutionIR`] + backends（终态）。
 //!
 //! 合同：[`compiler`] · [`ir`] · [`reference`] · [`backend`] · [`provider`]。
 //! Pattern 工具在 [`builtins::patterns`]。
@@ -19,9 +19,9 @@ use crate::{api::request::AthenaRequest, runtime::session::Session};
 
 pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFrame};
 
-/// Compile and run one request on the `ExecutionIR` path only.
+/// 仅在 `ExecutionIR` 路径上编译并执行一次请求。
 ///
-/// `Goal::Dispatch` carries the `DomainRequest` into `CallProvider` at runtime.
+/// `Goal::Dispatch` 在运行时把 `DomainRequest` 带入 `CallProvider`。
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
     use crate::api::request::DomainGoal;
 
@@ -33,10 +33,10 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
     reference::ReferenceExecutor::new().execute(session, &module, domain)
 }
 
-/// Project a term through [`execute_ir_request`] into a compact [`TermEvaluation`].
+/// 经 [`execute_ir_request`] 将项投影为紧凑的 [`TermEvaluation`]。
 ///
-/// Test / internal helper only — not a second execution model. Product paths use
-/// [`execute_ir_request`] or [`crate::api::AthenaEngine::execute_request`].
+/// 仅供测试 / 内部辅助 — 不是第二套执行模型。产品路径使用
+/// [`execute_ir_request`] 或 [`crate::api::AthenaEngine::execute_request`]。
 pub fn evaluate_term(session: &mut Session, expr: TermId) -> TermEvaluation {
     match execute_ir_request(session, AthenaRequest::Term(expr)) {
         Ok(result_id) => {
@@ -140,19 +140,4 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
 /// 会话级符号替换（迭代 / 作用域具化）。
 pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
     builtins::patterns::substitute_symbol(session, expr, symbol, value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::api::request::AthenaRequest;
-
-    #[test]
-    fn execute_ir_request_atom_term() {
-        let mut session = Session::new();
-        let term = session.builder().int(4, Default::default());
-        let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("ir");
-        let loaded = session.results.get(result_id).expect("result");
-        assert_eq!(loaded.symbolic_term, Some(term));
-    }
 }

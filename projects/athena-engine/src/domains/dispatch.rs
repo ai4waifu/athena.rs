@@ -1,6 +1,6 @@
 //! 顶层域分派 — `DomainRequest` / `DomainResult`。
 //!
-//! Living `28`：`DomainRequest` → [`plan_domain`] → [`DomainPlan`] → [`interpret_domain_plan`] → `DomainResult`。
+//! `DomainRequest` → [`plan_domain`] → [`DomainPlan`] → [`interpret_domain_plan`] → `DomainResult`。
 //! 微积分、数论、多项式、群、域、伽罗瓦、图论、线性代数、优化经此入口进入 `athena-engine`。
 
 use athena_types::Diagnostic;
@@ -42,7 +42,7 @@ pub enum DomainRequest {
     GraphTheory(GraphTheoryRequest),
     /// 线性代数。
     LinearAlgebra(LinearAlgebraRequest),
-    /// 优化与规划（Living `16`，非 Solve 别名）。
+    /// 优化与规划（，非 Solve 别名）。
     Optimization(OptimizationRequest),
 }
 
@@ -78,8 +78,8 @@ pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<D
     Ok(result)
 }
 
-/// Invoke the owning domain provider (`DomainPlan` `CallDomainProvider` body).
-pub(crate) fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
+/// 调用所属领域提供者（`DomainPlan` 的 `CallDomainProvider` 体）。
+pub fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     match request {
         DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),
@@ -90,45 +90,9 @@ pub(crate) fn call_domain_provider(session: &mut Session, request: DomainRequest
         DomainRequest::FieldTheory(req) => Ok(DomainResult::FieldTheory(execute_field_with_table_mut(req, session.rings.field_table_mut()))),
         DomainRequest::GaloisTheory(req) => {
             Ok(DomainResult::GaloisTheory(execute_galois_with_tables(req, session.rings.field_table_mut(), &mut session.groups)))
-        },
+        }
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
         DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req, &session.matrix_objects))),
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::context::DomainExecutionContext;
-    use athena_ir::SemanticOperator;
-    use athena_types::AssumptionSet;
-
-    #[test]
-    fn series_plan_opens_series_polynomial_view() {
-        let mut session = Session::new();
-        let (expression, variable, center) = {
-            let dc = DomainExecutionContext::new(&mut session);
-            let variable = dc.intern("x");
-            let xs = dc.symbol_id(variable);
-            let center = dc.in_(0);
-            let expression = dc.apply_semantic(SemanticOperator::Unary(athena_ir::UnaryFunction::Sin), vec![xs]);
-            (expression, variable, center)
-        };
-        let result = execute_domain(
-            &mut session,
-            DomainRequest::Calculus(CalculusRequest::Series { expression, variable, center, order: 2, assumptions: AssumptionSet::empty() }),
-        )
-        .expect("execute");
-        match result {
-            DomainResult::Calculus(
-                CalculusResult::Exact { value: CalculusValue::Series(r), .. }
-                | CalculusResult::Conditional { value: CalculusValue::Series(r), .. }
-                | CalculusResult::Unevaluated { expression: CalculusValue::Series(r), .. },
-            ) => {
-                assert!(SeriesPolynomialView::open(&session.series_objects, r).is_some());
-            }
-            other => panic!("expected series DomainResult, got {other:?}"),
-        }
     }
 }

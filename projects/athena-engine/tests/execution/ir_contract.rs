@@ -1,4 +1,4 @@
-//! `ExecutionIR` compile-time contracts: effects, fingerprints, and re-verify.
+//! `ExecutionIR` 编译期合同：effects、指纹与再校验。
 
 use athena_engine::{
     api::request::{AthenaRequest, ControlPlan, DomainGoal, SessionCommand},

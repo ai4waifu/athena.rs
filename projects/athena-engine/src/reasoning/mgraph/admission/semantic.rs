@@ -15,7 +15,7 @@ use crate::reasoning::mgraph::{
 
 /// 数学语义状态（admission journal + scoped relation index + 派生索引）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（含 owning journal / relation 载荷）。
+/// **不**实现 [`Clone`]（含 owning journal / relation 载荷）。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SemanticCore {
     /// Scoped relation 索引与 admit/close 入口（查询面，可从 journal 重建）。
@@ -24,7 +24,7 @@ pub struct SemanticCore {
     pub admission_journal: AdmissionJournal,
     /// 由 journal 派生的索引（可丢弃后重建）。
     pub derived: DerivedIndexes,
-    /// 已接纳事实的证明依赖（Living `29` · 不随 `rebuild_derived` 丢弃）。
+    /// 已接纳事实的证明依赖（· 不随 `rebuild_derived` 丢弃）。
     pub proof_dependencies: ProofDependencyIndex,
 }
 
@@ -46,11 +46,7 @@ impl SemanticCore {
     }
 
     /// 接纳后登记证明依赖（前提必须是更早的 `FactId`）。
-    pub fn record_proof_dependencies(
-        &mut self,
-        fact: FactId,
-        premises: &[FactId],
-    ) -> Result<(), athena_types::Diagnostic> {
+    pub fn record_proof_dependencies(&mut self, fact: FactId, premises: &[FactId]) -> Result<(), athena_types::Diagnostic> {
         if self.admission_journal.get(fact).is_none() {
             return Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "mgraph")

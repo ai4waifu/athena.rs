@@ -1,7 +1,7 @@
-//! Path-segment fixtures inside `athena-benchmark` only.
+//! 仅位于 `athena-benchmark` 内的路径段 fixture。
 //!
-//! Uses public Athena APIs plus a local stack limb add as a lower-bound reference.
-//! Does **not** add hooks into `athena-numeric`.
+//! 使用公开 Athena API，外加本地栈 limb 加法作为下界参考。
+//! **不** 向 `athena-numeric` 添加钩子。
 //!
 //! 每个 `run_once` 只执行 **一次** op。合同 runner（`athena-bench`）只做校验 / 冒烟；
 //! 性能 ns/op 由 Criterion `path_segments` bench 测量。
@@ -204,7 +204,7 @@ impl Fixture for IntegerTryAdd4 {
     }
 }
 
-/// Session-style Integer add：隔离 heap + [`GcMode::Deferred`]（Living 18 numeric 层）。
+/// Session-style Integer add：隔离 heap + [`GcMode::Deferred`]（numeric 层）。
 struct IntegerTryAddSession4 {
     ctx: NumericContext,
     a: Integer,

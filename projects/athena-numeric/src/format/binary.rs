@@ -270,7 +270,7 @@ fn decode_nested_real(bytes: &[u8]) -> Result<(Real, &[u8]), Diagnostic> {
     }
     let sign = bytes[0];
     let rest = &bytes[1..];
-    // Real payload is self-describing by subtype length for Machine; Decimal needs take_magnitude.
+    // Machine 实数载荷靠子类型长度自描述；Decimal 需要 take_magnitude。
     if rest.is_empty() {
         return Err(reject_non_canonical(WireReject::IntervalTrailing));
     }
@@ -543,7 +543,7 @@ pub(crate) fn decode_finite_field_payload(sign: u8, payload: &[u8]) -> Result<Fi
     }
     let rest = &payload[12..];
     // Each coefficient needs ≥1 wire byte. Reject before `Vec::with_capacity` so fuzzed
-    // huge `count` cannot OOM the process.
+    // 过大的 `count` 不得把进程 OOM。
     if count > rest.len() {
         return Err(reject_non_canonical(WireReject::FiniteFieldTrailing));
     }

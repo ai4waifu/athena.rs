@@ -21,7 +21,7 @@ impl Natural {
         Ok(Self::from_pair(self.inner.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?))
     }
 
-    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`。
     #[inline]
     pub fn clone_inline(&self) -> Option<Self> {
         Some(Self::from_pair(self.inner.clone_inline()?))
@@ -42,7 +42,7 @@ impl Natural {
 
     /// 由 limb 切片发布到 `ctx` heap（无额外 `Vec`）。
     ///
-    /// Living `31`：Heap 结果恒为 `PublishedNumericBlock`（rooted），无所有权类别开关。
+    /// Heap 结果恒为 `PublishedNumericBlock`（rooted），无所有权类别开关。
     pub(crate) fn from_limb_slice_in(ctx: &NumericContext, limbs: &[u64]) -> Result<Self> {
         ctx.check_entry()?;
         let inner = MagnitudePair::from_limbs_in(ctx.heap(), limbs).map_err(gc_alloc_error)?;
@@ -70,33 +70,9 @@ impl Natural {
         Ok(Self::finish_rooted_limbs(buf, el))
     }
 
-    /// 将临时 ExplicitRelease 缓冲收成 `Natural`。
+    /// 持久 `Natural` 只从 `RootedLimbBuffer` / inline 收成。
     ///
-    /// Living `31`：`el >= 3` 时拷贝提升为 `PublishedNumericBlock`，再释放临时块。
-    /// 禁止 `from_owned_heap` 直接进入持久 `Natural`。
-    pub(super) fn finish_owned_limbs(buf: crate::storage::OwnedLimbBuffer, el: usize) -> Result<Self> {
-        match el {
-            0 | 1 => {
-                let limb = if el == 0 { 0 } else { buf.as_slice(1)[0] };
-                drop(buf);
-                Ok(Self::from_u64(limb))
-            }
-            2 => {
-                let limbs = buf.as_slice(2);
-                let pair = [limbs[0], limbs[1]];
-                drop(buf);
-                Ok(Self::from_limb2(pair))
-            }
-            _ => {
-                let heap_id = buf.heap_id();
-                let capacity = buf.capacity().max(el);
-                let rooted = crate::storage::RootedLimbBuffer::alloc_copy_on(heap_id, buf.as_slice(el), capacity).map_err(gc_alloc_error)?;
-                drop(buf);
-                Ok(Self::from_pair(MagnitudePair::from_rooted_heap(rooted, el)))
-            }
-        }
-    }
-
+    /// 临时 `OwnedLimbBuffer` 不得进入本路径；须经 `TemporaryNatural` → `promote` / `publish`。
     pub(super) fn finish_rooted_limbs(buf: crate::storage::RootedLimbBuffer, el: usize) -> Self {
         match el {
             0 | 1 => {
@@ -124,7 +100,7 @@ impl Natural {
 
     /// Kernel `*_into` 后 canonicalize 并发布。
     ///
-    /// Living 17 步骤 6：当 [`NumericContext::can_reuse_destination`] 为真时复用 context
+    /// 步骤 6：当 [`NumericContext::can_reuse_destination`] 为真时复用 context
     /// 输出 `LimbBuffer` 容量；否则使用临时缓冲。Heap 结果经 rooted 句柄发布。
     pub(super) fn publish_into(
         ctx: &NumericContext,
@@ -247,7 +223,7 @@ impl Natural {
                 n => {
                     debug_assert!(n >= 3);
                     debug_assert!(matches!(self.inner.mode(), Mode::Heap));
-                    // Living 31：持久 Natural 的 Heap payload 必须是 PublishedNumericBlock。
+                    // 持久 Natural 的 Heap payload 必须是 PublishedNumericBlock。
                     debug_assert!(self.inner.is_heap_rooted(), "Natural Heap must be rooted PublishedNumericBlock");
                 }
             }

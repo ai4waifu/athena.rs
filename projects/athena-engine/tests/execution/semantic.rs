@@ -1,4 +1,4 @@
-//! 执行层语义验收（Living `25` L2 · `ExecutionIR` via `evaluate_term`）。
+//! 执行层语义验收（L2 · `ExecutionIR` via `evaluate_term`）。
 
 use athena_engine::{
     api::request::{AthenaRequest, ControlPlan},
@@ -388,7 +388,7 @@ fn linear_algebra_paths() {
         other => panic!("expected ExactSolve unique, got {other:?}"),
     }
 
-    // Extension LinearSolve is residual display only — not core solve dispatch.
+    // 扩展 LinearSolve 仅作残差显示 — 不是核心 solve 分派。
     let m = list(vec![list(vec![int(2, &mut s), int(0, &mut s)], &mut s), list(vec![int(0, &mut s), int(2, &mut s)], &mut s)], &mut s);
     let rhs_row = list(vec![int(4, &mut s), int(6, &mut s)], &mut s);
     let e = ext("LinearSolve", vec![m, rhs_row], &mut s);

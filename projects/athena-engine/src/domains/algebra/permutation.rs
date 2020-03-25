@@ -4,7 +4,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 内部置换（像列表 `π(i) = images[i]`）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct RawPerm {
     images: Vec<u32>,
@@ -17,7 +17,7 @@ impl RawPerm {
         Ok(Self { images })
     }
 
-    /// Owning 复制（Living `31`：像向量）。
+    /// Owning 复制（像向量）。
     pub fn owning_copy(&self) -> Self {
         Self { images: self.images.clone() }
     }

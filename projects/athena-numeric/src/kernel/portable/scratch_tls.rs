@@ -1,4 +1,4 @@
-//! Thread-local scratch borrow for convenience wrappers.
+//! 便利包装用的线程局部 scratch 借用。
 
 use std::cell::RefCell;
 

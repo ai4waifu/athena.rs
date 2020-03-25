@@ -25,18 +25,16 @@ impl<T> PropertyCell<T> {
 
 /// 与节点数或边数对齐的 typed 属性列。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct PropertyColumn<T> {
     values: Vec<PropertyCell<T>>,
 }
 
 impl<T: Clone> PropertyColumn<T> {
-    /// Owning 复制（Living `31`：单元格向量）。
+    /// Owning 复制（单元格向量）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            values: self.values.clone(),
-        }
+        Self { values: self.values.clone() }
     }
 }
 
@@ -145,7 +143,7 @@ pub enum WeightDomainTag {
 
 /// 绑定域标签的权重列。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct WeightColumn<T> {
     domain: WeightDomainTag,
@@ -153,12 +151,9 @@ pub struct WeightColumn<T> {
 }
 
 impl<T: Clone> WeightColumn<T> {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            domain: self.domain,
-            values: self.values.owning_copy(),
-        }
+        Self { domain: self.domain, values: self.values.owning_copy() }
     }
 }
 
@@ -191,7 +186,7 @@ impl<T> WeightColumn<T> {
 
 /// 节点/边属性表（列式；列名稳定字符串，值 typed）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, Default)]
 pub struct PropertyStore<N, E> {
     node_columns: Vec<(String, PropertyColumn<N>)>,
@@ -199,19 +194,11 @@ pub struct PropertyStore<N, E> {
 }
 
 impl<N: Clone, E: Clone> PropertyStore<N, E> {
-    /// Owning 复制（Living `31`：列名与单元格）。
+    /// Owning 复制（列名与单元格）。
     pub fn owning_copy(&self) -> Self {
         Self {
-            node_columns: self
-                .node_columns
-                .iter()
-                .map(|(name, col)| (name.clone(), col.owning_copy()))
-                .collect(),
-            edge_columns: self
-                .edge_columns
-                .iter()
-                .map(|(name, col)| (name.clone(), col.owning_copy()))
-                .collect(),
+            node_columns: self.node_columns.iter().map(|(name, col)| (name.clone(), col.owning_copy())).collect(),
+            edge_columns: self.edge_columns.iter().map(|(name, col)| (name.clone(), col.owning_copy())).collect(),
         }
     }
 }

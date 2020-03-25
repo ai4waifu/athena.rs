@@ -1,4 +1,4 @@
-//! Budgeted saturation driver (Living `03` R-2.5 / `26`).
+//! 带预算的饱和驱动器。
 
 use athena_ir::TermStore;
 use athena_rewriter::{PatternBindings, RuleSet, match_pattern, substitute};
@@ -11,35 +11,31 @@ use super::{
     typed_rules::TypedRuleSet,
 };
 
-/// Report from one saturation attempt.
+/// 一次饱和尝试的报告。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct SaturationReport {
-    /// Why the run stopped.
+    /// 运行停止原因。
     pub stop: SaturationStopReason,
-    /// Iterations performed.
+    /// 已执行的迭代次数。
     pub iterations: u32,
-    /// Candidate equalities discovered (unverified).
+    /// 发现的候选等式（未验证）。
     pub candidates: Vec<CandidateEquivalence>,
 }
 
 impl SaturationReport {
-    /// Owning 复制（Living `31`：[`CandidateEquivalence`] 为 `Copy`）。
+    /// Owning 复制（[`CandidateEquivalence`] 为 `Copy`）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            stop: self.stop,
-            iterations: self.iterations,
-            candidates: self.candidates.clone(),
-        }
+        Self { stop: self.stop, iterations: self.iterations, candidates: self.candidates.clone() }
     }
 }
 
-/// Run scope-local saturation under `budget` with structural [`RuleSet`] rules.
+/// 在 `budget` 下用结构化 [`RuleSet`] 规则运行作用域局部饱和。
 ///
-/// After ingesting `roots`, scan known terms for [`TermStore::structural_eq`]
-/// hits against each rule pattern, add the replacement, emit a
-/// [`CandidateEquivalence`], and union classes locally. Never writes M-Graph.
+/// 摄入 `roots` 后，扫描已知项，对每条规则模式做 [`TermStore::structural_eq`]
+/// 命中检测，加入替换结果，发出
+/// [`CandidateEquivalence`]，并在局部合并类。绝不写入 M-Graph。
 pub fn saturate(
     graph: &mut EGraph,
     store: &TermStore,
@@ -125,10 +121,10 @@ pub fn saturate(
     }
 }
 
-/// Run scope-local saturation with [`TypedRuleSet`] (`TermPattern` + `substitute`).
+/// 用 [`TypedRuleSet`]（`TermPattern` + `substitute`）运行作用域局部饱和。
 ///
-/// Never writes M-Graph. `store` is mutable so replacement templates can be
-/// instantiated via [`athena_rewriter::substitute`].
+/// 绝不写入 M-Graph。`store` 可变，以便经
+/// [`athena_rewriter::substitute`] 实例化替换模板。
 pub fn saturate_typed(
     graph: &mut EGraph,
     store: &mut TermStore,

@@ -1,4 +1,4 @@
-//! Living `30` 统一 [`FrontierStore`]：可暂停 / 可恢复计算前沿外壳。
+//! 统一 [`FrontierStore`]：可暂停 / 可恢复计算前沿外壳。
 //!
 //! 领域私有 payload 仅经 [`ResumeToken`]；禁止用字符串 label 冒充完成标志。
 
@@ -6,14 +6,11 @@ use std::collections::BTreeMap;
 
 use athena_types::{AssumptionSetId, Diagnostic, DiagnosticCode, FrontierId};
 
-use crate::{
-    domains::solve::ResumeToken,
-    runtime::results::ResultProviderStamp,
-};
+use crate::{domains::solve::ResumeToken, runtime::results::ResultProviderStamp};
 
 /// 统一前沿记录（goal / plan / objects / budget / certificates / resume）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ComputationFrontier {
     /// 目标指纹。
@@ -36,7 +33,7 @@ pub struct ComputationFrontier {
     pub resume: ResumeToken,
 }
 
-/// Resume 校验输入（Living `30`：provider · scope · fingerprints · certificates · budget/cancel）。
+/// Resume 校验输入（provider · scope · fingerprints · certificates · budget/cancel）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResumeCheck<'a> {
     /// 当前 provider 合同戳。
@@ -73,7 +70,7 @@ impl ComputationFrontier {
         }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             goal_fingerprint: self.goal_fingerprint,
@@ -111,7 +108,8 @@ impl ComputationFrontier {
     pub fn resume_provider_gate(&self, current: ResultProviderStamp) -> Result<(), Diagnostic> {
         if self.accepts_provider(current) {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "frontier")
                 .detail("operation", "resume")
@@ -123,7 +121,8 @@ impl ComputationFrontier {
     pub fn resume_assumption_gate(&self, current: Option<AssumptionSetId>) -> Result<(), Diagnostic> {
         if self.assumption_scope == current {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::AssumptionUnresolved)
                 .detail("domain", "frontier")
                 .detail("operation", "resume")
@@ -243,126 +242,5 @@ impl FrontierStore {
     /// 是否为空。
     pub fn is_empty(&self) -> bool {
         self.frontiers.is_empty()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_types::AssumptionSetId;
-
-    use super::{ComputationFrontier, FrontierStore, ResumeCheck};
-    use crate::{
-        domains::solve::{ResumeKind, ResumeToken},
-        runtime::results::ResultProviderId,
-    };
-
-    fn check<'a>(
-        provider: crate::runtime::results::ResultProviderStamp,
-        assumption_scope: Option<AssumptionSetId>,
-        goal: u64,
-        plan: Option<u64>,
-        objects: &'a [u64],
-        certs: &'a [u64],
-        cancelled: bool,
-        budget_limit: Option<u64>,
-    ) -> ResumeCheck<'a> {
-        ResumeCheck {
-            provider,
-            assumption_scope,
-            goal_fingerprint: goal,
-            plan_fingerprint: plan,
-            object_fingerprints: objects,
-            available_certificates: certs,
-            cancelled,
-            budget_limit,
-        }
-    }
-
-    #[test]
-    fn insert_and_get_frontier() {
-        let stamp = ResultProviderId::POLYNOMIAL.stamped();
-        let resume = ResumeToken::empty_with_provider(ResumeKind::UnivariateFactor, stamp);
-        let mut frontier = ComputationFrontier::new(0xA11CE, resume);
-        frontier.plan_fingerprint = Some(0xBEEF);
-        frontier.object_fingerprints = vec![1, 2, 3];
-        frontier.assumption_scope = Some(AssumptionSetId(9));
-        frontier.budget_consumed = 4;
-
-        let mut store = FrontierStore::new();
-        let id = store.insert(frontier.owning_copy());
-        assert!(store.contains(id));
-        assert_eq!(store.get(id), Some(&frontier));
-        assert_eq!(store.count(), 1);
-    }
-
-    #[test]
-    fn resume_gate_rejects_stale_provider() {
-        let stamp = ResultProviderId::LINEAR_ALGEBRA.stamped();
-        let frontier = ComputationFrontier::new(1, ResumeToken::empty_with_provider(ResumeKind::LinearExact, stamp));
-        assert!(frontier.resume_provider_gate(stamp).is_ok());
-        let stale = crate::runtime::results::ResultProviderStamp { id: ResultProviderId::LINEAR_ALGEBRA, version: 0 };
-        let err = frontier.resume_provider_gate(stale).expect_err("stale");
-        assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("provider_version_incompatible"));
-    }
-
-    #[test]
-    fn validate_resume_checks_assumption_and_fingerprints() {
-        let stamp = ResultProviderId::POLYNOMIAL.stamped();
-        let mut frontier = ComputationFrontier::new(0x11, ResumeToken::empty_with_provider(ResumeKind::Cut, stamp));
-        frontier.plan_fingerprint = Some(0x22);
-        frontier.object_fingerprints = vec![7, 8];
-        frontier.assumption_scope = Some(AssumptionSetId(3));
-
-        assert!(frontier
-            .validate_resume(check(stamp, Some(AssumptionSetId(3)), 0x11, Some(0x22), &[7, 8], &[], false, None))
-            .is_ok());
-
-        let scope_err = frontier
-            .validate_resume(check(stamp, Some(AssumptionSetId(4)), 0x11, Some(0x22), &[7, 8], &[], false, None))
-            .expect_err("scope");
-        assert_eq!(scope_err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("assumption_scope_changed"));
-
-        let goal_err = frontier
-            .validate_resume(check(stamp, Some(AssumptionSetId(3)), 0x99, Some(0x22), &[7, 8], &[], false, None))
-            .expect_err("goal");
-        assert_eq!(goal_err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("goal_fingerprint_mismatch"));
-
-        let objects_err = frontier
-            .validate_resume(check(stamp, Some(AssumptionSetId(3)), 0x11, Some(0x22), &[7], &[], false, None))
-            .expect_err("objects");
-        assert_eq!(
-            objects_err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("object_fingerprints_mismatch")
-        );
-    }
-
-    #[test]
-    fn validate_resume_rejects_missing_certificate_and_budget() {
-        let stamp = ResultProviderId::NUMBER_THEORY.stamped();
-        let mut frontier = ComputationFrontier::new(1, ResumeToken::empty_with_provider(ResumeKind::Cut, stamp));
-        frontier.certificate_fingerprints = vec![100, 200];
-        frontier.budget_consumed = 5;
-
-        assert!(frontier
-            .validate_resume(check(stamp, None, 1, None, &[], &[200, 100, 300], false, Some(10)))
-            .is_ok());
-
-        let cert_err = frontier
-            .validate_resume(check(stamp, None, 1, None, &[], &[100], false, Some(10)))
-            .expect_err("cert");
-        assert_eq!(
-            cert_err.details.get("reason").map(|v| v.to_string()).as_deref(),
-            Some("certificate_not_replayable")
-        );
-
-        let cancel_err = frontier
-            .validate_resume(check(stamp, None, 1, None, &[], &[100, 200], true, Some(10)))
-            .expect_err("cancel");
-        assert_eq!(cancel_err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
-
-        let budget_err = frontier
-            .validate_resume(check(stamp, None, 1, None, &[], &[100, 200], false, Some(5)))
-            .expect_err("budget");
-        assert_eq!(budget_err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("budget_exhausted"));
     }
 }

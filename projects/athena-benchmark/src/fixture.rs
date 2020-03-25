@@ -21,11 +21,11 @@ pub enum BenchGroup {
     Bigint,
     /// 路径拆分 microbench（kernel / alloc / clone / publish）。
     Path,
-    /// TermStore / hash / verify。
+    /// `TermStore` / hash / 校验。
     Ir,
     /// 匹配与规范化。
     Rewriter,
-    /// M-Graph / Session / limits。
+    /// M-Graph / `Session` / 限额。
     Engine,
     /// 多项式 / 数论 / 微积分 / sample_1d。
     Domains,
@@ -105,7 +105,7 @@ impl FixtureMeta {
         Self { id, group, scale, domain, layer: None, context_policy: None, implementation: None, operation: None, bits: None, gc_mode: None }
     }
 
-    /// Path 分段：强制标注 layer / context / gc（Living `15`/`18`，禁止互冒）。
+    /// Path 分段：强制标注 layer / context / gc（，禁止互冒）。
     pub fn path(
         id: &'static str,
         scale: &'static str,

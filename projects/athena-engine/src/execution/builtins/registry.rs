@@ -1,4 +1,4 @@
-//! 特殊函数定义表 — domain / 导数 / 分支策略（arena 版 · Living `25`/`27`）。
+//! 特殊函数定义表 — domain / 导数 / 分支策略（arena 版 · ）。
 //!
 //! 按封闭 [`UnaryFunction`] 身份查询，禁止字符串名分派。
 
@@ -37,7 +37,7 @@ pub struct FunctionDefinition {
 }
 
 impl FunctionDefinition {
-    /// Preferred semantic head when constructing applications of this function.
+    /// 构造该函数应用时优先使用的语义头。
     pub const fn operator(self) -> SemanticOperator {
         SemanticOperator::from_unary(self.function)
     }

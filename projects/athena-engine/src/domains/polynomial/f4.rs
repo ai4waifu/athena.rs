@@ -1,4 +1,4 @@
-//! F4 Macaulay 矩阵（Living `04` / `30`）：系数面挂 `athena-ndarray` `Array2d`。
+//! F4 Macaulay 矩阵：系数面挂 `athena-ndarray` `Array2d`。
 //!
 //! 列单项式字典仍属多项式域元数据。系数缓冲经 [`NumberInMemoryStorage`]（GC `try_clone_in`）。
 //! 本切片：建矩阵 / 行还原 / 消元 / sugar 选择与继承 / 闭包 / 准则 1+2 / 增量更新 / 证书闭环。
@@ -33,7 +33,7 @@ pub struct F4CriticalPair {
 
 /// 符号预处理产出的一行：乘子 × 基多项式下标。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct F4SymbolicRow {
     /// 单项式乘子指数。
@@ -43,12 +43,9 @@ pub struct F4SymbolicRow {
 }
 
 impl F4SymbolicRow {
-    /// Owning 复制（Living `31`：乘子指数向量）。
+    /// Owning 复制（乘子指数向量）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            multiplier: self.multiplier.clone(),
-            poly_index: self.poly_index,
-        }
+        Self { multiplier: self.multiplier.clone(), poly_index: self.poly_index }
     }
 }
 
@@ -242,7 +239,7 @@ pub fn eliminate_macaulay_column(matrix: &MacaulayMatrix, pivot_col: u32, rings:
     rebuild_matrix(matrix.ring, &matrix.columns, rows)
 }
 
-/// 对整张 Macaulay 矩阵做左到右批量高斯消元（域系数 · Living `30` F4 消元步进）。
+/// 对整张 Macaulay 矩阵做左到右批量高斯消元（域系数 · F4 消元步进）。
 ///
 /// 每列在尚未用作主元的行中选第一个非零元，消去其余行该列，最后丢掉全零行。
 /// 不声称完整 F4（无 pair 选择 / sugar / 符号预处理调度）。
@@ -355,14 +352,14 @@ pub fn polynomial_sugar(poly: &Polynomial) -> u32 {
     poly.terms().iter().map(|t| exponents_total_degree(t.exponents())).max().unwrap_or(0)
 }
 
-/// Critical pair sugar：`max(sugar(f)-deg(LM(f)), sugar(g)-deg(LM(g))) + deg(lcm(LM(f),LM(g)))`。
+/// 临界对 sugar：`max(sugar(f)-deg(LM(f)), sugar(g)-deg(LM(g))) + deg(lcm(LM(f),LM(g)))`。
 ///
 /// 初值 sugar 取 [`polynomial_sugar`]。继承 sugar 见 [`pair_sugar_with`]。
 pub fn pair_sugar_degree(f: &Polynomial, g: &Polynomial, layout: &MonomialLayout) -> Result<u32> {
     pair_sugar_with(f, g, polynomial_sugar(f), polynomial_sugar(g), layout)
 }
 
-/// Critical pair sugar（显式基元素 sugar · Giovini 继承）。
+/// 临界对 sugar（显式基元素 sugar · Giovini 继承）。
 pub fn pair_sugar_with(f: &Polynomial, g: &Polynomial, sugar_f: u32, sugar_g: u32, layout: &MonomialLayout) -> Result<u32> {
     let lf = f.terms().first().ok_or_else(|| {
         Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "f4_pair_sugar_zero_poly")
@@ -793,7 +790,7 @@ fn lm_divisible_by_basis_lm(poly: &Polynomial, basis: &[Polynomial], layout: &Mo
     basis.iter().any(|g| g.terms().first().is_some_and(|lt| layout.monomial_divides(lt.exponents(), lm.exponents())))
 }
 
-/// Buchberger first criterion: `LM(f)` and `LM(g)` coprime ⇒ `S(f,g)` → 0.
+/// Buchberger 第一准则：`LM(f)` 与 `LM(g)` 互素 ⇒ `S(f,g)` → 0。
 fn leading_monomials_coprime(f: &Polynomial, g: &Polynomial) -> bool {
     let Some(lf) = f.terms().first()
     else {
@@ -809,7 +806,7 @@ fn leading_monomials_coprime(f: &Polynomial, g: &Polynomial) -> bool {
     lf.exponents().iter().zip(lg.exponents().iter()).all(|(a, b)| *a == 0 || *b == 0)
 }
 
-/// Buchberger chain criterion: ∃`k` s.t. `LM(bk) | lcm(LM(bi), LM(bj))` and pairs `(i,k)`, `(j,k)` already treated.
+/// Buchberger 链准则：∃`k` 使 `LM(bk) | lcm(LM(bi), LM(bj))`，且对 `(i,k)`、`(j,k)` 已处理。
 fn chain_criterion_applies(
     basis: &[Polynomial],
     i: usize,

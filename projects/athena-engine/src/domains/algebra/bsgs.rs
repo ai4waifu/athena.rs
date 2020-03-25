@@ -137,11 +137,7 @@ fn orbit(point: u32, gens: &[RawPerm], _degree: u32) -> HashSet<u32> {
 }
 
 fn filter_stabilizer(gens: &[RawPerm], base: &[u32], _degree: u32) -> Vec<RawPerm> {
-    let filtered: Vec<RawPerm> = gens
-        .iter()
-        .filter(|g| base.iter().all(|&b| g.apply(b) == b))
-        .map(RawPerm::owning_copy)
-        .collect();
+    let filtered: Vec<RawPerm> = gens.iter().filter(|g| base.iter().all(|&b| g.apply(b) == b)).map(RawPerm::owning_copy).collect();
     dedupe_perms(filtered)
 }
 

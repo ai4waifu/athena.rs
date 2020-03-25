@@ -12,7 +12,7 @@ use super::{
 
 /// 统一求解问题对象。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct SolveProblem {
     /// 约束。
@@ -34,7 +34,7 @@ pub struct SolveProblem {
 }
 
 impl SolveProblem {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             constraints: self.constraints.owning_copy(),

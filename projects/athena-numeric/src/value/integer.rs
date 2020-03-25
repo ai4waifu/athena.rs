@@ -11,7 +11,7 @@ use crate::{
     storage::{MagnitudePair, gc_alloc_error},
 };
 
-/// 只读幅度视图：借用 limb + 符号（Living 18）。
+/// 只读幅度视图：借用 limb + 符号。
 ///
 /// 生命周期不得长过借出的 [`Integer`]。算术热路径应经本视图进入算法，
 /// 禁止为读取符号 / 绝对值而 owning clone Heap magnitude。
@@ -79,7 +79,7 @@ pub enum Sign {
 /// 经私有 [`MagnitudePair`] 做 Drop；无独立 `Sign` 字段、不嵌套 `Natural`。
 /// 排序必须是数学序：负数额值反序、正数额值正序。禁止 derive `Ord`。
 ///
-/// # 复制合同（Living `19`）
+/// # 复制合同
 ///
 /// **不**实现 [`Clone`]。Limb1/Limb2 用 [`Self::clone_inline`]；Heap owning 深复制用
 /// [`Self::try_clone_in`]。算术热路径经 [`MagnitudeView`] 借用，结果经 context 发布。
@@ -148,7 +148,7 @@ impl Integer {
 
     /// 无符号幅度（可失败 owning 复制；仅供确需 `Natural` 所有权的路径）。
     ///
-    /// Living `19`/`24`：算术热路径请用 [`Self::magnitude_view`] / [`Self::as_limbs`]。
+    /// 算术热路径请用 [`Self::magnitude_view`] / [`Self::as_limbs`]。
     fn try_abs_natural(&self) -> athena_gc::Result<Natural> {
         Ok(Natural::from_pair(self.inner.try_clone_clear_sign()?))
     }
@@ -171,7 +171,7 @@ impl Integer {
         Ok(Self::from_pair(self.inner.try_clone_on(ctx.heap()).map_err(gc_alloc_error)?))
     }
 
-    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`。
     #[inline]
     pub fn clone_inline(&self) -> Option<Self> {
         Some(Self::from_pair(self.inner.clone_inline()?))
@@ -344,7 +344,7 @@ impl Integer {
             return Ok(Self::from_mag_sign(mag.try_add_owned(&rhs_mag, ctx)?, lhs_neg));
         }
 
-        // Opposite signs: |a| - |b| with sign of the larger magnitude.
+        // 异号：|a| − |b|，符号取较大绝对值一侧。
         let cmp = limb_kernel::cmp_slice(self.as_limbs(), rhs.as_limbs());
         match cmp {
             Ordering::Equal => Ok(Self::zero()),
@@ -362,7 +362,7 @@ impl Integer {
         }
     }
 
-    /// 借用视图加法；结果发布到 `ctx`（Living 18）。
+    /// 借用视图加法；结果发布到 `ctx`。
     pub fn try_add_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
         Ok(match (lhs.sign(), rhs.sign()) {
@@ -655,7 +655,7 @@ impl Integer {
 
     /// 十进制调试字符串（非本地化用户文案）。
     ///
-    /// Living `19`：只借 `as_limbs()`，不经 owning 幅度复制 / `Clone`。
+    /// 只借 `as_limbs`，不经 owning 幅度复制 / `Clone`。
     pub fn to_decimal_string(&self) -> String {
         match self.sign() {
             Sign::Zero => "0".to_string(),
@@ -816,11 +816,9 @@ impl Integer {
                 std::cmp::Ordering::Equal => return Ok(Some(mid)),
             }
         }
-        let powered = lo.pow_u32(n).map_err(|_| {
-            Diagnostic::new(DiagnosticCode::ExponentOutOfRange)
-                .detail("domain", "numeric")
-                .detail("operation", "int_nth_root")
-        })?;
+        let powered = lo
+            .pow_u32(n)
+            .map_err(|_| Diagnostic::new(DiagnosticCode::ExponentOutOfRange).detail("domain", "numeric").detail("operation", "int_nth_root"))?;
         Ok(if powered == *self { Some(lo) } else { None })
     }
 

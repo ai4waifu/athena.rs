@@ -104,7 +104,7 @@ pub fn pow(base: &NumericValue, exp: &NumericValue) -> Result<NumericValue> {
             if let Some(i) = e.is_integer().then(|| e.numerator().to_i64()).flatten() {
                 return pow(base, &NumericValue::small_int(i));
             }
-            // Exact rational power for perfect integer roots: (-8)^(1/3) → -2.
+            // 完美整数根的精确有理幂：(-8)^(1/3) → -2。
             let numer = e.numerator();
             let denom = e.denominator();
             let Some(q64) = denom.to_u64()
@@ -242,7 +242,7 @@ fn to_f64(v: &Lifted) -> Result<f64> {
     }
 }
 
-/// Exact integer `q`-th root for rational powers (`(-8)^(1/3)` → `-2`).
+/// 有理幂的精确整数 `q` 次根（`(-8)^(1/3)` → `-2`）。
 fn integer_rational_root(base: &Integer, q: u32) -> Result<NumericValue> {
     if q == 0 {
         return Err(Diagnostic::new(DiagnosticCode::DomainError));

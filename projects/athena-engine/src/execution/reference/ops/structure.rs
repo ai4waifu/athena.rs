@@ -1,4 +1,4 @@
-//! List / matrix / arithmetic operator evaluation.
+//! 列表 / 矩阵 / 算术算子求值。
 
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -21,8 +21,8 @@ use crate::{
 };
 
 impl ReferenceExecutor {
-    /// `Sum[list]` — vector scalar sum / matrix column sums.
-    /// `Sum[body, iterator]` — expand iterator then Plus-fold.
+    /// `Sum[list]` — 向量标量和 / 矩阵按列求和。
+    /// `Sum[body, iterator]` — 展开迭代器再 Plus 折叠。
     pub(crate) fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() == 2 {
             let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
@@ -59,7 +59,7 @@ impl ReferenceExecutor {
             return Ok(Slot::Term(session.builder().int(0, Default::default())));
         }
         if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
-            // Matrix: sum each column into a row vector.
+            // 矩阵：各列求和成行向量。
             let Some((_, cols)) = nested_list_shape(session, term)
             else {
                 return Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![term])));
@@ -82,11 +82,11 @@ impl ReferenceExecutor {
             }
             return Ok(Slot::Term(push_list(session, out)));
         }
-        // Vector: scalar sum via Plus fold.
+        // 向量：经 Plus 折叠求标量和。
         Ok(Slot::Term(fold_plus_symbolic(session, items)))
     }
 
-    /// `Product[body, iterator]` — expand iterator then Times-fold.
+    /// `Product[body, iterator]` — 展开迭代器再 Times 折叠。
     pub(crate) fn eval_product(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
         if args.len() == 2 {
             let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
@@ -188,7 +188,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, out)))
     }
 
-    /// Execute neutral [`IndexSpec`] axes against a target SSA value.
+    /// 对目标 SSA 值执行中立 [`IndexSpec`] 轴。
     pub(crate) fn eval_index(
         &self,
         session: &mut Session,
@@ -202,7 +202,7 @@ impl ReferenceExecutor {
         let slot = *slots.get(&target).ok_or_else(|| diag("index_target_undefined"))?;
         let mut cur = self.slot_as_term(session, slot)?;
 
-        // `All` then remaining axes over each row (column / nested selection).
+        // 先 `All`，再对每行应用剩余轴（列 / 嵌套选择）。
         if let [IndexSpec::All, rest @ ..] = axes {
             if !rest.is_empty() {
                 if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(cur) {
@@ -240,7 +240,7 @@ impl ReferenceExecutor {
         Ok(Slot::Term(cur))
     }
 
-    /// Apply one [`IndexSpec`] axis (1-based scalar, All, EndRelative, Range).
+    /// 应用一条 [`IndexSpec`] 轴（1-based 标量、`All`、`EndRelative`、`Range`）。
     pub(crate) fn index_one(&self, session: &mut Session, expr: TermId, spec: &athena_types::IndexSpec) -> Result<IndexStep> {
         use athena_types::{IndexSpec, IntegerIndex, IntegerOffset};
 
@@ -265,8 +265,8 @@ impl ReferenceExecutor {
             }
             IndexSpec::Scalar(IntegerIndex(idx)) => {
                 if *idx == 0 {
-                    // Living `27`: never reify heads via display-name symbols.
-                    // Index 0 yields a typed empty projection of the same head / collection kind.
+                    // 绝不经显示名符号具体化头。
+                    // 下标 0 得到同头 / 同集合种类的类型化空投影。
                     return Ok(IndexStep::Next(match session.arena.get(expr) {
                         Some(athena_ir::TermNode::Collection { kind, .. }) => {
                             let kind = *kind;
@@ -369,7 +369,7 @@ impl ReferenceExecutor {
             SemanticOperator::GreaterEqual => |o: Ordering| o != Ordering::Less,
             _ => return Err(diag("semantic_operator_not_implemented")),
         };
-        // Binary list broadcast for compares.
+        // 比较的二元列表广播。
         if terms.len() == 2 {
             if let Some(broadcast) = compare_list_broadcast(session, op, terms[0], terms[1], pick)? {
                 return Ok(Slot::Term(broadcast));
@@ -391,7 +391,7 @@ impl ReferenceExecutor {
         Ok(Slot::Boolean(ok))
     }
 
-    /// Elementwise `DotTimes` / `DotDivide` / `DotPower` with scalar broadcast.
+    /// 带标量广播的逐元 `DotTimes` / `DotDivide` / `DotPower`。
     pub(crate) fn eval_dot_arithmetic(
         &self,
         session: &mut Session,
@@ -417,7 +417,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// Recursively zip collections (with scalar broadcast) then evaluate `scalar_op` pairwise.
+    /// 递归 zip 集合（带标量广播），再成对求值 `scalar_op`。
     fn dot_zip_eval(&self, session: &mut Session, scalar_op: SemanticOperator, left: TermId, right: TermId) -> Result<Option<TermId>> {
         let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
         let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
@@ -540,13 +540,13 @@ impl ReferenceExecutor {
             if let Some(folded) = folded {
                 return Ok(Slot::Term(push_number(session, folded)));
             }
-            // Numeric fold failed (e.g. `0^-1`) — keep symbolic residual.
+            // 数值折叠失败（例如 `0^-1`）— 保留符号残差。
         }
-        // Matrix `Multiply` — exact rational matmul when both arguments are matrices.
+        // 矩阵 `Multiply` — 两边皆为矩阵时做精确有理矩阵乘。
         if op == SemanticOperator::Multiply && terms.len() == 2 {
             if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1]))
             {
-                // Require both sides to look like matrices (row collections), not bare scalars.
+                // 要求两边都像矩阵（行集合），而非裸标量。
                 let left_matrixish = matches!(
                     session.arena.get(terms[0]),
                     Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
@@ -564,7 +564,7 @@ impl ReferenceExecutor {
                 }
             }
         }
-        // Symbolic residual with identity folding.
+        // 带单位元折叠的符号残差。
         Ok(Slot::Term(match op {
             SemanticOperator::Add => fold_plus_symbolic(session, terms),
             SemanticOperator::Multiply => fold_times_symbolic(session, terms),

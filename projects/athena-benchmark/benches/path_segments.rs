@@ -1,10 +1,10 @@
-//! Criterion：Living 18 path 分段（~256-bit）性能计时。
+//! Criterion：path 分段（~256-bit）性能计时。
 //!
 //! 与 `athena-bench --groups path` 共享同一操作语义；后者只做合同 / 资源，不计 ns/op。
 //! Session 路径使用 bump+clear，避免每 op Drop 税。
 //!
 //! ```sh
-//! cargo bench -p athena-benchmark --bench path_segments
+//! 运行：`cargo bench -p athena-benchmark --bench path_segments`
 //! ```
 
 #![allow(missing_docs)]

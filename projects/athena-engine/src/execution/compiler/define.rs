@@ -1,4 +1,4 @@
-//! Define / binding lowering for [`super::ExecutionCompiler`].
+//! [`super::ExecutionCompiler`] 的 Define / 绑定 lowering。
 
 use athena_ir::{Atom, TermNode};
 use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
@@ -13,7 +13,7 @@ use crate::{
 };
 
 impl ExecutionCompiler {
-    /// Capture pattern lhs + residual rhs then `RegisterRuleDispatch`.
+    /// 捕获 pattern 左部 + 残差右部，再 `RegisterRuleDispatch`。
     pub(crate) fn lower_register_rule(
         &self,
         session: &mut Session,
@@ -76,7 +76,7 @@ impl ExecutionCompiler {
         Ok(unit)
     }
 
-    /// Capture rhs as `LoadTerm` then `WriteBinding` (atoms / Deferred compounds).
+    /// 将右部以 `LoadTerm` 捕获，再 `WriteBinding`（原子 / Deferred 复合项）。
     pub(crate) fn lower_define_capture(
         &self,
         session: &mut Session,
@@ -128,7 +128,7 @@ impl ExecutionCompiler {
         Ok(returned)
     }
 
-    /// Immediate `Define` with compound rhs: evaluate then bind the result.
+    /// 复合右部的立即 `Define`：先求值再绑定结果。
     pub(crate) fn lower_define_evaluated(
         &self,
         session: &mut Session,

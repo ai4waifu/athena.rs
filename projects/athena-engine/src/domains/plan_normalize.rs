@@ -1,7 +1,7 @@
-//! `DomainPlan` `Normalize` coercion (Living `28`).
+//! `DomainPlan` 的 `Normalize` 强制转换。
 //!
-//! Validates DomainObject handles and calculus `TermId`s, and rewrites polynomial
-//! refs onto canonical interned identities before `CallDomainProvider`.
+//! 校验 `DomainObject` 句柄与微积分 `TermId`，并在 `CallDomainProvider` 之前
+//! 将多项式引用改写到规范驻留标识。
 
 use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
@@ -18,16 +18,16 @@ use crate::{
     runtime::session::Session,
 };
 
-/// Outcome of a `DomainPlan` `Normalize` step.
+/// `DomainPlan` 的 `Normalize` 步骤结果。
 #[derive(Debug)]
 pub struct NormalizeOutcome {
-    /// Request ready for the provider (handles validated / coerced).
+    /// 已就绪、可供提供者使用的请求（句柄已校验 / 强制）。
     pub request: DomainRequest,
-    /// True when at least one polynomial handle was rewritten to a canonical intern.
+    /// 是否至少有一个多项式句柄被改写为规范驻留。
     pub coerced: bool,
 }
 
-/// Normalize / coerce a [`DomainRequest`] against the live Session stores.
+/// 相对活动 `Session` 存储规范化 / 强制一份 [`DomainRequest`]。
 pub fn normalize_domain_request(session: &mut Session, request: DomainRequest) -> Result<NormalizeOutcome, Diagnostic> {
     match request {
         DomainRequest::Polynomial(req) => normalize_polynomial(session, req),
@@ -63,60 +63,40 @@ fn normalize_polynomial(session: &mut Session, request: PolynomialRequest) -> Re
         Ok(nr)
     };
     let request = match request {
-        PolynomialRequest::Normalize { polynomial } => {
-            PolynomialRequest::Normalize { polynomial: map(session, polynomial)? }
+        PolynomialRequest::Normalize { polynomial } => PolynomialRequest::Normalize { polynomial: map(session, polynomial)? },
+        PolynomialRequest::Add { lhs, rhs } => PolynomialRequest::Add { lhs: map(session, lhs)?, rhs: map(session, rhs)? },
+        PolynomialRequest::Mul { lhs, rhs } => PolynomialRequest::Mul { lhs: map(session, lhs)?, rhs: map(session, rhs)? },
+        PolynomialRequest::Div { dividend, divisor, policy } => {
+            PolynomialRequest::Div { dividend: map(session, dividend)?, divisor: map(session, divisor)?, policy }
         }
-        PolynomialRequest::Add { lhs, rhs } => {
-            PolynomialRequest::Add { lhs: map(session, lhs)?, rhs: map(session, rhs)? }
+        PolynomialRequest::Gcd { lhs, rhs } => PolynomialRequest::Gcd { lhs: map(session, lhs)?, rhs: map(session, rhs)? },
+        PolynomialRequest::Factor { polynomial, limits } => PolynomialRequest::Factor { polynomial: map(session, polynomial)?, limits },
+        PolynomialRequest::Groebner { generators, limits } => {
+            PolynomialRequest::Groebner { generators: map_poly_refs(session, generators, &mut coerced)?, limits }
         }
-        PolynomialRequest::Mul { lhs, rhs } => {
-            PolynomialRequest::Mul { lhs: map(session, lhs)?, rhs: map(session, rhs)? }
+        PolynomialRequest::GroebnerF4 { generators, limits } => {
+            PolynomialRequest::GroebnerF4 { generators: map_poly_refs(session, generators, &mut coerced)?, limits }
         }
-        PolynomialRequest::Div { dividend, divisor, policy } => PolynomialRequest::Div {
-            dividend: map(session, dividend)?,
-            divisor: map(session, divisor)?,
-            policy,
-        },
-        PolynomialRequest::Gcd { lhs, rhs } => {
-            PolynomialRequest::Gcd { lhs: map(session, lhs)?, rhs: map(session, rhs)? }
+        PolynomialRequest::Eliminate { generators, limits } => {
+            PolynomialRequest::Eliminate { generators: map_poly_refs(session, generators, &mut coerced)?, limits }
         }
-        PolynomialRequest::Factor { polynomial, limits } => {
-            PolynomialRequest::Factor { polynomial: map(session, polynomial)?, limits }
+        PolynomialRequest::ResumeGroebner { candidates, pending_pairs, pending_insertion, input_generators, prior_s_pair_steps, limits } => {
+            PolynomialRequest::ResumeGroebner {
+                candidates: map_poly_refs(session, candidates, &mut coerced)?,
+                pending_pairs,
+                pending_insertion: match pending_insertion {
+                    Some(r) => {
+                        let (nr, changed) = coerce_polynomial_ref(session, r)?;
+                        coerced |= changed;
+                        Some(nr)
+                    }
+                    None => None,
+                },
+                input_generators,
+                prior_s_pair_steps,
+                limits,
+            }
         }
-        PolynomialRequest::Groebner { generators, limits } => PolynomialRequest::Groebner {
-            generators: map_poly_refs(session, generators, &mut coerced)?,
-            limits,
-        },
-        PolynomialRequest::GroebnerF4 { generators, limits } => PolynomialRequest::GroebnerF4 {
-            generators: map_poly_refs(session, generators, &mut coerced)?,
-            limits,
-        },
-        PolynomialRequest::Eliminate { generators, limits } => PolynomialRequest::Eliminate {
-            generators: map_poly_refs(session, generators, &mut coerced)?,
-            limits,
-        },
-        PolynomialRequest::ResumeGroebner {
-            candidates,
-            pending_pairs,
-            pending_insertion,
-            input_generators,
-            prior_s_pair_steps,
-            limits,
-        } => PolynomialRequest::ResumeGroebner {
-            candidates: map_poly_refs(session, candidates, &mut coerced)?,
-            pending_pairs,
-            pending_insertion: match pending_insertion {
-                Some(r) => {
-                    let (nr, changed) = coerce_polynomial_ref(session, r)?;
-                    coerced |= changed;
-                    Some(nr)
-                }
-                None => None,
-            },
-            input_generators,
-            prior_s_pair_steps,
-            limits,
-        },
         PolynomialRequest::ResumeGroebnerF4 {
             candidates,
             pending_pairs,
@@ -149,11 +129,9 @@ fn normalize_polynomial(session: &mut Session, request: PolynomialRequest) -> Re
         PolynomialRequest::ReconstructModular { image, target_ring } => {
             PolynomialRequest::ReconstructModular { image: map(session, image)?, target_ring }
         }
-        PolynomialRequest::CrtCombineModular { images, integer_ring, target_ring } => PolynomialRequest::CrtCombineModular {
-            images: map_poly_refs(session, images, &mut coerced)?,
-            integer_ring,
-            target_ring,
-        },
+        PolynomialRequest::CrtCombineModular { images, integer_ring, target_ring } => {
+            PolynomialRequest::CrtCombineModular { images: map_poly_refs(session, images, &mut coerced)?, integer_ring, target_ring }
+        }
     };
     Ok(NormalizeOutcome { request: DomainRequest::Polynomial(request), coerced })
 }
@@ -189,7 +167,8 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
     let check = |r: crate::domains::linear_algebra::MatrixRef| -> Result<(), Diagnostic> {
         if session.matrix_objects.get(r).is_some() {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "plan_normalize")
                 .detail("reason", "missing_matrix_ref")
@@ -215,7 +194,8 @@ fn validate_calculus(session: &Session, request: &CalculusRequest) -> Result<(),
     let check_term = |id: TermId| -> Result<(), Diagnostic> {
         if session.arena.get(id).is_some() {
             Ok(())
-        } else {
+        }
+        else {
             Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "plan_normalize")
                 .detail("reason", "missing_term_id")
@@ -277,7 +257,8 @@ fn validate_group(session: &Session, request: &GroupRequest) -> Result<(), Diagn
         GroupRequest::Order { group } | GroupRequest::IsAbelian { group } => {
             if session.groups.group_record(*group).is_ok() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "plan_normalize")
                     .detail("reason", "missing_group_id")
@@ -289,7 +270,8 @@ fn validate_group(session: &Session, request: &GroupRequest) -> Result<(), Diagn
         | GroupRequest::ProjectQuotient { subgroup, .. } => {
             if session.groups.subgroup_record(*subgroup).is_ok() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "plan_normalize")
                     .detail("reason", "missing_subgroup_id")
@@ -311,7 +293,8 @@ fn validate_field(session: &Session, request: &FieldRequest) -> Result<(), Diagn
         FieldRequest::Lookup { field } => {
             if session.rings.field_table().field_record(*field).is_ok() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "plan_normalize")
                     .detail("reason", "missing_field_id")
@@ -335,7 +318,8 @@ fn validate_galois(session: &Session, request: &GaloisRequest) -> Result<(), Dia
         | GaloisRequest::FixedField { extension, .. } => {
             if session.rings.field_table().extension_record(*extension).is_some() {
                 Ok(())
-            } else {
+            }
+            else {
                 Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("domain", "plan_normalize")
                     .detail("reason", "missing_extension_id")

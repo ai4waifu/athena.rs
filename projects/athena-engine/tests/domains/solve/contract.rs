@@ -50,10 +50,12 @@ fn coverage_gates_exact_union_find() {
     assert!(!CoverageStatus::LocalOnly.admits_exact_union_find());
     assert!(!CoverageStatus::CertifiedSubset.admits_exact_union_find());
     assert!(!CoverageStatus::Probable.admits_exact_union_find());
-    assert!(!CoverageStatus::ResourceLimited {
-        frontier: ResumeToken::empty_with_provider(ResumeKind::Cut, ResultProviderId::POLYNOMIAL.stamped())
-    }
-    .admits_exact_union_find());
+    assert!(
+        !CoverageStatus::ResourceLimited {
+            frontier: ResumeToken::empty_with_provider(ResumeKind::Cut, ResultProviderId::POLYNOMIAL.stamped())
+        }
+        .admits_exact_union_find()
+    );
     let stamped = ResumeToken::empty_with_provider(ResumeKind::Cut, ResultProviderId::POLYNOMIAL.stamped());
     assert!(stamped.accepts_provider(ResultProviderId::POLYNOMIAL.stamped()));
     assert!(!ResumeToken::empty(ResumeKind::Cut).accepts_provider(ResultProviderId::POLYNOMIAL.stamped()));
@@ -78,32 +80,29 @@ fn resource_limited_solution_registers_on_session_frontier_store() {
     };
 
     let mut session = Session::new();
-    let id = solution
-        .register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact"))
-        .expect("frontier id");
+    let id = solution.register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact")).expect("frontier id");
     assert_eq!(solution.frontier_id, Some(id));
     assert!(session.frontiers.contains(id));
 
     let stored = session.frontiers.get(id).expect("stored");
     assert_eq!(stored.goal_fingerprint, 0xDEAD_BEEF);
     assert_eq!(stored.algorithm, Some("linear_exact"));
-    assert!(stored
-        .validate_resume(ResumeCheck {
-            provider: stamp,
-            assumption_scope: None,
-            goal_fingerprint: 0xDEAD_BEEF,
-            plan_fingerprint: None,
-            object_fingerprints: &[],
-            available_certificates: &[],
-            cancelled: false,
-            budget_limit: None,
-        })
-        .is_ok());
-    // Second register is idempotent.
-    assert_eq!(
-        solution.register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact")),
-        Some(id)
+    assert!(
+        stored
+            .validate_resume(ResumeCheck {
+                provider: stamp,
+                assumption_scope: None,
+                goal_fingerprint: 0xDEAD_BEEF,
+                plan_fingerprint: None,
+                object_fingerprints: &[],
+                available_certificates: &[],
+                cancelled: false,
+                budget_limit: None,
+            })
+            .is_ok()
     );
+    // 第二次登记幂等。
+    assert_eq!(solution.register_frontier_on_session(&mut session, 0xDEAD_BEEF, Some("linear_exact")), Some(id));
     assert_eq!(session.frontiers.count(), 1);
 }
 

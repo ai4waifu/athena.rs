@@ -1,4 +1,4 @@
-//! 已编译规则仓（Living `27` · [`CompiledRuleId`] → 模式 / 替换）。
+//! 已编译规则仓（· [`CompiledRuleId`] → 模式 / 替换）。
 
 use std::collections::HashMap;
 

@@ -1,4 +1,4 @@
-//! Group fixture registration.
+//! 组 fixture 注册。
 
 mod bigint;
 mod domains;
@@ -7,7 +7,7 @@ mod infra;
 mod ir;
 mod jit;
 mod numeric;
-/// Path-segment ownership / GC microbenches（Living `15`/`18`）。
+/// 路径段所有权 / GC 微基准。
 pub mod path;
 mod rewriter;
 
@@ -27,7 +27,7 @@ pub fn default_suite() -> Suite {
     suite
 }
 
-/// Build suite including the full bigint compare matrix（eager prepare）。
+/// 构建含完整 bigint 对比矩阵的套件（eager prepare）。
 pub fn suite_with_bigint() -> Suite {
     let mut suite = default_suite();
     bigint::register(&mut suite);

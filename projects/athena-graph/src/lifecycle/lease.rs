@@ -13,7 +13,7 @@ use super::{
     residency::ChunkResidency,
 };
 
-/// Living 合同名：语义对象不被 tracing 回收。实现即 [`athena_gc::RootToken`]。
+/// 语义根票据名：对象不被 tracing 回收。实现即 [`athena_gc::RootToken`]。
 pub type GcRootToken = athena_gc::RootToken;
 
 /// 管理 chunk 生命周期合同（in-core 骨架；真实 spill 由 engine 接线）。

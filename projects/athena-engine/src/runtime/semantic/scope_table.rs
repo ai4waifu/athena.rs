@@ -73,7 +73,7 @@ impl AssumptionScopeTable {
         }
     }
 
-    /// 投影：展开继承谓词后，仅保留与给定符号相关的符号级谓词（Living `29` assumption projection bootstrap）。
+    /// 投影：展开继承谓词后，仅保留与给定符号相关的符号级谓词（assumption projection bootstrap）。
     ///
     /// 返回**未 intern** 的扁平作用域（无 parent · 无 id）。项级谓词在符号未知时保守丢弃。
     pub fn project_to_symbols(&self, id: AssumptionScopeId, symbols: &[SymbolId]) -> Result<AssumptionScope, Diagnostic> {

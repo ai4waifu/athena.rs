@@ -3,7 +3,7 @@
 /// 算法对工作集与 storage 的要求。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GraphAlgorithmRequirements {
-    /// 要求完整图驻留内存（对应 Living `InMemoryOnly`）。
+    /// 要求完整图驻留内存（对应 `InMemoryOnly`）。
     pub require_in_memory: bool,
     /// 需要邻接按目标节点排序（CSR/CSC 天然满足）。
     pub sorted_adjacency: bool,

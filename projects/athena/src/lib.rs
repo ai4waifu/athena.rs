@@ -1,7 +1,7 @@
 //! Athena 公共 Rust 门面 — 对执行引擎与底层合同 crate 的稳定入口。
 //!
 //! ```text
-//! athena-types → athena-numeric → athena-ir → athena-rewriter → athena-engine → athena
+//! 依赖链：`athena-types` → `athena-numeric` → `athena-ir` → `athena-rewriter` → `athena-engine` → `athena`
 //! ```
 //!
 //! 本 crate **不**自行实现求值或 Session。每个公开模块只从**拥有方**再导出一次：

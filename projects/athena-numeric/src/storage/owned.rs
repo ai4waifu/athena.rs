@@ -1,4 +1,4 @@
-//! 临时 / 已发布 limb 缓冲句柄（Living `24`：Drop 不猜 reclaim 类别）。
+//! 临时 / 已发布 limb 缓冲句柄（Drop 不猜 reclaim 类别）。
 #![allow(unsafe_code)]
 
 use core::{
@@ -174,7 +174,7 @@ impl RootedLimbBuffer {
         Ok(buf)
     }
 
-    /// 同堆或经 `HeapId` 深复制为已发布块（Living `31`：`try_clone_in` 路径）。
+    /// 同堆或经 `HeapId` 深复制为已发布块（`try_clone_in` 路径）。
     pub(crate) fn alloc_copy_on(heap_id: HeapId, src: &[u64], capacity: usize) -> athena_gc::Result<Self> {
         if capacity == 0 || capacity < src.len() {
             return Err(GcError::InvalidCapacity);

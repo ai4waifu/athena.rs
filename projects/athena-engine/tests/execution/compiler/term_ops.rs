@@ -1,5 +1,12 @@
-use super::super::*;
-use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
+use athena_engine::{
+    Session,
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
+    execution::{
+        compiler::ExecutionCompiler,
+        ir::{CapturedRoot, EffectKind, OperationKind},
+        reference::ReferenceExecutor,
+    },
+};
 use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::ComputationStatus;
 

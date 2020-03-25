@@ -1,4 +1,4 @@
-//! In-place and natural right/left shifts used by GCD and dyadic paths.
+//! GCD 与二元路径使用的原地 / natural 左右移。
 
 use super::primitive::{effective_len, is_zero, normalize_trim, trailing_zeros};
 

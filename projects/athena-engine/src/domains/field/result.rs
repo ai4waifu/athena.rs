@@ -12,7 +12,7 @@ use super::{
 
 /// 域论结果。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum FieldResult {
     /// 精确结果。
@@ -28,7 +28,7 @@ pub enum FieldResult {
 }
 
 impl FieldResult {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Exact { value } => Self::Exact { value: value.owning_copy() },

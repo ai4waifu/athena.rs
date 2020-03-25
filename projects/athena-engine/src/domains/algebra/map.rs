@@ -22,7 +22,7 @@ pub enum MapVerificationKind {
 
 /// 映射验证状态（禁止薄 `verified: bool`）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct MapVerification {
     /// 验证种类。
@@ -52,12 +52,9 @@ impl MapVerification {
         self.status.is_proven()
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            kind: self.kind,
-            status: self.status.owning_copy(),
-        }
+        Self { kind: self.kind, status: self.status.owning_copy() }
     }
 }
 
@@ -76,7 +73,7 @@ pub enum AlgebraMapKind {
 
 /// 统一代数映射。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct AlgebraMap {
     /// 稳定 id。
@@ -105,21 +102,15 @@ impl AlgebraMap {
         }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            id: self.id,
-            source: self.source,
-            target: self.target,
-            kind: self.kind,
-            verification: self.verification.owning_copy(),
-        }
+        Self { id: self.id, source: self.source, target: self.target, kind: self.kind, verification: self.verification.owning_copy() }
     }
 }
 
 /// 域嵌入（K → L）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct FieldEmbedding {
     /// 底层映射 id。
@@ -131,19 +122,15 @@ pub struct FieldEmbedding {
 }
 
 impl FieldEmbedding {
-    /// Owning 复制（Living `31`：仅 id 句柄）。
+    /// Owning 复制（仅 id 句柄）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            map: self.map,
-            source_presentation: self.source_presentation,
-            target_presentation: self.target_presentation,
-        }
+        Self { map: self.map, source_presentation: self.source_presentation, target_presentation: self.target_presentation }
     }
 }
 
 /// 群同态（G → H）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct GroupHomomorphism {
     /// 底层映射 id。
@@ -155,19 +142,15 @@ pub struct GroupHomomorphism {
 }
 
 impl GroupHomomorphism {
-    /// Owning 复制（Living `31`：仅 id 句柄）。
+    /// Owning 复制（仅 id 句柄）。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            map: self.map,
-            source_presentation: self.source_presentation,
-            target_presentation: self.target_presentation,
-        }
+        Self { map: self.map, source_presentation: self.source_presentation, target_presentation: self.target_presentation }
     }
 }
 
 /// 子群包含 H ↪ G。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct SubgroupInclusion {
     /// 底层映射 id。
@@ -181,7 +164,7 @@ pub struct SubgroupInclusion {
 }
 
 impl SubgroupInclusion {
-    /// Owning 复制（Living `31`：仅 id 句柄）。
+    /// Owning 复制（仅 id 句柄）。
     pub fn owning_copy(&self) -> Self {
         Self {
             map: self.map,
@@ -194,7 +177,7 @@ impl SubgroupInclusion {
 
 /// 商投影 G → G/N。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct QuotientProjection {
     /// 底层映射 id。
@@ -208,7 +191,7 @@ pub struct QuotientProjection {
 }
 
 impl QuotientProjection {
-    /// Owning 复制（Living `31`：仅 id 句柄）。
+    /// Owning 复制（仅 id 句柄）。
     pub fn owning_copy(&self) -> Self {
         Self {
             map: self.map,

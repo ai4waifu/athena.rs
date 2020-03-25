@@ -1,4 +1,4 @@
-//! Neutral builders via `athena-testing` (Living `12` / `27`).
+//! Neutral builders via `athena-testing` .
 
 use athena_ir::{ApplicationHead, SemanticOperator, TermNode, UnaryFunction};
 use athena_testing::{SessionFixture, assert_exact_integer, assert_structural_eq, term_request};

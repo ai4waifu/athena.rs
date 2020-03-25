@@ -7,7 +7,7 @@ use super::value::MillerRabinBaseSelection;
 
 /// 有明确数值上界的确定性素性测试证书。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum PrimeCertificate {
     /// 试除确定性路径（含上界）。
@@ -27,14 +27,13 @@ pub enum PrimeCertificate {
 }
 
 impl PrimeCertificate {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::TrialDivision { bound } => Self::TrialDivision { bound: *bound },
-            Self::DeterministicMillerRabin { max_value_bits, witnesses } => Self::DeterministicMillerRabin {
-                max_value_bits: *max_value_bits,
-                witnesses: witnesses.clone(),
-            },
+            Self::DeterministicMillerRabin { max_value_bits, witnesses } => {
+                Self::DeterministicMillerRabin { max_value_bits: *max_value_bits, witnesses: witnesses.clone() }
+            }
             Self::SmallPrime => Self::SmallPrime,
         }
     }
@@ -42,7 +41,7 @@ impl PrimeCertificate {
 
 /// 强 Miller–Rabin 概率素数证据。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct ProbablePrimeEvidence {
     /// 实际测试的基（按执行顺序）。
@@ -60,13 +59,9 @@ impl ProbablePrimeEvidence {
         Self { bases, base_selection: MillerRabinBaseSelection::Fixed, rounds_executed }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            bases: self.bases.clone(),
-            base_selection: self.base_selection,
-            rounds_executed: self.rounds_executed,
-        }
+        Self { bases: self.bases.clone(), base_selection: self.base_selection, rounds_executed: self.rounds_executed }
     }
 }
 
@@ -90,7 +85,7 @@ pub enum CompositeWitness {
 }
 
 impl CompositeWitness {
-    /// Owning 复制（Living `31`：禁止默认 `Clone`）。
+    /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::NonPositiveOrOne => Self::NonPositiveOrOne,

@@ -13,7 +13,7 @@ use super::{
 
 /// Session / heap 发布后的图身份与 Trace 记录（不含邻接 payload 本身）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct GraphPublication {
     /// 逻辑图。
@@ -24,9 +24,9 @@ pub struct GraphPublication {
     pub revision_id: GraphRevisionId,
     /// Snapshot 对象身份。
     pub snapshot_id: GraphSnapshotId,
-    /// Snapshot object root。
+    /// Snapshot 对象根。
     pub snapshot_root: RootToken,
-    /// Revision object root。
+    /// Revision 对象根。
     pub revision_root: RootToken,
     /// Chunk object roots（与 [`Self::chunks`] 对齐）。
     pub chunk_roots: Vec<RootToken>,
@@ -39,7 +39,7 @@ pub struct GraphPublication {
 }
 
 impl GraphPublication {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             graph_id: self.graph_id,
@@ -103,13 +103,7 @@ pub fn publish_immutable_graph<N, E>(
     let snapshot_id = allocate_snapshot_id(heap)?;
     let wire = GraphSnapshot::new(graph.id(), graph.revision(), graph.semantics(), representation);
     let chunks = ChunkSet::new();
-    let snapshot_record = GraphSnapshotRecord {
-        id: snapshot_id,
-        snapshot: wire,
-        revision_id,
-        chunks: chunks.owning_copy(),
-        view_id: None,
-    };
+    let snapshot_record = GraphSnapshotRecord { id: snapshot_id, snapshot: wire, revision_id, chunks: chunks.owning_copy(), view_id: None };
     let revision_record = GraphRevisionRecord {
         id: revision_id,
         graph_id: graph.id(),

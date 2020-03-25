@@ -1,4 +1,4 @@
-//! 微积分域请求（typed Goal wire · Living `27`/`28`）。
+//! 微积分域请求（typed Goal wire · ）。
 //!
 //! 变量身份为 [`SymbolId`]。算法层若仍吃 `&str`，仅由 `execute_calculus` 解析显示名，不得反向猜 Goal。
 
@@ -21,7 +21,7 @@ impl Default for DerivativeOrder {
 
 /// 极限趋近方式。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum LimitApproach {
     /// 有限点（已解码项，非源码文本）。
@@ -33,7 +33,7 @@ pub enum LimitApproach {
 }
 
 impl LimitApproach {
-    /// Owning 复制（Living `31`：仅 `TermId` 句柄）。
+    /// Owning 复制（仅 `TermId` 句柄）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Finite(t) => Self::Finite(*t),
@@ -66,9 +66,9 @@ pub enum TransformKind {
     Z,
 }
 
-/// 微积分域请求 — 宿主将方言形态映射至此。变量身份为 SymbolId（Living 27/28）。
+/// 微积分域请求 — 宿主将方言形态映射至此。变量身份为 SymbolId。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum CalculusRequest {
     /// 常导数 / 高阶导数。
@@ -239,15 +239,12 @@ pub enum CalculusRequest {
 }
 
 impl CalculusRequest {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
-            Self::Derivative { expression, variable, order, assumptions } => Self::Derivative {
-                expression: *expression,
-                variable: *variable,
-                order: *order,
-                assumptions: assumptions.clone(),
-            },
+            Self::Derivative { expression, variable, order, assumptions } => {
+                Self::Derivative { expression: *expression, variable: *variable, order: *order, assumptions: assumptions.clone() }
+            }
             Self::Limit { expression, variable, approach, direction, assumptions } => Self::Limit {
                 expression: *expression,
                 variable: *variable,
@@ -255,11 +252,9 @@ impl CalculusRequest {
                 direction: *direction,
                 assumptions: assumptions.clone(),
             },
-            Self::Integral { expression, variable, assumptions } => Self::Integral {
-                expression: *expression,
-                variable: *variable,
-                assumptions: assumptions.clone(),
-            },
+            Self::Integral { expression, variable, assumptions } => {
+                Self::Integral { expression: *expression, variable: *variable, assumptions: assumptions.clone() }
+            }
             Self::DefiniteIntegral { expression, variable, lower, upper, assumptions } => Self::DefiniteIntegral {
                 expression: *expression,
                 variable: *variable,
@@ -267,57 +262,33 @@ impl CalculusRequest {
                 upper: *upper,
                 assumptions: assumptions.clone(),
             },
-            Self::Series { expression, variable, center, order, assumptions } => Self::Series {
-                expression: *expression,
-                variable: *variable,
-                center: *center,
-                order: *order,
-                assumptions: assumptions.clone(),
-            },
-            Self::Laurent { expression, variable, center, order, assumptions } => Self::Laurent {
-                expression: *expression,
-                variable: *variable,
-                center: *center,
-                order: *order,
-                assumptions: assumptions.clone(),
-            },
-            Self::Asymptotic { expression, variable, order, assumptions } => Self::Asymptotic {
-                expression: *expression,
-                variable: *variable,
-                order: *order,
-                assumptions: assumptions.clone(),
-            },
-            Self::Residue { expression, variable, point, assumptions } => Self::Residue {
-                expression: *expression,
-                variable: *variable,
-                point: *point,
-                assumptions: assumptions.clone(),
-            },
-            Self::Gradient { expression, variables, assumptions } => Self::Gradient {
-                expression: *expression,
-                variables: variables.clone(),
-                assumptions: assumptions.clone(),
-            },
-            Self::Jacobian { expressions, variables, assumptions } => Self::Jacobian {
-                expressions: expressions.clone(),
-                variables: variables.clone(),
-                assumptions: assumptions.clone(),
-            },
-            Self::Hessian { expression, variables, assumptions } => Self::Hessian {
-                expression: *expression,
-                variables: variables.clone(),
-                assumptions: assumptions.clone(),
-            },
-            Self::Divergence { components, variables, assumptions } => Self::Divergence {
-                components: components.clone(),
-                variables: variables.clone(),
-                assumptions: assumptions.clone(),
-            },
-            Self::Curl { components, variables, assumptions } => Self::Curl {
-                components: components.clone(),
-                variables: variables.clone(),
-                assumptions: assumptions.clone(),
-            },
+            Self::Series { expression, variable, center, order, assumptions } => {
+                Self::Series { expression: *expression, variable: *variable, center: *center, order: *order, assumptions: assumptions.clone() }
+            }
+            Self::Laurent { expression, variable, center, order, assumptions } => {
+                Self::Laurent { expression: *expression, variable: *variable, center: *center, order: *order, assumptions: assumptions.clone() }
+            }
+            Self::Asymptotic { expression, variable, order, assumptions } => {
+                Self::Asymptotic { expression: *expression, variable: *variable, order: *order, assumptions: assumptions.clone() }
+            }
+            Self::Residue { expression, variable, point, assumptions } => {
+                Self::Residue { expression: *expression, variable: *variable, point: *point, assumptions: assumptions.clone() }
+            }
+            Self::Gradient { expression, variables, assumptions } => {
+                Self::Gradient { expression: *expression, variables: variables.clone(), assumptions: assumptions.clone() }
+            }
+            Self::Jacobian { expressions, variables, assumptions } => {
+                Self::Jacobian { expressions: expressions.clone(), variables: variables.clone(), assumptions: assumptions.clone() }
+            }
+            Self::Hessian { expression, variables, assumptions } => {
+                Self::Hessian { expression: *expression, variables: variables.clone(), assumptions: assumptions.clone() }
+            }
+            Self::Divergence { components, variables, assumptions } => {
+                Self::Divergence { components: components.clone(), variables: variables.clone(), assumptions: assumptions.clone() }
+            }
+            Self::Curl { components, variables, assumptions } => {
+                Self::Curl { components: components.clone(), variables: variables.clone(), assumptions: assumptions.clone() }
+            }
             Self::SolveOde { equation, dependent, independent, initial, assumptions } => Self::SolveOde {
                 equation: *equation,
                 dependent: *dependent,

@@ -37,7 +37,7 @@ pub struct MultiplicityInfo {
 
 /// 单个解分支。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct SolutionBranch {
     /// 变量绑定。
@@ -56,7 +56,7 @@ impl SolutionBranch {
         Self { bindings, conditions: ConstraintSet::empty_and(), multiplicity: None, status: BranchStatus::Candidate }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             bindings: self.bindings.owning_copy(),
@@ -69,7 +69,7 @@ impl SolutionBranch {
 
 /// 统一解集模型（不是 `Vec<Binding>`）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct SolutionSet {
     /// 解集涉及的变量（通常对齐 problem.unknowns）。
@@ -86,7 +86,7 @@ pub struct SolutionSet {
     pub residual: Option<ResidualCertificate>,
     /// 可恢复前沿令牌（亦可嵌在 `CoverageStatus::ResourceLimited`）。
     pub frontier: Option<ResumeToken>,
-    /// 已登记到 [`Session::frontiers`] 的统一前沿身份（Living `30`）。
+    /// 已登记到 [`Session::frontiers`] 的统一前沿身份。
     pub frontier_id: Option<FrontierId>,
 }
 
@@ -133,7 +133,7 @@ impl SolutionSet {
         }
     }
 
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             variables: self.variables.clone(),

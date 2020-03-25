@@ -1,6 +1,6 @@
-//! `ReferenceExecutor` — correctness / replay backend for [`ExecutionModule`].
+//! `ReferenceExecutor` — [`ExecutionModule`] 的正确性 / 回放后端。
 //!
-//! Executes SSA blocks without an operand stack. Not a wrapper around the old VM.
+//! 无操作数栈地执行 SSA 块。不是旧 VM 的包装。
 
 mod helpers;
 mod ops;
@@ -38,22 +38,22 @@ use crate::{
     },
 };
 
-/// Semantic oracle backend shared by parity tests and deterministic replay.
+/// 供一致性测试与确定性回放共用的语义预言机后端。
 #[derive(Debug, Default)]
 pub struct ReferenceExecutor {}
 
-/// SSA runtime slot (session-local; not an identity domain shared with `TermId`).
+/// SSA 运行时槽（会话局部；不与 `TermId` 共用标识域）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Slot {
-    /// Term handle from `TermStore`.
+    /// 来自 `TermStore` 的项句柄。
     Term(TermId),
-    /// Binding key.
+    /// 绑定键。
     Symbol(SymbolId),
-    /// Typed Boolean.
+    /// 类型化 Boolean。
     Boolean(bool),
-    /// Scope frame depth handle from `EnterScope`.
+    /// 来自 `EnterScope` 的作用域帧深度句柄。
     Scope(u32),
-    /// Already-materialized `ComputationResult` (domain provider).
+    /// 已物化的 `ComputationResult`（领域 provider）。
     Result(ResultId),
     /// Unit.
     Unit,
@@ -67,15 +67,15 @@ pub(crate) enum IndexStep {
 }
 
 impl ReferenceExecutor {
-    /// Create a reference executor.
+    /// 创建 reference 执行器。
     pub fn new() -> Self {
         Self {}
     }
 
-    /// Execute a verified module in the given Session / runtime context.
+    /// 在给定 Session / 运行时上下文中执行已校验 module。
     ///
-    /// When `domain` is `Some`, the first `CallProvider` edge runs `execute_domain`
-    /// and returns that materialized `ResultId` (IR-shaped Goal path).
+    /// 当 `domain` 为 `Some` 时，首条 `CallProvider` 边运行 `execute_domain`
+    /// 并返回该物化的 `ResultId`（IR 形态的 Goal 路径）。
     pub fn execute(&self, session: &mut Session, module: &ExecutionModule, domain: Option<DomainRequest>) -> Result<ResultId> {
         verify_module(module)?;
         let region_id = module.entry_region().ok_or_else(|| {
@@ -130,12 +130,12 @@ impl ReferenceExecutor {
         let mut unevaluated = false;
         let mut invalid: Option<Diagnostic> = None;
         let mut block_visits: HashMap<BlockId, u32> = HashMap::new();
-        // Bootstrap: allow limited loop back-edges; cap per-block visits.
+        // 引导：允许有限循环回边；限制每块访问次数。
         for _ in 0..region.blocks.len().saturating_mul(64).max(64) {
             let visits = block_visits.entry(block_id).or_insert(0);
             *visits = visits.saturating_add(1);
             if *visits > 32 {
-                // Budget exhausted on a hot block — exit with Unit residual.
+                // 热块预算耗尽 — 以 Unit 残差退出。
                 return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
             }
             let block = region.blocks.iter().find(|b| b.id == block_id).ok_or_else(|| diag("missing_block"))?;
@@ -174,7 +174,7 @@ impl ReferenceExecutor {
                     let pred = match pred {
                         Ok(v) => v,
                         Err(diagnostic) => {
-                            // Soft-fail like VM: Invalid + unevaluated (Null residual).
+                            // 类似 VM 的软失败：Invalid + 未求值（Null 残差）。
                             return Ok((Some(Slot::Unit), unsupported, true, Some(diagnostic)));
                         }
                     };
@@ -273,8 +273,8 @@ impl ReferenceExecutor {
                         }
                         let left = *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
                         let right = *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        // `Identical` is structural. `Equal` / `Unequal` only decide on comparable
-                        // atoms; symbolic residuals stay as `Equal[...]` (not silent `False`).
+                        // `Identical` 是结构比较。`Equal` / `Unequal` 仅在可比较
+                        // 原子上判定；符号残差保持为 `Equal[...]`（不静默成 `False`）。
                         if op == SemanticOperator::Identical {
                             let same = match (left, right) {
                                 (Slot::Boolean(a), Slot::Boolean(b)) => a == b,
@@ -364,7 +364,7 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
-                // Living `27`: residual rebuild uses `ExtensionOperatorId` only.
+                // 残差重建仅使用 `ExtensionOperatorId`。
                 let op = *operator;
                 if let Some(slot) = self.try_apply_down_values(session, op, args, slots)? {
                     return Ok(slot);
@@ -411,7 +411,7 @@ impl ReferenceExecutor {
                             frame.unbind(symbol);
                         }
                         else {
-                            // Living `27`: clear owned extension rules via `SymbolId`→`ExtensionOperatorId` map.
+                            // 经 `SymbolId`→`ExtensionOperatorId` 映射清除自有扩展规则。
                             session.defs.clear_symbol(symbol);
                         }
                     }
@@ -465,9 +465,9 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => *term,
                     _ => return Err(diag("write_value_unsupported")),
                 };
-                // Structure-only compile from term. Wildcards must arrive as typed `TermPattern` via API.
+                // 仅从项做结构编译。通配须经 API 以类型化 `TermPattern` 传入。
                 let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
-                // Living `27`: `ExtensionOperatorId` closed at compile. No execute-time display-name intern.
+                // `ExtensionOperatorId` 在编译期封闭。执行时不 intern 显示名。
                 session.defs.register_extension_rule_for_symbol(symbol, *operator, compiled, value_term);
                 Ok(Slot::Unit)
             }
@@ -494,7 +494,7 @@ impl ReferenceExecutor {
                     return Ok(Slot::Term(term));
                 }
                 if let Some(term) = session.defs.residual_binding(symbol) {
-                    // Evaluate residual bindings on read.
+                    // 读取时求值残差绑定。
                     let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
                     let result_id = self.execute(session, &module, None)?;
                     let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
@@ -533,260 +533,6 @@ impl ReferenceExecutor {
             OperationKind::LoadInput { .. } | OperationKind::Guard { .. } | OperationKind::MaterializeValue { .. } => {
                 Err(diag("operation_not_implemented"))
             }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        api::request::AthenaRequest,
-        execution::{
-            compiler::ExecutionCompiler,
-            ir::{
-                BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionValueType, ModuleFingerprint, Operation, Region, RegionId,
-                Terminator,
-            },
-        },
-    };
-
-    #[test]
-    fn execute_compiled_atom_term() {
-        let mut session = Session::new();
-        let term = session.builder().int(9, Default::default());
-        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-        let loaded = session.results.get(result_id).expect("result");
-        assert_eq!(loaded.symbolic_term, Some(term));
-        assert_eq!(loaded.status, ComputationStatus::Exact);
-        assert_eq!(loaded.coverage, CoverageStatus::Full);
-    }
-
-    #[test]
-    fn execute_boolean_branch() {
-        let cond = SsaValueId(0);
-        let then_v = SsaValueId(1);
-        let else_v = SsaValueId(2);
-        let entry = BasicBlock {
-            id: BlockId(0),
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                result: Some(cond),
-                result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant { constant: ConstantId(0) },
-                effect_in: None,
-                effect_out: None,
-            }],
-            terminator: Terminator::Branch { condition: cond, then_edge: BlockEdge::jump(BlockId(1)), else_edge: BlockEdge::jump(BlockId(2)) },
-        };
-        let then_block = BasicBlock {
-            id: BlockId(1),
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                result: Some(then_v),
-                result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant { constant: ConstantId(1) },
-                effect_in: None,
-                effect_out: None,
-            }],
-            terminator: Terminator::return_value(then_v),
-        };
-        let else_block = BasicBlock {
-            id: BlockId(2),
-            parameters: Vec::new(),
-            operations: vec![Operation {
-                result: Some(else_v),
-                result_type: ExecutionValueType::Boolean,
-                kind: OperationKind::Constant { constant: ConstantId(2) },
-                effect_in: None,
-                effect_out: None,
-            }],
-            terminator: Terminator::return_value(else_v),
-        };
-        let region = Region {
-            id: RegionId(0),
-            entry: BlockId(0),
-            blocks: vec![entry, then_block, else_block],
-            result_types: vec![ExecutionValueType::Boolean],
-        };
-        let mut module = ExecutionModule {
-            inputs: Vec::new(),
-            constants: vec![ConstantValue::boolean(true), ConstantValue::boolean(true), ConstantValue::boolean(false)],
-            captured_roots: Vec::new(),
-            regions: vec![region],
-            effect_edges: Vec::new(),
-            exits: Vec::new(),
-            provider_calls: Vec::new(),
-            fingerprint: ModuleFingerprint(0),
-        };
-        module.fingerprint = ModuleFingerprint::of_module(&module);
-
-        let mut session = Session::new();
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("branch");
-        let loaded = session.results.get(result_id).expect("result");
-        let term = loaded.symbolic_term.expect("term");
-        match session.arena.get(term) {
-            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
-            other => panic!("expected true boolean term, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn truthy_and_or_with_zero_one() {
-        let mut session = Session::new();
-        let and = athena_ir::ApplicationHead::Semantic(athena_ir::SemanticOperator::And);
-        let or = athena_ir::ApplicationHead::Semantic(athena_ir::SemanticOperator::Or);
-        let z = session.builder().int(0, Default::default());
-        let one = session.builder().int(1, Default::default());
-        let and_term = session.builder().application(and, vec![z, one], Default::default());
-        let or_term = session.builder().application(or, vec![z, one], Default::default());
-
-        let and_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(and_term)).expect("and");
-        let and_id = ReferenceExecutor::new().execute(&mut session, &and_mod, None).expect("and exec");
-        let and_out = session.results.get(and_id).expect("and result").symbolic_term.expect("term");
-        match session.arena.get(and_out) {
-            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
-            other => panic!("expected And[0,1] == False, got {other:?}"),
-        }
-
-        let or_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(or_term)).expect("or");
-        let or_id = ReferenceExecutor::new().execute(&mut session, &or_mod, None).expect("or exec");
-        let or_out = session.results.get(or_id).expect("or result").symbolic_term.expect("term");
-        match session.arena.get(or_out) {
-            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
-            other => panic!("expected Or[0,1] == True, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn unknown_head_marks_partial_unknown() {
-        let mut session = Session::new();
-        let foo_id = session.extensions.intern("FooBar");
-        let foo = athena_ir::ApplicationHead::Extension(foo_id);
-        let one = session.builder().int(1, Default::default());
-        let term = session.builder().application(foo, vec![one], Default::default());
-        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-        let loaded = session.results.get(result_id).expect("result");
-        assert_eq!(loaded.status, ComputationStatus::Unknown);
-        assert_eq!(loaded.coverage, CoverageStatus::Partial);
-        assert!(loaded.diagnostics.is_empty());
-        let out = loaded.symbolic_term.expect("term");
-        match session.arena.get(out) {
-            Some(athena_ir::TermNode::Application { head: athena_ir::ApplicationHead::Extension(id), .. })
-                if session.extensions.display_name(*id) == Some("FooBar") => {}
-            other => panic!("expected residual FooBar[...], got {other:?}"),
-        }
-    }
-
-    fn index_module(target: TermId, axes: Vec<athena_types::IndexSpec>) -> crate::execution::ir::ExecutionModule {
-        use crate::execution::ir::{
-            BasicBlock, BlockId, CapturedRoot, CapturedRootId, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation,
-            OperationKind, Region, RegionId, SsaValueId, Terminator, verify_module,
-        };
-        let load = SsaValueId(0);
-        let indexed = SsaValueId(1);
-        let published = SsaValueId(2);
-        let block = BasicBlock {
-            id: BlockId(0),
-            parameters: Vec::new(),
-            operations: vec![
-                Operation {
-                    result: Some(load),
-                    result_type: ExecutionValueType::Term,
-                    kind: OperationKind::LoadTerm { root: CapturedRootId(0) },
-                    effect_in: None,
-                    effect_out: None,
-                },
-                Operation {
-                    result: Some(indexed),
-                    result_type: ExecutionValueType::Term,
-                    kind: OperationKind::Index { target: load, axes },
-                    effect_in: None,
-                    effect_out: None,
-                },
-                Operation {
-                    result: Some(published),
-                    result_type: ExecutionValueType::Result,
-                    kind: OperationKind::PublishResult { source: indexed },
-                    effect_in: None,
-                    effect_out: None,
-                },
-            ],
-            terminator: Terminator::return_value(published),
-        };
-        let mut module = ExecutionModule {
-            inputs: Vec::new(),
-            constants: Vec::new(),
-            captured_roots: vec![CapturedRoot::term(target)],
-            regions: vec![Region { id: RegionId(0), entry: BlockId(0), blocks: vec![block], result_types: vec![ExecutionValueType::Term] }],
-            effect_edges: Vec::new(),
-            exits: Vec::new(),
-            provider_calls: Vec::new(),
-            fingerprint: ModuleFingerprint(0),
-        };
-        module.fingerprint = ModuleFingerprint::of_module(&module);
-        verify_module(&module).expect("verify");
-        module
-    }
-
-    #[test]
-    fn index_oob_marks_invalid_index() {
-        use athena_types::{IndexSpec, IntegerIndex};
-        let mut session = Session::new();
-        let a = session.builder().int(1, Default::default());
-        let b = session.builder().int(2, Default::default());
-        let list = session.builder().list(vec![a, b], Default::default());
-        let module = index_module(list, vec![IndexSpec::Scalar(IntegerIndex(9))]);
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-        let loaded = session.results.get(result_id).expect("result");
-        assert_eq!(loaded.status, ComputationStatus::Invalid);
-        assert_eq!(loaded.diagnostics[0].code, DiagnosticCode::InvalidIndex);
-    }
-
-    #[test]
-    fn index_range_extracts_slice() {
-        use athena_types::{IndexSpec, IntegerIndex};
-        let mut session = Session::new();
-        let a = session.builder().int(1, Default::default());
-        let b = session.builder().int(2, Default::default());
-        let c = session.builder().int(3, Default::default());
-        let list = session.builder().list(vec![a, b, c], Default::default());
-        let module = index_module(list, vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }]);
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-        let loaded = session.results.get(result_id).expect("result");
-        let out = loaded.symbolic_term.expect("term");
-        match session.arena.get(out) {
-            Some(athena_ir::TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
-                assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(1));
-                assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(2));
-            }
-            other => panic!("expected OrderedCollection[1, 2], got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn index_all_then_scalar_selects_column() {
-        use athena_types::{IndexSpec, IntegerIndex};
-        let mut session = Session::new();
-        let a = session.builder().int(1, Default::default());
-        let b = session.builder().int(2, Default::default());
-        let c = session.builder().int(3, Default::default());
-        let d = session.builder().int(4, Default::default());
-        let row0 = session.builder().list(vec![a, b], Default::default());
-        let row1 = session.builder().list(vec![c, d], Default::default());
-        let matrix = session.builder().list(vec![row0, row1], Default::default());
-        let module = index_module(matrix, vec![IndexSpec::All, IndexSpec::Scalar(IntegerIndex(2))]);
-        let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-        let loaded = session.results.get(result_id).expect("result");
-        let out = loaded.symbolic_term.expect("term");
-        match session.arena.get(out) {
-            Some(athena_ir::TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
-                assert_eq!(number_of(&session, items[0]).and_then(|n| n.as_exact_integer()), Some(2));
-                assert_eq!(number_of(&session, items[1]).and_then(|n| n.as_exact_integer()), Some(4));
-            }
-            other => panic!("expected OrderedCollection[2, 4], got {other:?}"),
         }
     }
 }

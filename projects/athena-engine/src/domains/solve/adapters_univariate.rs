@@ -79,7 +79,16 @@ pub fn adapt_univariate_factorization(
     };
 
     Ok(UnivariateAdaptedSolution {
-        solution: SolutionSet { variables: vec![unknown], branches, coverage, domain, proof: None, residual: None, frontier, frontier_id: None },
+        solution: SolutionSet {
+            variables: vec![unknown],
+            branches,
+            coverage,
+            domain,
+            proof: None,
+            residual: None,
+            frontier,
+            frontier_id: None,
+        },
         values,
         factorization_completeness: completeness,
     })
@@ -92,8 +101,7 @@ impl UnivariateAdaptedSolution {
         session: &mut crate::runtime::Session,
         goal_fingerprint: u64,
     ) -> Option<athena_types::FrontierId> {
-        self.solution
-            .register_frontier_on_session(session, goal_fingerprint, Some("univariate_factor"))
+        self.solution.register_frontier_on_session(session, goal_fingerprint, Some("univariate_factor"))
     }
 }
 

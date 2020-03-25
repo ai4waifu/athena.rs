@@ -1,4 +1,4 @@
-//! 中性请求边界合同测试（Living `26`）。
+//! 中性请求边界合同测试。
 
 use athena_engine::{
     api::{AthenaEngine, AthenaRequest, ControlPlan, LoweringOutcome, SessionCommand},

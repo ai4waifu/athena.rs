@@ -1,4 +1,4 @@
-//! Portable limb primitives and fixed-width contracts.
+//! 可移植 limb 原语与定宽合同。
 //!
 //! No algorithm strategy, no `Vec` hot-path ownership, no GC / budget / planner.
 

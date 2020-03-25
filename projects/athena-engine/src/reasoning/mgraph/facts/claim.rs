@@ -43,7 +43,7 @@ pub enum Guarantee {
 
 /// 可验证证据证书（机器可读字段；`summary` 仅展示）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvidenceCertificate {
     /// 多项式精确运算证书。
@@ -110,7 +110,7 @@ pub enum EvidenceCertificate {
 }
 
 impl EvidenceCertificate {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::PolynomialExact { operation, request_fingerprint, input_hashes, groebner_steps } => Self::PolynomialExact {
@@ -139,7 +139,7 @@ impl EvidenceCertificate {
 
 /// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum Evidence {
     /// 来自已验证纯 Rust 内核。
@@ -154,14 +154,12 @@ pub enum Evidence {
 }
 
 impl Evidence {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
-            Self::TrustedKernel { provider, certificate, summary } => Self::TrustedKernel {
-                provider: *provider,
-                certificate: certificate.owning_copy(),
-                summary: summary.clone(),
-            },
+            Self::TrustedKernel { provider, certificate, summary } => {
+                Self::TrustedKernel { provider: *provider, certificate: certificate.owning_copy(), summary: summary.clone() }
+            }
         }
     }
 }
@@ -169,11 +167,11 @@ impl Evidence {
 /// 微积分已接纳关系种类（闭合枚举，非前端名）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CalculusRelationKind {
-    /// `DerivativeOf`。
+    /// 导数关系谓词 `DerivativeOf`。
     DerivativeOf,
-    /// `IntegralOf`。
+    /// 积分关系谓词 `IntegralOf`。
     IntegralOf,
-    /// `SeriesExpansion`。
+    /// 级数展开谓词 `SeriesExpansion`。
     SeriesExpansion,
 }
 
@@ -218,7 +216,7 @@ pub enum Proposition {
 
 /// 未验证候选事实（solver 产出；不得直接进入 exact closure）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct Claim {
     /// 所述命题。
@@ -232,20 +230,15 @@ pub struct Claim {
 }
 
 impl Claim {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            proposition: self.proposition,
-            scope: self.scope,
-            guarantee: self.guarantee,
-            evidence: self.evidence.owning_copy(),
-        }
+        Self { proposition: self.proposition, scope: self.scope, guarantee: self.guarantee, evidence: self.evidence.owning_copy() }
     }
 }
 
 /// 经 admission gate 接纳的已验证事实。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedClaim {
     /// 底层 claim。
@@ -255,12 +248,12 @@ pub struct VerifiedClaim {
 impl VerifiedClaim {
     /// 仅由 [`crate::reasoning::mgraph::admission::gate::EvidenceVerifier`] 构造。
     ///
-    /// 禁止任意代码伪造已验证事实（Living `26`）。
-    pub(crate) fn from_admission(claim: Claim) -> Self {
+    /// 禁止任意代码伪造已验证事实。
+    pub fn from_admission(claim: Claim) -> Self {
         Self { claim }
     }
 
-    /// Owning 复制（Living `31`）。复制嵌套 [`Claim`]。
+    /// Owning 复制。复制嵌套 [`Claim`]。
     pub fn owning_copy(&self) -> Self {
         Self { claim: self.claim.owning_copy() }
     }

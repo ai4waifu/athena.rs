@@ -11,5 +11,6 @@ mod magnitude;
 mod modular;
 mod natural;
 mod natural_owned;
+mod number_fingerprint_inline;
 mod promotion;
 mod rational;

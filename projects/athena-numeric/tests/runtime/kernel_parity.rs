@@ -136,7 +136,7 @@ fn knuth_width_div_portable_matches_isa_bound_context() {
     caps_isa.machine = MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE };
     let ctx_isa = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap, caps_isa);
 
-    // Multi-limb divisor with BZ disabled → Knuth on both tables.
+    // 多 limb 除数且关闭 BZ → 两表都走 Knuth。
     let u: Vec<u64> = (1u64..=40).map(|i| i.wrapping_mul(0x9e37_79b9_7f4a_7c15)).collect();
     let v: Vec<u64> = (3u64..=10).map(|i| i.wrapping_mul(0xbf58_476d_1ce4_e5b9) | 1).collect();
     let nu = Natural::from_limbs_in(&ctx_pure, u).expect("u");
@@ -186,7 +186,7 @@ fn bz_width_div_portable_matches_isa_bound_context() {
 
 #[test]
 fn karatsuba_width_mul_portable_matches_isa_bound_context() {
-    // Above Karatsuba threshold: portable leaf vs ISA-bound context (mulx schoolbook leaves).
+    // 超过 Karatsuba 阈值：portable 叶子 vs ISA 绑定上下文（mulx 小学乘法叶子）。
     let heap = GcHeap::new_shared(HeapBudget::default());
     let ctx_pure = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()).with_portable_kernels();
     let ctx_isa = NumericContext::with_capabilities(

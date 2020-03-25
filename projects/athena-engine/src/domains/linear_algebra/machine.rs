@@ -9,7 +9,7 @@ use super::{
 
 /// 机器 LU 分解（`PA = LU`，`A` 被原地覆盖为组合矩阵）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct MachineLuFactorization {
     /// 组合 `L`/`U`（单位对角 L 的严格下三角 + U）。
@@ -25,7 +25,7 @@ pub struct MachineLuFactorization {
 }
 
 impl MachineLuFactorization {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             combined: self.combined.owning_copy(),
@@ -39,7 +39,7 @@ impl MachineLuFactorization {
 
 /// 机器求解结果。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct MachineSolveResult {
     /// 分类。
@@ -53,7 +53,7 @@ pub struct MachineSolveResult {
 }
 
 impl MachineSolveResult {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self {
             disposition: self.disposition.owning_copy(),

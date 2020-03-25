@@ -17,7 +17,7 @@ pub const DEFAULT_PIVOT_THRESHOLD: f64 = 1e-12;
 
 /// 线性代数域值。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum LinearAlgebraValue {
     /// 矩阵。
@@ -42,7 +42,7 @@ pub enum LinearAlgebraValue {
 }
 
 impl LinearAlgebraValue {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Matrix(m) => Self::Matrix(m.owning_copy()),

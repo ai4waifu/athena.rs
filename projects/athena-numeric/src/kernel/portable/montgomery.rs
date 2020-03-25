@@ -1,39 +1,39 @@
-//! # Purpose
-//! Montgomery reduction (REDC), Montgomery multiplication, and modular exponentiation
-//! for odd moduli.
+//! # 用途
+//! Montgomery 约化（REDC）、Montgomery 乘法与模幂，
+//! 适用于奇数模。
 //!
-//! # Mathematical model
-//! With $R = \beta^k > m$ and $m' \equiv -m^{-1} \pmod{\beta}$, REDC maps
-//! $t$ to $t R^{-1} \bmod m$ using only shifts and multiply-adds. Working in
-//! Montgomery form $\tilde a = a R \bmod m$ turns modular mul into REDC of a product.
+//! # 数学模型
+//! 设 `R = βᵏ > m` 且 `m' ≡ −m⁻¹ (mod β)`，REDC 仅用移位与乘加
+//! 将 `t` 映到 `t R⁻¹ mod m`。在 Montgomery 形式
+//! `ã = a R mod m` 下，模乘变为乘积的 REDC。
 //!
-//! # Derivation
-//! Choosing each $u_i = t_i m' \bmod \beta$ clears limb $i$ of $t + u_i m$.
-//! After $k$ steps, a conditional subtract yields a residue $< m$.
+//! # 推导
+//! 取每个 `uᵢ = tᵢ m' mod β`，使 `t + uᵢ m` 的第 `i` 个 limb 清零。
+//! `k` 步后条件减法得到 `< m` 的剩余。
 //!
-//! # Algorithm steps
-//! 1. montgomery_nprime / montgomery_precompute (R^2 \bmod m).
-//! 2. Convert in via mul by $R^2$ then REDC; multiply with REDC; convert out.
-//! 3. mod_pow_montgomery_*: square-and-multiply in Montgomery domain.
+//! # 算法步骤
+//! 1. `montgomery_nprime` / `montgomery_precompute`（`R² mod m`）。
+//! 2. 乘以 `R²` 再 REDC 以转入；用 REDC 相乘；再转出。
+//! 3. `mod_pow_montgomery_*`：在 Montgomery 域内平方-乘。
 //!
-//! # Preconditions
-//! - Odd modulus; width $\ge$ MONTGOMERY_THRESHOLD.
-//! - Even moduli must not use this path (mod_pow_montgomery_eligible).
+//! # 前置条件
+//! - 奇数模；宽度 `≥ MONTGOMERY_THRESHOLD`。
+//! - 偶数模不得走此路径（`mod_pow_montgomery_eligible`）。
 //!
-//! # Postconditions
-//! - Results are canonical residues in $[0,m)$.
+//! # 后置条件
+//! - 结果为 `[0,m)` 中的规范剩余。
 //!
-//! # Complexity
-//! Exponentiation $O(\log e)$ Montgomery muls; each REDC is $O(k^2)$ limb work.
+//! # 复杂度
+//! 幂运算 `O(log e)` 次 Montgomery 乘；每次 REDC 为 `O(k²)` limb 工作。
 //!
-//! # Crossover
-//! Used when modulus is odd and wide enough; small/even moduli use generic paths.
+//! # 交叉阈值
+//! 模为奇数且足够宽时使用；小/偶模走通用路径。
 //!
-//! # Failure modes
-//! Even $m$ has no inverse of $R$; eligible gate must hold.
+//! # 失败模式
+//! 偶 `m` 时 `R` 无逆；须通过资格门控。
 //!
-//! # Tests
-//! Modular / mod_pow suites under `tests/exact/` and differential pure tests.
+//! # 测试
+//! `tests/exact/` 下模运算 / `mod_pow` 套件及差分纯测试。
 
 use std::cmp::Ordering;
 
@@ -58,13 +58,12 @@ fn montgomery_nprime(m0: u64) -> u64 {
     x.wrapping_neg()
 }
 
-/// Montgomery REDC reduction for odd modulus `m`.
+/// 奇数模 `m` 的 Montgomery REDC 约化。
 ///
-/// With `R=βᵏ` and `m·n_prime ≡ −1 (mod β)`, choose each `uᵢ` so limb i of
-/// `t + uᵢm` becomes zero. Dividing by β is then a shift. After k steps the
-/// value is `t·R⁻¹ (mod m)` and is below `2m`; one conditional subtraction gives
-/// the canonical residue. This is invalid for even `m` because `R` has no
-/// inverse modulo `m`.
+/// 设 `R=βᵏ` 且 `m·n_prime ≡ −1 (mod β)`，选每个 `uᵢ` 使
+/// `t + uᵢm` 的第 i 个 limb 为零。除以 β 即移位。`k` 步后值为
+/// `t·R⁻¹ (mod m)` 且小于 `2m`；一次条件减法给出规范剩余。
+/// 对偶 `m` 无效，因 `R` 在模 `m` 下无逆。
 fn montgomery_redc(t: &mut [u64], m: &[u64], n_prime: u64) -> Vec<u64> {
     let n = effective_len(m);
     for i in 0..n {

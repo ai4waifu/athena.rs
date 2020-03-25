@@ -1,6 +1,6 @@
-//! Stable [`WitnessRef`] derivation from admitted evidence (Living `26`).
+//! 从已接纳证据导出稳定 [`WitnessRef`]。
 //!
-//! `WitnessRef` indexes the machine-readable certificate — never the display `summary`.
+//! `WitnessRef` 索引机器可读证书 —— 绝不是展示用 `summary`。
 
 use athena_ir::fnv1a64;
 
@@ -9,7 +9,7 @@ use crate::reasoning::mgraph::{
     facts::claim::{CalculusRelationKind, Evidence, EvidenceCertificate, Guarantee},
 };
 
-/// Derive a stable witness identity from trusted-kernel evidence.
+/// 从受信任内核证据导出稳定见证标识。
 pub fn witness_ref_from_evidence(evidence: &Evidence) -> Option<WitnessRef> {
     match evidence {
         Evidence::TrustedKernel { provider, certificate, summary: _ } => Some(WitnessRef(hash_certificate(*provider, certificate))),
@@ -98,34 +98,5 @@ fn calculus_kind_tag(kind: CalculusRelationKind) -> u64 {
         CalculusRelationKind::DerivativeOf => 1,
         CalculusRelationKind::IntegralOf => 2,
         CalculusRelationKind::SeriesExpansion => 3,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_types::TermId;
-
-    use super::*;
-    use crate::reasoning::mgraph::facts::claim::EvidenceCertificate;
-
-    #[test]
-    fn structural_witness_is_stable_and_order_sensitive() {
-        let a = Evidence::TrustedKernel {
-            provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) },
-            summary: "ignored".into(),
-        };
-        let b = Evidence::TrustedKernel {
-            provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) },
-            summary: "different summary".into(),
-        };
-        let c = Evidence::TrustedKernel {
-            provider: CapabilityProviderId(20),
-            certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(2), right: TermId(1) },
-            summary: "ignored".into(),
-        };
-        assert_eq!(witness_ref_from_evidence(&a), witness_ref_from_evidence(&b));
-        assert_ne!(witness_ref_from_evidence(&a), witness_ref_from_evidence(&c));
     }
 }

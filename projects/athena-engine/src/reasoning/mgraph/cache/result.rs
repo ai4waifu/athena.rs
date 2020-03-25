@@ -11,7 +11,7 @@ use crate::{
 
 /// 操作层结果缓存（非数学真相源）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（多项式缓存含 owning 载荷）。
+/// **不**实现 [`Clone`]（多项式缓存含 owning 载荷）。
 #[derive(Debug, Default, PartialEq)]
 pub struct ResultCache {
     /// 多项式域结果缓存。

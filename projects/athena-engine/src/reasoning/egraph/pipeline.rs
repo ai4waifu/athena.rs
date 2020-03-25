@@ -1,4 +1,4 @@
-//! Bridge E-Graph candidates into M-Graph admission (Living `26` / `29`).
+//! 将 E-Graph 候选桥接到 M-Graph 接纳。
 
 use athena_ir::TermStore;
 use athena_types::TermId;
@@ -13,12 +13,12 @@ use crate::reasoning::{
     },
 };
 
-/// Capability provider identity for E-Graph candidate verification.
+/// E-Graph 候选验证的能力提供者标识。
 pub const EGRAPH_PROVIDER_ID: CapabilityProviderId = CapabilityProviderId(20);
 
-/// Turn an E-Graph candidate into an unverified outer claim (`Guarantee::Candidate`).
+/// 将 E-Graph 候选转为未验证的外层声明（`Guarantee::Candidate`）。
 ///
-/// Does **not** admit. Call [`verify_structural_term_equality`] then [`AdmissionGate::admit_claim`].
+/// **不会** 接纳。请先调用 [`verify_structural_term_equality`]，再调用 [`AdmissionGate::admit_claim`]。
 pub fn candidate_to_outer(candidate: &CandidateEquivalence) -> OuterCandidate {
     OuterCandidate::new(Claim {
         proposition: Proposition::TermEquality { left: candidate.left_term, right: candidate.right_term },
@@ -32,7 +32,7 @@ pub fn candidate_to_outer(candidate: &CandidateEquivalence) -> OuterCandidate {
     })
 }
 
-/// Upgrade a term-equality claim when TermStore reports structural equality.
+/// 当 `TermStore` 报告结构相等时，升级项等式声明。
 pub fn verify_structural_term_equality(store: &TermStore, left: TermId, right: TermId) -> Result<Claim, AdmissionRejectReason> {
     if !store.structural_eq(left, right) {
         return Err(AdmissionRejectReason::NotExact);
@@ -49,7 +49,7 @@ pub fn verify_structural_term_equality(store: &TermStore, left: TermId, right: T
     })
 }
 
-/// Verify structural equality then admit into semantic core (writes ExactUF + ProofForest).
+/// 验证结构相等后接纳进语义核心（写入 ExactUF + ProofForest）。
 pub fn admit_structural_term_equality(
     store: &TermStore,
     semantic: &mut SemanticCore,
@@ -61,9 +61,9 @@ pub fn admit_structural_term_equality(
     AdmissionGate::admit_claim(semantic, claim, policy)
 }
 
-/// Admit only those candidates that are structurally equal in `store`.
+/// 仅接纳在 `store` 中结构相等的那些候选。
 ///
-/// Rule-driven rewrites that change structure stay as outer candidates and are skipped.
+/// 会改变结构的规则驱动重写仍保持为外层候选，并被跳过。
 pub fn admit_structural_candidates(
     store: &TermStore,
     semantic: &mut SemanticCore,

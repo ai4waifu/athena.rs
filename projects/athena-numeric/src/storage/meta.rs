@@ -1,6 +1,6 @@
 //! `meta` 位编码：mode / sign / heap_len。
 //!
-//! 各位是否**语义有效**由外层类型决定（见 Living 14）。
+//! 各位是否**语义有效**由外层类型决定（见 ）。
 //! `Natural`：sign 位为 don't-care，读取时视为 NonNegative，不要求物理清零。
 //! 零 = 合法 `Limb1` 且 `limb1 == 0`（无独立 Zero mode）。
 
@@ -18,7 +18,7 @@ pub(crate) const MODE_RESERVED: usize = 0b11;
 pub(crate) const META_SIGN_BIT: usize = 1 << 2;
 /// Heap 已发布 / rooted（bit 最高位）：`Drop` 只撤 root，不显式 free。
 ///
-/// Living `24`：这是构造路径写入的 RAII 责任标记，不是从 GC header 反推的 ownership。
+/// 这是构造路径写入的 RAII 责任标记，不是从 GC header 反推的 ownership。
 pub(crate) const META_ROOTED_BIT: usize = 1 << (usize::BITS - 1);
 /// heap len 起始位移（bit 3..）。
 pub(crate) const LEN_SHIFT: usize = 3;

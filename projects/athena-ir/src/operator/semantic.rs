@@ -1,49 +1,49 @@
-//! Closed core semantic operators and application heads.
+//! 封闭核心语义算子与应用 head。
 //!
-//! Core math / logic / structure ops are [`SemanticOperator`].
-//! [`ExtensionRegistry`] is only for extension display names, never the core catalog.
+//! 核心数学 / 逻辑 / 结构算子为 [`SemanticOperator`]。
+//! [`ExtensionRegistry`] 仅用于扩展显示名，绝非核心目录。
 
 use athena_types::ExtensionOperatorId;
 
-/// Closed unary special-function identity (fingerprint-stable).
+/// 封闭一元特殊函数标识（指纹稳定）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnaryFunction {
-    /// exponential.
+    /// 指数。
     Exp,
-    /// natural logarithm.
+    /// 自然对数。
     Log,
-    /// sine.
+    /// 正弦。
     Sin,
-    /// cosine.
+    /// 余弦。
     Cos,
-    /// tangent.
+    /// 正切。
     Tan,
-    /// hyperbolic sine.
+    /// 双曲正弦。
     Sinh,
-    /// hyperbolic cosine.
+    /// 双曲余弦。
     Cosh,
-    /// hyperbolic tangent.
+    /// 双曲正切。
     Tanh,
-    /// inverse sine.
+    /// 反正弦。
     ArcSin,
-    /// inverse cosine.
+    /// 反余弦。
     ArcCos,
-    /// inverse tangent.
+    /// 反正切。
     ArcTan,
-    /// square root.
+    /// 平方根。
     Sqrt,
-    /// absolute value.
+    /// 绝对值。
     Abs,
-    /// signum.
+    /// 符号函数。
     Sign,
-    /// gamma.
+    /// Gamma 函数。
     Gamma,
-    /// error function.
+    /// 误差函数。
     Erf,
 }
 
 impl UnaryFunction {
-    /// Stable discriminant fragment (do not renumber lightly).
+    /// 稳定 discriminant 片段（勿轻易重编号）。
     pub const fn discriminant(self) -> u32 {
         match self {
             Self::Exp => 1,
@@ -65,7 +65,7 @@ impl UnaryFunction {
         }
     }
 
-    /// Neutral debug label.
+    /// 中立调试标签。
     pub const fn debug_label(self) -> &'static str {
         match self {
             Self::Exp => "Exp",
@@ -88,13 +88,13 @@ impl UnaryFunction {
     }
 }
 
-/// Closed Athena core semantic operator identity (fingerprint-stable).
+/// 封闭 Athena 核心语义算子标识（指纹稳定）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SemanticOperator {
-    // arithmetic
+    // 算术
     /// `a + b + …`
     Add,
-    /// `a - b` or unary minus form.
+    /// `a - b` 或一元负号形式。
     Subtract,
     /// `a * b * …`
     Multiply,
@@ -102,20 +102,20 @@ pub enum SemanticOperator {
     Divide,
     /// `a ^ b`
     Power,
-    /// unary negation.
+    /// 一元取负。
     Negate,
-    /// elementwise multiply.
+    /// 逐元素乘。
     ElementwiseMultiply,
-    /// elementwise divide.
+    /// 逐元素除。
     ElementwiseDivide,
-    /// elementwise power.
+    /// 逐元素幂。
     ElementwisePower,
-    // compare / logic
-    /// structural / numeric equality.
+    // 比较 / 逻辑
+    /// 结构 / 数值相等。
     Equal,
-    /// inequality.
+    /// 不等。
     Unequal,
-    /// identical (same structure / slot identity).
+    /// 同一（相同结构 / 槽位标识）。
     Identical,
     /// `<`
     Less,
@@ -125,102 +125,102 @@ pub enum SemanticOperator {
     LessEqual,
     /// `>=`
     GreaterEqual,
-    /// boolean and.
+    /// 布尔与。
     And,
-    /// boolean or.
+    /// 布尔或。
     Or,
-    /// boolean not.
+    /// 布尔非。
     Not,
-    /// true-query.
+    /// 真值查询。
     TrueQ,
     // structure
-    /// absolute value (also [`UnaryFunction::Abs`]).
+    /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
-    /// collection length.
+    /// 集合长度。
     Length,
-    /// first element.
+    /// 首元素。
     First,
-    /// rest of collection.
+    /// 集合其余部分。
     Rest,
-    /// factorial.
+    /// 阶乘。
     Factorial,
-    /// square root (also [`UnaryFunction::Sqrt`]).
+    /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
     Sqrt,
-    /// join collections.
+    /// 拼接集合。
     Join,
-    /// integer range.
+    /// 整数范围。
     Range,
-    /// apply head to args.
+    /// 将 head 作用于参数。
     Apply,
-    /// apply-head / application form wrapper.
+    /// apply-head / 应用形式包装。
     ApplyHead,
-    /// size / dimensions.
+    /// 尺寸 / 维数。
     Size,
-    /// summation.
+    /// 求和。
     Sum,
-    /// product.
+    /// 求积。
     Product,
-    /// matrix determinant.
+    /// 矩阵行列式。
     Determinant,
-    /// map over collection.
+    /// 对集合做 map。
     Map,
-    /// zero matrix / array constructor.
+    /// 零矩阵 / 数组构造。
     Zeros,
-    /// ones matrix / array constructor.
+    /// 全一阵 / 数组构造。
     Ones,
-    /// identity matrix constructor.
+    /// 单位矩阵构造。
     Eye,
-    /// immediate rewrite rule.
+    /// 立即重写规则。
     Rule,
-    /// deferred rewrite rule.
+    /// 延迟重写规则。
     RuleDeferred,
-    /// replace-all.
+    /// 全部替换。
     ReplaceAll,
-    /// collect pattern matches.
+    /// 收集模式匹配。
     CollectMatches,
-    /// match predicate.
+    /// 匹配谓词。
     Matches,
-    /// simplify.
+    /// 化简。
     Simplify,
-    /// hold / quote arguments.
+    /// 保持 / 引用参数。
     Hold,
-    /// anonymous function binder.
+    /// 匿名函数绑定器。
     Function,
-    /// closed unary special function.
+    /// 封闭一元特殊函数。
     Unary(UnaryFunction),
-    /// polygamma residual / special (`PolyGamma[n, z]`).
+    /// polygamma 残差 / 特殊函数（`PolyGamma[n, z]`）。
     PolyGamma,
-    // calculus residual heads (entry is DomainGoal, not string lowering)
-    /// differentiation residual.
+    // 微积分残差 head（入口为 `DomainGoal`，非字符串 lowering）
+    /// 微分残差。
     Differentiate,
-    /// integration residual.
+    /// 积分残差。
     Integrate,
-    /// limit residual.
+    /// 极限残差。
     Limit,
-    /// power series residual.
+    /// 幂级数残差。
     Series,
-    /// Laurent series residual.
+    /// Laurent 级数残差。
     LaurentSeries,
-    /// asymptotic expansion residual.
+    /// 渐近展开残差。
     Asymptotic,
-    /// residue residual.
+    /// 留数残差。
     Residue,
-    /// ODE solve residual.
+    /// ODE 求解残差。
     DSolve,
-    /// Laplace transform residual.
+    /// Laplace 变换残差。
     LaplaceTransform,
-    /// Fourier transform residual.
+    /// Fourier 变换残差。
     FourierTransform,
-    /// Z-transform residual.
+    /// Z 变换残差。
     ZTransform,
-    /// vector divergence residual.
+    /// 向量散度残差。
     Divergence,
-    /// vector curl residual.
+    /// 向量旋度残差。
     Curl,
 }
 
 impl SemanticOperator {
-    /// Stable discriminant for fingerprints (do not renumber lightly).
+    /// 指纹用的稳定 discriminant（勿轻易重编号）。
     pub const fn discriminant(self) -> u32 {
         match self {
             Self::Add => 1,
@@ -287,7 +287,7 @@ impl SemanticOperator {
         }
     }
 
-    /// Neutral debug label (`Add`, not dialect `Plus`).
+    /// 中立调试标签（`Add`，不是方言 `Plus`）。
     pub const fn debug_label(self) -> &'static str {
         match self {
             Self::Add => "Add",
@@ -354,9 +354,9 @@ impl SemanticOperator {
         }
     }
 
-    /// Map a unary function to the preferred head used when constructing terms.
+    /// 将一元函数映射为构造 term 时优先使用的 head。
     ///
-    /// `Abs` / `Sqrt` keep their dedicated variants for structure evaluation parity.
+    /// `Abs` / `Sqrt` 保留专用变体，以保持结构求值对等。
     pub const fn from_unary(f: UnaryFunction) -> Self {
         match f {
             UnaryFunction::Abs => Self::Abs,
@@ -365,7 +365,7 @@ impl SemanticOperator {
         }
     }
 
-    /// If this operator is a registered unary special (including Abs/Sqrt aliases).
+    /// 若本算子为已注册一元特殊函数（含 Abs/Sqrt 别名）。
     pub const fn as_unary(self) -> Option<UnaryFunction> {
         match self {
             Self::Unary(f) => Some(f),
@@ -376,11 +376,11 @@ impl SemanticOperator {
     }
 }
 
-/// Application head: closed semantic op or extension-only identity.
+/// 应用 head：封闭语义算子或仅扩展标识。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ApplicationHead {
-    /// Core closed semantic operator.
+    /// 核心封闭语义算子。
     Semantic(SemanticOperator),
-    /// Extension-only identity. Display name may live in [`super::ExtensionRegistry`].
+    /// 仅扩展标识。显示名可存于 [`super::ExtensionRegistry`]。
     Extension(ExtensionOperatorId),
 }

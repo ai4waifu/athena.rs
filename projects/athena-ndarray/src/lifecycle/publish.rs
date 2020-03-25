@@ -21,11 +21,11 @@ pub struct ArrayPublication {
     pub revision_id: ArrayRevisionId,
     /// Snapshot 对象身份。
     pub snapshot_id: ArraySnapshotId,
-    /// Snapshot root。
+    /// Snapshot 根。
     pub snapshot_root: RootToken,
-    /// Revision root。
+    /// Revision 根。
     pub revision_root: RootToken,
-    /// Chunk roots。
+    /// Chunk 根。
     pub chunk_roots: Vec<RootToken>,
     /// Chunk 列表。
     pub chunks: Vec<ArrayChunkId>,

@@ -20,7 +20,7 @@ use crate::{
 ///
 /// 不实现 [`Ord`]：域上字典序不是数值序。请用 [`Self::cmp_numeric`]。
 ///
-/// **不**实现 [`Clone`]（Living `19`）：用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
+/// **不**实现 [`Clone`]：用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
 pub struct Rational {
     numer: MagnitudePair,
     denom: MagnitudePair,

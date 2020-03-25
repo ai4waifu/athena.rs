@@ -8,7 +8,7 @@ use crate::domains::algebra::PropertyState;
 
 /// 域对象。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub struct Field {
     /// 稳定 id。
@@ -21,7 +21,7 @@ pub struct Field {
 
 /// 域元素表示（按 presentation kind 解释）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum FieldElementRepr {
     /// ℚ：约分后、分母为正的有理数 payload。
@@ -50,7 +50,7 @@ pub enum FieldElementRepr {
 
 /// 域元素。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct FieldElement {
     /// 所属域。
@@ -63,7 +63,7 @@ pub struct FieldElement {
 
 /// 域数学描述（种类与表示分离）。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum FieldDescriptor {
     /// 有理数域 ℚ。
@@ -85,29 +85,25 @@ pub enum FieldDescriptor {
 }
 
 impl FieldDescriptor {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Rationals => Self::Rationals,
             Self::Prime { characteristic } => Self::Prime { characteristic: clone_integer(characteristic) },
-            Self::Extension { base, extension, degree } => Self::Extension {
-                base: *base,
-                extension: *extension,
-                degree: degree.owning_copy(),
-            },
+            Self::Extension { base, extension, degree } => Self::Extension { base: *base, extension: *extension, degree: degree.owning_copy() },
         }
     }
 }
 
 impl Field {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { id: self.id, descriptor: self.descriptor.owning_copy(), presentation: self.presentation }
     }
 }
 
 impl FieldElementRepr {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Rational { value } => Self::Rational { value: clone_rational(value) },
@@ -120,7 +116,7 @@ impl FieldElementRepr {
 }
 
 impl FieldElement {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         Self { field: self.field, presentation: self.presentation, repr: self.repr.owning_copy() }
     }

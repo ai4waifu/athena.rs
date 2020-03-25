@@ -1,4 +1,4 @@
-//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现（arena 版 · Living `25`）。
+//! 积分变换 — 带显式 ROC 的 Laplace / Fourier / Z 引导实现（arena 版 · ）。
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
@@ -190,13 +190,13 @@ fn echo_transform(
 
 fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s: SymbolId) -> Option<(TermId, RegionOfConvergence)> {
     if let Some(n) = cc.number_of(expr).map(|n| cc.copy(n)) {
-        // Laplace：ℒ{c} = c/s，Re(s)>0
+        // 拉普拉斯：ℒ{c} = c/s，Re(s)>0
         let sinv = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(s), cc.in_(-1)]);
         let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), sinv]));
         return Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))));
     }
     if is_symbol_id(cc, expr, t) {
-        // Laplace：ℒ{t} = 1/s²
+        // 拉普拉斯：ℒ{t} = 1/s²
         let body = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(s), cc.in_(-2)]);
         return Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0))));
     }
@@ -239,7 +239,7 @@ fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s
                 return None;
             }
             let n_u = u32::try_from(n).ok()?;
-            // Laplace：ℒ{tⁿ} = n!/sⁿ⁺¹
+            // 拉普拉斯：ℒ{tⁿ} = n!/sⁿ⁺¹
             let fact = factorial_u32(n_u)?;
             let spow = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(s), cc.in_(-(n_u as i64 + 1))]);
             let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(fact), spow]));
@@ -256,7 +256,7 @@ fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Sin) && args.len() == 1 => {
             let w = match_coeff_times_var(cc, args[0], t)?;
-            // Laplace：w/(s²+w²)
+            // 拉普拉斯：w/(s²+w²)
             let s2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(s), cc.in_(2)]);
             let w2 = cc.apply_semantic(SemanticOperator::Power, vec![cc.num(cc.copy(&w)), cc.in_(2)]);
             let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![s2, w2]));

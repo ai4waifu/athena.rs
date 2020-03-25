@@ -1,7 +1,7 @@
-//! Typed `ExecutionIR` — region-based SSA for reference / JIT / WASM backends.
+//! 类型化的 `ExecutionIR` — 面向 reference / JIT / WASM 后端的基于 region 的 SSA。
 //!
-//! This module freezes the executable IR contract. It is **not** a stack bytecode
-//! or operand-stack VM. Dialect surface names must not appear in opcodes or descriptors.
+//! 本模块冻结可执行 IR 合同。它**不是**栈式字节码或操作数栈 VM。
+//! 方言表层名称不得出现在操作码或描述符中。
 
 pub mod block;
 pub mod effect;
@@ -26,16 +26,3 @@ pub use region::Region;
 pub use terminator::{BlockEdge, Terminator};
 pub use types::{CapturedRoot, ConstantValue, ExecutionValueType, ModuleInput, ProviderCallDescriptor};
 pub use verify::verify_module;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_module_has_stable_shape() {
-        let module = ExecutionModule::empty();
-        assert_eq!(module.regions.len(), 1);
-        assert_eq!(module.entry_region(), Some(RegionId(0)));
-        assert_eq!(module.fingerprint, ModuleFingerprint::of_module(&module));
-    }
-}

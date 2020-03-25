@@ -1,4 +1,4 @@
-//! Pure helpers used while lowering compare / span forms.
+//! Lowering 比较 / span 形式时用的纯辅助函数。
 
 use athena_ir::{ApplicationHead, SemanticOperator, TermNode};
 use athena_types::TermId;
@@ -26,7 +26,7 @@ pub(super) fn expand_span_range(start: i64, step: i64, end: i64) -> Option<Vec<i
     Some(out)
 }
 
-/// Collect left-nested compare operands: `Less[Less[a,b],c]` → `[a,b,c]`.
+/// 收集左嵌套比较操作数：`Less[Less[a,b],c]` → `[a,b,c]`.
 pub(super) fn flatten_compare_chain_args(session: &Session, op: SemanticOperator, term: TermId) -> Option<Vec<TermId>> {
     let mut out = Vec::new();
     if !collect_compare_chain_args(session, op, term, &mut out) {

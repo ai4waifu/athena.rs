@@ -7,7 +7,7 @@ use super::frontier::ResumeToken;
 /// 只有 [`CoverageStatus::Complete`] 或经证明的
 /// [`CoverageStatus::CompleteUnderAssumptions`] 才能声称覆盖指定域内全部解。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum CoverageStatus {
     /// 在指定 domain / assumptions / policy 下已证明覆盖全部解。
@@ -34,7 +34,7 @@ pub enum CoverageStatus {
 }
 
 impl CoverageStatus {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Complete => Self::Complete,
@@ -43,9 +43,7 @@ impl CoverageStatus {
             Self::CertifiedSuperset => Self::CertifiedSuperset,
             Self::LocalOnly => Self::LocalOnly,
             Self::Probable => Self::Probable,
-            Self::ResourceLimited { frontier } => Self::ResourceLimited {
-                frontier: frontier.owning_copy(),
-            },
+            Self::ResourceLimited { frontier } => Self::ResourceLimited { frontier: frontier.owning_copy() },
             Self::Unsupported => Self::Unsupported,
             Self::Invalid => Self::Invalid,
         }

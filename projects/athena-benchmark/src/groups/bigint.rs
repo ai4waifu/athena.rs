@@ -1,4 +1,4 @@
-//! `bigint` group: unified matrix registered into `athena-bench`.
+//! `bigint` 组：统一矩阵注册进 `athena-bench`。
 
 use crate::{
     bigint::{BenchCase, BigIntPrepared, prepare_all},

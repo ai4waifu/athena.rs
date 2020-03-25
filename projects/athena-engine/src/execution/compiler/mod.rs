@@ -1,8 +1,8 @@
-//! `ExecutionCompiler` — `AthenaRequest` + Session snapshot → [`ExecutionModule`].
+//! `ExecutionCompiler` — `AthenaRequest` + Session 快照 → [`ExecutionModule`]。
 //!
-//! Bootstrap lowering: atom terms, typed Boolean constants, `ControlPlan::Branch` /
-//! `Sequence`, and effectful `SessionCommand::Define` via `WriteBinding`.
-//! No bridge to a deleted stack interpreter.
+//! 引导 lowering：原子项、类型化 Boolean 常量、`ControlPlan::Branch` /
+//! `Sequence`，以及经 `WriteBinding` 的有副作用 `SessionCommand::Define`。
+//! 不桥接到已删除的栈式解释器。
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
@@ -17,7 +17,7 @@ use crate::{
     runtime::session::Session,
 };
 
-/// Compiles one request into a verified [`ExecutionModule`].
+/// 将一次请求编译为已校验的 [`ExecutionModule`]。
 #[derive(Debug, Default)]
 pub struct ExecutionCompiler {}
 
@@ -30,18 +30,18 @@ use builder::ModuleBuilder;
 use helpers::{collect_compare_chain_args, flatten_compare_chain_args};
 
 impl ExecutionCompiler {
-    /// Create a compiler instance.
+    /// 创建编译器实例。
     pub fn new() -> Self {
         Self {}
     }
 
-    /// Lower a request against a Session snapshot into `ExecutionIR`.
+    /// 对照 Session 快照将请求 lowering 为 `ExecutionIR`。
     pub fn compile(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
         let mut builder = ModuleBuilder::default();
         let entry = builder.block_id();
         let mut blocks = Vec::new();
         let value = self.lower_request(session, &mut builder, &mut blocks, entry, request)?;
-        // Ensure entry block exists and returns when lowering produced a single block return.
+        // 当 lowering 只产生单块返回时，确保入口块存在并返回。
         if blocks.iter().all(|b| b.id != entry) {
             blocks.insert(
                 0,
@@ -67,8 +67,8 @@ impl ExecutionCompiler {
         }
     }
 
-    /// Lower a term request. Control / binding forms are only via [`AthenaRequest::Control`]
-    /// / [`AthenaRequest::Command`] — never Extension surface names (Living `27`).
+    /// Lowering 项请求。控制 / 绑定形式仅经 [`AthenaRequest::Control`]
+    /// / [`AthenaRequest::Command`] — 绝不用 Extension 表层名。
     pub(crate) fn lower_term(
         &self,
         session: &mut Session,
@@ -109,10 +109,10 @@ impl ExecutionCompiler {
 }
 
 impl ExecutionCompiler {
-    /// Domain goals lower to an explicit `CallProvider` + `PublishResult` edge.
+    /// 领域目标 lowering 为显式 `CallProvider` + `PublishResult` 边。
     ///
-    /// The `DomainRequest` payload is supplied at runtime by `execute_ir_request`
-    /// (not stored in the module), so backends share the same IR shape.
+    /// `DomainRequest` 载荷由运行时 `execute_ir_request` 提供
+    /// （不存入 module），因此各后端共享同一 IR 形态。
     fn lower_goal_provider(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, block_id: BlockId) -> Result<SsaValueId> {
         use athena_types::ExtensionOperatorId;
 
@@ -224,7 +224,7 @@ impl ExecutionCompiler {
                         Operation {
                             result: Some(result),
                             result_type: ExecutionValueType::Unit,
-                            // Unit rhs means clear binding (not store Unit as Own).
+                            // Unit 右部表示清除绑定（不是把 Unit 存为 Own）。
                             kind: OperationKind::WriteBinding {
                                 key,
                                 value: unit_val,
@@ -258,7 +258,7 @@ impl ExecutionCompiler {
         Ok(value)
     }
 
-    /// Lower pure atom / Boolean semantic applications into SSA ops (no Session effects).
+    /// 将纯原子 / Boolean 语义应用 lowering 为 SSA 操作（无 Session 副作用）。
     fn lower_pure_expr(
         &self,
         session: &mut Session,
@@ -280,7 +280,7 @@ impl ExecutionCompiler {
                 Ok(ssa)
             }
             Some(TermNode::Atom(Atom::Symbol(symbol))) => {
-                // Living `27`: user symbols are binding keys only — never display-name constants.
+                // 用户符号仅作绑定键 — 绝不当显示名常量。
                 let key = builder.ssa();
                 let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
                 let effect_in = builder.push_effect(EffectKind::ReadBinding, None);
@@ -343,7 +343,7 @@ impl ExecutionCompiler {
                             | SemanticOperator::GreaterEqual => ExecutionValueType::Boolean,
                             _ => ExecutionValueType::Term,
                         };
-                        // `Hold` / `Function` must not evaluate arguments (Living HoldAll).
+                        // `Hold` / `Function` 不得求值其实参。
                         let hold_all = matches!(op, SemanticOperator::Hold | SemanticOperator::Function);
                         let hold_first = op == SemanticOperator::Product
                             || (op == SemanticOperator::Sum && arg_terms.len() == 2)
@@ -432,8 +432,8 @@ impl ExecutionCompiler {
     fn require_boolean_atom(&self, session: &mut Session, term: TermId) -> Result<bool> {
         match session.arena.get(term) {
             Some(TermNode::Atom(Atom::Boolean(value))) => Ok(*value),
-            // Exact `0`/`1` truthiness. Other numbers fail so
-            // `Branch` can fall back to runtime predicate lowering.
+            // 精确 `0`/`1` 真值。其他数字失败，以便
+            // `Branch` 回退到运行时谓词 lowering。
             Some(TermNode::Atom(Atom::Number(n))) => {
                 if n.is_zero() {
                     Ok(false)
@@ -457,6 +457,3 @@ impl ExecutionCompiler {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -13,7 +13,7 @@ portable = []
 native-accelerated = []
 mkl = ["native-accelerated"]
 blas = ["native-accelerated"]
-# Batch-local `TemporaryNatural` / `TemporaryInteger`（Living `31`；历史别名 `Ephemeral*`；供 athena-benchmark）。
+# Batch-local `TemporaryNatural` / `TemporaryInteger`（Living `03`；历史别名 `Ephemeral*`；供 athena-benchmark）。
 ephemeral = []
 
 [[test]]

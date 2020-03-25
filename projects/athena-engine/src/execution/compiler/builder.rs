@@ -1,4 +1,4 @@
-//! Module construction helpers for [super::ExecutionCompiler].
+//! [`super::ExecutionCompiler`] 的 module 构造辅助。
 
 use athena_types::{Result, TermId};
 

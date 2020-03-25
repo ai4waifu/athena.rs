@@ -62,7 +62,7 @@ fn groebner_complete_admitted_to_claims() {
 fn groebner_partial_cached_but_not_admitted() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
-    // Non-coprime leading monomials so max_s_pairs=0 still yields Partial.
+    // 首项不互素，故 max_s_pairs=0 仍得到 Partial。
     let mut b1 = PolynomialBuilder::new(ring);
     b1.push_term(Number::small_int(1), vec![2, 0]).unwrap();
     b1.push_term(Number::small_int(-1), vec![0, 1]).unwrap();

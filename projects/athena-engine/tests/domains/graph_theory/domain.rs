@@ -186,7 +186,7 @@ fn shortest_path_weighted() {
 
 #[test]
 fn session_execute_graph_theory() {
-    use athena_engine::runtime::Session;
+    use athena_engine::Session;
     let session = Session::default();
     let result = session.execute_graph_theory(GraphTheoryRequest::ConnectedComponents { graph: sample_graph() });
     assert!(matches!(result, GraphTheoryResult::Exact { .. }));

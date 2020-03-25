@@ -1,4 +1,4 @@
-//! 执行层覆盖（Living `25` L2 · `evaluate_term` → `ExecutionIR`）。
+//! 执行层覆盖（L2 · `evaluate_term` → `ExecutionIR`）。
 
 use athena_engine::{
     api::request::{AthenaRequest, ControlPlan},
@@ -109,7 +109,7 @@ fn pythagorean() {
 #[test]
 fn map_sin_list() {
     let mut c = C::new();
-    // Living `27`: Map over a 0-ary semantic operator value, not a display-name symbol.
+    // 映射到 0 元语义算子值，而非显示名符号。
     let sin = sem(SemanticOperator::from_unary(UnaryFunction::Sin), vec![], &mut c);
     let e = sem(SemanticOperator::Map, vec![sin, lst(vec![i(0, &mut c)], &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "OrderedCollection[0]");
@@ -130,7 +130,7 @@ fn truthy_via_and_or() {
 fn unsupported_import_is_not_silent_value() {
     use athena_types::ComputationStatus;
     let mut c = C::new();
-    // Import is an Extension residual until a typed SessionCommand/Goal exists (Living 27).
+    // Import 在类型化 SessionCommand/Goal 落地前仍是 Extension 残差。
     let e = ext("Import", vec![str_("x.csv", &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(o.kind, execution::EvalKind::Unevaluated);
@@ -159,7 +159,7 @@ fn typed_boolean_and_null_atoms_render_and_symbols_stay_symbols() {
         let null = c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Null), span);
         assert_eq!(t(null, &mut c), "Null");
     }
-    // Display-name symbols must not canonicalize into typed boolean/null atoms.
+    // 显示名符号不得规范化成类型化 boolean/null 原子。
     let true_sym = symbol("True", &mut c);
     assert_eq!(t(true_sym, &mut c), "True");
     assert!(matches!(c.s.arena.get(true_sym), Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_)))));

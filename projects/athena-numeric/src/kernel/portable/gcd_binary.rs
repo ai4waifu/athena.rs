@@ -1,37 +1,37 @@
-//! # Purpose
-//! Binary (Stein) GCD without division.
+//! # 用途
+//! 二进制（Stein）GCD，无除法。
 //!
-//! # Mathematical model
-//! $\gcd(2a,2b)=2\gcd(a,b)$, $\gcd(2a,b)=\gcd(a,b)$ for odd $b$, and
-//! $\gcd(a,b)=\gcd(|a-b|,\min(a,b))$ for odd positives.
+//! # 数学模型
+//! `gcd(2a,2b)=2gcd(a,b)`，对奇数 `b` 有 `gcd(2a,b)=gcd(a,b)`，
+//! 对正奇数有 `gcd(a,b)=gcd(|a-b|,min(a,b))`。
 //!
-//! # Derivation
-//! Factor out shared powers of two, then subtract odd values and strip new factors
-//! of two until equality; restore the common shift.
+//! # 推导
+//! 提出公有的 2 的幂，再对奇数值做减法并剥离新出现的 2 的因子，
+//! 直至相等；最后恢复公共移位。
 //!
-//! # Algorithm steps
-//! 1. Handle zeros; record $\min(v_2(a),v_2(b))$.
-//! 2. Make both odd; loop subtract / swap / shift until equal.
-//! 3. Left-shift by the saved common valuation.
+//! # 算法步骤
+//! 1. 处理零；记录 `min(v₂(a),v₂(b))`。
+//! 2. 两端变奇；循环减法 / 交换 / 移位直至相等。
+//! 3. 左移恢复保存的公共 2-进位值。
 //!
-//! # Preconditions
-//! - Canonical non-negative magnitudes.
+//! # 前置条件
+//! - 规范的非负量级。
 //!
-//! # Postconditions
-//! - Canonical $\gcd$.
+//! # 后置条件
+//! - 规范的 `gcd`。
 //!
-//! # Complexity
-//! Bit complexity favorable when operands share small factors of two; can lag
-//! Lehmer on wide random odds.
+//! # 复杂度
+//! 当操作数共享小的 2 的因子时位复杂度有利；对宽随机奇数
+//! 可能慢于 Lehmer。
 //!
-//! # Crossover
-//! Used as the terminal path of gcd and for smaller widths.
+//! # 交叉阈值
+//! 作为 gcd 的收尾路径，以及较小宽度时使用。
 //!
-//! # Failure modes
-//! None beyond empty/zero handling.
+//! # 失败模式
+//! 除空/零处理外无额外失败。
 //!
-//! # Tests
-//! Euclidean reference suites in `tests/exact/` and `tests/runtime/differential_pure.rs`.
+//! # 测试
+//! `tests/exact/` 与 `tests/runtime/differential_pure.rs` 中的 Euclid 参考套件。
 
 use std::cmp::Ordering;
 
@@ -41,13 +41,12 @@ use super::{
     shift::{shl_assign, shr_assign, shr_assign_until_odd},
 };
 
-/// Binary GCD (Stein's algorithm).
+/// 二进制 GCD（Stein 算法）。
 ///
-/// Remove common powers of two, then repeatedly subtract the smaller odd value
-/// from the larger and strip newly exposed factors of two. Subtraction preserves
-/// gcd for ordered positive values, and shifts only remove powers of two. The
-/// saved common shift is restored at the end. This avoids division but can be
-/// inferior to Lehmer on wide random inputs. Inputs are canonical magnitudes.
+/// 去掉公有的 2 的幂，再反复从较大奇数值减去较小者，
+/// 并剥离新露出的 2 的因子。有序正值上减法保持 gcd，
+/// 移位只去掉 2 的幂。末尾恢复保存的公共移位。
+/// 避免除法，但对宽随机输入可能不如 Lehmer。输入为规范量级。
 pub(crate) fn binary_gcd(mut a: Vec<u64>, mut b: Vec<u64>) -> Vec<u64> {
     a = normalize_trim(a);
     b = normalize_trim(b);

@@ -19,28 +19,23 @@ pub enum ResumeKind {
 
 /// 恢复令牌：待展开分支、未完成量词块、迭代态或 portfolio 状态。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ResumeToken {
     /// 前沿种类（操作性，不得参与语义 fingerprint / admission）。
     pub kind: ResumeKind,
     /// 不透明载荷版本。
     pub version: u16,
-    /// 产出该前沿的 provider 合同戳（Living `30`：resume 前必须兼容）。
+    /// 产出该前沿的 provider 合同戳（resume 前必须兼容）。
     pub provider: Option<ResultProviderStamp>,
     /// 不透明字节（provider 私有编码；admission 前不得当作证明）。
     pub payload: Vec<u8>,
 }
 
 impl ResumeToken {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            kind: self.kind,
-            version: self.version,
-            provider: self.provider,
-            payload: self.payload.clone(),
-        }
+        Self { kind: self.kind, version: self.version, provider: self.provider, payload: self.payload.clone() }
     }
 
     /// 空载荷前沿（无 provider 戳 · 仅用于尚未盖戳的 bootstrap 路径）。
@@ -62,32 +57,5 @@ impl ResumeToken {
             Some(stamp) => stamp.compatible_with(current),
             None => false,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ResumeKind, ResumeToken};
-    use crate::runtime::results::{ResultProviderId, ResultProviderStamp};
-
-    #[test]
-    fn resume_rejects_missing_provider_stamp() {
-        let token = ResumeToken::empty(ResumeKind::Cut);
-        assert!(!token.accepts_provider(ResultProviderId::POLYNOMIAL.stamped()));
-    }
-
-    #[test]
-    fn resume_accepts_matching_provider_stamp() {
-        let stamp = ResultProviderId::LINEAR_ALGEBRA.stamped();
-        let token = ResumeToken::empty_with_provider(ResumeKind::LinearExact, stamp);
-        assert!(token.accepts_provider(stamp));
-    }
-
-    #[test]
-    fn resume_rejects_stale_provider_version() {
-        let stamp = ResultProviderId::NUMBER_THEORY.stamped();
-        let token = ResumeToken::empty_with_provider(ResumeKind::Cut, stamp);
-        let stale = ResultProviderStamp { id: ResultProviderId::NUMBER_THEORY, version: 0 };
-        assert!(!token.accepts_provider(stale));
     }
 }

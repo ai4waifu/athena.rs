@@ -1,4 +1,4 @@
-//! Living `29` 顶层语义入口：Goal → Obligation → Reflector → Plan / Result。
+//! 顶层语义入口：Goal → Obligation → Reflector → Plan / Result。
 //!
 //! `execute_domain` 只应出现在本模块的 `NeedComputation` 分支内，不得冒充顶层语义路径。
 //! 查询面绑定 [`Session::mgraph`] 的 semantic core，禁止每次宿主调用新建空 `MGraphCore`。
@@ -19,7 +19,7 @@ use crate::{
     runtime::session::Session,
 };
 
-/// 语义入口对一次 [`DomainGoal`] 的结果（Living `29`）。
+/// 语义入口对一次 [`DomainGoal`] 的结果。
 #[derive(Debug, PartialEq)]
 pub enum DomainSemanticOutcome {
     /// M-Graph 已有足够强的 admitted relation。
@@ -169,7 +169,7 @@ fn materialize_already_known(session: &Session, relation: RelationRef) -> Result
     }
 }
 
-/// Living `29` 语义入口：先查 [`Session::mgraph`]，再允许 `NeedComputation` → Living 28 Plan → provider。
+/// 语义入口：先查 [`Session::mgraph`]，再允许 `NeedComputation` → Plan → provider。
 pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<DomainSemanticOutcome, Diagnostic> {
     let DomainGoal::Dispatch(request) = goal;
     let obligation = obligation_from_domain_request(session, &request);
@@ -192,7 +192,7 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
                     .detail("domain", "semantic_entry")
                     .detail("reason", "plan missing CallDomainProvider"));
             }
-            // Queue with fingerprint binding, then drain via the same execute path as Reflector wakes.
+            // 带指纹绑定入队，再走与 Reflector 唤醒相同的执行路径排空。
             let obligation = obligation.unwrap_or(ProofObligation {
                 predicate: crate::reasoning::mgraph::PredicateId(0),
                 scope: ScopeRef::UNCONDITIONAL,
@@ -211,7 +211,7 @@ pub fn execute_domain_goal(session: &mut Session, goal: DomainGoal) -> Result<Do
     }
 }
 
-/// Project a semantic outcome into [`DomainResult`] for host APIs that still expect provider payloads.
+/// 将语义结果投影为 [`DomainResult`]，供仍期望 provider 载荷的宿主 API。
 pub fn domain_result_from_semantic_outcome(session: &Session, outcome: DomainSemanticOutcome) -> Result<DomainResult, Diagnostic> {
     match outcome {
         DomainSemanticOutcome::Computed(result) => Ok(result),
@@ -231,119 +231,10 @@ pub fn domain_result_from_semantic_outcome(session: &Session, outcome: DomainSem
     }
 }
 
-/// Host convenience：[`Session::mgraph`] + [`execute_domain_goal`] + project to [`DomainResult`]。
+/// 宿主便利入口：[`Session::mgraph`] + [`execute_domain_goal`] + 投影为 [`DomainResult`]。
 ///
-/// Living `29`：公共宿主应走此路径，而不是直接调用 [`execute_domain`]。
+/// 公共宿主应走此路径，而不是直接调用 [`execute_domain`]。
 pub fn execute_domain_via_semantic_entry(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     let outcome = execute_domain_goal(session, DomainGoal::Dispatch(request))?;
     domain_result_from_semantic_outcome(session, outcome)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domains::{
-        calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder},
-        context::DomainExecutionContext,
-    };
-    use athena_ir::SemanticOperator;
-    use athena_types::{AssumptionSet, SymbolId, TermId};
-
-    #[test]
-    fn calculus_goal_computes_when_session_graph_empty() {
-        use athena_ir::{Atom, TermNode};
-        use athena_types::SourceSpan;
-
-        let mut session = Session::new();
-        let expression =
-            session.arena.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), SourceSpan::default());
-        let goal = DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
-            expression,
-            variable: SymbolId(0),
-            order: DerivativeOrder::First,
-            assumptions: AssumptionSet::empty(),
-        }));
-        match execute_domain_goal(&mut session, goal).expect("ok") {
-            DomainSemanticOutcome::Computed(DomainResult::Calculus(_)) => {}
-            other => panic!("expected Computed calculus, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn calculus_second_goal_is_already_known_after_exact_admit() {
-        let mut session = Session::new();
-        let (expression, variable) = {
-            let dc = DomainExecutionContext::new(&mut session);
-            let variable = dc.intern("x");
-            let xs = dc.symbol_id(variable);
-            let three = dc.in_(3);
-            let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, three]);
-            (expression, variable)
-        };
-        let make_goal = || {
-            DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
-                expression,
-                variable,
-                order: DerivativeOrder::First,
-                assumptions: AssumptionSet::empty(),
-            }))
-        };
-        let first = execute_domain_goal(&mut session, make_goal()).expect("first");
-        let DomainSemanticOutcome::Computed(DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(term), .. })) =
-            first
-        else {
-            panic!("expected Exact Expression first, got {first:?}");
-        };
-        assert!(session.mgraph.semantic.relation_count() >= 1);
-        let second = execute_domain_goal(&mut session, make_goal()).expect("second");
-        match second {
-            DomainSemanticOutcome::AlreadyKnown { relation } => {
-                let replayed =
-                    domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
-                assert_eq!(
-                    replayed,
-                    DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(term), conditions: Vec::new() })
-                );
-            }
-            other => panic!("expected AlreadyKnown, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn polynomial_goal_computes_when_request_carries_polynomial() {
-        use crate::domains::polynomial::{Polynomial, PolynomialRequest};
-        let mut session = Session::new();
-        let poly = session.polynomial_objects.intern(Polynomial::zero(athena_types::RingId(0)), &session.rings);
-        let goal = DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly }));
-        match execute_domain_goal(&mut session, goal).expect("ok") {
-            DomainSemanticOutcome::Computed(DomainResult::Polynomial(_)) => {}
-            other => panic!("expected Computed polynomial, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn polynomial_second_goal_is_already_known_after_mgraph_admit() {
-        use crate::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult};
-        use athena_types::SymbolId;
-        let mut session = Session::new();
-        let ring = session.rings.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).expect("ring");
-        let polynomial = PolynomialBuilder::new(ring).build(&session.rings).expect("zero poly");
-        let poly_ref = session.polynomial_objects.intern(polynomial, &session.rings);
-        let make_goal = || DomainGoal::Dispatch(DomainRequest::Polynomial(PolynomialRequest::Normalize { polynomial: poly_ref }));
-        let first = execute_domain_goal(&mut session, make_goal()).expect("first");
-        let DomainSemanticOutcome::Computed(DomainResult::Polynomial(PolynomialResult::Exact { value })) = first
-        else {
-            panic!("expected Exact polynomial first, got {first:?}");
-        };
-        assert!(session.mgraph.semantic.relation_count() >= 1);
-        let second = execute_domain_goal(&mut session, make_goal()).expect("second");
-        match second {
-            DomainSemanticOutcome::AlreadyKnown { relation } => {
-                let replayed =
-                    domain_result_from_semantic_outcome(&session, DomainSemanticOutcome::AlreadyKnown { relation }).expect("materialize");
-                assert_eq!(replayed, DomainResult::Polynomial(PolynomialResult::Exact { value }));
-            }
-            other => panic!("expected AlreadyKnown, got {other:?}"),
-        }
-    }
 }

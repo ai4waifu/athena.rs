@@ -43,7 +43,7 @@ pub enum AdmissionRejectReason {
 
 /// Admission 判定结果。
 ///
-/// Living `31`：**不**实现 [`Clone`]（`Admitted` 变体含 owning [`VerifiedClaim`]）。
+/// **不**实现 [`Clone`]（`Admitted` 变体含 owning [`VerifiedClaim`]）。
 #[derive(Debug, PartialEq, Eq)]
 pub enum AdmissionOutcome {
     /// 已验证并接纳。
@@ -134,7 +134,7 @@ impl EvidenceVerifier {
     }
 }
 
-/// Replay gate: certificate payload must match the claimed proposition.
+/// 回放门控：证书载荷必须与所声明命题一致。
 fn certificate_replays_proposition(claim: &Claim, policy: &VerificationPolicy) -> bool {
     let Evidence::TrustedKernel { certificate, .. } = &claim.evidence;
     match (&claim.proposition, certificate) {
@@ -178,7 +178,7 @@ impl AdmissionGate {
         }
     }
 
-    /// Admit claim and record proof premises（Living `29` 可重放证明依赖）。
+    /// Admit claim and record proof premises（可重放证明依赖）。
     ///
     /// Dependency 登记失败时事实仍保留；调用方须处理诊断（bootstrap：不得静默丢依赖）。
     pub fn admit_claim_with_premises(
@@ -192,7 +192,7 @@ impl AdmissionGate {
         Ok((id, dep))
     }
 
-    /// Admit into [`MGraphState`] and wake matching operational obligations (Living `29`).
+    /// 接纳进 [`MGraphState`]，并唤醒匹配的操作义务。
     pub fn admit_claim_into_state(
         state: &mut MGraphState,
         claim: Claim,
@@ -336,7 +336,7 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
                 Guarantee::Partial
             }
         }
-        // Modular images are candidates over 𝔽_p. They must not become ProvenExact over ℤ/ℚ.
+        // 模图像是 𝔽ₚ 上的候选。它们不得在 ℤ/ℚ 上成为 ProvenExact。
         PolynomialDomainValue::ModularImage(_) => Guarantee::Partial,
         PolynomialDomainValue::Placeholder => Guarantee::Unknown,
     }
@@ -386,100 +386,5 @@ fn evidence_from_witness(key: &PolynomialCacheKey, witness: &PolynomialWitness) 
             groebner_steps: witness.groebner_steps,
         },
         summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::reasoning::mgraph::SemanticCore;
-    use athena_types::TermId;
-
-    #[test]
-    fn admit_congruence_rebuilds_modulus_isolated_index() {
-        let mut semantic = SemanticCore::new();
-        let policy = VerificationPolicy::default();
-        AdmissionGate::admit_congruence(&mut semantic, 7, 10, 20, &policy).expect("mod7");
-        AdmissionGate::admit_congruence(&mut semantic, 11, 10, 30, &policy).expect("mod11");
-        assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 20));
-        assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 30));
-        assert_eq!(semantic.derived.congruence.modulus_count(), 2);
-    }
-
-    #[test]
-    fn mismatched_calculus_certificate_is_rejected() {
-        let claim = Claim {
-            proposition: Proposition::CalculusRelation {
-                kind: CalculusRelationKind::DerivativeOf,
-                expression_fingerprint: 1,
-                variable_fingerprint: 2,
-                result_term: TermId(3),
-            },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: CALCULUS_PROVIDER_ID,
-                certificate: EvidenceCertificate::CalculusExact {
-                    kind: CalculusRelationKind::DerivativeOf,
-                    expression_fingerprint: 1,
-                    variable_fingerprint: 2,
-                    result_term: TermId(99),
-                },
-                summary: "forged".into(),
-            },
-        };
-        match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
-            AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, .. } => {}
-            other => panic!("expected EvidenceMismatch, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_harness_rejected_without_policy_flag() {
-        let claim = Claim {
-            proposition: Proposition::TermEquality { left: TermId(1), right: TermId(1) },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::TestHarness,
-                summary: "harness".into(),
-            },
-        };
-        match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
-            AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, .. } => {}
-            other => panic!("expected EvidenceMismatch, got {other:?}"),
-        }
-        match EvidenceVerifier::verify(&claim, &VerificationPolicy::for_test_harness()) {
-            AdmissionOutcome::Admitted(_) => {}
-            other => panic!("expected Admitted under test harness policy, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn structural_equality_certificate_must_match_terms() {
-        let ok = Claim {
-            proposition: Proposition::TermEquality { left: TermId(1), right: TermId(2) },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) },
-                summary: "ok".into(),
-            },
-        };
-        assert!(matches!(EvidenceVerifier::verify(&ok, &VerificationPolicy::default()), AdmissionOutcome::Admitted(_)));
-        let bad = Claim {
-            evidence: Evidence::TrustedKernel {
-                provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(9) },
-                summary: "bad".into(),
-            },
-            ..ok
-        };
-        assert!(matches!(
-            EvidenceVerifier::verify(&bad, &VerificationPolicy::default()),
-            AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, .. }
-        ));
     }
 }

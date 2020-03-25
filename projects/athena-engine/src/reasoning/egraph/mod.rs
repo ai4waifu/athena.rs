@@ -1,18 +1,18 @@
-//! Scope-local E-Graph candidate search (Living `03` / `26` / `29`).
+//! 作用域局部 E-Graph 候选搜索。
 //!
 //! ```text
-//! TermStore (immutable semantics)
-//!     ↓ add / hash-cons enodes
-//! E-Graph (budgeted local equivalence candidates)
+//! TermStore（不可变语义）
+//!     ↓ 添加 / hash-cons enodes
+//! E-Graph（带预算的局部等价候选）
 //!     ↓ CandidateEquivalence
-//! Verifier → AdmissionGate → M-Graph (authority)
+//! Verifier → AdmissionGate → M-Graph（权威）
 //! ```
 //!
-//! Hard rules:
-//! - Never admit facts into M-Graph from this module.
-//! - Never unbounded equality saturation.
-//! - Exact / conditional / approximate must not share one union-find with M-Graph
-//!   [`ExactUnionFind`](crate::reasoning::mgraph::ExactUnionFind).
+//! 硬性规则：
+//! - 本模块绝不可向 M-Graph 接纳事实。
+//! - 绝不可做无界等价饱和。
+//! - Exact / conditional / approximate 不得与 M-Graph 的
+//!   [`ExactUnionFind`](crate::reasoning::mgraph::ExactUnionFind) 共用一个并查集。
 
 mod budget;
 mod candidate;
@@ -40,6 +40,3 @@ pub use pipeline::{
 pub use rewrite_verify::{admit_typed_rewrite_candidate, admit_typed_rewrite_candidates, verify_typed_rewrite_candidate};
 pub use saturation::{SaturationReport, saturate, saturate_typed};
 pub use typed_rules::{TypedRewriteRule, TypedRuleSet};
-
-#[cfg(test)]
-mod tests;

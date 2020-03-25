@@ -1,4 +1,4 @@
-//! 模式匹配与替换 — 中性 [`TermPattern`]（Living `27`）。
+//! 模式匹配与替换 — 中性 [`TermPattern`]。
 //!
 //! 禁止从 `TermId` 解析方言 / 表面 operator 名（`Any` / `Bind` / `Integer` / `List` …）。
 //! 需要 `Any` / `Bind` / 类型约束时，由 SXO lowering 直接构造 [`TermPattern`]。

@@ -11,7 +11,7 @@ use crate::operator::ApplicationHead;
 
 /// 原子 term 载荷。
 ///
-/// Living `19`：不实现 [`Clone`]（[`NumericValue`] 无 `Clone`）。深复制用 [`Self::try_clone_in`]。
+/// 不实现 [`Clone`]（[`NumericValue`] 无 `Clone`）。深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
 pub enum Atom {
     /// 内核数字（唯一数值真相源：[`NumericValue`]）。
@@ -20,11 +20,11 @@ pub enum Atom {
     String(String),
     /// intern 符号。
     Symbol(SymbolId),
-    /// Typed Boolean。
+    /// 类型化布尔。
     Boolean(bool),
-    /// Typed Null。
+    /// 类型化 Null。
     Null,
-    /// Closed mathematical constant (not a user symbol name).
+    /// 封闭数学常量（不是用户符号名）。
     Constant(MathematicalConstant),
 }
 
@@ -44,8 +44,8 @@ impl Atom {
 
 /// Core IR 中的 term 节点。
 ///
-/// Living `19`：不实现 [`Clone`]。节点经 arena `TermId` 引用；载荷复制用 [`Self::try_clone_in`]。
-/// Living `27`：集合必须带显式 [`CollectionKind`]，禁止万能 `List`。
+/// 不实现 [`Clone`]。节点经 arena `TermId` 引用；载荷复制用 [`Self::try_clone_in`]。
+/// 集合必须带显式 [`CollectionKind`]，禁止万能 `List`。
 #[derive(Debug, PartialEq)]
 pub enum TermNode {
     /// 原子值。
@@ -59,7 +59,7 @@ pub enum TermNode {
     },
     /// 算子应用。
     Application {
-        /// Semantic or extension head.
+        /// 语义或扩展 head。
         head: ApplicationHead,
         /// 参数 term。
         arguments: Vec<TermId>,

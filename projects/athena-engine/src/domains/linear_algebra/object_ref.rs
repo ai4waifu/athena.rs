@@ -1,12 +1,12 @@
-//! Living `28` 矩阵 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
+//! 矩阵 DomainObject 身份（session-local handle ≠ 裸 [`TermId`]）。
 //!
-//! Living `07` 的 `MatrixId` 语义在此以 [`MatrixRef`] 落地（与 `PolynomialRef` / `SeriesRef` 对齐）。
+//! 的 `MatrixId` 语义在此以 [`MatrixRef`] 落地（与 `PolynomialRef` / `SeriesRef` 对齐）。
 
 use crate::reasoning::mgraph::{ObjectRef, TheoryContextId};
 
 use super::value::MatrixValue;
 
-/// Session-local matrix DomainObject handle（Living `28`）。
+/// 会话局部的矩阵 `DomainObject` 句柄。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MatrixRef(pub u64);
 
@@ -64,7 +64,7 @@ impl MatrixObjectStore {
         self.entries.get(r.0 as usize).map(|e| e.fingerprint)
     }
 
-    /// M-Graph [`ObjectRef`]（`TheoryContextId::MATRIX`）。
+    /// M-Graph 的 [`ObjectRef`]（`TheoryContextId::MATRIX`）。
     pub fn object_ref(&self, r: MatrixRef) -> Option<ObjectRef> {
         self.fingerprint(r).map(|fp| ObjectRef::new(TheoryContextId::MATRIX, fp))
     }
@@ -124,22 +124,4 @@ fn provisional_matrix_fingerprint(matrix: &MatrixValue) -> u64 {
         }
     }
     fnv1a64(&body)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use athena_numeric::Integer;
-
-    #[test]
-    fn intern_dedupes_identical_matrices() {
-        let mut store = MatrixObjectStore::new();
-        let a = MatrixValue::from_integers_row_major(1, 2, vec![Integer::from_i64(1), Integer::from_i64(2)]).unwrap();
-        let b = MatrixValue::from_integers_row_major(1, 2, vec![Integer::from_i64(1), Integer::from_i64(2)]).unwrap();
-        let r0 = store.intern(a);
-        let r1 = store.intern(b);
-        assert_eq!(r0, r1);
-        assert_eq!(store.len(), 1);
-        assert!(store.object_ref(r0).is_some());
-    }
 }

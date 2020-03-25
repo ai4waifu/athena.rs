@@ -1,4 +1,4 @@
-//! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`/`28`）。
+//! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · ）。
 
 use athena_ir::SemanticOperator;
 use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, SymbolId, TermId};

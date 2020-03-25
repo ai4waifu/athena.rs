@@ -13,7 +13,7 @@ pub const MUL_TOOM_THRESHOLD: usize = 96;
 pub enum MulStrategy {
     /// 直接写零（任一操作数为零）。
     Zero,
-    /// Schoolbook。
+    /// 小学乘法。
     Schoolbook,
     /// Karatsuba。
     Karatsuba,

@@ -1,40 +1,40 @@
-//! # Purpose
-//! Karatsuba divide-and-conquer multiplication on limb slices.
+//! # 用途
+//! Karatsuba 分治乘法，作用于 limb 切片。
 //!
-//! # Mathematical model
-//! Split $A = A_0 + A_1 \beta^m$, $B = B_0 + B_1 \beta^m$. Three products
-//! $Z_0=A_0 B_0$, $Z_2=A_1 B_1$, $Z_1=(A_0+A_1)(B_0+B_1)-Z_0-Z_2$ rebuild
-//! $A B = Z_0 + Z_1 \beta^m + Z_2 \beta^{2m}$.
+//! # 数学模型
+//! 拆分 `A = A₀ + A₁ βᵐ`，`B = B₀ + B₁ βᵐ`。三个乘积
+//! `Z₀=A₀B₀`，`Z₂=A₁B₁`，`Z₁=(A₀+A₁)(B₀+B₁)-Z₀-Z₂` 重建
+//! `AB = Z₀ + Z₁ βᵐ + Z₂ β²ᵐ`。
 //!
-//! # Derivation
-//! From $(A_0+A_1)(B_0+B_1) = A_0 B_0 + A_0 B_1 + A_1 B_0 + A_1 B_1$, subtract
-//! $Z_0$ and $Z_2$ to isolate the cross term with one multiply instead of two.
+//! # 推导
+//! 由 `(A₀+A₁)(B₀+B₁) = A₀B₀ + A₀B₁ + A₁B₀ + A₁B₁`，减去
+//! `Z₀` 与 `Z₂`，用一次乘法代替两次得到交叉项。
 //!
-//! # Algorithm steps
-//! 1. If max(la,lb) < MUL_KARATSUBA_THRESHOLD, fall back to schoolbook.
-//! 2. Split at $m = \lceil n/2 \rceil$.
-//! 3. Recurse for $Z_0$, $Z_2$, and the sum-product into scratch layout.
-//! 4. Form $Z_1$ by in-place subtract; recompose with limb shifts.
+//! # 算法步骤
+//! 1. 若 `max(la,lb) < MUL_KARATSUBA_THRESHOLD`，回退到 schoolbook。
+//! 2. 在 `m = ⌈n/2⌉` 处拆分。
+//! 3. 递归求 `Z₀`、`Z₂` 与和积，写入 scratch 布局。
+//! 4. 就地减法形成 `Z₁`；按 limb 移位重组。
 //!
-//! # Preconditions
-//! - out.len() >= la+lb; scratch sized by karatsuba_scratch_limbs.
-//! - Caller zeros or accepts that this function clears out.
+//! # 前置条件
+//! - `out.len() >= la+lb`；scratch 容量由 `karatsuba_scratch_limbs` 给出。
+//! - 调用方清零，或接受本函数清空 `out`。
 //!
-//! # Postconditions
-//! - out is the product (possibly with high zero limbs).
+//! # 后置条件
+//! - `out` 为乘积（高位可能有零 limb）。
 //!
-//! # Complexity
-//! Recurrence $T(n)=3T(n/2)+O(n)$ → $\Theta(n^{\log_2 3})$ for balanced inputs.
+//! # 复杂度
+//! 递推 `T(n)=3T(n/2)+O(n)` → 对平衡输入为 `Θ(n^{log₂ 3})`。
 //!
-//! # Crossover
-//! Planner selects Karatsuba above MUL_KARATSUBA_THRESHOLD and below Toom.
-//! Unbalanced or short inputs lose to schoolbook due to split/recombine overhead.
+//! # 交叉阈值
+//! 规划器在高于 `MUL_KARATSUBA_THRESHOLD`、低于 Toom 时选 Karatsuba。
+//! 失衡或过短输入因拆分/重组开销不敌 schoolbook。
 //!
-//! # Failure modes
-//! Scratch underrun debug_assert. Recursive leaves must clear temporary out slices.
+//! # 失败模式
+//! scratch 不足时 `debug_assert`。递归叶子须清零临时 `out` 切片。
 //!
-//! # Tests
-//! `tests/exact/algorithms.rs`, `tests/runtime/kernel_parity.rs`.
+//! # 测试
+//! `tests/exact/algorithms.rs`、`tests/runtime/kernel_parity.rs`。
 
 use crate::algorithm::MUL_KARATSUBA_THRESHOLD;
 
@@ -45,15 +45,13 @@ use super::{
 };
 
 /// 递归乘法：`out` 为目标，`scratch` 为剩余工作区（顺序复用）。
-/// Recursive Karatsuba multiplication.
 ///
-/// The split identity is `(a₀+a₁)(b₀+b₁)−a₀b₀−a₁b₁ = a₀b₁+a₁b₀`.
-/// Thus three half-size products replace four. `out` must be zeroed and hold
-/// `a.len()+b.len()` limbs. Scratch is caller-owned because recursive temporary
-/// allocation would erase the asymptotic win. The crossover is deliberately
-/// above the schoolbook range: recursion adds linear-time splitting, sums,
-/// subtraction and recomposition, so it loses for short or very unbalanced
-/// operands even though its recurrence is Θ(nˡᵒᵍ²³).
+/// 拆分恒等式为 `(a₀+a₁)(b₀+b₁)−a₀b₀−a₁b₁ = a₀b₁+a₁b₀`。
+/// 故三个半尺寸乘积代替四个。`out` 须清零且容纳
+/// `a.len()+b.len()` 个 limb。scratch 由调用方持有，因递归临时
+/// 分配会抹掉渐近收益。交叉点刻意高于 schoolbook 区间：
+/// 递归增加线性时间的拆分、求和、减法与重组，故对过短或
+/// 严重失衡操作数反而更慢，尽管递推为 `Θ(n^{log₂ 3})`。
 pub(super) fn mul_rec(a: &[u64], b: &[u64], out: &mut [u64], scratch: &mut [u64]) {
     let la = effective_len(a);
     let lb = effective_len(b);

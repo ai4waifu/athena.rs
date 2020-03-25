@@ -1,4 +1,4 @@
-//! 中性集合种类（Living `27` · 禁止万能 `List` 语义）。
+//! 中性集合种类（· 禁止万能 `List` 语义）。
 
 /// 领域专用集合种类句柄（Session / registry 本地）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -30,7 +30,7 @@ pub enum CollectionKind {
 }
 
 impl CollectionKind {
-    /// 诊断 / 调试标签（非方言表面名 · Living `27`）。
+    /// 诊断 / 调试标签（非方言表面名 · ）。
     pub const fn debug_label(self) -> &'static str {
         match self {
             Self::StructuralSequence => "StructuralSequence",

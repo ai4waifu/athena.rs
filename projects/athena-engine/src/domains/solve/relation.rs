@@ -6,7 +6,7 @@ use super::policy::SolvePolicy;
 
 /// Solve 结果可产生的关系种类。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolveRelationKind {
     /// 候选满足问题（非完整性）。
@@ -59,34 +59,16 @@ pub enum SolveRelationKind {
 }
 
 impl SolveRelationKind {
-    /// Owning 复制（Living `31`）。
+    /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
-            Self::Satisfies { solution, problem } => Self::Satisfies {
-                solution: *solution,
-                problem: *problem,
-            },
-            Self::CompleteFor { solution_set, problem } => Self::CompleteFor {
-                solution_set: *solution_set,
-                problem: *problem,
-            },
-            Self::EquivalentConstraint { left, right } => Self::EquivalentConstraint {
-                left: *left,
-                right: *right,
-            },
-            Self::RootOf { polynomial, root } => Self::RootOf {
-                polynomial: *polynomial,
-                root: *root,
-            },
-            Self::UniqueSolution { problem, branch } => Self::UniqueSolution {
-                problem: *problem,
-                branch: *branch,
-            },
+            Self::Satisfies { solution, problem } => Self::Satisfies { solution: *solution, problem: *problem },
+            Self::CompleteFor { solution_set, problem } => Self::CompleteFor { solution_set: *solution_set, problem: *problem },
+            Self::EquivalentConstraint { left, right } => Self::EquivalentConstraint { left: *left, right: *right },
+            Self::RootOf { polynomial, root } => Self::RootOf { polynomial: *polynomial, root: *root },
+            Self::UniqueSolution { problem, branch } => Self::UniqueSolution { problem: *problem, branch: *branch },
             Self::NoSolution { problem } => Self::NoSolution { problem: *problem },
-            Self::LocalConvergence { root, policy_tag } => Self::LocalConvergence {
-                root: *root,
-                policy_tag: policy_tag.clone(),
-            },
+            Self::LocalConvergence { root, policy_tag } => Self::LocalConvergence { root: *root, policy_tag: policy_tag.clone() },
         }
     }
 

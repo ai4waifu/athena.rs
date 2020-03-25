@@ -1,4 +1,4 @@
-//! Living `13`：`foreign::mpn_oracle` 与 portable 生产路径差分（不进 `KernelTable`）。
+//! `foreign::mpn_oracle` 与 portable 生产路径差分（不进 `KernelTable`）。
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{ExecutionBudget, NumericContext, foreign::mpn_oracle, natural::Natural};

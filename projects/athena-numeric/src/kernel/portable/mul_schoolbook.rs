@@ -1,38 +1,38 @@
-//! # Purpose
-//! Schoolbook (basecase) multiplication and fused single-limb mul-add/sub.
+//! # 用途
+//! Schoolbook（基案）乘法与融合单 limb 乘加/乘减。
 //!
-//! # Mathematical model
-//! For little-endian limb vectors of radix $\beta=2^{64}$, the product is the
-//! double loop $c_{i+j} += a_i b_j$ with carry propagation via mac.
+//! # 数学模型
+//! 对基数 `β=2⁶⁴` 的小端 limb 向量，乘积为双重循环
+//! `c_{i+j} += aᵢ bⱼ`，经 `mac` 传播进位。
 //!
-//! # Derivation
-//! Direct expansion of ($\sum a_i \beta^i$)($\sum b_j \beta^j$). Squaring
-//! reuses $a_i a_j$ for $i \neq j$ (add twice) and $a_i^2$ on the diagonal.
+//! # 推导
+//! 直接展开 `(∑ aᵢ βⁱ)(∑ bⱼ βʲ)`。平方对 `i ≠ j` 复用
+//! `aᵢ aⱼ`（加两次），对角用 `aᵢ²`。
 //!
-//! # Algorithm steps
-//! 1. Zero out[0..la+lb].
-//! 2. For each $a_i$, accumulate $a_i \cdot b$ into out[i..].
-//! 3. Square path: nested $i \le j$ with double-add off-diagonal.
+//! # 算法步骤
+//! 1. 清零 `out[0..la+lb]`。
+//! 2. 对每个 `aᵢ`，将 `aᵢ · b` 累加到 `out[i..]`。
+//! 3. 平方路径：嵌套 `i ≤ j`，非对角双加。
 //!
-//! # Preconditions
-//! - out.len() >= la + lb (or 2*la for square).
-//! - Operands are canonical magnitudes (no required leading-zero free beyond effective_len).
-//! - No aliasing between out and inputs for schoolbook mul.
+//! # 前置条件
+//! - `out.len() >= la + lb`（平方为 `2*la`）。
+//! - 操作数为规范量级（除 `effective_len` 外不强制无前导零）。
+//! - schoolbook 乘中 `out` 与输入不别名。
 //!
-//! # Postconditions
-//! - out holds the product; high limbs may be zero until caller trims.
+//! # 后置条件
+//! - `out` 持有乘积；高位 limb 可能为零，直至调用方 trim。
 //!
-//! # Complexity
-//! Time $\Theta(la \cdot lb)$. Space $O(1)$ beyond out.
+//! # 复杂度
+//! 时间 `Θ(la · lb)`。除 `out` 外空间 `O(1)`。
 //!
-//! # Crossover
-//! Default path below Karatsuba/Toom thresholds (AlgorithmPlanner).
+//! # 交叉阈值
+//! 低于 Karatsuba/Toom 阈值时的默认路径（`AlgorithmPlanner`）。
 //!
-//! # Failure modes
-//! Undersized out is a debug assertion. Budget checks happen in glue, not here.
+//! # 失败模式
+//! `out` 过小为 debug 断言。预算检查在 glue，不在此处。
 //!
-//! # Tests
-//! tests/exact/limbs.rs, tests/exact/algorithms.rs, tests/runtime/kernel_parity.rs.
+//! # 测试
+//! `tests/exact/limbs.rs`、`tests/exact/algorithms.rs`、`tests/runtime/kernel_parity.rs`。
 
 use super::primitive::{effective_len, is_zero, mac, mul_wide, sbb};
 
@@ -52,7 +52,7 @@ pub(crate) fn mul_schoolbook_into(a: &[u64], b: &[u64], out: &mut [u64]) {
     }
 }
 
-/// Soft schoolbook（无 ISA）；`PortableLimbKernel` schoolbook 槽位用此保 parity 基线。
+/// 软 schoolbook（无 ISA）；`PortableLimbKernel` 的 schoolbook 槽位用此保 parity 基线。
 pub(crate) fn mul_schoolbook_into_soft(a: &[u64], b: &[u64], out: &mut [u64]) {
     let la = effective_len(a);
     let lb = effective_len(b);
@@ -151,7 +151,7 @@ pub(crate) fn addmul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     }
 }
 
-/// Soft `addmul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
+/// 软 `addmul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
 pub(crate) fn addmul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> u64 {
     if n == 0 || is_zero(a) {
         return 0;
@@ -190,7 +190,7 @@ pub(crate) fn submul_1_inplace(r: &mut [u64], a: &[u64], n: u64) -> bool {
     }
 }
 
-/// Soft `submul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
+/// 软 `submul_1`（无 ISA）；portable Knuth 用此保 parity 基线。
 pub(crate) fn submul_1_inplace_soft(r: &mut [u64], a: &[u64], n: u64) -> bool {
     if n == 0 || is_zero(a) {
         return false;

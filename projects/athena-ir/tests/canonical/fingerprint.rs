@@ -58,7 +58,7 @@ fn canonical_hash_named_extension_registry_order_independent() {
     let t_b = b_b.application(ApplicationHead::Extension(plus_b), vec![one_b, two_b], SPAN);
 
     assert_eq!(canonical_hash_named(&arena_a, &reg_a, t_a), canonical_hash_named(&arena_b, &reg_b, t_b));
-    // Without registry, extension ids differ across registries → hash differs.
+    // 无 registry 时，跨 registry 的扩展 id 不同 → hash 不同。
     assert_ne!(canonical_hash(&arena_a, t_a), canonical_hash(&arena_b, t_b));
 }
 
@@ -104,7 +104,7 @@ fn number_fingerprint_uses_stable_domain_tag_not_debug() {
             assert_eq!(ni.fingerprint_domain_tag(), 1);
             assert_eq!(nr.fingerprint_domain_tag(), 2);
             assert_ne!(ni.fingerprint_content_hash(), nr.fingerprint_content_hash());
-            // Content hash must not depend on decimal render text alone.
+            // 内容 hash 不得仅依赖十进制渲染文本。
             assert_eq!(
                 ni.fingerprint_content_hash(),
                 athena_numeric::Number::Integer(athena_numeric::Integer::from_i64(2)).fingerprint_content_hash()

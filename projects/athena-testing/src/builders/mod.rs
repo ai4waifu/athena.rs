@@ -1,4 +1,4 @@
-//! Typed builders for terms and domain goals.
+//! term 与领域目标的类型化构造器。
 
 mod domain;
 mod fixture;

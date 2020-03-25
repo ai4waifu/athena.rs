@@ -1,7 +1,7 @@
 //! `athena-bench` — Athena 内核合同 / 资源 runner（**不计时**）。
 //!
 //! 性能 ns/op 请用 Criterion：
-//! `cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint`
+//! 运行：`cargo bench -p athena-benchmark --features compare-bigint --bench compare_bigint`
 
 use std::{path::PathBuf, process::ExitCode};
 

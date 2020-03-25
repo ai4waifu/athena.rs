@@ -1,5 +1,12 @@
-use super::super::*;
-use crate::{execution::reference::ReferenceExecutor, runtime::session::Session};
+use athena_engine::{
+    Session,
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
+    execution::{
+        compiler::ExecutionCompiler,
+        ir::{CapturedRoot, EffectKind, OperationKind},
+        reference::ReferenceExecutor,
+    },
+};
 use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::ComputationStatus;
 
@@ -24,7 +31,7 @@ fn compile_and_execute_boolean_branch() {
 
 #[test]
 fn compile_and_execute_define_write_binding() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -48,7 +55,7 @@ fn compile_and_execute_define_write_binding() {
 
 #[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -84,7 +91,7 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
 
 #[test]
 fn compile_and_execute_define_then_read_binding() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -112,7 +119,7 @@ fn compile_and_execute_define_then_read_binding() {
 
 #[test]
 fn compile_and_execute_sequence_define_read_clear() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -138,7 +145,7 @@ fn compile_and_execute_sequence_define_read_clear() {
     assert_eq!(module.regions[0].blocks.len(), 3);
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
-    // Last step clears; result is Unit → Null term.
+    // 最后一步清除；结果为 Unit → Null 项。
     match session.arena.get(loaded.symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Null)) => {}
         other => panic!("expected Null after clear, got {other:?}"),
@@ -261,7 +268,7 @@ fn compile_and_execute_term_loop_while_zero() {
 
 #[test]
 fn compile_and_execute_goal_call_provider_dispatches_domain() {
-    use crate::{
+    use athena_engine::{
         api::request::DomainGoal,
         domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
         execution::execute_ir_request,
@@ -280,11 +287,13 @@ fn compile_and_execute_goal_call_provider_dispatches_domain() {
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::PublishResult)));
     let result_id = execute_ir_request(&mut session, request).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.coverage, crate::runtime::results::CoverageStatus::Full);
+    assert_eq!(loaded.coverage, athena_engine::runtime::results::CoverageStatus::Full);
     let value_id = loaded.value.expect("value");
     match session.values.get(value_id).expect("runtime") {
-        RuntimeValue::Domain(crate::domains::dispatch::DomainResult::NumberTheory(
-            crate::domains::number_theory::NumberTheoryResult::Exact { value: crate::domains::number_theory::NumberTheoryValue::Integer(n) },
+        RuntimeValue::Domain(athena_engine::domains::dispatch::DomainResult::NumberTheory(
+            athena_engine::domains::number_theory::NumberTheoryResult::Exact {
+                value: athena_engine::domains::number_theory::NumberTheoryValue::Integer(n),
+            },
         )) => assert_eq!(n, &Integer::from_i64(4)),
         other => panic!("expected NumberTheory Exact Integer gcd, got {other:?}"),
     }
@@ -292,7 +301,7 @@ fn compile_and_execute_goal_call_provider_dispatches_domain() {
 
 #[test]
 fn call_provider_without_domain_stays_unsupported() {
-    use crate::{
+    use athena_engine::{
         api::request::DomainGoal,
         domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
     };
@@ -306,7 +315,7 @@ fn call_provider_without_domain_stays_unsupported() {
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("goal");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.coverage, crate::runtime::results::CoverageStatus::Unsupported);
+    assert_eq!(loaded.coverage, athena_engine::runtime::results::CoverageStatus::Unsupported);
     assert!(!loaded.diagnostics.is_empty());
 }
 
@@ -389,7 +398,7 @@ fn compile_and_execute_local_scope_body() {
 
 #[test]
 fn compile_and_execute_local_scope_shadows_session() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -419,7 +428,7 @@ fn compile_and_execute_local_scope_shadows_session() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(local));
-    // Session Own unchanged after local scope exits.
+    // 局部作用域退出后 Session Own 不变。
     assert_eq!(session.defs.binding(symbol), Some(global));
 }
 
@@ -511,7 +520,7 @@ fn compile_and_execute_cond_picks_true_arm() {
 
 #[test]
 fn compile_and_execute_define_in_sequence() {
-    use crate::api::request::SessionCommand;
+    use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
 
     let mut session = Session::new();
@@ -580,7 +589,7 @@ fn compile_and_execute_sameq_and_trueq() {
     let true_q = ApplicationHead::Semantic(SemanticOperator::TrueQ);
     let same_term = session.builder().application(same, vec![t, f], Default::default());
     let term = session.builder().application(true_q, vec![same_term], Default::default());
-    // TrueQ[SameQ[True,False]] == TrueQ[False] == False
+    // `TrueQ[SameQ[True,False]]` == `TrueQ[False]` == `False`
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sameq");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");

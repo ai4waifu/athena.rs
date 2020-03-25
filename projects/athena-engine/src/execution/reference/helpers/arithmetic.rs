@@ -1,4 +1,4 @@
-//! Symbolic arithmetic folding helpers.
+//! 符号算术折叠辅助。
 
 use athena_numeric::{Number, add as num_add, mul as num_mul, pow as num_pow};
 use athena_types::TermId;
@@ -18,7 +18,7 @@ fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
 }
 
 pub(crate) fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
-    // Flatten one level of nested `Plus` and coalesce numeric summands.
+    // 展平一层嵌套 `Plus` 并合并数值加项。
     let mut flat = Vec::with_capacity(terms.len());
     let mut sum: Option<Number> = None;
     for term in terms {
@@ -57,7 +57,7 @@ pub(crate) fn push_plus_summand_session(session: &mut Session, term: TermId, fla
     }
 }
 
-/// Merge `c1·k + c2·k` (bare `k` as coefficient 1).
+/// 合并 `c1·k + c2·k`（裸 `k` 视作系数 1）。
 pub(crate) fn combine_like_plus_session(session: &mut Session, terms: Vec<TermId>) -> Vec<TermId> {
     let mut groups: Vec<(TermId, Number)> = Vec::new();
     for t in terms {
@@ -129,7 +129,7 @@ pub(crate) fn groups_to_plus_terms_session(session: &mut Session, groups: Vec<(T
 }
 
 pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
-    // Flatten one level of nested `Times`.
+    // 展平一层嵌套 `Times`。
     let mut flat = Vec::with_capacity(terms.len());
     for term in terms {
         match session.arena.get(term) {
@@ -151,7 +151,7 @@ pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     }
     let out = combine_like_powers_session(session, out);
     let out = canonicalize_times_factors_session(session, out);
-    // One-level distribute: `c * (a + b) → c*a + c*b`.
+    // 一层分配律：`c * (a + b) → c*a + c*b`。
     if let Some(idx) = out.iter().position(|t| {
         matches!(
             session.arena.get(*t),
@@ -207,7 +207,7 @@ pub(crate) fn canonicalize_times_factors_session(session: &mut Session, factors:
     out
 }
 
-/// Merge `Power[b,e1] * Power[b,e2]` (bare symbol as `Power[b,1]`).
+/// 合并 `Power[b,e1] * Power[b,e2]`（裸符号视作 `Power[b,1]`）。
 pub(crate) fn combine_like_powers_session(session: &mut Session, factors: Vec<TermId>) -> Vec<TermId> {
     let mut groups: Vec<(TermId, TermId)> = Vec::new();
     let mut rest = Vec::new();
@@ -287,7 +287,7 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     let (base, exp) = (terms[0], terms[1]);
     if let Some(e) = number_of(session, exp) {
         if e.is_zero() {
-            // Scalar `x^0 → 1`; list bases stay residual (elementwise is `DotPower`).
+            // 标量 `x^0 → 1`；列表底数保持残差（逐元用 `DotPower`）。
             if matches!(session.arena.get(base), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
                 return push_semantic(session, SemanticOperator::Power, terms);
             }
@@ -296,7 +296,7 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
         if e.is_one() {
             return base;
         }
-        // `(u^a)^b → u^(a*b)` and `(c*u)^n → c^n * u^n` when exponents are integers.
+        // 指数为整数时：`(u^a)^b → u^(a*b)`，以及 `(c*u)^n → c^n * u^n`。
         if e.as_integer_exp().is_some() {
             if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(base) {
                 let head = *head;

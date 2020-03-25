@@ -74,7 +74,7 @@ pub mod predicates {
 pub struct ObjectRef {
     /// 理论上下文。
     pub theory: TheoryContextId,
-    /// Canonical fingerprint。
+    /// 规范指纹。
     pub fingerprint: u64,
 }
 

@@ -86,7 +86,7 @@ impl MagnitudePair {
 
     /// 由小端 limbs 构造，分配到指定 heap。
     ///
-    /// trim 后 ≤ 2 limb 不分配；更长幅度经 `PublishedNumericBlock` + root 发布（Living `31`）。
+    /// trim 后 ≤ 2 limb 不分配；更长幅度经 `PublishedNumericBlock` + root 发布。
     pub(crate) fn from_limbs_in(heap: &Rc<RefCell<GcHeap>>, limbs: &[u64]) -> athena_gc::Result<Self> {
         let el = effective_len(limbs);
         match el {
@@ -109,9 +109,11 @@ impl MagnitudePair {
         }
     }
 
-    /// 接管临时 ExplicitRelease heap 缓冲（仅 ephemeral / `Temporary*`；禁止构造持久 `Natural`）。
+    /// 接管临时 ExplicitRelease heap 缓冲。
     ///
-    /// Living `31`：`Natural` 发布路径不得调用本函数。
+    /// **仅** `TemporaryNatural` / ephemeral（见 `value::ephemeral`）。
+    /// 禁止任何路径经本函数构造持久 `Natural` / `Integer` / `Rational`。
+    /// 持久值只经 [`Self::from_rooted_heap`] 或 inline。
     pub(crate) fn from_owned_heap(buf: OwnedLimbBuffer, len: usize) -> Self {
         debug_assert!(len >= 3);
         debug_assert!(len <= buf.capacity());
@@ -231,7 +233,7 @@ impl MagnitudePair {
         !self.is_zero() && is_negative(self.meta)
     }
 
-    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`：Heap 禁止隐式 Clone）。
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Heap 禁止隐式 Clone）。
     #[inline]
     pub(crate) fn clone_inline(&self) -> Option<Self> {
         match try_mode_of(self.meta).ok()? {
@@ -249,7 +251,7 @@ impl MagnitudePair {
         }
     }
 
-    /// 可失败清除 sign 位的 owning 复制（Living `19`）。
+    /// 可失败清除 sign 位的 owning 复制。
     #[inline]
     pub(crate) fn try_clone_clear_sign(&self) -> athena_gc::Result<Self> {
         let mut out = self.try_clone()?;
@@ -274,7 +276,7 @@ impl MagnitudePair {
 
     /// 一次分派后的只读 limb 视图（零 → `[0]`）。
     ///
-    /// Living `19`：经 [`decode_magnitude`]；损坏 / reserved meta 回退为 `[0]`，禁止越界 `from_raw_parts`。
+    /// 经 [`decode_magnitude`]；损坏 / reserved meta 回退为 `[0]`，禁止越界 `from_raw_parts`。
     #[inline]
     pub(crate) fn as_limbs(&self) -> &[u64] {
         match self.try_as_limbs() {
@@ -286,13 +288,13 @@ impl MagnitudePair {
         }
     }
 
-    /// Checked limb 视图（Living `19` `decode_magnitude`）。
+    /// Checked limb 视图（`decode_magnitude`）。
     #[inline]
     pub(crate) fn try_as_limbs(&self) -> Result<&[u64], athena_types::Diagnostic> {
         Ok(super::decode_magnitude(self.meta, &self.magnitude)?.limbs())
     }
 
-    /// 可失败 owning 深复制（Living `31`）。
+    /// 可失败 owning 深复制。
     ///
     /// - Limb1 / Limb2：栈拷贝（无分配、无 root）。
     /// - Heap：目标堆上新 `PublishedNumericBlock` + root（**不** adopt 源 root）。
@@ -331,7 +333,7 @@ impl MagnitudePair {
 
     /// 同堆深复制（无显式目标 heap 时：Heap 落在源 `heap_id`）。
     ///
-    /// Living `31`：Heap 结果仍为 `PublishedNumericBlock`。优先 [`Self::try_clone_on`]。
+    /// Heap 结果仍为 `PublishedNumericBlock`。优先 [`Self::try_clone_on`]。
     pub(crate) fn try_clone(&self) -> athena_gc::Result<Self> {
         match try_mode_of(self.meta).map_err(|_| athena_gc::GcError::UnknownAllocation)? {
             Mode::Limb1 => {
@@ -393,27 +395,7 @@ impl MagnitudePair {
         tagged
     }
 
-    /// 尝试接管 Heap buffer 供 destination reuse；仅 [`athena_gc::ReclaimAuthority::ExplicitRelease`] 时成功。
-    ///
-    /// Living `24`/`31`：临时块路径。持久 TracingSweep 请用 [`Self::try_reuse_unique_published`]。
-    pub(crate) fn try_reuse_unique_buffer(&mut self) -> Option<OwnedLimbBuffer> {
-        if !matches!(self.mode(), Mode::Heap) || heap_is_rooted(self.meta) {
-            return None;
-        }
-        // SAFETY: Heap mode → heap active。
-        let payload = unsafe { self.magnitude.heap };
-        let heap_id = heap_id_for_limbs(payload.ptr);
-        match GcHeap::may_explicit_release_numeric_registered(heap_id, payload.ptr) {
-            Ok(true) => {
-                self.meta = encode_zero_meta();
-                self.magnitude = Magnitude { limb1: 0 };
-                Some(OwnedLimbBuffer::from_payload(payload))
-            }
-            _ => None,
-        }
-    }
-
-    /// 尝试接管唯一 rooted 持久块供原地写入（Living `31`：不改变 ReclaimAuthority）。
+    /// 尝试接管唯一 rooted 持久块供原地写入（不改变 ReclaimAuthority）。
     ///
     /// 条件：Heap · rooted · `numeric_root_count == 1` · TracingSweep。
     pub(crate) fn try_reuse_unique_published(&mut self) -> Option<RootedLimbBuffer> {
@@ -423,10 +405,7 @@ impl MagnitudePair {
         // SAFETY: Heap mode → heap active。
         let payload = unsafe { self.magnitude.heap };
         let heap_id = heap_id_for_limbs(payload.ptr);
-        match (
-            GcHeap::may_root_numeric_registered(heap_id, payload.ptr),
-            GcHeap::numeric_root_count_registered(heap_id, payload.ptr),
-        ) {
+        match (GcHeap::may_root_numeric_registered(heap_id, payload.ptr), GcHeap::numeric_root_count_registered(heap_id, payload.ptr)) {
             (Ok(true), Ok(1)) => {
                 self.meta = encode_zero_meta();
                 self.magnitude = Magnitude { limb1: 0 };
@@ -485,7 +464,7 @@ impl Drop for MagnitudePair {
         let payload = unsafe { self.magnitude.heap };
         self.meta = encode_zero_meta();
         self.magnitude = Magnitude { limb1: 0 };
-        // Living `24`：按构造时写入的 meta 责任分流，不对 GC header 猜类别。
+        // 按构造时写入的 meta 责任分流，不对 GC header 猜类别。
         if rooted {
             RootedLimbBuffer::dealloc_heap(payload);
         }

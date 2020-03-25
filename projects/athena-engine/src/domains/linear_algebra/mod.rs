@@ -17,7 +17,7 @@ mod request;
 mod result;
 mod shape;
 mod status;
-mod value;
+pub mod value;
 
 pub use equality::{MatrixEqualityKind, matrices_equal};
 pub use exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact};

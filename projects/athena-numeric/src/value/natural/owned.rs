@@ -6,53 +6,41 @@ use super::Natural;
 use crate::{
     kernel::limb as limb_kernel,
     policy::execution_budget::NumericContext,
-    storage::{MagnitudePair, Mode, OwnedLimbBuffer, RootedLimbBuffer},
+    storage::{MagnitudePair, Mode, RootedLimbBuffer},
 };
 
-/// Living `31`：唯一可变 destination 能力令牌（不是数值类型）。
+/// 唯一可变 destination 能力令牌（不是数值类型）。
 ///
-/// Published 路径经 [`MagnitudePair::try_reuse_unique_published`] 取得，
+/// 仅经 [`MagnitudePair::try_reuse_unique_published`] 取得，
 /// **不**改变 `ReclaimAuthority`（仍为 TracingSweep）。
+///
+/// 持久 `Natural` 路径禁止 `OwnedLimbBuffer` / `Temporary` 分支：
+/// reuse 失败则回退非 owning API，不经 ExplicitRelease 中转。
 ///
 /// 当前仅供 `Natural` destination-reuse 入口消费；对外数值 API 仍是
 /// [`Natural::try_add_owned`] 等，不直接暴露构造。
-pub(crate) enum UniqueMutationGuard {
-    Published(RootedLimbBuffer),
-    Temporary(OwnedLimbBuffer),
-}
+pub(crate) struct UniqueMutationGuard(RootedLimbBuffer);
 
 impl UniqueMutationGuard {
     fn take(inner: &mut MagnitudePair) -> Option<Self> {
-        if let Some(buf) = inner.try_reuse_unique_published() {
-            return Some(Self::Published(buf));
-        }
-        inner.try_reuse_unique_buffer().map(Self::Temporary)
+        inner.try_reuse_unique_published().map(Self)
     }
 
     fn as_mut_slice(&mut self, len: usize) -> &mut [u64] {
-        match self {
-            Self::Published(buf) => buf.as_mut_slice(len),
-            Self::Temporary(buf) => buf.as_mut_slice(len),
-        }
+        self.0.as_mut_slice(len)
     }
 
     fn as_slice(&self, len: usize) -> &[u64] {
-        match self {
-            Self::Published(buf) => buf.as_slice(len),
-            Self::Temporary(buf) => buf.as_slice(len),
-        }
+        self.0.as_slice(len)
     }
 
-    fn finish(self, el: usize) -> Result<Natural> {
-        match self {
-            Self::Published(buf) => Ok(Natural::finish_rooted_limbs(buf, el)),
-            Self::Temporary(buf) => Natural::finish_owned_limbs(buf, el),
-        }
+    fn finish(self, el: usize) -> Natural {
+        Natural::finish_rooted_limbs(self.0, el)
     }
 }
 
 impl Natural {
-    /// 消费 `self` 的加法：Heap 且容量足够时就地复用（优先唯一 published 块）。
+    /// 消费 `self` 的加法：Heap 且容量足够时就地复用（唯一 published 块）。
     ///
     /// 容量不足、非 Heap 或不唯一时回退 [`Self::try_add`]。
     pub fn try_add_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
@@ -114,7 +102,7 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[n] != 0 { n + 1 } else { limb_kernel::effective_len(&storage[..n]) }
         };
-        Ok(buf.finish(el)?)
+        Ok(buf.finish(el))
     }
 
     /// 消费 `self` 的 `× u64`：Heap 且 `capacity >= len+1` 时就地 `mul_1`。
@@ -155,7 +143,7 @@ impl Natural {
             let storage = buf.as_slice(need);
             if storage[la] != 0 { la + 1 } else { la }
         };
-        Ok(buf.finish(el)?)
+        Ok(buf.finish(el))
     }
 
     /// 消费 `self` 的减法：Heap 且容量足够时就地 SBB（要求 `self >= rhs`）。
@@ -208,7 +196,7 @@ impl Natural {
             debug_assert_eq!(borrow, 0);
         }
         let el = limb_kernel::effective_len(buf.as_slice(n.max(1))).max(1);
-        Ok(buf.finish(el)?)
+        Ok(buf.finish(el))
     }
 
     /// 消费 `self` 的乘法：仅 Schoolbook 且 Heap 容量 ≥ `la+lb` 时就地复用。
@@ -262,6 +250,6 @@ impl Natural {
             limb_kernel::mul_schoolbook_into(&lhs_snap, &rb[..lb], storage);
         }
         let el = limb_kernel::effective_len(buf.as_slice(need)).max(1);
-        Ok(buf.finish(el)?)
+        Ok(buf.finish(el))
     }
 }

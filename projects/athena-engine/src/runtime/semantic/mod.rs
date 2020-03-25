@@ -1,4 +1,4 @@
-//! 语义身份与假设作用域表（Living `25` / `26`）。
+//! 语义身份与假设作用域表。
 //!
 //! - [`crate::runtime::values::ValueStore`]：`ValueId` → [`crate::runtime::values::RuntimeValue`]
 //! - [`crate::runtime::results::ResultStore`]：`ResultId` → [`crate::runtime::results::ComputationResult`]

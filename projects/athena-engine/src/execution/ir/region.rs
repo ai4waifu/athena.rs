@@ -1,4 +1,4 @@
-//! Regions group basic blocks that share a control-flow graph.
+//! Region 将共享控制流图的基本块归为一组。
 
 use super::{
     block::BasicBlock,
@@ -6,21 +6,21 @@ use super::{
     types::ExecutionValueType,
 };
 
-/// One region inside an [`super::ExecutionModule`].
+/// [`super::ExecutionModule`] 内的一个 region。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Region {
-    /// Region identity.
+    /// Region 标识。
     pub id: RegionId,
-    /// Entry block.
+    /// 入口基本块。
     pub entry: BlockId,
-    /// Blocks owned by this region.
+    /// 本 region 拥有的基本块。
     pub blocks: Vec<BasicBlock>,
-    /// Values returned by successful region completion.
+    /// Region 成功完成时返回的值类型。
     pub result_types: Vec<ExecutionValueType>,
 }
 
 impl Region {
-    /// Single-block region.
+    /// 单基本块 region。
     pub fn from_entry_block(id: RegionId, block: BasicBlock, result_types: Vec<ExecutionValueType>) -> Self {
         let entry = block.id;
         Self { id, entry, blocks: vec![block], result_types }

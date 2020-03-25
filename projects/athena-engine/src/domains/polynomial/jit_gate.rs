@@ -6,7 +6,7 @@ use super::{object::Polynomial, operations::mul_polynomial, ring_table::RingTabl
 
 /// Parity 检查结果。
 ///
-/// Living `31`：**不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub enum JitParityOutcome {
     /// 未启用 JIT feature。
@@ -23,15 +23,13 @@ pub enum JitParityOutcome {
 }
 
 impl JitParityOutcome {
-    /// Owning 复制（Living `31`：`Mismatch` 持有 `String`）。
+    /// Owning 复制（`Mismatch` 持有 `String`）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::EagerOnly => Self::EagerOnly,
             Self::JitUnavailable => Self::JitUnavailable,
             Self::Matched => Self::Matched,
-            Self::Mismatch { detail } => Self::Mismatch {
-                detail: detail.clone(),
-            },
+            Self::Mismatch { detail } => Self::Mismatch { detail: detail.clone() },
         }
     }
 }

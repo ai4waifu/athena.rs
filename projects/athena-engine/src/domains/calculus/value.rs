@@ -19,7 +19,7 @@ use super::{
 pub enum CalculusValue {
     /// 普通表达式。
     Expression(TermId),
-    /// 独立级数 DomainObject（Living `28` · `SeriesRef`）。
+    /// 独立级数 DomainObject（· `SeriesRef`）。
     Series(SeriesRef),
     /// 梯度对象（非裸列表）。
     Gradient(Gradient),
@@ -100,17 +100,13 @@ impl From<TransformResult> for CalculusValue {
 }
 
 impl CalculusValue {
-    /// 展平为单一表达式桥接项（Living `25`：仅余微积分内桥接用）。
+    /// 展平为单一表达式桥接项（仅余微积分内桥接用）。
     pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
         match self {
             Self::Expression(t) => *t,
             Self::Series(r) => {
-                let series = cc
-                    .session()
-                    .series_objects
-                    .get(*r)
-                    .map(Series::owning_copy)
-                    .expect("SeriesRef must resolve in Session::series_objects");
+                let series =
+                    cc.session().series_objects.get(*r).map(Series::owning_copy).expect("SeriesRef must resolve in Session::series_objects");
                 series.to_term(cc)
             }
             Self::Gradient(g) => g.materialize_list_expression(cc),

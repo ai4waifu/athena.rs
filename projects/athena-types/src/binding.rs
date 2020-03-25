@@ -1,4 +1,4 @@
-//! 中性绑定与求值策略（Living `27`）。
+//! 中性绑定与求值策略。
 
 /// 绑定存放类别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

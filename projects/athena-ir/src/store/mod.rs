@@ -20,7 +20,7 @@ pub struct TermStore {
     nodes: Vec<TermNode>,
     spans: Vec<SourceSpan>,
     symbols: SymbolTable,
-    /// Structure hash → candidate ids (collision checked via [`PartialEq`]).
+    /// 结构 hash → 候选 id（经 [`PartialEq`] 校验冲突）。
     by_hash: HashMap<u64, Vec<TermId>>,
 }
 
@@ -42,8 +42,8 @@ impl TermStore {
 
     /// 分配或复用 term 节点（结构 hash-cons），返回稳定 [`TermId`]。
     ///
-    /// Identical structure and payloads share one id. The first inserted
-    /// [`SourceSpan`] is retained on hit.
+    /// 相同结构与载荷共享同一 id。命中时保留首次插入的
+    /// [`SourceSpan`]。
     pub fn push(&mut self, kind: TermNode, span: SourceSpan) -> TermId {
         let hash = structure_hash(&kind);
         if let Some(ids) = self.by_hash.get(&hash) {

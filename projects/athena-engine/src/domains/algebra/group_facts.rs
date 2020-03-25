@@ -31,7 +31,6 @@ impl GroupPropertyFacts {
     }
 }
 
-
 pub(crate) fn owning_copy_integer_property(state: &PropertyState<Integer>) -> PropertyState<Integer> {
     state.owning_copy_with(clone_integer)
 }

@@ -1,30 +1,30 @@
-//! Schedule Reflector wakes and frontier resume (Living `29` · bootstrap).
+//! 调度 Reflector 唤醒与 frontier 续跑（· bootstrap）。
 
 use crate::reasoning::mgraph::{
     core::state::MGraphState,
     obligation::{ProofObligation, QueuedPlan, Reflection, ReflectorWake, SemanticReflector},
 };
 
-/// Counts from applying Reflector outcomes to operational queues.
+/// 将 Reflector 结果写入运行态队列后的计数。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ReflectorScheduleReport {
-    /// Wakes that resolved to [`Reflection::AlreadyKnown`].
+    /// 解析为 [`Reflection::AlreadyKnown`] 的唤醒数。
     pub already_known: u32,
-    /// Plans queued for domain execution.
+    /// 已入队等待域执行的计划数。
     pub need_computation: u32,
-    /// Nested obligations re-registered in the obligation index.
+    /// 重新登记进义务索引的嵌套义务数。
     pub need_relation: u32,
-    /// Object gaps (counted; not queued in bootstrap).
+    /// 对象缺口（仅计数；bootstrap 不入队）。
     pub need_object: u32,
-    /// Conversion gaps (counted; not queued in bootstrap).
+    /// 换算缺口（仅计数；bootstrap 不入队）。
     pub need_conversion: u32,
-    /// Obligations pushed to the resume queue for later re-reflect.
+    /// 推入续跑队列、稍后再次反射的义务数。
     pub inconclusive_resumed: u32,
 }
 
-/// Apply Reflector outcomes for a batch of wakes into operational queues.
+/// 对一批唤醒应用 Reflector 结果并写入运行态队列。
 ///
-/// Does **not** admit facts and does **not** call `execute_domain`.
+/// **不**接纳事实，也 **不**调用 `execute_domain`。
 pub fn schedule_reflector_wakes(
     state: &mut MGraphState,
     wakes: &[ReflectorWake],
@@ -37,7 +37,7 @@ pub fn schedule_reflector_wakes(
     apply_reflections(state, wakes.iter().map(|w| &w.obligation), outcomes)
 }
 
-/// Re-reflect obligations drained from the resume queue (frontier resume).
+/// 从续跑队列取出义务并再次反射（frontier resume）。
 pub fn resume_reflector_frontier(state: &mut MGraphState, reflector: &dyn SemanticReflector) -> ReflectorScheduleReport {
     let pending = std::mem::take(&mut state.operational.resume_queue);
     let outcomes: Vec<Reflection> = {
@@ -59,7 +59,7 @@ fn apply_reflections<'a>(
                 report.already_known = report.already_known.saturating_add(1);
             }
             Reflection::NeedComputation { plan } => {
-                // Wake path has no DomainRequest yet — fingerprint binds at execute time.
+                // 唤醒路径尚无 DomainRequest — 指纹在执行时再绑定。
                 state.operational.pending_plans.push(QueuedPlan::unbound(plan, obligation.owning_copy()));
                 report.need_computation = report.need_computation.saturating_add(1);
             }
@@ -80,81 +80,4 @@ fn apply_reflections<'a>(
         }
     }
     report
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        domains::planner::{DomainPlan, PlanStep},
-        reasoning::mgraph::{FactId, MGraphCore, MGraphView, PredicateId, ProofObligation, ReflectorWake, ScopeRef, SemanticReflector},
-    };
-
-    struct AlwaysKnown;
-
-    impl SemanticReflector for AlwaysKnown {
-        fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            Reflection::AlreadyKnown { relation: FactId(0) }
-        }
-    }
-
-    struct AlwaysInconclusive;
-
-    impl SemanticReflector for AlwaysInconclusive {
-        fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            Reflection::Inconclusive
-        }
-    }
-
-    struct AlwaysCompute;
-
-    impl SemanticReflector for AlwaysCompute {
-        fn reflect(&self, _obligation: &ProofObligation, _view: &MGraphView<'_>) -> Reflection {
-            Reflection::NeedComputation { plan: DomainPlan { steps: vec![PlanStep::CallDomainProvider] } }
-        }
-    }
-
-    fn sample_wake() -> ReflectorWake {
-        ReflectorWake {
-            obligation: ProofObligation { predicate: PredicateId(1), scope: ScopeRef::UNCONDITIONAL, known_objects: vec![] },
-            relation: FactId(0),
-        }
-    }
-
-    #[test]
-    fn schedule_already_known_counts() {
-        let mut state = MGraphState::new();
-        let report = schedule_reflector_wakes(&mut state, &[sample_wake()], &AlwaysKnown);
-        assert_eq!(report.already_known, 1);
-        assert!(state.operational.pending_plans.is_empty());
-        assert!(state.operational.resume_queue.is_empty());
-        let _ = MGraphCore::new();
-    }
-
-    #[test]
-    fn schedule_need_computation_queues_plan() {
-        let mut state = MGraphState::new();
-        let report = schedule_reflector_wakes(&mut state, &[sample_wake()], &AlwaysCompute);
-        assert_eq!(report.need_computation, 1);
-        assert_eq!(state.operational.pending_plans.len(), 1);
-        assert_eq!(state.operational.pending_plans[0].obligation.predicate, PredicateId(1));
-    }
-
-    #[test]
-    fn resume_frontier_requeues_inconclusive() {
-        let mut state = MGraphState::new();
-        state.operational.resume_queue.push(sample_wake().obligation);
-        let report = resume_reflector_frontier(&mut state, &AlwaysInconclusive);
-        assert_eq!(report.inconclusive_resumed, 1);
-        assert_eq!(state.operational.resume_queue.len(), 1);
-    }
-
-    #[test]
-    fn resume_frontier_clears_when_known() {
-        let mut state = MGraphState::new();
-        state.operational.resume_queue.push(sample_wake().obligation);
-        let report = resume_reflector_frontier(&mut state, &AlwaysKnown);
-        assert_eq!(report.already_known, 1);
-        assert!(state.operational.resume_queue.is_empty());
-    }
 }

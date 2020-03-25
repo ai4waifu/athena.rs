@@ -74,7 +74,7 @@ impl ExactNumber {
 /// 非精确实数存储（当前仅机器浮点）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RealNumber {
-    /// IEEE 754 binary64。
+    /// IEEE 754 binary64 浮点。
     Machine(f64),
 }
 

@@ -1,4 +1,4 @@
-//! Basic blocks with explicit block arguments (no implicit stack parameters).
+//! 带显式块参数的基本块（无隐式栈参数）。
 
 use super::{
     ids::{BlockId, SsaValueId},
@@ -7,35 +7,35 @@ use super::{
     types::ExecutionValueType,
 };
 
-/// One SSA basic block.
+/// 一个 SSA 基本块。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BasicBlock {
-    /// Block identity.
+    /// 块标识。
     pub id: BlockId,
-    /// Formal parameters (block arguments).
+    /// 形式参数（块参数）。
     pub parameters: Vec<BlockParameter>,
-    /// Ordered SSA operations.
+    /// 有序 SSA 操作。
     pub operations: Vec<Operation>,
-    /// Unique terminator.
+    /// 唯一终结器。
     pub terminator: Terminator,
 }
 
-/// Typed block argument.
+/// 带类型的块参数。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockParameter {
-    /// SSA value defined at block entry.
+    /// 在块入口定义的 SSA 值。
     pub value: SsaValueId,
-    /// Static type.
+    /// 静态类型。
     pub ty: ExecutionValueType,
 }
 
 impl BasicBlock {
-    /// Empty block that immediately returns no values (placeholder / freeze).
+    /// 立即返回无值的空块（占位 / 冻结）。
     pub fn empty_return(id: BlockId) -> Self {
         Self { id, parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::Return { values: Vec::new() } }
     }
 
-    /// Block that returns a single preexisting SSA value.
+    /// 返回单个既有 SSA 值的块。
     pub fn return_value(id: BlockId, value: SsaValueId) -> Self {
         Self { id, parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::return_value(value) }
     }

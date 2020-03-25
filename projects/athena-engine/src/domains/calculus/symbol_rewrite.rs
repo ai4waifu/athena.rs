@@ -1,4 +1,4 @@
-//! 微积分模块共享的项改写（arena 版 · Living `27`/`28` · `DomainExecutionContext`）。
+//! 微积分模块共享的项改写（arena 版 · · `DomainExecutionContext`）。
 
 use athena_types::{SymbolId, TermId};
 
@@ -57,7 +57,7 @@ pub(crate) fn contains_symbol(dc: &DomainExecutionContext<'_>, expr: TermId, var
     }
 }
 
-/// Term is the user symbol `var`.
+/// 项是否为用户符号 `var`。
 pub(crate) fn is_symbol_id(dc: &DomainExecutionContext<'_>, term: TermId, var: SymbolId) -> bool {
     matches!(dc.shape(term), Some(Shape::Symbol(s)) if dc.symbol_id_is(s, var))
 }

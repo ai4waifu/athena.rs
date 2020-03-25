@@ -1,67 +1,67 @@
-//! Explicit block terminators (no implicit instruction pointer).
+//! 显式块终结器（无隐式指令指针）。
 
 use super::ids::{BlockId, ExitId, SsaValueId};
 
-/// Successor edge with block arguments (SSA phi via block args).
+/// 带块参数的后继边（经块参数实现 SSA phi）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockEdge {
-    /// Destination block.
+    /// 目标块。
     pub target: BlockId,
-    /// Arguments passed into the destination block parameters.
+    /// 传入目标块参数的实参。
     pub arguments: Vec<SsaValueId>,
 }
 
-/// Closed terminator set.
+/// 封闭的终结器集合。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Terminator {
-    /// Conditional branch on a typed Boolean SSA value.
+    /// 在类型化 Boolean SSA 值上的条件分支。
     Branch {
-        /// Predicate.
+        /// 谓词。
         condition: SsaValueId,
-        /// Taken when predicate is true.
+        /// 谓词为真时走此边。
         then_edge: BlockEdge,
-        /// Taken when predicate is false.
+        /// 谓词为假时走此边。
         else_edge: BlockEdge,
     },
-    /// Multi-way branch on a discrete discriminant.
+    /// 在离散判别值上的多路分支。
     Switch {
-        /// Discriminant SSA value.
+        /// 判别 SSA 值。
         discriminant: SsaValueId,
-        /// `(case value index → edge)` table (exact encoding filled by compiler).
+        /// `(case 值下标 → 边)` 表（精确编码由编译器填入）。
         cases: Vec<(u32, BlockEdge)>,
-        /// Default edge when no case matches.
+        /// 无 case 匹配时的默认边。
         default: BlockEdge,
     },
-    /// Successful return from the current region / module.
+    /// 从当前 region / module 成功返回。
     Return {
-        /// Returned SSA values (order fixed by region signature).
+        /// 返回的 SSA 值（顺序由 region 签名固定）。
         values: Vec<SsaValueId>,
     },
-    /// Hard reject with a declared exit / diagnostic path.
+    /// 硬拒绝，走已声明出口 / 诊断路径。
     Reject {
-        /// Optional module exit descriptor.
+        /// 可选的 module 出口描述符。
         exit: Option<ExitId>,
     },
-    /// Yield control back to runtime / provider (not a scheduler).
+    /// 将控制交还运行时 / provider（不是调度器）。
     Yield {
-        /// Values handed to the runtime context.
+        /// 交给运行时上下文的值。
         values: Vec<SsaValueId>,
-        /// Resume edge after the yield completes.
+        /// Yield 完成后的恢复边。
         resume: BlockEdge,
     },
-    /// Unreachable marker for verifier completeness.
+    /// 不可达标记，供校验器完备性使用。
     Unreachable,
 }
 
 impl BlockEdge {
-    /// Edge with no block arguments.
+    /// 无块参数的边。
     pub fn jump(target: BlockId) -> Self {
         Self { target, arguments: Vec::new() }
     }
 }
 
 impl Terminator {
-    /// Simple return of one value.
+    /// 返回单个值的简单返回。
     pub fn return_value(value: SsaValueId) -> Self {
         Self::Return { values: vec![value] }
     }

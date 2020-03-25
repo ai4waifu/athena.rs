@@ -1,4 +1,4 @@
-//! Typed SSA operations (closed opcode family — no string handler lookup).
+//! 类型化 SSA 操作（封闭操作码族 — 无字符串 handler 查找）。
 
 use athena_ir::SemanticOperator;
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, CompiledRuleId, DispatchTableId, ExtensionOperatorId, IndexSpec};
@@ -8,150 +8,150 @@ use super::{
     types::ExecutionValueType,
 };
 
-/// One SSA operation definition.
+/// 一条 SSA 操作定义。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Operation {
-    /// Result value defined by this operation (`None` for unit-only ops).
+    /// 本操作定义的结果值（仅 unit 的操作为 `None`）。
     pub result: Option<SsaValueId>,
-    /// Static result type when `result` is present.
+    /// `result` 存在时的静态结果类型。
     pub result_type: ExecutionValueType,
-    /// Opcode payload.
+    /// 操作码载荷。
     pub kind: OperationKind,
-    /// Required incoming effect token when the opcode is effectful.
+    /// 有副作用的操作码所需的入边 effect token。
     pub effect_in: Option<EffectToken>,
-    /// Effect token produced when the opcode is effectful.
+    /// 有副作用的操作码产生的 effect token。
     pub effect_out: Option<EffectToken>,
 }
 
-/// Closed semantic opcode set for `ExecutionIR`.
+/// `ExecutionIR` 的封闭语义操作码集合。
 ///
-/// Dialect surface names must not appear here. Closed semantic operators only.
+/// 方言表层名称不得出现于此。仅封闭语义算子。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
-    /// Load a module input into an SSA value.
+    /// 将 module 输入加载为 SSA 值。
     LoadInput {
-        /// Input table index.
+        /// 输入表下标。
         input: InputId,
     },
-    /// Load an immutable term root (read-only handle).
+    /// 加载不可变项根（只读句柄）。
     LoadTerm {
-        /// Captured term root.
+        /// 捕获的项根。
         root: CapturedRootId,
     },
-    /// Materialize a module constant.
+    /// 物化 module 常量。
     Constant {
-        /// Constant table index.
+        /// 常量表下标。
         constant: ConstantId,
     },
-    /// Apply a closed semantic operator to SSA arguments.
+    /// 对 SSA 实参应用封闭语义算子。
     ApplySemanticOperator {
-        /// Closed semantic operator identity.
+        /// 封闭语义算子标识。
         operator: athena_ir::SemanticOperator,
-        /// Operand SSA values.
+        /// 操作数 SSA 值。
         args: Vec<SsaValueId>,
     },
-    /// Apply an extension operator (display name via registry — not core math).
+    /// 应用扩展算子（显示名经注册表 — 非核心数学）。
     ApplyExtensionOperator {
-        /// Extension identity.
+        /// 扩展标识。
         operator: ExtensionOperatorId,
-        /// Operand SSA values.
+        /// 操作数 SSA 值。
         args: Vec<SsaValueId>,
     },
-    /// Build a typed collection from evaluated element SSA values.
+    /// 由已求值的元素 SSA 值构造类型化集合。
     ConstructCollection {
-        /// Collection kind (never an implicit dialect `List`).
+        /// 集合种类（绝非隐式方言 `List`）。
         kind: CollectionKind,
-        /// Element SSA values (order preserved).
+        /// 元素 SSA 值（保持顺序）。
         elements: Vec<SsaValueId>,
     },
-    /// Index into a value / collection.
+    /// 对值 / 集合做下标访问。
     Index {
-        /// Target SSA value.
+        /// 目标 SSA 值。
         target: SsaValueId,
-        /// Per-axis index specs.
+        /// 各轴下标规格。
         axes: Vec<IndexSpec>,
     },
-    /// Read a Session / scope binding.
+    /// 读取 Session / 作用域绑定。
     ReadBinding {
-        /// Binding key SSA value (symbol / slot handle).
+        /// 绑定键 SSA 值（符号 / 槽句柄）。
         key: SsaValueId,
     },
-    /// Write a Session / scope binding.
+    /// 写入 Session / 作用域绑定。
     WriteBinding {
-        /// Binding key.
+        /// 绑定键。
         key: SsaValueId,
-        /// Value written.
+        /// 写入的值。
         value: SsaValueId,
-        /// Binding category.
+        /// 绑定类别。
         kind: BindingKind,
-        /// Evaluation policy.
+        /// 求值策略。
         evaluation: BindingEvaluationPolicy,
     },
-    /// Register a pattern → replacement dispatch rule on a head binding.
+    /// 在头绑定上注册 pattern → replacement 分派规则。
     RegisterRuleDispatch {
-        /// Head symbol key (ownership / clear).
+        /// 头符号键（所有权 / 清除）。
         head: SsaValueId,
-        /// Extension operator closed at compile (no execute-time display-name intern).
+        /// 编译期封闭的扩展算子（执行时不 intern 显示名）。
         operator: ExtensionOperatorId,
-        /// Pattern term (already neutral / compiled at lowering).
+        /// Pattern 项（lowering 时已中立化 / 编译）。
         pattern: SsaValueId,
-        /// Replacement template term.
+        /// 替换模板项。
         replacement: SsaValueId,
     },
-    /// Attach a precompiled rule to a dispatch table (`SessionCommand::RegisterRuleDispatch`).
+    /// 将预编译规则挂到分派表（`SessionCommand::RegisterRuleDispatch`）。
     RegisterCompiledRule {
-        /// Target dispatch table.
+        /// 目标分派表。
         table: DispatchTableId,
-        /// Precompiled rule handle.
+        /// 预编译规则句柄。
         rule: CompiledRuleId,
     },
-    /// Enter a lexical or dynamic scope frame.
+    /// 进入词法或动态作用域帧。
     EnterScope {
-        /// Optional parent scope SSA handle.
+        /// 可选的父作用域 SSA 句柄。
         parent: Option<SsaValueId>,
     },
-    /// Exit the current scope frame.
+    /// 退出当前作用域帧。
     ExitScope {
-        /// Scope handle produced by [`Self::EnterScope`].
+        /// 由 [`Self::EnterScope`] 产生的作用域句柄。
         scope: SsaValueId,
     },
-    /// Typed provider call.
+    /// 类型化 provider 调用。
     CallProvider {
-        /// Descriptor table index.
+        /// 描述符表下标。
         call: ProviderCallId,
-        /// Argument SSA values.
+        /// 实参 SSA 值。
         args: Vec<SsaValueId>,
     },
-    /// Guard that may take an explicit exit edge.
+    /// 可能走显式出口边的 guard。
     Guard {
-        /// Predicate SSA value (typed Boolean).
+        /// 谓词 SSA 值（类型化 Boolean）。
         predicate: SsaValueId,
-        /// Success continues in-block; failure uses terminator / exit tables.
+        /// 成功则块内继续；失败走终结器 / 出口表。
         on_failure: GuardFailure,
     },
-    /// Materialize a runtime `Value` from SSA / term handles.
+    /// 从 SSA / 项句柄物化运行时 `Value`。
     MaterializeValue {
-        /// Source SSA value.
+        /// 源 SSA 值。
         source: SsaValueId,
     },
-    /// Publish into `ResultStore`.
+    /// 发布到 `ResultStore`。
     PublishResult {
-        /// Value or residual to publish.
+        /// 要发布的值或残差。
         source: SsaValueId,
     },
 }
 
-/// Guard failure routing (success falls through).
+/// Guard 失败路由（成功则 fall-through）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuardFailure {
-    /// Route to a declared module exit.
+    /// 路由到已声明的 module 出口。
     Exit(super::ids::ExitId),
-    /// Reject the current region immediately via terminator contract.
+    /// 经终结器合同立即拒绝当前 region。
     Reject,
 }
 
 impl Operation {
-    /// Pure constant load.
+    /// 纯常量加载。
     pub fn constant(result: SsaValueId, constant: ConstantId) -> Self {
         Self {
             result: Some(result),
@@ -162,7 +162,7 @@ impl Operation {
         }
     }
 
-    /// Pure term load.
+    /// 纯项加载。
     pub fn load_term(result: SsaValueId, root: CapturedRootId) -> Self {
         Self {
             result: Some(result),

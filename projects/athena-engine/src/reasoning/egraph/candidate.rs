@@ -1,30 +1,30 @@
-//! Unverified equivalence candidates — never M-Graph facts.
+//! 未经验证的等价候选 —— 绝不是 M-Graph 事实。
 
 use athena_rewriter::{LocalRewriteWitness, RewriteRuleId};
 use athena_types::TermId;
 
 use super::ids::EClassId;
 
-/// One candidate equality produced by local saturation.
+/// 局部饱和产生的一条候选等式。
 ///
-/// Must pass Verifier + [`crate::reasoning::mgraph::AdmissionGate`] before becoming
-/// an admitted relation. Holding this value does **not** change Session / M-Graph.
+/// 必须先通过 Verifier + [`crate::reasoning::mgraph::AdmissionGate`]，才能成为
+/// 已接纳关系。持有本值 **不会** 改变 Session / M-Graph。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CandidateEquivalence {
-    /// Left term root in the host [`athena_ir::TermStore`].
+    /// 宿主 [`athena_ir::TermStore`] 中的左项根。
     pub left_term: TermId,
-    /// Right term root in the host TermStore.
+    /// 宿主 `TermStore` 中的右项根。
     pub right_term: TermId,
-    /// Local e-class of the left term (diagnostic / extract).
+    /// 左项所在的局部 e-class（诊断 / 抽取用）。
     pub left_class: EClassId,
-    /// Local e-class of the right term.
+    /// 右项所在的局部 e-class。
     pub right_class: EClassId,
-    /// Rule that produced this candidate (`None` if not rule-driven).
+    /// 产生该候选的规则（非规则驱动时为 `None`）。
     pub rule: Option<RewriteRuleId>,
 }
 
 impl CandidateEquivalence {
-    /// Local rewrite witness when this candidate came from a [`RewriteRuleId`].
+    /// 当候选来自 [`RewriteRuleId`] 时的局部重写见证。
     pub fn local_witness(&self) -> Option<LocalRewriteWitness> {
         Some(LocalRewriteWitness { rule: self.rule?, subject: self.left_term, produced: self.right_term })
     }

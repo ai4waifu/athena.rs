@@ -1,4 +1,4 @@
-//! Living `24`：reclaim authority / typed handles / explicit release 合同（非 ownership 实体）。
+//! reclaim authority / typed handles / explicit release 合同（非 ownership 实体）。
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -30,7 +30,7 @@ fn published_block_accepts_root_and_is_not_explicit_release() {
         assert!(!heap.may_explicit_release_numeric(block.ptr).expect("not temp"));
         assert_eq!(heap.header_for_limbs(block.ptr).expect("hdr").reclaim_authority, ReclaimAuthority::TracingSweep);
         let _token = heap.register_numeric_root(&block, RootKind::Session).expect("root");
-        // Living `24`：`release_numeric_block` 只接受 `TemporaryNumericBlock`，类型上无法对 published 调用。
+        // `release_numeric_block` 只接受 `TemporaryNumericBlock`，类型上无法对 published 调用。
         let _ = block;
     });
 }

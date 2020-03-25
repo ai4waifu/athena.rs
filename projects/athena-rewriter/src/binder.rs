@@ -1,6 +1,6 @@
-//! Store-level [`TermPattern`] binder (Living `27`).
+//! 存储层 [`TermPattern`] 绑定器。
 //!
-//! Matches against [`TermStore`] only — no Session, no dialect surface names.
+//! 仅对 [`TermStore`] 匹配 — 无 `Session`，无方言表层名。
 
 use std::collections::HashMap;
 
@@ -9,13 +9,13 @@ use athena_types::{SymbolId, TermId, ValueTypeId};
 
 use crate::pattern::{PatternConstraint, TermPattern};
 
-/// Binding environment produced by a successful match.
+/// 成功匹配产生的绑定环境。
 pub type PatternBindings = HashMap<SymbolId, TermId>;
 
-/// Match `pattern` against `expr` in `store`, accumulating bindings.
+/// 在 `store` 中将 `pattern` 与 `expr` 匹配，并累积绑定。
 ///
-/// [`TermPattern::Bind`] is consistent: a repeated name must refer to structurally
-/// equal terms.
+/// [`TermPattern::Bind`] 保持一致：重复名字必须指向结构上
+/// 相等的 term。
 pub fn match_pattern(store: &TermStore, expr: TermId, pattern: &TermPattern, binds: &mut PatternBindings) -> bool {
     match pattern {
         TermPattern::Any => true,
@@ -90,9 +90,9 @@ fn constraint_holds(store: &TermStore, expr: TermId, constraint: &PatternConstra
     }
 }
 
-/// Apply `binds` to a template term, hash-consing rebuilt nodes into `store`.
+/// 将 `binds` 应用到模板 term，并把重建节点 hash-cons 进 `store`。
 ///
-/// Symbol atoms present in `binds` are replaced. Unbound symbols and other atoms are shared.
+/// `binds` 中出现的符号原子会被替换。未绑定符号与其他原子共享。
 pub fn substitute(store: &mut TermStore, template: TermId, binds: &PatternBindings) -> TermId {
     if binds.is_empty() {
         return template;
@@ -114,72 +114,5 @@ pub fn substitute(store: &mut TermStore, template: TermId, binds: &PatternBindin
             let out: Vec<TermId> = arguments.iter().map(|a| substitute(store, *a, binds)).collect();
             if out == arguments { template } else { store.push(TermNode::Application { head, arguments: out }, span) }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
-    use athena_types::{CollectionKind, SourceSpan};
-
-    use super::*;
-    use crate::pattern::TermPattern;
-
-    #[test]
-    fn bind_is_consistent_across_repeated_names() {
-        let mut store = TermStore::new();
-        let span = SourceSpan::default();
-        let one = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
-        let two = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))), span);
-        let x = store.symbols_mut().intern("x");
-        let same =
-            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
-        let diff =
-            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, two] }, span);
-        let pattern = TermPattern::Application {
-            operator: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments: vec![
-                TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
-                TermPattern::Bind { name: x, inner: Box::new(TermPattern::Any) },
-            ],
-        };
-        let mut binds = PatternBindings::new();
-        assert!(match_pattern(&store, same, &pattern, &mut binds));
-        assert_eq!(binds.get(&x), Some(&one));
-
-        let mut binds = PatternBindings::new();
-        assert!(!match_pattern(&store, diff, &pattern, &mut binds));
-    }
-
-    #[test]
-    fn sequence_matches_ordered_collection() {
-        let mut store = TermStore::new();
-        let span = SourceSpan::default();
-        let a = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
-        let b = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(2))), span);
-        let list = store.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, span);
-        let pattern = TermPattern::Sequence(vec![TermPattern::Exact(a), TermPattern::Exact(b)]);
-        let mut binds = PatternBindings::new();
-        assert!(match_pattern(&store, list, &pattern, &mut binds));
-    }
-
-    #[test]
-    fn substitute_replaces_bound_symbols_and_hash_conses() {
-        let mut store = TermStore::new();
-        let span = SourceSpan::default();
-        let x = store.symbols_mut().intern("x");
-        let y = store.symbols_mut().intern("y");
-        let x_term = store.push(TermNode::Atom(Atom::Symbol(x)), span);
-        let y_term = store.push(TermNode::Atom(Atom::Symbol(y)), span);
-        let one = store.push(TermNode::Atom(Atom::Number(athena_numeric::Number::small_int(1))), span);
-        let template =
-            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![x_term, y_term] }, span);
-        let mut binds = PatternBindings::new();
-        binds.insert(x, one);
-        binds.insert(y, one);
-        let out = substitute(&mut store, template, &binds);
-        let expected =
-            store.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![one, one] }, span);
-        assert_eq!(out, expected);
     }
 }

@@ -18,7 +18,7 @@ use crate::reasoning::mgraph::{
 
 /// 单条已接纳关系记录（M-Graph **拥有索引元数据**，**不**复制领域对象本体）。
 ///
-/// Living `31`：**不**实现 [`Clone`]（含 owning [`VerifiedClaim`]）。
+/// **不**实现 [`Clone`]（含 owning [`VerifiedClaim`]）。
 #[derive(Debug, PartialEq, Eq)]
 pub struct RelationRecord {
     /// 稳定语义谓词（禁止 `String` 标签）。
@@ -45,7 +45,7 @@ impl RelationRecord {
         Self::try_from_verified(claim).expect("verified claim must map to a registered predicate arity")
     }
 
-    /// Fallible construction used by admission / rebuild paths.
+    /// 接纳 / 重建路径使用的可失败构造。
     pub fn try_from_verified(claim: VerifiedClaim) -> Result<Self, crate::reasoning::mgraph::admission::AdmissionRejectReason> {
         let scope = scope_to_ref(claim.claim.scope);
         let status = relation_status_from_guarantee(claim.claim.guarantee);
@@ -56,7 +56,7 @@ impl RelationRecord {
         Ok(Self { predicate, subjects, scope, theory, provider, status, witness, verified: claim })
     }
 
-    /// Check predicate registration and subject arity (Living `26`).
+    /// 检查谓词注册与主体 arity。
     pub fn validate_predicate_subjects(
         predicate: PredicateId,
         theory: TheoryContextId,
@@ -134,7 +134,7 @@ fn relation_status_from_guarantee(g: Guarantee) -> RelationStatus {
 
 /// `ScopeRef` → 该 scope 下 [`RelationRef`] 列表。
 ///
-/// Living `31`：**不**实现 [`Clone`]（含 owning [`RelationRecord`]；可从 journal 重建）。
+/// **不**实现 [`Clone`]（含 owning [`RelationRecord`]；可从 journal 重建）。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RelationIndex {
     records: Vec<RelationRecord>,
