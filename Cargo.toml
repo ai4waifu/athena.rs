@@ -7,6 +7,7 @@ default-members = [
     "projects/athena-numeric",
     "projects/athena-ir",
     "projects/athena-rewriter",
+    "projects/athena-vm",
     "projects/athena-engine",
     "projects/athena",
 ]
@@ -23,6 +24,7 @@ athena-gc = { path = "projects/athena-gc" }
 athena-numeric = { path = "projects/athena-numeric" }
 athena-ir = { path = "projects/athena-ir" }
 athena-rewriter = { path = "projects/athena-rewriter" }
+athena-vm = { path = "projects/athena-vm" }
 athena-engine = { path = "projects/athena-engine" }
 athena = { path = "projects/athena" }
 athena-testing = { path = "projects/athena-testing" }

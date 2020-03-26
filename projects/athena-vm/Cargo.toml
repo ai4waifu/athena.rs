@@ -1,0 +1,16 @@
+[package]
+name = "athena-vm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Athena restricted ExecutionIR runtime — frame/slot/safepoint interpreter (not a second engine)"
+publish = false
+
+[dependencies]
+athena-types = { workspace = true }
+athena-gc = { workspace = true }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
