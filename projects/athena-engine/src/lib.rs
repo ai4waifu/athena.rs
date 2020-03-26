@@ -1,14 +1,14 @@
-//! Athena CAS 执行引擎 — 唯一决定「怎么算」的地方。
+//! Athena CAS 执行引擎 — 唯一决定「怎么规划与准入」的地方。
 //!
 //! ```text
-//! athena-types → athena-numeric → athena-ir → athena-rewriter → athena-engine → athena
+//! athena-types → athena-gc → athena-numeric → athena-ir → athena-rewriter → athena-vm → athena-engine → athena
 //! ```
 //!
-//! 本 crate 拥有求值、Session、M-Graph、solver、改写编排、域分派与 `ATHENA_*` 诊断。
-//! 不解析方言、不渲染字符串、也不绑定 N-API/WASM。
+//! 本 crate 拥有求值编排、Session、M-Graph、solver、改写编排、域分派与 `ATHENA_*` 诊断。
+//! 受限 `ExecutionIR` 解释骨架在 [`athena_vm`]。不解析方言、不渲染字符串、也不绑定 N-API/WASM。
 //!
 //! 根级只保留模块树与极薄入口（[`AthenaEngine`] / [`Session`]）。`athena-types` /
-//! `athena-numeric` / `athena-ir` / `athena-rewriter` **不**在此再导出 — 由依赖方或
+//! `athena-numeric` / `athena-ir` / `athena-rewriter` / `athena-vm` **不**在此再导出 — 由依赖方或
 //! `athena` facade 直接引用真相源 crate。
 
 #![deny(missing_docs)]

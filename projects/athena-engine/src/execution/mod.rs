@@ -1,7 +1,10 @@
 //! 执行层 — typed [`ir::ExecutionIR`] + backends（终态）。
 //!
-//! 合同：[`compiler`] · [`ir`] · [`reference`] · [`backend`] · [`provider`]。
+//! 合同：[`compiler`] · [`ir`] · [`reference`] · [`backend`] · [`provider`] · [`vm`]。
 //! Pattern 工具在 [`builtins::patterns`]。
+//!
+//! `athena-vm` 提供受限解释运行时骨架。完整 SSA `ExecutionModule` 仍在本 crate，
+//! 经 [`vm`] 投影配置。禁止 VM 拥有持久数学 payload 或前端字符串分派。
 
 pub mod backend;
 pub mod builtins;
@@ -10,6 +13,7 @@ pub mod environment;
 pub mod ir;
 pub mod provider;
 pub mod reference;
+pub mod vm;
 pub(crate) mod shape;
 
 use athena_numeric::Number;
