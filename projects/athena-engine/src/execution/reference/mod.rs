@@ -15,6 +15,7 @@ use athena_numeric::{
     mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
+use athena_vm::SlotTable;
 
 use crate::{
     api::request::AthenaRequest,
@@ -42,22 +43,8 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct ReferenceExecutor {}
 
-/// SSA 运行时槽（会话局部；不与 `TermId` 共用标识域）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Slot {
-    /// 来自 `TermStore` 的项句柄。
-    Term(TermId),
-    /// 绑定键。
-    Symbol(SymbolId),
-    /// 类型化 Boolean。
-    Boolean(bool),
-    /// 来自 `EnterScope` 的作用域帧深度句柄。
-    Scope(u32),
-    /// 已物化的 `ComputationResult`（领域 provider）。
-    Result(ResultId),
-    /// Unit.
-    Unit,
-}
+/// SSA 运行时槽（`athena-vm` 句柄；不与 `TermId` 共用标识域）。
+pub(crate) use athena_vm::SlotValue as Slot;
 
 #[derive(Debug)]
 pub(crate) enum IndexStep {
@@ -92,7 +79,9 @@ impl ReferenceExecutor {
             Some(Slot::Term(term)) => term,
             Some(Slot::Boolean(value)) => session.builder().boolean(value, Default::default()),
             Some(Slot::Symbol(symbol)) => session.builder().symbol_id(symbol, Default::default()),
-            Some(Slot::Scope(_)) | Some(Slot::Unit) | Some(Slot::Result(_)) | None => session.builder().null(Default::default()),
+            Some(Slot::Scope(_)) | Some(Slot::Unit) | Some(Slot::Result(_)) | Some(Slot::Value(_)) | Some(Slot::Empty) | None => {
+                session.builder().null(Default::default())
+            }
         };
         let value = session.insert_symbolic_value(term);
         let mut result = if let Some(diagnostic) = invalid {
@@ -124,7 +113,7 @@ impl ReferenceExecutor {
     ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
         let region = module.regions.iter().find(|r| r.id == region_id).ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
-        let mut slots: HashMap<SsaValueId, Slot> = HashMap::new();
+        let mut slots = SlotTable::new();
         let mut frames: Vec<ScopeFrame> = Vec::new();
         let mut unsupported = false;
         let mut unevaluated = false;
@@ -152,7 +141,7 @@ impl ReferenceExecutor {
                     &op.kind,
                 )?;
                 if let Some(result) = op.result {
-                    slots.insert(result, produced);
+                    slots.set(result.0, produced);
                 }
             }
             match &block.terminator {
@@ -161,12 +150,12 @@ impl ReferenceExecutor {
                         return Ok((Some(Slot::Unit), unsupported, unevaluated, invalid));
                     }
                     let first = values[0];
-                    return Ok((Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?), unsupported, unevaluated, invalid));
+                    return Ok((Some(slots.get(first.0).ok_or_else(|| diag("return_undefined"))?), unsupported, unevaluated, invalid));
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
-                    let pred = match slots.get(condition).ok_or_else(|| diag("branch_undefined"))? {
-                        Slot::Boolean(v) => Ok(*v),
-                        Slot::Term(term) => coerce_branch_predicate(session, *term),
+                    let pred = match slots.get(condition.0).ok_or_else(|| diag("branch_undefined"))? {
+                        Slot::Boolean(v) => Ok(v),
+                        Slot::Term(term) => coerce_branch_predicate(session, term),
                         _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
                             .detail("component", "ReferenceExecutor")
                             .detail("reason", "branch_not_boolean")),
@@ -198,7 +187,7 @@ impl ReferenceExecutor {
 
     fn bind_edge_args(
         &self,
-        slots: &mut HashMap<SsaValueId, Slot>,
+        slots: &mut SlotTable,
         region: &crate::execution::ir::Region,
         target: BlockId,
         arguments: &[SsaValueId],
@@ -208,8 +197,8 @@ impl ReferenceExecutor {
             return Err(diag("edge_arity_mismatch"));
         }
         for (param, arg) in block.parameters.iter().zip(arguments.iter()) {
-            let value = *slots.get(arg).ok_or_else(|| diag("edge_arg_undefined"))?;
-            slots.insert(param.value, value);
+            let value = slots.get(arg.0).ok_or_else(|| diag("edge_arg_undefined"))?;
+            slots.set(param.value.0, value);
         }
         Ok(())
     }
@@ -218,7 +207,7 @@ impl ReferenceExecutor {
         &self,
         session: &mut Session,
         module: &ExecutionModule,
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
         frames: &mut Vec<ScopeFrame>,
         unsupported: &mut bool,
         unevaluated: &mut bool,
@@ -250,8 +239,8 @@ impl ReferenceExecutor {
                         let bools: Vec<Option<bool>> = args
                             .iter()
                             .map(|id| {
-                                let slot = slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                                Ok(slot_as_boolean_like(session, *slot))
+                                let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                                Ok(slot_as_boolean_like(session, slot))
                             })
                             .collect::<Result<Vec<_>>>()?;
                         if bools.iter().any(|b| b.is_none()) {
@@ -271,8 +260,8 @@ impl ReferenceExecutor {
                         if args.len() != 2 {
                             return Err(diag("semantic_operator_arity"));
                         }
-                        let left = *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        let right = *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                        let left = slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                        let right = slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
                         // `Identical` 是结构比较。`Equal` / `Unequal` 仅在可比较
                         // 原子上判定；符号残差保持为 `Equal[...]`（不静默成 `False`）。
                         if op == SemanticOperator::Identical {
@@ -375,7 +364,7 @@ impl ReferenceExecutor {
             OperationKind::ConstructCollection { kind, elements } => {
                 let mut items = Vec::with_capacity(elements.len());
                 for id in elements {
-                    let slot = *slots.get(id).ok_or_else(|| diag("collection_element_undefined"))?;
+                    let slot = slots.get(id.0).ok_or_else(|| diag("collection_element_undefined"))?;
                     items.push(self.slot_as_term(session, slot)?);
                 }
                 let span = athena_ir::TermNode::default_span();
@@ -388,8 +377,8 @@ impl ReferenceExecutor {
                 Ok(Slot::Scope(depth))
             }
             OperationKind::ExitScope { scope } => {
-                let expected = match slots.get(scope) {
-                    Some(Slot::Scope(depth)) => *depth,
+                let expected = match slots.get(scope.0) {
+                    Some(Slot::Scope(depth)) => depth,
                     _ => return Err(diag("exit_scope_bad_handle")),
                 };
                 let top = frames.len().saturating_sub(1) as u32;
@@ -400,12 +389,12 @@ impl ReferenceExecutor {
                 Ok(Slot::Unit)
             }
             OperationKind::WriteBinding { key, value, kind: _, evaluation } => {
-                let symbol = match slots.get(key) {
-                    Some(Slot::Symbol(symbol)) => *symbol,
+                let symbol = match slots.get(key.0) {
+                    Some(Slot::Symbol(symbol)) => symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
                 let residual = !matches!(evaluation, athena_types::BindingEvaluationPolicy::EvaluateBeforeStore);
-                match slots.get(value) {
+                match slots.get(value.0) {
                     Some(Slot::Unit) => {
                         if let Some(frame) = frames.last_mut() {
                             frame.unbind(symbol);
@@ -418,21 +407,21 @@ impl ReferenceExecutor {
                     Some(Slot::Term(term)) => {
                         if residual {
                             if let Some(frame) = frames.last_mut() {
-                                frame.bind(symbol, LocalBinding::Value(*term));
+                                frame.bind(symbol, LocalBinding::Value(term));
                             }
                             else {
-                                session.defs.write_residual_binding(symbol, *term);
+                                session.defs.write_residual_binding(symbol, term);
                             }
                         }
                         else if let Some(frame) = frames.last_mut() {
-                            frame.bind(symbol, LocalBinding::Value(*term));
+                            frame.bind(symbol, LocalBinding::Value(term));
                         }
                         else {
-                            session.defs.write_binding(symbol, *term);
+                            session.defs.write_binding(symbol, term);
                         }
                     }
                     Some(Slot::Boolean(v)) => {
-                        let term = session.builder().boolean(*v, Default::default());
+                        let term = session.builder().boolean(v, Default::default());
                         if residual {
                             if let Some(frame) = frames.last_mut() {
                                 frame.bind(symbol, LocalBinding::Value(term));
@@ -453,16 +442,16 @@ impl ReferenceExecutor {
                 Ok(Slot::Unit)
             }
             OperationKind::RegisterRuleDispatch { head, operator, pattern, replacement } => {
-                let symbol = match slots.get(head) {
-                    Some(Slot::Symbol(symbol)) => *symbol,
+                let symbol = match slots.get(head.0) {
+                    Some(Slot::Symbol(symbol)) => symbol,
                     _ => return Err(diag("write_key_not_symbol")),
                 };
-                let pattern_term = match slots.get(pattern) {
-                    Some(Slot::Term(term)) => *term,
+                let pattern_term = match slots.get(pattern.0) {
+                    Some(Slot::Term(term)) => term,
                     _ => return Err(diag("write_pattern_not_term")),
                 };
-                let value_term = match slots.get(replacement) {
-                    Some(Slot::Term(term)) => *term,
+                let value_term = match slots.get(replacement.0) {
+                    Some(Slot::Term(term)) => term,
                     _ => return Err(diag("write_value_unsupported")),
                 };
                 // 仅从项做结构编译。通配须经 API 以类型化 `TermPattern` 传入。
@@ -481,8 +470,8 @@ impl ReferenceExecutor {
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {
-                let symbol = match slots.get(key) {
-                    Some(Slot::Symbol(symbol)) => *symbol,
+                let symbol = match slots.get(key.0) {
+                    Some(Slot::Symbol(symbol)) => symbol,
                     _ => return Err(diag("read_key_not_symbol")),
                 };
                 for frame in frames.iter().rev() {
@@ -529,7 +518,7 @@ impl ReferenceExecutor {
                     }
                 }
             }
-            OperationKind::PublishResult { source } => Ok(*slots.get(source).ok_or_else(|| diag("publish_source_undefined"))?),
+            OperationKind::PublishResult { source } => Ok(slots.get(source.0).ok_or_else(|| diag("publish_source_undefined"))?),
             OperationKind::LoadInput { .. } | OperationKind::Guard { .. } | OperationKind::MaterializeValue { .. } => {
                 Err(diag("operation_not_implemented"))
             }

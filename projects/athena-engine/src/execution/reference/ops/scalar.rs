@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy};
+use athena_vm::SlotTable;
 use athena_types::{Result, SymbolId, TermId};
 
 use super::super::{ReferenceExecutor, Slot, helpers::*};
@@ -22,12 +23,12 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
-        let slot = *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?;
+        let slot = slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
         let term = self.slot_as_term(session, slot)?;
         match op {
             SemanticOperator::Abs => {
@@ -96,11 +97,11 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: athena_types::ExtensionOperatorId,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         // 仅扩展残差 — 核心三角/特殊函数经 `SemanticOperator::Unary` 求值。
@@ -114,11 +115,11 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         if let Some(uf) = op.as_unary() {
@@ -151,7 +152,7 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: athena_types::ExtensionOperatorId,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Option<Slot>> {
         let Some(rules) = session
             .defs
@@ -163,7 +164,7 @@ impl ReferenceExecutor {
         let call_op = ApplicationHead::Extension(op);
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         let substituted = {
@@ -205,11 +206,11 @@ impl ReferenceExecutor {
         Ok(Some(Slot::Term(out)))
     }
 
-    pub(crate) fn eval_simplify(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_simplify(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
-        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let evaluated = match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term)) {
             Ok(module) => {
                 let result_id = self.execute(session, &module, None)?;
@@ -228,22 +229,22 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let lhs = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let rhs = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let lhs = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let rhs = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         Ok(Slot::Term(push_semantic(session, op, vec![lhs, rhs])))
     }
 
-    pub(crate) fn eval_replace_all(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_replace_all(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let expr = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let rules_term = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let expr = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let rules_term = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let rules = collect_rule_pairs(session, rules_term);
         if rules.is_empty() {
             return Ok(Slot::Term(push_semantic(session, SemanticOperator::ReplaceAll, vec![expr, rules_term])));
@@ -263,12 +264,12 @@ impl ReferenceExecutor {
     }
 
     /// `CollectMatches[list, pat]` — 按 pattern 过滤列表元素。
-    pub(crate) fn eval_collect_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_collect_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let list = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let list = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let pat = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
         else {
             return Ok(Slot::Term(push_semantic(session, SemanticOperator::CollectMatches, vec![list, pat])));
@@ -284,12 +285,12 @@ impl ReferenceExecutor {
     }
 
     /// `Matches[expr, pat]` — 布尔 pattern 测试。
-    pub(crate) fn eval_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_matches(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let expr = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let pat = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let expr = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let pat = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let matched = crate::execution::builtins::patterns::pattern_matches(session, expr, pat);
         Ok(Slot::Boolean(matched))
     }
@@ -299,11 +300,11 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         let Some((rows, cols)) = parse_matrix_dims(session, &terms)
@@ -334,12 +335,12 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_list(session, rows_out)))
     }
 
-    pub(crate) fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let func = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let list = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let func = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let list = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(list) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Map, vec![func, list]))),
@@ -414,12 +415,12 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_apply(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_apply(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let head = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let second = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let head = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let second = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let items = match session.arena.get(second) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
             _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Apply, vec![head, second]))),
@@ -436,14 +437,14 @@ impl ReferenceExecutor {
     }
 
     /// `Application[head, args…]` — 应用 `Function[var, body]` 或符号头。
-    pub(crate) fn eval_application_form(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_application_form(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.is_empty() {
             return Err(diag("semantic_operator_arity"));
         }
-        let head = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let head = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let mut call_args = Vec::with_capacity(args.len().saturating_sub(1));
         for id in &args[1..] {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             call_args.push(self.slot_as_term(session, slot)?);
         }
         // `Function[var, body][arg…]` → 替换并重新求值。
@@ -485,11 +486,11 @@ impl ReferenceExecutor {
         Ok(Slot::Term(push_semantic(session, SemanticOperator::ApplyHead, wrapped)))
     }
 
-    pub(crate) fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
-        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some((rows, cols)) = nested_list_shape(session, term)
         else {
             return Ok(Slot::Term(push_semantic(session, SemanticOperator::Size, vec![term])));

@@ -1,9 +1,10 @@
 //! 列表 / 矩阵 / 算术算子求值。
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::cmp::Ordering;
 
 use athena_ir::SemanticOperator;
 use athena_numeric::{Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow};
+use athena_vm::SlotTable;
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
@@ -23,10 +24,10 @@ use crate::{
 impl ReferenceExecutor {
     /// `Sum[list]` — 向量标量和 / 矩阵按列求和。
     /// `Sum[body, iterator]` — 展开迭代器再 Plus 折叠。
-    pub(crate) fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_sum(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() == 2 {
-            let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-            let iter = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            let body = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            let iter = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
             return match self.table_values(session, body, iter)? {
                 Some(values) => {
                     if values.is_empty() {
@@ -43,13 +44,13 @@ impl ReferenceExecutor {
             return Ok(Slot::Term({
                 let mut terms = Vec::with_capacity(args.len());
                 for id in args {
-                    let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+                    let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
                     terms.push(self.slot_as_term(session, slot)?);
                 }
                 push_semantic(session, SemanticOperator::Sum, terms)
             }));
         }
-        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
         else {
             return Ok(Slot::Term(push_semantic(session, SemanticOperator::Sum, vec![term])));
@@ -87,10 +88,10 @@ impl ReferenceExecutor {
     }
 
     /// `Product[body, iterator]` — 展开迭代器再 Times 折叠。
-    pub(crate) fn eval_product(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_product(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() == 2 {
-            let body = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-            let iter = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            let body = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+            let iter = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
             return match self.table_values(session, body, iter)? {
                 Some(values) => {
                     if values.is_empty() {
@@ -105,7 +106,7 @@ impl ReferenceExecutor {
         }
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         Ok(Slot::Term(push_semantic(session, SemanticOperator::Product, terms)))
@@ -138,13 +139,13 @@ impl ReferenceExecutor {
         &self,
         session: &mut Session,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
         invalid: &mut Option<Diagnostic>,
     ) -> Result<Slot> {
         if args.len() != 1 {
             return Err(diag("semantic_operator_arity"));
         }
-        let term = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let echo = push_semantic(session, SemanticOperator::Determinant, vec![term]);
         let Some(matrix) = term_to_rational_matrix_session(session, term)
         else {
@@ -159,10 +160,10 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_range(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_range(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
@@ -194,12 +195,12 @@ impl ReferenceExecutor {
         session: &mut Session,
         target: SsaValueId,
         axes: &[athena_types::IndexSpec],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
         invalid: &mut Option<Diagnostic>,
     ) -> Result<Slot> {
         use athena_types::IndexSpec;
 
-        let slot = *slots.get(&target).ok_or_else(|| diag("index_target_undefined"))?;
+        let slot = slots.get(target.0).ok_or_else(|| diag("index_target_undefined"))?;
         let mut cur = self.slot_as_term(session, slot)?;
 
         // 先 `All`，再对每行应用剩余轴（列 / 嵌套选择）。
@@ -332,11 +333,11 @@ impl ReferenceExecutor {
         }
     }
 
-    pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &HashMap<SsaValueId, Slot>) -> Result<Slot> {
+    pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         let mut out = Vec::new();
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             let term = self.slot_as_term(session, slot)?;
             terms.push(term);
             match session.arena.get(term) {
@@ -352,14 +353,14 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         if args.len() < 2 {
             return Err(diag("semantic_operator_arity"));
         }
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         let pick = match op {
@@ -397,13 +398,13 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
         }
-        let left = self.slot_as_term(session, *slots.get(&args[0]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let right = self.slot_as_term(session, *slots.get(&args[1]).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let left = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
+        let right = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let echo = push_semantic(session, op, vec![left, right]);
         let scalar_op = match op {
             SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
@@ -489,11 +490,11 @@ impl ReferenceExecutor {
         session: &mut Session,
         op: SemanticOperator,
         args: &[SsaValueId],
-        slots: &HashMap<SsaValueId, Slot>,
+        slots: &SlotTable,
     ) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
-            let slot = *slots.get(id).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
         let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
@@ -582,7 +583,7 @@ impl ReferenceExecutor {
             Slot::Boolean(value) => Ok(session.builder().boolean(value, Default::default())),
             Slot::Symbol(symbol) => Ok(session.builder().symbol_id(symbol, Default::default())),
             Slot::Unit => Ok(session.builder().null(Default::default())),
-            Slot::Scope(_) | Slot::Result(_) => Err(diag("slot_not_term")),
+            Slot::Scope(_) | Slot::Result(_) | Slot::Value(_) | Slot::Empty => Err(diag("slot_not_term")),
         }
     }
 }

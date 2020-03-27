@@ -3,12 +3,13 @@
 //! 完整 `ExecutionModule` 仍由本 crate 的 [`super::ir`] 与 [`super::reference`] 拥有。
 //! 本模块只建立 engine → VM 的依赖与配置投影，禁止把 M-Graph / 领域算法搬进 VM。
 
-use athena_vm::{Interpreter, ModuleFingerprint, VmConfig, VmExit, VmExecutor, VmModule};
+use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmExit, VmExecutor, VmModule};
 
 use crate::runtime::session::Session;
 
 pub use athena_vm::{
-    Instruction, Interpreter as VmInterpreter, VmConfig as EngineVmConfig, VmExit as EngineVmExit, VmModule as EngineVmModule,
+    Instruction, Interpreter as VmInterpreter, SlotTable, SlotValue, VmConfig as EngineVmConfig, VmExit as EngineVmExit,
+    VmModule as EngineVmModule,
 };
 
 /// 从 Session 投影 VM 配置（不复制语义状态）。
@@ -16,6 +17,7 @@ pub fn vm_config_from_session(session: &Session) -> VmConfig {
     VmConfig {
         gc_mode: session.heap().borrow().effective_mode(),
         max_steps: None,
+        cancellation: CancellationToken::new(),
     }
 }
 
@@ -57,5 +59,17 @@ mod tests {
         let mut interpreter = Interpreter::new();
         let exit = interpreter.execute(&module, &cfg).expect("vm execute");
         assert_eq!(exit, VmExit::Returned);
+    }
+
+    #[test]
+    fn cancel_token_projects_to_cancelled_exit() {
+        let session = Session::new();
+        let token = CancellationToken::new();
+        token.cancel();
+        let module = VmModule::from_instructions(vec![Instruction::Safepoint, Instruction::Return], 1);
+        let cfg = vm_config_from_session(&session).with_cancellation(token);
+        let mut interpreter = Interpreter::new();
+        let exit = interpreter.execute(&module, &cfg).expect("vm execute");
+        assert_eq!(exit, VmExit::Cancelled);
     }
 }
