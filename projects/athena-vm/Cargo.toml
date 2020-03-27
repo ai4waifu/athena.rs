@@ -13,4 +13,6 @@ athena-gc = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"
-unsafe_code = "forbid"
+# `deny`（非 `forbid`）：解释器 / slot / frame 热路径允许经审查的 `unsafe`。
+# 禁止「为了方便」扩大 unsafe 面；禁止绕过 GC root · lease · generation。
+unsafe_code = "deny"
