@@ -169,3 +169,22 @@ fn graph_to_csr_binds_storage_metadata() {
     assert_eq!(meta.graph_id, Some(g.id()));
     assert_eq!(meta.revision, Some(g.revision()));
 }
+
+#[test]
+fn payload_aware_edge_iterators_use_adj_indexes() {
+    let mut b = GraphBuilder::<u8, i32>::from_direction(GraphDirection::Directed);
+    let a = b.add_node(1);
+    let c = b.add_node(2);
+    let d = b.add_node(3);
+    let e_ac = b.add_edge(a, c, 10).unwrap();
+    let e_da = b.add_edge(d, a, 20).unwrap();
+    let g = b.finish();
+
+    assert_eq!(g.node_value(a), Some(&1));
+    assert_eq!(g.edge_value(e_ac), Some(&10));
+
+    let outs: Vec<_> = g.out_edges(a).collect();
+    assert_eq!(outs, vec![(e_ac, c, &10)]);
+    let ins: Vec<_> = g.in_edges(a).collect();
+    assert_eq!(ins, vec![(e_da, d, &20)]);
+}
