@@ -1,0 +1,6 @@
+//! `athena-vm` 集成测试入口。
+
+mod cancel;
+mod frame;
+mod interpreter;
+mod slot;
