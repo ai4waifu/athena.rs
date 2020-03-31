@@ -113,7 +113,7 @@ impl ReferenceExecutor {
     ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
         let region = module.regions.iter().find(|r| r.id == region_id).ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
-        let mut slots = SlotTable::new();
+        let mut slots = SlotTable::with_capacity(region.slot_capacity() as usize);
         let mut frames: Vec<ScopeFrame> = Vec::new();
         let mut unsupported = false;
         let mut unevaluated = false;

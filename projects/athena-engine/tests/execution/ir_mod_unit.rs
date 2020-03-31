@@ -8,4 +8,5 @@ fn empty_module_has_stable_shape() {
     assert_eq!(module.regions.len(), 1);
     assert_eq!(module.entry_region(), Some(RegionId(0)));
     assert_eq!(module.fingerprint, ModuleFingerprint::of_module(&module));
+    assert_eq!(module.regions[0].slot_capacity(), 0);
 }
