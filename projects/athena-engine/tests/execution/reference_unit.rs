@@ -254,3 +254,29 @@ fn index_all_then_scalar_selects_column() {
         other => panic!("expected OrderedCollection[2, 4], got {other:?}"),
     }
 }
+
+#[test]
+fn execute_configured_honours_cancel() {
+    let mut session = Session::new();
+    let term = session.builder().int(1, Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+    let token = athena_vm::CancellationToken::new();
+    token.cancel();
+    let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_cancellation(token);
+    let err = ReferenceExecutor::new()
+        .execute_configured(&mut session, &module, None, &cfg)
+        .expect_err("cancelled");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
+}
+
+#[test]
+fn execute_configured_honours_max_steps() {
+    let mut session = Session::new();
+    let term = session.builder().int(1, Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+    let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_max_steps(0);
+    let err = ReferenceExecutor::new()
+        .execute_configured(&mut session, &module, None, &cfg)
+        .expect_err("budget");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("budget_exceeded"));
+}

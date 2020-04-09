@@ -15,7 +15,7 @@ use athena_numeric::{
     mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
-use athena_vm::SlotTable;
+use athena_vm::{ExecutionLease, SlotTable, VmConfig};
 
 use crate::{
     api::request::AthenaRequest,
@@ -64,14 +64,29 @@ impl ReferenceExecutor {
     /// 当 `domain` 为 `Some` 时，首条 `CallProvider` 边运行 `execute_domain`
     /// 并返回该物化的 `ResultId`（IR 形态的 Goal 路径）。
     pub fn execute(&self, session: &mut Session, module: &ExecutionModule, domain: Option<DomainRequest>) -> Result<ResultId> {
+        let config = crate::execution::vm::vm_config_from_session(session);
+        self.execute_configured(session, module, domain, &config)
+    }
+
+    /// 带 [`VmConfig`]（cancel / budget / gc_mode）的执行入口。
+    ///
+    /// 持有 [`ExecutionLease`] 覆盖整次解释，Drop 时注销本执行登记的 root。
+    pub fn execute_configured(
+        &self,
+        session: &mut Session,
+        module: &ExecutionModule,
+        domain: Option<DomainRequest>,
+        config: &VmConfig,
+    ) -> Result<ResultId> {
         verify_module(module)?;
+        let _lease = ExecutionLease::new(session.heap().clone());
         let region_id = module.entry_region().ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ReferenceExecutor")
                 .detail("reason", "missing_entry_region")
         })?;
         let mut provider = domain;
-        let (returned, unsupported, unevaluated, invalid) = self.eval_region(session, module, region_id, &mut provider)?;
+        let (returned, unsupported, unevaluated, invalid) = self.eval_region(session, module, region_id, &mut provider, config)?;
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
         }
@@ -110,6 +125,7 @@ impl ReferenceExecutor {
         module: &ExecutionModule,
         region_id: RegionId,
         provider: &mut Option<DomainRequest>,
+        config: &VmConfig,
     ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
         let region = module.regions.iter().find(|r| r.id == region_id).ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
@@ -119,8 +135,14 @@ impl ReferenceExecutor {
         let mut unevaluated = false;
         let mut invalid: Option<Diagnostic> = None;
         let mut block_visits: HashMap<BlockId, u32> = HashMap::new();
+        let mut steps = 0u64;
         // 引导：允许有限循环回边；限制每块访问次数。
         for _ in 0..region.blocks.len().saturating_mul(64).max(64) {
+            if config.cancellation.is_cancelled() {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ReferenceExecutor")
+                    .detail("reason", "cancelled"));
+            }
             let visits = block_visits.entry(block_id).or_insert(0);
             *visits = visits.saturating_add(1);
             if *visits > 32 {
@@ -129,6 +151,19 @@ impl ReferenceExecutor {
             }
             let block = region.blocks.iter().find(|b| b.id == block_id).ok_or_else(|| diag("missing_block"))?;
             for op in &block.operations {
+                steps = steps.saturating_add(1);
+                if let Some(max) = config.max_steps {
+                    if steps > max {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ReferenceExecutor")
+                            .detail("reason", "budget_exceeded"));
+                    }
+                }
+                if config.cancellation.is_cancelled() {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ReferenceExecutor")
+                        .detail("reason", "cancelled"));
+                }
                 let produced = self.eval_operation(
                     session,
                     module,

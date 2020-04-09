@@ -8,7 +8,7 @@ use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmE
 use crate::runtime::session::Session;
 
 pub use athena_vm::{
-    Instruction, Interpreter as VmInterpreter, SlotTable, SlotValue, VmConfig as EngineVmConfig, VmExit as EngineVmExit,
+    ExecutionLease, Instruction, Interpreter as VmInterpreter, SlotTable, SlotValue, VmConfig as EngineVmConfig, VmExit as EngineVmExit,
     VmModule as EngineVmModule,
 };
 
