@@ -7,6 +7,7 @@
 - `VmModule` / `Instruction` / `VmConfig` / `VmExit` / `Interpreter`
 - 稠密 `SlotTable` / `SlotValue`（仅 typed 句柄）与 `Frame` / `FrameStack`
 - 协作式 `CancellationToken` 与步数预算（在 safepoint / 步进处检查）
+- `ExecutionLease`：执行期 object / numeric root 登记，Drop 注销
 
 ## 非职责
 

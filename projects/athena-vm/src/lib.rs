@@ -17,6 +17,7 @@ mod exit;
 mod frame;
 mod instruction;
 mod interpreter;
+mod lease;
 mod module;
 mod slot;
 
@@ -26,5 +27,6 @@ pub use exit::VmExit;
 pub use frame::{Frame, FrameStack};
 pub use instruction::Instruction;
 pub use interpreter::{Interpreter, VmExecutor};
+pub use lease::ExecutionLease;
 pub use module::{ModuleFingerprint, VmModule};
 pub use slot::{SlotTable, SlotValue};
