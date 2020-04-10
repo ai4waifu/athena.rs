@@ -9,6 +9,8 @@ use athena_types::Diagnostic;
 pub enum VmExit {
     /// 正常返回（骨架阶段不携带 value ref）。
     Returned,
+    /// Guard / Reject 显式拒绝（engine 映射为诊断或 DeclaredExit）。
+    Rejected,
     /// 可恢复挂起（frontier / resume 由 engine 解释）。
     Suspended,
     /// 调用方取消。

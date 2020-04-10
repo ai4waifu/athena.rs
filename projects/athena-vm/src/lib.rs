@@ -13,6 +13,7 @@
 
 mod cancel;
 mod config;
+mod constant;
 mod exit;
 mod frame;
 mod instruction;
@@ -23,9 +24,10 @@ mod slot;
 
 pub use cancel::CancellationToken;
 pub use config::VmConfig;
+pub use constant::VmConstant;
 pub use exit::VmExit;
 pub use frame::{Frame, FrameStack};
-pub use instruction::Instruction;
+pub use instruction::{ConstantIndex, Instruction, SlotIndex};
 pub use interpreter::{Interpreter, VmExecutor};
 pub use lease::ExecutionLease;
 pub use module::{ModuleFingerprint, VmModule};

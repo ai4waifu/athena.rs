@@ -4,11 +4,12 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     config::VmConfig,
+    constant::VmConstant,
     exit::VmExit,
     frame::{Frame, FrameStack},
     instruction::Instruction,
     module::VmModule,
-    slot::SlotTable,
+    slot::{SlotTable, SlotValue},
 };
 
 /// VM 执行器合同。
@@ -62,23 +63,52 @@ impl Interpreter {
         }
         None
     }
+
+    fn diagnostic(reason: &'static str) -> VmExit {
+        VmExit::Diagnostic(
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "athena-vm")
+                .detail("reason", reason),
+        )
+    }
+
+    fn load_constant(&mut self, module: &VmModule, dst: u32, constant: u32) -> Option<VmExit> {
+        let Some(value) = module.constants.get(constant as usize) else {
+            return Some(Self::diagnostic("missing_constant"));
+        };
+        let slot = match *value {
+            VmConstant::Boolean(v) => SlotValue::Boolean(v),
+            VmConstant::Unit => SlotValue::Unit,
+        };
+        self.slots.set(dst, slot);
+        None
+    }
+
+    fn move_slot(&mut self, dst: u32, src: u32) -> Option<VmExit> {
+        let Some(value) = self.slots.get(src) else {
+            return Some(Self::diagnostic("move_src_undefined"));
+        };
+        self.slots.set(dst, value);
+        None
+    }
+
+    fn guard(&self, predicate: u32) -> Option<VmExit> {
+        match self.slots.get(predicate) {
+            Some(SlotValue::Boolean(true)) => None,
+            Some(SlotValue::Boolean(false)) => Some(VmExit::Rejected),
+            Some(_) => Some(Self::diagnostic("guard_not_boolean")),
+            None => Some(Self::diagnostic("guard_undefined")),
+        }
+    }
 }
 
 impl VmExecutor for Interpreter {
     fn execute(&mut self, module: &VmModule, config: &VmConfig) -> Result<VmExit> {
         if module.fingerprint != crate::module::ModuleFingerprint::of_module(module) {
-            return Ok(VmExit::Diagnostic(
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "athena-vm")
-                    .detail("reason", "fingerprint_mismatch"),
-            ));
+            return Ok(Self::diagnostic("fingerprint_mismatch"));
         }
         if module.instructions.is_empty() {
-            return Ok(VmExit::Diagnostic(
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "athena-vm")
-                    .detail("reason", "empty_module"),
-            ));
+            return Ok(Self::diagnostic("empty_module"));
         }
 
         self.reset_for_module(module);
@@ -92,19 +122,30 @@ impl VmExecutor for Interpreter {
             if let Some(frame) = self.frames.current_mut() {
                 frame.pc = frame.pc.saturating_add(1);
             }
-            match insn {
+            match *insn {
                 Instruction::Safepoint => {
-                    // 骨架：cancel / budget 已在上方检查；后续接 root / GcMode 主动 collect。
                     let _mode = config.gc_mode;
                 }
                 Instruction::Return => return Ok(VmExit::Returned),
+                Instruction::LoadConstant { dst, constant } => {
+                    if let Some(exit) = self.load_constant(module, dst, constant) {
+                        return Ok(exit);
+                    }
+                }
+                Instruction::Move { dst, src } => {
+                    if let Some(exit) = self.move_slot(dst, src) {
+                        return Ok(exit);
+                    }
+                }
+                Instruction::Guard { predicate } => {
+                    if let Some(exit) = self.guard(predicate) {
+                        return Ok(exit);
+                    }
+                }
+                Instruction::Reject => return Ok(VmExit::Rejected),
             }
         }
 
-        Ok(VmExit::Diagnostic(
-            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "athena-vm")
-                .detail("reason", "unterminated_module"),
-        ))
+        Ok(Self::diagnostic("unterminated_module"))
     }
 }
