@@ -1,7 +1,7 @@
-//! `athena-vm` 接入边界（骨架）。
+//! engine → `athena-vm` 投影边界（综合体挂接执行运行时）。
 //!
-//! 完整 `ExecutionModule` 仍由本 crate 的 [`super::ir`] 与 [`super::reference`] 拥有。
-//! 本模块只建立 engine → VM 的依赖与配置投影，禁止把 M-Graph / 领域算法搬进 VM。
+//! `athena-engine` 在 `athena-vm` **之上**：本模块只投影 `VmConfig` / 冒烟执行，
+//! **禁止**在此实现第二套解释循环或把 M-Graph / 领域算法塞进 VM。
 
 use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmExit, VmExecutor, VmModule};
 
@@ -21,7 +21,7 @@ pub fn vm_config_from_session(session: &Session) -> VmConfig {
     }
 }
 
-/// 运行 VM 骨架模块（parity / 冒烟）。不替代 [`super::reference::ReferenceExecutor`]。
+/// 运行 VM 模块（parity / 冒烟）。生产 SSA 路径终态应走 VM 解释循环 + host，而非本函数替代。
 pub fn execute_vm_module(session: &Session, module: &VmModule) -> athena_types::Result<VmExit> {
     let config = vm_config_from_session(session);
     let mut interpreter = Interpreter::new();

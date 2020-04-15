@@ -1,6 +1,8 @@
-//! `ReferenceExecutor` — [`ExecutionModule`] 的正确性 / 回放后端。
+//! `ReferenceExecutor` — 过渡期 **host adapter**（暂住 engine）。
 //!
-//! 无操作数栈地执行 SSA 块。不是旧 VM 的包装。
+//! 终态：SSA 解释循环归属 [`athena_vm`]；本模块只保留 Session / 语义算子 / provider /
+//! `ComputationResult` 映射。当前仍执行 SSA 块（无操作数栈），并已使用 `athena_vm::SlotTable`。
+//! **不是**与 VM 并列的第二套解释器，也不是旧栈式 VM 包装。
 
 mod helpers;
 mod ops;
