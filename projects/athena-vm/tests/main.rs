@@ -2,6 +2,7 @@
 
 mod cancel;
 mod frame;
+mod host;
 mod interpreter;
 mod lease;
 mod slot;
