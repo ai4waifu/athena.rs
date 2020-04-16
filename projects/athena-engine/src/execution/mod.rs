@@ -14,6 +14,7 @@ pub mod ir;
 pub mod provider;
 pub mod reference;
 pub mod vm;
+pub mod vm_host;
 pub(crate) mod shape;
 
 use athena_numeric::Number;

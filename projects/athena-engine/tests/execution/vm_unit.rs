@@ -64,3 +64,27 @@ fn bridge_maps_reject_exit() {
     let exit = execute_vm_module(&session, &module).expect("vm execute");
     assert_eq!(exit, VmExit::Rejected);
 }
+
+#[test]
+fn engine_host_not_via_vm_interpreter() {
+    use athena_engine::execution::vm::EngineVmHost;
+    use athena_ir::SemanticOperator;
+    use athena_vm::SemanticOpId;
+
+    let session = Session::new();
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::apply_semantic1(1, SemanticOpId(SemanticOperator::Not.discriminant()), 0),
+            Instruction::Return,
+        ],
+        vec![VmConstant::Boolean(true)],
+        2,
+    );
+    let mut interpreter = Interpreter::new();
+    let mut host = EngineVmHost::new();
+    let cfg = vm_config_from_session(&session);
+    let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(interpreter.slots().get(1), Some(SlotValue::Boolean(false)));
+}
