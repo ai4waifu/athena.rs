@@ -1,8 +1,8 @@
 //! `ReferenceExecutor` — 过渡期 **host adapter**（暂住 engine）。
 //!
-//! 终态：SSA 解释循环归属 [`athena_vm`]；本模块只保留 Session / 语义算子 / provider /
-//! `ComputationResult` 映射。当前仍执行 SSA 块（无操作数栈），并已使用 `athena_vm::SlotTable`。
-//! **不是**与 VM 并列的第二套解释器，也不是旧栈式 VM 包装。
+//! 终态：SSA 解释循环归属 [`athena_vm`]；本模块实现 [`athena_vm::VmHost`]（语义 / provider /
+//! Session 句柄）并把 `VmExit` / 槽结果映射为 `ComputationResult`。当前仍执行 SSA 块（无操作数栈），
+//! 并已使用 `athena_vm::SlotTable`。**不是**与 VM 并列的第二套解释器，也不是旧栈式 VM 包装。
 
 mod helpers;
 mod ops;

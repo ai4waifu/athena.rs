@@ -8,8 +8,8 @@ use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmE
 use crate::runtime::session::Session;
 
 pub use athena_vm::{
-    ExecutionLease, Instruction, Interpreter as VmInterpreter, SlotTable, SlotValue, VmConfig as EngineVmConfig, VmConstant,
-    VmExit as EngineVmExit, VmModule as EngineVmModule,
+    ExecutionLease, HostOutcome, Instruction, Interpreter as VmInterpreter, NullHost, ProviderOpId, SemanticOpId, SlotTable, SlotValue,
+    VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
 
 /// 从 Session 投影 VM 配置（不复制语义状态）。
