@@ -55,6 +55,36 @@ impl ModuleFingerprint {
                     }
                 }
                 Instruction::Reject => mix(&mut hash, 15),
+                Instruction::ApplySemantic { dst, op, argc, args } => {
+                    mix(&mut hash, 16);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in op.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    mix(&mut hash, *argc);
+                    for i in 0..(*argc as usize).min(crate::instruction::MAX_HOST_ARGS) {
+                        for b in args[i].to_le_bytes() {
+                            mix(&mut hash, b);
+                        }
+                    }
+                }
+                Instruction::CallProvider { dst, op, argc, args } => {
+                    mix(&mut hash, 17);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in op.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    mix(&mut hash, *argc);
+                    for i in 0..(*argc as usize).min(crate::instruction::MAX_HOST_ARGS) {
+                        for b in args[i].to_le_bytes() {
+                            mix(&mut hash, b);
+                        }
+                    }
+                }
             }
         }
         Self(hash)

@@ -1,7 +1,8 @@
 //! 解释器骨架合同。
 
 use athena_vm::{
-    CancellationToken, Instruction, Interpreter, SlotValue, VmConfig, VmConstant, VmExit, VmExecutor, VmModule,
+    CancellationToken, HostOutcome, Instruction, Interpreter, SemanticOpId, SlotValue, VmConfig, VmConstant, VmExit, VmExecutor, VmHost,
+    VmModule,
 };
 
 #[test]
@@ -80,9 +81,46 @@ fn guard_false_rejects() {
 }
 
 #[test]
-fn explicit_reject() {
-    let module = VmModule::from_instructions(vec![Instruction::Reject], 0);
+fn apply_semantic_via_host() {
+    struct EchoHost;
+    impl VmHost for EchoHost {
+        fn apply_semantic(&mut self, op: SemanticOpId, args: &[SlotValue]) -> athena_types::Result<HostOutcome> {
+            assert_eq!(op.0, 7);
+            assert_eq!(args, &[SlotValue::Boolean(true)]);
+            Ok(HostOutcome::Value(SlotValue::Boolean(false)))
+        }
+    }
+
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::apply_semantic1(1, SemanticOpId(7), 0),
+            Instruction::Return,
+        ],
+        vec![VmConstant::Boolean(true)],
+        2,
+    );
+    let mut vm = Interpreter::new();
+    let mut host = EchoHost;
+    let exit = vm
+        .execute_with_host(&module, &VmConfig::new(), &mut host)
+        .expect("execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(false)));
+}
+
+#[test]
+fn null_host_apply_semantic_diagnostics() {
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::apply_semantic1(1, SemanticOpId(1), 0),
+            Instruction::Return,
+        ],
+        vec![VmConstant::Unit],
+        2,
+    );
     let mut vm = Interpreter::new();
     let exit = vm.execute(&module, &VmConfig::new()).expect("execute");
-    assert_eq!(exit, VmExit::Rejected);
+    assert!(matches!(exit, VmExit::Diagnostic(_)));
 }

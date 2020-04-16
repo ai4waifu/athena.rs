@@ -31,7 +31,7 @@ pub use constant::VmConstant;
 pub use exit::VmExit;
 pub use frame::{Frame, FrameStack};
 pub use host::{HostOutcome, NullHost, ProviderOpId, SemanticOpId, VmHost};
-pub use instruction::{ConstantIndex, Instruction, SlotIndex};
+pub use instruction::{ConstantIndex, Instruction, MAX_HOST_ARGS, SlotIndex};
 pub use interpreter::{Interpreter, VmExecutor};
 pub use lease::ExecutionLease;
 pub use module::{ModuleFingerprint, VmModule};

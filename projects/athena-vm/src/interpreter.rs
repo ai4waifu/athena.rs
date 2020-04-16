@@ -7,15 +7,19 @@ use crate::{
     constant::VmConstant,
     exit::VmExit,
     frame::{Frame, FrameStack},
-    instruction::Instruction,
+    host::{HostOutcome, NullHost, VmHost},
+    instruction::{Instruction, MAX_HOST_ARGS},
     module::VmModule,
     slot::{SlotTable, SlotValue},
 };
 
 /// VM 执行器合同。
 pub trait VmExecutor {
-    /// 执行模块并返回出口。
+    /// 无 host 执行（内部使用 [`NullHost`]）。
     fn execute(&mut self, module: &VmModule, config: &VmConfig) -> Result<VmExit>;
+
+    /// 带 host 回调执行（engine 综合体实现 [`VmHost`]）。
+    fn execute_with_host(&mut self, module: &VmModule, config: &VmConfig, host: &mut dyn VmHost) -> Result<VmExit>;
 }
 
 /// 参考解释器（正确性路径骨架）。
@@ -100,10 +104,40 @@ impl Interpreter {
             None => Some(Self::diagnostic("guard_undefined")),
         }
     }
+
+    fn collect_args(&self, argc: u8, args: &[u32; MAX_HOST_ARGS]) -> core::result::Result<[SlotValue; MAX_HOST_ARGS], VmExit> {
+        let n = argc as usize;
+        if n > MAX_HOST_ARGS {
+            return Err(Self::diagnostic("host_argc_overflow"));
+        }
+        let mut out = [SlotValue::Empty; MAX_HOST_ARGS];
+        for i in 0..n {
+            let Some(value) = self.slots.get(args[i]) else {
+                return Err(Self::diagnostic("host_arg_undefined"));
+            };
+            out[i] = value;
+        }
+        Ok(out)
+    }
+
+    fn apply_host_outcome(&mut self, dst: u32, outcome: HostOutcome) -> Option<VmExit> {
+        match outcome {
+            HostOutcome::Value(value) | HostOutcome::Residual(value) => {
+                self.slots.set(dst, value);
+                None
+            }
+            HostOutcome::Diagnostic(diagnostic) => Some(VmExit::Diagnostic(diagnostic)),
+        }
+    }
 }
 
 impl VmExecutor for Interpreter {
     fn execute(&mut self, module: &VmModule, config: &VmConfig) -> Result<VmExit> {
+        let mut host = NullHost;
+        self.execute_with_host(module, config, &mut host)
+    }
+
+    fn execute_with_host(&mut self, module: &VmModule, config: &VmConfig, host: &mut dyn VmHost) -> Result<VmExit> {
         if module.fingerprint != crate::module::ModuleFingerprint::of_module(module) {
             return Ok(Self::diagnostic("fingerprint_mismatch"));
         }
@@ -143,6 +177,26 @@ impl VmExecutor for Interpreter {
                     }
                 }
                 Instruction::Reject => return Ok(VmExit::Rejected),
+                Instruction::ApplySemantic { dst, op, argc, args } => {
+                    let values = match self.collect_args(argc, &args) {
+                        Ok(v) => v,
+                        Err(exit) => return Ok(exit),
+                    };
+                    let outcome = host.apply_semantic(op, &values[..argc as usize])?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                }
+                Instruction::CallProvider { dst, op, argc, args } => {
+                    let values = match self.collect_args(argc, &args) {
+                        Ok(v) => v,
+                        Err(exit) => return Ok(exit),
+                    };
+                    let outcome = host.call_provider(op, &values[..argc as usize])?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                }
             }
         }
 
