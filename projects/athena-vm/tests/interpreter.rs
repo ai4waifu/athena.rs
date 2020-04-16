@@ -124,3 +124,11 @@ fn null_host_apply_semantic_diagnostics() {
     let exit = vm.execute(&module, &VmConfig::new()).expect("execute");
     assert!(matches!(exit, VmExit::Diagnostic(_)));
 }
+
+#[test]
+fn explicit_reject() {
+    let module = VmModule::from_instructions(vec![Instruction::Reject], 0);
+    let mut vm = Interpreter::new();
+    let exit = vm.execute(&module, &VmConfig::new()).expect("execute");
+    assert_eq!(exit, VmExit::Rejected);
+}
