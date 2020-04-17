@@ -11,7 +11,7 @@ pub use athena_vm::{
     ExecutionLease, HostOutcome, Instruction, Interpreter as VmInterpreter, NullHost, ProviderOpId, SemanticOpId, SlotTable, SlotValue,
     VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
-pub use crate::execution::vm_host::EngineVmHost;
+pub use crate::execution::execution_host::ExecutionHost;
 
 /// 从 Session 投影 VM 配置（不复制语义状态）。
 pub fn vm_config_from_session(session: &Session) -> VmConfig {

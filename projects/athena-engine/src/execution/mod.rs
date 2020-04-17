@@ -10,11 +10,11 @@ pub mod backend;
 pub mod builtins;
 pub mod compiler;
 pub mod environment;
+pub mod execution_host;
 pub mod ir;
 pub mod provider;
 pub mod reference;
 pub mod vm;
-pub mod vm_host;
 pub(crate) mod shape;
 
 use athena_numeric::Number;

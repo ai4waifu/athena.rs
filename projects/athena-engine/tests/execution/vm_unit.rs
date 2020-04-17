@@ -66,8 +66,8 @@ fn bridge_maps_reject_exit() {
 }
 
 #[test]
-fn engine_host_not_via_vm_interpreter() {
-    use athena_engine::execution::vm::EngineVmHost;
+fn execution_host_not_via_vm_interpreter() {
+    use athena_engine::execution::vm::ExecutionHost;
     use athena_ir::SemanticOperator;
     use athena_vm::SemanticOpId;
 
@@ -82,7 +82,7 @@ fn engine_host_not_via_vm_interpreter() {
         2,
     );
     let mut interpreter = Interpreter::new();
-    let mut host = EngineVmHost::new();
+    let mut host = ExecutionHost::new();
     let cfg = vm_config_from_session(&session);
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
