@@ -77,6 +77,16 @@ impl Instruction {
         }
     }
 
+    /// 构造二元 `ApplySemantic`。
+    pub const fn apply_semantic2(dst: SlotIndex, op: SemanticOpId, arg0: SlotIndex, arg1: SlotIndex) -> Self {
+        Self::ApplySemantic {
+            dst,
+            op,
+            argc: 2,
+            args: [arg0, arg1, 0, 0],
+        }
+    }
+
     /// 构造一元 `CallProvider`。
     pub const fn call_provider1(dst: SlotIndex, op: ProviderOpId, arg0: SlotIndex) -> Self {
         Self::CallProvider {
