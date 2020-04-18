@@ -88,3 +88,30 @@ fn execution_host_not_via_vm_interpreter() {
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(1), Some(SlotValue::Boolean(false)));
 }
+
+#[test]
+fn execution_host_and_or_via_vm_interpreter() {
+    use athena_engine::execution::vm::ExecutionHost;
+    use athena_ir::SemanticOperator;
+    use athena_vm::SemanticOpId;
+
+    let session = Session::new();
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::apply_semantic2(2, SemanticOpId(SemanticOperator::And.discriminant()), 0, 1),
+            Instruction::apply_semantic2(3, SemanticOpId(SemanticOperator::Or.discriminant()), 0, 1),
+            Instruction::Return,
+        ],
+        vec![VmConstant::Boolean(true), VmConstant::Boolean(false)],
+        4,
+    );
+    let mut interpreter = Interpreter::new();
+    let mut host = ExecutionHost::new();
+    let cfg = vm_config_from_session(&session);
+    let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(false)));
+    assert_eq!(interpreter.slots().get(3), Some(SlotValue::Boolean(true)));
+}

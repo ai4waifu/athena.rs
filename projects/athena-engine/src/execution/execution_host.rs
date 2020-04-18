@@ -1,6 +1,6 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期只覆盖最小句柄级语义（Boolean `Not`），完整 SSA 语义仍在
+//! 过渡期覆盖句柄级 Boolean 语义（`Not` / `And` / `Or`）。完整 SSA / Term 语义仍在
 //! [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
 
 use athena_ir::SemanticOperator;
@@ -16,27 +16,59 @@ impl ExecutionHost {
     pub const fn new() -> Self {
         Self
     }
-}
 
-impl VmHost for ExecutionHost {
-    fn apply_semantic(&mut self, op: SemanticOpId, args: &[SlotValue]) -> Result<HostOutcome> {
-        // `SemanticOperator::Not` discriminant == 19（athena-ir 稳定编号）。
-        if op.0 == SemanticOperator::Not.discriminant() {
-            let Some(SlotValue::Boolean(v)) = args.first().copied() else {
-                return Ok(HostOutcome::Diagnostic(
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "ExecutionHost")
-                        .detail("reason", "not_expects_boolean"),
-                ));
-            };
-            return Ok(HostOutcome::Value(SlotValue::Boolean(!v)));
-        }
-        Ok(HostOutcome::Diagnostic(
+    fn unsupported(op: SemanticOpId) -> HostOutcome {
+        HostOutcome::Diagnostic(
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ExecutionHost")
                 .detail("reason", "apply_semantic_deferred_to_reference")
                 .detail("op", op.0),
-        ))
+        )
+    }
+
+    fn expect_boolean(args: &[SlotValue], index: usize, reason: &'static str) -> Result<core::result::Result<bool, HostOutcome>> {
+        match args.get(index).copied() {
+            Some(SlotValue::Boolean(v)) => Ok(Ok(v)),
+            Some(_) | None => Ok(Err(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", reason),
+            ))),
+        }
+    }
+}
+
+impl VmHost for ExecutionHost {
+    fn apply_semantic(&mut self, op: SemanticOpId, args: &[SlotValue]) -> Result<HostOutcome> {
+        if op.0 == SemanticOperator::Not.discriminant() {
+            return match Self::expect_boolean(args, 0, "not_expects_boolean")? {
+                Ok(v) => Ok(HostOutcome::Value(SlotValue::Boolean(!v))),
+                Err(outcome) => Ok(outcome),
+            };
+        }
+        if op.0 == SemanticOperator::And.discriminant() {
+            let left = match Self::expect_boolean(args, 0, "and_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            let right = match Self::expect_boolean(args, 1, "and_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            return Ok(HostOutcome::Value(SlotValue::Boolean(left && right)));
+        }
+        if op.0 == SemanticOperator::Or.discriminant() {
+            let left = match Self::expect_boolean(args, 0, "or_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            let right = match Self::expect_boolean(args, 1, "or_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            return Ok(HostOutcome::Value(SlotValue::Boolean(left || right)));
+        }
+        Ok(Self::unsupported(op))
     }
 
     fn call_provider(&mut self, op: ProviderOpId, args: &[SlotValue]) -> Result<HostOutcome> {
