@@ -126,6 +126,25 @@ fn null_host_apply_semantic_diagnostics() {
 }
 
 #[test]
+fn load_term_and_symbol_constants() {
+    use athena_types::{SymbolId, TermId};
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::Return,
+        ],
+        vec![VmConstant::Term(TermId(9)), VmConstant::Symbol(SymbolId(3))],
+        2,
+    );
+    let mut vm = Interpreter::new();
+    let exit = vm.execute(&module, &VmConfig::new()).expect("execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(vm.slots().get(0), Some(SlotValue::Term(TermId(9))));
+    assert_eq!(vm.slots().get(1), Some(SlotValue::Symbol(SymbolId(3))));
+}
+
+#[test]
 fn explicit_reject() {
     let module = VmModule::from_instructions(vec![Instruction::Reject], 0);
     let mut vm = Interpreter::new();

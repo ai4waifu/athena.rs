@@ -24,6 +24,18 @@ impl ModuleFingerprint {
                 VmConstant::Boolean(false) => mix(&mut hash, 1),
                 VmConstant::Boolean(true) => mix(&mut hash, 2),
                 VmConstant::Unit => mix(&mut hash, 3),
+                VmConstant::Term(term) => {
+                    mix(&mut hash, 4);
+                    for b in term.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
+                VmConstant::Symbol(symbol) => {
+                    mix(&mut hash, 5);
+                    for b in symbol.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
             }
         }
         for insn in &module.instructions {

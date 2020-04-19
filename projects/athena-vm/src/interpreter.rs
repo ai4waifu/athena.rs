@@ -83,6 +83,8 @@ impl Interpreter {
         let slot = match *value {
             VmConstant::Boolean(v) => SlotValue::Boolean(v),
             VmConstant::Unit => SlotValue::Unit,
+            VmConstant::Term(term) => SlotValue::Term(term),
+            VmConstant::Symbol(symbol) => SlotValue::Symbol(symbol),
         };
         self.slots.set(dst, slot);
         None
