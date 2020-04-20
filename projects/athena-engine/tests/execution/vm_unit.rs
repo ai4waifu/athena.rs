@@ -115,3 +115,32 @@ fn execution_host_and_or_via_vm_interpreter() {
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(false)));
     assert_eq!(interpreter.slots().get(3), Some(SlotValue::Boolean(true)));
 }
+
+#[test]
+fn execution_host_trueq_equal_unequal() {
+    use athena_engine::execution::vm::ExecutionHost;
+    use athena_ir::SemanticOperator;
+    use athena_vm::SemanticOpId;
+
+    let session = Session::new();
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::apply_semantic1(2, SemanticOpId(SemanticOperator::TrueQ.discriminant()), 0),
+            Instruction::apply_semantic2(3, SemanticOpId(SemanticOperator::Equal.discriminant()), 0, 1),
+            Instruction::apply_semantic2(4, SemanticOpId(SemanticOperator::Unequal.discriminant()), 0, 1),
+            Instruction::Return,
+        ],
+        vec![VmConstant::Boolean(true), VmConstant::Boolean(false)],
+        5,
+    );
+    let mut interpreter = Interpreter::new();
+    let mut host = ExecutionHost::new();
+    let cfg = vm_config_from_session(&session);
+    let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(true)));
+    assert_eq!(interpreter.slots().get(3), Some(SlotValue::Boolean(false)));
+    assert_eq!(interpreter.slots().get(4), Some(SlotValue::Boolean(true)));
+}

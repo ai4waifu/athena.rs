@@ -1,7 +1,7 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖句柄级 Boolean 语义（`Not` / `And` / `Or`）。完整 SSA / Term 语义仍在
-//! [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
+//! 过渡期覆盖句柄级 Boolean 语义（`Not` / `And` / `Or` / `TrueQ` / `Equal` / `Unequal`）。
+//! 完整 SSA / Term 语义仍在 [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
 
 use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, DiagnosticCode, Result};
@@ -46,6 +46,12 @@ impl VmHost for ExecutionHost {
                 Err(outcome) => Ok(outcome),
             };
         }
+        if op.0 == SemanticOperator::TrueQ.discriminant() {
+            return match Self::expect_boolean(args, 0, "trueq_expects_boolean")? {
+                Ok(v) => Ok(HostOutcome::Value(SlotValue::Boolean(v))),
+                Err(outcome) => Ok(outcome),
+            };
+        }
         if op.0 == SemanticOperator::And.discriminant() {
             let left = match Self::expect_boolean(args, 0, "and_expects_boolean")? {
                 Ok(v) => v,
@@ -67,6 +73,19 @@ impl VmHost for ExecutionHost {
                 Err(outcome) => return Ok(outcome),
             };
             return Ok(HostOutcome::Value(SlotValue::Boolean(left || right)));
+        }
+        if op.0 == SemanticOperator::Equal.discriminant() || op.0 == SemanticOperator::Unequal.discriminant() {
+            let left = match Self::expect_boolean(args, 0, "compare_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            let right = match Self::expect_boolean(args, 1, "compare_expects_boolean")? {
+                Ok(v) => v,
+                Err(outcome) => return Ok(outcome),
+            };
+            let eq = left == right;
+            let out = if op.0 == SemanticOperator::Equal.discriminant() { eq } else { !eq };
+            return Ok(HostOutcome::Value(SlotValue::Boolean(out)));
         }
         Ok(Self::unsupported(op))
     }
