@@ -12,6 +12,44 @@ pub use athena_vm::{
     VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
 pub use crate::execution::execution_host::ExecutionHost;
+pub use crate::execution::vm_lower::{LoweredBooleanModule, try_lower_linear_boolean_module};
+
+/// 降级并经 [`ExecutionHost`] 在 VM 上执行线性 Boolean module。
+///
+/// 成功时返回结果槽中的 [`SlotValue`]。降级失败返回诊断（调用方可回退 Reference）。
+pub fn execute_linear_boolean_on_vm(
+    session: &Session,
+    module: &crate::execution::ir::ExecutionModule,
+) -> athena_types::Result<SlotValue> {
+    let lowered = try_lower_linear_boolean_module(module)?;
+    let config = vm_config_from_session(session);
+    let mut interpreter = Interpreter::new();
+    let mut host = ExecutionHost::new();
+    let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
+    match exit {
+        VmExit::Returned => interpreter
+            .slots()
+            .get(lowered.result_slot)
+            .ok_or_else(|| {
+                athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "execute_linear_boolean_on_vm")
+                    .detail("reason", "result_slot_empty")
+            }),
+        VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("reason", "rejected")),
+        VmExit::Cancelled => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("reason", "cancelled")),
+        VmExit::BudgetExceeded => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("reason", "budget_exceeded")),
+        VmExit::Suspended => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("reason", "suspended")),
+        VmExit::Diagnostic(diagnostic) => Err(diagnostic),
+    }
+}
 
 /// 从 Session 投影 VM 配置（不复制语义状态）。
 pub fn vm_config_from_session(session: &Session) -> VmConfig {
