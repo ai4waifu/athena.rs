@@ -28,14 +28,28 @@ pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFra
 /// 仅在 `ExecutionIR` 路径上编译并执行一次请求。
 ///
 /// `Goal::Dispatch` 在运行时把 `DomainRequest` 带入 `CallProvider`。
+/// 无 domain 时优先尝试线性 Boolean 子集经 `athena-vm` + [`ExecutionHost`] 执行，失败再回退 Reference。
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
     use crate::api::request::DomainGoal;
+    use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
+    use athena_vm::SlotValue;
 
     let module = compiler::ExecutionCompiler::new().compile(session, &request)?;
     let domain = match request {
         AthenaRequest::Goal(DomainGoal::Dispatch(domain)) => Some(domain),
         _ => None,
     };
+    if domain.is_none() {
+        if let Ok(SlotValue::Boolean(value)) = vm::execute_linear_boolean_on_vm(session, &module) {
+            let term = session.builder().boolean(value, Default::default());
+            let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+            return Ok(session.insert_result(result));
+        }
+    }
     reference::ReferenceExecutor::new().execute(session, &module, domain)
 }
 

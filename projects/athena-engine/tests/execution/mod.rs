@@ -15,4 +15,5 @@ mod provider_unit;
 mod reference_unit;
 mod semantic;
 mod vm_lower_unit;
+mod vm_path_unit;
 mod vm_unit;
