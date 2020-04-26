@@ -27,14 +27,14 @@ pub fn execute_linear_boolean_on_vm(
     let mut host = ExecutionHost::new();
     let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
     match exit {
-        VmExit::Returned => interpreter
-            .slots()
-            .get(lowered.result_slot)
-            .ok_or_else(|| {
+        VmExit::Returned => {
+            let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
+            interpreter.slots().get(slot).ok_or_else(|| {
                 athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
                     .detail("component", "execute_linear_boolean_on_vm")
                     .detail("reason", "result_slot_empty")
-            }),
+            })
+        }
         VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
             .detail("component", "execute_linear_boolean_on_vm")
             .detail("reason", "rejected")),
