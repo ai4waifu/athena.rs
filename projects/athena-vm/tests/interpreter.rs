@@ -145,9 +145,30 @@ fn load_term_and_symbol_constants() {
 }
 
 #[test]
-fn explicit_reject() {
-    let module = VmModule::from_instructions(vec![Instruction::Reject], 0);
+fn branch_selects_then_or_else() {
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::Branch {
+                condition: 0,
+                then_pc: 2,
+                else_pc: 4,
+            },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::ReturnValue { slot: 1 },
+            Instruction::LoadConstant { dst: 1, constant: 2 },
+            Instruction::ReturnValue { slot: 1 },
+        ],
+        vec![
+            VmConstant::Boolean(true),
+            VmConstant::Boolean(true),
+            VmConstant::Boolean(false),
+        ],
+        2,
+    );
     let mut vm = Interpreter::new();
     let exit = vm.execute(&module, &VmConfig::new()).expect("execute");
-    assert_eq!(exit, VmExit::Rejected);
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(vm.last_return_slot(), Some(1));
+    assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(true)));
 }

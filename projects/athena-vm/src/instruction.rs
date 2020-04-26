@@ -42,6 +42,25 @@ pub enum Instruction {
     },
     /// 显式拒绝。
     Reject,
+    /// 无条件跳转到指令下标。
+    Jump {
+        /// 目标 PC（指令下标）。
+        target: u32,
+    },
+    /// Boolean 条件分支。
+    Branch {
+        /// 谓词槽。
+        condition: SlotIndex,
+        /// 真分支 PC。
+        then_pc: u32,
+        /// 假分支 PC。
+        else_pc: u32,
+    },
+    /// 正常返回并记录结果槽。
+    ReturnValue {
+        /// 结果绝对槽。
+        slot: SlotIndex,
+    },
     /// 经 [`crate::host::VmHost::apply_semantic`] 应用封闭语义算子。
     ApplySemantic {
         /// 结果槽。

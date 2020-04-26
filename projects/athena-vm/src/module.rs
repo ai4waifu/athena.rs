@@ -67,6 +67,30 @@ impl ModuleFingerprint {
                     }
                 }
                 Instruction::Reject => mix(&mut hash, 15),
+                Instruction::Jump { target } => {
+                    mix(&mut hash, 18);
+                    for b in target.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
+                Instruction::Branch { condition, then_pc, else_pc } => {
+                    mix(&mut hash, 19);
+                    for b in condition.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in then_pc.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in else_pc.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
+                Instruction::ReturnValue { slot } => {
+                    mix(&mut hash, 20);
+                    for b in slot.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
                 Instruction::ApplySemantic { dst, op, argc, args } => {
                     mix(&mut hash, 16);
                     for b in dst.to_le_bytes() {

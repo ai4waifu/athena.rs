@@ -29,6 +29,8 @@ pub struct Interpreter {
     slots: SlotTable,
     /// 帧栈。
     frames: FrameStack,
+    /// 最近一次 [`Instruction::ReturnValue`] 的结果槽。
+    last_return_slot: Option<u32>,
 }
 
 impl Interpreter {
@@ -47,6 +49,11 @@ impl Interpreter {
         &self.frames
     }
 
+    /// 最近一次带值返回的结果槽。
+    pub fn last_return_slot(&self) -> Option<u32> {
+        self.last_return_slot
+    }
+
     fn reset_for_module(&mut self, module: &VmModule) {
         self.slots.ensure(module.locals);
         for i in 0..module.locals {
@@ -54,6 +61,7 @@ impl Interpreter {
         }
         self.frames = FrameStack::new();
         self.frames.push(Frame::new(0, module.locals));
+        self.last_return_slot = None;
     }
 
     fn check_budget_and_cancel(&self, steps: u64, config: &VmConfig) -> Option<VmExit> {
@@ -150,33 +158,62 @@ impl VmExecutor for Interpreter {
         self.reset_for_module(module);
 
         let mut steps = 0u64;
-        for insn in &module.instructions {
+        let mut pc: u32 = 0;
+        let len = module.instructions.len() as u32;
+        while (pc as usize) < module.instructions.len() {
             steps = steps.saturating_add(1);
             if let Some(exit) = self.check_budget_and_cancel(steps, config) {
                 return Ok(exit);
             }
             if let Some(frame) = self.frames.current_mut() {
-                frame.pc = frame.pc.saturating_add(1);
+                frame.pc = pc;
             }
-            match *insn {
+            let insn = module.instructions[pc as usize];
+            match insn {
                 Instruction::Safepoint => {
                     let _mode = config.gc_mode;
+                    pc = pc.saturating_add(1);
                 }
                 Instruction::Return => return Ok(VmExit::Returned),
+                Instruction::ReturnValue { slot } => {
+                    self.last_return_slot = Some(slot);
+                    return Ok(VmExit::Returned);
+                }
+                Instruction::Jump { target } => {
+                    if target >= len {
+                        return Ok(Self::diagnostic("jump_oob"));
+                    }
+                    pc = target;
+                }
+                Instruction::Branch { condition, then_pc, else_pc } => {
+                    let next = match self.slots.get(condition) {
+                        Some(SlotValue::Boolean(true)) => then_pc,
+                        Some(SlotValue::Boolean(false)) => else_pc,
+                        Some(_) => return Ok(Self::diagnostic("branch_not_boolean")),
+                        None => return Ok(Self::diagnostic("branch_undefined")),
+                    };
+                    if next >= len {
+                        return Ok(Self::diagnostic("branch_oob"));
+                    }
+                    pc = next;
+                }
                 Instruction::LoadConstant { dst, constant } => {
                     if let Some(exit) = self.load_constant(module, dst, constant) {
                         return Ok(exit);
                     }
+                    pc = pc.saturating_add(1);
                 }
                 Instruction::Move { dst, src } => {
                     if let Some(exit) = self.move_slot(dst, src) {
                         return Ok(exit);
                     }
+                    pc = pc.saturating_add(1);
                 }
                 Instruction::Guard { predicate } => {
                     if let Some(exit) = self.guard(predicate) {
                         return Ok(exit);
                     }
+                    pc = pc.saturating_add(1);
                 }
                 Instruction::Reject => return Ok(VmExit::Rejected),
                 Instruction::ApplySemantic { dst, op, argc, args } => {
@@ -188,6 +225,7 @@ impl VmExecutor for Interpreter {
                     if let Some(exit) = self.apply_host_outcome(dst, outcome) {
                         return Ok(exit);
                     }
+                    pc = pc.saturating_add(1);
                 }
                 Instruction::CallProvider { dst, op, argc, args } => {
                     let values = match self.collect_args(argc, &args) {
@@ -198,6 +236,7 @@ impl VmExecutor for Interpreter {
                     if let Some(exit) = self.apply_host_outcome(dst, outcome) {
                         return Ok(exit);
                     }
+                    pc = pc.saturating_add(1);
                 }
             }
         }
