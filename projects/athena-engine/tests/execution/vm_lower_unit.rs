@@ -384,3 +384,109 @@ fn lower_terminator_reject_on_else_edge() {
         Some("rejected")
     );
 }
+
+fn interfering_swap_phi_module() -> ExecutionModule {
+    let v_false = SsaValueId(0);
+    let v_true = SsaValueId(1);
+    let p0 = SsaValueId(2);
+    let p1 = SsaValueId(3);
+    let ret = SsaValueId(4);
+    let entry = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![
+            Operation {
+                result: Some(v_false),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(0) },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: Some(v_true),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(1) },
+                effect_in: None,
+                effect_out: None,
+            },
+        ],
+        terminator: Terminator::Branch {
+            condition: v_true,
+            then_edge: BlockEdge {
+                target: BlockId(1),
+                arguments: vec![v_false, v_true],
+            },
+            else_edge: BlockEdge {
+                target: BlockId(1),
+                arguments: vec![v_false, v_true],
+            },
+        },
+    };
+    let loop_block = BasicBlock {
+        id: BlockId(1),
+        parameters: vec![
+            athena_engine::execution::ir::BlockParameter {
+                value: p0,
+                ty: ExecutionValueType::Boolean,
+            },
+            athena_engine::execution::ir::BlockParameter {
+                value: p1,
+                ty: ExecutionValueType::Boolean,
+            },
+        ],
+        operations: Vec::new(),
+        terminator: Terminator::Branch {
+            condition: p0,
+            then_edge: BlockEdge {
+                target: BlockId(2),
+                arguments: vec![p1],
+            },
+            else_edge: BlockEdge {
+                target: BlockId(1),
+                arguments: vec![p1, p0],
+            },
+        },
+    };
+    let exit = BasicBlock {
+        id: BlockId(2),
+        parameters: vec![athena_engine::execution::ir::BlockParameter {
+            value: ret,
+            ty: ExecutionValueType::Boolean,
+        }],
+        operations: Vec::new(),
+        terminator: Terminator::return_value(ret),
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![entry, loop_block, exit],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::boolean(false), ConstantValue::boolean(true)],
+        captured_roots: Vec::new(),
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    module
+}
+
+#[test]
+fn lower_interfering_edge_arg_swap_uses_temps() {
+    let session = Session::new();
+    let module = interfering_swap_phi_module();
+    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let has_temp_move = lowered.module.instructions.iter().any(|insn| {
+        matches!(insn, athena_vm::Instruction::Move { dst, .. } if *dst >= 5)
+    });
+    assert!(has_temp_move, "expected temporary Move slots for interfering phi");
+    assert_eq!(
+        execute_linear_boolean_on_vm(&session, &module).expect("swap"),
+        SlotValue::Boolean(false)
+    );
+}

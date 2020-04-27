@@ -5,7 +5,7 @@
 //!
 //! 支持：单 region · `Constant` / 受支持 `ApplySemanticOperator` ·
 //! `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
-//! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`）。
+//! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 
 use std::collections::HashMap;
 
@@ -41,12 +41,36 @@ fn bump(max: &mut u32, id: u32) {
     *max = (*max).max(id.saturating_add(1));
 }
 
-fn edge_trampoline_len(edge: &BlockEdge) -> u32 {
-    if edge.arguments.is_empty() {
-        0
-    } else {
-        (edge.arguments.len() as u32).saturating_add(1)
+fn edge_moves_interfere(
+    params: &[crate::execution::ir::BlockParameter],
+    arguments: &[crate::execution::ir::SsaValueId],
+) -> bool {
+    let mut dsts = HashMap::new();
+    for param in params {
+        dsts.insert(param.value.0, ());
     }
+    arguments.iter().any(|arg| dsts.contains_key(&arg.0))
+}
+
+fn edge_trampoline_len(region: &Region, edge: &BlockEdge) -> Result<u32> {
+    if edge.arguments.is_empty() {
+        return Ok(0);
+    }
+    let target = region
+        .blocks
+        .iter()
+        .find(|b| b.id == edge.target)
+        .ok_or_else(|| diag("lower_missing_edge_target"))?;
+    if target.parameters.len() != edge.arguments.len() {
+        return Err(diag("lower_edge_arity_mismatch"));
+    }
+    let n = edge.arguments.len() as u32;
+    let moves = if edge_moves_interfere(&target.parameters, &edge.arguments) {
+        n.saturating_mul(2)
+    } else {
+        n
+    };
+    Ok(moves.saturating_add(1))
 }
 
 fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
@@ -134,7 +158,7 @@ fn lower_ops(
     Ok(())
 }
 
-fn block_body_len(block: &BasicBlock) -> Result<u32> {
+fn block_body_len(region: &Region, block: &BasicBlock) -> Result<u32> {
     let mut ops_len = 0u32;
     for op in &block.operations {
         ops_len = ops_len.saturating_add(op_instruction_len(op)?);
@@ -148,8 +172,8 @@ fn block_body_len(block: &BasicBlock) -> Result<u32> {
         }
         Terminator::Reject { .. } => 1u32,
         Terminator::Branch { then_edge, else_edge, .. } => 1u32
-            .saturating_add(edge_trampoline_len(then_edge))
-            .saturating_add(edge_trampoline_len(else_edge)),
+            .saturating_add(edge_trampoline_len(region, then_edge)?)
+            .saturating_add(edge_trampoline_len(region, else_edge)?),
         _ => return Err(diag("lower_unsupported_terminator")),
     };
     Ok(ops_len.saturating_add(term_len))
@@ -160,7 +184,7 @@ fn layout_block_pcs(region: &Region) -> Result<HashMap<BlockId, u32>> {
     let mut cursor = 0u32;
     for block in &region.blocks {
         pcs.insert(block.id, cursor);
-        cursor = cursor.saturating_add(block_body_len(block)?);
+        cursor = cursor.saturating_add(block_body_len(region, block)?);
     }
     Ok(pcs)
 }
@@ -189,13 +213,34 @@ fn emit_edge_trampoline(
     if target.parameters.len() != edge.arguments.len() {
         return Err(diag("lower_edge_arity_mismatch"));
     }
-    for (param, arg) in target.parameters.iter().zip(edge.arguments.iter()) {
-        bump(max_slot, param.value.0);
-        bump(max_slot, arg.0);
-        instructions.push(Instruction::Move {
-            dst: param.value.0,
-            src: arg.0,
-        });
+    if edge_moves_interfere(&target.parameters, &edge.arguments) {
+        let mut temps = Vec::with_capacity(edge.arguments.len());
+        for arg in &edge.arguments {
+            bump(max_slot, arg.0);
+            let tmp = *max_slot;
+            *max_slot = max_slot.saturating_add(1);
+            instructions.push(Instruction::Move {
+                dst: tmp,
+                src: arg.0,
+            });
+            temps.push(tmp);
+        }
+        for (param, tmp) in target.parameters.iter().zip(temps.iter()) {
+            bump(max_slot, param.value.0);
+            instructions.push(Instruction::Move {
+                dst: param.value.0,
+                src: *tmp,
+            });
+        }
+    } else {
+        for (param, arg) in target.parameters.iter().zip(edge.arguments.iter()) {
+            bump(max_slot, param.value.0);
+            bump(max_slot, arg.0);
+            instructions.push(Instruction::Move {
+                dst: param.value.0,
+                src: arg.0,
+            });
+        }
     }
     let target_pc = *block_pcs
         .get(&edge.target)
@@ -215,7 +260,7 @@ fn emit_branch(
 ) -> Result<()> {
     bump(max_slot, condition);
     let after_branch = (instructions.len() as u32).saturating_add(1);
-    let then_tramp = edge_trampoline_len(then_edge);
+    let then_tramp = edge_trampoline_len(region, then_edge)?;
     let then_pc = if then_tramp == 0 {
         *block_pcs
             .get(&then_edge.target)
@@ -223,7 +268,7 @@ fn emit_branch(
     } else {
         after_branch
     };
-    let else_pc = if edge_trampoline_len(else_edge) == 0 {
+    let else_pc = if edge_trampoline_len(region, else_edge)? == 0 {
         *block_pcs
             .get(&else_edge.target)
             .ok_or_else(|| diag("lower_missing_else_block"))?
