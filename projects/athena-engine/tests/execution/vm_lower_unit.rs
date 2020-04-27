@@ -244,3 +244,143 @@ fn lower_and_execute_boolean_edge_arg_phi_on_vm() {
         SlotValue::Boolean(false)
     );
 }
+
+fn guarded_boolean_module(pred: bool) -> ExecutionModule {
+    use athena_engine::execution::ir::GuardFailure;
+    let p = SsaValueId(0);
+    let out = SsaValueId(1);
+    let block = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![
+            Operation {
+                result: Some(p),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(0) },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: None,
+                result_type: ExecutionValueType::Unit,
+                kind: OperationKind::Guard {
+                    predicate: p,
+                    on_failure: GuardFailure::Reject,
+                },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: Some(out),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(1) },
+                effect_in: None,
+                effect_out: None,
+            },
+        ],
+        terminator: Terminator::return_value(out),
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![block],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::boolean(pred), ConstantValue::boolean(true)],
+        captured_roots: Vec::new(),
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    module
+}
+
+#[test]
+fn lower_guard_reject_passes_on_true() {
+    let session = Session::new();
+    let module = guarded_boolean_module(true);
+    assert_eq!(
+        execute_linear_boolean_on_vm(&session, &module).expect("pass"),
+        SlotValue::Boolean(true)
+    );
+}
+
+#[test]
+fn lower_guard_reject_fails_on_false() {
+    let session = Session::new();
+    let module = guarded_boolean_module(false);
+    let err = execute_linear_boolean_on_vm(&session, &module).expect_err("reject");
+    assert_eq!(
+        err.details.get("reason").map(|v| v.to_string()).as_deref(),
+        Some("rejected")
+    );
+}
+
+#[test]
+fn lower_terminator_reject_on_else_edge() {
+    let c = SsaValueId(0);
+    let then_v = SsaValueId(1);
+    let entry = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            result: Some(c),
+            result_type: ExecutionValueType::Boolean,
+            kind: OperationKind::Constant { constant: ConstantId(0) },
+            effect_in: None,
+            effect_out: None,
+        }],
+        terminator: Terminator::Branch {
+            condition: c,
+            then_edge: BlockEdge::jump(BlockId(1)),
+            else_edge: BlockEdge::jump(BlockId(2)),
+        },
+    };
+    let then_block = BasicBlock {
+        id: BlockId(1),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            result: Some(then_v),
+            result_type: ExecutionValueType::Boolean,
+            kind: OperationKind::Constant { constant: ConstantId(1) },
+            effect_in: None,
+            effect_out: None,
+        }],
+        terminator: Terminator::return_value(then_v),
+    };
+    let else_block = BasicBlock {
+        id: BlockId(2),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::Reject { exit: None },
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![entry, then_block, else_block],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::boolean(false), ConstantValue::boolean(true)],
+        captured_roots: Vec::new(),
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    let session = Session::new();
+    assert!(try_lower_linear_boolean_module(&module).is_ok());
+    let err = execute_linear_boolean_on_vm(&session, &module).expect_err("else reject");
+    assert_eq!(
+        err.details.get("reason").map(|v| v.to_string()).as_deref(),
+        Some("rejected")
+    );
+}

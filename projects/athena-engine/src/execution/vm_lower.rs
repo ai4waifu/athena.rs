@@ -4,7 +4,8 @@
 //! 超出子集则返回诊断，由调用方回退 Reference。
 //!
 //! 支持：单 region · `Constant` / 受支持 `ApplySemanticOperator` ·
-//! `Return` / `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`）。
+//! `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
+//! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`）。
 
 use std::collections::HashMap;
 
@@ -12,8 +13,8 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use athena_vm::{Instruction, MAX_HOST_ARGS, SemanticOpId, VmConstant, VmModule};
 
 use crate::execution::ir::{
-    BasicBlock, BlockEdge, BlockId, ConstantValue, ExecutionModule, OperationKind, Region, Terminator,
-    verify_module,
+    BasicBlock, BlockEdge, BlockId, ConstantValue, ExecutionModule, GuardFailure, OperationKind, Region,
+    Terminator, verify_module,
 };
 
 /// 已降级的 Boolean module。
@@ -48,6 +49,27 @@ fn edge_trampoline_len(edge: &BlockEdge) -> u32 {
     }
 }
 
+fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
+    match &op.kind {
+        OperationKind::Constant { .. } | OperationKind::ApplySemanticOperator { .. } => {
+            if op.result.is_none() {
+                return Err(diag("lower_rejects_unit_only_op"));
+            }
+            Ok(1)
+        }
+        OperationKind::Guard { on_failure, .. } => {
+            if !matches!(on_failure, GuardFailure::Reject) {
+                return Err(diag("lower_unsupported_guard_failure"));
+            }
+            if op.result.is_some() {
+                return Err(diag("lower_rejects_guard_result"));
+            }
+            Ok(1)
+        }
+        _ => Err(diag("lower_unsupported_operation")),
+    }
+}
+
 fn lower_ops(
     module: &ExecutionModule,
     block: &BasicBlock,
@@ -56,12 +78,18 @@ fn lower_ops(
     max_slot: &mut u32,
 ) -> Result<()> {
     for op in &block.operations {
-        let Some(result) = op.result else {
-            return Err(diag("lower_rejects_unit_only_op"));
-        };
-        bump(max_slot, result.0);
         match &op.kind {
+            OperationKind::Guard { predicate, on_failure } => {
+                let _ = op_instruction_len(op)?;
+                bump(max_slot, predicate.0);
+                let _ = on_failure;
+                instructions.push(Instruction::Guard {
+                    predicate: predicate.0,
+                });
+            }
             OperationKind::Constant { constant } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
                 let value = module
                     .constants
                     .get(constant.0 as usize)
@@ -80,6 +108,8 @@ fn lower_ops(
                 });
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
                 if !supported_boolean_op(*operator) {
                     return Err(diag("lower_unsupported_semantic_op"));
                 }
@@ -105,6 +135,10 @@ fn lower_ops(
 }
 
 fn block_body_len(block: &BasicBlock) -> Result<u32> {
+    let mut ops_len = 0u32;
+    for op in &block.operations {
+        ops_len = ops_len.saturating_add(op_instruction_len(op)?);
+    }
     let term_len = match &block.terminator {
         Terminator::Return { values } => {
             if values.len() != 1 {
@@ -112,12 +146,13 @@ fn block_body_len(block: &BasicBlock) -> Result<u32> {
             }
             1u32
         }
+        Terminator::Reject { .. } => 1u32,
         Terminator::Branch { then_edge, else_edge, .. } => 1u32
             .saturating_add(edge_trampoline_len(then_edge))
             .saturating_add(edge_trampoline_len(else_edge)),
         _ => return Err(diag("lower_unsupported_terminator")),
     };
-    Ok((block.operations.len() as u32).saturating_add(term_len))
+    Ok(ops_len.saturating_add(term_len))
 }
 
 fn layout_block_pcs(region: &Region) -> Result<HashMap<BlockId, u32>> {
@@ -207,7 +242,8 @@ fn emit_branch(
 
 /// 尝试将单 region Boolean CFG 降为 [`LoweredBooleanModule`]。
 ///
-/// 允许：`Constant` / 受支持语义算子 · `Return` / `Branch`（边实参经 `Move` 蹦床）。
+/// 允许：`Constant` / 受支持语义算子 · `Guard(Reject)` · `Return` / `Reject` /
+/// `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_linear_boolean_module(module: &ExecutionModule) -> Result<LoweredBooleanModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {
@@ -235,6 +271,9 @@ pub fn try_lower_linear_boolean_module(module: &ExecutionModule) -> Result<Lower
                 instructions.push(Instruction::ReturnValue { slot });
                 result_slot = slot;
                 saw_return = true;
+            }
+            Terminator::Reject { .. } => {
+                instructions.push(Instruction::Reject);
             }
             Terminator::Branch {
                 condition,
