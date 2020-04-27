@@ -153,33 +153,50 @@ fn lower_and_execute_boolean_branch_on_vm() {
     );
 }
 
-#[test]
-fn lower_rejects_branch_with_edge_args() {
-    let cond = SsaValueId(0);
-    let param = SsaValueId(1);
+fn edge_arg_phi_module(cond: bool, then_val: bool, else_val: bool) -> ExecutionModule {
+    let c = SsaValueId(0);
+    let then_v = SsaValueId(1);
+    let else_v = SsaValueId(2);
+    let param = SsaValueId(3);
     let entry = BasicBlock {
         id: BlockId(0),
         parameters: Vec::new(),
-        operations: vec![Operation {
-            result: Some(cond),
-            result_type: ExecutionValueType::Boolean,
-            kind: OperationKind::Constant { constant: ConstantId(0) },
-            effect_in: None,
-            effect_out: None,
-        }],
+        operations: vec![
+            Operation {
+                result: Some(c),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(0) },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: Some(then_v),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(1) },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: Some(else_v),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(2) },
+                effect_in: None,
+                effect_out: None,
+            },
+        ],
         terminator: Terminator::Branch {
-            condition: cond,
+            condition: c,
             then_edge: BlockEdge {
                 target: BlockId(1),
-                arguments: vec![cond],
+                arguments: vec![then_v],
             },
             else_edge: BlockEdge {
                 target: BlockId(1),
-                arguments: vec![cond],
+                arguments: vec![else_v],
             },
         },
     };
-    let ret = BasicBlock {
+    let join = BasicBlock {
         id: BlockId(1),
         parameters: vec![athena_engine::execution::ir::BlockParameter {
             value: param,
@@ -191,12 +208,16 @@ fn lower_rejects_branch_with_edge_args() {
     let region = Region {
         id: RegionId(0),
         entry: BlockId(0),
-        blocks: vec![entry, ret],
+        blocks: vec![entry, join],
         result_types: vec![ExecutionValueType::Boolean],
     };
     let mut module = ExecutionModule {
         inputs: Vec::new(),
-        constants: vec![ConstantValue::boolean(true)],
+        constants: vec![
+            ConstantValue::boolean(cond),
+            ConstantValue::boolean(then_val),
+            ConstantValue::boolean(else_val),
+        ],
         captured_roots: Vec::new(),
         regions: vec![region],
         effect_edges: Vec::new(),
@@ -205,11 +226,21 @@ fn lower_rejects_branch_with_edge_args() {
         fingerprint: ModuleFingerprint(0),
     };
     module.fingerprint = ModuleFingerprint::of_module(&module);
-    let err = try_lower_linear_boolean_module(&module).expect_err("edge args");
-    let reason = err.details.get("reason").map(|v| v.to_string());
-    assert!(
-        reason.as_deref() == Some("lower_rejects_branch_args")
-            || reason.as_deref() == Some("lower_rejects_block_parameters"),
-        "unexpected reason {reason:?}"
+    module
+}
+
+#[test]
+fn lower_and_execute_boolean_edge_arg_phi_on_vm() {
+    let session = Session::new();
+    let then_mod = edge_arg_phi_module(true, true, false);
+    assert!(try_lower_linear_boolean_module(&then_mod).is_ok());
+    assert_eq!(
+        execute_linear_boolean_on_vm(&session, &then_mod).expect("then"),
+        SlotValue::Boolean(true)
+    );
+    let else_mod = edge_arg_phi_module(false, true, false);
+    assert_eq!(
+        execute_linear_boolean_on_vm(&session, &else_mod).expect("else"),
+        SlotValue::Boolean(false)
     );
 }
