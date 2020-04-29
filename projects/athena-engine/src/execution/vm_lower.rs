@@ -28,7 +28,7 @@ pub struct LoweredBooleanModule {
 
 fn supported_boolean_op(op: athena_ir::SemanticOperator) -> bool {
     use athena_ir::SemanticOperator::*;
-    matches!(op, Not | And | Or | TrueQ | Equal | Unequal)
+    matches!(op, Not | And | Or | TrueQ | Equal | Unequal | Identical)
 }
 
 fn diag(reason: &'static str) -> Diagnostic {

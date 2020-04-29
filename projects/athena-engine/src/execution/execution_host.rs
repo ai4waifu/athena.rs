@@ -1,6 +1,6 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖句柄级 Boolean 语义（`Not` / `And` / `Or` / `TrueQ` / `Equal` / `Unequal`）。
+//! 过渡期覆盖句柄级 Boolean 语义（`Not` / `And` / `Or` / `TrueQ` / `Equal` / `Unequal` / `Identical`）。
 //! 完整 SSA / Term 语义仍在 [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
 
 use athena_ir::SemanticOperator;
@@ -74,7 +74,10 @@ impl VmHost for ExecutionHost {
             };
             return Ok(HostOutcome::Value(SlotValue::Boolean(left || right)));
         }
-        if op.0 == SemanticOperator::Equal.discriminant() || op.0 == SemanticOperator::Unequal.discriminant() {
+        if op.0 == SemanticOperator::Equal.discriminant()
+            || op.0 == SemanticOperator::Unequal.discriminant()
+            || op.0 == SemanticOperator::Identical.discriminant()
+        {
             let left = match Self::expect_boolean(args, 0, "compare_expects_boolean")? {
                 Ok(v) => v,
                 Err(outcome) => return Ok(outcome),
@@ -84,7 +87,11 @@ impl VmHost for ExecutionHost {
                 Err(outcome) => return Ok(outcome),
             };
             let eq = left == right;
-            let out = if op.0 == SemanticOperator::Equal.discriminant() { eq } else { !eq };
+            let out = if op.0 == SemanticOperator::Unequal.discriminant() {
+                !eq
+            } else {
+                eq
+            };
             return Ok(HostOutcome::Value(SlotValue::Boolean(out)));
         }
         Ok(Self::unsupported(op))

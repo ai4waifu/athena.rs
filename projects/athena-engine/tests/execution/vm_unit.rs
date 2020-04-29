@@ -130,10 +130,11 @@ fn execution_host_trueq_equal_unequal() {
             Instruction::apply_semantic1(2, SemanticOpId(SemanticOperator::TrueQ.discriminant()), 0),
             Instruction::apply_semantic2(3, SemanticOpId(SemanticOperator::Equal.discriminant()), 0, 1),
             Instruction::apply_semantic2(4, SemanticOpId(SemanticOperator::Unequal.discriminant()), 0, 1),
+            Instruction::apply_semantic2(5, SemanticOpId(SemanticOperator::Identical.discriminant()), 0, 0),
             Instruction::Return,
         ],
         vec![VmConstant::Boolean(true), VmConstant::Boolean(false)],
-        5,
+        6,
     );
     let mut interpreter = Interpreter::new();
     let mut host = ExecutionHost::new();
@@ -143,4 +144,5 @@ fn execution_host_trueq_equal_unequal() {
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(true)));
     assert_eq!(interpreter.slots().get(3), Some(SlotValue::Boolean(false)));
     assert_eq!(interpreter.slots().get(4), Some(SlotValue::Boolean(true)));
+    assert_eq!(interpreter.slots().get(5), Some(SlotValue::Boolean(true)));
 }
