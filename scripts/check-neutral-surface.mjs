@@ -15,6 +15,7 @@ const scanRoots = [
   "projects/athena-numeric/src",
   "projects/athena-ir/src",
   "projects/athena-rewriter/src",
+  "projects/athena-vm/src",
   "projects/athena-engine/src",
   "projects/athena/src",
   "projects/athena-testing/src",

@@ -23,6 +23,8 @@ jobs:
         run: node scripts/migration/check-expiry.mjs
       - name: Neutral surface gate
         run: node scripts/check-neutral-surface.mjs
+      - name: Crate dependency gate
+        run: node scripts/check-crate-deps.mjs
       - name: Check
         run: cargo check --workspace --all-targets
       - name: Tests
