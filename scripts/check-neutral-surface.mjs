@@ -57,6 +57,14 @@ const banned = [
     re: /match\s+h\.as_str\(\)\s*\{/,
     why: "string head match dispatch",
   },
+  {
+    re: /symbol_name\s*\([\s\S]{0,160}\.extensions\.intern\s*\(/,
+    why: "symbol_name → extension intern semantic dispatch",
+  },
+  {
+    re: /symbols\(\)\.resolve[\s\S]{0,160}\.extensions\.intern\s*\(/,
+    why: "Symbol resolve → extension intern semantic dispatch",
+  },
   // Mathematica surface names as Rust string literals (not neutral debug_label Add/Multiply).
   {
     re: /"(Plus|Times|SetDelayed|RuleDelayed|OwnValue|DownValue|HoldAll|BlankSequence|BlankNullSequence|WriteDownValue)"/,

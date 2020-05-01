@@ -8,7 +8,7 @@ use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, T
 
 use crate::{
     domains::linear_algebra::{MatrixEntry, MatrixValue},
-    execution::{number_of, push_extension, push_number, push_semantic},
+    execution::{number_of, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -178,7 +178,7 @@ pub(crate) fn range_int_terms(session: &mut Session, a: i64, b: i64, step: i64) 
 
 pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec<TermId>) -> TermId {
     match session.arena.get(head) {
-        // 零元语义 / 扩展应用用作算子值（不是 Symbol 名）。
+        // 零元语义 / 扩展应用用作算子值（不是 Symbol 显示名）。
         Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(op), arguments }) if arguments.is_empty() => {
             push_semantic(session, *op, args)
         }
@@ -187,11 +187,7 @@ pub(crate) fn rebuild_application(session: &mut Session, head: TermId, args: Vec
             let mut b = TermBuilder::new(&mut session.arena);
             b.application_extension_id(id, args, athena_ir::TermNode::default_span())
         }
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(symbol))) => {
-            let name = session.arena.symbols().resolve(*symbol).unwrap_or("?").to_string();
-            let op = session.extensions.intern(&name);
-            push_extension(session, op, args)
-        }
+        // 禁止裸 `Symbol` 经显示名 `extensions.intern`；保留 typed `ApplyHead` 残差。
         _ => {
             let mut wrapped = Vec::with_capacity(args.len() + 1);
             wrapped.push(head);

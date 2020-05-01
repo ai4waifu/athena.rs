@@ -356,9 +356,6 @@ impl ReferenceExecutor {
     }
 
     fn map_func_supported(&self, session: &Session, func: TermId) -> bool {
-        if symbol_name(session, func).is_some() {
-            return true;
-        }
         match session.arena.get(func) {
             Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), arguments })
                 if arguments.len() == 2 =>
@@ -374,7 +371,7 @@ impl ReferenceExecutor {
         }
     }
 
-    /// 将 `func` 作用于单个列表元素：零元算子值、符号头，或 `Function[var, body]`。
+    /// 将 `func` 作用于单个列表元素：零元算子值或 `Function[var, body]`。
     fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
         if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(func) {
             if arguments.is_empty() {
@@ -397,11 +394,8 @@ impl ReferenceExecutor {
                 }
             }
         }
-        if let Some(name) = symbol_name(session, func) {
-            let op = session.extensions.intern(&name);
-            let mapped = push_extension(session, op, vec![item]);
-            return self.re_eval_term(session, mapped);
-        }
+        // 禁止 `symbol_name` → `extensions.intern`：裸符号头须由编译期 / 方言 lowering
+        // 落成 `ApplicationHead::Extension` 或封闭 `SemanticOperator`。
         Err(diag("map_func_unsupported"))
     }
 
@@ -468,18 +462,7 @@ impl ReferenceExecutor {
                 }
             }
         }
-        if let Some(name) = symbol_name(session, head) {
-            let op = session.extensions.intern(&name);
-            let app = push_extension(session, op, call_args);
-            match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(app)) {
-                Ok(module) => {
-                    let result_id = self.execute(session, &module, None)?;
-                    let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(app);
-                    return Ok(Slot::Term(term));
-                }
-                Err(_) => return Ok(Slot::Term(app)),
-            }
-        }
+        // 禁止裸符号经显示名 intern 成扩展算子；保留 typed `ApplyHead` 残差。
         let mut wrapped = Vec::with_capacity(call_args.len() + 1);
         wrapped.push(head);
         wrapped.extend(call_args);
