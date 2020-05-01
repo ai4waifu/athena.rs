@@ -4,8 +4,8 @@ use athena_engine::{
     Session,
     execution::{
         ir::{
-            BasicBlock, BlockId, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint,
-            Operation, OperationKind, Region, RegionId, SsaValueId, Terminator, verify_module,
+            BasicBlock, BlockId, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, GuardFailure,
+            ModuleFingerprint, Operation, OperationKind, Region, RegionId, SsaValueId, Terminator, verify_module,
         },
         reference::ReferenceExecutor,
         vm::{ExecutionHost, try_lower_linear_boolean_module},
@@ -185,4 +185,99 @@ fn parity_reject_terminator() {
 
     let vm_exit = run_vm(&module, &VmConfig::default()).expect("vm");
     assert_eq!(vm_exit, VmExit::Rejected);
+}
+
+fn guard_reject_module(pred: bool) -> ExecutionModule {
+    let p = SsaValueId(0);
+    let out = SsaValueId(1);
+    let block = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![
+            Operation {
+                result: Some(p),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(0) },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: None,
+                result_type: ExecutionValueType::Unit,
+                kind: OperationKind::Guard {
+                    predicate: p,
+                    on_failure: GuardFailure::Reject,
+                },
+                effect_in: None,
+                effect_out: None,
+            },
+            Operation {
+                result: Some(out),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: ConstantId(1) },
+                effect_in: None,
+                effect_out: None,
+            },
+        ],
+        terminator: Terminator::return_value(out),
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![block],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::boolean(pred), ConstantValue::boolean(true)],
+        captured_roots: Vec::new(),
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    module
+}
+
+#[test]
+fn parity_guard_reject() {
+    let mut session = Session::new();
+    let module = guard_reject_module(false);
+    verify_module(&module).expect("verify");
+
+    let ref_err = ReferenceExecutor::new()
+        .execute(&mut session, &module, None)
+        .expect_err("reference guard");
+    assert_eq!(reason_of(&ref_err).as_deref(), Some("rejected"));
+
+    let vm_exit = run_vm(&module, &VmConfig::default()).expect("vm");
+    assert_eq!(vm_exit, VmExit::Rejected);
+}
+
+#[test]
+fn parity_guard_pass() {
+    let mut session = Session::new();
+    let module = guard_reject_module(true);
+    verify_module(&module).expect("verify");
+
+    let ref_id = ReferenceExecutor::new()
+        .execute(&mut session, &module, None)
+        .expect("reference");
+    let ref_term = session.results.get(ref_id).and_then(|r| r.symbolic_term).expect("term");
+    match session.arena.get(ref_term) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
+        other => panic!("reference expected true, got {other:?}"),
+    }
+
+    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let mut interpreter = Interpreter::new();
+    let mut host = ExecutionHost::new();
+    let exit = interpreter
+        .execute_with_host(&lowered.module, &VmConfig::default(), &mut host)
+        .expect("vm");
+    assert_eq!(exit, VmExit::Returned);
+    let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
+    assert_eq!(interpreter.slots().get(slot), Some(SlotValue::Boolean(true)));
 }
