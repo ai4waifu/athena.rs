@@ -28,7 +28,7 @@ use crate::{
     execution::{
         compiler::ExecutionCompiler,
         environment::{LocalBinding, ScopeFrame},
-        ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
+        ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
         number_of, push_extension, push_number, push_semantic,
     },
     runtime::{
@@ -556,7 +556,27 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::PublishResult { source } => Ok(slots.get(source.0).ok_or_else(|| diag("publish_source_undefined"))?),
-            OperationKind::LoadInput { .. } | OperationKind::Guard { .. } | OperationKind::MaterializeValue { .. } => {
+            OperationKind::Guard { predicate, on_failure } => {
+                let pred = match slots.get(predicate.0).ok_or_else(|| diag("guard_undefined"))? {
+                    Slot::Boolean(v) => Ok(v),
+                    Slot::Term(term) => coerce_branch_predicate(session, term),
+                    _ => Err(Diagnostic::new(DiagnosticCode::NonBooleanCondition)
+                        .detail("component", "ReferenceExecutor")
+                        .detail("reason", "guard_not_boolean")),
+                }?;
+                match on_failure {
+                    GuardFailure::Reject => {
+                        if !pred {
+                            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                .detail("component", "ReferenceExecutor")
+                                .detail("reason", "rejected"));
+                        }
+                        Ok(Slot::Unit)
+                    }
+                    GuardFailure::Exit(_) => Err(diag("guard_exit_not_implemented")),
+                }
+            }
+            OperationKind::LoadInput { .. } | OperationKind::MaterializeValue { .. } => {
                 Err(diag("operation_not_implemented"))
             }
         }
