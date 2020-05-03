@@ -146,3 +146,52 @@ fn execution_host_trueq_equal_unequal() {
     assert_eq!(interpreter.slots().get(4), Some(SlotValue::Boolean(true)));
     assert_eq!(interpreter.slots().get(5), Some(SlotValue::Boolean(true)));
 }
+
+#[test]
+fn pin_module_terms_registers_captured_and_constant_terms() {
+    use athena_engine::execution::{
+        ir::{
+            CapturedRoot, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint, Region, RegionId, BasicBlock, BlockId,
+            Terminator, SsaValueId, Operation, OperationKind, ConstantId,
+        },
+        vm::{pin_module_terms, ExecutionLease},
+    };
+    use athena_types::TermId;
+
+    let mut session = Session::new();
+    let term = session.builder().boolean(true, Default::default());
+    let block = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            result: Some(SsaValueId(0)),
+            result_type: ExecutionValueType::Boolean,
+            kind: OperationKind::Constant { constant: ConstantId(0) },
+            effect_in: None,
+            effect_out: None,
+        }],
+        terminator: Terminator::return_value(SsaValueId(0)),
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![block],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::Boolean(true), ConstantValue::Term(term)],
+        captured_roots: vec![CapturedRoot::term(TermId(term.0))],
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+
+    let mut lease = ExecutionLease::new(session.heap().clone());
+    pin_module_terms(&mut lease, &module);
+    assert_eq!(lease.term_pin_count(), 2);
+    assert!(lease.term_pins().contains(&term));
+}

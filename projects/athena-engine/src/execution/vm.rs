@@ -5,6 +5,7 @@
 
 use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmExit, VmExecutor, VmModule};
 
+use crate::execution::ir::{CapturedRoot, ConstantValue, ExecutionModule};
 use crate::runtime::session::Session;
 
 pub use athena_vm::{
@@ -13,6 +14,20 @@ pub use athena_vm::{
 };
 pub use crate::execution::execution_host::ExecutionHost;
 pub use crate::execution::vm_lower::{LoweredBooleanModule, try_lower_linear_boolean_module};
+
+/// 将 module 的 captured Term 根与 Term 常量 pin 到执行期 lease（过渡合同）。
+pub fn pin_module_terms(lease: &mut ExecutionLease, module: &ExecutionModule) {
+    for root in &module.captured_roots {
+        if let CapturedRoot::Term(term) = root {
+            lease.register_term(*term);
+        }
+    }
+    for constant in &module.constants {
+        if let ConstantValue::Term(term) = constant {
+            lease.register_term(*term);
+        }
+    }
+}
 
 /// 降级并经 [`ExecutionHost`] 在 VM 上执行线性 Boolean module。
 ///
@@ -23,9 +38,12 @@ pub fn execute_linear_boolean_on_vm(
 ) -> athena_types::Result<SlotValue> {
     let lowered = try_lower_linear_boolean_module(module)?;
     let config = vm_config_from_session(session);
+    let mut lease = ExecutionLease::new(session.heap().clone());
+    pin_module_terms(&mut lease, module);
     let mut interpreter = Interpreter::new();
     let mut host = ExecutionHost::new();
     let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
+    drop(lease);
     match exit {
         VmExit::Returned => {
             let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);

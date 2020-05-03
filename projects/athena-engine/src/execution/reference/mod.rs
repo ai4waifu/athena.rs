@@ -81,7 +81,8 @@ impl ReferenceExecutor {
         config: &VmConfig,
     ) -> Result<ResultId> {
         verify_module(module)?;
-        let _lease = ExecutionLease::new(session.heap().clone());
+        let mut lease = ExecutionLease::new(session.heap().clone());
+        crate::execution::vm::pin_module_terms(&mut lease, module);
         let region_id = module.entry_region().ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ReferenceExecutor")
@@ -89,6 +90,7 @@ impl ReferenceExecutor {
         })?;
         let mut provider = domain;
         let (returned, unsupported, unevaluated, invalid) = self.eval_region(session, module, region_id, &mut provider, config)?;
+        drop(lease);
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
         }
