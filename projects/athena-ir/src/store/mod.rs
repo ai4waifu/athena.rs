@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use athena_types::{CollectionKind, Diagnostic, DiagnosticCode, Result, SourceSpan, TermId};
+use athena_types::{CollectionKind, Diagnostic, DiagnosticCode, Result, SourceSpan, TermId, TermRef};
 
 use crate::{
     canonical::fnv1a64,
@@ -15,19 +15,74 @@ const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Core CAS IR 符号项存储。
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TermStore {
     nodes: Vec<TermNode>,
     spans: Vec<SourceSpan>,
     symbols: SymbolTable,
     /// 结构 hash → 候选 id（经 [`PartialEq`] 校验冲突）。
     by_hash: HashMap<u64, Vec<TermId>>,
+    /// 整库代际（过渡：reset / 未来 reclaim 时递增；[`TermRef`] 校验用）。
+    epoch: u32,
+}
+
+impl Default for TermStore {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            spans: Vec::new(),
+            symbols: SymbolTable::default(),
+            by_hash: HashMap::new(),
+            epoch: 1,
+        }
+    }
 }
 
 impl TermStore {
     /// 空存储。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 当前 store epoch（写入 [`TermRef::generation`]）。
+    #[inline]
+    pub fn epoch(&self) -> u32 {
+        self.epoch
+    }
+
+    /// 将裸 [`TermId`] 提升为带当前 epoch 的 [`TermRef`]。
+    ///
+    /// 若 id 越界返回 `None`（不推进 epoch）。
+    pub fn term_ref(&self, id: TermId) -> Option<TermRef> {
+        if (id.0 as usize) < self.nodes.len() {
+            Some(TermRef::new(id, self.epoch))
+        } else {
+            None
+        }
+    }
+
+    /// 校验 [`TermRef`] 仍指向本 store 当前代际中的有效节点。
+    pub fn check_ref(&self, term: TermRef) -> Result<TermId> {
+        if term.generation != self.epoch {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "TermStore")
+                .detail("reason", "stale_term_generation")
+                .detail("expected", self.epoch)
+                .detail("actual", term.generation)
+                .detail("term", term.id.0));
+        }
+        if (term.id.0 as usize) >= self.nodes.len() {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "TermStore")
+                .detail("reason", "term_out_of_range")
+                .detail("term", term.id.0));
+        }
+        Ok(term.id)
+    }
+
+    /// 推进 epoch（测试 / 未来 clear·reclaim）。现有裸 [`TermId`] 经 [`TermRef`] 将判 stale。
+    pub fn bump_epoch(&mut self) {
+        self.epoch = self.epoch.wrapping_add(1).max(1);
     }
 
     /// 符号 intern 表。

@@ -3,8 +3,31 @@
 /// 不可变符号项身份（`TermStore` 原生引用，不是二级映射句柄）。
 ///
 /// 已计算值用 [`ValueId`]；结果容器用 [`ResultId`]。禁止与二者互换。
+///
+/// **生命周期**：裸 [`TermId`] 仅在所属 store 的当前 [`TermRef::generation`] 下有效。
+/// 跨执行 / 缓存边界应携带 [`TermRef`]（index + generation）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TermId(pub u32);
+
+/// 带 generation 的项句柄（防 ABA · 对齐 `GcObjectId` 合同）。
+///
+/// 过渡期：`generation` 取自 `TermStore` epoch（整库代际）。
+/// TermStore GC 闭合后可演进为 per-slot generation，而不改公共字段名。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TermRef {
+    /// [`TermId`] 下标。
+    pub id: TermId,
+    /// Store / 槽代际（须与 `TermStore::epoch` 一致方可解引用）。
+    pub generation: u32,
+}
+
+impl TermRef {
+    /// 构造。
+    #[inline]
+    pub const fn new(id: TermId, generation: u32) -> Self {
+        Self { id, generation }
+    }
+}
 
 /// 符号 id。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

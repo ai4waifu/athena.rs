@@ -24,7 +24,7 @@ pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, ExtensionOperatorId, FieldId,
     FieldPresentationId, FormId, FrontierId, GroupElementId, GroupId, GroupPresentationId, MatrixId, PolynomialId, PresentationId, ProofRef,
-    ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TheoryContextId, ValueId,
+    ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId, TermRef, TheoryContextId, ValueId,
 };
 pub use index_spec::{IndexSpec, IndexSpecId, IntegerIndex, IntegerOffset};
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};

@@ -1,6 +1,6 @@
 use athena_ir::{Atom, TermNode, TermStore};
 use athena_numeric::NumericValue;
-use athena_types::SourceSpan;
+use athena_types::{SourceSpan, TermRef};
 
 #[test]
 fn push_and_verify() {
@@ -33,4 +33,24 @@ fn push_hash_conses_applications_with_shared_children() {
     let add2 = arena.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![x, y] }, span);
     assert_eq!(add1, add2);
     assert_eq!(arena.len(), 3);
+}
+
+#[test]
+fn term_ref_tracks_store_epoch() {
+    let mut arena = TermStore::new();
+    assert_eq!(arena.epoch(), 1);
+    let id = arena.push(TermNode::Atom(Atom::Boolean(true)), SourceSpan::default());
+    let live = arena.term_ref(id).expect("ref");
+    assert_eq!(live, TermRef::new(id, 1));
+    assert_eq!(arena.check_ref(live).expect("live"), id);
+
+    arena.bump_epoch();
+    assert_eq!(arena.epoch(), 2);
+    let err = arena.check_ref(live).expect_err("stale");
+    assert_eq!(
+        err.details.get("reason").map(|v| v.to_string()).as_deref(),
+        Some("stale_term_generation")
+    );
+    let refreshed = arena.term_ref(id).expect("ref2");
+    assert_eq!(arena.check_ref(refreshed).expect("ok"), id);
 }
