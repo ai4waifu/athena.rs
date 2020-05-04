@@ -82,7 +82,7 @@ impl ReferenceExecutor {
     ) -> Result<ResultId> {
         verify_module(module)?;
         let mut lease = ExecutionLease::new(session.heap().clone());
-        crate::execution::vm::pin_module_terms(&mut lease, module);
+        crate::execution::vm::pin_module_terms(&mut lease, &session.arena, module)?;
         let region_id = module.entry_region().ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ReferenceExecutor")
@@ -255,21 +255,29 @@ impl ReferenceExecutor {
         kind: &OperationKind,
     ) -> Result<Slot> {
         match kind {
+            OperationKind::LoadTerm { root } => {
+                let captured = module.captured_roots.get(root.0 as usize).ok_or_else(|| diag("missing_root"))?;
+                match captured {
+                    CapturedRoot::Term(term) => {
+                        let term_ref = session.arena.term_ref(*term).ok_or_else(|| diag("term_out_of_range"))?;
+                        let id = session.arena.check_ref(term_ref)?;
+                        Ok(Slot::Term(id))
+                    }
+                    CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("root_not_term")),
+                }
+            }
             OperationKind::Constant { constant } => {
                 let value = module.constants.get(constant.0 as usize).ok_or_else(|| diag("missing_constant"))?;
                 Ok(match value {
                     ConstantValue::Boolean(v) => Slot::Boolean(*v),
                     ConstantValue::Symbol(symbol) => Slot::Symbol(*symbol),
-                    ConstantValue::Term(term) => Slot::Term(*term),
+                    ConstantValue::Term(term) => {
+                        let term_ref = session.arena.term_ref(*term).ok_or_else(|| diag("term_out_of_range"))?;
+                        let id = session.arena.check_ref(term_ref)?;
+                        Slot::Term(id)
+                    }
                     ConstantValue::Unit => Slot::Unit,
                 })
-            }
-            OperationKind::LoadTerm { root } => {
-                let captured = module.captured_roots.get(root.0 as usize).ok_or_else(|| diag("missing_root"))?;
-                match captured {
-                    CapturedRoot::Term(term) => Ok(Slot::Term(*term)),
-                    CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("root_not_term")),
-                }
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
                 let op = *operator;

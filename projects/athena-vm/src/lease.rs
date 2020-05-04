@@ -3,20 +3,20 @@
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
 use athena_gc::{GcHeap, GcObjectId, RootKind, RootToken};
-use athena_types::TermId;
+use athena_types::TermRef;
 
 /// 单次 `VmExecutor::execute` / reference 解释期间的 root 登记。
 ///
 /// Drop 时注销全部本 lease 登记的 object / numeric root，并清空 Term pin。
 /// 禁止把 lease 做成第二套 GC。
 ///
-/// **过渡**：`TermStore` 尚未 GC-backed 时，[`Self::register_term`] 只做执行期 pin 记账，
-/// 证明 captured / 常量 `TermId` 在解释期间被显式持有；TermStore 闭合后改为真 root。
+/// **过渡**：`TermStore` 尚未 GC-backed 时，[`Self::register_term`] 只做执行期 pin 记账
+///（携带 [`TermRef`] generation）；TermStore 闭合后改为真 root。
 pub struct ExecutionLease {
     heap: Rc<RefCell<GcHeap>>,
     object_roots: Vec<RootToken>,
     numeric_roots: Vec<RootToken>,
-    term_pins: Vec<TermId>,
+    term_pins: Vec<TermRef>,
 }
 
 impl core::fmt::Debug for ExecutionLease {
@@ -65,8 +65,8 @@ impl ExecutionLease {
         token
     }
 
-    /// 执行期 pin 一个 `TermId`（过渡：非 GC root，仅 lease 生命周期记账）。
-    pub fn register_term(&mut self, term: TermId) {
+    /// 执行期 pin 一个 [`TermRef`]（过渡：非 GC root，含 generation 记账）。
+    pub fn register_term(&mut self, term: TermRef) {
         self.term_pins.push(term);
     }
 
@@ -90,7 +90,7 @@ impl ExecutionLease {
 
     /// 当前 Term pin 快照（测试 / 诊断）。
     #[inline]
-    pub fn term_pins(&self) -> &[TermId] {
+    pub fn term_pins(&self) -> &[TermRef] {
         &self.term_pins
     }
 
