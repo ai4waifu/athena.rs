@@ -196,3 +196,56 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
     let expected = TermRef::new(term, session.arena.epoch());
     assert!(lease.term_pins().contains(&expected));
 }
+
+#[test]
+fn pinned_term_ref_stale_after_store_epoch_bump() {
+    use athena_engine::execution::{
+        ir::{
+            BasicBlock, BlockId, CapturedRoot, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint,
+            Operation, OperationKind, Region, RegionId, SsaValueId, Terminator,
+        },
+        vm::{pin_module_terms, ExecutionLease},
+    };
+
+    let mut session = Session::new();
+    let term = session.builder().boolean(false, Default::default());
+    let block = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            result: Some(SsaValueId(0)),
+            result_type: ExecutionValueType::Boolean,
+            kind: OperationKind::Constant { constant: ConstantId(0) },
+            effect_in: None,
+            effect_out: None,
+        }],
+        terminator: Terminator::return_value(SsaValueId(0)),
+    };
+    let region = Region {
+        id: RegionId(0),
+        entry: BlockId(0),
+        blocks: vec![block],
+        result_types: vec![ExecutionValueType::Boolean],
+    };
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: vec![ConstantValue::Boolean(false)],
+        captured_roots: vec![CapturedRoot::term(term)],
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+
+    let mut lease = ExecutionLease::new(session.heap().clone());
+    pin_module_terms(&mut lease, &session.arena, &module).expect("pin");
+    let pinned = lease.term_pins()[0];
+    session.arena.bump_epoch();
+    let err = session.arena.check_ref(pinned).expect_err("stale");
+    assert_eq!(
+        err.details.get("reason").map(|v| v.to_string()).as_deref(),
+        Some("stale_term_generation")
+    );
+}
