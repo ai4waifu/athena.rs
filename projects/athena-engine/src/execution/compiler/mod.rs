@@ -78,19 +78,20 @@ impl ExecutionCompiler {
         term: TermId,
     ) -> Result<SsaValueId> {
         if matches!(session.arena.get(term), Some(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Hold), .. })) {
-            return self.lower_held_term(builder, blocks, block_id, term);
+            return self.lower_held_term(session, builder, blocks, block_id, term);
         }
         self.lower_term_into_block(session, builder, blocks, block_id, term)
     }
 
     fn lower_held_term(
         &self,
+        session: &Session,
         builder: &mut ModuleBuilder,
         blocks: &mut Vec<BasicBlock>,
         block_id: BlockId,
         term: TermId,
     ) -> Result<SsaValueId> {
-        let root = builder.push_term_root(term);
+        let root = builder.push_term_root_id(&session.arena, term)?;
         let ssa = builder.ssa();
         blocks.push(BasicBlock {
             id: block_id,
@@ -303,7 +304,7 @@ impl ExecutionCompiler {
                 Ok(ssa)
             }
             Some(TermNode::Atom(_)) => {
-                let root = builder.push_term_root(term);
+                let root = builder.push_term_root_id(&session.arena, term)?;
                 let ssa = builder.ssa();
                 operations.push(Operation {
                     result: Some(ssa),
@@ -352,7 +353,7 @@ impl ExecutionCompiler {
                         let mut args = Vec::with_capacity(arg_terms.len());
                         for (index, arg) in arg_terms.into_iter().enumerate() {
                             if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
-                                let root = builder.push_term_root(arg);
+                                let root = builder.push_term_root_id(&session.arena, arg)?;
                                 let ssa = builder.ssa();
                                 operations.push(Operation {
                                     result: Some(ssa),

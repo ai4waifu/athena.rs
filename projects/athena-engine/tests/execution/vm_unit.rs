@@ -181,7 +181,7 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(true), ConstantValue::Term(term)],
-        captured_roots: vec![CapturedRoot::term(term)],
+        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
         regions: vec![region],
         effect_edges: Vec::new(),
         exits: Vec::new(),
@@ -206,6 +206,7 @@ fn pinned_term_ref_stale_after_store_epoch_bump() {
         },
         vm::{pin_module_terms, ExecutionLease},
     };
+    use athena_types::TermRef;
 
     let mut session = Session::new();
     let term = session.builder().boolean(false, Default::default());
@@ -230,7 +231,7 @@ fn pinned_term_ref_stale_after_store_epoch_bump() {
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(false)],
-        captured_roots: vec![CapturedRoot::term(term)],
+        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
         regions: vec![region],
         effect_edges: Vec::new(),
         exits: Vec::new(),

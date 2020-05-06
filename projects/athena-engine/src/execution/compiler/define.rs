@@ -31,9 +31,9 @@ impl ExecutionCompiler {
         let operator = session.extensions.intern(name);
         let key = builder.ssa();
         let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
-        let pattern_root = builder.push_term_root(pattern);
+        let pattern_root = builder.push_term_root_id(&session.arena, pattern)?;
         let pattern_ssa = builder.ssa();
-        let value_root = builder.push_term_root(value);
+        let value_root = builder.push_term_root_id(&session.arena, value)?;
         let value_ssa = builder.ssa();
         let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
         let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
@@ -90,7 +90,7 @@ impl ExecutionCompiler {
         let _ = session;
         let key = builder.ssa();
         let key_constant = builder.push_constant(ConstantValue::symbol(symbol));
-        let root = builder.push_term_root(value);
+        let root = builder.push_term_root_id(&session.arena, value)?;
         let rhs = builder.ssa();
         let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
         let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));

@@ -15,7 +15,7 @@ fn compile_atom_term_module() {
     let mut session = Session::new();
     let term = session.builder().int(3, Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("atom");
-    assert_eq!(module.captured_roots, vec![CapturedRoot::term(term)]);
+    assert_eq!(module.captured_roots, vec![CapturedRoot::term(athena_types::TermRef::new(term, session.arena.epoch()))]);
     assert_eq!(module.regions.len(), 1);
 }
 

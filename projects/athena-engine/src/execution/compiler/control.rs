@@ -102,7 +102,7 @@ impl ExecutionCompiler {
         axes: &[athena_types::IndexSpec],
     ) -> Result<SsaValueId> {
         let _ = session;
-        let root = builder.push_term_root(target);
+        let root = builder.push_term_root_id(&session.arena, target)?;
         let load = builder.ssa();
         let indexed = builder.ssa();
         blocks.push(BasicBlock {

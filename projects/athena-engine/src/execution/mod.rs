@@ -28,10 +28,13 @@ pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFra
 /// 仅在 `ExecutionIR` 路径上编译并执行一次请求。
 ///
 /// `Goal::Dispatch` 在运行时把 `DomainRequest` 带入 `CallProvider`。
-/// 无 domain 时优先尝试线性 Boolean 子集经 `athena-vm` + [`ExecutionHost`] 执行，失败再回退 Reference。
+/// 后端经 [`backend::select_execution_backend`] **显式选择**：选中 `AthenaVm` 时只走 VM，
+/// 失败返回诊断，**禁止**再静默回退 `ReferenceExecutor`。
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
     use crate::api::request::DomainGoal;
+    use crate::execution::backend::{BackendKind, select_execution_backend};
     use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
+    use athena_types::{Diagnostic, DiagnosticCode};
     use athena_vm::SlotValue;
 
     let module = compiler::ExecutionCompiler::new().compile(session, &request)?;
@@ -39,18 +42,32 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
         AthenaRequest::Goal(DomainGoal::Dispatch(domain)) => Some(domain),
         _ => None,
     };
-    if domain.is_none() {
-        if let Ok(SlotValue::Boolean(value)) = vm::execute_linear_boolean_on_vm(session, &module) {
-            let term = session.builder().boolean(value, Default::default());
-            let value_id = session.insert_symbolic_value(term);
-            let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                .with_value(value_id)
-                .with_symbolic_term(term)
-                .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-            return Ok(session.insert_result(result));
-        }
+    match select_execution_backend(&module, domain.is_some()) {
+        BackendKind::AthenaVm => match vm::execute_linear_boolean_on_vm(session, &module) {
+            Ok(SlotValue::Boolean(value)) => {
+                let term = session.builder().boolean(value, Default::default());
+                let value_id = session.insert_symbolic_value(term);
+                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+                    .with_value(value_id)
+                    .with_symbolic_term(term)
+                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                Ok(session.insert_result(result))
+            }
+            Ok(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "execute_ir_request")
+                .detail("backend", "athena-vm")
+                .detail("reason", "vm_unexpected_slot_kind")),
+            Err(diagnostic) => Err(diagnostic
+                .detail("component", "execute_ir_request")
+                .detail("backend", "athena-vm")
+                .detail("reason", "vm_backend_failed_no_fallback")),
+        },
+        BackendKind::Reference => reference::ReferenceExecutor::new().execute(session, &module, domain),
+        other => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("component", "execute_ir_request")
+            .detail("reason", "backend_not_wired")
+            .detail("backend", format!("{other:?}"))),
     }
-    reference::ReferenceExecutor::new().execute(session, &module, domain)
 }
 
 /// 经 [`execute_ir_request`] 将项投影为紧凑的 [`TermEvaluation`]。

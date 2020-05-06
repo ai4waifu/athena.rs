@@ -22,14 +22,10 @@ pub fn pin_module_terms(
     module: &ExecutionModule,
 ) -> athena_types::Result<()> {
     for root in &module.captured_roots {
-        if let CapturedRoot::Term(term) = root {
-            let term_ref = store.term_ref(*term).ok_or_else(|| {
-                athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "pin_module_terms")
-                    .detail("reason", "term_out_of_range")
-                    .detail("term", term.0)
-            })?;
-            lease.register_term(term_ref);
+        if let CapturedRoot::Term(term_ref) = root {
+            // Re-validate against current store epoch before pinning.
+            let _ = store.check_ref(*term_ref)?;
+            lease.register_term(*term_ref);
         }
     }
     for constant in &module.constants {

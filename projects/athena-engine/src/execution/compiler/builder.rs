@@ -1,6 +1,7 @@
 //! [`super::ExecutionCompiler`] 的 module 构造辅助。
 
-use athena_types::{Result, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, Result, TermId, TermRef};
+use athena_ir::TermStore;
 
 use crate::execution::ir::{
     BasicBlock, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken, ExecutionModule,
@@ -37,10 +38,21 @@ impl ModuleBuilder {
         id
     }
 
-    pub(super) fn push_term_root(&mut self, term: TermId) -> CapturedRootId {
+    pub(super) fn push_term_root(&mut self, term: TermRef) -> CapturedRootId {
         let id = CapturedRootId(self.captured_roots.len() as u32);
         self.captured_roots.push(CapturedRoot::term(term));
         id
+    }
+
+    /// 从当前 [`TermStore`] epoch 提升裸 [`TermId`] 再捕获。
+    pub(super) fn push_term_root_id(&mut self, store: &TermStore, term: TermId) -> Result<CapturedRootId> {
+        let term_ref = store.term_ref(term).ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ModuleBuilder")
+                .detail("reason", "term_out_of_range")
+                .detail("term", term.0)
+        })?;
+        Ok(self.push_term_root(term_ref))
     }
 
     pub(super) fn push_effect(&mut self, kind: EffectKind, precedes_from: Option<EffectToken>) -> EffectToken {

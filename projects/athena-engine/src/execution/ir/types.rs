@@ -1,6 +1,7 @@
 //! `ExecutionIR` 内 SSA 值携带的静态类型。
 
-use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, ValueId};
+use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, TermRef, ValueId};
+
 
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
 
@@ -55,8 +56,8 @@ pub struct ModuleInput {
 /// Module 引用的捕获 GC / Session 根（非 IR 拥有）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CapturedRoot {
-    /// TermStore 节点根。
-    Term(TermId),
+    /// TermStore 节点根（带 store epoch / generation）。
+    Term(TermRef),
     /// ValueStore 对象根。
     Value(ValueId),
     /// ResultStore 条目根。
@@ -104,8 +105,8 @@ impl ModuleInput {
 }
 
 impl CapturedRoot {
-    /// 包装项根。
-    pub fn term(term: TermId) -> Self {
+    /// 包装带 generation 的项根。
+    pub fn term(term: TermRef) -> Self {
         Self::Term(term)
     }
 }

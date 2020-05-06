@@ -29,7 +29,9 @@ impl BackendAbiFingerprint {
 /// 所选可执行后端。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendKind {
-    /// 正确性 / 回放预言机。
+    /// `athena-vm` 受限 ExecutionIR 运行时。
+    AthenaVm,
+    /// 过渡期 host adapter（终态收为 `VmHost`，禁止第二套通用循环）。
     Reference,
     /// 可选原生 JIT。
     NativeJit,
@@ -47,6 +49,21 @@ pub trait ExecutionBackend {
     /// 执行已校验 module。不支持的路径须返回类型化诊断
     /// — 绝不可静默回退到另一套执行模型。
     fn execute(&self, session: &mut Session, module: &ExecutionModule) -> Result<ResultId>;
+}
+
+/// 按 Living `04` 显式选择执行后端（禁止 VM 失败后再静默回退 Reference）。
+///
+/// - 有 domain → [`BackendKind::Reference`]（provider / host 路径）
+/// - 当前 Boolean VM 子集可降级 → [`BackendKind::AthenaVm`]
+/// - 否则 → [`BackendKind::Reference`]（显式选择，不是执行失败后的 fallback）
+pub fn select_execution_backend(module: &ExecutionModule, has_domain: bool) -> BackendKind {
+    if has_domain {
+        return BackendKind::Reference;
+    }
+    match crate::execution::vm_lower::try_lower_linear_boolean_module(module) {
+        Ok(_) => BackendKind::AthenaVm,
+        Err(_) => BackendKind::Reference,
+    }
 }
 
 impl ExecutionBackend for ReferenceExecutor {

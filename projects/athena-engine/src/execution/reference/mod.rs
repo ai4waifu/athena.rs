@@ -258,9 +258,8 @@ impl ReferenceExecutor {
             OperationKind::LoadTerm { root } => {
                 let captured = module.captured_roots.get(root.0 as usize).ok_or_else(|| diag("missing_root"))?;
                 match captured {
-                    CapturedRoot::Term(term) => {
-                        let term_ref = session.arena.term_ref(*term).ok_or_else(|| diag("term_out_of_range"))?;
-                        let id = session.arena.check_ref(term_ref)?;
+                    CapturedRoot::Term(term_ref) => {
+                        let id = session.arena.check_ref(*term_ref)?;
                         Ok(Slot::Term(id))
                     }
                     CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("root_not_term")),

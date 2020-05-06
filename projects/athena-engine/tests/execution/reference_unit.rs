@@ -147,11 +147,12 @@ fn unknown_head_marks_partial_unknown() {
     }
 }
 
-fn index_module(target: TermId, axes: Vec<athena_types::IndexSpec>) -> athena_engine::execution::ir::ExecutionModule {
+fn index_module(target: TermId, generation: u32, axes: Vec<athena_types::IndexSpec>) -> athena_engine::execution::ir::ExecutionModule {
     use athena_engine::execution::ir::{
         BasicBlock, BlockId, CapturedRoot, CapturedRootId, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind,
         Region, RegionId, SsaValueId, Terminator, verify_module,
     };
+    use athena_types::TermRef;
     let load = SsaValueId(0);
     let indexed = SsaValueId(1);
     let published = SsaValueId(2);
@@ -186,7 +187,7 @@ fn index_module(target: TermId, axes: Vec<athena_types::IndexSpec>) -> athena_en
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: Vec::new(),
-        captured_roots: vec![CapturedRoot::term(target)],
+        captured_roots: vec![CapturedRoot::term(TermRef::new(target, generation))],
         regions: vec![Region { id: RegionId(0), entry: BlockId(0), blocks: vec![block], result_types: vec![ExecutionValueType::Term] }],
         effect_edges: Vec::new(),
         exits: Vec::new(),
@@ -205,7 +206,7 @@ fn index_oob_marks_invalid_index() {
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
-    let module = index_module(list, vec![IndexSpec::Scalar(IntegerIndex(9))]);
+    let module = index_module(list, session.arena.epoch(), vec![IndexSpec::Scalar(IntegerIndex(9))]);
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.status, ComputationStatus::Invalid);
@@ -219,7 +220,7 @@ fn index_range_extracts_slice() {
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(3, Default::default());
     let list = session.builder().list(vec![a, b, c], Default::default());
-    let module = index_module(list, vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }]);
+    let module = index_module(list, session.arena.epoch(), vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }]);
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
@@ -242,7 +243,7 @@ fn index_all_then_scalar_selects_column() {
     let row0 = session.builder().list(vec![a, b], Default::default());
     let row1 = session.builder().list(vec![c, d], Default::default());
     let matrix = session.builder().list(vec![row0, row1], Default::default());
-    let module = index_module(matrix, vec![IndexSpec::All, IndexSpec::Scalar(IntegerIndex(2))]);
+    let module = index_module(matrix, session.arena.epoch(), vec![IndexSpec::All, IndexSpec::Scalar(IntegerIndex(2))]);
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
