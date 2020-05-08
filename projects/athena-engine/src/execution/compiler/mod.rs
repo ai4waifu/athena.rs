@@ -24,7 +24,13 @@ pub struct ExecutionCompiler {}
 mod builder;
 mod control;
 mod define;
+mod dump;
 mod helpers;
+
+pub use dump::{
+    CompileObservation, CompileStageKind, CfgSsaStageView, PlanIntent, PlanStageView, RequestStageView, SemanticOpSummary,
+    SemanticStageView, StageFingerprint, dump_cfg_ssa, dump_plan, dump_request, dump_semantic, observe_compile, verify_observation,
+};
 
 use builder::ModuleBuilder;
 use helpers::{collect_compare_chain_args, flatten_compare_chain_args};
@@ -49,6 +55,17 @@ impl ExecutionCompiler {
             );
         }
         builder.finish(blocks, entry)
+    }
+
+    /// 编译并产出 Living `04` 四阶段可观测 dump（Request / Plan / Semantic / CFG SSA）。
+    pub fn compile_observed(
+        &self,
+        session: &mut Session,
+        request: &AthenaRequest,
+    ) -> Result<(ExecutionModule, CompileObservation)> {
+        let module = self.compile(session, request)?;
+        let observation = observe_compile(request, &module)?;
+        Ok((module, observation))
     }
 
     fn lower_request(
