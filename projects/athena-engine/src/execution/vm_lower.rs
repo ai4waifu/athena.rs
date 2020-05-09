@@ -1,9 +1,10 @@
-//! 把受限 Boolean `ExecutionModule` 降到 `athena-vm::VmModule`。
+//! 把已验证 CFG 子集 `ExecutionModule` 降到 `athena-vm::VmModule`。
 //!
 //! engine 只做 IR→VM 投影与 `ExecutionHost`，**不**在本路径再跑 `ReferenceExecutor`。
-//! 超出子集则返回诊断，由调用方回退 Reference。
+//! 超出子集则返回诊断。后端由 [`crate::execution::backend::select_execution_backend`]
+//! **事先**显式选择，禁止执行失败后再静默回退 Reference。
 //!
-//! 支持：单 region · `Constant` / 受支持 `ApplySemanticOperator` ·
+//! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator` ·
 //! `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 
@@ -13,11 +14,11 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use athena_vm::{Instruction, MAX_HOST_ARGS, SemanticOpId, VmConstant, VmModule};
 
 use crate::execution::ir::{
-    BasicBlock, BlockEdge, BlockId, ConstantValue, ExecutionModule, GuardFailure, OperationKind, Region,
-    Terminator, verify_module,
+    BasicBlock, BlockEdge, BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind,
+    Region, Terminator, verify_module,
 };
 
-/// 已降级的 Boolean module。
+/// 已降到 VM 的 verified CFG 子集（历史名 Boolean；现含 `LoadTerm` / Term 常量）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredBooleanModule {
     /// VM 可执行模块。
@@ -75,7 +76,9 @@ fn edge_trampoline_len(region: &Region, edge: &BlockEdge) -> Result<u32> {
 
 fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
     match &op.kind {
-        OperationKind::Constant { .. } | OperationKind::ApplySemanticOperator { .. } => {
+        OperationKind::LoadTerm { .. }
+        | OperationKind::Constant { .. }
+        | OperationKind::ApplySemanticOperator { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -109,6 +112,26 @@ fn lower_ops(
                 let _ = on_failure;
                 instructions.push(Instruction::Guard {
                     predicate: predicate.0,
+                });
+            }
+            OperationKind::LoadTerm { root } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                let captured = module
+                    .captured_roots
+                    .get(root.0 as usize)
+                    .ok_or_else(|| diag("lower_missing_root"))?;
+                let term = match captured {
+                    CapturedRoot::Term(term_ref) => term_ref.id,
+                    CapturedRoot::Value(_) | CapturedRoot::Result(_) => {
+                        return Err(diag("lower_root_not_term"));
+                    }
+                };
+                let const_index = constants.len() as u32;
+                constants.push(VmConstant::Term(term));
+                instructions.push(Instruction::LoadConstant {
+                    dst: result.0,
+                    constant: const_index,
                 });
             }
             OperationKind::Constant { constant } => {
@@ -285,10 +308,10 @@ fn emit_branch(
     Ok(())
 }
 
-/// 尝试将单 region Boolean CFG 降为 [`LoweredBooleanModule`]。
+/// 尝试将单 region verified CFG 子集降为 [`LoweredBooleanModule`]。
 ///
-/// 允许：`Constant` / 受支持语义算子 · `Guard(Reject)` · `Return` / `Reject` /
-/// `Branch`（边实参经 `Move` 蹦床）。
+/// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `Guard(Reject)` · `Return` /
+/// `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_linear_boolean_module(module: &ExecutionModule) -> Result<LoweredBooleanModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {

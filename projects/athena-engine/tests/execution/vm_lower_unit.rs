@@ -490,3 +490,45 @@ fn lower_interfering_edge_arg_swap_uses_temps() {
         SlotValue::Boolean(false)
     );
 }
+
+#[test]
+fn lower_and_execute_load_term_atom_on_vm() {
+    use athena_engine::execution::ir::{CapturedRoot, CapturedRootId};
+    use athena_types::TermRef;
+
+    let mut session = Session::new();
+    let term = session.builder().int(11, Default::default());
+    let load = SsaValueId(0);
+    let block = BasicBlock {
+        id: BlockId(0),
+        parameters: Vec::new(),
+        operations: vec![Operation {
+            result: Some(load),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::LoadTerm {
+                root: CapturedRootId(0),
+            },
+            effect_in: None,
+            effect_out: None,
+        }],
+        terminator: Terminator::return_value(load),
+    };
+    let region = Region::from_entry_block(RegionId(0), block, vec![ExecutionValueType::Term]);
+    let mut module = ExecutionModule {
+        inputs: Vec::new(),
+        constants: Vec::new(),
+        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
+        regions: vec![region],
+        effect_edges: Vec::new(),
+        exits: Vec::new(),
+        provider_calls: Vec::new(),
+        fingerprint: ModuleFingerprint(0),
+    };
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+
+    assert!(try_lower_linear_boolean_module(&module).is_ok());
+    assert_eq!(
+        execute_linear_boolean_on_vm(&session, &module).expect("vm"),
+        SlotValue::Term(term)
+    );
+}

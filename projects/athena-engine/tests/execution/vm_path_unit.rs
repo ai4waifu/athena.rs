@@ -1,4 +1,4 @@
-//! 生产路径优先走线性 Boolean VM 降级。
+//! 生产路径经 verified CFG 子集走 `athena-vm`（含 `LoadTerm` 原子项）。
 
 use athena_engine::{
     Session,
@@ -6,7 +6,7 @@ use athena_engine::{
     execution::execute_ir_request,
     runtime::CoverageStatus,
 };
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::ComputationStatus;
 
 #[test]
@@ -23,7 +23,23 @@ fn execute_ir_request_not_uses_vm_path() {
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
+        Some(TermNode::Atom(Atom::Boolean(false))) => {}
         other => panic!("expected false, got {other:?}"),
+    }
+}
+
+#[test]
+fn execute_ir_request_atom_term_uses_vm_load_term() {
+    let mut session = Session::new();
+    let term = session.builder().int(7, Default::default());
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
+    assert_eq!(loaded.symbolic_term, Some(term));
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(7) => {}
+        other => panic!("expected int 7, got {other:?}"),
     }
 }

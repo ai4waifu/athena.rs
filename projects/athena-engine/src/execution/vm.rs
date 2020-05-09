@@ -42,9 +42,10 @@ pub fn pin_module_terms(
     Ok(())
 }
 
-/// 降级并经 [`ExecutionHost`] 在 VM 上执行线性 Boolean module。
+/// 降级并经 [`ExecutionHost`] 在 VM 上执行 verified CFG 子集 module。
 ///
-/// 成功时返回结果槽中的 [`SlotValue`]。降级失败返回诊断（调用方可回退 Reference）。
+/// 成功时返回结果槽中的 [`SlotValue`]（当前含 Boolean / Term 等）。
+/// 降级失败返回诊断（由 [`crate::execution::backend::select_execution_backend`] 事先分流）。
 pub fn execute_linear_boolean_on_vm(
     session: &Session,
     module: &crate::execution::ir::ExecutionModule,
