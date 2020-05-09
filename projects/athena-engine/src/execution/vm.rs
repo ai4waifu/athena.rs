@@ -47,7 +47,7 @@ pub fn pin_module_terms(
 /// 成功时返回结果槽中的 [`SlotValue`]（当前含 Boolean / Term 等）。
 /// 降级失败返回诊断（由 [`crate::execution::backend::select_execution_backend`] 事先分流）。
 pub fn execute_verified_cfg_on_vm(
-    session: &Session,
+    session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
 ) -> athena_types::Result<SlotValue> {
     let lowered = try_lower_verified_cfg_module(module)?;
@@ -55,7 +55,7 @@ pub fn execute_verified_cfg_on_vm(
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new();
+    let mut host = ExecutionHost::new(session);
     let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
     drop(lease);
     match exit {

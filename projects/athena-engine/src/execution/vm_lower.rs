@@ -27,9 +27,9 @@ pub struct LoweredVmModule {
     pub result_slot: u32,
 }
 
-fn supported_boolean_op(op: athena_ir::SemanticOperator) -> bool {
+fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
     use athena_ir::SemanticOperator::*;
-    matches!(op, Not | And | Or | TrueQ | Equal | Unequal | Identical)
+    matches!(op, Not | And | Or | TrueQ | Equal | Unequal | Identical | Add)
 }
 
 fn diag(reason: &'static str) -> Diagnostic {
@@ -157,7 +157,7 @@ fn lower_ops(
             OperationKind::ApplySemanticOperator { operator, args } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
-                if !supported_boolean_op(*operator) {
+                if !supported_semantic_op(*operator) {
                     return Err(diag("lower_unsupported_semantic_op"));
                 }
                 if args.len() > MAX_HOST_ARGS {

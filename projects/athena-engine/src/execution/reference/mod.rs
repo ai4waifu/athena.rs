@@ -7,6 +7,8 @@
 mod helpers;
 mod ops;
 
+pub(crate) use self::helpers::fold_plus_symbolic;
+
 use self::helpers::*;
 
 use std::{cmp::Ordering, collections::HashMap};

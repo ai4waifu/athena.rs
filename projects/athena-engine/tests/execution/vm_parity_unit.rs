@@ -102,10 +102,10 @@ fn reject_module() -> ExecutionModule {
     module
 }
 
-fn run_vm(module: &ExecutionModule, config: &VmConfig) -> athena_types::Result<VmExit> {
+fn run_vm(session: &mut Session, module: &ExecutionModule, config: &VmConfig) -> athena_types::Result<VmExit> {
     let lowered = try_lower_verified_cfg_module(module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new();
+    let mut host = ExecutionHost::new(session);
     interpreter.execute_with_host(&lowered.module, config, &mut host)
 }
 
@@ -131,7 +131,7 @@ fn parity_not_boolean_value() {
     let cfg = VmConfig::default();
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new();
+    let mut host = ExecutionHost::new(&mut session);
     let exit = interpreter
         .execute_with_host(&lowered.module, &cfg, &mut host)
         .expect("vm");
@@ -153,7 +153,7 @@ fn parity_cancelled() {
         .expect_err("reference cancel");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("cancelled"));
 
-    let vm_exit = run_vm(&module, &config).expect("vm runs to exit");
+    let vm_exit = run_vm(&mut session, &module, &config).expect("vm runs to exit");
     assert_eq!(vm_exit, VmExit::Cancelled);
 }
 
@@ -168,7 +168,7 @@ fn parity_budget_exceeded() {
         .expect_err("reference budget");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("budget_exceeded"));
 
-    let vm_exit = run_vm(&module, &config).expect("vm runs to exit");
+    let vm_exit = run_vm(&mut session, &module, &config).expect("vm runs to exit");
     assert_eq!(vm_exit, VmExit::BudgetExceeded);
 }
 
@@ -183,7 +183,7 @@ fn parity_reject_terminator() {
         .expect_err("reference reject");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("rejected"));
 
-    let vm_exit = run_vm(&module, &VmConfig::default()).expect("vm");
+    let vm_exit = run_vm(&mut session, &module, &VmConfig::default()).expect("vm");
     assert_eq!(vm_exit, VmExit::Rejected);
 }
 
@@ -252,7 +252,7 @@ fn parity_guard_reject() {
         .expect_err("reference guard");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("rejected"));
 
-    let vm_exit = run_vm(&module, &VmConfig::default()).expect("vm");
+    let vm_exit = run_vm(&mut session, &module, &VmConfig::default()).expect("vm");
     assert_eq!(vm_exit, VmExit::Rejected);
 }
 
@@ -273,7 +273,7 @@ fn parity_guard_pass() {
 
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new();
+    let mut host = ExecutionHost::new(&mut session);
     let exit = interpreter
         .execute_with_host(&lowered.module, &VmConfig::default(), &mut host)
         .expect("vm");

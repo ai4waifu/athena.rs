@@ -58,3 +58,24 @@ fn execute_ir_request_hold_atom_uses_vm_load_term() {
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(loaded.symbolic_term, Some(term));
 }
+
+#[test]
+fn execute_ir_request_add_integers_uses_vm_host() {
+    let mut session = Session::new();
+    let a = session.builder().int(2, Default::default());
+    let b = session.builder().int(3, Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![a, b],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5) => {}
+        other => panic!("expected 5, got {other:?}"),
+    }
+}
