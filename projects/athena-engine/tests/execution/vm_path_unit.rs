@@ -43,3 +43,18 @@ fn execute_ir_request_atom_term_uses_vm_load_term() {
         other => panic!("expected int 7, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_hold_atom_uses_vm_load_term() {
+    let mut session = Session::new();
+    let inner = session.builder().int(5, Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Hold),
+        vec![inner],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
+    assert_eq!(loaded.symbolic_term, Some(term));
+}

@@ -20,7 +20,7 @@ use crate::execution::ir::{
 
 /// 已降到 VM 的 verified CFG 子集（历史名 Boolean；现含 `LoadTerm` / Term 常量）。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredBooleanModule {
+pub struct LoweredVmModule {
     /// VM 可执行模块。
     pub module: VmModule,
     /// 静态提示的结果槽（多出口时以解释器 `last_return_slot` 为准）。
@@ -308,11 +308,11 @@ fn emit_branch(
     Ok(())
 }
 
-/// 尝试将单 region verified CFG 子集降为 [`LoweredBooleanModule`]。
+/// 尝试将单 region verified CFG 子集降为 [`LoweredVmModule`]。
 ///
 /// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `Guard(Reject)` · `Return` /
 /// `Reject` / `Branch`（边实参经 `Move` 蹦床）。
-pub fn try_lower_linear_boolean_module(module: &ExecutionModule) -> Result<LoweredBooleanModule> {
+pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {
         return Err(diag("lower_requires_single_region"));
@@ -366,7 +366,7 @@ pub fn try_lower_linear_boolean_module(module: &ExecutionModule) -> Result<Lower
         return Err(diag("lower_requires_return"));
     }
 
-    Ok(LoweredBooleanModule {
+    Ok(LoweredVmModule {
         module: VmModule::from_parts(instructions, constants, max_slot),
         result_slot,
     })

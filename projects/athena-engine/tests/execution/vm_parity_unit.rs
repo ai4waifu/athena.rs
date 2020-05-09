@@ -8,7 +8,7 @@ use athena_engine::{
             ModuleFingerprint, Operation, OperationKind, Region, RegionId, SsaValueId, Terminator, verify_module,
         },
         reference::ReferenceExecutor,
-        vm::{ExecutionHost, try_lower_linear_boolean_module},
+        vm::{ExecutionHost, try_lower_verified_cfg_module},
     },
 };
 use athena_ir::SemanticOperator;
@@ -103,7 +103,7 @@ fn reject_module() -> ExecutionModule {
 }
 
 fn run_vm(module: &ExecutionModule, config: &VmConfig) -> athena_types::Result<VmExit> {
-    let lowered = try_lower_linear_boolean_module(module)?;
+    let lowered = try_lower_verified_cfg_module(module)?;
     let mut interpreter = Interpreter::new();
     let mut host = ExecutionHost::new();
     interpreter.execute_with_host(&lowered.module, config, &mut host)
@@ -129,7 +129,7 @@ fn parity_not_boolean_value() {
     }
 
     let cfg = VmConfig::default();
-    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
     let mut host = ExecutionHost::new();
     let exit = interpreter
@@ -271,7 +271,7 @@ fn parity_guard_pass() {
         other => panic!("reference expected true, got {other:?}"),
     }
 
-    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
     let mut host = ExecutionHost::new();
     let exit = interpreter

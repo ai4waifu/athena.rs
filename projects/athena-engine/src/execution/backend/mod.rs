@@ -60,7 +60,7 @@ pub fn select_execution_backend(module: &ExecutionModule, has_domain: bool) -> B
     if has_domain {
         return BackendKind::Reference;
     }
-    match crate::execution::vm_lower::try_lower_linear_boolean_module(module) {
+    match crate::execution::vm_lower::try_lower_verified_cfg_module(module) {
         Ok(_) => BackendKind::AthenaVm,
         Err(_) => BackendKind::Reference,
     }

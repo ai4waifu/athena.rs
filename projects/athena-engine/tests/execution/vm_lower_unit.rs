@@ -1,4 +1,4 @@
-//! 线性 / 分支 Boolean IR → VM 降级测试。
+//! 线性 / 分支 verified CFG IR → VM 降级测试。
 
 use athena_engine::{
     Session,
@@ -7,7 +7,7 @@ use athena_engine::{
             BasicBlock, BlockEdge, BlockId, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint,
             Operation, OperationKind, Region, RegionId, SsaValueId, Terminator,
         },
-        vm::{execute_linear_boolean_on_vm, try_lower_linear_boolean_module},
+        vm::{execute_verified_cfg_on_vm, try_lower_verified_cfg_module},
     },
 };
 use athena_ir::SemanticOperator;
@@ -132,9 +132,9 @@ fn branch_module(cond: bool) -> ExecutionModule {
 fn lower_and_execute_not_on_vm() {
     let session = Session::new();
     let module = not_module(true);
-    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     assert_eq!(lowered.result_slot, 1);
-    let value = execute_linear_boolean_on_vm(&session, &module).expect("vm");
+    let value = execute_verified_cfg_on_vm(&session, &module).expect("vm");
     assert_eq!(value, SlotValue::Boolean(false));
 }
 
@@ -143,12 +143,12 @@ fn lower_and_execute_boolean_branch_on_vm() {
     let session = Session::new();
     let then_mod = branch_module(true);
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &then_mod).expect("then"),
+        execute_verified_cfg_on_vm(&session, &then_mod).expect("then"),
         SlotValue::Boolean(true)
     );
     let else_mod = branch_module(false);
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &else_mod).expect("else"),
+        execute_verified_cfg_on_vm(&session, &else_mod).expect("else"),
         SlotValue::Boolean(false)
     );
 }
@@ -233,14 +233,14 @@ fn edge_arg_phi_module(cond: bool, then_val: bool, else_val: bool) -> ExecutionM
 fn lower_and_execute_boolean_edge_arg_phi_on_vm() {
     let session = Session::new();
     let then_mod = edge_arg_phi_module(true, true, false);
-    assert!(try_lower_linear_boolean_module(&then_mod).is_ok());
+    assert!(try_lower_verified_cfg_module(&then_mod).is_ok());
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &then_mod).expect("then"),
+        execute_verified_cfg_on_vm(&session, &then_mod).expect("then"),
         SlotValue::Boolean(true)
     );
     let else_mod = edge_arg_phi_module(false, true, false);
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &else_mod).expect("else"),
+        execute_verified_cfg_on_vm(&session, &else_mod).expect("else"),
         SlotValue::Boolean(false)
     );
 }
@@ -305,7 +305,7 @@ fn lower_guard_reject_passes_on_true() {
     let session = Session::new();
     let module = guarded_boolean_module(true);
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &module).expect("pass"),
+        execute_verified_cfg_on_vm(&session, &module).expect("pass"),
         SlotValue::Boolean(true)
     );
 }
@@ -314,7 +314,7 @@ fn lower_guard_reject_passes_on_true() {
 fn lower_guard_reject_fails_on_false() {
     let session = Session::new();
     let module = guarded_boolean_module(false);
-    let err = execute_linear_boolean_on_vm(&session, &module).expect_err("reject");
+    let err = execute_verified_cfg_on_vm(&session, &module).expect_err("reject");
     assert_eq!(
         err.details.get("reason").map(|v| v.to_string()).as_deref(),
         Some("rejected")
@@ -377,8 +377,8 @@ fn lower_terminator_reject_on_else_edge() {
     };
     module.fingerprint = ModuleFingerprint::of_module(&module);
     let session = Session::new();
-    assert!(try_lower_linear_boolean_module(&module).is_ok());
-    let err = execute_linear_boolean_on_vm(&session, &module).expect_err("else reject");
+    assert!(try_lower_verified_cfg_module(&module).is_ok());
+    let err = execute_verified_cfg_on_vm(&session, &module).expect_err("else reject");
     assert_eq!(
         err.details.get("reason").map(|v| v.to_string()).as_deref(),
         Some("rejected")
@@ -480,13 +480,13 @@ fn interfering_swap_phi_module() -> ExecutionModule {
 fn lower_interfering_edge_arg_swap_uses_temps() {
     let session = Session::new();
     let module = interfering_swap_phi_module();
-    let lowered = try_lower_linear_boolean_module(&module).expect("lower");
+    let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let has_temp_move = lowered.module.instructions.iter().any(|insn| {
         matches!(insn, athena_vm::Instruction::Move { dst, .. } if *dst >= 5)
     });
     assert!(has_temp_move, "expected temporary Move slots for interfering phi");
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &module).expect("swap"),
+        execute_verified_cfg_on_vm(&session, &module).expect("swap"),
         SlotValue::Boolean(false)
     );
 }
@@ -526,9 +526,9 @@ fn lower_and_execute_load_term_atom_on_vm() {
     };
     module.fingerprint = ModuleFingerprint::of_module(&module);
 
-    assert!(try_lower_linear_boolean_module(&module).is_ok());
+    assert!(try_lower_verified_cfg_module(&module).is_ok());
     assert_eq!(
-        execute_linear_boolean_on_vm(&session, &module).expect("vm"),
+        execute_verified_cfg_on_vm(&session, &module).expect("vm"),
         SlotValue::Term(term)
     );
 }

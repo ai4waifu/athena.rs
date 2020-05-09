@@ -13,7 +13,7 @@ pub use athena_vm::{
     VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
 pub use crate::execution::execution_host::ExecutionHost;
-pub use crate::execution::vm_lower::{LoweredBooleanModule, try_lower_linear_boolean_module};
+pub use crate::execution::vm_lower::{LoweredVmModule, try_lower_verified_cfg_module};
 
 /// 将 module 的 captured Term 根与 Term 常量 pin 到执行期 lease（带 store epoch）。
 pub fn pin_module_terms(
@@ -46,11 +46,11 @@ pub fn pin_module_terms(
 ///
 /// 成功时返回结果槽中的 [`SlotValue`]（当前含 Boolean / Term 等）。
 /// 降级失败返回诊断（由 [`crate::execution::backend::select_execution_backend`] 事先分流）。
-pub fn execute_linear_boolean_on_vm(
+pub fn execute_verified_cfg_on_vm(
     session: &Session,
     module: &crate::execution::ir::ExecutionModule,
 ) -> athena_types::Result<SlotValue> {
-    let lowered = try_lower_linear_boolean_module(module)?;
+    let lowered = try_lower_verified_cfg_module(module)?;
     let config = vm_config_from_session(session);
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, module)?;
@@ -63,21 +63,21 @@ pub fn execute_linear_boolean_on_vm(
             let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
             interpreter.slots().get(slot).ok_or_else(|| {
                 athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "execute_linear_boolean_on_vm")
+                    .detail("component", "execute_verified_cfg_on_vm")
                     .detail("reason", "result_slot_empty")
             })
         }
         VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("component", "execute_verified_cfg_on_vm")
             .detail("reason", "rejected")),
         VmExit::Cancelled => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("component", "execute_verified_cfg_on_vm")
             .detail("reason", "cancelled")),
         VmExit::BudgetExceeded => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("component", "execute_verified_cfg_on_vm")
             .detail("reason", "budget_exceeded")),
         VmExit::Suspended => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_linear_boolean_on_vm")
+            .detail("component", "execute_verified_cfg_on_vm")
             .detail("reason", "suspended")),
         VmExit::Diagnostic(diagnostic) => Err(diagnostic),
     }
