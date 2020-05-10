@@ -1,16 +1,15 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖句柄级 Boolean 语义，以及可经 session 折叠的 `Add` 数值路径。
+//! 过渡期覆盖句柄级 Boolean 语义，以及可经 session 折叠的标量算术路径。
 //! 完整 SSA / Term 语义仍在 [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
 
 use athena_ir::SemanticOperator;
-use athena_numeric::{Number, add as num_add};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
-    execution::{number_of, push_number, reference::fold_plus_symbolic},
-    runtime::{session::Session, values::numeric_clone::clone_number},
+    execution::reference::evaluate_arithmetic_terms,
+    runtime::session::Session,
 };
 
 /// 执行宿主（engine 在 VM 之上 · 不拥有解释循环）。
@@ -65,39 +64,12 @@ impl<'a> ExecutionHost<'a> {
         }
     }
 
-    fn apply_add(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+    fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
-        let numbers = terms
-            .iter()
-            .map(|t| number_of(self.session, *t).map(clone_number))
-            .collect::<Option<Vec<_>>>();
-        if let Some(nums) = numbers {
-            let folded = match nums.as_slice() {
-                [] => Some(Number::small_int(0)),
-                values => {
-                    let mut acc = clone_number(&values[0]);
-                    let mut ok = true;
-                    for n in &values[1..] {
-                        match num_add(clone_number(&acc), clone_number(n)) {
-                            Ok(v) => acc = v,
-                            Err(_) => {
-                                ok = false;
-                                break;
-                            }
-                        }
-                    }
-                    ok.then_some(acc)
-                }
-            };
-            if let Some(folded) = folded {
-                let term = push_number(self.session, folded);
-                return Ok(HostOutcome::Value(SlotValue::Term(term)));
-            }
-        }
-        let term = fold_plus_symbolic(self.session, terms);
+        let term = evaluate_arithmetic_terms(self.session, op, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 }
@@ -170,7 +142,22 @@ impl VmHost for ExecutionHost<'_> {
             }
         }
         if op.0 == SemanticOperator::Add.discriminant() {
-            return self.apply_add(args);
+            return self.apply_arithmetic(SemanticOperator::Add, args);
+        }
+        if op.0 == SemanticOperator::Multiply.discriminant() {
+            return self.apply_arithmetic(SemanticOperator::Multiply, args);
+        }
+        if op.0 == SemanticOperator::Subtract.discriminant() {
+            return self.apply_arithmetic(SemanticOperator::Subtract, args);
+        }
+        if op.0 == SemanticOperator::Negate.discriminant() {
+            return self.apply_arithmetic(SemanticOperator::Negate, args);
+        }
+        if op.0 == SemanticOperator::Divide.discriminant() {
+            return self.apply_arithmetic(SemanticOperator::Divide, args);
+        }
+        if op.0 == SemanticOperator::Power.discriminant() {
+            return self.apply_arithmetic(SemanticOperator::Power, args);
         }
         Ok(Self::unsupported(op))
     }

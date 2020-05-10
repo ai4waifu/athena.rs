@@ -4,8 +4,8 @@
 //! 超出子集则返回诊断。后端由 [`crate::execution::backend::select_execution_backend`]
 //! **事先**显式选择，禁止执行失败后再静默回退 Reference。
 //!
-//! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator` ·
-//! `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
+//! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
+//! （Boolean + 标量算术）· `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 
 use std::collections::HashMap;
@@ -29,7 +29,10 @@ pub struct LoweredVmModule {
 
 fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
     use athena_ir::SemanticOperator::*;
-    matches!(op, Not | And | Or | TrueQ | Equal | Unequal | Identical | Add)
+    matches!(
+        op,
+        Not | And | Or | TrueQ | Equal | Unequal | Identical | Add | Multiply | Subtract | Negate | Divide | Power
+    )
 }
 
 fn diag(reason: &'static str) -> Diagnostic {

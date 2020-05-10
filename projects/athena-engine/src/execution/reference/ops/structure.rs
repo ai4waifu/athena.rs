@@ -3,15 +3,15 @@
 use std::cmp::Ordering;
 
 use athena_ir::SemanticOperator;
-use athena_numeric::{Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow};
+use athena_numeric::{compare as num_compare};
 use athena_vm::SlotTable;
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
 use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
-    domains::linear_algebra::{det_bareiss, matmul},
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_number, push_semantic},
+    domains::linear_algebra::det_bareiss,
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -497,84 +497,7 @@ impl ReferenceExecutor {
             let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
-        if let Some(nums) = numbers {
-            let folded = match (op, nums.as_slice()) {
-                (SemanticOperator::Add, []) => Some(Number::small_int(0)),
-                (SemanticOperator::Add, values) => {
-                    let mut acc = clone_number(&values[0]);
-                    let mut ok = true;
-                    for n in &values[1..] {
-                        match num_add(clone_number(&acc), clone_number(n)) {
-                            Ok(v) => acc = v,
-                            Err(_) => {
-                                ok = false;
-                                break;
-                            }
-                        }
-                    }
-                    ok.then_some(acc)
-                }
-                (SemanticOperator::Multiply, []) => Some(Number::small_int(1)),
-                (SemanticOperator::Multiply, values) => {
-                    let mut acc = clone_number(&values[0]);
-                    let mut ok = true;
-                    for n in &values[1..] {
-                        match num_mul(clone_number(&acc), clone_number(n)) {
-                            Ok(v) => acc = v,
-                            Err(_) => {
-                                ok = false;
-                                break;
-                            }
-                        }
-                    }
-                    ok.then_some(acc)
-                }
-                (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
-                (SemanticOperator::Subtract, [a, b]) => {
-                    num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok()
-                }
-                (SemanticOperator::Divide, [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
-                (SemanticOperator::Power, [a, b]) => num_pow(a, b).ok(),
-                _ => return Err(diag("semantic_operator_arity")),
-            };
-            if let Some(folded) = folded {
-                return Ok(Slot::Term(push_number(session, folded)));
-            }
-            // 数值折叠失败（例如 `0^-1`）— 保留符号残差。
-        }
-        // 矩阵 `Multiply` — 两边皆为矩阵时做精确有理矩阵乘。
-        if op == SemanticOperator::Multiply && terms.len() == 2 {
-            if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1]))
-            {
-                // 要求两边都像矩阵（行集合），而非裸标量。
-                let left_matrixish = matches!(
-                    session.arena.get(terms[0]),
-                    Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
-                );
-                let right_matrixish = matches!(
-                    session.arena.get(terms[1]),
-                    Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
-                );
-                if left_matrixish && right_matrixish {
-                    if let Ok(product) = matmul(&a, &b) {
-                        if let Ok(term) = matrix_to_nested_list_session(session, &product) {
-                            return Ok(Slot::Term(term));
-                        }
-                    }
-                }
-            }
-        }
-        // 带单位元折叠的符号残差。
-        Ok(Slot::Term(match op {
-            SemanticOperator::Add => fold_plus_symbolic(session, terms),
-            SemanticOperator::Multiply => fold_times_symbolic(session, terms),
-            SemanticOperator::Power => fold_power_symbolic(session, terms),
-            SemanticOperator::Divide => fold_divide_symbolic(session, terms),
-            SemanticOperator::Subtract => fold_subtract_symbolic(session, terms),
-            SemanticOperator::Negate if terms.len() == 1 => fold_subtract_symbolic(session, terms),
-            _ => push_semantic(session, op, terms),
-        }))
+        Ok(Slot::Term(evaluate_arithmetic_terms(session, op, terms)?))
     }
 
     pub(crate) fn slot_as_term(&self, session: &mut Session, slot: Slot) -> Result<TermId> {

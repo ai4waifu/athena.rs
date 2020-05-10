@@ -1,15 +1,17 @@
 //! 符号算术折叠辅助。
 
-use athena_numeric::{Number, add as num_add, mul as num_mul, pow as num_pow};
-use athena_types::TermId;
+use athena_numeric::{Number, add as num_add, div as num_div, mul as num_mul, pow as num_pow};
+use athena_types::{Result, TermId};
 
 use athena_ir::{ApplicationHead, SemanticOperator};
 
+use super::{diag, matrix_to_nested_list_session, term_to_rational_matrix_session};
 use crate::{
+    domains::linear_algebra::matmul,
     execution::{number_of, push_number, push_semantic},
     runtime::{
         session::Session,
-        values::{arena::push_list, numeric_clone::clone_number},
+        values::numeric_clone::clone_number,
     },
 };
 
@@ -325,4 +327,93 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
         }
     }
     push_semantic(session, SemanticOperator::Power, terms)
+}
+
+/// Reference 与 `ExecutionHost` 共用的算术求值（数值折叠 · 矩阵乘 · 符号残差）。
+pub(crate) fn evaluate_arithmetic_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    terms: Vec<TermId>,
+) -> Result<TermId> {
+    let numbers = terms
+        .iter()
+        .map(|t| number_of(session, *t).map(clone_number))
+        .collect::<Option<Vec<_>>>();
+    if let Some(nums) = numbers {
+        let folded = match (op, nums.as_slice()) {
+            (SemanticOperator::Add, []) => Some(Number::small_int(0)),
+            (SemanticOperator::Add, values) => {
+                let mut acc = clone_number(&values[0]);
+                let mut ok = true;
+                for n in &values[1..] {
+                    match num_add(clone_number(&acc), clone_number(n)) {
+                        Ok(v) => acc = v,
+                        Err(_) => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                ok.then_some(acc)
+            }
+            (SemanticOperator::Multiply, []) => Some(Number::small_int(1)),
+            (SemanticOperator::Multiply, values) => {
+                let mut acc = clone_number(&values[0]);
+                let mut ok = true;
+                for n in &values[1..] {
+                    match num_mul(clone_number(&acc), clone_number(n)) {
+                        Ok(v) => acc = v,
+                        Err(_) => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                ok.then_some(acc)
+            }
+            (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => {
+                num_mul(Number::small_int(-1), clone_number(a)).ok()
+            }
+            (SemanticOperator::Subtract, [a, b]) => num_mul(Number::small_int(-1), clone_number(b))
+                .and_then(|neg| num_add(clone_number(a), neg))
+                .ok(),
+            (SemanticOperator::Divide, [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
+            (SemanticOperator::Power, [a, b]) => num_pow(a, b).ok(),
+            _ => return Err(diag("semantic_operator_arity")),
+        };
+        if let Some(folded) = folded {
+            return Ok(push_number(session, folded));
+        }
+    }
+    if op == SemanticOperator::Multiply && terms.len() == 2 {
+        if let (Some(a), Some(b)) = (
+            term_to_rational_matrix_session(session, terms[0]),
+            term_to_rational_matrix_session(session, terms[1]),
+        ) {
+            let left_matrixish = matches!(
+                session.arena.get(terms[0]),
+                Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
+            );
+            let right_matrixish = matches!(
+                session.arena.get(terms[1]),
+                Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
+            );
+            if left_matrixish && right_matrixish {
+                if let Ok(product) = matmul(&a, &b) {
+                    if let Ok(term) = matrix_to_nested_list_session(session, &product) {
+                        return Ok(term);
+                    }
+                }
+            }
+        }
+    }
+    Ok(match op {
+        SemanticOperator::Add => fold_plus_symbolic(session, terms),
+        SemanticOperator::Multiply => fold_times_symbolic(session, terms),
+        SemanticOperator::Power => fold_power_symbolic(session, terms),
+        SemanticOperator::Divide => fold_divide_symbolic(session, terms),
+        SemanticOperator::Subtract => fold_subtract_symbolic(session, terms),
+        SemanticOperator::Negate if terms.len() == 1 => fold_subtract_symbolic(session, terms),
+        _ => push_semantic(session, op, terms),
+    })
 }

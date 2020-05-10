@@ -7,7 +7,7 @@
 mod helpers;
 mod ops;
 
-pub(crate) use self::helpers::fold_plus_symbolic;
+pub(crate) use self::helpers::evaluate_arithmetic_terms;
 
 use self::helpers::*;
 
