@@ -159,3 +159,41 @@ fn execute_ir_request_less_integers_uses_vm_host() {
         other => panic!("expected true, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_abs_integer_uses_vm_host() {
+    let mut session = Session::new();
+    let a = session.builder().int(-7, Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Abs),
+        vec![a],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(7) => {}
+        other => panic!("expected 7, got {other:?}"),
+    }
+}
+
+#[test]
+fn execute_ir_request_factorial_integer_uses_vm_host() {
+    let mut session = Session::new();
+    let a = session.builder().int(5, Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Factorial),
+        vec![a],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(120) => {}
+        other => panic!("expected 120, got {other:?}"),
+    }
+}

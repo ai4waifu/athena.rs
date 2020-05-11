@@ -8,7 +8,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
-    execution::reference::{evaluate_arithmetic_terms, evaluate_compare_terms, CompareOutcome},
+    execution::reference::{
+        CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
+    },
     runtime::session::Session,
 };
 
@@ -82,6 +84,15 @@ impl<'a> ExecutionHost<'a> {
             CompareOutcome::Boolean(v) => HostOutcome::Value(SlotValue::Boolean(v)),
             CompareOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
         })
+    }
+
+    fn apply_unary(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+        }
+        let term = self.slot_as_term(args[0])?;
+        let out = evaluate_unary_term(self.session, op, term)?;
+        Ok(HostOutcome::Value(SlotValue::Term(out)))
     }
 }
 
@@ -181,6 +192,24 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::GreaterEqual.discriminant() {
             return self.apply_compare(SemanticOperator::GreaterEqual, args);
+        }
+        if op.0 == SemanticOperator::Abs.discriminant() {
+            return self.apply_unary(SemanticOperator::Abs, args);
+        }
+        if op.0 == SemanticOperator::Factorial.discriminant() {
+            return self.apply_unary(SemanticOperator::Factorial, args);
+        }
+        if op.0 == SemanticOperator::Sqrt.discriminant() {
+            return self.apply_unary(SemanticOperator::Sqrt, args);
+        }
+        if op.0 == SemanticOperator::Length.discriminant() {
+            return self.apply_unary(SemanticOperator::Length, args);
+        }
+        if op.0 == SemanticOperator::First.discriminant() {
+            return self.apply_unary(SemanticOperator::First, args);
+        }
+        if op.0 == SemanticOperator::Rest.discriminant() {
+            return self.apply_unary(SemanticOperator::Rest, args);
         }
         Ok(Self::unsupported(op))
     }

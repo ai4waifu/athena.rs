@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
-use athena_numeric::{Number, abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy};
+use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
 use athena_vm::SlotTable;
 use athena_types::{Result, SymbolId, TermId};
 
@@ -13,7 +13,7 @@ use crate::{
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_extension, push_number, push_semantic},
     runtime::{
         session::Session,
-        values::{arena::push_list, numeric_clone::clone_number},
+        values::arena::push_list,
     },
 };
 
@@ -30,66 +30,7 @@ impl ReferenceExecutor {
         }
         let slot = slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
         let term = self.slot_as_term(session, slot)?;
-        match op {
-            SemanticOperator::Abs => {
-                if let Some(n) = number_of(session, term) {
-                    Ok(Slot::Term(push_number(session, num_abs(clone_number(n)))))
-                }
-                else {
-                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Abs, vec![term])))
-                }
-            }
-            SemanticOperator::Factorial => {
-                if let Some(n) = number_of(session, term) {
-                    match num_factorial(n) {
-                        Ok(v) => Ok(Slot::Term(push_number(session, v))),
-                        Err(_) => Ok(Slot::Term(push_semantic(session, SemanticOperator::Factorial, vec![term]))),
-                    }
-                }
-                else {
-                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Factorial, vec![term])))
-                }
-            }
-            SemanticOperator::Sqrt => {
-                if let Some(n) = number_of(session, term) {
-                    match num_sqrt(n) {
-                        Ok(Some(v)) => Ok(Slot::Term(push_number(session, v))),
-                        _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::Sqrt, vec![term]))),
-                    }
-                }
-                else {
-                    Ok(Slot::Term(push_semantic(session, SemanticOperator::Sqrt, vec![term])))
-                }
-            }
-            SemanticOperator::Length => {
-                let len = match session.arena.get(term) {
-                    Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.len() as i64,
-                    Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.len() as i64,
-                    _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Length, vec![term]))),
-                };
-                Ok(Slot::Term(session.builder().int(len, Default::default())))
-            }
-            SemanticOperator::First => match session.arena.get(term) {
-                Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => Ok(Slot::Term(items[0])),
-                Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => Ok(Slot::Term(arguments[0])),
-                Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
-                _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::First, vec![term]))),
-            },
-            SemanticOperator::Rest => match session.arena.get(term) {
-                Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => {
-                    let rest = items[1..].to_vec();
-                    Ok(Slot::Term(push_list(session, rest)))
-                }
-                Some(athena_ir::TermNode::Application { head, arguments }) if !arguments.is_empty() => {
-                    let head = *head;
-                    let rest = arguments[1..].to_vec();
-                    Ok(Slot::Term(session.builder().application(head, rest, Default::default())))
-                }
-                Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
-                _ => Ok(Slot::Term(push_semantic(session, SemanticOperator::Rest, vec![term]))),
-            },
-            _ => Err(diag("semantic_operator_not_implemented")),
-        }
+        Ok(Slot::Term(evaluate_unary_term(session, op, term)?))
     }
 
     pub(crate) fn eval_residual_app(

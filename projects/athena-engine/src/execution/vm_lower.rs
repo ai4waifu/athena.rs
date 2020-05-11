@@ -32,7 +32,7 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
     matches!(
         op,
         Not | And | Or | TrueQ | Equal | Unequal | Identical | Add | Multiply | Subtract | Negate | Divide | Power
-            | Less | Greater | LessEqual | GreaterEqual
+            | Less | Greater | LessEqual | GreaterEqual | Abs | Factorial | Sqrt | Length | First | Rest
     )
 }
 
