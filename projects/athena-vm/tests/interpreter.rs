@@ -172,3 +172,67 @@ fn branch_selects_then_or_else() {
     assert_eq!(vm.last_return_slot(), Some(1));
     assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(true)));
 }
+
+#[test]
+fn read_write_binding_via_host() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind, SymbolId};
+    use std::collections::HashMap;
+
+    struct MapHost {
+        map: HashMap<u32, SlotValue>,
+    }
+    impl VmHost for MapHost {
+        fn write_binding(
+            &mut self,
+            key: SlotValue,
+            value: SlotValue,
+            kind: BindingKind,
+            evaluation: BindingEvaluationPolicy,
+        ) -> athena_types::Result<HostOutcome> {
+            assert_eq!(kind, BindingKind::Session);
+            assert_eq!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
+            let SlotValue::Symbol(symbol) = key else {
+                panic!("expected symbol key");
+            };
+            self.map.insert(symbol.0, value);
+            Ok(HostOutcome::Value(SlotValue::Unit))
+        }
+
+        fn read_binding(&mut self, key: SlotValue) -> athena_types::Result<HostOutcome> {
+            let SlotValue::Symbol(symbol) = key else {
+                panic!("expected symbol key");
+            };
+            Ok(HostOutcome::Value(
+                self.map.get(&symbol.0).copied().unwrap_or(SlotValue::Unit),
+            ))
+        }
+    }
+
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::WriteBinding {
+                dst: 2,
+                key: 0,
+                value: 1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            },
+            Instruction::ReadBinding { dst: 3, key: 0 },
+            Instruction::ReturnValue { slot: 3 },
+        ],
+        vec![VmConstant::Symbol(SymbolId(9)), VmConstant::Boolean(true)],
+        4,
+    );
+    let mut vm = Interpreter::new();
+    let mut host = MapHost {
+        map: HashMap::new(),
+    };
+    let exit = vm
+        .execute_with_host(&module, &VmConfig::new(), &mut host)
+        .expect("execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(vm.slots().get(3), Some(SlotValue::Boolean(true)));
+    assert_eq!(host.map.get(&9).copied(), Some(SlotValue::Boolean(true)));
+}

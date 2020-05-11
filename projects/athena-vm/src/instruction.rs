@@ -3,6 +3,8 @@
 //! 指令**不得**携带 `&str` / 方言表面名。语义 / provider 只带 opaque typed ID，
 //! 经 [`crate::host::VmHost`] 回调由 engine 实现。
 
+use athena_types::{BindingEvaluationPolicy, BindingKind};
+
 use crate::host::{ProviderOpId, SemanticOpId};
 
 /// 槽下标（绝对槽下标，由指令约定）。
@@ -82,6 +84,26 @@ pub enum Instruction {
         argc: u8,
         /// 实参槽（仅前 `argc` 个有效）。
         args: [SlotIndex; MAX_HOST_ARGS],
+    },
+    /// 经 [`crate::host::VmHost::read_binding`] 读取 Session / 作用域绑定。
+    ReadBinding {
+        /// 结果槽。
+        dst: SlotIndex,
+        /// 绑定键槽（须为 [`crate::slot::SlotValue::Symbol`]）。
+        key: SlotIndex,
+    },
+    /// 经 [`crate::host::VmHost::write_binding`] 写入 Session / 作用域绑定。
+    WriteBinding {
+        /// 结果槽（通常为 Unit）。
+        dst: SlotIndex,
+        /// 绑定键槽。
+        key: SlotIndex,
+        /// 写入值槽。
+        value: SlotIndex,
+        /// 绑定类别。
+        kind: BindingKind,
+        /// 求值策略。
+        evaluation: BindingEvaluationPolicy,
     },
 }
 

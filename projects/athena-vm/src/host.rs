@@ -52,6 +52,32 @@ pub trait VmHost {
                 .detail("reason", "call_provider_unimplemented"),
         ))
     }
+
+    /// 读取 Session / 作用域绑定（键须为 Symbol 槽）。
+    fn read_binding(&mut self, key: SlotValue) -> Result<HostOutcome> {
+        let _ = key;
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "read_binding_unimplemented"),
+        ))
+    }
+
+    /// 写入 Session / 作用域绑定。
+    fn write_binding(
+        &mut self,
+        key: SlotValue,
+        value: SlotValue,
+        kind: athena_types::BindingKind,
+        evaluation: athena_types::BindingEvaluationPolicy,
+    ) -> Result<HostOutcome> {
+        let _ = (key, value, kind, evaluation);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "write_binding_unimplemented"),
+        ))
+    }
 }
 
 /// 拒绝一切语义 / provider 的空 host（骨架 / parity）。

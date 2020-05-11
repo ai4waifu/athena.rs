@@ -238,6 +238,38 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
+                Instruction::ReadBinding { dst, key } => {
+                    let key_value = match self.slots.get(key) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("read_binding_key_undefined")),
+                    };
+                    let outcome = host.read_binding(key_value)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
+                Instruction::WriteBinding {
+                    dst,
+                    key,
+                    value,
+                    kind,
+                    evaluation,
+                } => {
+                    let key_value = match self.slots.get(key) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("write_binding_key_undefined")),
+                    };
+                    let value_slot = match self.slots.get(value) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("write_binding_value_undefined")),
+                    };
+                    let outcome = host.write_binding(key_value, value_slot, kind, evaluation)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
             }
         }
 

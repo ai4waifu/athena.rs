@@ -121,9 +121,62 @@ impl ModuleFingerprint {
                         }
                     }
                 }
+                Instruction::ReadBinding { dst, key } => {
+                    mix(&mut hash, 21);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in key.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
+                Instruction::WriteBinding {
+                    dst,
+                    key,
+                    value,
+                    kind,
+                    evaluation,
+                } => {
+                    mix(&mut hash, 22);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in key.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in value.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    mix(&mut hash, binding_kind_tag(*kind));
+                    mix(&mut hash, binding_eval_tag(*evaluation));
+                }
             }
         }
         Self(hash)
+    }
+}
+
+fn binding_kind_tag(kind: athena_types::BindingKind) -> u8 {
+    use athena_types::BindingKind::*;
+    match kind {
+        Lexical => 1,
+        Dynamic => 2,
+        Session => 3,
+        Persistent => 4,
+        Memoized => 5,
+        Dispatch => 6,
+    }
+}
+
+fn binding_eval_tag(evaluation: athena_types::BindingEvaluationPolicy) -> u8 {
+    use athena_types::BindingEvaluationPolicy::*;
+    match evaluation {
+        EvaluateBeforeStore => 1,
+        StoreResidualTerm => 2,
+        EvaluateOnRead => 3,
+        EvaluateOnApply => 4,
+        MemoizeOnFirstRead => 5,
+        ExplicitMaterialization => 6,
     }
 }
 
