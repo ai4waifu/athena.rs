@@ -91,6 +91,54 @@ pub(crate) fn compare_pair_term(
     }
 }
 
+/// Reference 与 `ExecutionHost` 共用的比较链求值。
+///
+/// 全为数值时返回 Boolean 槽语义（`Ok(Either::Left)`）；否则返回 Term（广播 / 残差）。
+pub(crate) fn evaluate_compare_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    terms: Vec<TermId>,
+) -> Result<CompareOutcome> {
+    if terms.len() < 2 {
+        return Err(diag("semantic_operator_arity"));
+    }
+    let pick = match op {
+        SemanticOperator::Less => |o: Ordering| o == Ordering::Less,
+        SemanticOperator::Greater => |o: Ordering| o == Ordering::Greater,
+        SemanticOperator::LessEqual => |o: Ordering| o != Ordering::Greater,
+        SemanticOperator::GreaterEqual => |o: Ordering| o != Ordering::Less,
+        _ => return Err(diag("semantic_operator_not_implemented")),
+    };
+    if terms.len() == 2 {
+        if let Some(broadcast) = compare_list_broadcast(session, op, terms[0], terms[1], pick)? {
+            return Ok(CompareOutcome::Term(broadcast));
+        }
+    }
+    let numbers = terms
+        .iter()
+        .map(|t| number_of(session, *t).map(clone_number))
+        .collect::<Option<Vec<_>>>();
+    let Some(nums) = numbers else {
+        return Ok(CompareOutcome::Term(push_semantic(session, op, terms)));
+    };
+    let mut ok = true;
+    for window in nums.windows(2) {
+        let ord = num_compare(&window[0], &window[1]).ok_or_else(|| diag("compare_failed"))?;
+        if !pick(ord) {
+            ok = false;
+            break;
+        }
+    }
+    Ok(CompareOutcome::Boolean(ok))
+}
+
+/// 比较求值结果（数值链 → Boolean；广播 / 残差 → Term）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompareOutcome {
+    Boolean(bool),
+    Term(TermId),
+}
+
 /// 逻辑运算：Boolean 原子 · `True`/`False` · 精确 `0`/`1`。
 pub(crate) fn slot_as_boolean_like(session: &Session, slot: Slot) -> Option<bool> {
     match slot {

@@ -7,7 +7,7 @@
 mod helpers;
 mod ops;
 
-pub(crate) use self::helpers::evaluate_arithmetic_terms;
+pub(crate) use self::helpers::{evaluate_arithmetic_terms, evaluate_compare_terms, CompareOutcome};
 
 use self::helpers::*;
 

@@ -1,9 +1,6 @@
 //! 列表 / 矩阵 / 算术算子求值。
 
-use std::cmp::Ordering;
-
 use athena_ir::SemanticOperator;
-use athena_numeric::{compare as num_compare};
 use athena_vm::SlotTable;
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
@@ -16,7 +13,7 @@ use crate::{
         session::Session,
         values::{
             arena::push_list,
-            numeric_clone::{clone_number, clone_rational},
+            numeric_clone::clone_rational,
         },
     },
 };
@@ -355,41 +352,15 @@ impl ReferenceExecutor {
         args: &[SsaValueId],
         slots: &SlotTable,
     ) -> Result<Slot> {
-        if args.len() < 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let pick = match op {
-            SemanticOperator::Less => |o: Ordering| o == Ordering::Less,
-            SemanticOperator::Greater => |o: Ordering| o == Ordering::Greater,
-            SemanticOperator::LessEqual => |o: Ordering| o != Ordering::Greater,
-            SemanticOperator::GreaterEqual => |o: Ordering| o != Ordering::Less,
-            _ => return Err(diag("semantic_operator_not_implemented")),
-        };
-        // 比较的二元列表广播。
-        if terms.len() == 2 {
-            if let Some(broadcast) = compare_list_broadcast(session, op, terms[0], terms[1], pick)? {
-                return Ok(Slot::Term(broadcast));
-            }
-        }
-        let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
-        let Some(nums) = numbers
-        else {
-            return Ok(Slot::Term(push_semantic(session, op, terms)));
-        };
-        let mut ok = true;
-        for window in nums.windows(2) {
-            let ord = num_compare(&window[0], &window[1]).ok_or_else(|| diag("compare_failed"))?;
-            if !pick(ord) {
-                ok = false;
-                break;
-            }
-        }
-        Ok(Slot::Boolean(ok))
+        Ok(match evaluate_compare_terms(session, op, terms)? {
+            CompareOutcome::Boolean(v) => Slot::Boolean(v),
+            CompareOutcome::Term(term) => Slot::Term(term),
+        })
     }
 
     /// 带标量广播的逐元 `DotTimes` / `DotDivide` / `DotPower`。

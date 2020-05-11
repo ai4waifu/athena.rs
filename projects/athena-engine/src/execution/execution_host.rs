@@ -8,7 +8,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
-    execution::reference::evaluate_arithmetic_terms,
+    execution::reference::{evaluate_arithmetic_terms, evaluate_compare_terms, CompareOutcome},
     runtime::session::Session,
 };
 
@@ -71,6 +71,17 @@ impl<'a> ExecutionHost<'a> {
         }
         let term = evaluate_arithmetic_terms(self.session, op, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_compare(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        Ok(match evaluate_compare_terms(self.session, op, terms)? {
+            CompareOutcome::Boolean(v) => HostOutcome::Value(SlotValue::Boolean(v)),
+            CompareOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
+        })
     }
 }
 
@@ -158,6 +169,18 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Power.discriminant() {
             return self.apply_arithmetic(SemanticOperator::Power, args);
+        }
+        if op.0 == SemanticOperator::Less.discriminant() {
+            return self.apply_compare(SemanticOperator::Less, args);
+        }
+        if op.0 == SemanticOperator::Greater.discriminant() {
+            return self.apply_compare(SemanticOperator::Greater, args);
+        }
+        if op.0 == SemanticOperator::LessEqual.discriminant() {
+            return self.apply_compare(SemanticOperator::LessEqual, args);
+        }
+        if op.0 == SemanticOperator::GreaterEqual.discriminant() {
+            return self.apply_compare(SemanticOperator::GreaterEqual, args);
         }
         Ok(Self::unsupported(op))
     }
