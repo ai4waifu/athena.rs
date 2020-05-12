@@ -5,8 +5,12 @@
 //! **事先**显式选择，禁止执行失败后再静默回退 Reference。
 //!
 //! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
-//! （Boolean + 标量算术 / 比较）· `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
+//! （Boolean + 标量算术 / 比较 / 一元）· `ReadBinding` / `WriteBinding` ·
+//! `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
+//!
+//! 不含：`EnterScope` / `ExitScope` / `CallProvider` / `PublishResult` / 多 region
+//! （仍由显式 backend 选择走 Reference）。
 
 use std::collections::HashMap;
 
@@ -82,7 +86,9 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
     match &op.kind {
         OperationKind::LoadTerm { .. }
         | OperationKind::Constant { .. }
-        | OperationKind::ApplySemanticOperator { .. } => {
+        | OperationKind::ApplySemanticOperator { .. }
+        | OperationKind::ReadBinding { .. }
+        | OperationKind::WriteBinding { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -177,6 +183,33 @@ fn lower_ops(
                     op: SemanticOpId(operator.discriminant()),
                     argc: args.len() as u8,
                     args: packed,
+                });
+            }
+            OperationKind::ReadBinding { key } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, key.0);
+                instructions.push(Instruction::ReadBinding {
+                    dst: result.0,
+                    key: key.0,
+                });
+            }
+            OperationKind::WriteBinding {
+                key,
+                value,
+                kind,
+                evaluation,
+            } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, key.0);
+                bump(max_slot, value.0);
+                instructions.push(Instruction::WriteBinding {
+                    dst: result.0,
+                    key: key.0,
+                    value: value.0,
+                    kind: *kind,
+                    evaluation: *evaluation,
                 });
             }
             _ => return Err(diag("lower_unsupported_operation")),
@@ -314,8 +347,8 @@ fn emit_branch(
 
 /// 尝试将单 region verified CFG 子集降为 [`LoweredVmModule`]。
 ///
-/// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `Guard(Reject)` · `Return` /
-/// `Reject` / `Branch`（边实参经 `Move` 蹦床）。
+/// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `ReadBinding` / `WriteBinding` ·
+/// `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {
