@@ -1,15 +1,22 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖句柄级 Boolean 语义，以及可经 session 折叠的标量算术路径。
-//! 完整 SSA / Term 语义仍在 [`crate::execution::reference`]。终态由 Reference 循环迁入 VM 后扩展本 host。
+//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元，以及 **session 级** `ReadBinding` /
+//! `WriteBinding`（尚无 `EnterScope` 帧栈）。完整 SSA / 局部作用域仍在
+//! [`crate::execution::reference`]。
 
 use athena_ir::SemanticOperator;
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{
+    BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId,
+};
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
-    execution::reference::{
-        CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
+    api::request::AthenaRequest,
+    execution::{
+        execute_ir_request,
+        reference::{
+            CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
+        },
     },
     runtime::session::Session,
 };
@@ -222,5 +229,91 @@ impl VmHost for ExecutionHost<'_> {
                 .detail("reason", "call_provider_deferred_to_reference")
                 .detail("op", op.0),
         ))
+    }
+
+    fn read_binding(&mut self, key: SlotValue) -> Result<HostOutcome> {
+        let SlotValue::Symbol(symbol) = key else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "read_key_not_symbol"),
+            ));
+        };
+        // 过渡期：尚无 EnterScope 帧。仅 session 绑定。
+        if let Some(term) = self.session.defs.binding(symbol) {
+            return Ok(HostOutcome::Value(SlotValue::Term(term)));
+        }
+        if let Some(term) = self.session.defs.residual_binding(symbol) {
+            let result_id = execute_ir_request(self.session, AthenaRequest::Term(term))?;
+            let out = self
+                .session
+                .results
+                .get(result_id)
+                .and_then(|r| r.symbolic_term)
+                .unwrap_or(term);
+            return Ok(HostOutcome::Value(SlotValue::Term(out)));
+        }
+        Ok(HostOutcome::Value(SlotValue::Symbol(symbol)))
+    }
+
+    fn write_binding(
+        &mut self,
+        key: SlotValue,
+        value: SlotValue,
+        kind: BindingKind,
+        evaluation: BindingEvaluationPolicy,
+    ) -> Result<HostOutcome> {
+        let _ = kind;
+        let SlotValue::Symbol(symbol) = key else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "write_key_not_symbol"),
+            ));
+        };
+        let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
+        match value {
+            SlotValue::Unit => {
+                self.session.defs.clear_symbol(symbol);
+            }
+            SlotValue::Term(term) => {
+                let term_ref = self.session.arena.term_ref(term).ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionHost")
+                        .detail("reason", "write_term_out_of_range")
+                })?;
+                let term = self.session.arena.check_ref(term_ref)?;
+                if residual {
+                    self.session.defs.write_residual_binding(symbol, term);
+                } else {
+                    self.session.defs.write_binding(symbol, term);
+                }
+            }
+            SlotValue::Boolean(v) => {
+                let term = self.session.builder().boolean(v, Default::default());
+                if residual {
+                    self.session.defs.write_residual_binding(symbol, term);
+                } else {
+                    self.session.defs.write_binding(symbol, term);
+                }
+            }
+            SlotValue::Symbol(sym) => {
+                let term = self.session.builder().symbol_id(sym, Default::default());
+                if residual {
+                    self.session.defs.write_residual_binding(symbol, term);
+                } else {
+                    self.session.defs.write_binding(symbol, term);
+                }
+            }
+            other => {
+                return Ok(HostOutcome::Diagnostic(
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionHost")
+                        .detail("reason", "write_value_unsupported")
+                        .detail("slot", format!("{other:?}")),
+                ));
+            }
+        }
+        Ok(HostOutcome::Value(SlotValue::Unit))
     }
 }

@@ -197,3 +197,79 @@ fn execute_ir_request_factorial_integer_uses_vm_host() {
         other => panic!("expected 120, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_define_and_read_uses_vm_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let sym_term = session.builder().symbol("x", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let value = session.builder().int(42, Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let define_id = execute_ir_request(&mut session, define).expect("define");
+    let define_loaded = session.results.get(define_id).expect("define result");
+    assert_eq!(
+        define_loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    assert_eq!(session.defs.binding(symbol), Some(value));
+
+    let read_id = execute_ir_request(&mut session, AthenaRequest::Term(sym_term)).expect("read");
+    let read_loaded = session.results.get(read_id).expect("read result");
+    assert_eq!(
+        read_loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    assert_eq!(read_loaded.symbolic_term, Some(value));
+}
+
+#[test]
+fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(1, Default::default());
+    let rhs = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![a, b],
+        Default::default(),
+    );
+    let sym_term = session.builder().symbol("a", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value: rhs,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::StoreResidualTerm,
+    });
+    execute_ir_request(&mut session, define).expect("define");
+    assert!(session.defs.binding(symbol).is_none());
+    assert_eq!(session.defs.residual_binding(symbol), Some(rhs));
+
+    let read_id = execute_ir_request(&mut session, AthenaRequest::Term(sym_term)).expect("read");
+    let read_loaded = session.results.get(read_id).expect("read result");
+    assert_eq!(
+        read_loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = read_loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+        other => panic!("expected 2, got {other:?}"),
+    }
+}

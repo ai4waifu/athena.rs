@@ -68,6 +68,24 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
                     .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
                 Ok(session.insert_result(result))
             }
+            Ok(SlotValue::Symbol(symbol)) => {
+                let term = session.builder().symbol_id(symbol, Default::default());
+                let value_id = session.insert_symbolic_value(term);
+                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+                    .with_value(value_id)
+                    .with_symbolic_term(term)
+                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                Ok(session.insert_result(result))
+            }
+            Ok(SlotValue::Unit) => {
+                let term = session.builder().null(Default::default());
+                let value_id = session.insert_symbolic_value(term);
+                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+                    .with_value(value_id)
+                    .with_symbolic_term(term)
+                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                Ok(session.insert_result(result))
+            }
             Ok(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "execute_ir_request")
                 .detail("backend", "athena-vm")
