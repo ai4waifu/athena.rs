@@ -2,7 +2,7 @@
 
 use athena_engine::{
     Session,
-    api::request::AthenaRequest,
+    api::request::{AthenaRequest, ControlPlan},
     execution::execute_ir_request,
     runtime::CoverageStatus,
 };
@@ -272,4 +272,58 @@ fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
         other => panic!("expected 2, got {other:?}"),
     }
+}
+
+#[test]
+fn execute_ir_request_local_scope_body_uses_vm() {
+    let mut session = Session::new();
+    let term = session.builder().int(11, Default::default());
+    let request = AthenaRequest::Control(ControlPlan::LocalScope {
+        body: Box::new(AthenaRequest::Term(term)),
+    });
+    let result_id = execute_ir_request(&mut session, request).expect("scope");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    assert_eq!(loaded.symbolic_term, Some(term));
+}
+
+#[test]
+fn execute_ir_request_local_scope_shadows_session_on_vm() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let sym_term = session.builder().symbol("s", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let global = session.builder().int(1, Default::default());
+    let local = session.builder().int(2, Default::default());
+    session.defs.write_binding(symbol, global);
+
+    let request = AthenaRequest::Control(ControlPlan::LocalScope {
+        body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value: local,
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Term(sym_term),
+            ],
+        })),
+    });
+    let result_id = execute_ir_request(&mut session, request).expect("scope");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    assert_eq!(loaded.symbolic_term, Some(local));
+    assert_eq!(session.defs.binding(symbol), Some(global));
 }

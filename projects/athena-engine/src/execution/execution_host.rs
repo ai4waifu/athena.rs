@@ -1,19 +1,18 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元，以及 **session 级** `ReadBinding` /
-//! `WriteBinding`（尚无 `EnterScope` 帧栈）。完整 SSA / 局部作用域仍在
-//! [`crate::execution::reference`]。
+//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、session / 局部 `ReadBinding` /
+//! `WriteBinding`，以及 `EnterScope` / `ExitScope` 帧栈。
 
 use athena_ir::SemanticOperator;
 use athena_types::{
-    BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId,
+    BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, SymbolId, TermId,
 };
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
     execution::{
-        execute_ir_request,
+        LocalBinding, ScopeFrame, execute_ir_request,
         reference::{
             CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
         },
@@ -25,12 +24,16 @@ use crate::{
 #[derive(Debug)]
 pub struct ExecutionHost<'a> {
     session: &'a mut Session,
+    frames: Vec<ScopeFrame>,
 }
 
 impl<'a> ExecutionHost<'a> {
     /// 构造（持有 session 以便折叠需要 `TermStore` 的语义算子）。
     pub fn new(session: &'a mut Session) -> Self {
-        Self { session }
+        Self {
+            session,
+            frames: Vec::new(),
+        }
     }
 
     fn unsupported(op: SemanticOpId) -> HostOutcome {
@@ -100,6 +103,20 @@ impl<'a> ExecutionHost<'a> {
         let term = self.slot_as_term(args[0])?;
         let out = evaluate_unary_term(self.session, op, term)?;
         Ok(HostOutcome::Value(SlotValue::Term(out)))
+    }
+
+    fn bind_term(&mut self, symbol: SymbolId, term: TermId, residual: bool) {
+        if let Some(frame) = self.frames.last_mut() {
+            // 局部帧只存已物化值；残差策略在局部作用域内仍立即绑定 Value。
+            let _ = residual;
+            frame.bind(symbol, LocalBinding::Value(term));
+            return;
+        }
+        if residual {
+            self.session.defs.write_residual_binding(symbol, term);
+        } else {
+            self.session.defs.write_binding(symbol, term);
+        }
     }
 }
 
@@ -239,7 +256,11 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("reason", "read_key_not_symbol"),
             ));
         };
-        // 过渡期：尚无 EnterScope 帧。仅 session 绑定。
+        for frame in self.frames.iter().rev() {
+            if let Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
+                return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            }
+        }
         if let Some(term) = self.session.defs.binding(symbol) {
             return Ok(HostOutcome::Value(SlotValue::Term(term)));
         }
@@ -274,7 +295,11 @@ impl VmHost for ExecutionHost<'_> {
         let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
         match value {
             SlotValue::Unit => {
-                self.session.defs.clear_symbol(symbol);
+                if let Some(frame) = self.frames.last_mut() {
+                    frame.unbind(symbol);
+                } else {
+                    self.session.defs.clear_symbol(symbol);
+                }
             }
             SlotValue::Term(term) => {
                 let term_ref = self.session.arena.term_ref(term).ok_or_else(|| {
@@ -283,27 +308,15 @@ impl VmHost for ExecutionHost<'_> {
                         .detail("reason", "write_term_out_of_range")
                 })?;
                 let term = self.session.arena.check_ref(term_ref)?;
-                if residual {
-                    self.session.defs.write_residual_binding(symbol, term);
-                } else {
-                    self.session.defs.write_binding(symbol, term);
-                }
+                self.bind_term(symbol, term, residual);
             }
             SlotValue::Boolean(v) => {
                 let term = self.session.builder().boolean(v, Default::default());
-                if residual {
-                    self.session.defs.write_residual_binding(symbol, term);
-                } else {
-                    self.session.defs.write_binding(symbol, term);
-                }
+                self.bind_term(symbol, term, residual);
             }
             SlotValue::Symbol(sym) => {
                 let term = self.session.builder().symbol_id(sym, Default::default());
-                if residual {
-                    self.session.defs.write_residual_binding(symbol, term);
-                } else {
-                    self.session.defs.write_binding(symbol, term);
-                }
+                self.bind_term(symbol, term, residual);
             }
             other => {
                 return Ok(HostOutcome::Diagnostic(
@@ -314,6 +327,33 @@ impl VmHost for ExecutionHost<'_> {
                 ));
             }
         }
+        Ok(HostOutcome::Value(SlotValue::Unit))
+    }
+
+    fn enter_scope(&mut self, parent: Option<SlotValue>) -> Result<HostOutcome> {
+        let _ = parent;
+        let depth = self.frames.len() as u32;
+        self.frames.push(ScopeFrame::new());
+        Ok(HostOutcome::Value(SlotValue::Scope(depth)))
+    }
+
+    fn exit_scope(&mut self, scope: SlotValue) -> Result<HostOutcome> {
+        let SlotValue::Scope(expected) = scope else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "exit_scope_bad_handle"),
+            ));
+        };
+        let top = self.frames.len().saturating_sub(1) as u32;
+        if expected != top {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "exit_scope_mismatch"),
+            ));
+        }
+        self.frames.pop();
         Ok(HostOutcome::Value(SlotValue::Unit))
     }
 }

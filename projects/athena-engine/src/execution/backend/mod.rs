@@ -54,7 +54,7 @@ pub trait ExecutionBackend {
 /// 按 Living `04` 显式选择执行后端（禁止 VM 失败后再静默回退 Reference）。
 ///
 /// - 有 domain → [`BackendKind::Reference`]（provider / host 路径）
-/// - 当前 verified CFG 子集可降级（含 `LoadTerm` / Boolean / 标量算术 / 比较 / 一元 / session binding）→ [`BackendKind::AthenaVm`]
+/// - 当前 verified CFG 子集可降级（含 `LoadTerm` / Boolean / 标量算术 / 比较 / 一元 / binding / scope）→ [`BackendKind::AthenaVm`]
 /// - 否则 → [`BackendKind::Reference`]（显式选择，不是执行失败后的 fallback）
 pub fn select_execution_backend(module: &ExecutionModule, has_domain: bool) -> BackendKind {
     if has_domain {
