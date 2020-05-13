@@ -105,6 +105,18 @@ pub enum Instruction {
         /// 求值策略。
         evaluation: BindingEvaluationPolicy,
     },
+    /// 经 [`crate::host::VmHost::enter_scope`] 进入作用域帧。
+    EnterScope {
+        /// 结果槽（[`crate::slot::SlotValue::Scope`] 深度句柄）。
+        dst: SlotIndex,
+        /// 可选父作用域槽；`None` 表示压入当前顶帧之上。
+        parent: Option<SlotIndex>,
+    },
+    /// 经 [`crate::host::VmHost::exit_scope`] 退出作用域帧（无结果槽）。
+    ExitScope {
+        /// 由 [`Self::EnterScope`] 写入的作用域句柄槽。
+        scope: SlotIndex,
+    },
 }
 
 impl Instruction {

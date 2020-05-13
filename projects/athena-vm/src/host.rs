@@ -78,6 +78,26 @@ pub trait VmHost {
                 .detail("reason", "write_binding_unimplemented"),
         ))
     }
+
+    /// 进入作用域帧，返回 [`SlotValue::Scope`] 深度句柄。
+    fn enter_scope(&mut self, parent: Option<SlotValue>) -> Result<HostOutcome> {
+        let _ = parent;
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "enter_scope_unimplemented"),
+        ))
+    }
+
+    /// 退出与 `scope` 句柄匹配的作用域帧。
+    fn exit_scope(&mut self, scope: SlotValue) -> Result<HostOutcome> {
+        let _ = scope;
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "exit_scope_unimplemented"),
+        ))
+    }
 }
 
 /// 拒绝一切语义 / provider 的空 host（骨架 / parity）。

@@ -150,6 +150,27 @@ impl ModuleFingerprint {
                     mix(&mut hash, binding_kind_tag(*kind));
                     mix(&mut hash, binding_eval_tag(*evaluation));
                 }
+                Instruction::EnterScope { dst, parent } => {
+                    mix(&mut hash, 23);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    match parent {
+                        None => mix(&mut hash, 0),
+                        Some(slot) => {
+                            mix(&mut hash, 1);
+                            for b in slot.to_le_bytes() {
+                                mix(&mut hash, b);
+                            }
+                        }
+                    }
+                }
+                Instruction::ExitScope { scope } => {
+                    mix(&mut hash, 24);
+                    for b in scope.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
             }
         }
         Self(hash)

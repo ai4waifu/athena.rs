@@ -236,3 +236,46 @@ fn read_write_binding_via_host() {
     assert_eq!(vm.slots().get(3), Some(SlotValue::Boolean(true)));
     assert_eq!(host.map.get(&9).copied(), Some(SlotValue::Boolean(true)));
 }
+
+#[test]
+fn enter_exit_scope_via_host() {
+    struct ScopeHost {
+        depth: u32,
+    }
+    impl VmHost for ScopeHost {
+        fn enter_scope(&mut self, parent: Option<SlotValue>) -> athena_types::Result<HostOutcome> {
+            assert!(parent.is_none());
+            let d = self.depth;
+            self.depth = self.depth.saturating_add(1);
+            Ok(HostOutcome::Value(SlotValue::Scope(d)))
+        }
+        fn exit_scope(&mut self, scope: SlotValue) -> athena_types::Result<HostOutcome> {
+            let SlotValue::Scope(expected) = scope else {
+                panic!("expected scope");
+            };
+            let top = self.depth.saturating_sub(1);
+            assert_eq!(expected, top);
+            self.depth = top;
+            Ok(HostOutcome::Value(SlotValue::Unit))
+        }
+    }
+
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::EnterScope { dst: 0, parent: None },
+            Instruction::ExitScope { scope: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 0 },
+            Instruction::ReturnValue { slot: 1 },
+        ],
+        vec![VmConstant::Boolean(true)],
+        2,
+    );
+    let mut vm = Interpreter::new();
+    let mut host = ScopeHost { depth: 0 };
+    let exit = vm
+        .execute_with_host(&module, &VmConfig::new(), &mut host)
+        .expect("execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(host.depth, 0);
+    assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(true)));
+}

@@ -270,6 +270,32 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
+                Instruction::EnterScope { dst, parent } => {
+                    let parent_value = match parent {
+                        Some(slot) => match self.slots.get(slot) {
+                            Some(v) => Some(v),
+                            None => return Ok(Self::diagnostic("enter_scope_parent_undefined")),
+                        },
+                        None => None,
+                    };
+                    let outcome = host.enter_scope(parent_value)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
+                Instruction::ExitScope { scope } => {
+                    let scope_value = match self.slots.get(scope) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("exit_scope_undefined")),
+                    };
+                    let outcome = host.exit_scope(scope_value)?;
+                    match outcome {
+                        HostOutcome::Diagnostic(diagnostic) => return Ok(VmExit::Diagnostic(diagnostic)),
+                        HostOutcome::Value(_) | HostOutcome::Residual(_) => {}
+                    }
+                    pc = pc.saturating_add(1);
+                }
             }
         }
 
