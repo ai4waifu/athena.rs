@@ -98,6 +98,20 @@ pub trait VmHost {
                 .detail("reason", "exit_scope_unimplemented"),
         ))
     }
+
+    /// 由已求值元素构造类型化集合。
+    fn construct_collection(
+        &mut self,
+        kind: athena_types::CollectionKind,
+        args: &[SlotValue],
+    ) -> Result<HostOutcome> {
+        let _ = (kind, args);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "construct_collection_unimplemented"),
+        ))
+    }
 }
 
 /// 拒绝一切语义 / provider 的空 host（骨架 / parity）。

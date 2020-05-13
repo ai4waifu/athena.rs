@@ -3,7 +3,7 @@
 //! 指令**不得**携带 `&str` / 方言表面名。语义 / provider 只带 opaque typed ID，
 //! 经 [`crate::host::VmHost`] 回调由 engine 实现。
 
-use athena_types::{BindingEvaluationPolicy, BindingKind};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind};
 
 use crate::host::{ProviderOpId, SemanticOpId};
 
@@ -13,8 +13,8 @@ pub type SlotIndex = u32;
 /// 常量表下标。
 pub type ConstantIndex = u32;
 
-/// 每条 host 调用边最多携带的实参槽数（骨架上限）。
-pub const MAX_HOST_ARGS: usize = 4;
+/// 每条 host 调用边最多携带的实参槽数（含集合构造）。
+pub const MAX_HOST_ARGS: usize = 16;
 
 /// VM 指令（最小闭集）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,36 +117,54 @@ pub enum Instruction {
         /// 由 [`Self::EnterScope`] 写入的作用域句柄槽。
         scope: SlotIndex,
     },
+    /// 经 [`crate::host::VmHost::construct_collection`] 构造类型化集合。
+    ConstructCollection {
+        /// 结果槽。
+        dst: SlotIndex,
+        /// 集合种类。
+        kind: CollectionKind,
+        /// 有效元素个数（≤ [`MAX_HOST_ARGS`]）。
+        argc: u8,
+        /// 元素槽（仅前 `argc` 个有效）。
+        args: [SlotIndex; MAX_HOST_ARGS],
+    },
 }
 
 impl Instruction {
     /// 构造一元 `ApplySemantic`。
     pub const fn apply_semantic1(dst: SlotIndex, op: SemanticOpId, arg0: SlotIndex) -> Self {
+        let mut args = [0u32; MAX_HOST_ARGS];
+        args[0] = arg0;
         Self::ApplySemantic {
             dst,
             op,
             argc: 1,
-            args: [arg0, 0, 0, 0],
+            args,
         }
     }
 
     /// 构造二元 `ApplySemantic`。
     pub const fn apply_semantic2(dst: SlotIndex, op: SemanticOpId, arg0: SlotIndex, arg1: SlotIndex) -> Self {
+        let mut args = [0u32; MAX_HOST_ARGS];
+        args[0] = arg0;
+        args[1] = arg1;
         Self::ApplySemantic {
             dst,
             op,
             argc: 2,
-            args: [arg0, arg1, 0, 0],
+            args,
         }
     }
 
     /// 构造一元 `CallProvider`。
     pub const fn call_provider1(dst: SlotIndex, op: ProviderOpId, arg0: SlotIndex) -> Self {
+        let mut args = [0u32; MAX_HOST_ARGS];
+        args[0] = arg0;
         Self::CallProvider {
             dst,
             op,
             argc: 1,
-            args: [arg0, 0, 0, 0],
+            args,
         }
     }
 }

@@ -296,6 +296,17 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
+                Instruction::ConstructCollection { dst, kind, argc, args } => {
+                    let values = match self.collect_args(argc, &args) {
+                        Ok(v) => v,
+                        Err(exit) => return Ok(exit),
+                    };
+                    let outcome = host.construct_collection(kind, &values[..argc as usize])?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
             }
         }
 

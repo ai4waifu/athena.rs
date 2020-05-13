@@ -279,3 +279,56 @@ fn enter_exit_scope_via_host() {
     assert_eq!(host.depth, 0);
     assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(true)));
 }
+
+#[test]
+fn construct_collection_via_host() {
+    use athena_types::CollectionKind;
+
+    struct CollectHost {
+        kind: Option<CollectionKind>,
+        argc: usize,
+    }
+    impl VmHost for CollectHost {
+        fn construct_collection(
+            &mut self,
+            kind: CollectionKind,
+            args: &[SlotValue],
+        ) -> athena_types::Result<HostOutcome> {
+            self.kind = Some(kind);
+            self.argc = args.len();
+            assert_eq!(args, &[SlotValue::Boolean(true), SlotValue::Boolean(false)]);
+            Ok(HostOutcome::Value(SlotValue::Unit))
+        }
+    }
+
+    let mut args = [0u32; athena_vm::MAX_HOST_ARGS];
+    args[0] = 0;
+    args[1] = 1;
+    let module = VmModule::from_parts(
+        vec![
+            Instruction::LoadConstant { dst: 0, constant: 0 },
+            Instruction::LoadConstant { dst: 1, constant: 1 },
+            Instruction::ConstructCollection {
+                dst: 2,
+                kind: CollectionKind::OrderedCollection,
+                argc: 2,
+                args,
+            },
+            Instruction::ReturnValue { slot: 2 },
+        ],
+        vec![VmConstant::Boolean(true), VmConstant::Boolean(false)],
+        3,
+    );
+    let mut vm = Interpreter::new();
+    let mut host = CollectHost {
+        kind: None,
+        argc: 0,
+    };
+    let exit = vm
+        .execute_with_host(&module, &VmConfig::new(), &mut host)
+        .expect("execute");
+    assert_eq!(exit, VmExit::Returned);
+    assert_eq!(host.kind, Some(CollectionKind::OrderedCollection));
+    assert_eq!(host.argc, 2);
+    assert_eq!(vm.slots().get(2), Some(SlotValue::Unit));
+}

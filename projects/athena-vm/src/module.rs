@@ -171,6 +171,19 @@ impl ModuleFingerprint {
                         mix(&mut hash, b);
                     }
                 }
+                Instruction::ConstructCollection { dst, kind, argc, args } => {
+                    mix(&mut hash, 25);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    mix(&mut hash, collection_kind_tag(*kind));
+                    mix(&mut hash, *argc);
+                    for i in 0..(*argc as usize).min(crate::instruction::MAX_HOST_ARGS) {
+                        for b in args[i].to_le_bytes() {
+                            mix(&mut hash, b);
+                        }
+                    }
+                }
             }
         }
         Self(hash)
@@ -198,6 +211,24 @@ fn binding_eval_tag(evaluation: athena_types::BindingEvaluationPolicy) -> u8 {
         EvaluateOnApply => 4,
         MemoizeOnFirstRead => 5,
         ExplicitMaterialization => 6,
+    }
+}
+
+fn collection_kind_tag(kind: athena_types::CollectionKind) -> u8 {
+    use athena_types::CollectionKind::*;
+    match kind {
+        StructuralSequence => 1,
+        Tuple => 2,
+        OrderedCollection => 3,
+        SetLikeCollection => 4,
+        Vector => 5,
+        MatrixRow => 6,
+        MatrixColumn => 7,
+        Matrix => 8,
+        DomainCollection(id) => {
+            let _ = id;
+            9
+        }
     }
 }
 
