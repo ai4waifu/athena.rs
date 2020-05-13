@@ -275,6 +275,26 @@ fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
 }
 
 #[test]
+fn execute_ir_request_domain_gcd_uses_vm_call_provider() {
+    use athena_engine::api::request::DomainGoal;
+    use athena_engine::domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(
+        NumberTheoryRequest::Gcd {
+            a: Integer::from_i64(12),
+            b: Integer::from_i64(8),
+        },
+    )));
+    let result_id = execute_ir_request(&mut session, request).expect("gcd");
+    let loaded = session.results.get(result_id).expect("result");
+    let provenance = loaded.provenance.as_ref().expect("provenance");
+    assert_eq!(provenance.request_kind, "CallProvider");
+    assert!(provenance.capability_fingerprint.is_some());
+}
+
+#[test]
 fn execute_ir_request_local_scope_body_uses_vm() {
     let mut session = Session::new();
     let term = session.builder().int(11, Default::default());

@@ -44,18 +44,18 @@ pub fn pin_module_terms(
 
 /// 降级并经 [`ExecutionHost`] 在 VM 上执行 verified CFG 子集 module。
 ///
-/// 成功时返回结果槽中的 [`SlotValue`]（当前含 Boolean / Term 等）。
-/// 降级失败返回诊断（由 [`crate::execution::backend::select_execution_backend`] 事先分流）。
+/// `pending_domain` 供首条 `CallProvider` 消费（与 Reference 路径同合同）。
 pub fn execute_verified_cfg_on_vm(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
+    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
 ) -> athena_types::Result<SlotValue> {
     let lowered = try_lower_verified_cfg_module(module)?;
     let config = vm_config_from_session(session);
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(session);
+    let mut host = ExecutionHost::new(session, module.provider_calls.clone(), pending_domain);
     let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
     drop(lease);
     match exit {

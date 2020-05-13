@@ -43,7 +43,8 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
         _ => None,
     };
     match select_execution_backend(&module, domain.is_some()) {
-        BackendKind::AthenaVm => match vm::execute_verified_cfg_on_vm(session, &module) {
+        BackendKind::AthenaVm => match vm::execute_verified_cfg_on_vm(session, &module, domain) {
+            Ok(SlotValue::Result(result_id)) => Ok(result_id),
             Ok(SlotValue::Boolean(value)) => {
                 let term = session.builder().boolean(value, Default::default());
                 let value_id = session.insert_symbolic_value(term);

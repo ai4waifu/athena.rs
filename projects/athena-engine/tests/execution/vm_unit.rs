@@ -83,7 +83,7 @@ fn execution_host_not_via_vm_interpreter() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session);
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), None);
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(1), Some(SlotValue::Boolean(false)));
@@ -109,7 +109,7 @@ fn execution_host_and_or_via_vm_interpreter() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session);
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), None);
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(false)));
@@ -138,7 +138,7 @@ fn execution_host_trueq_equal_unequal() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session);
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), None);
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(true)));

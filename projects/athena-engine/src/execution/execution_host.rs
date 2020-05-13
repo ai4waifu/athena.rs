@@ -1,7 +1,7 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、session / 局部 `ReadBinding` /
-//! `WriteBinding`，以及 `EnterScope` / `ExitScope` 帧栈。
+//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、session / 局部 binding、scope 帧栈，
+//! 以及运行时注入 domain 载荷的 `CallProvider`。
 
 use athena_ir::SemanticOperator;
 use athena_types::{
@@ -11,13 +11,17 @@ use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
+    domains::dispatch::{DomainRequest, execute_domain},
     execution::{
         LocalBinding, ScopeFrame, execute_ir_request,
+        ir::ProviderCallDescriptor,
+        provider::ProviderCallHandoff,
         reference::{
-            CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
+            CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
+            evaluate_unary_term,
         },
     },
-    runtime::session::Session,
+    runtime::{results::computation_from_domain, session::Session},
 };
 
 /// 执行宿主（engine 在 VM 之上 · 不拥有解释循环）。
@@ -25,14 +29,22 @@ use crate::{
 pub struct ExecutionHost<'a> {
     session: &'a mut Session,
     frames: Vec<ScopeFrame>,
+    provider_calls: Vec<ProviderCallDescriptor>,
+    pending_domain: Option<DomainRequest>,
 }
 
 impl<'a> ExecutionHost<'a> {
-    /// 构造（持有 session 以便折叠需要 `TermStore` 的语义算子）。
-    pub fn new(session: &'a mut Session) -> Self {
+    /// 构造（持有 session；可选 domain 载荷供首条 `CallProvider` 消费）。
+    pub fn new(
+        session: &'a mut Session,
+        provider_calls: Vec<ProviderCallDescriptor>,
+        pending_domain: Option<DomainRequest>,
+    ) -> Self {
         Self {
             session,
             frames: Vec::new(),
+            provider_calls,
+            pending_domain,
         }
     }
 
@@ -239,13 +251,46 @@ impl VmHost for ExecutionHost<'_> {
     }
 
     fn call_provider(&mut self, op: ProviderOpId, args: &[SlotValue]) -> Result<HostOutcome> {
-        let _ = (op, args);
-        Ok(HostOutcome::Diagnostic(
-            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "ExecutionHost")
-                .detail("reason", "call_provider_deferred_to_reference")
-                .detail("op", op.0),
-        ))
+        let _ = args;
+        let descriptor = self
+            .provider_calls
+            .get(op.0 as usize)
+            .cloned()
+            .ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "missing_provider_call")
+                    .detail("op", op.0)
+            })?;
+        if descriptor.id.0 != op.0 {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "provider_call_id_mismatch"),
+            ));
+        }
+        let handoff = ProviderCallHandoff::from_descriptor(descriptor);
+        let Some(domain) = self.pending_domain.take() else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "provider_domain_missing")
+                    .detail("op", op.0),
+            ));
+        };
+        let domain_result = execute_domain(self.session, domain)?;
+        let projected = domain_result_symbolic_term(self.session, &domain_result);
+        let mut computation = computation_from_domain(self.session, domain_result);
+        if computation.symbolic_term.is_none() {
+            if let Some(term) = projected {
+                computation = computation.with_symbolic_term(term);
+            }
+        }
+        computation = computation.with_provenance(
+            crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint),
+        );
+        let result_id = self.session.insert_result(computation);
+        Ok(HostOutcome::Value(SlotValue::Result(result_id)))
     }
 
     fn read_binding(&mut self, key: SlotValue) -> Result<HostOutcome> {

@@ -8,7 +8,8 @@ mod helpers;
 mod ops;
 
 pub(crate) use self::helpers::{
-    CompareOutcome, evaluate_arithmetic_terms, evaluate_compare_terms, evaluate_unary_term,
+    CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
+    evaluate_unary_term,
 };
 
 use self::helpers::*;
