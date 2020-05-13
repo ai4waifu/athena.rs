@@ -9,12 +9,13 @@
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
-//! 不含：`CallProvider` / `PublishResult` / 多 region（仍由显式 backend 选择走 Reference）。
+//! 不含：多 region（仍由显式 backend 选择走 Reference）。
+//! 含：`CallProvider` / `PublishResult`（domain 载荷由 host 在运行时注入）。
 
 use std::collections::HashMap;
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
-use athena_vm::{Instruction, MAX_HOST_ARGS, SemanticOpId, VmConstant, VmModule};
+use athena_vm::{Instruction, MAX_HOST_ARGS, ProviderOpId, SemanticOpId, VmConstant, VmModule};
 
 use crate::execution::ir::{
     BasicBlock, BlockEdge, BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind,
@@ -88,7 +89,9 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
         | OperationKind::ApplySemanticOperator { .. }
         | OperationKind::ReadBinding { .. }
         | OperationKind::WriteBinding { .. }
-        | OperationKind::EnterScope { .. } => {
+        | OperationKind::EnterScope { .. }
+        | OperationKind::CallProvider { .. }
+        | OperationKind::PublishResult { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -238,6 +241,33 @@ fn lower_ops(
                 bump(max_slot, scope.0);
                 instructions.push(Instruction::ExitScope { scope: scope.0 });
             }
+            OperationKind::CallProvider { call, args } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                if args.len() > MAX_HOST_ARGS {
+                    return Err(diag("lower_argc_overflow"));
+                }
+                let mut packed = [0u32; MAX_HOST_ARGS];
+                for (i, arg) in args.iter().enumerate() {
+                    bump(max_slot, arg.0);
+                    packed[i] = arg.0;
+                }
+                instructions.push(Instruction::CallProvider {
+                    dst: result.0,
+                    op: ProviderOpId(call.0),
+                    argc: args.len() as u8,
+                    args: packed,
+                });
+            }
+            OperationKind::PublishResult { source } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, source.0);
+                instructions.push(Instruction::Move {
+                    dst: result.0,
+                    src: source.0,
+                });
+            }
             _ => return Err(diag("lower_unsupported_operation")),
         }
     }
@@ -374,7 +404,8 @@ fn emit_branch(
 /// 尝试将单 region verified CFG 子集降为 [`LoweredVmModule`]。
 ///
 /// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `ReadBinding` / `WriteBinding` ·
-/// `EnterScope` / `ExitScope` · `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
+/// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `Guard(Reject)` ·
+/// `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {
