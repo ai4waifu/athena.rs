@@ -445,3 +445,77 @@ fn execute_ir_request_range_integer_uses_vm_host() {
         other => panic!("expected Range[3] length 3, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_size_list_uses_vm_host() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let list = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![a, b],
+        },
+        TermNode::default_span(),
+    );
+    let size = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Size),
+            arguments: vec![list],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(size)).expect("size");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
+            for (i, expected) in [1i64, 2].into_iter().enumerate() {
+                match session.arena.get(items[i]) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
+                    other => panic!("expected Size dim {expected}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Size == OrderedCollection[1,2], got {other:?}"),
+    }
+}
+
+#[test]
+fn execute_ir_request_sum_list_uses_vm_host() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let list = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![a, b, c],
+        },
+        TermNode::default_span(),
+    );
+    let sum = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Sum),
+            arguments: vec![list],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(sum)).expect("sum");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6) => {}
+        other => panic!("expected Sum=6, got {other:?}"),
+    }
+}

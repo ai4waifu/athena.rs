@@ -411,16 +411,11 @@ impl ReferenceExecutor {
     }
 
     pub(crate) fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        if args.len() != 1 {
-            return Err(diag("semantic_operator_arity"));
+        let mut terms = Vec::with_capacity(args.len());
+        for id in args {
+            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
+            terms.push(self.slot_as_term(session, slot)?);
         }
-        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some((rows, cols)) = nested_list_shape(session, term)
-        else {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Size, vec![term])));
-        };
-        let r = session.builder().int(rows as i64, Default::default());
-        let c = session.builder().int(cols as i64, Default::default());
-        Ok(Slot::Term(push_list(session, vec![r, c])))
+        Ok(Slot::Term(evaluate_size_terms(session, terms)?))
     }
 }

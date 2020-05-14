@@ -18,7 +18,8 @@ use crate::{
         provider::ProviderCallHandoff,
         reference::{
             CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
-            evaluate_join_terms, evaluate_range_terms, evaluate_unary_term,
+            evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
+            evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -148,6 +149,24 @@ impl<'a> ExecutionHost<'a> {
         let term = evaluate_range_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
+
+    fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_size_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_sum(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_sum_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
@@ -270,6 +289,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);
+        }
+        if op.0 == SemanticOperator::Size.discriminant() {
+            return self.apply_size(args);
+        }
+        if op.0 == SemanticOperator::Sum.discriminant() {
+            return self.apply_sum(args);
         }
         Ok(Self::unsupported(op))
     }
