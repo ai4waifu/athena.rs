@@ -1,7 +1,7 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
-//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、session / 局部 binding、scope 帧栈，
-//! 以及运行时注入 domain 载荷的 `CallProvider`。
+//! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、`Join` / `Range`、session / 局部 binding、
+//! scope 帧栈，以及运行时注入 domain 载荷的 `CallProvider`。
 
 use athena_ir::SemanticOperator;
 use athena_types::{
@@ -18,7 +18,7 @@ use crate::{
         provider::ProviderCallHandoff,
         reference::{
             CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
-            evaluate_unary_term,
+            evaluate_join_terms, evaluate_range_terms, evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -129,6 +129,24 @@ impl<'a> ExecutionHost<'a> {
         } else {
             self.session.defs.write_binding(symbol, term);
         }
+    }
+
+    fn apply_join(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_join_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_range(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_range_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 }
 
@@ -246,6 +264,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Rest.discriminant() {
             return self.apply_unary(SemanticOperator::Rest, args);
+        }
+        if op.0 == SemanticOperator::Join.discriminant() {
+            return self.apply_join(args);
+        }
+        if op.0 == SemanticOperator::Range.discriminant() {
+            return self.apply_range(args);
         }
         Ok(Self::unsupported(op))
     }

@@ -376,3 +376,72 @@ fn execute_ir_request_ordered_collection_uses_vm() {
         other => panic!("expected ordered collection, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_join_lists_uses_vm_host() {
+    use athena_types::CollectionKind;
+
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let left = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![a], Default::default());
+    let right = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![b, c], Default::default());
+    let join = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Join),
+            arguments: vec![left, right],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(join)).expect("join");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements,
+        }) if elements.as_slice() == [a, b, c] => {}
+        other => panic!("expected Join result [1,2,3], got {other:?}"),
+    }
+}
+
+#[test]
+fn execute_ir_request_range_integer_uses_vm_host() {
+    let mut session = Session::new();
+    let n = session.builder().int(3, Default::default());
+    let range = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Range),
+            arguments: vec![n],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(range)).expect("range");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 3 => {
+            for (i, &el) in elements.iter().enumerate() {
+                let expected = (i as i64) + 1;
+                match session.arena.get(el) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
+                    other => panic!("expected Range element {expected}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Range[3] length 3, got {other:?}"),
+    }
+}

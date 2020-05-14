@@ -8,7 +8,7 @@ use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
     domains::linear_algebra::det_bareiss,
-    execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_semantic},
+    execution::{compiler::ExecutionCompiler, ir::SsaValueId, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -163,27 +163,7 @@ impl ReferenceExecutor {
             let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
-        let Some(ints) = ints
-        else {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
-        };
-        let bounds = match ints.as_slice() {
-            [n] => Some((1, *n, 1)),
-            [a, b] => Some((*a, *b, 1)),
-            [a, b, step] => Some((*a, *b, *step)),
-            _ => None,
-        };
-        let Some((a, b, step)) = bounds
-        else {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
-        };
-        let Some(values) = expand_span_3(a, step, b)
-        else {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Range, terms)));
-        };
-        let out: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
-        Ok(Slot::Term(push_list(session, out)))
+        Ok(Slot::Term(evaluate_range_terms(session, terms)?))
     }
 
     /// 对目标 SSA 值执行中立 [`IndexSpec`] 轴。
@@ -331,18 +311,12 @@ impl ReferenceExecutor {
     }
 
     pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        let mut out = Vec::new();
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
             let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            let term = self.slot_as_term(session, slot)?;
-            terms.push(term);
-            match session.arena.get(term) {
-                Some(athena_ir::TermNode::Collection { elements: items, .. }) => out.extend_from_slice(items),
-                _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Join, terms))),
-            }
+            terms.push(self.slot_as_term(session, slot)?);
         }
-        Ok(Slot::Term(push_list(session, out)))
+        Ok(Slot::Term(evaluate_join_terms(session, terms)?))
     }
 
     pub(crate) fn eval_compare_chain(

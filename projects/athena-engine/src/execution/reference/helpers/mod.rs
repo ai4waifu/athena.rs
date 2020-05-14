@@ -2,6 +2,7 @@
 
 mod arithmetic;
 mod compare;
+mod structure;
 mod terms;
 mod unary;
 
@@ -9,6 +10,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 pub(crate) use arithmetic::*;
 pub(crate) use compare::*;
+pub(crate) use structure::*;
 pub(crate) use terms::*;
 pub(crate) use unary::*;
 
