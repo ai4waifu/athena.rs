@@ -9,8 +9,8 @@
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
+//! 含：`CallProvider` / `PublishResult` / `ConstructCollection`（元素数 ≤ `MAX_HOST_ARGS`）。
 //! 不含：多 region（仍由显式 backend 选择走 Reference）。
-//! 含：`CallProvider` / `PublishResult`（domain 载荷由 host 在运行时注入）。
 
 use std::collections::HashMap;
 
@@ -91,7 +91,8 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
         | OperationKind::WriteBinding { .. }
         | OperationKind::EnterScope { .. }
         | OperationKind::CallProvider { .. }
-        | OperationKind::PublishResult { .. } => {
+        | OperationKind::PublishResult { .. }
+        | OperationKind::ConstructCollection { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -268,6 +269,24 @@ fn lower_ops(
                     src: source.0,
                 });
             }
+            OperationKind::ConstructCollection { kind, elements } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                if elements.len() > MAX_HOST_ARGS {
+                    return Err(diag("lower_collection_argc_overflow"));
+                }
+                let mut packed = [0u32; MAX_HOST_ARGS];
+                for (i, arg) in elements.iter().enumerate() {
+                    bump(max_slot, arg.0);
+                    packed[i] = arg.0;
+                }
+                instructions.push(Instruction::ConstructCollection {
+                    dst: result.0,
+                    kind: *kind,
+                    argc: elements.len() as u8,
+                    args: packed,
+                });
+            }
             _ => return Err(diag("lower_unsupported_operation")),
         }
     }
@@ -404,8 +423,8 @@ fn emit_branch(
 /// 尝试将单 region verified CFG 子集降为 [`LoweredVmModule`]。
 ///
 /// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `ReadBinding` / `WriteBinding` ·
-/// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `Guard(Reject)` ·
-/// `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
+/// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `ConstructCollection` ·
+/// `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {

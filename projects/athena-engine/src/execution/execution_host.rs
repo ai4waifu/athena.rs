@@ -5,7 +5,7 @@
 
 use athena_ir::SemanticOperator;
 use athena_types::{
-    BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, SymbolId, TermId,
+    BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, SymbolId, TermId,
 };
 use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
@@ -400,5 +400,18 @@ impl VmHost for ExecutionHost<'_> {
         }
         self.frames.pop();
         Ok(HostOutcome::Value(SlotValue::Unit))
+    }
+
+    fn construct_collection(&mut self, kind: CollectionKind, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut items = Vec::with_capacity(args.len());
+        for slot in args {
+            items.push(self.slot_as_term(*slot)?);
+        }
+        let span = athena_ir::TermNode::default_span();
+        let term = self
+            .session
+            .arena
+            .push(athena_ir::TermNode::Collection { kind, elements: items }, span);
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 }

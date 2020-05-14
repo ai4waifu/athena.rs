@@ -347,3 +347,32 @@ fn execute_ir_request_local_scope_shadows_session_on_vm() {
     assert_eq!(loaded.symbolic_term, Some(local));
     assert_eq!(session.defs.binding(symbol), Some(global));
 }
+
+#[test]
+fn execute_ir_request_ordered_collection_uses_vm() {
+    use athena_types::CollectionKind;
+
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let list = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![a, b], Default::default());
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(list)).expect("list");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements,
+        }) if elements.len() == 2 => {
+            assert_eq!(elements[0], a);
+            assert_eq!(elements[1], b);
+        }
+        other => panic!("expected ordered collection, got {other:?}"),
+    }
+}
