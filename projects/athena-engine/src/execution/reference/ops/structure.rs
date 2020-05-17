@@ -7,14 +7,10 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
-    domains::linear_algebra::det_bareiss,
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, push_semantic},
     runtime::{
         session::Session,
-        values::{
-            arena::push_list,
-            numeric_clone::clone_rational,
-        },
+        values::arena::push_list,
     },
 };
 
@@ -104,18 +100,11 @@ impl ReferenceExecutor {
             return Err(diag("semantic_operator_arity"));
         }
         let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let echo = push_semantic(session, SemanticOperator::Determinant, vec![term]);
-        let Some(matrix) = term_to_rational_matrix_session(session, term)
-        else {
-            return Ok(Slot::Term(echo));
-        };
-        match det_bareiss(&matrix) {
-            Ok(result) => Ok(Slot::Term(rational_to_term_session(session, &result.det))),
-            Err(diagnostic) => {
-                *invalid = Some(diagnostic);
-                Ok(Slot::Term(echo))
-            }
+        let (out, diag_opt) = evaluate_determinant_term(session, term)?;
+        if let Some(diagnostic) = diag_opt {
+            *invalid = Some(diagnostic);
         }
+        Ok(Slot::Term(out))
     }
 
     pub(crate) fn eval_range(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {

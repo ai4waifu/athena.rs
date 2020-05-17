@@ -519,3 +519,52 @@ fn execute_ir_request_sum_list_uses_vm_host() {
         other => panic!("expected Sum=6, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_determinant_matrix_uses_vm_host() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let d = session.builder().int(4, Default::default());
+    let row0 = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![a, b],
+        },
+        TermNode::default_span(),
+    );
+    let row1 = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![c, d],
+        },
+        TermNode::default_span(),
+    );
+    let matrix = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![row0, row1],
+        },
+        TermNode::default_span(),
+    );
+    let det = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Determinant),
+            arguments: vec![matrix],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(det)).expect("det");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2) => {}
+        other => panic!("expected Determinant=-2, got {other:?}"),
+    }
+}

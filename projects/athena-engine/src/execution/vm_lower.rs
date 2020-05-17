@@ -5,7 +5,7 @@
 //! **事先**显式选择，禁止执行失败后再静默回退 Reference。
 //!
 //! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
-//! （Boolean + 标量算术 / 比较 / 一元 / `Join` / `Range` / `Size` / `Sum`）· `ReadBinding` / `WriteBinding` ·
+//! （Boolean + 标量算术 / 比较 / 一元 / `Join` / `Range` / `Size` / `Sum` / `Determinant`）· `ReadBinding` / `WriteBinding` ·
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
@@ -37,7 +37,7 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
         op,
         Not | And | Or | TrueQ | Equal | Unequal | Identical | Add | Multiply | Subtract | Negate | Divide | Power
             | Less | Greater | LessEqual | GreaterEqual | Abs | Factorial | Sqrt | Length | First | Rest
-            | Join | Range | Size | Sum
+            | Join | Range | Size | Sum | Determinant
     )
 }
 

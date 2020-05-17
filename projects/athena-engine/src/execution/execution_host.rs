@@ -19,7 +19,7 @@ use crate::{
         reference::{
             CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
             evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
-            evaluate_unary_term,
+            evaluate_determinant_term, evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -167,6 +167,18 @@ impl<'a> ExecutionHost<'a> {
         let term = evaluate_sum_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
+
+    fn apply_determinant(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Determinant.discriminant())));
+        }
+        let term = self.slot_as_term(args[0])?;
+        let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
+        if let Some(diagnostic) = diag_opt {
+            return Ok(HostOutcome::Diagnostic(diagnostic));
+        }
+        Ok(HostOutcome::Value(SlotValue::Term(out)))
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
@@ -295,6 +307,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Sum.discriminant() {
             return self.apply_sum(args);
+        }
+        if op.0 == SemanticOperator::Determinant.discriminant() {
+            return self.apply_determinant(args);
         }
         Ok(Self::unsupported(op))
     }

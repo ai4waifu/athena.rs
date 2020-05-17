@@ -10,6 +10,7 @@ mod ops;
 pub(crate) use self::helpers::{
     CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
+    evaluate_determinant_term,
 };
 
 use self::helpers::*;
