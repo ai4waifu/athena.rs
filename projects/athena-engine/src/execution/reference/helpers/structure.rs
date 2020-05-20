@@ -1,4 +1,4 @@
-//! 结构算子（`Join` / `Range` / `Size` / `Sum` / `Determinant`）的纯 term 折叠。
+//! 结构算子（`Join` / `Range` / `Size` / `Sum` / `Determinant` / 矩阵构造）的纯 term 折叠。
 
 use athena_ir::SemanticOperator;
 use athena_types::{Diagnostic, Result, TermId};
@@ -10,7 +10,8 @@ use crate::{
 };
 
 use super::{
-    fold_plus_symbolic, nested_list_shape, rational_to_term_session, term_to_rational_matrix_session, terms::expand_span_3,
+    fold_plus_symbolic, nested_list_shape, parse_matrix_dims, rational_to_term_session, term_to_rational_matrix_session,
+    terms::expand_span_3,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -120,4 +121,37 @@ pub(crate) fn evaluate_determinant_term(
         Ok(result) => Ok((rational_to_term_session(session, &result.det), None)),
         Err(diagnostic) => Ok((echo, Some(diagnostic))),
     }
+}
+
+/// `Zeros` / `Ones` / `Eye` — 按维度构造有理整数矩阵；非法维度则残差。
+pub(crate) fn evaluate_matrix_constructor_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    terms: Vec<TermId>,
+) -> Result<TermId> {
+    let Some((rows, cols)) = parse_matrix_dims(session, &terms) else {
+        return Ok(push_semantic(session, op, terms));
+    };
+    let n = match rows.checked_mul(cols) {
+        Some(v) if v <= 4096 => v as usize,
+        _ => return Ok(push_semantic(session, op, terms)),
+    };
+    if n == 0 {
+        return Ok(push_list(session, Vec::new()));
+    }
+    let fill = match op {
+        SemanticOperator::Ones => 1i64,
+        SemanticOperator::Zeros | SemanticOperator::Eye => 0,
+        _ => return Ok(push_semantic(session, op, terms)),
+    };
+    let mut rows_out = Vec::with_capacity(rows as usize);
+    for r in 0..rows {
+        let mut row = Vec::with_capacity(cols as usize);
+        for c in 0..cols {
+            let value = if op == SemanticOperator::Eye && r == c { 1 } else { fill };
+            row.push(session.builder().int(value, Default::default()));
+        }
+        rows_out.push(push_list(session, row));
+    }
+    Ok(push_list(session, rows_out))
 }

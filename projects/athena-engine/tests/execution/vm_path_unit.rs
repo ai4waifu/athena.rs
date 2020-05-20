@@ -568,3 +568,43 @@ fn execute_ir_request_determinant_matrix_uses_vm_host() {
         other => panic!("expected Determinant=-2, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_eye_uses_vm_host() {
+    let mut session = Session::new();
+    let n = session.builder().int(2, Default::default());
+    let eye = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Eye),
+            arguments: vec![n],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(eye)).expect("eye");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            for (i, &row) in rows.iter().enumerate() {
+                match session.arena.get(row) {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
+                        for (j, &cell) in cells.iter().enumerate() {
+                            let expected = if i == j { 1i64 } else { 0 };
+                            match session.arena.get(cell) {
+                                Some(TermNode::Atom(Atom::Number(n)))
+                                    if n.as_exact_integer() == Some(expected) => {}
+                                other => panic!("Eye[{i},{j}] expected {expected}, got {other:?}"),
+                            }
+                        }
+                    }
+                    other => panic!("expected Eye row, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Eye 2x2, got {other:?}"),
+    }
+}

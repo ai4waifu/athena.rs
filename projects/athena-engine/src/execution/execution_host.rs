@@ -19,7 +19,7 @@ use crate::{
         reference::{
             CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
             evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
-            evaluate_determinant_term, evaluate_unary_term,
+            evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -179,6 +179,15 @@ impl<'a> ExecutionHost<'a> {
         }
         Ok(HostOutcome::Value(SlotValue::Term(out)))
     }
+
+    fn apply_matrix_constructor(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_matrix_constructor_terms(self.session, op, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
@@ -310,6 +319,15 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Determinant.discriminant() {
             return self.apply_determinant(args);
+        }
+        if op.0 == SemanticOperator::Zeros.discriminant() {
+            return self.apply_matrix_constructor(SemanticOperator::Zeros, args);
+        }
+        if op.0 == SemanticOperator::Ones.discriminant() {
+            return self.apply_matrix_constructor(SemanticOperator::Ones, args);
+        }
+        if op.0 == SemanticOperator::Eye.discriminant() {
+            return self.apply_matrix_constructor(SemanticOperator::Eye, args);
         }
         Ok(Self::unsupported(op))
     }

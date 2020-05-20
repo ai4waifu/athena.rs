@@ -248,32 +248,7 @@ impl ReferenceExecutor {
             let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
             terms.push(self.slot_as_term(session, slot)?);
         }
-        let Some((rows, cols)) = parse_matrix_dims(session, &terms)
-        else {
-            return Ok(Slot::Term(push_semantic(session, op, terms)));
-        };
-        let n = match rows.checked_mul(cols) {
-            Some(v) if v <= 4096 => v as usize,
-            _ => return Ok(Slot::Term(push_semantic(session, op, terms))),
-        };
-        if n == 0 {
-            return Ok(Slot::Term(push_list(session, Vec::new())));
-        }
-        let fill = match op {
-            SemanticOperator::Ones => 1i64,
-            SemanticOperator::Zeros | SemanticOperator::Eye => 0,
-            _ => return Err(diag("semantic_operator_not_implemented")),
-        };
-        let mut rows_out = Vec::with_capacity(rows as usize);
-        for r in 0..rows {
-            let mut row = Vec::with_capacity(cols as usize);
-            for c in 0..cols {
-                let value = if op == SemanticOperator::Eye && r == c { 1 } else { fill };
-                row.push(session.builder().int(value, Default::default()));
-            }
-            rows_out.push(push_list(session, row));
-        }
-        Ok(Slot::Term(push_list(session, rows_out)))
+        Ok(Slot::Term(evaluate_matrix_constructor_terms(session, op, terms)?))
     }
 
     pub(crate) fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
