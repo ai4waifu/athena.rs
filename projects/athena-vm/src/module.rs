@@ -184,6 +184,18 @@ impl ModuleFingerprint {
                         }
                     }
                 }
+                Instruction::Index { dst, target, axes } => {
+                    mix(&mut hash, 26);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in target.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in axes.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
             }
         }
         Self(hash)

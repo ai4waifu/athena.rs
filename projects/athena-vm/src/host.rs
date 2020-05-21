@@ -17,6 +17,10 @@ pub struct SemanticOpId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProviderOpId(pub u32);
 
+/// 索引轴表 ID（lower 时登记的 `IndexSpec` 序列，由 host 持有）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IndexAxesId(pub u32);
+
 /// 单次 host 调用结果（句柄级，无 TermStore 所有权）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostOutcome {
@@ -110,6 +114,16 @@ pub trait VmHost {
             Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
                 .detail("component", "VmHost")
                 .detail("reason", "construct_collection_unimplemented"),
+        ))
+    }
+
+    /// 对目标值应用已登记的索引轴规格。
+    fn apply_index(&mut self, op: IndexAxesId, target: SlotValue) -> Result<HostOutcome> {
+        let _ = (op, target);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "apply_index_unimplemented"),
         ))
     }
 }

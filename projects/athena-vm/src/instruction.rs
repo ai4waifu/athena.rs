@@ -5,7 +5,7 @@
 
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind};
 
-use crate::host::{ProviderOpId, SemanticOpId};
+use crate::host::{IndexAxesId, ProviderOpId, SemanticOpId};
 
 /// 槽下标（绝对槽下标，由指令约定）。
 pub type SlotIndex = u32;
@@ -127,6 +127,15 @@ pub enum Instruction {
         argc: u8,
         /// 元素槽（仅前 `argc` 个有效）。
         args: [SlotIndex; MAX_HOST_ARGS],
+    },
+    /// 经 [`crate::host::VmHost::apply_index`] 对目标做下标访问。
+    Index {
+        /// 结果槽。
+        dst: SlotIndex,
+        /// 目标槽。
+        target: SlotIndex,
+        /// 轴规格表 ID（host 侧 `IndexSpec` 序列）。
+        axes: IndexAxesId,
     },
 }
 

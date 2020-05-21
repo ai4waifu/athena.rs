@@ -307,6 +307,17 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
+                Instruction::Index { dst, target, axes } => {
+                    let target_value = match self.slots.get(target) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("index_target_undefined")),
+                    };
+                    let outcome = host.apply_index(axes, target_value)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
             }
         }
 
