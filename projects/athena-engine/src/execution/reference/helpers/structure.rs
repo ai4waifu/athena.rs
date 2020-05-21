@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    fold_plus_symbolic, nested_list_shape, parse_matrix_dims, rational_to_term_session, term_to_rational_matrix_session,
-    terms::expand_span_3,
+    evaluate_arithmetic_terms, fold_plus_symbolic, nested_list_shape, parse_matrix_dims, rational_to_term_session,
+    term_to_rational_matrix_session, terms::expand_span_3,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -154,4 +154,86 @@ pub(crate) fn evaluate_matrix_constructor_terms(
         rows_out.push(push_list(session, row));
     }
     Ok(push_list(session, rows_out))
+}
+
+/// `ElementwiseMultiply` / `ElementwiseDivide` / `ElementwisePower` — 集合 zip + 标量广播。
+pub(crate) fn evaluate_elementwise_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    left: TermId,
+    right: TermId,
+) -> Result<TermId> {
+    let echo = push_semantic(session, op, vec![left, right]);
+    let scalar_op = match op {
+        SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
+        SemanticOperator::ElementwiseDivide => SemanticOperator::Divide,
+        SemanticOperator::ElementwisePower => SemanticOperator::Power,
+        _ => return Ok(echo),
+    };
+    match elementwise_zip(session, scalar_op, left, right)? {
+        Some(term) => Ok(term),
+        None => Ok(echo),
+    }
+}
+
+fn elementwise_zip(
+    session: &mut Session,
+    scalar_op: SemanticOperator,
+    left: TermId,
+    right: TermId,
+) -> Result<Option<TermId>> {
+    let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
+    let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
+    match (left_is_collection, right_is_collection) {
+        (true, true) => {
+            let a = match session.arena.get(left) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let b = match session.arena.get(right) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            if a.len() != b.len() {
+                return Ok(None);
+            }
+            let mut out = Vec::with_capacity(a.len());
+            for (lhs, rhs) in a.into_iter().zip(b.into_iter()) {
+                match elementwise_zip(session, scalar_op, lhs, rhs)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (true, false) => {
+            let a = match session.arena.get(left) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let mut out = Vec::with_capacity(a.len());
+            for lhs in a {
+                match elementwise_zip(session, scalar_op, lhs, right)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (false, true) => {
+            let b = match session.arena.get(right) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let mut out = Vec::with_capacity(b.len());
+            for rhs in b {
+                match elementwise_zip(session, scalar_op, left, rhs)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (false, false) => Ok(Some(evaluate_arithmetic_terms(session, scalar_op, vec![left, right])?)),
+    }
 }

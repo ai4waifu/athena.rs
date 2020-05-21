@@ -608,3 +608,52 @@ fn execute_ir_request_eye_uses_vm_host() {
         other => panic!("expected Eye 2x2, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_elementwise_multiply_uses_vm_host() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(2, Default::default());
+    let b = session.builder().int(3, Default::default());
+    let c = session.builder().int(4, Default::default());
+    let d = session.builder().int(5, Default::default());
+    let left = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![a, b],
+        },
+        TermNode::default_span(),
+    );
+    let right = session.arena.push(
+        TermNode::Collection {
+            kind: CollectionKind::OrderedCollection,
+            elements: vec![c, d],
+        },
+        TermNode::default_span(),
+    );
+    let term = session.arena.push(
+        TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::ElementwiseMultiply),
+            arguments: vec![left, right],
+        },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("hadamard");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
+            for (i, expected) in [8i64, 15].into_iter().enumerate() {
+                match session.arena.get(elements[i]) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
+                    other => panic!("expected element {expected}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected elementwise product list, got {other:?}"),
+    }
+}

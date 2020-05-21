@@ -19,7 +19,8 @@ use crate::{
         reference::{
             CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
             evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
-            evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_unary_term,
+            evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms,
+            evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -188,6 +189,16 @@ impl<'a> ExecutionHost<'a> {
         let term = evaluate_matrix_constructor_terms(self.session, op, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
+
+    fn apply_elementwise(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+        }
+        let left = self.slot_as_term(args[0])?;
+        let right = self.slot_as_term(args[1])?;
+        let term = evaluate_elementwise_terms(self.session, op, left, right)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
@@ -328,6 +339,15 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Eye.discriminant() {
             return self.apply_matrix_constructor(SemanticOperator::Eye, args);
+        }
+        if op.0 == SemanticOperator::ElementwiseMultiply.discriminant() {
+            return self.apply_elementwise(SemanticOperator::ElementwiseMultiply, args);
+        }
+        if op.0 == SemanticOperator::ElementwiseDivide.discriminant() {
+            return self.apply_elementwise(SemanticOperator::ElementwiseDivide, args);
+        }
+        if op.0 == SemanticOperator::ElementwisePower.discriminant() {
+            return self.apply_elementwise(SemanticOperator::ElementwisePower, args);
         }
         Ok(Self::unsupported(op))
     }
