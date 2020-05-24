@@ -8,9 +8,10 @@ mod helpers;
 mod ops;
 
 pub(crate) use self::helpers::{
-    CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
+    CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms,
+    evaluate_index_axes,
 };
 
 use self::helpers::*;
@@ -53,13 +54,6 @@ pub struct ReferenceExecutor {}
 
 /// SSA 运行时槽（`athena-vm` 句柄；不与 `TermId` 共用标识域）。
 pub(crate) use athena_vm::SlotValue as Slot;
-
-#[derive(Debug)]
-pub(crate) enum IndexStep {
-    Next(TermId),
-    Residual,
-    Invalid { echo: TermId, diagnostic: Diagnostic },
-}
 
 impl ReferenceExecutor {
     /// 创建 reference 执行器。

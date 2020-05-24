@@ -2,16 +2,13 @@
 
 use athena_ir::SemanticOperator;
 use athena_vm::SlotTable;
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{Diagnostic, Result, TermId};
 
-use super::super::{IndexStep, ReferenceExecutor, Slot, helpers::*};
+use super::super::{ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, push_semantic},
-    runtime::{
-        session::Session,
-        values::arena::push_list,
-    },
+    runtime::session::Session,
 };
 
 impl ReferenceExecutor {
@@ -125,139 +122,15 @@ impl ReferenceExecutor {
         slots: &SlotTable,
         invalid: &mut Option<Diagnostic>,
     ) -> Result<Slot> {
-        use athena_types::IndexSpec;
-
         let slot = slots.get(target.0).ok_or_else(|| diag("index_target_undefined"))?;
-        let mut cur = self.slot_as_term(session, slot)?;
-
-        // 先 `All`，再对每行应用剩余轴（列 / 嵌套选择）。
-        if let [IndexSpec::All, rest @ ..] = axes {
-            if !rest.is_empty() {
-                if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(cur) {
-                    let rows = rows.clone();
-                    let mut out = Vec::with_capacity(rows.len());
-                    for row in rows {
-                        let mut cell = row;
-                        for axis in rest {
-                            match self.index_one(session, cell, axis)? {
-                                IndexStep::Next(next) => cell = next,
-                                IndexStep::Residual => return Ok(Slot::Term(cur)),
-                                IndexStep::Invalid { echo, diagnostic } => {
-                                    *invalid = Some(diagnostic);
-                                    return Ok(Slot::Term(echo));
-                                }
-                            }
-                        }
-                        out.push(cell);
-                    }
-                    return Ok(Slot::Term(push_list(session, out)));
-                }
+        let cur = self.slot_as_term(session, slot)?;
+        Ok(match evaluate_index_axes(session, cur, axes)? {
+            IndexOutcome::Term(term) => Slot::Term(term),
+            IndexOutcome::Invalid { echo, diagnostic } => {
+                *invalid = Some(diagnostic);
+                Slot::Term(echo)
             }
-        }
-
-        for axis in axes {
-            match self.index_one(session, cur, axis)? {
-                IndexStep::Next(next) => cur = next,
-                IndexStep::Residual => return Ok(Slot::Term(cur)),
-                IndexStep::Invalid { echo, diagnostic } => {
-                    *invalid = Some(diagnostic);
-                    return Ok(Slot::Term(echo));
-                }
-            }
-        }
-        Ok(Slot::Term(cur))
-    }
-
-    /// 应用一条 [`IndexSpec`] 轴（1-based 标量、`All`、`EndRelative`、`Range`）。
-    pub(crate) fn index_one(&self, session: &mut Session, expr: TermId, spec: &athena_types::IndexSpec) -> Result<IndexStep> {
-        use athena_types::{IndexSpec, IntegerIndex, IntegerOffset};
-
-        let items = match session.arena.get(expr) {
-            Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
-            Some(athena_ir::TermNode::Application { arguments, .. }) => arguments.clone(),
-            _ => return Ok(IndexStep::Residual),
-        };
-        let len = items.len();
-
-        match spec {
-            IndexSpec::All => Ok(IndexStep::Next(push_list(session, items))),
-            IndexSpec::EndRelative(IntegerOffset(off)) => {
-                let pos = len as i64 + *off - 1;
-                if pos < 0 || pos as usize >= len {
-                    return Ok(IndexStep::Invalid {
-                        echo: expr,
-                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*off, Some(len as u64)),
-                    });
-                }
-                Ok(IndexStep::Next(items[pos as usize]))
-            }
-            IndexSpec::Scalar(IntegerIndex(idx)) => {
-                if *idx == 0 {
-                    // 绝不经显示名符号具体化头。
-                    // 下标 0 得到同头 / 同集合种类的类型化空投影。
-                    return Ok(IndexStep::Next(match session.arena.get(expr) {
-                        Some(athena_ir::TermNode::Collection { kind, .. }) => {
-                            let kind = *kind;
-                            let span = athena_ir::TermNode::default_span();
-                            session.arena.push(athena_ir::TermNode::Collection { kind, elements: Vec::new() }, span)
-                        }
-                        Some(athena_ir::TermNode::Application { head, .. }) => {
-                            let head = *head;
-                            let span = athena_ir::TermNode::default_span();
-                            session.arena.push(athena_ir::TermNode::Application { head, arguments: Vec::new() }, span)
-                        }
-                        _ => return Ok(IndexStep::Residual),
-                    }));
-                }
-                let pos = if *idx > 0 {
-                    (*idx - 1) as usize
-                }
-                else {
-                    let pos = len as i64 + *idx;
-                    if pos < 0 {
-                        return Ok(IndexStep::Invalid {
-                            echo: expr,
-                            diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)),
-                        });
-                    }
-                    pos as usize
-                };
-                match items.get(pos) {
-                    Some(item) => Ok(IndexStep::Next(*item)),
-                    None => {
-                        Ok(IndexStep::Invalid { echo: expr, diagnostic: crate::diagnostics::invalid_index_diagnostic(*idx, Some(len as u64)) })
-                    }
-                }
-            }
-            IndexSpec::Range { start, end, step } => {
-                let Some(values) = expand_span_3(start.0, *step, end.0)
-                else {
-                    return Ok(IndexStep::Residual);
-                };
-                let mut out = Vec::with_capacity(values.len());
-                for v in values {
-                    match self.index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(v)))? {
-                        IndexStep::Next(item) => out.push(item),
-                        IndexStep::Residual => return Ok(IndexStep::Residual),
-                        IndexStep::Invalid { echo, diagnostic } => {
-                            return Ok(IndexStep::Invalid { echo, diagnostic });
-                        }
-                    }
-                }
-                Ok(IndexStep::Next(push_list(session, out)))
-            }
-            IndexSpec::Cartesian(axes) => {
-                let mut cur = expr;
-                for axis in axes {
-                    match self.index_one(session, cur, axis)? {
-                        IndexStep::Next(next) => cur = next,
-                        other => return Ok(other),
-                    }
-                }
-                Ok(IndexStep::Next(cur))
-            }
-            IndexSpec::DomainSpecific(_) => Ok(IndexStep::Residual),
-        }
+        })
     }
 
     pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
