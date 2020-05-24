@@ -10,13 +10,14 @@
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
-//! 含：`CallProvider` / `PublishResult` / `ConstructCollection`（元素数 ≤ `MAX_HOST_ARGS`）。
+//! 含：`CallProvider` / `PublishResult` / `ConstructCollection`（元素数 ≤ `MAX_HOST_ARGS`）/
+//! `Index`（轴规格登记在 lowered 表）。
 //! 不含：多 region（仍由显式 backend 选择走 Reference）。
 
 use std::collections::HashMap;
 
-use athena_types::{Diagnostic, DiagnosticCode, Result};
-use athena_vm::{Instruction, MAX_HOST_ARGS, ProviderOpId, SemanticOpId, VmConstant, VmModule};
+use athena_types::{Diagnostic, DiagnosticCode, IndexSpec, Result};
+use athena_vm::{IndexAxesId, Instruction, MAX_HOST_ARGS, ProviderOpId, SemanticOpId, VmConstant, VmModule};
 
 use crate::execution::ir::{
     BasicBlock, BlockEdge, BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind,
@@ -30,6 +31,8 @@ pub struct LoweredVmModule {
     pub module: VmModule,
     /// 静态提示的结果槽（多出口时以解释器 `last_return_slot` 为准）。
     pub result_slot: u32,
+    /// `Index` 指令引用的轴规格表（与 [`IndexAxesId`] 对齐）。
+    pub index_axes: Vec<Vec<IndexSpec>>,
 }
 
 fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
@@ -95,7 +98,8 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
         | OperationKind::EnterScope { .. }
         | OperationKind::CallProvider { .. }
         | OperationKind::PublishResult { .. }
-        | OperationKind::ConstructCollection { .. } => {
+        | OperationKind::ConstructCollection { .. }
+        | OperationKind::Index { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -125,6 +129,7 @@ fn lower_ops(
     block: &BasicBlock,
     constants: &mut Vec<VmConstant>,
     instructions: &mut Vec<Instruction>,
+    index_axes: &mut Vec<Vec<IndexSpec>>,
     max_slot: &mut u32,
 ) -> Result<()> {
     for op in &block.operations {
@@ -290,6 +295,18 @@ fn lower_ops(
                     args: packed,
                 });
             }
+            OperationKind::Index { target, axes } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, target.0);
+                let axes_id = IndexAxesId(index_axes.len() as u32);
+                index_axes.push(axes.clone());
+                instructions.push(Instruction::Index {
+                    dst: result.0,
+                    target: target.0,
+                    axes: axes_id,
+                });
+            }
             _ => return Err(diag("lower_unsupported_operation")),
         }
     }
@@ -427,7 +444,7 @@ fn emit_branch(
 ///
 /// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `ReadBinding` / `WriteBinding` ·
 /// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `ConstructCollection` ·
-/// `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
+/// `Index` · `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
     verify_module(module)?;
     if module.regions.len() != 1 {
@@ -441,13 +458,21 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<Lowered
     let block_pcs = layout_block_pcs(region)?;
     let mut constants = Vec::new();
     let mut instructions = Vec::new();
+    let mut index_axes = Vec::new();
     let mut max_slot = 0u32;
     let mut result_slot = 0u32;
     let mut saw_return = false;
 
     for block in &region.blocks {
         note_block_parameters(block, &mut max_slot);
-        lower_ops(module, block, &mut constants, &mut instructions, &mut max_slot)?;
+        lower_ops(
+            module,
+            block,
+            &mut constants,
+            &mut instructions,
+            &mut index_axes,
+            &mut max_slot,
+        )?;
         match &block.terminator {
             Terminator::Return { values } => {
                 let slot = values[0].0;
@@ -485,5 +510,6 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<Lowered
     Ok(LoweredVmModule {
         module: VmModule::from_parts(instructions, constants, max_slot),
         result_slot,
+        index_axes,
     })
 }

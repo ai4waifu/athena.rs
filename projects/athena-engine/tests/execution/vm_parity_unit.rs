@@ -105,7 +105,7 @@ fn reject_module() -> ExecutionModule {
 fn run_vm(session: &mut Session, module: &ExecutionModule, config: &VmConfig) -> athena_types::Result<VmExit> {
     let lowered = try_lower_verified_cfg_module(module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(session, Vec::new(), None);
+    let mut host = ExecutionHost::new(session, Vec::new(), None, Vec::new());
     interpreter.execute_with_host(&lowered.module, config, &mut host)
 }
 
@@ -131,7 +131,7 @@ fn parity_not_boolean_value() {
     let cfg = VmConfig::default();
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None);
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
     let exit = interpreter
         .execute_with_host(&lowered.module, &cfg, &mut host)
         .expect("vm");
@@ -273,7 +273,7 @@ fn parity_guard_pass() {
 
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None);
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
     let exit = interpreter
         .execute_with_host(&lowered.module, &VmConfig::default(), &mut host)
         .expect("vm");

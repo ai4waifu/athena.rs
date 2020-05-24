@@ -657,3 +657,31 @@ fn execute_ir_request_elementwise_multiply_uses_vm_host() {
         other => panic!("expected elementwise product list, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_control_index_uses_vm_path() {
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let a = session.builder().int(10, Default::default());
+    let b = session.builder().int(20, Default::default());
+    let c = session.builder().int(30, Default::default());
+    let list = session.builder().list(vec![a, b, c], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Index {
+        target: list,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let result_id = execute_ir_request(&mut session, request).expect("index");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
+        other => panic!("expected Index[..., 2] == 20, got {other:?}"),
+    }
+}

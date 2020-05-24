@@ -1,13 +1,14 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
 //! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、`Join` / `Range`、session / 局部 binding、
-//! scope 帧栈，以及运行时注入 domain 载荷的 `CallProvider`。
+//! scope 帧栈、`Index`，以及运行时注入 domain 载荷的 `CallProvider`。
 
 use athena_ir::SemanticOperator;
 use athena_types::{
-    BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, SymbolId, TermId,
+    BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId,
+    TermId,
 };
-use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
+use athena_vm::{HostOutcome, IndexAxesId, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
@@ -17,10 +18,10 @@ use crate::{
         ir::ProviderCallDescriptor,
         provider::ProviderCallHandoff,
         reference::{
-            CompareOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
-            evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
-            evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms,
-            evaluate_unary_term,
+            CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
+            evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
+            evaluate_index_axes, evaluate_join_terms, evaluate_matrix_constructor_terms, evaluate_range_terms,
+            evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
         },
     },
     runtime::{results::computation_from_domain, session::Session},
@@ -33,6 +34,7 @@ pub struct ExecutionHost<'a> {
     frames: Vec<ScopeFrame>,
     provider_calls: Vec<ProviderCallDescriptor>,
     pending_domain: Option<DomainRequest>,
+    index_axes: Vec<Vec<IndexSpec>>,
 }
 
 impl<'a> ExecutionHost<'a> {
@@ -41,12 +43,14 @@ impl<'a> ExecutionHost<'a> {
         session: &'a mut Session,
         provider_calls: Vec<ProviderCallDescriptor>,
         pending_domain: Option<DomainRequest>,
+        index_axes: Vec<Vec<IndexSpec>>,
     ) -> Self {
         Self {
             session,
             frames: Vec::new(),
             provider_calls,
             pending_domain,
+            index_axes,
         }
     }
 
@@ -515,5 +519,24 @@ impl VmHost for ExecutionHost<'_> {
             .arena
             .push(athena_ir::TermNode::Collection { kind, elements: items }, span);
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_index(&mut self, op: IndexAxesId, target: SlotValue) -> Result<HostOutcome> {
+        let Some(axes) = self.index_axes.get(op.0 as usize).cloned() else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "index_axes_out_of_range")
+                    .detail("axes", op.0),
+            ));
+        };
+        let cur = self.slot_as_term(target)?;
+        Ok(match evaluate_index_axes(self.session, cur, &axes)? {
+            IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
+            IndexOutcome::Invalid { echo, diagnostic } => {
+                let _ = echo;
+                HostOutcome::Diagnostic(diagnostic)
+            }
+        })
     }
 }

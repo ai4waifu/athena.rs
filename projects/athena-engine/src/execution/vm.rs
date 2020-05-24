@@ -55,7 +55,12 @@ pub fn execute_verified_cfg_on_vm(
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(session, module.provider_calls.clone(), pending_domain);
+    let mut host = ExecutionHost::new(
+        session,
+        module.provider_calls.clone(),
+        pending_domain,
+        lowered.index_axes,
+    );
     let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
     drop(lease);
     match exit {
