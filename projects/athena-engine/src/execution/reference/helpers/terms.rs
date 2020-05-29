@@ -240,6 +240,58 @@ pub(crate) fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, Term
     }
 }
 
+/// 构造 `Rule` / `RuleDeferred` 残差应用（不求值左右部）。
+pub(crate) fn evaluate_rule_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    lhs: TermId,
+    rhs: TermId,
+) -> Result<TermId> {
+    if !matches!(op, SemanticOperator::Rule | SemanticOperator::RuleDeferred) {
+        return Err(diag("rule_operator_expected"));
+    }
+    Ok(push_semantic(session, op, vec![lhs, rhs]))
+}
+
+/// `Matches[expr, pat]` → Boolean。
+pub(crate) fn evaluate_matches_terms(session: &mut Session, expr: TermId, pat: TermId) -> Result<bool> {
+    Ok(crate::execution::builtins::patterns::pattern_matches(session, expr, pat))
+}
+
+/// `CollectMatches[list, pat]` — 按 pattern 过滤列表元素。
+pub(crate) fn evaluate_collect_matches_terms(session: &mut Session, list: TermId, pat: TermId) -> Result<TermId> {
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list) else {
+        return Ok(push_semantic(session, SemanticOperator::CollectMatches, vec![list, pat]));
+    };
+    let items = items.clone();
+    let mut out = Vec::new();
+    for item in items {
+        if crate::execution::builtins::patterns::pattern_matches(session, item, pat) {
+            out.push(item);
+        }
+    }
+    Ok(push_list(session, out))
+}
+
+/// `ReplaceAll[expr, rules]` — 字面替换后再走 `execute_ir_request` 求值。
+pub(crate) fn evaluate_replace_all_terms(session: &mut Session, expr: TermId, rules_term: TermId) -> Result<TermId> {
+    use crate::api::request::AthenaRequest;
+    use crate::execution::execute_ir_request;
+
+    let rules = collect_rule_pairs(session, rules_term);
+    if rules.is_empty() {
+        return Ok(push_semantic(session, SemanticOperator::ReplaceAll, vec![expr, rules_term]));
+    }
+    let mut cur = expr;
+    for (lhs, rhs) in rules {
+        cur = crate::execution::builtins::patterns::replace_literal(session, cur, lhs, rhs);
+    }
+    match execute_ir_request(session, AthenaRequest::Term(cur)) {
+        Ok(result_id) => Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(cur)),
+        Err(_) => Ok(cur),
+    }
+}
+
 pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {
     let athena_ir::TermNode::Application { head, arguments } = session.arena.get(expr)?
     else {

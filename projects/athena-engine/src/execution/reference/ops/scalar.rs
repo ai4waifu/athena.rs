@@ -177,7 +177,7 @@ impl ReferenceExecutor {
         }
         let lhs = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let rhs = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        Ok(Slot::Term(push_semantic(session, op, vec![lhs, rhs])))
+        Ok(Slot::Term(evaluate_rule_terms(session, op, lhs, rhs)?))
     }
 
     pub(crate) fn eval_replace_all(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
@@ -186,22 +186,7 @@ impl ReferenceExecutor {
         }
         let expr = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let rules_term = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let rules = collect_rule_pairs(session, rules_term);
-        if rules.is_empty() {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::ReplaceAll, vec![expr, rules_term])));
-        }
-        let mut cur = expr;
-        for (lhs, rhs) in rules {
-            cur = crate::execution::builtins::patterns::replace_literal(session, cur, lhs, rhs);
-        }
-        match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(cur)) {
-            Ok(module) => {
-                let result_id = self.execute(session, &module, None)?;
-                let term = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(cur);
-                Ok(Slot::Term(term))
-            }
-            Err(_) => Ok(Slot::Term(cur)),
-        }
+        Ok(Slot::Term(evaluate_replace_all_terms(session, expr, rules_term)?))
     }
 
     /// `CollectMatches[list, pat]` — 按 pattern 过滤列表元素。
@@ -211,18 +196,7 @@ impl ReferenceExecutor {
         }
         let list = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
-        else {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::CollectMatches, vec![list, pat])));
-        };
-        let items = items.clone();
-        let mut out = Vec::new();
-        for item in items {
-            if crate::execution::builtins::patterns::pattern_matches(session, item, pat) {
-                out.push(item);
-            }
-        }
-        Ok(Slot::Term(push_list(session, out)))
+        Ok(Slot::Term(evaluate_collect_matches_terms(session, list, pat)?))
     }
 
     /// `Matches[expr, pat]` — 布尔 pattern 测试。
@@ -232,8 +206,7 @@ impl ReferenceExecutor {
         }
         let expr = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let matched = crate::execution::builtins::patterns::pattern_matches(session, expr, pat);
-        Ok(Slot::Boolean(matched))
+        Ok(Slot::Boolean(evaluate_matches_terms(session, expr, pat)?))
     }
 
     pub(crate) fn eval_matrix_constructor(
