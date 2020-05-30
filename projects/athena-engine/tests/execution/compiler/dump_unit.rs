@@ -3,8 +3,27 @@
 use athena_engine::{
     Session,
     api::request::AthenaRequest,
-    execution::compiler::{ExecutionCompiler, PlanIntent, observe_compile},
+    execution::compiler::{ExecutionCompiler, PlanIntent, canonicalize_request, observe_compile, plan_from_request},
 };
+
+#[test]
+fn compile_staged_builds_request_plan_before_module() {
+    let mut session = Session::new();
+    let term = session.builder().int(3, Default::default());
+    let request = AthenaRequest::Term(term);
+    let request_prog = canonicalize_request(&request);
+    let plan_prog = plan_from_request(&request_prog);
+    assert_eq!(request_prog.kind, "Term");
+    assert_eq!(plan_prog.intent, PlanIntent::EvaluateTerm);
+    assert_eq!(plan_prog.request_fingerprint, request_prog.fingerprint);
+
+    let staged = ExecutionCompiler::new()
+        .compile_staged(&mut session, &request)
+        .expect("staged");
+    assert_eq!(staged.request.fingerprint, request_prog.fingerprint);
+    assert_eq!(staged.plan.fingerprint, plan_prog.fingerprint);
+    assert_eq!(staged.cfg_ssa.module_fingerprint, staged.module.fingerprint);
+}
 
 #[test]
 fn compile_observed_atom_term_stages() {
@@ -19,6 +38,7 @@ fn compile_observed_atom_term_stages() {
     assert_eq!(observation.request.term_index, Some(term.0));
     assert_eq!(observation.plan.intent, PlanIntent::EvaluateTerm);
     assert!(!observation.plan.provider_required);
+    assert_eq!(observation.plan.request_fingerprint, observation.request.fingerprint);
     assert!(!observation.semantic.operations.is_empty());
     assert_eq!(observation.cfg_ssa.module_fingerprint, module.fingerprint);
     assert!(observation.cfg_ssa.text.contains("region 0"));
