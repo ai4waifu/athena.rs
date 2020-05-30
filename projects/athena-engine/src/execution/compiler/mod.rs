@@ -25,6 +25,7 @@ mod builder;
 mod control;
 mod define;
 mod dump;
+mod elaboration;
 mod helpers;
 mod stages;
 
@@ -32,6 +33,7 @@ pub use dump::{
     CompileObservation, CfgSsaStageView, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_ssa, dump_plan,
     dump_request, dump_semantic, observe_compile, verify_observation,
 };
+pub use elaboration::{ArgumentEvaluationKind, argument_evaluation_for_semantic};
 pub use stages::{
     CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram,
     StageFingerprint, StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request,
@@ -317,7 +319,9 @@ impl ExecutionCompiler {
         Ok(value)
     }
 
-    /// 将纯原子 / Boolean 语义应用 lowering 为 SSA 操作（无 Session 副作用）。
+    /// 将项 elaborate 为 SSA 操作（无 Session 写入副作用）。
+    ///
+    /// 实参求值策略经 [`argument_evaluation_for_semantic`]，不在此内联 Hold 表。
     fn lower_pure_expr(
         &self,
         session: &mut Session,
@@ -402,28 +406,25 @@ impl ExecutionCompiler {
                             | SemanticOperator::GreaterEqual => ExecutionValueType::Boolean,
                             _ => ExecutionValueType::Term,
                         };
-                        // `Hold` / `Function` 不得求值其实参。
-                        let hold_all = matches!(op, SemanticOperator::Hold | SemanticOperator::Function);
-                        let hold_first = op == SemanticOperator::Product
-                            || (op == SemanticOperator::Sum && arg_terms.len() == 2)
-                            || matches!(op, SemanticOperator::Apply | SemanticOperator::Map);
-                        let hold_second = matches!(op, SemanticOperator::CollectMatches | SemanticOperator::Matches) && arg_terms.len() >= 2;
-                        let mut args = Vec::with_capacity(arg_terms.len());
+                        let arg_count = arg_terms.len();
+                        let mut args = Vec::with_capacity(arg_count);
                         for (index, arg) in arg_terms.into_iter().enumerate() {
-                            if hold_all || (hold_first && index == 0) || (hold_second && index == 1) {
-                                let root = builder.push_term_root_id(&session.arena, arg)?;
-                                let ssa = builder.ssa();
-                                operations.push(Operation {
-                                    result: Some(ssa),
-                                    result_type: ExecutionValueType::Term,
-                                    kind: OperationKind::LoadTerm { root },
-                                    effect_in: None,
-                                    effect_out: None,
-                                });
-                                args.push(ssa);
-                            }
-                            else {
-                                args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                            match argument_evaluation_for_semantic(op, arg_count, index) {
+                                ArgumentEvaluationKind::CaptureAsTerm => {
+                                    let root = builder.push_term_root_id(&session.arena, arg)?;
+                                    let ssa = builder.ssa();
+                                    operations.push(Operation {
+                                        result: Some(ssa),
+                                        result_type: ExecutionValueType::Term,
+                                        kind: OperationKind::LoadTerm { root },
+                                        effect_in: None,
+                                        effect_out: None,
+                                    });
+                                    args.push(ssa);
+                                }
+                                ArgumentEvaluationKind::Evaluate => {
+                                    args.push(self.lower_pure_expr(session, builder, operations, arg)?);
+                                }
                             }
                         }
                         let ssa = builder.ssa();

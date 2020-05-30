@@ -2,4 +2,5 @@
 
 mod control_ops;
 mod dump_unit;
+mod elaboration_unit;
 mod term_ops;
