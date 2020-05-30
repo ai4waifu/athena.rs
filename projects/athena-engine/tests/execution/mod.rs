@@ -1,5 +1,6 @@
 //! 执行层集成测试。
 
+mod backend_capability_unit;
 mod backend_contract;
 mod backend_unit;
 mod compiler;

@@ -1,0 +1,149 @@
+//! VM 后端能力分析（显式报告，禁止用 codegen 试探冒充语义完备）。
+//!
+//! Living `04`：选择后端须回答「该 backend 能否完整实现语义 / 诊断 / effect /
+//! 预算 / 取消 / 生命周期」，而不是「指令能否编码」。
+//!
+//! 当前阶段：先拦截已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑），再做结构性
+//! encodability 检查。完整独立于 codegen 的结构分析仍待拆分。
+
+use std::collections::HashMap;
+
+use athena_ir::SemanticOperator;
+
+use crate::execution::ir::{
+    ExecutionModule, ExecutionValueType, OperationKind, SsaValueId, Terminator,
+};
+
+/// 一条阻止选择 `AthenaVm` 的能力缺口。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VmCapabilityGap {
+    /// 多于一个 region（当前 VM 子集仅单 region）。
+    MultiRegion,
+    /// 二元迭代器折叠（`Sum` / `Product` body+iterator）需 Reference 展开。
+    IteratorFold,
+    /// `And` / `Or` / `Not` / `TrueQ` 的实参静态类型不是 Boolean（数值 truthiness 未进 VM host）。
+    LogicalNonBoolean,
+    /// 操作 / terminator 不在当前 VM 编码闭集。
+    UnsupportedShape,
+    /// 结构上无法编码（过渡期仍经 codegen 校验确认）。
+    NotEncodable,
+}
+
+/// 对一份 `ExecutionModule` 的 VM 能力报告。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VmCapabilityReport {
+    /// 是否可安全选择 [`super::BackendKind::AthenaVm`]。
+    pub supports_athena_vm: bool,
+    /// 拒绝理由（可多条；空表示可走 VM）。
+    pub gaps: Vec<VmCapabilityGap>,
+}
+
+impl VmCapabilityReport {
+    /// 由缺口列表构造。
+    pub fn from_gaps(gaps: Vec<VmCapabilityGap>) -> Self {
+        Self {
+            supports_athena_vm: gaps.is_empty(),
+            gaps,
+        }
+    }
+
+    /// 首选后端。
+    pub fn preferred_backend(&self) -> super::BackendKind {
+        if self.supports_athena_vm {
+            super::BackendKind::AthenaVm
+        } else {
+            super::BackendKind::Reference
+        }
+    }
+}
+
+fn note(gaps: &mut Vec<VmCapabilityGap>, gap: VmCapabilityGap) {
+    if !gaps.contains(&gap) {
+        gaps.push(gap);
+    }
+}
+
+fn ssa_is_boolean(types: &HashMap<SsaValueId, ExecutionValueType>, id: SsaValueId) -> bool {
+    matches!(types.get(&id), Some(ExecutionValueType::Boolean))
+}
+
+fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>) {
+    for region in &module.regions {
+        let mut types: HashMap<SsaValueId, ExecutionValueType> = HashMap::new();
+        for block in &region.blocks {
+            for param in &block.parameters {
+                types.insert(param.value, param.ty.clone());
+            }
+            for op in &block.operations {
+                if let Some(result) = op.result {
+                    types.insert(result, op.result_type.clone());
+                }
+                match &op.kind {
+                    OperationKind::ApplySemanticOperator { operator, args } => match *operator {
+                        SemanticOperator::Sum | SemanticOperator::Product if args.len() == 2 => {
+                            note(gaps, VmCapabilityGap::IteratorFold);
+                        }
+                        SemanticOperator::And | SemanticOperator::Or => {
+                            if args.iter().any(|a| !ssa_is_boolean(&types, *a)) {
+                                note(gaps, VmCapabilityGap::LogicalNonBoolean);
+                            }
+                        }
+                        SemanticOperator::Not | SemanticOperator::TrueQ => {
+                            if args.first().is_some_and(|a| !ssa_is_boolean(&types, *a)) {
+                                note(gaps, VmCapabilityGap::LogicalNonBoolean);
+                            }
+                        }
+                        SemanticOperator::Map
+                        | SemanticOperator::Apply
+                        | SemanticOperator::ApplyHead
+                        | SemanticOperator::CollectMatches
+                        | SemanticOperator::Matches
+                        | SemanticOperator::ReplaceAll
+                        | SemanticOperator::Rule
+                        | SemanticOperator::RuleDeferred
+                        | SemanticOperator::Simplify
+                        | SemanticOperator::Hold
+                        | SemanticOperator::Function => {
+                            // 即便日后进入编码表，迭代 / pattern / hold 语义仍未闭合。
+                            note(gaps, VmCapabilityGap::UnsupportedShape);
+                        }
+                        _ => {}
+                    },
+                    OperationKind::ApplyExtensionOperator { .. }
+                    | OperationKind::RegisterRuleDispatch { .. }
+                    | OperationKind::RegisterCompiledRule { .. }
+                    | OperationKind::LoadInput { .. }
+                    | OperationKind::MaterializeValue { .. } => {
+                        note(gaps, VmCapabilityGap::UnsupportedShape);
+                    }
+                    _ => {}
+                }
+            }
+            match &block.terminator {
+                Terminator::Return { .. } | Terminator::Reject { .. } | Terminator::Branch { .. } => {}
+                _ => note(gaps, VmCapabilityGap::UnsupportedShape),
+            }
+        }
+    }
+}
+
+/// 分析 module 是否可由当前 `athena-vm` 路径语义完备地执行。
+///
+/// 不把「能生成指令」当作充分条件：先报告语义缺口，仅当无语义缺口时
+/// 再做结构性 encodability 校验（过渡期复用 codegen 校验，避免双义选择）。
+pub fn analyze_vm_capability(module: &ExecutionModule) -> VmCapabilityReport {
+    let mut gaps = Vec::new();
+    if module.regions.len() != 1 {
+        note(&mut gaps, VmCapabilityGap::MultiRegion);
+        return VmCapabilityReport::from_gaps(gaps);
+    }
+    scan_semantic_gaps(module, &mut gaps);
+    if !gaps.is_empty() {
+        return VmCapabilityReport::from_gaps(gaps);
+    }
+    // 过渡：结构闭集仍以 codegen 校验为准；执行路径会再次 emit（已知债）。
+    if crate::execution::vm_lower::try_lower_verified_cfg_module(module).is_err() {
+        note(&mut gaps, VmCapabilityGap::NotEncodable);
+    }
+    VmCapabilityReport::from_gaps(gaps)
+}

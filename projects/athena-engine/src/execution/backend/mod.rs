@@ -1,5 +1,9 @@
 //! 后端合同 — 原生 JIT、WASM 与领域 kernel 消费同一 `ExecutionIR`。
 
+mod capability;
+
+pub use capability::{VmCapabilityGap, VmCapabilityReport, analyze_vm_capability};
+
 use athena_types::{Diagnostic, DiagnosticCode, Result, ResultId};
 
 use crate::{
@@ -53,15 +57,10 @@ pub trait ExecutionBackend {
 
 /// 按 Living `04` 显式选择执行后端（禁止 VM 失败后再静默回退 Reference）。
 ///
-/// - 当前 verified CFG 子集可降级（含 binding / scope / `CallProvider`）→ [`BackendKind::AthenaVm`]
-/// - 否则 → [`BackendKind::Reference`]（显式选择，不是执行失败后的 fallback）
-///
-/// Domain 载荷经 host 注入，**不再**因 `has_domain` 强制 Reference。
+/// 选择依据是 [`analyze_vm_capability`] 报告，而不是「codegen 成功 ⇒ 语义完备」。
+/// 已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑等）显式走 Reference。
 pub fn select_execution_backend(module: &ExecutionModule, _has_domain: bool) -> BackendKind {
-    match crate::execution::vm_lower::try_lower_verified_cfg_module(module) {
-        Ok(_) => BackendKind::AthenaVm,
-        Err(_) => BackendKind::Reference,
-    }
+    analyze_vm_capability(module).preferred_backend()
 }
 
 impl ExecutionBackend for ReferenceExecutor {
