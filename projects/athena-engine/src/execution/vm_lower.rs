@@ -124,6 +124,95 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
     }
 }
 
+/// 校验单条操作是否落在当前 VM codegen 闭集（不 emit）。
+fn validate_op(module: &ExecutionModule, op: &crate::execution::ir::Operation) -> Result<()> {
+    let _ = op_instruction_len(op)?;
+    match &op.kind {
+        OperationKind::LoadTerm { root } => {
+            let captured = module
+                .captured_roots
+                .get(root.0 as usize)
+                .ok_or_else(|| diag("lower_missing_root"))?;
+            match captured {
+                CapturedRoot::Term(_) => Ok(()),
+                CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("lower_root_not_term")),
+            }
+        }
+        OperationKind::Constant { constant } => {
+            let _ = module
+                .constants
+                .get(constant.0 as usize)
+                .ok_or_else(|| diag("lower_missing_constant"))?;
+            Ok(())
+        }
+        OperationKind::ApplySemanticOperator { operator, args } => {
+            if !supported_semantic_op(*operator) {
+                return Err(diag("lower_unsupported_semantic_op"));
+            }
+            if args.len() > MAX_HOST_ARGS {
+                return Err(diag("lower_argc_overflow"));
+            }
+            Ok(())
+        }
+        OperationKind::CallProvider { args, .. } => {
+            if args.len() > MAX_HOST_ARGS {
+                return Err(diag("lower_argc_overflow"));
+            }
+            Ok(())
+        }
+        OperationKind::ConstructCollection { elements, .. } => {
+            if elements.len() > MAX_HOST_ARGS {
+                return Err(diag("lower_collection_argc_overflow"));
+            }
+            Ok(())
+        }
+        OperationKind::Guard { .. }
+        | OperationKind::ReadBinding { .. }
+        | OperationKind::WriteBinding { .. }
+        | OperationKind::EnterScope { .. }
+        | OperationKind::ExitScope { .. }
+        | OperationKind::PublishResult { .. }
+        | OperationKind::Index { .. } => Ok(()),
+        _ => Err(diag("lower_unsupported_operation")),
+    }
+}
+
+/// 结构闭集校验：单 region · 操作 / terminator 可编码 · 至少一处 `Return`。
+///
+/// **不**生成指令。供 [`crate::execution::backend::analyze_vm_capability`] 与
+/// [`try_lower_verified_cfg_module`] 共用，避免选择阶段靠 emit 试探。
+pub fn validate_vm_codegen_subset(module: &ExecutionModule) -> Result<()> {
+    verify_module(module)?;
+    if module.regions.len() != 1 {
+        return Err(diag("lower_requires_single_region"));
+    }
+    let region = &module.regions[0];
+    if region.blocks.is_empty() {
+        return Err(diag("lower_requires_blocks"));
+    }
+    let _ = layout_block_pcs(region)?;
+    let mut saw_return = false;
+    for block in &region.blocks {
+        for op in &block.operations {
+            validate_op(module, op)?;
+        }
+        match &block.terminator {
+            Terminator::Return { values } => {
+                if values.len() != 1 {
+                    return Err(diag("lower_requires_single_return"));
+                }
+                saw_return = true;
+            }
+            Terminator::Reject { .. } | Terminator::Branch { .. } => {}
+            _ => return Err(diag("lower_unsupported_terminator")),
+        }
+    }
+    if !saw_return {
+        return Err(diag("lower_requires_return"));
+    }
+    Ok(())
+}
+
 fn lower_ops(
     module: &ExecutionModule,
     block: &BasicBlock,
@@ -446,14 +535,8 @@ fn emit_branch(
 /// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `ConstructCollection` ·
 /// `Index` · `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
 pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
-    verify_module(module)?;
-    if module.regions.len() != 1 {
-        return Err(diag("lower_requires_single_region"));
-    }
+    validate_vm_codegen_subset(module)?;
     let region = &module.regions[0];
-    if region.blocks.is_empty() {
-        return Err(diag("lower_requires_blocks"));
-    }
 
     let block_pcs = layout_block_pcs(region)?;
     let mut constants = Vec::new();
@@ -503,9 +586,7 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<Lowered
         }
     }
 
-    if !saw_return {
-        return Err(diag("lower_requires_return"));
-    }
+    debug_assert!(saw_return);
 
     Ok(LoweredVmModule {
         module: VmModule::from_parts(instructions, constants, max_slot),

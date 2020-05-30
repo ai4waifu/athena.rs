@@ -73,4 +73,5 @@ fn boolean_not_still_selects_athena_vm() {
     let report = analyze_vm_capability(&module);
     assert!(report.supports_athena_vm, "gaps={:?}", report.gaps);
     assert_eq!(select_execution_backend(&module, false), BackendKind::AthenaVm);
+    athena_engine::execution::vm_lower::validate_vm_codegen_subset(&module).expect("validate");
 }

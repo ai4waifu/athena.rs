@@ -13,7 +13,7 @@ pub use athena_vm::{
     VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
 pub use crate::execution::execution_host::ExecutionHost;
-pub use crate::execution::vm_lower::{LoweredVmModule, try_lower_verified_cfg_module};
+pub use crate::execution::vm_lower::{LoweredVmModule, try_lower_verified_cfg_module, validate_vm_codegen_subset};
 
 /// 将 module 的 captured Term 根与 Term 常量 pin 到执行期 lease（带 store epoch）。
 pub fn pin_module_terms(

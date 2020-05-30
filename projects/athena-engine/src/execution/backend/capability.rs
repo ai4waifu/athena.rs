@@ -3,8 +3,8 @@
 //! Living `04`：选择后端须回答「该 backend 能否完整实现语义 / 诊断 / effect /
 //! 预算 / 取消 / 生命周期」，而不是「指令能否编码」。
 //!
-//! 当前阶段：先拦截已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑），再做结构性
-//! encodability 检查。完整独立于 codegen 的结构分析仍待拆分。
+//! 先拦截已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑），再调用
+//! [`crate::execution::vm_lower::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
 
 use std::collections::HashMap;
 
@@ -25,7 +25,7 @@ pub enum VmCapabilityGap {
     LogicalNonBoolean,
     /// 操作 / terminator 不在当前 VM 编码闭集。
     UnsupportedShape,
-    /// 结构上无法编码（过渡期仍经 codegen 校验确认）。
+    /// 结构上无法编码（经无 emit 的 `validate_vm_codegen_subset`）。
     NotEncodable,
 }
 
@@ -104,7 +104,6 @@ fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>)
                         | SemanticOperator::Simplify
                         | SemanticOperator::Hold
                         | SemanticOperator::Function => {
-                            // 即便日后进入编码表，迭代 / pattern / hold 语义仍未闭合。
                             note(gaps, VmCapabilityGap::UnsupportedShape);
                         }
                         _ => {}
@@ -129,8 +128,7 @@ fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>)
 
 /// 分析 module 是否可由当前 `athena-vm` 路径语义完备地执行。
 ///
-/// 不把「能生成指令」当作充分条件：先报告语义缺口，仅当无语义缺口时
-/// 再做结构性 encodability 校验（过渡期复用 codegen 校验，避免双义选择）。
+/// 不把「能生成指令」当作充分条件：先报告语义缺口，再做无 emit 的结构闭集校验。
 pub fn analyze_vm_capability(module: &ExecutionModule) -> VmCapabilityReport {
     let mut gaps = Vec::new();
     if module.regions.len() != 1 {
@@ -141,8 +139,7 @@ pub fn analyze_vm_capability(module: &ExecutionModule) -> VmCapabilityReport {
     if !gaps.is_empty() {
         return VmCapabilityReport::from_gaps(gaps);
     }
-    // 过渡：结构闭集仍以 codegen 校验为准；执行路径会再次 emit（已知债）。
-    if crate::execution::vm_lower::try_lower_verified_cfg_module(module).is_err() {
+    if crate::execution::vm_lower::validate_vm_codegen_subset(module).is_err() {
         note(&mut gaps, VmCapabilityGap::NotEncodable);
     }
     VmCapabilityReport::from_gaps(gaps)
