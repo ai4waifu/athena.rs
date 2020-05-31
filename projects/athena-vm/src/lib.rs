@@ -16,6 +16,7 @@
 mod cancel;
 mod config;
 mod constant;
+mod context;
 mod exit;
 mod frame;
 mod host;
@@ -28,6 +29,7 @@ mod slot;
 pub use cancel::CancellationToken;
 pub use config::VmConfig;
 pub use constant::VmConstant;
+pub use context::VmExecutionContext;
 pub use exit::VmExit;
 pub use frame::{Frame, FrameStack};
 pub use host::{HostOutcome, IndexAxesId, NullHost, ProviderOpId, SemanticOpId, VmHost};

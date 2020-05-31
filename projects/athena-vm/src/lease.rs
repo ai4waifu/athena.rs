@@ -106,6 +106,32 @@ impl ExecutionLease {
         }
         self.term_pins.clear();
     }
+
+    /// 在 VM safepoint 参与 GC 合同。
+    ///
+    /// - `Disabled` / `Deferred`：不主动 `collect`（Deferred 压力仍由分配路径累计）
+    /// - `Auto`：若堆压力已触阈值则 tracing collect
+    ///
+    /// 返回是否实际执行了一次 `collect`。
+    pub fn enter_safepoint(&mut self, mode: athena_gc::GcMode) -> athena_types::Result<bool> {
+        use athena_gc::GcMode;
+        match mode {
+            GcMode::Disabled | GcMode::Deferred => Ok(false),
+            GcMode::Auto => {
+                let mut heap = self.heap.borrow_mut();
+                if !heap.gc().should_collect_after_alloc() {
+                    return Ok(false);
+                }
+                heap.collect().map_err(|err| {
+                    athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionLease")
+                        .detail("reason", "safepoint_collect_failed")
+                        .detail("gc_error", format!("{err:?}"))
+                })?;
+                Ok(true)
+            }
+        }
+    }
 }
 
 impl Drop for ExecutionLease {

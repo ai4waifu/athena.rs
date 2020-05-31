@@ -5,6 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 use crate::{
     config::VmConfig,
     constant::VmConstant,
+    context::VmExecutionContext,
     exit::VmExit,
     frame::{Frame, FrameStack},
     host::{HostOutcome, NullHost, VmHost},
@@ -20,6 +21,15 @@ pub trait VmExecutor {
 
     /// 带 host 回调执行（engine 综合体实现 [`VmHost`]）。
     fn execute_with_host(&mut self, module: &VmModule, config: &VmConfig, host: &mut dyn VmHost) -> Result<VmExit>;
+
+    /// 带 host 与执行上下文（lease / root set / safepoint）执行。
+    fn execute_with_context(
+        &mut self,
+        module: &VmModule,
+        config: &VmConfig,
+        host: &mut dyn VmHost,
+        ctx: &mut VmExecutionContext<'_>,
+    ) -> Result<VmExit>;
 }
 
 /// 参考解释器（正确性路径骨架）。
@@ -139,6 +149,13 @@ impl Interpreter {
             HostOutcome::Diagnostic(diagnostic) => Some(VmExit::Diagnostic(diagnostic)),
         }
     }
+
+    fn run_safepoint(ctx: &mut VmExecutionContext<'_>, config: &VmConfig) -> Option<VmExit> {
+        match ctx.enter_safepoint(config.gc_mode) {
+            Ok(()) => None,
+            Err(diagnostic) => Some(VmExit::Diagnostic(diagnostic)),
+        }
+    }
 }
 
 impl VmExecutor for Interpreter {
@@ -148,6 +165,17 @@ impl VmExecutor for Interpreter {
     }
 
     fn execute_with_host(&mut self, module: &VmModule, config: &VmConfig, host: &mut dyn VmHost) -> Result<VmExit> {
+        let mut ctx = VmExecutionContext::detached();
+        self.execute_with_context(module, config, host, &mut ctx)
+    }
+
+    fn execute_with_context(
+        &mut self,
+        module: &VmModule,
+        config: &VmConfig,
+        host: &mut dyn VmHost,
+        ctx: &mut VmExecutionContext<'_>,
+    ) -> Result<VmExit> {
         if module.fingerprint != crate::module::ModuleFingerprint::of_module(module) {
             return Ok(Self::diagnostic("fingerprint_mismatch"));
         }
@@ -171,7 +199,9 @@ impl VmExecutor for Interpreter {
             let insn = module.instructions[pc as usize];
             match insn {
                 Instruction::Safepoint => {
-                    let _mode = config.gc_mode;
+                    if let Some(exit) = Self::run_safepoint(ctx, config) {
+                        return Ok(exit);
+                    }
                     pc = pc.saturating_add(1);
                 }
                 Instruction::Return => return Ok(VmExit::Returned),
@@ -228,6 +258,10 @@ impl VmExecutor for Interpreter {
                     pc = pc.saturating_add(1);
                 }
                 Instruction::CallProvider { dst, op, argc, args } => {
+                    // Provider 边默认是 GC / 预算协作 safepoint。
+                    if let Some(exit) = Self::run_safepoint(ctx, config) {
+                        return Ok(exit);
+                    }
                     let values = match self.collect_args(argc, &args) {
                         Ok(v) => v,
                         Err(exit) => return Ok(exit),
