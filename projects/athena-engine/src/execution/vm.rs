@@ -10,7 +10,7 @@ use crate::runtime::session::Session;
 
 pub use athena_vm::{
     ExecutionLease, HostOutcome, Instruction, Interpreter as VmInterpreter, NullHost, ProviderOpId, SemanticOpId, SlotTable, SlotValue,
-    VmConfig as EngineVmConfig, VmConstant, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
+    VmConfig as EngineVmConfig, VmConstant, VmExecutionContext, VmExit as EngineVmExit, VmHost, VmModule as EngineVmModule,
 };
 pub use crate::execution::execution_host::ExecutionHost;
 pub use crate::execution::vm_lower::{LoweredVmModule, try_lower_verified_cfg_module, validate_vm_codegen_subset};
@@ -61,7 +61,10 @@ pub fn execute_verified_cfg_on_vm(
         pending_domain,
         lowered.index_axes,
     );
-    let exit = interpreter.execute_with_host(&lowered.module, &config, &mut host)?;
+    let exit = {
+        let mut ctx = VmExecutionContext::with_lease(&mut lease);
+        interpreter.execute_with_context(&lowered.module, &config, &mut host, &mut ctx)?
+    };
     drop(lease);
     match exit {
         VmExit::Returned => {
