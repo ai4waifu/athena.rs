@@ -2,9 +2,11 @@
 //!
 //! 终态：SSA 解释循环归属 [`athena_vm`]；本模块实现 [`athena_vm::VmHost`]（语义 / provider /
 //! Session 句柄）并把 `VmExit` / 槽结果映射为 `ComputationResult`。当前仍执行 SSA 块（无操作数栈），
-//! 并已使用 `athena_vm::SlotTable`。**不是**与 VM 并列的第二套解释器，也不是旧栈式 VM 包装。
+//! 并已使用 `athena_vm::SlotTable`。可委托的语义算子经 [`host_bridge`] 走 [`crate::execution::execution_host::ExecutionHost`]。
+//! **不是**与 VM 并列的第二套解释器，也不是旧栈式 VM 包装。
 
 mod helpers;
+mod host_bridge;
 mod ops;
 
 pub(crate) use self::helpers::{
@@ -16,6 +18,7 @@ pub(crate) use self::helpers::{
 };
 
 use self::helpers::*;
+use self::host_bridge::try_delegate_semantic_to_host;
 
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -287,6 +290,13 @@ impl ReferenceExecutor {
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
                 let op = *operator;
+                let arg_slots: Vec<Slot> = args
+                    .iter()
+                    .map(|id| slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined")))
+                    .collect::<Result<Vec<_>>>()?;
+                if let Some(slot) = try_delegate_semantic_to_host(session, op, &arg_slots)? {
+                    return Ok(slot);
+                }
                 match op {
                     SemanticOperator::Not | SemanticOperator::And | SemanticOperator::Or | SemanticOperator::TrueQ => {
                         let bools: Vec<Option<bool>> = args

@@ -13,6 +13,7 @@ mod ir_verify_unit;
 mod mod_unit;
 mod neutral_request;
 mod provider_unit;
+mod reference_host_bridge_unit;
 mod reference_unit;
 mod semantic;
 mod vm_lower_unit;
