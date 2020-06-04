@@ -90,7 +90,8 @@ impl ReferenceExecutor {
                 .detail("reason", "missing_entry_region")
         })?;
         let mut provider = domain;
-        let (returned, unsupported, unevaluated, invalid) = self.eval_region(session, module, region_id, &mut provider, config)?;
+        let (returned, unsupported, unevaluated, invalid) =
+            self.eval_region(session, module, region_id, &mut provider, config, &mut lease)?;
         drop(lease);
         if let Some(Slot::Result(result_id)) = returned {
             return Ok(result_id);
@@ -131,6 +132,7 @@ impl ReferenceExecutor {
         region_id: RegionId,
         provider: &mut Option<DomainRequest>,
         config: &VmConfig,
+        lease: &mut ExecutionLease,
     ) -> Result<(Option<Slot>, bool, bool, Option<Diagnostic>)> {
         let region = module.regions.iter().find(|r| r.id == region_id).ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
@@ -178,6 +180,8 @@ impl ReferenceExecutor {
                     &mut unevaluated,
                     &mut invalid,
                     provider,
+                    lease,
+                    config,
                     &op.kind,
                 )?;
                 if let Some(result) = op.result {
@@ -253,6 +257,8 @@ impl ReferenceExecutor {
         unevaluated: &mut bool,
         invalid: &mut Option<Diagnostic>,
         provider: &mut Option<DomainRequest>,
+        lease: &mut ExecutionLease,
+        config: &VmConfig,
         kind: &OperationKind,
     ) -> Result<Slot> {
         match kind {
@@ -539,6 +545,8 @@ impl ReferenceExecutor {
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }
             OperationKind::CallProvider { call, .. } => {
+                // 与 VM `CallProvider` 同合同：进入 lease safepoint。
+                lease.enter_safepoint(config.gc_mode)?;
                 let descriptor = module.provider_calls.get(call.0 as usize).ok_or_else(|| diag("missing_provider_call"))?.clone();
                 if descriptor.id != *call {
                     return Err(diag("provider_call_id_mismatch"));
