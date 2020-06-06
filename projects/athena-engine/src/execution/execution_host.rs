@@ -31,10 +31,32 @@ use crate::{
 #[derive(Debug)]
 pub struct ExecutionHost<'a> {
     session: &'a mut Session,
-    frames: Vec<ScopeFrame>,
+    frames: FrameStorage<'a>,
     provider_calls: Vec<ProviderCallDescriptor>,
     pending_domain: Option<DomainRequest>,
     index_axes: Vec<Vec<IndexSpec>>,
+}
+
+#[derive(Debug)]
+enum FrameStorage<'a> {
+    Owned(Vec<ScopeFrame>),
+    Borrowed(&'a mut Vec<ScopeFrame>),
+}
+
+impl FrameStorage<'_> {
+    fn as_slice(&self) -> &[ScopeFrame] {
+        match self {
+            Self::Owned(frames) => frames.as_slice(),
+            Self::Borrowed(frames) => frames.as_slice(),
+        }
+    }
+
+    fn as_mut_vec(&mut self) -> &mut Vec<ScopeFrame> {
+        match self {
+            Self::Owned(frames) => frames,
+            Self::Borrowed(frames) => frames,
+        }
+    }
 }
 
 impl<'a> ExecutionHost<'a> {
@@ -47,7 +69,24 @@ impl<'a> ExecutionHost<'a> {
     ) -> Self {
         Self {
             session,
-            frames: Vec::new(),
+            frames: FrameStorage::Owned(Vec::new()),
+            provider_calls,
+            pending_domain,
+            index_axes,
+        }
+    }
+
+    /// 与 Reference / 外部作用域帧栈共享同一 `frames`（收窄第二套循环）。
+    pub fn with_shared_frames(
+        session: &'a mut Session,
+        frames: &'a mut Vec<ScopeFrame>,
+        provider_calls: Vec<ProviderCallDescriptor>,
+        pending_domain: Option<DomainRequest>,
+        index_axes: Vec<Vec<IndexSpec>>,
+    ) -> Self {
+        Self {
+            session,
+            frames: FrameStorage::Borrowed(frames),
             provider_calls,
             pending_domain,
             index_axes,
@@ -124,7 +163,7 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn bind_term(&mut self, symbol: SymbolId, term: TermId, residual: bool) {
-        if let Some(frame) = self.frames.last_mut() {
+        if let Some(frame) = self.frames.as_mut_vec().last_mut() {
             // 局部帧只存已物化值；残差策略在局部作用域内仍立即绑定 Value。
             let _ = residual;
             frame.bind(symbol, LocalBinding::Value(term));
@@ -407,7 +446,7 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("reason", "read_key_not_symbol"),
             ));
         };
-        for frame in self.frames.iter().rev() {
+        for frame in self.frames.as_slice().iter().rev() {
             if let Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
                 return Ok(HostOutcome::Value(SlotValue::Term(term)));
             }
@@ -446,7 +485,7 @@ impl VmHost for ExecutionHost<'_> {
         let residual = !matches!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
         match value {
             SlotValue::Unit => {
-                if let Some(frame) = self.frames.last_mut() {
+                if let Some(frame) = self.frames.as_mut_vec().last_mut() {
                     frame.unbind(symbol);
                 } else {
                     self.session.defs.clear_symbol(symbol);
@@ -483,8 +522,8 @@ impl VmHost for ExecutionHost<'_> {
 
     fn enter_scope(&mut self, parent: Option<SlotValue>) -> Result<HostOutcome> {
         let _ = parent;
-        let depth = self.frames.len() as u32;
-        self.frames.push(ScopeFrame::new());
+        let depth = self.frames.as_slice().len() as u32;
+        self.frames.as_mut_vec().push(ScopeFrame::new());
         Ok(HostOutcome::Value(SlotValue::Scope(depth)))
     }
 
@@ -496,7 +535,7 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("reason", "exit_scope_bad_handle"),
             ));
         };
-        let top = self.frames.len().saturating_sub(1) as u32;
+        let top = self.frames.as_slice().len().saturating_sub(1) as u32;
         if expected != top {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -504,7 +543,7 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("reason", "exit_scope_mismatch"),
             ));
         }
-        self.frames.pop();
+        self.frames.as_mut_vec().pop();
         Ok(HostOutcome::Value(SlotValue::Unit))
     }
 

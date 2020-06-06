@@ -18,7 +18,7 @@ pub(crate) use self::helpers::{
 };
 
 use self::helpers::*;
-use self::host_bridge::try_delegate_semantic_to_host;
+use self::host_bridge::{host_outcome_to_slot, host_with_shared_frames, try_delegate_semantic_to_host};
 
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -28,7 +28,7 @@ use athena_numeric::{
     mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
 };
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
-use athena_vm::{ExecutionLease, SlotTable, VmConfig};
+use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
@@ -435,74 +435,19 @@ impl ReferenceExecutor {
             }
             OperationKind::Index { target, axes } => self.eval_index(session, *target, axes, slots, invalid),
             OperationKind::EnterScope { .. } => {
-                let depth = frames.len() as u32;
-                frames.push(ScopeFrame::new());
-                Ok(Slot::Scope(depth))
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.enter_scope(None)?)
             }
             OperationKind::ExitScope { scope } => {
-                let expected = match slots.get(scope.0) {
-                    Some(Slot::Scope(depth)) => depth,
-                    _ => return Err(diag("exit_scope_bad_handle")),
-                };
-                let top = frames.len().saturating_sub(1) as u32;
-                if expected != top {
-                    return Err(diag("exit_scope_mismatch"));
-                }
-                frames.pop();
-                Ok(Slot::Unit)
+                let scope_slot = slots.get(scope.0).ok_or_else(|| diag("exit_scope_bad_handle"))?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.exit_scope(scope_slot)?)
             }
-            OperationKind::WriteBinding { key, value, kind: _, evaluation } => {
-                let symbol = match slots.get(key.0) {
-                    Some(Slot::Symbol(symbol)) => symbol,
-                    _ => return Err(diag("write_key_not_symbol")),
-                };
-                let residual = !matches!(evaluation, athena_types::BindingEvaluationPolicy::EvaluateBeforeStore);
-                match slots.get(value.0) {
-                    Some(Slot::Unit) => {
-                        if let Some(frame) = frames.last_mut() {
-                            frame.unbind(symbol);
-                        }
-                        else {
-                            // 经 `SymbolId`→`ExtensionOperatorId` 映射清除自有扩展规则。
-                            session.defs.clear_symbol(symbol);
-                        }
-                    }
-                    Some(Slot::Term(term)) => {
-                        if residual {
-                            if let Some(frame) = frames.last_mut() {
-                                frame.bind(symbol, LocalBinding::Value(term));
-                            }
-                            else {
-                                session.defs.write_residual_binding(symbol, term);
-                            }
-                        }
-                        else if let Some(frame) = frames.last_mut() {
-                            frame.bind(symbol, LocalBinding::Value(term));
-                        }
-                        else {
-                            session.defs.write_binding(symbol, term);
-                        }
-                    }
-                    Some(Slot::Boolean(v)) => {
-                        let term = session.builder().boolean(v, Default::default());
-                        if residual {
-                            if let Some(frame) = frames.last_mut() {
-                                frame.bind(symbol, LocalBinding::Value(term));
-                            }
-                            else {
-                                session.defs.write_residual_binding(symbol, term);
-                            }
-                        }
-                        else if let Some(frame) = frames.last_mut() {
-                            frame.bind(symbol, LocalBinding::Value(term));
-                        }
-                        else {
-                            session.defs.write_binding(symbol, term);
-                        }
-                    }
-                    _ => return Err(diag("write_value_unsupported")),
-                }
-                Ok(Slot::Unit)
+            OperationKind::WriteBinding { key, value, kind, evaluation } => {
+                let key_slot = slots.get(key.0).ok_or_else(|| diag("write_key_not_symbol"))?;
+                let value_slot = slots.get(value.0).ok_or_else(|| diag("write_value_unsupported"))?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.write_binding(key_slot, value_slot, *kind, *evaluation)?)
             }
             OperationKind::RegisterRuleDispatch { head, operator, pattern, replacement } => {
                 let symbol = match slots.get(head.0) {
@@ -533,26 +478,14 @@ impl ReferenceExecutor {
                 Ok(Slot::Unit)
             }
             OperationKind::ReadBinding { key } => {
-                let symbol = match slots.get(key.0) {
-                    Some(Slot::Symbol(symbol)) => symbol,
-                    _ => return Err(diag("read_key_not_symbol")),
-                };
-                for frame in frames.iter().rev() {
-                    if let Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
-                        return Ok(Slot::Term(term));
-                    }
-                }
-                if let Some(term) = session.defs.binding(symbol) {
-                    return Ok(Slot::Term(term));
-                }
-                if let Some(term) = session.defs.residual_binding(symbol) {
-                    // 读取时求值残差绑定。
-                    let module = ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term))?;
-                    let result_id = self.execute(session, &module, None)?;
-                    let out = session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
-                    return Ok(Slot::Term(out));
-                }
-                Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
+                let key_slot = slots.get(key.0).ok_or_else(|| diag("read_key_not_symbol"))?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                let slot = host_outcome_to_slot(host.read_binding(key_slot)?)?;
+                // Host 未绑定符号返回 `Symbol` 槽；Reference 合同物化为 Term。
+                Ok(match slot {
+                    Slot::Symbol(symbol) => Slot::Term(session.builder().symbol_id(symbol, Default::default())),
+                    other => other,
+                })
             }
             OperationKind::CallProvider { call, .. } => {
                 // 与 VM `CallProvider` 同合同：进入 lease safepoint。

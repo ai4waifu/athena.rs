@@ -8,8 +8,28 @@ use athena_ir::SemanticOperator;
 use athena_types::Result;
 use athena_vm::{HostOutcome, SemanticOpId, SlotValue, VmHost};
 
+use crate::execution::environment::ScopeFrame;
 use crate::execution::execution_host::ExecutionHost;
+use crate::execution::ir::ProviderCallDescriptor;
 use crate::runtime::session::Session;
+
+/// 将 host 结果映射为槽值（硬失败透传）。
+pub(crate) fn host_outcome_to_slot(outcome: HostOutcome) -> Result<SlotValue> {
+    match outcome {
+        HostOutcome::Value(value) | HostOutcome::Residual(value) => Ok(value),
+        HostOutcome::Diagnostic(diagnostic) => Err(diagnostic),
+    }
+}
+
+/// 经共享帧栈构造 host，委托 scope / binding。
+pub(crate) fn host_with_shared_frames<'a>(
+    session: &'a mut Session,
+    frames: &'a mut Vec<ScopeFrame>,
+    provider_calls: Vec<ProviderCallDescriptor>,
+    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
+) -> ExecutionHost<'a> {
+    ExecutionHost::with_shared_frames(session, frames, provider_calls, pending_domain, Vec::new())
+}
 
 /// 是否可安全委托给 [`ExecutionHost::apply_semantic`]。
 fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
