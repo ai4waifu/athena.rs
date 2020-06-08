@@ -31,14 +31,12 @@ use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, Result
 use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
 use crate::{
-    api::request::AthenaRequest,
     domains::{
         dispatch::{DomainRequest, execute_domain},
         linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact},
     },
     execution::{
-        compiler::ExecutionCompiler,
-        environment::{LocalBinding, ScopeFrame},
+        environment::ScopeFrame,
         ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
         number_of, push_extension, push_number, push_semantic,
     },
