@@ -18,7 +18,9 @@ pub(crate) use self::helpers::{
 };
 
 use self::helpers::*;
-use self::host_bridge::{host_outcome_to_slot, host_with_shared_frames, try_delegate_semantic_to_host};
+use self::host_bridge::{
+    delegate_call_provider, host_outcome_to_slot, host_with_shared_frames, try_delegate_semantic_to_host,
+};
 
 use std::{cmp::Ordering, collections::HashMap};
 
@@ -32,7 +34,7 @@ use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
 use crate::{
     domains::{
-        dispatch::{DomainRequest, execute_domain},
+        dispatch::DomainRequest,
         linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact},
     },
     execution::{
@@ -41,7 +43,7 @@ use crate::{
         number_of, push_extension, push_number, push_semantic,
     },
     runtime::{
-        results::{ComputationResult, CoverageStatus, ResultProvenance, computation_from_domain},
+        results::{ComputationResult, CoverageStatus, ResultProvenance},
         session::Session,
         values::{
             arena::push_list,
@@ -486,33 +488,14 @@ impl ReferenceExecutor {
                 })
             }
             OperationKind::CallProvider { call, .. } => {
-                // 与 VM `CallProvider` 同合同：进入 lease safepoint。
+                // 与 VM `CallProvider` 同合同：进入 lease safepoint，再委托 `ExecutionHost`。
                 lease.enter_safepoint(config.gc_mode)?;
-                let descriptor = module.provider_calls.get(call.0 as usize).ok_or_else(|| diag("missing_provider_call"))?.clone();
-                if descriptor.id != *call {
-                    return Err(diag("provider_call_id_mismatch"));
+                let pending = provider.take();
+                let (slot, soft_unsupported) = delegate_call_provider(session, frames, module, pending, *call)?;
+                if soft_unsupported {
+                    *unsupported = true;
                 }
-                let handoff = crate::execution::provider::ProviderCallHandoff::from_descriptor(descriptor);
-                match provider.take() {
-                    Some(domain) => {
-                        let domain_result = execute_domain(session, domain)?;
-                        let projected = helpers::domain_result_symbolic_term(session, &domain_result);
-                        let mut computation = computation_from_domain(session, domain_result);
-                        if computation.symbolic_term.is_none() {
-                            if let Some(term) = projected {
-                                computation = computation.with_symbolic_term(term);
-                            }
-                        }
-                        computation = computation
-                            .with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
-                        Ok(Slot::Result(session.insert_result(computation)))
-                    }
-                    None => {
-                        let _ = handoff;
-                        *unsupported = true;
-                        Ok(Slot::Unit)
-                    }
-                }
+                Ok(slot)
             }
             OperationKind::PublishResult { source } => Ok(slots.get(source.0).ok_or_else(|| diag("publish_source_undefined"))?),
             OperationKind::Guard { predicate, on_failure } => {

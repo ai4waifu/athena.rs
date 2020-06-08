@@ -6,11 +6,12 @@
 
 use athena_ir::SemanticOperator;
 use athena_types::Result;
-use athena_vm::{HostOutcome, SemanticOpId, SlotValue, VmHost};
+use athena_vm::{HostOutcome, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
+use crate::domains::dispatch::DomainRequest;
 use crate::execution::environment::ScopeFrame;
 use crate::execution::execution_host::ExecutionHost;
-use crate::execution::ir::ProviderCallDescriptor;
+use crate::execution::ir::{ExecutionModule, ProviderCallDescriptor, ProviderCallId};
 use crate::runtime::session::Session;
 
 /// 将 host 结果映射为槽值（硬失败透传）。
@@ -26,9 +27,37 @@ pub(crate) fn host_with_shared_frames<'a>(
     session: &'a mut Session,
     frames: &'a mut Vec<ScopeFrame>,
     provider_calls: Vec<ProviderCallDescriptor>,
-    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
+    pending_domain: Option<DomainRequest>,
 ) -> ExecutionHost<'a> {
     ExecutionHost::with_shared_frames(session, frames, provider_calls, pending_domain, Vec::new())
+}
+
+/// Reference `CallProvider` → [`ExecutionHost::call_provider`]。
+///
+/// 缺 domain 时 Reference 合同是软失败（`unsupported` + `Unit`），不是硬诊断。
+pub(crate) fn delegate_call_provider(
+    session: &mut Session,
+    frames: &mut Vec<ScopeFrame>,
+    module: &ExecutionModule,
+    pending_domain: Option<DomainRequest>,
+    call: ProviderCallId,
+) -> Result<(SlotValue, bool)> {
+    let mut host = host_with_shared_frames(session, frames, module.provider_calls.clone(), pending_domain);
+    match host.call_provider(ProviderOpId(call.0), &[])? {
+        HostOutcome::Value(value) | HostOutcome::Residual(value) => Ok((value, false)),
+        HostOutcome::Diagnostic(diagnostic) => {
+            let reason = diagnostic
+                .details
+                .get("reason")
+                .map(|value| value.to_string())
+                .unwrap_or_default();
+            if reason == "provider_domain_missing" {
+                Ok((SlotValue::Unit, true))
+            } else {
+                Err(diagnostic)
+            }
+        }
+    }
 }
 
 /// 是否可安全委托给 [`ExecutionHost::apply_semantic`]。
