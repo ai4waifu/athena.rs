@@ -11,7 +11,7 @@
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
 //! 含：`CallProvider` / `PublishResult` / `ConstructCollection`（元素数 ≤ `MAX_HOST_ARGS`）/
-//! `Index`（轴规格登记在 lowered 表）。
+//! `Index`（轴规格登记在 codegen 表）。
 //! 不含：多 region（仍由显式 backend 选择走 Reference）。
 
 use std::collections::HashMap;
@@ -24,9 +24,9 @@ use crate::execution::ir::{
     Region, Terminator, verify_module,
 };
 
-/// 已降到 VM 的 verified CFG 子集（历史名 Boolean；现含 `LoadTerm` / Term 常量）。
+/// Verified CFG 子集的 VM codegen 产物（布局 / 调用约定，不改变语义）。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoweredVmModule {
+pub struct VmCodegenArtifact {
     /// VM 可执行模块。
     pub module: VmModule,
     /// 静态提示的结果槽（多出口时以解释器 `last_return_slot` 为准）。
@@ -529,12 +529,12 @@ fn emit_branch(
     Ok(())
 }
 
-/// 尝试将单 region verified CFG 子集降为 [`LoweredVmModule`]。
+/// 尝试将单 region verified CFG 子集编码为 [`VmCodegenArtifact`]。
 ///
 /// 允许：`LoadTerm` / `Constant` / 受支持语义算子 · `ReadBinding` / `WriteBinding` ·
 /// `EnterScope` / `ExitScope` · `CallProvider` / `PublishResult` · `ConstructCollection` ·
 /// `Index` · `Guard(Reject)` · `Return` / `Reject` / `Branch`（边实参经 `Move` 蹦床）。
-pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<LoweredVmModule> {
+pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<VmCodegenArtifact> {
     validate_vm_codegen_subset(module)?;
     let region = &module.regions[0];
 
@@ -588,7 +588,7 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<Lowered
 
     debug_assert!(saw_return);
 
-    Ok(LoweredVmModule {
+    Ok(VmCodegenArtifact {
         module: VmModule::from_parts(instructions, constants, max_slot),
         result_slot,
         index_axes,
