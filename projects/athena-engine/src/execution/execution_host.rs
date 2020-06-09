@@ -572,10 +572,10 @@ impl VmHost for ExecutionHost<'_> {
         let cur = self.slot_as_term(target)?;
         Ok(match evaluate_index_axes(self.session, cur, &axes)? {
             IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
-            IndexOutcome::Invalid { echo, diagnostic } => {
-                let _ = echo;
-                HostOutcome::Diagnostic(diagnostic)
-            }
+            IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid {
+                value: SlotValue::Term(echo),
+                diagnostic,
+            },
         })
     }
 }

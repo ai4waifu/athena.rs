@@ -146,7 +146,10 @@ impl Interpreter {
                 self.slots.set(dst, value);
                 None
             }
-            HostOutcome::Diagnostic(diagnostic) => Some(VmExit::Diagnostic(diagnostic)),
+            // VM 路径：软 Invalid 升为硬诊断出口（与 Guard/Reject 同类显式失败）。
+            HostOutcome::SoftInvalid { diagnostic, .. } | HostOutcome::Diagnostic(diagnostic) => {
+                Some(VmExit::Diagnostic(diagnostic))
+            }
         }
     }
 
@@ -325,7 +328,9 @@ impl VmExecutor for Interpreter {
                     };
                     let outcome = host.exit_scope(scope_value)?;
                     match outcome {
-                        HostOutcome::Diagnostic(diagnostic) => return Ok(VmExit::Diagnostic(diagnostic)),
+                        HostOutcome::Diagnostic(diagnostic) | HostOutcome::SoftInvalid { diagnostic, .. } => {
+                            return Ok(VmExit::Diagnostic(diagnostic));
+                        }
                         HostOutcome::Value(_) | HostOutcome::Residual(_) => {}
                     }
                     pc = pc.saturating_add(1);

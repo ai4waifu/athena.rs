@@ -28,6 +28,13 @@ pub enum HostOutcome {
     Value(SlotValue),
     /// 保留未求值 / 残差（engine 映射 Coverage）。
     Residual(SlotValue),
+    /// 软失败：保留 echo 值，并附诊断（Reference 记 Invalid；VM 可升硬失败）。
+    SoftInvalid {
+        /// 回显 / 残差槽值。
+        value: SlotValue,
+        /// 结构化诊断。
+        diagnostic: Diagnostic,
+    },
     /// 硬失败诊断。
     Diagnostic(Diagnostic),
 }

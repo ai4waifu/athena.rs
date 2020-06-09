@@ -19,7 +19,8 @@ pub(crate) use self::helpers::{
 
 use self::helpers::*;
 use self::host_bridge::{
-    delegate_call_provider, host_outcome_to_slot, host_with_shared_frames, try_delegate_semantic_to_host,
+    delegate_call_provider, host_outcome_to_slot, host_outcome_to_slot_capturing_invalid, host_with_shared_frames,
+    host_with_shared_frames_and_axes, try_delegate_semantic_to_host,
 };
 
 use std::{cmp::Ordering, collections::HashMap};
@@ -425,15 +426,21 @@ impl ReferenceExecutor {
                 self.eval_residual_app(session, op, args, slots)
             }
             OperationKind::ConstructCollection { kind, elements } => {
-                let mut items = Vec::with_capacity(elements.len());
-                for id in elements {
-                    let slot = slots.get(id.0).ok_or_else(|| diag("collection_element_undefined"))?;
-                    items.push(self.slot_as_term(session, slot)?);
-                }
-                let span = athena_ir::TermNode::default_span();
-                Ok(Slot::Term(session.arena.push(athena_ir::TermNode::Collection { kind: *kind, elements: items }, span)))
+                let element_slots: Vec<Slot> = elements
+                    .iter()
+                    .map(|id| slots.get(id.0).ok_or_else(|| diag("collection_element_undefined")))
+                    .collect::<Result<Vec<_>>>()?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.construct_collection(*kind, &element_slots)?)
             }
-            OperationKind::Index { target, axes } => self.eval_index(session, *target, axes, slots, invalid),
+            OperationKind::Index { target, axes } => {
+                let target_slot = slots.get(target.0).ok_or_else(|| diag("index_target_undefined"))?;
+                let mut host = host_with_shared_frames_and_axes(session, frames, vec![axes.clone()]);
+                host_outcome_to_slot_capturing_invalid(
+                    host.apply_index(athena_vm::IndexAxesId(0), target_slot)?,
+                    invalid,
+                )
+            }
             OperationKind::EnterScope { .. } => {
                 let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
                 host_outcome_to_slot(host.enter_scope(None)?)
