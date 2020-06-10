@@ -48,7 +48,7 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
 
 fn diag(reason: &'static str) -> Diagnostic {
     Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "vm_lower")
+        .detail("component", "vm_codegen")
         .detail("reason", reason)
 }
 

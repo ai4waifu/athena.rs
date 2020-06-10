@@ -4,7 +4,7 @@
 //! 预算 / 取消 / 生命周期」，而不是「指令能否编码」。
 //!
 //! 先拦截已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑），再调用
-//! [`crate::execution::vm_lower::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
+//! [`crate::execution::vm_codegen::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
 
 use std::collections::HashMap;
 
@@ -139,7 +139,7 @@ pub fn analyze_vm_capability(module: &ExecutionModule) -> VmCapabilityReport {
     if !gaps.is_empty() {
         return VmCapabilityReport::from_gaps(gaps);
     }
-    if crate::execution::vm_lower::validate_vm_codegen_subset(module).is_err() {
+    if crate::execution::vm_codegen::validate_vm_codegen_subset(module).is_err() {
         note(&mut gaps, VmCapabilityGap::NotEncodable);
     }
     VmCapabilityReport::from_gaps(gaps)
