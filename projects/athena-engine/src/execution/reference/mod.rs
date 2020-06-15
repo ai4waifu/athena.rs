@@ -406,32 +406,15 @@ impl ReferenceExecutor {
                 host_outcome_to_slot(host.write_binding(key_slot, value_slot, *kind, *evaluation)?)
             }
             OperationKind::RegisterRuleDispatch { head, operator, pattern, replacement } => {
-                let symbol = match slots.get(head.0) {
-                    Some(Slot::Symbol(symbol)) => symbol,
-                    _ => return Err(diag("write_key_not_symbol")),
-                };
-                let pattern_term = match slots.get(pattern.0) {
-                    Some(Slot::Term(term)) => term,
-                    _ => return Err(diag("write_pattern_not_term")),
-                };
-                let value_term = match slots.get(replacement.0) {
-                    Some(Slot::Term(term)) => term,
-                    _ => return Err(diag("write_value_unsupported")),
-                };
-                // 仅从项做结构编译。通配须经 API 以类型化 `TermPattern` 传入。
-                let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(session, pattern_term);
-                // `ExtensionOperatorId` 在编译期封闭。执行时不 intern 显示名。
-                session.defs.register_extension_rule_for_symbol(symbol, *operator, compiled, value_term);
-                Ok(Slot::Unit)
+                let head_slot = slots.get(head.0).ok_or_else(|| diag("write_key_not_symbol"))?;
+                let pattern_slot = slots.get(pattern.0).ok_or_else(|| diag("write_pattern_not_term"))?;
+                let replacement_slot = slots.get(replacement.0).ok_or_else(|| diag("write_value_unsupported"))?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.register_rule_dispatch(head_slot, *operator, pattern_slot, replacement_slot)?)
             }
             OperationKind::RegisterCompiledRule { table, rule } => {
-                let Some((pattern, replacement)) =
-                    session.compiled_rules.get(*rule).map(|(pattern, replacement)| (pattern.owning_copy(), *replacement))
-                else {
-                    return Err(diag("compiled_rule_missing"));
-                };
-                session.defs.append_rule(*table, pattern, replacement);
-                Ok(Slot::Unit)
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                host_outcome_to_slot(host.register_compiled_rule(*table, *rule)?)
             }
             OperationKind::ReadBinding { key } => {
                 let key_slot = slots.get(key.0).ok_or_else(|| diag("read_key_not_symbol"))?;

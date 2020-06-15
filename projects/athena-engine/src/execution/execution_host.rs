@@ -246,6 +246,64 @@ impl<'a> ExecutionHost<'a> {
         let term = evaluate_elementwise_terms(self.session, op, left, right)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
+
+    /// `RegisterRuleDispatch`：结构 pattern 编译后挂到扩展头。
+    pub fn register_rule_dispatch(
+        &mut self,
+        head: SlotValue,
+        operator: athena_types::ExtensionOperatorId,
+        pattern: SlotValue,
+        replacement: SlotValue,
+    ) -> Result<HostOutcome> {
+        let SlotValue::Symbol(symbol) = head else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "write_key_not_symbol"),
+            ));
+        };
+        let SlotValue::Term(pattern_term) = pattern else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "write_pattern_not_term"),
+            ));
+        };
+        let SlotValue::Term(value_term) = replacement else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "write_value_unsupported"),
+            ));
+        };
+        let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(self.session, pattern_term);
+        self.session
+            .defs
+            .register_extension_rule_for_symbol(symbol, operator, compiled, value_term);
+        Ok(HostOutcome::Value(SlotValue::Unit))
+    }
+
+    /// `RegisterCompiledRule`：把 Session 已编译规则挂到分派表。
+    pub fn register_compiled_rule(
+        &mut self,
+        table: athena_types::DispatchTableId,
+        rule: athena_types::CompiledRuleId,
+    ) -> Result<HostOutcome> {
+        let Some((pattern, replacement)) = self
+            .session
+            .compiled_rules
+            .get(rule)
+            .map(|(pattern, replacement)| (pattern.owning_copy(), *replacement))
+        else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "compiled_rule_missing"),
+            ));
+        };
+        self.session.defs.append_rule(table, pattern, replacement);
+        Ok(HostOutcome::Value(SlotValue::Unit))
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
