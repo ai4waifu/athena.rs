@@ -113,26 +113,6 @@ impl ReferenceExecutor {
         Ok(Slot::Term(evaluate_range_terms(session, terms)?))
     }
 
-    /// 对目标 SSA 值执行中立 [`IndexSpec`] 轴。
-    pub(crate) fn eval_index(
-        &self,
-        session: &mut Session,
-        target: SsaValueId,
-        axes: &[athena_types::IndexSpec],
-        slots: &SlotTable,
-        invalid: &mut Option<Diagnostic>,
-    ) -> Result<Slot> {
-        let slot = slots.get(target.0).ok_or_else(|| diag("index_target_undefined"))?;
-        let cur = self.slot_as_term(session, slot)?;
-        Ok(match evaluate_index_axes(session, cur, axes)? {
-            IndexOutcome::Term(term) => Slot::Term(term),
-            IndexOutcome::Invalid { echo, diagnostic } => {
-                *invalid = Some(diagnostic);
-                Slot::Term(echo)
-            }
-        })
-    }
-
     pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         let mut terms = Vec::with_capacity(args.len());
         for id in args {
