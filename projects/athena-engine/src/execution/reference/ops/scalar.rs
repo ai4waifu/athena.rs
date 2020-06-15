@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
-use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
+use athena_numeric::Number;
 use athena_vm::SlotTable;
-use athena_types::{Result, SymbolId, TermId};
+use athena_types::{Result, TermId};
 
 use super::super::{ReferenceExecutor, Slot, helpers::*};
 use crate::{
@@ -18,21 +18,6 @@ use crate::{
 };
 
 impl ReferenceExecutor {
-    pub(crate) fn eval_unary_term_op(
-        &self,
-        session: &mut Session,
-        op: SemanticOperator,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-    ) -> Result<Slot> {
-        if args.len() != 1 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let slot = slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-        let term = self.slot_as_term(session, slot)?;
-        Ok(Slot::Term(evaluate_unary_term(session, op, term)?))
-    }
-
     pub(crate) fn eval_residual_app(
         &self,
         session: &mut Session,
@@ -209,21 +194,6 @@ impl ReferenceExecutor {
         Ok(Slot::Boolean(evaluate_matches_terms(session, expr, pat)?))
     }
 
-    pub(crate) fn eval_matrix_constructor(
-        &self,
-        session: &mut Session,
-        op: SemanticOperator,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-    ) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(Slot::Term(evaluate_matrix_constructor_terms(session, op, terms)?))
-    }
-
     pub(crate) fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
         if args.len() != 2 {
             return Err(diag("semantic_operator_arity"));
@@ -356,14 +326,5 @@ impl ReferenceExecutor {
         wrapped.push(head);
         wrapped.extend(call_args);
         Ok(Slot::Term(push_semantic(session, SemanticOperator::ApplyHead, wrapped)))
-    }
-
-    pub(crate) fn eval_size(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(Slot::Term(evaluate_size_terms(session, terms)?))
     }
 }

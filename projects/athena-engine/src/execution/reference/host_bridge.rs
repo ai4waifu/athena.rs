@@ -129,6 +129,7 @@ pub(crate) fn try_delegate_semantic_to_host(
     session: &mut Session,
     op: SemanticOperator,
     args: &[SlotValue],
+    invalid: &mut Option<athena_types::Diagnostic>,
 ) -> Result<Option<SlotValue>> {
     if !is_host_delegable(op, args) {
         return Ok(None);
@@ -136,7 +137,10 @@ pub(crate) fn try_delegate_semantic_to_host(
     let mut host = ExecutionHost::new(session, Vec::new(), None, Vec::new());
     match host.apply_semantic(SemanticOpId(op.discriminant()), args)? {
         HostOutcome::Value(value) | HostOutcome::Residual(value) => Ok(Some(value)),
-        HostOutcome::SoftInvalid { .. } => Ok(None),
+        HostOutcome::SoftInvalid { value, diagnostic } => {
+            *invalid = Some(diagnostic);
+            Ok(Some(value))
+        }
         HostOutcome::Diagnostic(diagnostic) => {
             let reason = diagnostic
                 .details

@@ -12,9 +12,7 @@ mod ops;
 pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
-    evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms,
-    evaluate_index_axes, evaluate_rule_terms, evaluate_matches_terms, evaluate_collect_matches_terms,
-    evaluate_replace_all_terms,
+    evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
 };
 
 use self::helpers::*;
@@ -26,30 +24,21 @@ use self::host_bridge::{
 use std::{cmp::Ordering, collections::HashMap};
 
 use athena_ir::SemanticOperator;
-use athena_numeric::{
-    Integer, Number, Rational, abs as num_abs, add as num_add, compare as num_compare, div as num_div, factorial as num_factorial,
-    mul as num_mul, pow as num_pow, sqrt as num_sqrt, to_f64_lossy as num_to_f64_lossy,
-};
-use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
+use athena_numeric::compare as num_compare;
+use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId};
 use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
 use crate::{
-    domains::{
-        dispatch::DomainRequest,
-        linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact},
-    },
+    domains::dispatch::DomainRequest,
     execution::{
         environment::ScopeFrame,
         ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
-        number_of, push_extension, push_number, push_semantic,
+        number_of,
     },
     runtime::{
         results::{ComputationResult, CoverageStatus, ResultProvenance},
         session::Session,
-        values::{
-            arena::push_list,
-            numeric_clone::{clone_integer, clone_number, clone_rational},
-        },
+        values::numeric_clone::clone_number,
     },
 };
 
@@ -295,7 +284,7 @@ impl ReferenceExecutor {
                     .iter()
                     .map(|id| slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined")))
                     .collect::<Result<Vec<_>>>()?;
-                if let Some(slot) = try_delegate_semantic_to_host(session, op, &arg_slots)? {
+                if let Some(slot) = try_delegate_semantic_to_host(session, op, &arg_slots, invalid)? {
                     return Ok(slot);
                 }
                 match op {
@@ -362,58 +351,18 @@ impl ReferenceExecutor {
                             _ => self.eval_residual_semantic(session, op, args, slots),
                         }
                     }
-                    SemanticOperator::Less | SemanticOperator::Greater | SemanticOperator::LessEqual | SemanticOperator::GreaterEqual => {
-                        self.eval_compare_chain(session, op, args, slots)
-                    }
-                    SemanticOperator::Add
-                    | SemanticOperator::Multiply
-                    | SemanticOperator::Subtract
-                    | SemanticOperator::Negate
-                    | SemanticOperator::Divide
-                    | SemanticOperator::Power => self.eval_arithmetic(session, op, args, slots),
-                    SemanticOperator::ElementwiseMultiply | SemanticOperator::ElementwiseDivide | SemanticOperator::ElementwisePower => {
-                        self.eval_dot_arithmetic(session, op, args, slots)
-                    }
-                    SemanticOperator::Abs
-                    | SemanticOperator::Length
-                    | SemanticOperator::First
-                    | SemanticOperator::Rest
-                    | SemanticOperator::Factorial
-                    | SemanticOperator::Sqrt => self.eval_unary_term_op(session, op, args, slots),
-                    SemanticOperator::Join => self.eval_join(session, args, slots),
-                    SemanticOperator::Range => self.eval_range(session, args, slots),
-                    SemanticOperator::Apply => self.eval_apply(session, args, slots),
-                    SemanticOperator::ApplyHead => self.eval_application_form(session, args, slots),
-                    SemanticOperator::Size => self.eval_size(session, args, slots),
+                    // 二元 iterator `Sum` / `Product` 等仍本地；host 已覆盖的算术·比较·一元·结构算子不再重复。
                     SemanticOperator::Sum => self.eval_sum(session, args, slots),
                     SemanticOperator::Product => self.eval_product(session, args, slots),
-                    SemanticOperator::Determinant => self.eval_det(session, args, slots, invalid),
+                    SemanticOperator::Apply => self.eval_apply(session, args, slots),
+                    SemanticOperator::ApplyHead => self.eval_application_form(session, args, slots),
                     SemanticOperator::Map => self.eval_map(session, args, slots),
-                    SemanticOperator::Zeros | SemanticOperator::Ones | SemanticOperator::Eye => {
-                        self.eval_matrix_constructor(session, op, args, slots)
-                    }
                     SemanticOperator::Rule | SemanticOperator::RuleDeferred => self.eval_rule(session, op, args, slots),
                     SemanticOperator::ReplaceAll => self.eval_replace_all(session, args, slots),
                     SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),
                     SemanticOperator::Matches => self.eval_matches(session, args, slots),
                     SemanticOperator::Simplify => self.eval_simplify(session, args, slots),
-                    SemanticOperator::Hold
-                    | SemanticOperator::Function
-                    | SemanticOperator::Unary(_)
-                    | SemanticOperator::PolyGamma
-                    | SemanticOperator::Differentiate
-                    | SemanticOperator::Integrate
-                    | SemanticOperator::Limit
-                    | SemanticOperator::Series
-                    | SemanticOperator::LaurentSeries
-                    | SemanticOperator::Asymptotic
-                    | SemanticOperator::Residue
-                    | SemanticOperator::DSolve
-                    | SemanticOperator::LaplaceTransform
-                    | SemanticOperator::FourierTransform
-                    | SemanticOperator::ZTransform
-                    | SemanticOperator::Divergence
-                    | SemanticOperator::Curl => self.eval_residual_semantic(session, op, args, slots),
+                    _ => self.eval_residual_semantic(session, op, args, slots),
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {

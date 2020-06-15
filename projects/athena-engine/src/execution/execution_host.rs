@@ -218,8 +218,12 @@ impl<'a> ExecutionHost<'a> {
         }
         let term = self.slot_as_term(args[0])?;
         let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
+        // Reference 合同：Bareiss 失败保留残差并软 Invalid；VM 路径同样经 SoftInvalid。
         if let Some(diagnostic) = diag_opt {
-            return Ok(HostOutcome::Diagnostic(diagnostic));
+            return Ok(HostOutcome::SoftInvalid {
+                value: SlotValue::Term(out),
+                diagnostic,
+            });
         }
         Ok(HostOutcome::Value(SlotValue::Term(out)))
     }

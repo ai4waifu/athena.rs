@@ -2,7 +2,7 @@
 
 use athena_ir::SemanticOperator;
 use athena_vm::SlotTable;
-use athena_types::{Diagnostic, Result, TermId};
+use athena_types::{Result, TermId};
 
 use super::super::{ReferenceExecutor, Slot, helpers::*};
 use crate::{
@@ -84,91 +84,6 @@ impl ReferenceExecutor {
             }
         }
         Ok(Some(out))
-    }
-
-    pub(crate) fn eval_det(
-        &self,
-        session: &mut Session,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-        invalid: &mut Option<Diagnostic>,
-    ) -> Result<Slot> {
-        if args.len() != 1 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let term = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let (out, diag_opt) = evaluate_determinant_term(session, term)?;
-        if let Some(diagnostic) = diag_opt {
-            *invalid = Some(diagnostic);
-        }
-        Ok(Slot::Term(out))
-    }
-
-    pub(crate) fn eval_range(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(Slot::Term(evaluate_range_terms(session, terms)?))
-    }
-
-    pub(crate) fn eval_join(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(Slot::Term(evaluate_join_terms(session, terms)?))
-    }
-
-    pub(crate) fn eval_compare_chain(
-        &self,
-        session: &mut Session,
-        op: SemanticOperator,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-    ) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(match evaluate_compare_terms(session, op, terms)? {
-            CompareOutcome::Boolean(v) => Slot::Boolean(v),
-            CompareOutcome::Term(term) => Slot::Term(term),
-        })
-    }
-
-    /// 带标量广播的逐元 `DotTimes` / `DotDivide` / `DotPower`。
-    pub(crate) fn eval_dot_arithmetic(
-        &self,
-        session: &mut Session,
-        op: SemanticOperator,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-    ) -> Result<Slot> {
-        if args.len() != 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let left = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let right = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        Ok(Slot::Term(evaluate_elementwise_terms(session, op, left, right)?))
-    }
-
-    pub(crate) fn eval_arithmetic(
-        &self,
-        session: &mut Session,
-        op: SemanticOperator,
-        args: &[SsaValueId],
-        slots: &SlotTable,
-    ) -> Result<Slot> {
-        let mut terms = Vec::with_capacity(args.len());
-        for id in args {
-            let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-            terms.push(self.slot_as_term(session, slot)?);
-        }
-        Ok(Slot::Term(evaluate_arithmetic_terms(session, op, terms)?))
     }
 
     pub(crate) fn slot_as_term(&self, session: &mut Session, slot: Slot) -> Result<TermId> {
