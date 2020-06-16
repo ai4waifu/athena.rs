@@ -21,10 +21,9 @@ use self::host_bridge::{
     host_with_shared_frames_and_axes, try_delegate_semantic_to_host,
 };
 
-use std::{cmp::Ordering, collections::HashMap};
+use std::collections::HashMap;
 
 use athena_ir::SemanticOperator;
-use athena_numeric::compare as num_compare;
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId};
 use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
@@ -33,12 +32,10 @@ use crate::{
     execution::{
         environment::ScopeFrame,
         ir::{BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind, RegionId, SsaValueId, Terminator, verify_module},
-        number_of,
     },
     runtime::{
         results::{ComputationResult, CoverageStatus, ResultProvenance},
         session::Session,
-        values::numeric_clone::clone_number,
     },
 };
 
@@ -309,49 +306,7 @@ impl ReferenceExecutor {
                         };
                         Ok(Slot::Boolean(result))
                     }
-                    SemanticOperator::Identical | SemanticOperator::Equal | SemanticOperator::Unequal => {
-                        if args.len() != 2 {
-                            return Err(diag("semantic_operator_arity"));
-                        }
-                        let left = slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        let right = slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                        // `Identical` 是结构比较。`Equal` / `Unequal` 仅在可比较
-                        // 原子上判定；符号残差保持为 `Equal[...]`（不静默成 `False`）。
-                        if op == SemanticOperator::Identical {
-                            let same = match (left, right) {
-                                (Slot::Boolean(a), Slot::Boolean(b)) => a == b,
-                                (Slot::Symbol(a), Slot::Symbol(b)) => a == b,
-                                (Slot::Term(a), Slot::Term(b)) => session.arena.structural_eq(a, b),
-                                (Slot::Unit, Slot::Unit) => true,
-                                _ => false,
-                            };
-                            return Ok(Slot::Boolean(same));
-                        }
-                        match (left, right) {
-                            (Slot::Boolean(a), Slot::Boolean(b)) => {
-                                Ok(Slot::Boolean(if op == SemanticOperator::Unequal { a != b } else { a == b }))
-                            }
-                            (Slot::Symbol(a), Slot::Symbol(b)) => {
-                                Ok(Slot::Boolean(if op == SemanticOperator::Unequal { a != b } else { a == b }))
-                            }
-                            (Slot::Unit, Slot::Unit) => Ok(Slot::Boolean(op != SemanticOperator::Unequal)),
-                            (Slot::Term(a), Slot::Term(b)) => {
-                                if session.arena.structural_eq(a, b) {
-                                    return Ok(Slot::Boolean(op != SemanticOperator::Unequal));
-                                }
-                                let na = number_of(session, a).map(clone_number);
-                                let nb = number_of(session, b).map(clone_number);
-                                if let (Some(left_n), Some(right_n)) = (na, nb) {
-                                    let ord = num_compare(&left_n, &right_n).ok_or_else(|| diag("compare_failed"))?;
-                                    let eq = ord == Ordering::Equal;
-                                    return Ok(Slot::Boolean(if op == SemanticOperator::Unequal { !eq } else { eq }));
-                                }
-                                self.eval_residual_semantic(session, op, args, slots)
-                            }
-                            _ => self.eval_residual_semantic(session, op, args, slots),
-                        }
-                    }
-                    // 二元 iterator `Sum` / `Product` 等仍本地；host 已覆盖的算术·比较·一元·结构算子不再重复。
+                    // 二元 iterator `Sum` / `Product` 等仍本地；`Equal`/`Identical` 等已走 host。
                     SemanticOperator::Sum => self.eval_sum(session, args, slots),
                     SemanticOperator::Product => self.eval_product(session, args, slots),
                     SemanticOperator::Apply => self.eval_apply(session, args, slots),

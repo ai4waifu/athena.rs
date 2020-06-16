@@ -4,6 +4,7 @@
 //! scope 帧栈、`Index`，以及运行时注入 domain 载荷的 `CallProvider`。
 
 use athena_ir::SemanticOperator;
+use athena_numeric::compare as num_compare;
 use athena_types::{
     BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId,
     TermId,
@@ -14,7 +15,7 @@ use crate::{
     api::request::AthenaRequest,
     domains::dispatch::{DomainRequest, execute_domain},
     execution::{
-        LocalBinding, ScopeFrame, execute_ir_request,
+        LocalBinding, ScopeFrame, execute_ir_request, number_of, push_semantic,
         ir::ProviderCallDescriptor,
         provider::ProviderCallHandoff,
         reference::{
@@ -24,7 +25,7 @@ use crate::{
             evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
         },
     },
-    runtime::{results::computation_from_domain, session::Session},
+    runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
 };
 
 /// 执行宿主（engine 在 VM 之上 · 不拥有解释循环）。
@@ -247,6 +248,63 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
+    fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+        }
+        let left = args[0];
+        let right = args[1];
+        if op == SemanticOperator::Identical {
+            let same = match (left, right) {
+                (SlotValue::Boolean(a), SlotValue::Boolean(b)) => a == b,
+                (SlotValue::Symbol(a), SlotValue::Symbol(b)) => a == b,
+                (SlotValue::Term(a), SlotValue::Term(b)) => {
+                    let a = self.slot_as_term(SlotValue::Term(a))?;
+                    let b = self.slot_as_term(SlotValue::Term(b))?;
+                    self.session.arena.structural_eq(a, b)
+                }
+                (SlotValue::Unit, SlotValue::Unit) => true,
+                _ => false,
+            };
+            return Ok(HostOutcome::Value(SlotValue::Boolean(same)));
+        }
+        let bool_out = |eq: bool| -> HostOutcome {
+            let v = if op == SemanticOperator::Unequal { !eq } else { eq };
+            HostOutcome::Value(SlotValue::Boolean(v))
+        };
+        match (left, right) {
+            (SlotValue::Boolean(a), SlotValue::Boolean(b)) => Ok(bool_out(a == b)),
+            (SlotValue::Symbol(a), SlotValue::Symbol(b)) => Ok(bool_out(a == b)),
+            (SlotValue::Unit, SlotValue::Unit) => Ok(bool_out(true)),
+            (SlotValue::Term(a), SlotValue::Term(b)) => {
+                let a = self.slot_as_term(SlotValue::Term(a))?;
+                let b = self.slot_as_term(SlotValue::Term(b))?;
+                if self.session.arena.structural_eq(a, b) {
+                    return Ok(bool_out(true));
+                }
+                let na = number_of(self.session, a).map(clone_number);
+                let nb = number_of(self.session, b).map(clone_number);
+                if let (Some(left_n), Some(right_n)) = (na, nb) {
+                    let ord = num_compare(&left_n, &right_n).ok_or_else(|| {
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ExecutionHost")
+                            .detail("reason", "compare_failed")
+                    })?;
+                    return Ok(bool_out(ord == core::cmp::Ordering::Equal));
+                }
+                let echo = push_semantic(self.session, op, vec![a, b]);
+                Ok(HostOutcome::Residual(SlotValue::Term(echo)))
+            }
+            _ => {
+                let a = self.slot_as_term(left)?;
+                let b = self.slot_as_term(right)?;
+                let echo = push_semantic(self.session, op, vec![a, b]);
+                Ok(HostOutcome::Residual(SlotValue::Term(echo)))
+            }
+        }
+    }
+
     /// `RegisterRuleDispatch`：结构 pattern 编译后挂到扩展头。
     pub fn register_rule_dispatch(
         &mut self,
@@ -346,32 +404,14 @@ impl VmHost for ExecutionHost<'_> {
             || op.0 == SemanticOperator::Unequal.discriminant()
             || op.0 == SemanticOperator::Identical.discriminant()
         {
-            if args.len() != 2 {
-                return Ok(Self::unsupported(op));
-            }
-            match (args[0], args[1]) {
-                (SlotValue::Boolean(left), SlotValue::Boolean(right)) => {
-                    let eq = left == right;
-                    let out = if op.0 == SemanticOperator::Unequal.discriminant() {
-                        !eq
-                    } else {
-                        eq
-                    };
-                    return Ok(HostOutcome::Value(SlotValue::Boolean(out)));
-                }
-                (SlotValue::Term(left), SlotValue::Term(right)) => {
-                    let left = self.slot_as_term(SlotValue::Term(left))?;
-                    let right = self.slot_as_term(SlotValue::Term(right))?;
-                    let eq = self.session.arena.structural_eq(left, right);
-                    let out = if op.0 == SemanticOperator::Unequal.discriminant() {
-                        !eq
-                    } else {
-                        eq
-                    };
-                    return Ok(HostOutcome::Value(SlotValue::Boolean(out)));
-                }
-                _ => return Ok(Self::unsupported(op)),
-            }
+            let op = if op.0 == SemanticOperator::Equal.discriminant() {
+                SemanticOperator::Equal
+            } else if op.0 == SemanticOperator::Unequal.discriminant() {
+                SemanticOperator::Unequal
+            } else {
+                SemanticOperator::Identical
+            };
+            return self.apply_equality(op, args);
         }
         if op.0 == SemanticOperator::Add.discriminant() {
             return self.apply_arithmetic(SemanticOperator::Add, args);
