@@ -13,7 +13,7 @@ pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
-    slot_as_boolean_like,
+    evaluate_map_terms, slot_as_boolean_like,
 };
 
 use self::helpers::*;
@@ -291,7 +291,6 @@ impl ReferenceExecutor {
                     SemanticOperator::Product => self.eval_product(session, args, slots),
                     SemanticOperator::Apply => self.eval_apply(session, args, slots),
                     SemanticOperator::ApplyHead => self.eval_application_form(session, args, slots),
-                    SemanticOperator::Map => self.eval_map(session, args, slots),
                     SemanticOperator::Rule | SemanticOperator::RuleDeferred => self.eval_rule(session, op, args, slots),
                     SemanticOperator::ReplaceAll => self.eval_replace_all(session, args, slots),
                     SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),

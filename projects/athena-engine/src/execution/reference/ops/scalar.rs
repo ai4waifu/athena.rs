@@ -11,10 +11,7 @@ use super::super::{ReferenceExecutor, Slot, helpers::*};
 use crate::{
     api::request::AthenaRequest,
     execution::{compiler::ExecutionCompiler, ir::SsaValueId, number_of, push_extension, push_number, push_semantic},
-    runtime::{
-        session::Session,
-        values::arena::push_list,
-    },
+    runtime::session::Session,
 };
 
 impl ReferenceExecutor {
@@ -192,80 +189,6 @@ impl ReferenceExecutor {
         let expr = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         let pat = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
         Ok(Slot::Boolean(evaluate_matches_terms(session, expr, pat)?))
-    }
-
-    pub(crate) fn eval_map(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {
-        if args.len() != 2 {
-            return Err(diag("semantic_operator_arity"));
-        }
-        let func = self.slot_as_term(session, slots.get(args[0].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let list = self.slot_as_term(session, slots.get(args[1].0).ok_or_else(|| diag("semantic_arg_undefined"))?)?;
-        let items = match session.arena.get(list) {
-            Some(athena_ir::TermNode::Collection { elements: items, .. }) => items.clone(),
-            _ => return Ok(Slot::Term(push_semantic(session, SemanticOperator::Map, vec![func, list]))),
-        };
-        if !self.map_func_supported(session, func) {
-            return Ok(Slot::Term(push_semantic(session, SemanticOperator::Map, vec![func, list])));
-        }
-        let mut out = Vec::with_capacity(items.len());
-        for item in items {
-            out.push(self.map_apply_one(session, func, item)?);
-        }
-        Ok(Slot::Term(push_list(session, out)))
-    }
-
-    fn map_func_supported(&self, session: &Session, func: TermId) -> bool {
-        match session.arena.get(func) {
-            Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), arguments })
-                if arguments.len() == 2 =>
-            {
-                true
-            }
-            Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_), arguments })
-                if arguments.is_empty() =>
-            {
-                true
-            }
-            _ => false,
-        }
-    }
-
-    /// 将 `func` 作用于单个列表元素：零元算子值或 `Function[var, body]`。
-    fn map_apply_one(&self, session: &mut Session, func: TermId, item: TermId) -> Result<TermId> {
-        if let Some(athena_ir::TermNode::Application { head, arguments }) = session.arena.get(func) {
-            if arguments.is_empty() {
-                let mapped = match *head {
-                    ApplicationHead::Semantic(op) => push_semantic(session, op, vec![item]),
-                    ApplicationHead::Extension(id) => {
-                        let mut b = athena_ir::TermBuilder::new(&mut session.arena);
-                        b.application_extension_id(id, vec![item], athena_ir::TermNode::default_span())
-                    }
-                };
-                return self.re_eval_term(session, mapped);
-            }
-            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Function)) {
-                let arguments = arguments.clone();
-                if let [var, body] = arguments.as_slice() {
-                    if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
-                        let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
-                        return self.re_eval_term(session, instantiated);
-                    }
-                }
-            }
-        }
-        // 禁止 `symbol_name` → `extensions.intern`：裸符号头须由编译期 / 方言 lowering
-        // 落成 `ApplicationHead::Extension` 或封闭 `SemanticOperator`。
-        Err(diag("map_func_unsupported"))
-    }
-
-    fn re_eval_term(&self, session: &mut Session, term: TermId) -> Result<TermId> {
-        match ExecutionCompiler::new().compile(session, &AthenaRequest::Term(term)) {
-            Ok(module) => {
-                let result_id = self.execute(session, &module, None)?;
-                Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
-            }
-            Err(_) => Ok(term),
-        }
     }
 
     pub(crate) fn eval_apply(&self, session: &mut Session, args: &[SsaValueId], slots: &SlotTable) -> Result<Slot> {

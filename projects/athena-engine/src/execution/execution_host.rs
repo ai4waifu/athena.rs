@@ -21,8 +21,8 @@ use crate::{
         reference::{
             CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
             evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
-            evaluate_index_axes, evaluate_join_terms, evaluate_matrix_constructor_terms, evaluate_range_terms,
-            evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
+            evaluate_index_axes, evaluate_join_terms, evaluate_map_terms, evaluate_matrix_constructor_terms,
+            evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -265,6 +265,17 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Boolean(result)))
     }
 
+    /// `Map[func, list]` — 经共享 helper，元素再求值走 `execute_ir_request`。
+    fn apply_map(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Map.discriminant())));
+        }
+        let func = self.slot_as_term(args[0])?;
+        let list = self.slot_as_term(args[1])?;
+        let term = evaluate_map_terms(self.session, func, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -488,6 +499,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::ElementwisePower.discriminant() {
             return self.apply_elementwise(SemanticOperator::ElementwisePower, args);
+        }
+        if op.0 == SemanticOperator::Map.discriminant() {
+            return self.apply_map(args);
         }
         Ok(Self::unsupported(op))
     }
