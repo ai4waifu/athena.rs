@@ -11,7 +11,7 @@ use athena_engine::{
 use athena_ir::{ApplicationHead, SemanticOperator};
 
 #[test]
-fn and_of_integers_reports_logical_gap_and_selects_reference() {
+fn and_of_integers_selects_athena_vm_after_host_truthiness() {
     let mut session = Session::new();
     let a = session.builder().int(0, Default::default());
     let b = session.builder().int(1, Default::default());
@@ -24,9 +24,9 @@ fn and_of_integers_reports_logical_gap_and_selects_reference() {
         .compile(&mut session, &AthenaRequest::Term(term))
         .expect("compile");
     let report = analyze_vm_capability(&module);
-    assert!(!report.supports_athena_vm);
-    assert!(report.gaps.contains(&VmCapabilityGap::LogicalNonBoolean));
-    assert_eq!(select_execution_backend(&module, false), BackendKind::Reference);
+    assert!(report.supports_athena_vm, "gaps={:?}", report.gaps);
+    assert_eq!(select_execution_backend(&module, false), BackendKind::AthenaVm);
+    athena_engine::execution::vm_codegen::validate_vm_codegen_subset(&module).expect("validate");
 }
 
 #[test]

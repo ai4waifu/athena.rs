@@ -22,7 +22,7 @@ use crate::{
             CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
             evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
             evaluate_index_axes, evaluate_join_terms, evaluate_matrix_constructor_terms, evaluate_range_terms,
-            evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
+            evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -101,17 +101,6 @@ impl<'a> ExecutionHost<'a> {
                 .detail("reason", "apply_semantic_deferred_to_reference")
                 .detail("op", op.0),
         )
-    }
-
-    fn expect_boolean(args: &[SlotValue], index: usize, reason: &'static str) -> Result<core::result::Result<bool, HostOutcome>> {
-        match args.get(index).copied() {
-            Some(SlotValue::Boolean(v)) => Ok(Ok(v)),
-            Some(_) | None => Ok(Err(HostOutcome::Diagnostic(
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "ExecutionHost")
-                    .detail("reason", reason),
-            ))),
-        }
     }
 
     fn slot_as_term(&mut self, slot: SlotValue) -> Result<TermId> {
@@ -248,6 +237,34 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `Not` / `TrueQ` / `And` / `Or`：Boolean 原子与精确 `0`/`1` truthiness；否则残差。
+    fn apply_logical(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut bools = Vec::with_capacity(args.len());
+        for slot in args {
+            match slot_as_boolean_like(self.session, *slot) {
+                Some(v) => bools.push(v),
+                None => {
+                    let mut terms = Vec::with_capacity(args.len());
+                    for slot in args {
+                        terms.push(self.slot_as_term(*slot)?);
+                    }
+                    let echo = push_semantic(self.session, op, terms);
+                    return Ok(HostOutcome::Residual(SlotValue::Term(echo)));
+                }
+            }
+        }
+        let result = match (op, bools.as_slice()) {
+            (SemanticOperator::Not, [a]) => !*a,
+            (SemanticOperator::TrueQ, [a]) => *a,
+            (SemanticOperator::And, values) => values.iter().copied().all(|v| v),
+            (SemanticOperator::Or, values) => values.iter().copied().any(|v| v),
+            _ => {
+                return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+            }
+        };
+        Ok(HostOutcome::Value(SlotValue::Boolean(result)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -367,38 +384,16 @@ impl<'a> ExecutionHost<'a> {
 impl VmHost for ExecutionHost<'_> {
     fn apply_semantic(&mut self, op: SemanticOpId, args: &[SlotValue]) -> Result<HostOutcome> {
         if op.0 == SemanticOperator::Not.discriminant() {
-            return match Self::expect_boolean(args, 0, "not_expects_boolean")? {
-                Ok(v) => Ok(HostOutcome::Value(SlotValue::Boolean(!v))),
-                Err(outcome) => Ok(outcome),
-            };
+            return self.apply_logical(SemanticOperator::Not, args);
         }
         if op.0 == SemanticOperator::TrueQ.discriminant() {
-            return match Self::expect_boolean(args, 0, "trueq_expects_boolean")? {
-                Ok(v) => Ok(HostOutcome::Value(SlotValue::Boolean(v))),
-                Err(outcome) => Ok(outcome),
-            };
+            return self.apply_logical(SemanticOperator::TrueQ, args);
         }
         if op.0 == SemanticOperator::And.discriminant() {
-            let left = match Self::expect_boolean(args, 0, "and_expects_boolean")? {
-                Ok(v) => v,
-                Err(outcome) => return Ok(outcome),
-            };
-            let right = match Self::expect_boolean(args, 1, "and_expects_boolean")? {
-                Ok(v) => v,
-                Err(outcome) => return Ok(outcome),
-            };
-            return Ok(HostOutcome::Value(SlotValue::Boolean(left && right)));
+            return self.apply_logical(SemanticOperator::And, args);
         }
         if op.0 == SemanticOperator::Or.discriminant() {
-            let left = match Self::expect_boolean(args, 0, "or_expects_boolean")? {
-                Ok(v) => v,
-                Err(outcome) => return Ok(outcome),
-            };
-            let right = match Self::expect_boolean(args, 1, "or_expects_boolean")? {
-                Ok(v) => v,
-                Err(outcome) => return Ok(outcome),
-            };
-            return Ok(HostOutcome::Value(SlotValue::Boolean(left || right)));
+            return self.apply_logical(SemanticOperator::Or, args);
         }
         if op.0 == SemanticOperator::Equal.discriminant()
             || op.0 == SemanticOperator::Unequal.discriminant()

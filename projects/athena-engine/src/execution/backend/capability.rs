@@ -3,16 +3,12 @@
 //! Living `04`：选择后端须回答「该 backend 能否完整实现语义 / 诊断 / effect /
 //! 预算 / 取消 / 生命周期」，而不是「指令能否编码」。
 //!
-//! 先拦截已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑），再调用
+//! 先拦截已知语义缺口（迭代器 `Sum` 等），再调用
 //! [`crate::execution::vm_codegen::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
-
-use std::collections::HashMap;
 
 use athena_ir::SemanticOperator;
 
-use crate::execution::ir::{
-    ExecutionModule, ExecutionValueType, OperationKind, SsaValueId, Terminator,
-};
+use crate::execution::ir::{ExecutionModule, OperationKind, Terminator};
 
 /// 一条阻止选择 `AthenaVm` 的能力缺口。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,8 +17,6 @@ pub enum VmCapabilityGap {
     MultiRegion,
     /// 二元迭代器折叠（`Sum` / `Product` body+iterator）需 Reference 展开。
     IteratorFold,
-    /// `And` / `Or` / `Not` / `TrueQ` 的实参静态类型不是 Boolean（数值 truthiness 未进 VM host）。
-    LogicalNonBoolean,
     /// 操作 / terminator 不在当前 VM 编码闭集。
     UnsupportedShape,
     /// 结构上无法编码（经无 emit 的 `validate_vm_codegen_subset`）。
@@ -63,35 +57,14 @@ fn note(gaps: &mut Vec<VmCapabilityGap>, gap: VmCapabilityGap) {
     }
 }
 
-fn ssa_is_boolean(types: &HashMap<SsaValueId, ExecutionValueType>, id: SsaValueId) -> bool {
-    matches!(types.get(&id), Some(ExecutionValueType::Boolean))
-}
-
 fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>) {
     for region in &module.regions {
-        let mut types: HashMap<SsaValueId, ExecutionValueType> = HashMap::new();
         for block in &region.blocks {
-            for param in &block.parameters {
-                types.insert(param.value, param.ty.clone());
-            }
             for op in &block.operations {
-                if let Some(result) = op.result {
-                    types.insert(result, op.result_type.clone());
-                }
                 match &op.kind {
                     OperationKind::ApplySemanticOperator { operator, args } => match *operator {
                         SemanticOperator::Sum | SemanticOperator::Product if args.len() == 2 => {
                             note(gaps, VmCapabilityGap::IteratorFold);
-                        }
-                        SemanticOperator::And | SemanticOperator::Or => {
-                            if args.iter().any(|a| !ssa_is_boolean(&types, *a)) {
-                                note(gaps, VmCapabilityGap::LogicalNonBoolean);
-                            }
-                        }
-                        SemanticOperator::Not | SemanticOperator::TrueQ => {
-                            if args.first().is_some_and(|a| !ssa_is_boolean(&types, *a)) {
-                                note(gaps, VmCapabilityGap::LogicalNonBoolean);
-                            }
                         }
                         SemanticOperator::Map
                         | SemanticOperator::Apply

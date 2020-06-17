@@ -13,6 +13,7 @@ pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
+    slot_as_boolean_like,
 };
 
 use self::helpers::*;
@@ -285,28 +286,7 @@ impl ReferenceExecutor {
                     return Ok(slot);
                 }
                 match op {
-                    SemanticOperator::Not | SemanticOperator::And | SemanticOperator::Or | SemanticOperator::TrueQ => {
-                        let bools: Vec<Option<bool>> = args
-                            .iter()
-                            .map(|id| {
-                                let slot = slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined"))?;
-                                Ok(slot_as_boolean_like(session, slot))
-                            })
-                            .collect::<Result<Vec<_>>>()?;
-                        if bools.iter().any(|b| b.is_none()) {
-                            return self.eval_residual_semantic(session, op, args, slots);
-                        }
-                        let bools: Vec<bool> = bools.into_iter().map(|b| b.expect("checked")).collect();
-                        let result = match (op, bools.as_slice()) {
-                            (SemanticOperator::Not, [a]) => !*a,
-                            (SemanticOperator::TrueQ, [a]) => *a,
-                            (SemanticOperator::And, values) => values.iter().copied().all(|v| v),
-                            (SemanticOperator::Or, values) => values.iter().copied().any(|v| v),
-                            _ => return Err(diag("semantic_operator_arity")),
-                        };
-                        Ok(Slot::Boolean(result))
-                    }
-                    // 二元 iterator `Sum` / `Product` 等仍本地；`Equal`/`Identical` 等已走 host。
+                    // 二元 iterator `Sum` / `Product` 等仍本地；逻辑 / 相等 / 算术等已走 host。
                     SemanticOperator::Sum => self.eval_sum(session, args, slots),
                     SemanticOperator::Product => self.eval_product(session, args, slots),
                     SemanticOperator::Apply => self.eval_apply(session, args, slots),

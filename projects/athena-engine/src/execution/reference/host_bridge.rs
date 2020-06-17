@@ -88,10 +88,11 @@ pub(crate) fn delegate_call_provider(
 /// 是否可安全委托给 [`ExecutionHost::apply_semantic`]。
 fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
     match op {
-        SemanticOperator::Not | SemanticOperator::TrueQ | SemanticOperator::And | SemanticOperator::Or => {
-            args.iter().all(|slot| matches!(slot, SlotValue::Boolean(_)))
-        }
-        SemanticOperator::Add
+        SemanticOperator::Not
+        | SemanticOperator::TrueQ
+        | SemanticOperator::And
+        | SemanticOperator::Or
+        | SemanticOperator::Add
         | SemanticOperator::Multiply
         | SemanticOperator::Subtract
         | SemanticOperator::Negate
@@ -151,11 +152,7 @@ pub(crate) fn try_delegate_semantic_to_host(
                 .map(|value| value.to_string())
                 .unwrap_or_default();
             match reason.as_str() {
-                "apply_semantic_deferred_to_reference"
-                | "and_expects_boolean"
-                | "or_expects_boolean"
-                | "not_expects_boolean"
-                | "trueq_expects_boolean" => Ok(None),
+                "apply_semantic_deferred_to_reference" => Ok(None),
                 _ => Err(diagnostic),
             }
         }
