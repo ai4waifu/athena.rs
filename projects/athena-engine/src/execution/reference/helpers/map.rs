@@ -3,19 +3,11 @@
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Result, TermId};
 
-use super::diag;
+use super::{diag, re_eval_term};
 use crate::{
-    api::request::AthenaRequest,
-    execution::{execute_ir_request, push_semantic},
+    execution::push_semantic,
     runtime::{session::Session, values::arena::push_list},
 };
-
-fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId> {
-    match execute_ir_request(session, AthenaRequest::Term(term)) {
-        Ok(result_id) => Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term)),
-        Err(_) => Ok(term),
-    }
-}
 
 fn map_func_supported(session: &Session, func: TermId) -> bool {
     match session.arena.get(func) {

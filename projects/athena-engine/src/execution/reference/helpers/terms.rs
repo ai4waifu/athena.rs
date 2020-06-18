@@ -7,8 +7,9 @@ use super::diag;
 use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermBuilder, UnaryFunction};
 
 use crate::{
+    api::request::AthenaRequest,
     domains::linear_algebra::{MatrixEntry, MatrixValue},
-    execution::{number_of, push_number, push_semantic},
+    execution::{execute_ir_request, number_of, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -17,6 +18,14 @@ use crate::{
         },
     },
 };
+
+/// 编译并再求值一项（失败则保留原项）。共享给 `Map` / `Apply` / iterator fold。
+pub(crate) fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId> {
+    match execute_ir_request(session, AthenaRequest::Term(term)) {
+        Ok(result_id) => Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term)),
+        Err(_) => Ok(term),
+    }
+}
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
     matches!(head, ApplicationHead::Semantic(o) if o == op)

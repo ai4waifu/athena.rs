@@ -20,9 +20,10 @@ use crate::{
         provider::ProviderCallHandoff,
         reference::{
             CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
-            evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
-            evaluate_index_axes, evaluate_join_terms, evaluate_map_terms, evaluate_matrix_constructor_terms,
-            evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
+            evaluate_apply_head_terms, evaluate_apply_terms, evaluate_compare_terms, evaluate_determinant_term,
+            evaluate_elementwise_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
+            evaluate_matrix_constructor_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms,
+            evaluate_unary_term, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -276,6 +277,31 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `Apply[head, list]`。
+    fn apply_apply(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Apply.discriminant())));
+        }
+        let head = self.slot_as_term(args[0])?;
+        let second = self.slot_as_term(args[1])?;
+        let term = evaluate_apply_terms(self.session, head, second)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    /// `ApplyHead[head, args…]`。
+    fn apply_apply_head(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.is_empty() {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ApplyHead.discriminant())));
+        }
+        let head = self.slot_as_term(args[0])?;
+        let mut call_args = Vec::with_capacity(args.len().saturating_sub(1));
+        for slot in &args[1..] {
+            call_args.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_apply_head_terms(self.session, head, call_args)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -502,6 +528,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Map.discriminant() {
             return self.apply_map(args);
+        }
+        if op.0 == SemanticOperator::Apply.discriminant() {
+            return self.apply_apply(args);
+        }
+        if op.0 == SemanticOperator::ApplyHead.discriminant() {
+            return self.apply_apply_head(args);
         }
         Ok(Self::unsupported(op))
     }
