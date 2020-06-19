@@ -123,10 +123,10 @@ fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
         | SemanticOperator::Identical
         | SemanticOperator::Map
         | SemanticOperator::Apply
-        | SemanticOperator::ApplyHead => true,
-        // 一元 `Sum` 可走 host；二元 iterator fold 仍在 Reference（`table_values`）。
-        SemanticOperator::Sum => args.len() == 1,
-        // Product / 规则重写等未进 host。
+        | SemanticOperator::ApplyHead
+        | SemanticOperator::Sum
+        | SemanticOperator::Product => true,
+        // 规则重写等未进 host。
         _ => false,
     }
 }

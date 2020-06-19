@@ -13,7 +13,8 @@ pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
-    evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, slot_as_boolean_like,
+    evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, evaluate_sum_iterator_terms,
+    evaluate_product_iterator_terms, evaluate_product_terms, slot_as_boolean_like,
 };
 
 use self::helpers::*;
@@ -287,8 +288,7 @@ impl ReferenceExecutor {
                 }
                 match op {
                     // 二元 iterator `Sum` / `Product` 等仍本地；逻辑 / 相等 / 算术等已走 host。
-                    SemanticOperator::Sum => self.eval_sum(session, args, slots),
-                    SemanticOperator::Product => self.eval_product(session, args, slots),
+                    // 规则重写仍本地；`Sum`/`Product`/`Map`/`Apply` 等已走 host。
                     SemanticOperator::Rule | SemanticOperator::RuleDeferred => self.eval_rule(session, op, args, slots),
                     SemanticOperator::ReplaceAll => self.eval_replace_all(session, args, slots),
                     SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),

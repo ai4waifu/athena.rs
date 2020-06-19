@@ -3,7 +3,7 @@
 //! Living `04`：选择后端须回答「该 backend 能否完整实现语义 / 诊断 / effect /
 //! 预算 / 取消 / 生命周期」，而不是「指令能否编码」。
 //!
-//! 先拦截已知语义缺口（迭代器 `Sum` 等），再调用
+//! 先拦截已知语义缺口，再调用
 //! [`crate::execution::vm_codegen::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
 
 use athena_ir::SemanticOperator;
@@ -15,8 +15,6 @@ use crate::execution::ir::{ExecutionModule, OperationKind, Terminator};
 pub enum VmCapabilityGap {
     /// 多于一个 region（当前 VM 子集仅单 region）。
     MultiRegion,
-    /// 二元迭代器折叠（`Sum` / `Product` body+iterator）需 Reference 展开。
-    IteratorFold,
     /// 操作 / terminator 不在当前 VM 编码闭集。
     UnsupportedShape,
     /// 结构上无法编码（经无 emit 的 `validate_vm_codegen_subset`）。
@@ -62,10 +60,7 @@ fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>)
         for block in &region.blocks {
             for op in &block.operations {
                 match &op.kind {
-                    OperationKind::ApplySemanticOperator { operator, args } => match *operator {
-                        SemanticOperator::Sum | SemanticOperator::Product if args.len() == 2 => {
-                            note(gaps, VmCapabilityGap::IteratorFold);
-                        }
+                    OperationKind::ApplySemanticOperator { operator, .. } => match *operator {
                         SemanticOperator::Map
                         | SemanticOperator::Apply
                         | SemanticOperator::ApplyHead

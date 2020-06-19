@@ -4,7 +4,7 @@ use athena_engine::{
     Session,
     api::request::AthenaRequest,
     execution::{
-        backend::{BackendKind, VmCapabilityGap, analyze_vm_capability, select_execution_backend},
+        backend::{BackendKind, analyze_vm_capability, select_execution_backend},
         compiler::ExecutionCompiler,
     },
 };
@@ -30,7 +30,7 @@ fn and_of_integers_selects_athena_vm_after_host_truthiness() {
 }
 
 #[test]
-fn sum_over_iterator_reports_iterator_fold_gap() {
+fn sum_over_iterator_selects_athena_vm_after_host_fold() {
     let mut session = Session::new();
     let k = session.builder().symbol("k", Default::default());
     let one = session.builder().int(1, Default::default());
@@ -53,9 +53,9 @@ fn sum_over_iterator_reports_iterator_fold_gap() {
         .compile(&mut session, &AthenaRequest::Term(term))
         .expect("compile");
     let report = analyze_vm_capability(&module);
-    assert!(!report.supports_athena_vm);
-    assert!(report.gaps.contains(&VmCapabilityGap::IteratorFold));
-    assert_eq!(select_execution_backend(&module, false), BackendKind::Reference);
+    assert!(report.supports_athena_vm, "gaps={:?}", report.gaps);
+    assert_eq!(select_execution_backend(&module, false), BackendKind::AthenaVm);
+    athena_engine::execution::vm_codegen::validate_vm_codegen_subset(&module).expect("validate");
 }
 
 #[test]
