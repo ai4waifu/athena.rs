@@ -685,3 +685,34 @@ fn execute_ir_request_control_index_uses_vm_path() {
         other => panic!("expected Index[..., 2] == 20, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_map_sin_list_uses_vm_host() {
+    let mut session = Session::new();
+    let sin = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::from_unary(athena_ir::UnaryFunction::Sin)),
+        vec![],
+        Default::default(),
+    );
+    let zero = session.builder().int(0, Default::default());
+    let list = session.builder().list(vec![zero], Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Map),
+        vec![sin, list],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("map");
+    let loaded = session.results.get(result_id).expect("result");
+    assert_eq!(
+        loaded.provenance.as_ref().map(|p| p.request_kind),
+        Some("ExecutionIR/athena-vm")
+    );
+    let out = loaded.symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 1 => match session.arena.get(elements[0]) {
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0) => {}
+            other => panic!("expected Sin[0]->0, got {other:?}"),
+        },
+        other => panic!("expected mapped list, got {other:?}"),
+    }
+}

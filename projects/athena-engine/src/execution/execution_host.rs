@@ -324,6 +324,16 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `Function[…]` — 构造残差（不求值），供 `Map` 等引用。
+    fn apply_function_form(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = push_semantic(self.session, SemanticOperator::Function, terms);
+        Ok(HostOutcome::Residual(SlotValue::Term(term)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -559,6 +569,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::ApplyHead.discriminant() {
             return self.apply_apply_head(args);
+        }
+        if op.0 == SemanticOperator::Function.discriminant() {
+            return self.apply_function_form(args);
         }
         Ok(Self::unsupported(op))
     }
