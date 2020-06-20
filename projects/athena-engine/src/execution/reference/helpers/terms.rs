@@ -282,11 +282,8 @@ pub(crate) fn evaluate_collect_matches_terms(session: &mut Session, list: TermId
     Ok(push_list(session, out))
 }
 
-/// `ReplaceAll[expr, rules]` — 字面替换后再走 `execute_ir_request` 求值。
+/// `ReplaceAll[expr, rules]` — 字面替换后再走 `re_eval_term`。
 pub(crate) fn evaluate_replace_all_terms(session: &mut Session, expr: TermId, rules_term: TermId) -> Result<TermId> {
-    use crate::api::request::AthenaRequest;
-    use crate::execution::execute_ir_request;
-
     let rules = collect_rule_pairs(session, rules_term);
     if rules.is_empty() {
         return Ok(push_semantic(session, SemanticOperator::ReplaceAll, vec![expr, rules_term]));
@@ -295,10 +292,16 @@ pub(crate) fn evaluate_replace_all_terms(session: &mut Session, expr: TermId, ru
     for (lhs, rhs) in rules {
         cur = crate::execution::builtins::patterns::replace_literal(session, cur, lhs, rhs);
     }
-    match execute_ir_request(session, AthenaRequest::Term(cur)) {
-        Ok(result_id) => Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(cur)),
-        Err(_) => Ok(cur),
+    re_eval_term(session, cur)
+}
+
+/// `Simplify[expr]` — 再求值后尝试勾股恒等。
+pub(crate) fn evaluate_simplify_terms(session: &mut Session, expr: TermId) -> Result<TermId> {
+    let evaluated = re_eval_term(session, expr)?;
+    if let Some(one) = try_pythagorean_session(session, evaluated) {
+        return Ok(one);
     }
+    Ok(evaluated)
 }
 
 pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {

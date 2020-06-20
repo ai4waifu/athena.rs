@@ -126,8 +126,13 @@ fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
         | SemanticOperator::ApplyHead
         | SemanticOperator::Sum
         | SemanticOperator::Product
-        | SemanticOperator::Function => true,
-        // 规则重写等未进 host。
+        | SemanticOperator::Function
+        | SemanticOperator::Rule
+        | SemanticOperator::RuleDeferred
+        | SemanticOperator::ReplaceAll
+        | SemanticOperator::Matches
+        | SemanticOperator::CollectMatches
+        | SemanticOperator::Simplify => true,
         _ => false,
     }
 }

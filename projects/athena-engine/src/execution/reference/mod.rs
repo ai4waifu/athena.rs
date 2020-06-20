@@ -14,7 +14,8 @@ pub(crate) use self::helpers::{
     evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
     evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, evaluate_sum_iterator_terms,
-    evaluate_product_iterator_terms, evaluate_product_terms, slot_as_boolean_like,
+    evaluate_product_iterator_terms, evaluate_product_terms, evaluate_rule_terms, evaluate_replace_all_terms,
+    evaluate_matches_terms, evaluate_collect_matches_terms, evaluate_simplify_terms, slot_as_boolean_like,
 };
 
 use self::helpers::*;
@@ -287,13 +288,7 @@ impl ReferenceExecutor {
                     return Ok(slot);
                 }
                 match op {
-                    // 二元 iterator `Sum` / `Product` 等仍本地；逻辑 / 相等 / 算术等已走 host。
-                    // 规则重写仍本地；`Sum`/`Product`/`Map`/`Apply` 等已走 host。
-                    SemanticOperator::Rule | SemanticOperator::RuleDeferred => self.eval_rule(session, op, args, slots),
-                    SemanticOperator::ReplaceAll => self.eval_replace_all(session, args, slots),
-                    SemanticOperator::CollectMatches => self.eval_collect_matches(session, args, slots),
-                    SemanticOperator::Matches => self.eval_matches(session, args, slots),
-                    SemanticOperator::Simplify => self.eval_simplify(session, args, slots),
+                    // 可委托算子已走 host；仅未知扩展形态落本地残差。
                     _ => self.eval_residual_semantic(session, op, args, slots),
                 }
             }

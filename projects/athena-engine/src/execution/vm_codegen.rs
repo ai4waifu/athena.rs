@@ -6,7 +6,8 @@
 //!
 //! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
 //! （Boolean + 标量算术 / 比较 / 一元 / `Join` / `Range` / `Size` / `Sum` / `Product` / `Determinant` /
-//! `Zeros` / `Ones` / `Eye` / 逐元算术 / `Map` / `Apply` / `ApplyHead` / `Function`）· `ReadBinding` / `WriteBinding` ·
+//! `Zeros` / `Ones` / `Eye` / 逐元算术 / `Map` / `Apply` / `ApplyHead` / `Function` /
+//! `Rule` / `ReplaceAll` / `Matches` / `CollectMatches` / `Simplify`）· `ReadBinding` / `WriteBinding` ·
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
@@ -43,7 +44,8 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
             | Less | Greater | LessEqual | GreaterEqual | Abs | Factorial | Sqrt | Length | First | Rest
             | Join | Range | Size | Sum | Product | Determinant | Zeros | Ones | Eye
             | ElementwiseMultiply | ElementwiseDivide | ElementwisePower
-            | Map | Apply | ApplyHead | Function
+            | Map | Apply | ApplyHead | Function | Rule | RuleDeferred | ReplaceAll | Matches | CollectMatches
+            | Simplify
     )
 }
 

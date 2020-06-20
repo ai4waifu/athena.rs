@@ -23,8 +23,9 @@ use crate::{
             evaluate_apply_head_terms, evaluate_apply_terms, evaluate_compare_terms, evaluate_determinant_term,
             evaluate_elementwise_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
             evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms,
-            evaluate_range_terms, evaluate_size_terms, evaluate_sum_iterator_terms, evaluate_sum_terms,
-            evaluate_unary_term, slot_as_boolean_like,
+            evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms, evaluate_size_terms,
+            evaluate_simplify_terms, evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term,
+            evaluate_collect_matches_terms, evaluate_matches_terms, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -334,6 +335,55 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Residual(SlotValue::Term(term)))
     }
 
+    fn apply_rule(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+        }
+        let lhs = self.slot_as_term(args[0])?;
+        let rhs = self.slot_as_term(args[1])?;
+        let term = evaluate_rule_terms(self.session, op, lhs, rhs)?;
+        Ok(HostOutcome::Residual(SlotValue::Term(term)))
+    }
+
+    fn apply_replace_all(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ReplaceAll.discriminant())));
+        }
+        let expr = self.slot_as_term(args[0])?;
+        let rules = self.slot_as_term(args[1])?;
+        let term = evaluate_replace_all_terms(self.session, expr, rules)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_matches(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Matches.discriminant())));
+        }
+        let expr = self.slot_as_term(args[0])?;
+        let pat = self.slot_as_term(args[1])?;
+        let matched = evaluate_matches_terms(self.session, expr, pat)?;
+        Ok(HostOutcome::Value(SlotValue::Boolean(matched)))
+    }
+
+    fn apply_collect_matches(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::CollectMatches.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let pat = self.slot_as_term(args[1])?;
+        let term = evaluate_collect_matches_terms(self.session, list, pat)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_simplify(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Simplify.discriminant())));
+        }
+        let expr = self.slot_as_term(args[0])?;
+        let term = evaluate_simplify_terms(self.session, expr)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -572,6 +622,24 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Function.discriminant() {
             return self.apply_function_form(args);
+        }
+        if op.0 == SemanticOperator::Rule.discriminant() {
+            return self.apply_rule(SemanticOperator::Rule, args);
+        }
+        if op.0 == SemanticOperator::RuleDeferred.discriminant() {
+            return self.apply_rule(SemanticOperator::RuleDeferred, args);
+        }
+        if op.0 == SemanticOperator::ReplaceAll.discriminant() {
+            return self.apply_replace_all(args);
+        }
+        if op.0 == SemanticOperator::Matches.discriminant() {
+            return self.apply_matches(args);
+        }
+        if op.0 == SemanticOperator::CollectMatches.discriminant() {
+            return self.apply_collect_matches(args);
+        }
+        if op.0 == SemanticOperator::Simplify.discriminant() {
+            return self.apply_simplify(args);
         }
         Ok(Self::unsupported(op))
     }

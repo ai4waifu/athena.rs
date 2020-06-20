@@ -60,18 +60,11 @@ fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>)
         for block in &region.blocks {
             for op in &block.operations {
                 match &op.kind {
-                    OperationKind::ApplySemanticOperator { operator, .. } => match *operator {
-                        SemanticOperator::CollectMatches
-                        | SemanticOperator::Matches
-                        | SemanticOperator::ReplaceAll
-                        | SemanticOperator::Rule
-                        | SemanticOperator::RuleDeferred
-                        | SemanticOperator::Simplify
-                        | SemanticOperator::Hold => {
+                    OperationKind::ApplySemanticOperator { operator, .. } => {
+                        if matches!(*operator, SemanticOperator::Hold) {
                             note(gaps, VmCapabilityGap::UnsupportedShape);
                         }
-                        _ => {}
-                    },
+                    }
                     OperationKind::ApplyExtensionOperator { .. }
                     | OperationKind::RegisterRuleDispatch { .. }
                     | OperationKind::RegisterCompiledRule { .. }
