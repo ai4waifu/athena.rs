@@ -5,7 +5,7 @@
 
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind};
 
-use crate::host::{IndexAxesId, ProviderOpId, SemanticOpId};
+use crate::host::{ExtensionOpId, IndexAxesId, ProviderOpId, SemanticOpId};
 
 /// 槽下标（绝对槽下标，由指令约定）。
 pub type SlotIndex = u32;
@@ -136,6 +136,39 @@ pub enum Instruction {
         target: SlotIndex,
         /// 轴规格表 ID（host 侧 `IndexSpec` 序列）。
         axes: IndexAxesId,
+    },
+    /// 经 [`crate::host::VmHost::apply_extension`] 应用扩展算子。
+    ApplyExtension {
+        /// 结果槽。
+        dst: SlotIndex,
+        /// opaque 扩展算子。
+        op: ExtensionOpId,
+        /// 有效实参个数（≤ [`MAX_HOST_ARGS`]）。
+        argc: u8,
+        /// 实参槽（仅前 `argc` 个有效）。
+        args: [SlotIndex; MAX_HOST_ARGS],
+    },
+    /// 经 [`crate::host::VmHost::register_rule_dispatch`] 注册分派规则。
+    RegisterRuleDispatch {
+        /// 结果槽（通常 Unit）。
+        dst: SlotIndex,
+        /// 头符号槽。
+        head: SlotIndex,
+        /// 扩展算子。
+        operator: ExtensionOpId,
+        /// pattern 项槽。
+        pattern: SlotIndex,
+        /// replacement 项槽。
+        replacement: SlotIndex,
+    },
+    /// 经 [`crate::host::VmHost::register_compiled_rule`] 挂接已编译规则。
+    RegisterCompiledRule {
+        /// 结果槽（通常 Unit）。
+        dst: SlotIndex,
+        /// 分派表 ID。
+        table: u32,
+        /// 已编译规则 ID。
+        rule: u32,
     },
 }
 

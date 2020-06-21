@@ -17,6 +17,10 @@ pub struct SemanticOpId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProviderOpId(pub u32);
 
+/// 扩展算子 ID（与 `athena_types::ExtensionOperatorId` 对齐的宿主约定）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExtensionOpId(pub u32);
+
 /// 索引轴表 ID（lower 时登记的 `IndexSpec` 序列，由 host 持有）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IndexAxesId(pub u32);
@@ -131,6 +135,42 @@ pub trait VmHost {
             Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
                 .detail("component", "VmHost")
                 .detail("reason", "apply_index_unimplemented"),
+        ))
+    }
+
+    /// 应用扩展算子（down-value 或残差）。
+    fn apply_extension(&mut self, op: ExtensionOpId, args: &[SlotValue]) -> Result<HostOutcome> {
+        let _ = (op, args);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "apply_extension_unimplemented"),
+        ))
+    }
+
+    /// 注册 pattern → replacement 分派规则。
+    fn register_rule_dispatch(
+        &mut self,
+        head: SlotValue,
+        operator: ExtensionOpId,
+        pattern: SlotValue,
+        replacement: SlotValue,
+    ) -> Result<HostOutcome> {
+        let _ = (head, operator, pattern, replacement);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "register_rule_dispatch_unimplemented"),
+        ))
+    }
+
+    /// 挂接 Session 已编译规则。
+    fn register_compiled_rule(&mut self, table: u32, rule: u32) -> Result<HostOutcome> {
+        let _ = (table, rule);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "register_compiled_rule_unimplemented"),
         ))
     }
 }

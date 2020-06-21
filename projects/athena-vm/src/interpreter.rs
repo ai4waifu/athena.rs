@@ -41,12 +41,19 @@ pub struct Interpreter {
     frames: FrameStack,
     /// 最近一次 [`Instruction::ReturnValue`] 的结果槽。
     last_return_slot: Option<u32>,
+    /// 本轮是否见到 [`HostOutcome::Residual`]（覆盖映射用）。
+    host_residual: bool,
 }
 
 impl Interpreter {
     /// 构造解释器。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 本轮执行是否出现过 host Residual。
+    pub fn saw_host_residual(&self) -> bool {
+        self.host_residual
     }
 
     /// 当前槽表（测试 / bridge）。
@@ -72,6 +79,7 @@ impl Interpreter {
         self.frames = FrameStack::new();
         self.frames.push(Frame::new(0, module.locals));
         self.last_return_slot = None;
+        self.host_residual = false;
     }
 
     fn check_budget_and_cancel(&self, steps: u64, config: &VmConfig) -> Option<VmExit> {
@@ -142,7 +150,12 @@ impl Interpreter {
 
     fn apply_host_outcome(&mut self, dst: u32, outcome: HostOutcome) -> Option<VmExit> {
         match outcome {
-            HostOutcome::Value(value) | HostOutcome::Residual(value) => {
+            HostOutcome::Value(value) => {
+                self.slots.set(dst, value);
+                None
+            }
+            HostOutcome::Residual(value) => {
+                self.host_residual = true;
                 self.slots.set(dst, value);
                 None
             }
@@ -352,6 +365,49 @@ impl VmExecutor for Interpreter {
                         None => return Ok(Self::diagnostic("index_target_undefined")),
                     };
                     let outcome = host.apply_index(axes, target_value)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
+                Instruction::ApplyExtension { dst, op, argc, args } => {
+                    let values = match self.collect_args(argc, &args) {
+                        Ok(v) => v,
+                        Err(exit) => return Ok(exit),
+                    };
+                    let outcome = host.apply_extension(op, &values[..argc as usize])?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
+                Instruction::RegisterRuleDispatch {
+                    dst,
+                    head,
+                    operator,
+                    pattern,
+                    replacement,
+                } => {
+                    let head_value = match self.slots.get(head) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("register_rule_head_undefined")),
+                    };
+                    let pattern_value = match self.slots.get(pattern) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("register_rule_pattern_undefined")),
+                    };
+                    let replacement_value = match self.slots.get(replacement) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("register_rule_replacement_undefined")),
+                    };
+                    let outcome = host.register_rule_dispatch(head_value, operator, pattern_value, replacement_value)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
+                Instruction::RegisterCompiledRule { dst, table, rule } => {
+                    let outcome = host.register_compiled_rule(table, rule)?;
                     if let Some(exit) = self.apply_host_outcome(dst, outcome) {
                         return Ok(exit);
                     }

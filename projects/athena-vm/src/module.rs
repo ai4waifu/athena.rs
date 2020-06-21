@@ -196,6 +196,57 @@ impl ModuleFingerprint {
                         mix(&mut hash, b);
                     }
                 }
+                Instruction::ApplyExtension { dst, op, argc, args } => {
+                    mix(&mut hash, 27);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in op.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    mix(&mut hash, *argc);
+                    for i in 0..(*argc as usize).min(crate::instruction::MAX_HOST_ARGS) {
+                        for b in args[i].to_le_bytes() {
+                            mix(&mut hash, b);
+                        }
+                    }
+                }
+                Instruction::RegisterRuleDispatch {
+                    dst,
+                    head,
+                    operator,
+                    pattern,
+                    replacement,
+                } => {
+                    mix(&mut hash, 28);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in head.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in operator.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in pattern.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in replacement.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
+                Instruction::RegisterCompiledRule { dst, table, rule } => {
+                    mix(&mut hash, 29);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in table.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in rule.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
             }
         }
         Self(hash)
