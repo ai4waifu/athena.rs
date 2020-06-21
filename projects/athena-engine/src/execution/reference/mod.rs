@@ -15,7 +15,8 @@ pub(crate) use self::helpers::{
     evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
     evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, evaluate_sum_iterator_terms,
     evaluate_product_iterator_terms, evaluate_product_terms, evaluate_rule_terms, evaluate_replace_all_terms,
-    evaluate_matches_terms, evaluate_collect_matches_terms, evaluate_simplify_terms, slot_as_boolean_like,
+    evaluate_matches_terms, evaluate_collect_matches_terms, evaluate_simplify_terms,
+    evaluate_special_unary_terms, slot_as_boolean_like,
 };
 
 use self::helpers::*;

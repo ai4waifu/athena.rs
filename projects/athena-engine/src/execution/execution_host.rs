@@ -24,8 +24,8 @@ use crate::{
             evaluate_elementwise_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
             evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms,
             evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms, evaluate_size_terms,
-            evaluate_simplify_terms, evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term,
-            evaluate_collect_matches_terms, evaluate_matches_terms, slot_as_boolean_like,
+            evaluate_simplify_terms, evaluate_special_unary_terms, evaluate_sum_iterator_terms, evaluate_sum_terms,
+            evaluate_unary_term, evaluate_collect_matches_terms, evaluate_matches_terms, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -384,6 +384,15 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_special_unary(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_special_unary_terms(self.session, op, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
     fn apply_equality(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -640,6 +649,11 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Simplify.discriminant() {
             return self.apply_simplify(args);
+        }
+        if (100..=116).contains(&op.0) {
+            if let Some(uf) = athena_ir::UnaryFunction::from_discriminant(op.0 - 100) {
+                return self.apply_special_unary(SemanticOperator::Unary(uf), args);
+            }
         }
         Ok(Self::unsupported(op))
     }

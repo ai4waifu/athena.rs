@@ -27,6 +27,37 @@ pub(crate) fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId
     }
 }
 
+/// `Unary(f)[arg]` — 精确三角折叠 / machine 实数折叠，否则残差。
+pub(crate) fn evaluate_special_unary_terms(
+    session: &mut Session,
+    op: SemanticOperator,
+    terms: Vec<TermId>,
+) -> Result<TermId> {
+    if let Some(uf) = op.as_unary() {
+        if terms.len() == 1 {
+            let arg = terms[0];
+            if let Some(exact) = eval_trig_exact_session(session, uf, arg) {
+                return Ok(exact);
+            }
+            // 仅当参数已是 machine 实数时折叠。禁止把精确 `Sin[1]` 经 `f64` 自动 `N`。
+            if let Some(x) = number_of(session, arg).and_then(|n| n.as_machine_f64()) {
+                let y = match uf {
+                    UnaryFunction::Sin => x.sin(),
+                    UnaryFunction::Cos => x.cos(),
+                    UnaryFunction::Tan => x.tan(),
+                    UnaryFunction::Exp => x.exp(),
+                    UnaryFunction::Log => x.ln(),
+                    _ => f64::NAN,
+                };
+                if y.is_finite() {
+                    return Ok(push_number(session, Number::machine(y)));
+                }
+            }
+        }
+    }
+    Ok(push_semantic(session, op, terms))
+}
+
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
     matches!(head, ApplicationHead::Semantic(o) if o == op)
 }

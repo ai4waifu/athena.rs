@@ -6,8 +6,6 @@
 //! 先拦截已知语义缺口，再调用
 //! [`crate::execution::vm_codegen::validate_vm_codegen_subset`] 做无 emit 的结构闭集校验。
 
-use athena_ir::SemanticOperator;
-
 use crate::execution::ir::{ExecutionModule, OperationKind, Terminator};
 
 /// 一条阻止选择 `AthenaVm` 的能力缺口。
@@ -60,11 +58,7 @@ fn scan_semantic_gaps(module: &ExecutionModule, gaps: &mut Vec<VmCapabilityGap>)
         for block in &region.blocks {
             for op in &block.operations {
                 match &op.kind {
-                    OperationKind::ApplySemanticOperator { operator, .. } => {
-                        if matches!(*operator, SemanticOperator::Hold) {
-                            note(gaps, VmCapabilityGap::UnsupportedShape);
-                        }
-                    }
+                    OperationKind::ApplySemanticOperator { .. } => {}
                     OperationKind::ApplyExtensionOperator { .. }
                     | OperationKind::RegisterRuleDispatch { .. }
                     | OperationKind::RegisterCompiledRule { .. }

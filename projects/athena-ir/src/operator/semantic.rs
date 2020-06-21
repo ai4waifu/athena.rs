@@ -86,6 +86,29 @@ impl UnaryFunction {
             Self::Erf => "Erf",
         }
     }
+
+    /// 由 discriminant 片段还原（与 [`Self::discriminant`] 对偶）。
+    pub const fn from_discriminant(d: u32) -> Option<Self> {
+        match d {
+            1 => Some(Self::Exp),
+            2 => Some(Self::Log),
+            3 => Some(Self::Sin),
+            4 => Some(Self::Cos),
+            5 => Some(Self::Tan),
+            6 => Some(Self::Sinh),
+            7 => Some(Self::Cosh),
+            8 => Some(Self::Tanh),
+            9 => Some(Self::ArcSin),
+            10 => Some(Self::ArcCos),
+            11 => Some(Self::ArcTan),
+            12 => Some(Self::Sqrt),
+            13 => Some(Self::Abs),
+            14 => Some(Self::Sign),
+            15 => Some(Self::Gamma),
+            16 => Some(Self::Erf),
+            _ => None,
+        }
+    }
 }
 
 /// 封闭 Athena 核心语义算子标识（指纹稳定）。

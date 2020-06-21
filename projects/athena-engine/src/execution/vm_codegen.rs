@@ -45,7 +45,7 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
             | Join | Range | Size | Sum | Product | Determinant | Zeros | Ones | Eye
             | ElementwiseMultiply | ElementwiseDivide | ElementwisePower
             | Map | Apply | ApplyHead | Function | Rule | RuleDeferred | ReplaceAll | Matches | CollectMatches
-            | Simplify
+            | Simplify | Unary(_)
     )
 }
 

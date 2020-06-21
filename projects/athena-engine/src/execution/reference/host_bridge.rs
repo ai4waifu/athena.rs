@@ -87,6 +87,7 @@ pub(crate) fn delegate_call_provider(
 
 /// 是否可安全委托给 [`ExecutionHost::apply_semantic`]。
 fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
+    let _ = args;
     match op {
         SemanticOperator::Not
         | SemanticOperator::TrueQ
@@ -132,7 +133,8 @@ fn is_host_delegable(op: SemanticOperator, args: &[SlotValue]) -> bool {
         | SemanticOperator::ReplaceAll
         | SemanticOperator::Matches
         | SemanticOperator::CollectMatches
-        | SemanticOperator::Simplify => true,
+        | SemanticOperator::Simplify
+        | SemanticOperator::Unary(_) => true,
         _ => false,
     }
 }
