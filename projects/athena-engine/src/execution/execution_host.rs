@@ -102,9 +102,32 @@ impl<'a> ExecutionHost<'a> {
         HostOutcome::Diagnostic(
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ExecutionHost")
-                .detail("reason", "apply_semantic_deferred_to_reference")
+                .detail("reason", "apply_semantic_unsupported")
                 .detail("op", op.0),
         )
+    }
+
+    fn unknown_op(op: SemanticOpId) -> HostOutcome {
+        HostOutcome::Diagnostic(
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionHost")
+                .detail("reason", "apply_semantic_unknown_op")
+                .detail("op", op.0),
+        )
+    }
+
+    /// 未知 / 未展开语义 → 残差应用（不回退 Reference）。
+    fn apply_residual_echo(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        if op.as_unary().is_some() {
+            let term = evaluate_special_unary_terms(self.session, op, terms)?;
+            return Ok(HostOutcome::Value(SlotValue::Term(term)));
+        }
+        let term = push_semantic(self.session, op, terms);
+        Ok(HostOutcome::Residual(SlotValue::Term(term)))
     }
 
     fn slot_as_term(&mut self, slot: SlotValue) -> Result<TermId> {
@@ -674,7 +697,10 @@ impl VmHost for ExecutionHost<'_> {
                 return self.apply_special_unary(SemanticOperator::Unary(uf), args);
             }
         }
-        Ok(Self::unsupported(op))
+        if let Some(sem) = SemanticOperator::from_discriminant(op.0) {
+            return self.apply_residual_echo(sem, args);
+        }
+        Ok(Self::unknown_op(op))
     }
 
     fn call_provider(&mut self, op: ProviderOpId, args: &[SlotValue]) -> Result<HostOutcome> {

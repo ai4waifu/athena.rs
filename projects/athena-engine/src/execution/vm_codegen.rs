@@ -4,10 +4,8 @@
 //! 超出子集则返回诊断。后端由 [`crate::execution::backend::select_execution_backend`]
 //! **事先**显式选择，禁止执行失败后再静默回退 Reference。
 //!
-//! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
-//! （Boolean + 标量算术 / 比较 / 一元 / `Join` / `Range` / `Size` / `Sum` / `Product` / `Determinant` /
-//! `Zeros` / `Ones` / `Eye` / 逐元算术 / `Map` / `Apply` / `ApplyHead` / `Function` /
-//! `Rule` / `ReplaceAll` / `Matches` / `CollectMatches` / `Simplify`）· `ApplyExtension` ·
+//! 支持：单 region · `LoadTerm` / `Constant` / 任意封闭 `ApplySemanticOperator`
+//! （求值或残差由 `ExecutionHost` 决定）· `ApplyExtension` ·
 //! `RegisterRuleDispatch` / `RegisterCompiledRule` · `ReadBinding` / `WriteBinding` ·
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
@@ -38,16 +36,9 @@ pub struct VmCodegenArtifact {
 }
 
 fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
-    use athena_ir::SemanticOperator::*;
-    matches!(
-        op,
-        Not | And | Or | TrueQ | Equal | Unequal | Identical | Add | Multiply | Subtract | Negate | Divide | Power
-            | Less | Greater | LessEqual | GreaterEqual | Abs | Factorial | Sqrt | Length | First | Rest
-            | Join | Range | Size | Sum | Product | Determinant | Zeros | Ones | Eye
-            | ElementwiseMultiply | ElementwiseDivide | ElementwisePower
-            | Map | Apply | ApplyHead | Function | Rule | RuleDeferred | ReplaceAll | Matches | CollectMatches
-            | Simplify | Unary(_)
-    )
+    // 封闭 `SemanticOperator` 均可编码为 `ApplySemantic`；未展开语义由 host 残差回显。
+    let _ = op;
+    true
 }
 
 fn diag(reason: &'static str) -> Diagnostic {

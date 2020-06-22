@@ -7,7 +7,6 @@
 
 mod helpers;
 mod host_bridge;
-mod ops;
 
 pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
@@ -22,12 +21,11 @@ pub(crate) use self::helpers::{
 use self::helpers::*;
 use self::host_bridge::{
     delegate_call_provider, host_outcome_to_slot, host_outcome_to_slot_capturing_invalid, host_with_shared_frames,
-    host_with_shared_frames_and_axes, try_delegate_semantic_to_host,
+    host_with_shared_frames_and_axes,
 };
 
 use std::collections::HashMap;
 
-use athena_ir::SemanticOperator;
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId};
 use athena_vm::{ExecutionLease, SlotTable, VmConfig, VmHost};
 
@@ -280,17 +278,22 @@ impl ReferenceExecutor {
                 })
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
-                let op = *operator;
                 let arg_slots: Vec<Slot> = args
                     .iter()
                     .map(|id| slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined")))
                     .collect::<Result<Vec<_>>>()?;
-                if let Some(slot) = try_delegate_semantic_to_host(session, op, &arg_slots, invalid)? {
-                    return Ok(slot);
-                }
-                match op {
-                    // 可委托算子已走 host；仅未知扩展形态落本地残差。
-                    _ => self.eval_residual_semantic(session, op, args, slots),
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                match host.apply_semantic(athena_vm::SemanticOpId(operator.discriminant()), &arg_slots)? {
+                    athena_vm::HostOutcome::Value(value) => Ok(value),
+                    athena_vm::HostOutcome::Residual(value) => {
+                        *unevaluated = true;
+                        Ok(value)
+                    }
+                    athena_vm::HostOutcome::SoftInvalid { value, diagnostic } => {
+                        *invalid = Some(diagnostic);
+                        Ok(value)
+                    }
+                    athena_vm::HostOutcome::Diagnostic(diagnostic) => Err(diagnostic),
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
