@@ -16,7 +16,7 @@ pub(crate) use self::helpers::{
     evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, evaluate_sum_iterator_terms,
     evaluate_product_iterator_terms, evaluate_product_terms, evaluate_rule_terms, evaluate_replace_all_terms,
     evaluate_matches_terms, evaluate_collect_matches_terms, evaluate_simplify_terms,
-    evaluate_special_unary_terms, slot_as_boolean_like,
+    evaluate_special_unary_terms, evaluate_extension_apply_terms, slot_as_boolean_like,
 };
 
 use self::helpers::*;
@@ -294,13 +294,23 @@ impl ReferenceExecutor {
                 }
             }
             OperationKind::ApplyExtensionOperator { operator, args } => {
-                // 残差重建仅使用 `ExtensionOperatorId`。
-                let op = *operator;
-                if let Some(slot) = self.try_apply_down_values(session, op, args, slots)? {
-                    return Ok(slot);
+                let arg_slots: Vec<Slot> = args
+                    .iter()
+                    .map(|id| slots.get(id.0).ok_or_else(|| diag("semantic_arg_undefined")))
+                    .collect::<Result<Vec<_>>>()?;
+                let mut host = host_with_shared_frames(session, frames, Vec::new(), None);
+                match host.apply_extension(athena_vm::ExtensionOpId(operator.0), &arg_slots)? {
+                    athena_vm::HostOutcome::Value(value) => Ok(value),
+                    athena_vm::HostOutcome::Residual(value) => {
+                        *unevaluated = true;
+                        Ok(value)
+                    }
+                    athena_vm::HostOutcome::SoftInvalid { value, diagnostic } => {
+                        *invalid = Some(diagnostic);
+                        Ok(value)
+                    }
+                    athena_vm::HostOutcome::Diagnostic(diagnostic) => Err(diagnostic),
                 }
-                *unevaluated = true;
-                self.eval_residual_app(session, op, args, slots)
             }
             OperationKind::ConstructCollection { kind, elements } => {
                 let element_slots: Vec<Slot> = elements

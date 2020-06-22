@@ -9,7 +9,7 @@ use athena_types::{
     BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId,
     TermId,
 };
-use athena_vm::{HostOutcome, IndexAxesId, ProviderOpId, SemanticOpId, SlotValue, VmHost};
+use athena_vm::{ExtensionOpId, HostOutcome, IndexAxesId, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
@@ -21,11 +21,12 @@ use crate::{
         reference::{
             CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
             evaluate_apply_head_terms, evaluate_apply_terms, evaluate_compare_terms, evaluate_determinant_term,
-            evaluate_elementwise_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
-            evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms,
-            evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms, evaluate_size_terms,
-            evaluate_simplify_terms, evaluate_special_unary_terms, evaluate_sum_iterator_terms, evaluate_sum_terms,
-            evaluate_unary_term, evaluate_collect_matches_terms, evaluate_matches_terms, slot_as_boolean_like,
+            evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms,
+            evaluate_map_terms, evaluate_matrix_constructor_terms, evaluate_product_iterator_terms,
+            evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms,
+            evaluate_size_terms, evaluate_simplify_terms, evaluate_special_unary_terms, evaluate_sum_iterator_terms,
+            evaluate_sum_terms, evaluate_unary_term, evaluate_collect_matches_terms, evaluate_matches_terms,
+            slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -507,6 +508,24 @@ impl<'a> ExecutionHost<'a> {
         self.session.defs.append_rule(table, pattern, replacement);
         Ok(HostOutcome::Value(SlotValue::Unit))
     }
+
+    /// 扩展算子：down-value 命中 → Value；否则 Residual。
+    pub fn apply_extension_operator(
+        &mut self,
+        op: athena_types::ExtensionOperatorId,
+        args: &[SlotValue],
+    ) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let (term, residual) = evaluate_extension_apply_terms(self.session, op, terms)?;
+        if residual {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        } else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+    }
 }
 
 impl VmHost for ExecutionHost<'_> {
@@ -840,5 +859,33 @@ impl VmHost for ExecutionHost<'_> {
                 diagnostic,
             },
         })
+    }
+
+    fn apply_extension(&mut self, op: ExtensionOpId, args: &[SlotValue]) -> Result<HostOutcome> {
+        self.apply_extension_operator(athena_types::ExtensionOperatorId(op.0), args)
+    }
+
+    fn register_rule_dispatch(
+        &mut self,
+        head: SlotValue,
+        operator: ExtensionOpId,
+        pattern: SlotValue,
+        replacement: SlotValue,
+    ) -> Result<HostOutcome> {
+        ExecutionHost::register_rule_dispatch(
+            self,
+            head,
+            athena_types::ExtensionOperatorId(operator.0),
+            pattern,
+            replacement,
+        )
+    }
+
+    fn register_compiled_rule(&mut self, table: u32, rule: u32) -> Result<HostOutcome> {
+        ExecutionHost::register_compiled_rule(
+            self,
+            athena_types::DispatchTableId(table),
+            athena_types::CompiledRuleId(rule),
+        )
     }
 }

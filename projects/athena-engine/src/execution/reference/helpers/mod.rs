@@ -3,6 +3,7 @@
 mod apply;
 mod arithmetic;
 mod compare;
+mod extension;
 mod index;
 mod iterator;
 mod map;
@@ -15,6 +16,7 @@ use athena_types::{Diagnostic, DiagnosticCode};
 pub(crate) use apply::*;
 pub(crate) use arithmetic::*;
 pub(crate) use compare::*;
+pub(crate) use extension::*;
 pub(crate) use index::*;
 pub(crate) use iterator::*;
 pub(crate) use map::*;

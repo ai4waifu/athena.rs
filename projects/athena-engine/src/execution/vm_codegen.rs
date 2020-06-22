@@ -7,7 +7,8 @@
 //! 支持：单 region · `LoadTerm` / `Constant` / 受支持 `ApplySemanticOperator`
 //! （Boolean + 标量算术 / 比较 / 一元 / `Join` / `Range` / `Size` / `Sum` / `Product` / `Determinant` /
 //! `Zeros` / `Ones` / `Eye` / 逐元算术 / `Map` / `Apply` / `ApplyHead` / `Function` /
-//! `Rule` / `ReplaceAll` / `Matches` / `CollectMatches` / `Simplify`）· `ReadBinding` / `WriteBinding` ·
+//! `Rule` / `ReplaceAll` / `Matches` / `CollectMatches` / `Simplify`）· `ApplyExtension` ·
+//! `RegisterRuleDispatch` / `RegisterCompiledRule` · `ReadBinding` / `WriteBinding` ·
 //! `EnterScope` / `ExitScope` · `Guard`（仅 `GuardFailure::Reject`）· `Return` / `Reject` /
 //! `Branch`（含边实参 → 块参数，经 `Move` 蹦床 + `Jump`；源/目标冲突时经临时槽并行拷贝）。
 //!
@@ -96,13 +97,16 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
         OperationKind::LoadTerm { .. }
         | OperationKind::Constant { .. }
         | OperationKind::ApplySemanticOperator { .. }
+        | OperationKind::ApplyExtensionOperator { .. }
         | OperationKind::ReadBinding { .. }
         | OperationKind::WriteBinding { .. }
         | OperationKind::EnterScope { .. }
         | OperationKind::CallProvider { .. }
         | OperationKind::PublishResult { .. }
         | OperationKind::ConstructCollection { .. }
-        | OperationKind::Index { .. } => {
+        | OperationKind::Index { .. }
+        | OperationKind::RegisterRuleDispatch { .. }
+        | OperationKind::RegisterCompiledRule { .. } => {
             if op.result.is_none() {
                 return Err(diag("lower_rejects_unit_only_op"));
             }
@@ -157,6 +161,12 @@ fn validate_op(module: &ExecutionModule, op: &crate::execution::ir::Operation) -
             }
             Ok(())
         }
+        OperationKind::ApplyExtensionOperator { args, .. } => {
+            if args.len() > MAX_HOST_ARGS {
+                return Err(diag("lower_argc_overflow"));
+            }
+            Ok(())
+        }
         OperationKind::CallProvider { args, .. } => {
             if args.len() > MAX_HOST_ARGS {
                 return Err(diag("lower_argc_overflow"));
@@ -175,7 +185,9 @@ fn validate_op(module: &ExecutionModule, op: &crate::execution::ir::Operation) -
         | OperationKind::EnterScope { .. }
         | OperationKind::ExitScope { .. }
         | OperationKind::PublishResult { .. }
-        | OperationKind::Index { .. } => Ok(()),
+        | OperationKind::Index { .. }
+        | OperationKind::RegisterRuleDispatch { .. }
+        | OperationKind::RegisterCompiledRule { .. } => Ok(()),
         _ => Err(diag("lower_unsupported_operation")),
     }
 }
@@ -293,6 +305,52 @@ fn lower_ops(
                     op: SemanticOpId(operator.discriminant()),
                     argc: args.len() as u8,
                     args: packed,
+                });
+            }
+            OperationKind::ApplyExtensionOperator { operator, args } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                if args.len() > MAX_HOST_ARGS {
+                    return Err(diag("lower_argc_overflow"));
+                }
+                let mut packed = [0u32; MAX_HOST_ARGS];
+                for (i, arg) in args.iter().enumerate() {
+                    bump(max_slot, arg.0);
+                    packed[i] = arg.0;
+                }
+                instructions.push(Instruction::ApplyExtension {
+                    dst: result.0,
+                    op: athena_vm::ExtensionOpId(operator.0),
+                    argc: args.len() as u8,
+                    args: packed,
+                });
+            }
+            OperationKind::RegisterRuleDispatch {
+                head,
+                operator,
+                pattern,
+                replacement,
+            } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, head.0);
+                bump(max_slot, pattern.0);
+                bump(max_slot, replacement.0);
+                instructions.push(Instruction::RegisterRuleDispatch {
+                    dst: result.0,
+                    head: head.0,
+                    operator: athena_vm::ExtensionOpId(operator.0),
+                    pattern: pattern.0,
+                    replacement: replacement.0,
+                });
+            }
+            OperationKind::RegisterCompiledRule { table, rule } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                instructions.push(Instruction::RegisterCompiledRule {
+                    dst: result.0,
+                    table: table.0,
+                    rule: rule.0,
                 });
             }
             OperationKind::ReadBinding { key } => {
