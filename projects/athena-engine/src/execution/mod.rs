@@ -44,62 +44,71 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
     };
     match select_execution_backend(&module, domain.is_some()) {
         BackendKind::AthenaVm => match vm::execute_verified_cfg_on_vm(session, &module, domain) {
-            Ok(SlotValue::Result(result_id)) => Ok(result_id),
-            Ok(SlotValue::Boolean(value)) => {
-                let term = session.builder().boolean(value, Default::default());
-                let value_id = session.insert_symbolic_value(term);
-                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                    .with_value(value_id)
-                    .with_symbolic_term(term)
-                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                Ok(session.insert_result(result))
-            }
-            Ok(SlotValue::Term(term)) => {
-                let term_ref = session.arena.term_ref(term).ok_or_else(|| {
-                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            Ok(outcome) => {
+                let (status, coverage) = if outcome.residual {
+                    (ComputationStatus::Unknown, CoverageStatus::Partial)
+                } else {
+                    (ComputationStatus::Exact, CoverageStatus::Full)
+                };
+                match outcome.value {
+                    SlotValue::Result(result_id) => Ok(result_id),
+                    SlotValue::Boolean(value) => {
+                        let term = session.builder().boolean(value, Default::default());
+                        let value_id = session.insert_symbolic_value(term);
+                        let result = ComputationResult::with_status(status, coverage)
+                            .with_value(value_id)
+                            .with_symbolic_term(term)
+                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                        Ok(session.insert_result(result))
+                    }
+                    SlotValue::Term(term) => {
+                        let term_ref = session.arena.term_ref(term).ok_or_else(|| {
+                            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                .detail("component", "execute_ir_request")
+                                .detail("backend", "athena-vm")
+                                .detail("reason", "vm_term_out_of_range")
+                        })?;
+                        let term = session.arena.check_ref(term_ref)?;
+                        let value_id = session.insert_symbolic_value(term);
+                        let result = ComputationResult::with_status(status, coverage)
+                            .with_value(value_id)
+                            .with_symbolic_term(term)
+                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                        Ok(session.insert_result(result))
+                    }
+                    SlotValue::Symbol(symbol) => {
+                        let term = session.builder().symbol_id(symbol, Default::default());
+                        let value_id = session.insert_symbolic_value(term);
+                        let result = ComputationResult::with_status(status, coverage)
+                            .with_value(value_id)
+                            .with_symbolic_term(term)
+                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                        Ok(session.insert_result(result))
+                    }
+                    SlotValue::Unit => {
+                        let term = session.builder().null(Default::default());
+                        let value_id = session.insert_symbolic_value(term);
+                        let result = ComputationResult::with_status(status, coverage)
+                            .with_value(value_id)
+                            .with_symbolic_term(term)
+                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                        Ok(session.insert_result(result))
+                    }
+                    SlotValue::Scope(_) => {
+                        let term = session.builder().null(Default::default());
+                        let value_id = session.insert_symbolic_value(term);
+                        let result = ComputationResult::with_status(status, coverage)
+                            .with_value(value_id)
+                            .with_symbolic_term(term)
+                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
+                        Ok(session.insert_result(result))
+                    }
+                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                         .detail("component", "execute_ir_request")
                         .detail("backend", "athena-vm")
-                        .detail("reason", "vm_term_out_of_range")
-                })?;
-                let term = session.arena.check_ref(term_ref)?;
-                let value_id = session.insert_symbolic_value(term);
-                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                    .with_value(value_id)
-                    .with_symbolic_term(term)
-                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                Ok(session.insert_result(result))
+                        .detail("reason", "vm_unexpected_slot_kind")),
+                }
             }
-            Ok(SlotValue::Symbol(symbol)) => {
-                let term = session.builder().symbol_id(symbol, Default::default());
-                let value_id = session.insert_symbolic_value(term);
-                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                    .with_value(value_id)
-                    .with_symbolic_term(term)
-                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                Ok(session.insert_result(result))
-            }
-            Ok(SlotValue::Unit) => {
-                let term = session.builder().null(Default::default());
-                let value_id = session.insert_symbolic_value(term);
-                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                    .with_value(value_id)
-                    .with_symbolic_term(term)
-                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                Ok(session.insert_result(result))
-            }
-            Ok(SlotValue::Scope(_)) => {
-                let term = session.builder().null(Default::default());
-                let value_id = session.insert_symbolic_value(term);
-                let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
-                    .with_value(value_id)
-                    .with_symbolic_term(term)
-                    .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                Ok(session.insert_result(result))
-            }
-            Ok(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "execute_ir_request")
-                .detail("backend", "athena-vm")
-                .detail("reason", "vm_unexpected_slot_kind")),
             Err(diagnostic) => Err(diagnostic
                 .detail("component", "execute_ir_request")
                 .detail("backend", "athena-vm")

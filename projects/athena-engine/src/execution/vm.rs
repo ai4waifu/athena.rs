@@ -45,11 +45,21 @@ pub fn pin_module_terms(
 /// 降级并经 [`ExecutionHost`] 在 VM 上执行 verified CFG 子集 module。
 ///
 /// `pending_domain` 供首条 `CallProvider` 消费（与 Reference 路径同合同）。
+/// Verified CFG 在 `athena-vm` 上的执行结果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedVmOutcome {
+    /// 返回槽值。
+    pub value: SlotValue,
+    /// 是否出现过 host Residual（未知 / 未求值覆盖）。
+    pub residual: bool,
+}
+
+/// 在 `athena-vm` 上执行已验证 CFG 子集 module。
 pub fn execute_verified_cfg_on_vm(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
     pending_domain: Option<crate::domains::dispatch::DomainRequest>,
-) -> athena_types::Result<SlotValue> {
+) -> athena_types::Result<VerifiedVmOutcome> {
     let lowered = try_lower_verified_cfg_module(module)?;
     let config = vm_config_from_session(session);
     let mut lease = ExecutionLease::new(session.heap().clone());
@@ -65,15 +75,17 @@ pub fn execute_verified_cfg_on_vm(
         let mut ctx = VmExecutionContext::with_lease(&mut lease);
         interpreter.execute_with_context(&lowered.module, &config, &mut host, &mut ctx)?
     };
+    let residual = interpreter.saw_host_residual();
     drop(lease);
     match exit {
         VmExit::Returned => {
             let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
-            interpreter.slots().get(slot).ok_or_else(|| {
+            let value = interpreter.slots().get(slot).ok_or_else(|| {
                 athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
                     .detail("component", "execute_verified_cfg_on_vm")
                     .detail("reason", "result_slot_empty")
-            })
+            })?;
+            Ok(VerifiedVmOutcome { value, residual })
         }
         VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
             .detail("component", "execute_verified_cfg_on_vm")
