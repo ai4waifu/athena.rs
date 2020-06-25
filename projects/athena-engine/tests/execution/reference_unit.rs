@@ -200,17 +200,17 @@ fn index_module(target: TermId, generation: u32, axes: Vec<athena_types::IndexSp
 }
 
 #[test]
-fn index_oob_marks_invalid_index() {
+fn index_oob_hard_fails_invalid_index() {
     use athena_types::{IndexSpec, IntegerIndex};
     let mut session = Session::new();
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
     let module = index_module(list, session.arena.epoch(), vec![IndexSpec::Scalar(IntegerIndex(9))]);
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.status, ComputationStatus::Invalid);
-    assert_eq!(loaded.diagnostics[0].code, DiagnosticCode::InvalidIndex);
+    let err = ReferenceExecutor::new()
+        .execute(&mut session, &module, None)
+        .expect_err("index oob must hard-fail like VM");
+    assert_eq!(err.code, DiagnosticCode::InvalidIndex);
 }
 
 #[test]

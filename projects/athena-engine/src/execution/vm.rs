@@ -54,14 +54,24 @@ pub struct VerifiedVmOutcome {
     pub residual: bool,
 }
 
-/// 在 `athena-vm` 上执行已验证 CFG 子集 module。
+/// 在 `athena-vm` 上执行已验证 CFG 子集 module（Session 默认预算 / 取消）。
 pub fn execute_verified_cfg_on_vm(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
     pending_domain: Option<crate::domains::dispatch::DomainRequest>,
 ) -> athena_types::Result<VerifiedVmOutcome> {
-    let lowered = try_lower_verified_cfg_module(module)?;
     let config = vm_config_from_session(session);
+    execute_verified_cfg_on_vm_with_config(session, module, pending_domain, &config)
+}
+
+/// 在 `athena-vm` 上执行已验证 CFG 子集 module（显式 [`VmConfig`]）。
+pub fn execute_verified_cfg_on_vm_with_config(
+    session: &mut Session,
+    module: &crate::execution::ir::ExecutionModule,
+    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
+    config: &VmConfig,
+) -> athena_types::Result<VerifiedVmOutcome> {
+    let lowered = try_lower_verified_cfg_module(module)?;
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, module)?;
     let mut interpreter = Interpreter::new();
@@ -73,7 +83,7 @@ pub fn execute_verified_cfg_on_vm(
     );
     let exit = {
         let mut ctx = VmExecutionContext::with_lease(&mut lease);
-        interpreter.execute_with_context(&lowered.module, &config, &mut host, &mut ctx)?
+        interpreter.execute_with_context(&lowered.module, config, &mut host, &mut ctx)?
     };
     let residual = interpreter.saw_host_residual();
     drop(lease);
@@ -100,6 +110,69 @@ pub fn execute_verified_cfg_on_vm(
             .detail("component", "execute_verified_cfg_on_vm")
             .detail("reason", "suspended")),
         VmExit::Diagnostic(diagnostic) => Err(diagnostic),
+    }
+}
+
+/// 将 [`VerifiedVmOutcome`] 物化为 Session 上的 [`athena_types::ResultId`]。
+pub fn materialize_verified_vm_outcome(
+    session: &mut Session,
+    outcome: VerifiedVmOutcome,
+    provenance_kind: &'static str,
+) -> athena_types::Result<athena_types::ResultId> {
+    use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
+    use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode};
+
+    let (status, coverage) = if outcome.residual {
+        (ComputationStatus::Unknown, CoverageStatus::Partial)
+    } else {
+        (ComputationStatus::Exact, CoverageStatus::Full)
+    };
+    match outcome.value {
+        SlotValue::Result(result_id) => Ok(result_id),
+        SlotValue::Boolean(value) => {
+            let term = session.builder().boolean(value, Default::default());
+            let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(status, coverage)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind(provenance_kind));
+            Ok(session.insert_result(result))
+        }
+        SlotValue::Term(term) => {
+            let term_ref = session.arena.term_ref(term).ok_or_else(|| {
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "materialize_verified_vm_outcome")
+                    .detail("reason", "vm_term_out_of_range")
+            })?;
+            let term = session.arena.check_ref(term_ref)?;
+            let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(status, coverage)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind(provenance_kind));
+            Ok(session.insert_result(result))
+        }
+        SlotValue::Symbol(symbol) => {
+            let term = session.builder().symbol_id(symbol, Default::default());
+            let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(status, coverage)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind(provenance_kind));
+            Ok(session.insert_result(result))
+        }
+        SlotValue::Unit | SlotValue::Scope(_) => {
+            let term = session.builder().null(Default::default());
+            let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(status, coverage)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind(provenance_kind));
+            Ok(session.insert_result(result))
+        }
+        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+            .detail("component", "materialize_verified_vm_outcome")
+            .detail("reason", "vm_unexpected_slot_kind")),
     }
 }
 

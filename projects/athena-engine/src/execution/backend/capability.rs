@@ -38,12 +38,11 @@ impl VmCapabilityReport {
     }
 
     /// 首选后端。
+    ///
+    /// 不可编码时**不再**回退 Reference CFG（该循环已删除）。仍报告
+    /// `supports_athena_vm == false`，但选择结果固定为 `AthenaVm`，由执行入口硬失败。
     pub fn preferred_backend(&self) -> super::BackendKind {
-        if self.supports_athena_vm {
-            super::BackendKind::AthenaVm
-        } else {
-            super::BackendKind::Reference
-        }
+        super::BackendKind::AthenaVm
     }
 }
 

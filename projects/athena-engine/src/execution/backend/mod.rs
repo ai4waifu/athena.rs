@@ -35,7 +35,7 @@ impl BackendAbiFingerprint {
 pub enum BackendKind {
     /// `athena-vm` 受限 ExecutionIR 运行时。
     AthenaVm,
-    /// 过渡期 host adapter（终态收为 `VmHost`，禁止第二套通用循环）。
+    /// 过渡期 host adapter 名（执行已走 `AthenaVm`，禁止第二套通用循环）。
     Reference,
     /// 可选原生 JIT。
     NativeJit,
@@ -55,10 +55,10 @@ pub trait ExecutionBackend {
     fn execute(&self, session: &mut Session, module: &ExecutionModule) -> Result<ResultId>;
 }
 
-/// 按 Living `04` 显式选择执行后端（禁止 VM 失败后再静默回退 Reference）。
+/// 按 Living `04` 显式选择执行后端（禁止 VM 失败后再静默回退第二套 CFG）。
 ///
-/// 选择依据是 [`analyze_vm_capability`] 报告，而不是「codegen 成功 ⇒ 语义完备」。
-/// 已知语义缺口（迭代器 `Sum`、非 Boolean 逻辑等）显式走 Reference。
+/// 选择依据是 [`analyze_vm_capability`] 报告。当前解释循环只走 `AthenaVm`；
+/// 能力缺口在执行时硬失败，不再分叉到 Reference 本地循环。
 pub fn select_execution_backend(module: &ExecutionModule, _has_domain: bool) -> BackendKind {
     analyze_vm_capability(module).preferred_backend()
 }

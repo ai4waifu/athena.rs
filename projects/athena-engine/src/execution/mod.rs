@@ -33,9 +33,7 @@ pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFra
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
     use crate::api::request::DomainGoal;
     use crate::execution::backend::{BackendKind, select_execution_backend};
-    use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
     use athena_types::{Diagnostic, DiagnosticCode};
-    use athena_vm::SlotValue;
 
     let module = compiler::ExecutionCompiler::new().compile(session, &request)?;
     let domain = match request {
@@ -43,78 +41,16 @@ pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> Athe
         _ => None,
     };
     match select_execution_backend(&module, domain.is_some()) {
-        BackendKind::AthenaVm => match vm::execute_verified_cfg_on_vm(session, &module, domain) {
-            Ok(outcome) => {
-                let (status, coverage) = if outcome.residual {
-                    (ComputationStatus::Unknown, CoverageStatus::Partial)
-                } else {
-                    (ComputationStatus::Exact, CoverageStatus::Full)
-                };
-                match outcome.value {
-                    SlotValue::Result(result_id) => Ok(result_id),
-                    SlotValue::Boolean(value) => {
-                        let term = session.builder().boolean(value, Default::default());
-                        let value_id = session.insert_symbolic_value(term);
-                        let result = ComputationResult::with_status(status, coverage)
-                            .with_value(value_id)
-                            .with_symbolic_term(term)
-                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                        Ok(session.insert_result(result))
-                    }
-                    SlotValue::Term(term) => {
-                        let term_ref = session.arena.term_ref(term).ok_or_else(|| {
-                            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                                .detail("component", "execute_ir_request")
-                                .detail("backend", "athena-vm")
-                                .detail("reason", "vm_term_out_of_range")
-                        })?;
-                        let term = session.arena.check_ref(term_ref)?;
-                        let value_id = session.insert_symbolic_value(term);
-                        let result = ComputationResult::with_status(status, coverage)
-                            .with_value(value_id)
-                            .with_symbolic_term(term)
-                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                        Ok(session.insert_result(result))
-                    }
-                    SlotValue::Symbol(symbol) => {
-                        let term = session.builder().symbol_id(symbol, Default::default());
-                        let value_id = session.insert_symbolic_value(term);
-                        let result = ComputationResult::with_status(status, coverage)
-                            .with_value(value_id)
-                            .with_symbolic_term(term)
-                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                        Ok(session.insert_result(result))
-                    }
-                    SlotValue::Unit => {
-                        let term = session.builder().null(Default::default());
-                        let value_id = session.insert_symbolic_value(term);
-                        let result = ComputationResult::with_status(status, coverage)
-                            .with_value(value_id)
-                            .with_symbolic_term(term)
-                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                        Ok(session.insert_result(result))
-                    }
-                    SlotValue::Scope(_) => {
-                        let term = session.builder().null(Default::default());
-                        let value_id = session.insert_symbolic_value(term);
-                        let result = ComputationResult::with_status(status, coverage)
-                            .with_value(value_id)
-                            .with_symbolic_term(term)
-                            .with_provenance(ResultProvenance::kind("ExecutionIR/athena-vm"));
-                        Ok(session.insert_result(result))
-                    }
-                    _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                        .detail("component", "execute_ir_request")
-                        .detail("backend", "athena-vm")
-                        .detail("reason", "vm_unexpected_slot_kind")),
-                }
+        BackendKind::AthenaVm | BackendKind::Reference => {
+            // Reference 名仍可出现在能力报告历史路径，但执行一律走 VM，禁止第二套 CFG。
+            match vm::execute_verified_cfg_on_vm(session, &module, domain) {
+                Ok(outcome) => vm::materialize_verified_vm_outcome(session, outcome, "ExecutionIR/athena-vm"),
+                Err(diagnostic) => Err(diagnostic
+                    .detail("component", "execute_ir_request")
+                    .detail("backend", "athena-vm")
+                    .detail("reason", "vm_backend_failed_no_fallback")),
             }
-            Err(diagnostic) => Err(diagnostic
-                .detail("component", "execute_ir_request")
-                .detail("backend", "athena-vm")
-                .detail("reason", "vm_backend_failed_no_fallback")),
-        },
-        BackendKind::Reference => reference::ReferenceExecutor::new().execute(session, &module, domain),
+        }
         other => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
             .detail("component", "execute_ir_request")
             .detail("reason", "backend_not_wired")

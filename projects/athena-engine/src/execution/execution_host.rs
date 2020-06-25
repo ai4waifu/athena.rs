@@ -256,7 +256,7 @@ impl<'a> ExecutionHost<'a> {
         }
         let term = self.slot_as_term(args[0])?;
         let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
-        // Reference 合同：Bareiss 失败保留残差并软 Invalid；VM 路径同样经 SoftInvalid。
+        // Bareiss 失败：SoftInvalid（VM 解释器提升为硬 Diagnostic，与 Index OOB 同合同）。
         if let Some(diagnostic) = diag_opt {
             return Ok(HostOutcome::SoftInvalid {
                 value: SlotValue::Term(out),

@@ -300,7 +300,7 @@ fn compile_and_execute_goal_call_provider_dispatches_domain() {
 }
 
 #[test]
-fn call_provider_without_domain_stays_unsupported() {
+fn call_provider_without_domain_hard_fails() {
     use athena_engine::{
         api::request::DomainGoal,
         domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
@@ -313,10 +313,13 @@ fn call_provider_without_domain_stays_unsupported() {
         b: Integer::from_i64(8),
     })));
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("goal");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
-    let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.coverage, athena_engine::runtime::results::CoverageStatus::Unsupported);
-    assert!(!loaded.diagnostics.is_empty());
+    let err = ReferenceExecutor::new()
+        .execute(&mut session, &module, None)
+        .expect_err("missing domain must hard-fail like VM");
+    assert_eq!(
+        err.details.get("reason").map(|v| v.to_string()).as_deref(),
+        Some("provider_domain_missing")
+    );
 }
 
 #[test]
