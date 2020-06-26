@@ -5,6 +5,7 @@ mod backend_contract;
 mod backend_unit;
 mod compiler;
 mod coverage;
+mod fingerprint_unit;
 mod functions;
 mod ir_contract;
 mod ir_mod_unit;
