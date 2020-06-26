@@ -199,7 +199,18 @@ fn map_graph(result: &GraphTheoryResult) -> DomainMeta {
 
 fn map_linear_algebra(result: &LinearAlgebraResult) -> DomainMeta {
     match result {
-        LinearAlgebraResult::Ok { .. } => exact_provider(ResultProviderId::LINEAR_ALGEBRA),
+        LinearAlgebraResult::Ok { value } => {
+            let (status, coverage) = linear_algebra_status_coverage(value);
+            DomainMeta {
+                status,
+                coverage,
+                symbolic_term: None,
+                conditions: Vec::new(),
+                diagnostics: Vec::new(),
+                evidence: Vec::new(),
+                provider: Some(ResultProviderId::LINEAR_ALGEBRA.stamped()),
+            }
+        }
         LinearAlgebraResult::Err { diagnostic } => DomainMeta {
             status: ComputationStatus::Invalid,
             coverage: CoverageStatus::Unsupported,
@@ -209,6 +220,55 @@ fn map_linear_algebra(result: &LinearAlgebraResult) -> DomainMeta {
             evidence: Vec::new(),
             provider: Some(ResultProviderId::LINEAR_ALGEBRA.stamped()),
         },
+    }
+}
+
+/// 按值载荷与 [`AlgorithmGuarantee`] 投影顶层状态。禁止把机器近似 `Ok` 抬成 Exact+Full。
+fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::LinearAlgebraValue) -> (ComputationStatus, CoverageStatus) {
+    use crate::domains::linear_algebra::{LinearAlgebraValue, SolveDisposition};
+
+    match value {
+        LinearAlgebraValue::Matrix(matrix) => {
+            if matrix.parent().element.is_machine() {
+                (ComputationStatus::Candidate, CoverageStatus::Partial)
+            } else {
+                (ComputationStatus::Exact, CoverageStatus::Full)
+            }
+        }
+        LinearAlgebraValue::ExactRank(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::MachineRank { guarantee, .. } => algorithm_guarantee_status(*guarantee),
+        LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::ExactRref(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::ExactSolve(r) => {
+            let (status, coverage) = algorithm_guarantee_status(r.guarantee);
+            match &r.disposition {
+                SolveDisposition::Unique | SolveDisposition::Inconsistent => (status, coverage),
+                SolveDisposition::Infinite { .. } => (status, CoverageStatus::Partial),
+                SolveDisposition::Singular => (ComputationStatus::Partial, CoverageStatus::Partial),
+                SolveDisposition::ResourceLimited => (ComputationStatus::ResourceLimited, CoverageStatus::Partial),
+            }
+        }
+        LinearAlgebraValue::MachineSolve(r) => {
+            let (status, _) = algorithm_guarantee_status(r.guarantee);
+            match &r.disposition {
+                SolveDisposition::ResourceLimited => (ComputationStatus::ResourceLimited, CoverageStatus::Partial),
+                SolveDisposition::Singular => (ComputationStatus::Partial, CoverageStatus::Partial),
+                SolveDisposition::Unique | SolveDisposition::Infinite { .. } | SolveDisposition::Inconsistent => {
+                    (status, CoverageStatus::Partial)
+                }
+            }
+        }
+    }
+}
+
+fn algorithm_guarantee_status(guarantee: crate::domains::linear_algebra::AlgorithmGuarantee) -> (ComputationStatus, CoverageStatus) {
+    use crate::domains::linear_algebra::AlgorithmGuarantee;
+    match guarantee {
+        AlgorithmGuarantee::Exact => (ComputationStatus::Exact, CoverageStatus::Full),
+        AlgorithmGuarantee::Probable => (ComputationStatus::Probable, CoverageStatus::Partial),
+        AlgorithmGuarantee::Approximate => (ComputationStatus::Candidate, CoverageStatus::Partial),
+        AlgorithmGuarantee::Partial => (ComputationStatus::Partial, CoverageStatus::Partial),
+        AlgorithmGuarantee::Unsupported => (ComputationStatus::Unknown, CoverageStatus::Unsupported),
     }
 }
 
