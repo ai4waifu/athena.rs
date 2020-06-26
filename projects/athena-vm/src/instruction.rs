@@ -1,6 +1,6 @@
 //! 封闭指令集（骨架）。
 //!
-//! 指令**不得**携带 `&str` / 方言表面名。语义 / provider 只带 opaque typed ID，
+//! 指令**不得**携带 `&str` / 方言表面名。语义 / provider 只带不透明类型化 ID，
 //! 经 [`crate::host::VmHost`] 回调由 engine 实现。
 
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind};
@@ -39,7 +39,7 @@ pub enum Instruction {
     },
     /// 谓词槽为 false 时走 [`crate::exit::VmExit::Rejected`]。
     Guard {
-        /// Boolean 谓词槽。
+        /// 布尔谓词槽。
         predicate: SlotIndex,
     },
     /// 显式拒绝。
@@ -49,7 +49,7 @@ pub enum Instruction {
         /// 目标 PC（指令下标）。
         target: u32,
     },
-    /// Boolean 条件分支。
+    /// 布尔条件分支。
     Branch {
         /// 谓词槽。
         condition: SlotIndex,
@@ -67,7 +67,7 @@ pub enum Instruction {
     ApplySemantic {
         /// 结果槽。
         dst: SlotIndex,
-        /// opaque 语义算子。
+        /// 不透明语义算子。
         op: SemanticOpId,
         /// 有效实参个数（≤ [`MAX_HOST_ARGS`]）。
         argc: u8,
@@ -78,7 +78,7 @@ pub enum Instruction {
     CallProvider {
         /// 结果槽。
         dst: SlotIndex,
-        /// opaque provider 调用点。
+        /// 不透明 provider 调用点。
         op: ProviderOpId,
         /// 有效实参个数（≤ [`MAX_HOST_ARGS`]）。
         argc: u8,
@@ -141,7 +141,7 @@ pub enum Instruction {
     ApplyExtension {
         /// 结果槽。
         dst: SlotIndex,
-        /// opaque 扩展算子。
+        /// 不透明扩展算子。
         op: ExtensionOpId,
         /// 有效实参个数（≤ [`MAX_HOST_ARGS`]）。
         argc: u8,
@@ -156,9 +156,9 @@ pub enum Instruction {
         head: SlotIndex,
         /// 扩展算子。
         operator: ExtensionOpId,
-        /// pattern 项槽。
+        /// 模式项槽。
         pattern: SlotIndex,
-        /// replacement 项槽。
+        /// 替换项槽。
         replacement: SlotIndex,
     },
     /// 经 [`crate::host::VmHost::register_compiled_rule`] 挂接已编译规则。
@@ -177,12 +177,7 @@ impl Instruction {
     pub const fn apply_semantic1(dst: SlotIndex, op: SemanticOpId, arg0: SlotIndex) -> Self {
         let mut args = [0u32; MAX_HOST_ARGS];
         args[0] = arg0;
-        Self::ApplySemantic {
-            dst,
-            op,
-            argc: 1,
-            args,
-        }
+        Self::ApplySemantic { dst, op, argc: 1, args }
     }
 
     /// 构造二元 `ApplySemantic`。
@@ -190,23 +185,13 @@ impl Instruction {
         let mut args = [0u32; MAX_HOST_ARGS];
         args[0] = arg0;
         args[1] = arg1;
-        Self::ApplySemantic {
-            dst,
-            op,
-            argc: 2,
-            args,
-        }
+        Self::ApplySemantic { dst, op, argc: 2, args }
     }
 
     /// 构造一元 `CallProvider`。
     pub const fn call_provider1(dst: SlotIndex, op: ProviderOpId, arg0: SlotIndex) -> Self {
         let mut args = [0u32; MAX_HOST_ARGS];
         args[0] = arg0;
-        Self::CallProvider {
-            dst,
-            op,
-            argc: 1,
-            args,
-        }
+        Self::CallProvider { dst, op, argc: 1, args }
     }
 }

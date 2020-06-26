@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::stages::{
-    self, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, StageFingerprint,
-    canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text,
+    self, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, StageFingerprint, canonicalize_request,
+    materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text,
 };
 
 /// 兼容旧名：Request 阶段视图即 [`RequestProgram`]。
@@ -42,28 +42,15 @@ pub struct CompileObservation {
 
 impl CompileObservation {
     /// 由具名阶段程序构造观测。
-    pub fn from_programs(
-        request: RequestProgram,
-        plan: PlanProgram,
-        semantic: SemanticProgram,
-        cfg_ssa: CfgSsaProgram,
-    ) -> Self {
-        Self {
-            request,
-            plan,
-            semantic,
-            cfg_ssa,
-        }
+    pub fn from_programs(request: RequestProgram, plan: PlanProgram, semantic: SemanticProgram, cfg_ssa: CfgSsaProgram) -> Self {
+        Self { request, plan, semantic, cfg_ssa }
     }
 
     /// 渲染四阶段稳定观测文本。
     pub fn render(&self) -> String {
         let mut out = String::new();
-        let _ = writeln!(
-            out,
-            "stage request kind={} term={:?} fp={:#x}",
-            self.request.kind, self.request.term_index, self.request.fingerprint.0
-        );
+        let _ =
+            writeln!(out, "stage request kind={} term={:?} fp={:#x}", self.request.kind, self.request.term_index, self.request.fingerprint.0);
         let _ = writeln!(
             out,
             "stage plan intent={:?} provider_required={} fp={:#x}",
@@ -78,11 +65,8 @@ impl CompileObservation {
             self.semantic.fingerprint.0
         );
         for (idx, op) in self.semantic.operations.iter().enumerate() {
-            let _ = writeln!(
-                out,
-                "  sem[{}] {} : {} effect_in={:?} effect_out={:?}",
-                idx, op.kind, op.result_type, op.effect_in, op.effect_out
-            );
+            let _ =
+                writeln!(out, "  sem[{}] {} : {} effect_in={:?} effect_out={:?}", idx, op.kind, op.result_type, op.effect_in, op.effect_out);
         }
         let _ = writeln!(
             out,

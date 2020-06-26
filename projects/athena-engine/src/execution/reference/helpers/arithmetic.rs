@@ -9,10 +9,7 @@ use super::{diag, matrix_to_nested_list_session, term_to_rational_matrix_session
 use crate::{
     domains::linear_algebra::matmul,
     execution::{number_of, push_number, push_semantic},
-    runtime::{
-        session::Session,
-        values::numeric_clone::clone_number,
-    },
+    runtime::{session::Session, values::numeric_clone::clone_number},
 };
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
@@ -330,15 +327,8 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
 }
 
 /// Reference 与 `ExecutionHost` 共用的算术求值（数值折叠 · 矩阵乘 · 符号残差）。
-pub(crate) fn evaluate_arithmetic_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    terms: Vec<TermId>,
-) -> Result<TermId> {
-    let numbers = terms
-        .iter()
-        .map(|t| number_of(session, *t).map(clone_number))
-        .collect::<Option<Vec<_>>>();
+pub(crate) fn evaluate_arithmetic_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
+    let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
     if let Some(nums) = numbers {
         let folded = match (op, nums.as_slice()) {
             (SemanticOperator::Add, []) => Some(Number::small_int(0)),
@@ -371,12 +361,10 @@ pub(crate) fn evaluate_arithmetic_terms(
                 }
                 ok.then_some(acc)
             }
-            (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => {
-                num_mul(Number::small_int(-1), clone_number(a)).ok()
+            (SemanticOperator::Subtract, [a]) | (SemanticOperator::Negate, [a]) => num_mul(Number::small_int(-1), clone_number(a)).ok(),
+            (SemanticOperator::Subtract, [a, b]) => {
+                num_mul(Number::small_int(-1), clone_number(b)).and_then(|neg| num_add(clone_number(a), neg)).ok()
             }
-            (SemanticOperator::Subtract, [a, b]) => num_mul(Number::small_int(-1), clone_number(b))
-                .and_then(|neg| num_add(clone_number(a), neg))
-                .ok(),
             (SemanticOperator::Divide, [a, b]) => num_div(clone_number(a), clone_number(b)).ok(),
             (SemanticOperator::Power, [a, b]) => num_pow(a, b).ok(),
             _ => return Err(diag("semantic_operator_arity")),
@@ -386,10 +374,7 @@ pub(crate) fn evaluate_arithmetic_terms(
         }
     }
     if op == SemanticOperator::Multiply && terms.len() == 2 {
-        if let (Some(a), Some(b)) = (
-            term_to_rational_matrix_session(session, terms[0]),
-            term_to_rational_matrix_session(session, terms[1]),
-        ) {
+        if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
             let left_matrixish = matches!(
                 session.arena.get(terms[0]),
                 Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()

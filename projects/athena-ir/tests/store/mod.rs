@@ -47,10 +47,7 @@ fn term_ref_tracks_store_epoch() {
     arena.bump_epoch();
     assert_eq!(arena.epoch(), 2);
     let err = arena.check_ref(live).expect_err("stale");
-    assert_eq!(
-        err.details.get("reason").map(|v| v.to_string()).as_deref(),
-        Some("stale_term_generation")
-    );
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("stale_term_generation"));
     let refreshed = arena.term_ref(id).expect("ref2");
     assert_eq!(arena.check_ref(refreshed).expect("ok"), id);
 }

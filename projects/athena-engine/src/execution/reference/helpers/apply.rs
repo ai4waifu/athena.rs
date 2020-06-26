@@ -3,11 +3,8 @@
 use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Result, TermId};
 
-use super::{rebuild_application, re_eval_term};
-use crate::{
-    execution::push_semantic,
-    runtime::session::Session,
-};
+use super::{re_eval_term, rebuild_application};
+use crate::{execution::push_semantic, runtime::session::Session};
 
 /// `Apply[head, list]` — 列表实参展开后重建应用并再求值。
 pub(crate) fn evaluate_apply_terms(session: &mut Session, head: TermId, second: TermId) -> Result<TermId> {
@@ -29,8 +26,7 @@ pub(crate) fn evaluate_apply_head_terms(session: &mut Session, head: TermId, cal
             if let [var, body] = arguments.as_slice() {
                 if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
                     let sym = *sym;
-                    let instantiated =
-                        crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
+                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
                     return re_eval_term(session, instantiated);
                 }
             }

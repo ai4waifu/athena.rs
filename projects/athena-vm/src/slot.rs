@@ -12,7 +12,7 @@ pub enum SlotValue {
     /// 未写入（稠密表空洞）。
     #[default]
     Empty,
-    /// 类型化 Boolean。
+    /// 类型化布尔值。
     Boolean(bool),
     /// `TermStore` 句柄。
     Term(TermId),
@@ -24,7 +24,7 @@ pub enum SlotValue {
     Result(ResultId),
     /// 作用域帧深度句柄（来自 `EnterScope`）。
     Scope(u32),
-    /// Unit / void。
+    /// Unit（空单元值）。
     Unit,
 }
 
@@ -36,7 +36,7 @@ impl SlotValue {
     }
 }
 
-/// 按 `u32` 稠密索引的槽表（热路径可走 unchecked）。
+/// 按 `u32` 稠密索引的槽表（热路径可走未检查下标）。
 #[derive(Debug, Clone, Default)]
 pub struct SlotTable {
     slots: Vec<SlotValue>,
@@ -94,7 +94,7 @@ impl SlotTable {
         self.slots[i] = value;
     }
 
-    /// 清除槽为 [`SlotValue::Empty`]（越界为 no-op）。
+    /// 清除槽为 [`SlotValue::Empty`]（越界为空操作）。
     #[inline]
     pub fn clear_at(&mut self, index: u32) {
         if let Some(slot) = self.slots.get_mut(index as usize) {

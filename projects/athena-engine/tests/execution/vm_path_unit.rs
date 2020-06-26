@@ -13,9 +13,7 @@ use athena_types::ComputationStatus;
 fn execute_ir_request_not_uses_vm_path() {
     let mut session = Session::new();
     let t = session.builder().boolean(true, Default::default());
-    let term = session
-        .builder()
-        .application(ApplicationHead::Semantic(SemanticOperator::Not), vec![t], Default::default());
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Not), vec![t], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.status, ComputationStatus::Exact);
@@ -48,11 +46,7 @@ fn execute_ir_request_atom_term_uses_vm_load_term() {
 fn execute_ir_request_hold_atom_uses_vm_load_term() {
     let mut session = Session::new();
     let inner = session.builder().int(5, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Hold),
-        vec![inner],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Hold), vec![inner], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -64,11 +58,7 @@ fn execute_ir_request_add_integers_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(2, Default::default());
     let b = session.builder().int(3, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Add),
-        vec![a, b],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Add), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.status, ComputationStatus::Exact);
@@ -85,11 +75,7 @@ fn execute_ir_request_multiply_integers_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(4, Default::default());
     let b = session.builder().int(6, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Multiply),
-        vec![a, b],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Multiply), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -105,11 +91,7 @@ fn execute_ir_request_subtract_integers_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(9, Default::default());
     let b = session.builder().int(4, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Subtract),
-        vec![a, b],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Subtract), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -125,11 +107,7 @@ fn execute_ir_request_power_integers_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(2, Default::default());
     let b = session.builder().int(5, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Power),
-        vec![a, b],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Power), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -145,11 +123,7 @@ fn execute_ir_request_less_integers_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(2, Default::default());
     let b = session.builder().int(5, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Less),
-        vec![a, b],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Less), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -164,11 +138,7 @@ fn execute_ir_request_less_integers_uses_vm_host() {
 fn execute_ir_request_abs_integer_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(-7, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Abs),
-        vec![a],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Abs), vec![a], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -183,11 +153,7 @@ fn execute_ir_request_abs_integer_uses_vm_host() {
 fn execute_ir_request_factorial_integer_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(5, Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Factorial),
-        vec![a],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Factorial), vec![a], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
@@ -218,18 +184,12 @@ fn execute_ir_request_define_and_read_uses_vm_binding() {
     });
     let define_id = execute_ir_request(&mut session, define).expect("define");
     let define_loaded = session.results.get(define_id).expect("define result");
-    assert_eq!(
-        define_loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(define_loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(session.defs.binding(symbol), Some(value));
 
     let read_id = execute_ir_request(&mut session, AthenaRequest::Term(sym_term)).expect("read");
     let read_loaded = session.results.get(read_id).expect("read result");
-    assert_eq!(
-        read_loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(read_loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(read_loaded.symbolic_term, Some(value));
 }
 
@@ -241,11 +201,7 @@ fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
     let mut session = Session::new();
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(1, Default::default());
-    let rhs = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Add),
-        vec![a, b],
-        Default::default(),
-    );
+    let rhs = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Add), vec![a, b], Default::default());
     let sym_term = session.builder().symbol("a", Default::default());
     let symbol = match session.arena.get(sym_term) {
         Some(TermNode::Atom(Atom::Symbol(id))) => *id,
@@ -263,10 +219,7 @@ fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
 
     let read_id = execute_ir_request(&mut session, AthenaRequest::Term(sym_term)).expect("read");
     let read_loaded = session.results.get(read_id).expect("read result");
-    assert_eq!(
-        read_loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(read_loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = read_loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
@@ -276,17 +229,17 @@ fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
 
 #[test]
 fn execute_ir_request_domain_gcd_uses_vm_call_provider() {
-    use athena_engine::api::request::DomainGoal;
-    use athena_engine::domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest};
+    use athena_engine::{
+        api::request::DomainGoal,
+        domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
+    };
     use athena_numeric::Integer;
 
     let mut session = Session::new();
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(
-        NumberTheoryRequest::Gcd {
-            a: Integer::from_i64(12),
-            b: Integer::from_i64(8),
-        },
-    )));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
+        a: Integer::from_i64(12),
+        b: Integer::from_i64(8),
+    })));
     let result_id = execute_ir_request(&mut session, request).expect("gcd");
     let loaded = session.results.get(result_id).expect("result");
     let provenance = loaded.provenance.as_ref().expect("provenance");
@@ -298,15 +251,10 @@ fn execute_ir_request_domain_gcd_uses_vm_call_provider() {
 fn execute_ir_request_local_scope_body_uses_vm() {
     let mut session = Session::new();
     let term = session.builder().int(11, Default::default());
-    let request = AthenaRequest::Control(ControlPlan::LocalScope {
-        body: Box::new(AthenaRequest::Term(term)),
-    });
+    let request = AthenaRequest::Control(ControlPlan::LocalScope { body: Box::new(AthenaRequest::Term(term)) });
     let result_id = execute_ir_request(&mut session, request).expect("scope");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(loaded.symbolic_term, Some(term));
 }
 
@@ -340,10 +288,7 @@ fn execute_ir_request_local_scope_shadows_session_on_vm() {
     });
     let result_id = execute_ir_request(&mut session, request).expect("scope");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(loaded.symbolic_term, Some(local));
     assert_eq!(session.defs.binding(symbol), Some(global));
 }
@@ -355,21 +300,13 @@ fn execute_ir_request_ordered_collection_uses_vm() {
     let mut session = Session::new();
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
-    let list = session
-        .builder()
-        .collection(CollectionKind::OrderedCollection, vec![a, b], Default::default());
+    let list = session.builder().collection(CollectionKind::OrderedCollection, vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(list)).expect("list");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements,
-        }) if elements.len() == 2 => {
+        Some(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements }) if elements.len() == 2 => {
             assert_eq!(elements[0], a);
             assert_eq!(elements[1], b);
         }
@@ -385,31 +322,18 @@ fn execute_ir_request_join_lists_uses_vm_host() {
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(3, Default::default());
-    let left = session
-        .builder()
-        .collection(CollectionKind::OrderedCollection, vec![a], Default::default());
-    let right = session
-        .builder()
-        .collection(CollectionKind::OrderedCollection, vec![b, c], Default::default());
+    let left = session.builder().collection(CollectionKind::OrderedCollection, vec![a], Default::default());
+    let right = session.builder().collection(CollectionKind::OrderedCollection, vec![b, c], Default::default());
     let join = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Join),
-            arguments: vec![left, right],
-        },
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Join), arguments: vec![left, right] },
         TermNode::default_span(),
     );
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(join)).expect("join");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
-        Some(TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements,
-        }) if elements.as_slice() == [a, b, c] => {}
+        Some(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements }) if elements.as_slice() == [a, b, c] => {}
         other => panic!("expected Join result [1,2,3], got {other:?}"),
     }
 }
@@ -418,19 +342,12 @@ fn execute_ir_request_join_lists_uses_vm_host() {
 fn execute_ir_request_range_integer_uses_vm_host() {
     let mut session = Session::new();
     let n = session.builder().int(3, Default::default());
-    let range = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Range),
-            arguments: vec![n],
-        },
-        TermNode::default_span(),
-    );
+    let range = session
+        .arena
+        .push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Range), arguments: vec![n] }, TermNode::default_span());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(range)).expect("range");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements, .. }) if elements.len() == 3 => {
@@ -452,26 +369,15 @@ fn execute_ir_request_size_list_uses_vm_host() {
     let mut session = Session::new();
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
-    let list = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![a, b],
-        },
-        TermNode::default_span(),
-    );
+    let list =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, TermNode::default_span());
     let size = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Size),
-            arguments: vec![list],
-        },
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Size), arguments: vec![list] },
         TermNode::default_span(),
     );
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(size)).expect("size");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
@@ -493,26 +399,15 @@ fn execute_ir_request_sum_list_uses_vm_host() {
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(3, Default::default());
-    let list = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![a, b, c],
-        },
-        TermNode::default_span(),
-    );
+    let list =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b, c] }, TermNode::default_span());
     let sum = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Sum),
-            arguments: vec![list],
-        },
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Sum), arguments: vec![list] },
         TermNode::default_span(),
     );
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(sum)).expect("sum");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6) => {}
@@ -528,40 +423,20 @@ fn execute_ir_request_determinant_matrix_uses_vm_host() {
     let b = session.builder().int(2, Default::default());
     let c = session.builder().int(3, Default::default());
     let d = session.builder().int(4, Default::default());
-    let row0 = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![a, b],
-        },
-        TermNode::default_span(),
-    );
-    let row1 = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![c, d],
-        },
-        TermNode::default_span(),
-    );
-    let matrix = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![row0, row1],
-        },
-        TermNode::default_span(),
-    );
+    let row0 =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, TermNode::default_span());
+    let row1 =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![c, d] }, TermNode::default_span());
+    let matrix = session
+        .arena
+        .push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![row0, row1] }, TermNode::default_span());
     let det = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Determinant),
-            arguments: vec![matrix],
-        },
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Determinant), arguments: vec![matrix] },
         TermNode::default_span(),
     );
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(det)).expect("det");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2) => {}
@@ -573,19 +448,12 @@ fn execute_ir_request_determinant_matrix_uses_vm_host() {
 fn execute_ir_request_eye_uses_vm_host() {
     let mut session = Session::new();
     let n = session.builder().int(2, Default::default());
-    let eye = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Eye),
-            arguments: vec![n],
-        },
-        TermNode::default_span(),
-    );
+    let eye = session
+        .arena
+        .push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Eye), arguments: vec![n] }, TermNode::default_span());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(eye)).expect("eye");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
@@ -595,8 +463,7 @@ fn execute_ir_request_eye_uses_vm_host() {
                         for (j, &cell) in cells.iter().enumerate() {
                             let expected = if i == j { 1i64 } else { 0 };
                             match session.arena.get(cell) {
-                                Some(TermNode::Atom(Atom::Number(n)))
-                                    if n.as_exact_integer() == Some(expected) => {}
+                                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected) => {}
                                 other => panic!("Eye[{i},{j}] expected {expected}, got {other:?}"),
                             }
                         }
@@ -617,33 +484,17 @@ fn execute_ir_request_elementwise_multiply_uses_vm_host() {
     let b = session.builder().int(3, Default::default());
     let c = session.builder().int(4, Default::default());
     let d = session.builder().int(5, Default::default());
-    let left = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![a, b],
-        },
-        TermNode::default_span(),
-    );
-    let right = session.arena.push(
-        TermNode::Collection {
-            kind: CollectionKind::OrderedCollection,
-            elements: vec![c, d],
-        },
-        TermNode::default_span(),
-    );
+    let left =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, TermNode::default_span());
+    let right =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![c, d] }, TermNode::default_span());
     let term = session.arena.push(
-        TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::ElementwiseMultiply),
-            arguments: vec![left, right],
-        },
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::ElementwiseMultiply), arguments: vec![left, right] },
         TermNode::default_span(),
     );
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("hadamard");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
@@ -667,18 +518,12 @@ fn execute_ir_request_control_index_uses_vm_path() {
     let b = session.builder().int(20, Default::default());
     let c = session.builder().int(30, Default::default());
     let list = session.builder().list(vec![a, b, c], Default::default());
-    let request = AthenaRequest::Control(ControlPlan::Index {
-        target: list,
-        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
-    });
+    let request = AthenaRequest::Control(ControlPlan::Index { target: list, axes: vec![IndexSpec::Scalar(IntegerIndex(2))] });
     let result_id = execute_ir_request(&mut session, request).expect("index");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.status, ComputationStatus::Exact);
     assert_eq!(loaded.coverage, CoverageStatus::Full);
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
@@ -696,17 +541,10 @@ fn execute_ir_request_map_sin_list_uses_vm_host() {
     );
     let zero = session.builder().int(0, Default::default());
     let list = session.builder().list(vec![zero], Default::default());
-    let term = session.builder().application(
-        ApplicationHead::Semantic(SemanticOperator::Map),
-        vec![sin, list],
-        Default::default(),
-    );
+    let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Map), vec![sin, list], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("map");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(
-        loaded.provenance.as_ref().map(|p| p.request_kind),
-        Some("ExecutionIR/athena-vm")
-    );
+    assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Collection { elements, .. }) if elements.len() == 1 => match session.arena.get(elements[0]) {

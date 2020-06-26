@@ -1,7 +1,7 @@
-//! Host 回调边界：engine 综合体向 VM 提供语义 / provider，VM 不拥有它们。
+//! 宿主回调边界：engine 综合体向 VM 提供语义 / provider，VM 不拥有它们。
 //!
 //! `VmHost` 是 `athena-vm` 解释循环调用上层的窄接口。实现方是 `athena-engine`
-//!（或测试 double）。禁止把 M-Graph admission、方言解析或持久 payload 塞进本 trait 的默认实现。
+//! （或测试替身）。禁止把 M-Graph admission、方言解析或持久 payload 塞进本 trait 的默认实现。
 
 use athena_types::{Diagnostic, Result};
 
@@ -9,7 +9,7 @@ use crate::slot::SlotValue;
 
 /// 封闭语义算子 ID（与 `athena-ir::SemanticOperator` 数值对齐的宿主约定）。
 ///
-/// VM 只传 opaque `u32`，避免 `athena-vm` 依赖 `athena-ir`。engine host 负责解码。
+/// VM 只传不透明 `u32`，避免 `athena-vm` 依赖 `athena-ir`。engine 宿主负责解码。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SemanticOpId(pub u32);
 
@@ -30,9 +30,9 @@ pub struct IndexAxesId(pub u32);
 pub enum HostOutcome {
     /// 写入结果槽的值。
     Value(SlotValue),
-    /// 保留未求值 / 残差（engine 映射 Coverage）。
+    /// 保留未求值 / 残差（engine 映射覆盖状态）。
     Residual(SlotValue),
-    /// 软失败：保留 echo 值，并附诊断（Reference 记 Invalid；VM 可升硬失败）。
+    /// 软失败：保留回显值并附诊断（解释器升为硬失败出口）。
     SoftInvalid {
         /// 回显 / 残差槽值。
         value: SlotValue,
@@ -45,8 +45,8 @@ pub enum HostOutcome {
 
 /// engine（或测试）实现的宿主回调。
 ///
-/// VM 解释循环在遇到语义 / provider 边时调用；默认实现一律 unsupported，
-/// 迫使真实 host 显式覆盖。
+/// VM 解释循环在遇到语义 / provider 边时调用；默认实现一律返回未实现诊断，
+/// 迫使真实宿主显式覆盖。
 pub trait VmHost {
     /// 应用封闭语义算子（实参已是槽句柄）。
     fn apply_semantic(&mut self, op: SemanticOpId, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -115,11 +115,7 @@ pub trait VmHost {
     }
 
     /// 由已求值元素构造类型化集合。
-    fn construct_collection(
-        &mut self,
-        kind: athena_types::CollectionKind,
-        args: &[SlotValue],
-    ) -> Result<HostOutcome> {
+    fn construct_collection(&mut self, kind: athena_types::CollectionKind, args: &[SlotValue]) -> Result<HostOutcome> {
         let _ = (kind, args);
         Ok(HostOutcome::Diagnostic(
             Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
@@ -138,7 +134,7 @@ pub trait VmHost {
         ))
     }
 
-    /// 应用扩展算子（down-value 或残差）。
+    /// 应用扩展算子（下行值绑定或残差）。
     fn apply_extension(&mut self, op: ExtensionOpId, args: &[SlotValue]) -> Result<HostOutcome> {
         let _ = (op, args);
         Ok(HostOutcome::Diagnostic(
@@ -175,7 +171,7 @@ pub trait VmHost {
     }
 }
 
-/// 拒绝一切语义 / provider 的空 host（骨架 / parity）。
+/// 拒绝一切语义 / provider 的空宿主（骨架与一致性冒烟）。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NullHost;
 

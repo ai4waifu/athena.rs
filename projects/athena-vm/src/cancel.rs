@@ -38,10 +38,9 @@ impl CancellationToken {
     /// 已取消则返回诊断。
     pub fn check(&self) -> Result<()> {
         if self.is_cancelled() {
-            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "athena-vm")
-                .detail("reason", "cancelled"))
-        } else {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "athena-vm").detail("reason", "cancelled"))
+        }
+        else {
             Ok(())
         }
     }

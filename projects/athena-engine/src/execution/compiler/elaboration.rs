@@ -2,7 +2,7 @@
 //!
 //! Living `04`：哪个算子对第几个参数 Evaluate / Capture，属于 semantic elaboration，
 //! 不得散落在 fused CFG lowering 的 `matches!` 里。本模块先收成显式表；
-//! 终态由方言 / 前端注入 policy，而不是 Athena 内核猜 HoldAll。
+//! 终态由方言 / 前端注入 policy，而不是 Athena 内核猜整包持有求值策略。
 
 use athena_ir::SemanticOperator;
 
@@ -19,11 +19,7 @@ pub enum ArgumentEvaluationKind {
 ///
 /// 当前表仍是迁移期内核默认值（历史 evaluator 属性的显式化）。
 /// 禁止在 `lower_pure_expr` 外再复制一份 `Hold`/`Sum` 特例。
-pub fn argument_evaluation_for_semantic(
-    operator: SemanticOperator,
-    arg_count: usize,
-    index: usize,
-) -> ArgumentEvaluationKind {
+pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: usize, index: usize) -> ArgumentEvaluationKind {
     if matches!(operator, SemanticOperator::Hold | SemanticOperator::Function) {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
@@ -34,10 +30,7 @@ pub fn argument_evaluation_for_semantic(
     {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
-    if index == 1
-        && matches!(operator, SemanticOperator::CollectMatches | SemanticOperator::Matches)
-        && arg_count >= 2
-    {
+    if index == 1 && matches!(operator, SemanticOperator::CollectMatches | SemanticOperator::Matches) && arg_count >= 2 {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
     ArgumentEvaluationKind::Evaluate

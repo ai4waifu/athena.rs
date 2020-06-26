@@ -41,7 +41,7 @@ pub struct Interpreter {
     frames: FrameStack,
     /// 最近一次 [`Instruction::ReturnValue`] 的结果槽。
     last_return_slot: Option<u32>,
-    /// 本轮是否见到 [`HostOutcome::Residual`]（覆盖映射用）。
+    /// 本轮是否见到宿主 [`HostOutcome::Residual`]（覆盖映射用）。
     host_residual: bool,
 }
 
@@ -51,17 +51,17 @@ impl Interpreter {
         Self::default()
     }
 
-    /// 本轮执行是否出现过 host Residual。
+    /// 本轮执行是否出现过宿主 `Residual`。
     pub fn saw_host_residual(&self) -> bool {
         self.host_residual
     }
 
-    /// 当前槽表（测试 / bridge）。
+    /// 当前槽表（测试与桥接用）。
     pub fn slots(&self) -> &SlotTable {
         &self.slots
     }
 
-    /// 当前帧栈（测试 / bridge）。
+    /// 当前帧栈（测试与桥接用）。
     pub fn frames(&self) -> &FrameStack {
         &self.frames
     }
@@ -95,15 +95,12 @@ impl Interpreter {
     }
 
     fn diagnostic(reason: &'static str) -> VmExit {
-        VmExit::Diagnostic(
-            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "athena-vm")
-                .detail("reason", reason),
-        )
+        VmExit::Diagnostic(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "athena-vm").detail("reason", reason))
     }
 
     fn load_constant(&mut self, module: &VmModule, dst: u32, constant: u32) -> Option<VmExit> {
-        let Some(value) = module.constants.get(constant as usize) else {
+        let Some(value) = module.constants.get(constant as usize)
+        else {
             return Some(Self::diagnostic("missing_constant"));
         };
         let slot = match *value {
@@ -117,7 +114,8 @@ impl Interpreter {
     }
 
     fn move_slot(&mut self, dst: u32, src: u32) -> Option<VmExit> {
-        let Some(value) = self.slots.get(src) else {
+        let Some(value) = self.slots.get(src)
+        else {
             return Some(Self::diagnostic("move_src_undefined"));
         };
         self.slots.set(dst, value);
@@ -140,7 +138,8 @@ impl Interpreter {
         }
         let mut out = [SlotValue::Empty; MAX_HOST_ARGS];
         for i in 0..n {
-            let Some(value) = self.slots.get(args[i]) else {
+            let Some(value) = self.slots.get(args[i])
+            else {
                 return Err(Self::diagnostic("host_arg_undefined"));
             };
             out[i] = value;
@@ -160,9 +159,7 @@ impl Interpreter {
                 None
             }
             // VM 路径：软 Invalid 升为硬诊断出口（与 Guard/Reject 同类显式失败）。
-            HostOutcome::SoftInvalid { diagnostic, .. } | HostOutcome::Diagnostic(diagnostic) => {
-                Some(VmExit::Diagnostic(diagnostic))
-            }
+            HostOutcome::SoftInvalid { diagnostic, .. } | HostOutcome::Diagnostic(diagnostic) => Some(VmExit::Diagnostic(diagnostic)),
         }
     }
 
@@ -299,13 +296,7 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
-                Instruction::WriteBinding {
-                    dst,
-                    key,
-                    value,
-                    kind,
-                    evaluation,
-                } => {
+                Instruction::WriteBinding { dst, key, value, kind, evaluation } => {
                     let key_value = match self.slots.get(key) {
                         Some(v) => v,
                         None => return Ok(Self::diagnostic("write_binding_key_undefined")),
@@ -381,13 +372,7 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
-                Instruction::RegisterRuleDispatch {
-                    dst,
-                    head,
-                    operator,
-                    pattern,
-                    replacement,
-                } => {
+                Instruction::RegisterRuleDispatch { dst, head, operator, pattern, replacement } => {
                     let head_value = match self.slots.get(head) {
                         Some(v) => v,
                         None => return Ok(Self::diagnostic("register_rule_head_undefined")),

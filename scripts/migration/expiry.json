@@ -214,8 +214,8 @@
     },
     {
       "id": "exec_unit_stack_vm",
-      "pattern": "\\bExecUnit\\b|execution::vm::|mod vm\\b|mod compile\\b",
-      "replacement": "ExecutionCompiler + ReferenceExecutor",
+      "pattern": "\\bExecUnit\\b",
+      "replacement": "ExecutionCompiler + athena-vm (`execution::vm` 投影)",
       "owner": "Athena execution",
       "status": "expired",
       "expiry": "2026-09-05",

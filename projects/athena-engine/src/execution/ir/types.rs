@@ -2,7 +2,6 @@
 
 use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, TermRef, ValueId};
 
-
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
 
 /// SSA 值的封闭值类型格。

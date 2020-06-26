@@ -5,28 +5,25 @@
 
 use athena_ir::SemanticOperator;
 use athena_numeric::compare as num_compare;
-use athena_types::{
-    BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId,
-    TermId,
-};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId, TermId};
 use athena_vm::{ExtensionOpId, HostOutcome, IndexAxesId, ProviderOpId, SemanticOpId, SlotValue, VmHost};
 
 use crate::{
     api::request::AthenaRequest,
     domains::dispatch::{DomainRequest, execute_domain},
     execution::{
-        LocalBinding, ScopeFrame, execute_ir_request, number_of, push_semantic,
+        LocalBinding, ScopeFrame, execute_ir_request,
         ir::ProviderCallDescriptor,
+        number_of,
         provider::ProviderCallHandoff,
+        push_semantic,
         reference::{
-            CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms,
-            evaluate_apply_head_terms, evaluate_apply_terms, evaluate_compare_terms, evaluate_determinant_term,
-            evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms,
-            evaluate_map_terms, evaluate_matrix_constructor_terms, evaluate_product_iterator_terms,
-            evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms,
-            evaluate_size_terms, evaluate_simplify_terms, evaluate_special_unary_terms, evaluate_sum_iterator_terms,
-            evaluate_sum_terms, evaluate_unary_term, evaluate_collect_matches_terms, evaluate_matches_terms,
-            slot_as_boolean_like,
+            CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms,
+            evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_determinant_term,
+            evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
+            evaluate_matches_terms, evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms,
+            evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms,
+            evaluate_special_unary_terms, evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -72,13 +69,7 @@ impl<'a> ExecutionHost<'a> {
         pending_domain: Option<DomainRequest>,
         index_axes: Vec<Vec<IndexSpec>>,
     ) -> Self {
-        Self {
-            session,
-            frames: FrameStorage::Owned(Vec::new()),
-            provider_calls,
-            pending_domain,
-            index_axes,
-        }
+        Self { session, frames: FrameStorage::Owned(Vec::new()), provider_calls, pending_domain, index_axes }
     }
 
     /// 与 Reference / 外部作用域帧栈共享同一 `frames`（收窄第二套循环）。
@@ -89,13 +80,7 @@ impl<'a> ExecutionHost<'a> {
         pending_domain: Option<DomainRequest>,
         index_axes: Vec<Vec<IndexSpec>>,
     ) -> Self {
-        Self {
-            session,
-            frames: FrameStorage::Borrowed(frames),
-            provider_calls,
-            pending_domain,
-            index_axes,
-        }
+        Self { session, frames: FrameStorage::Borrowed(frames), provider_calls, pending_domain, index_axes }
     }
 
     fn unsupported(op: SemanticOpId) -> HostOutcome {
@@ -188,7 +173,8 @@ impl<'a> ExecutionHost<'a> {
         }
         if residual {
             self.session.defs.write_residual_binding(symbol, term);
-        } else {
+        }
+        else {
             self.session.defs.write_binding(symbol, term);
         }
     }
@@ -258,10 +244,7 @@ impl<'a> ExecutionHost<'a> {
         let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
         // Bareiss 失败：SoftInvalid（VM 解释器提升为硬 Diagnostic，与 Index OOB 同合同）。
         if let Some(diagnostic) = diag_opt {
-            return Ok(HostOutcome::SoftInvalid {
-                value: SlotValue::Term(out),
-                diagnostic,
-            });
+            return Ok(HostOutcome::SoftInvalid { value: SlotValue::Term(out), diagnostic });
         }
         Ok(HostOutcome::Value(SlotValue::Term(out)))
     }
@@ -482,21 +465,24 @@ impl<'a> ExecutionHost<'a> {
         pattern: SlotValue,
         replacement: SlotValue,
     ) -> Result<HostOutcome> {
-        let SlotValue::Symbol(symbol) = head else {
+        let SlotValue::Symbol(symbol) = head
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
                     .detail("reason", "write_key_not_symbol"),
             ));
         };
-        let SlotValue::Term(pattern_term) = pattern else {
+        let SlotValue::Term(pattern_term) = pattern
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
                     .detail("reason", "write_pattern_not_term"),
             ));
         };
-        let SlotValue::Term(value_term) = replacement else {
+        let SlotValue::Term(value_term) = replacement
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -504,23 +490,14 @@ impl<'a> ExecutionHost<'a> {
             ));
         };
         let compiled = crate::execution::builtins::patterns::structural_pattern_from_term(self.session, pattern_term);
-        self.session
-            .defs
-            .register_extension_rule_for_symbol(symbol, operator, compiled, value_term);
+        self.session.defs.register_extension_rule_for_symbol(symbol, operator, compiled, value_term);
         Ok(HostOutcome::Value(SlotValue::Unit))
     }
 
     /// `RegisterCompiledRule`：把 Session 已编译规则挂到分派表。
-    pub fn register_compiled_rule(
-        &mut self,
-        table: athena_types::DispatchTableId,
-        rule: athena_types::CompiledRuleId,
-    ) -> Result<HostOutcome> {
-        let Some((pattern, replacement)) = self
-            .session
-            .compiled_rules
-            .get(rule)
-            .map(|(pattern, replacement)| (pattern.owning_copy(), *replacement))
+    pub fn register_compiled_rule(&mut self, table: athena_types::DispatchTableId, rule: athena_types::CompiledRuleId) -> Result<HostOutcome> {
+        let Some((pattern, replacement)) =
+            self.session.compiled_rules.get(rule).map(|(pattern, replacement)| (pattern.owning_copy(), *replacement))
         else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -533,21 +510,13 @@ impl<'a> ExecutionHost<'a> {
     }
 
     /// 扩展算子：down-value 命中 → Value；否则 Residual。
-    pub fn apply_extension_operator(
-        &mut self,
-        op: athena_types::ExtensionOperatorId,
-        args: &[SlotValue],
-    ) -> Result<HostOutcome> {
+    pub fn apply_extension_operator(&mut self, op: athena_types::ExtensionOperatorId, args: &[SlotValue]) -> Result<HostOutcome> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let (term, residual) = evaluate_extension_apply_terms(self.session, op, terms)?;
-        if residual {
-            Ok(HostOutcome::Residual(SlotValue::Term(term)))
-        } else {
-            Ok(HostOutcome::Value(SlotValue::Term(term)))
-        }
+        if residual { Ok(HostOutcome::Residual(SlotValue::Term(term))) } else { Ok(HostOutcome::Value(SlotValue::Term(term))) }
     }
 }
 
@@ -571,9 +540,11 @@ impl VmHost for ExecutionHost<'_> {
         {
             let op = if op.0 == SemanticOperator::Equal.discriminant() {
                 SemanticOperator::Equal
-            } else if op.0 == SemanticOperator::Unequal.discriminant() {
+            }
+            else if op.0 == SemanticOperator::Unequal.discriminant() {
                 SemanticOperator::Unequal
-            } else {
+            }
+            else {
                 SemanticOperator::Identical
             };
             return self.apply_equality(op, args);
@@ -705,16 +676,12 @@ impl VmHost for ExecutionHost<'_> {
 
     fn call_provider(&mut self, op: ProviderOpId, args: &[SlotValue]) -> Result<HostOutcome> {
         let _ = args;
-        let descriptor = self
-            .provider_calls
-            .get(op.0 as usize)
-            .cloned()
-            .ok_or_else(|| {
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "ExecutionHost")
-                    .detail("reason", "missing_provider_call")
-                    .detail("op", op.0)
-            })?;
+        let descriptor = self.provider_calls.get(op.0 as usize).cloned().ok_or_else(|| {
+            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionHost")
+                .detail("reason", "missing_provider_call")
+                .detail("op", op.0)
+        })?;
         if descriptor.id.0 != op.0 {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -723,7 +690,8 @@ impl VmHost for ExecutionHost<'_> {
             ));
         }
         let handoff = ProviderCallHandoff::from_descriptor(descriptor);
-        let Some(domain) = self.pending_domain.take() else {
+        let Some(domain) = self.pending_domain.take()
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -739,15 +707,14 @@ impl VmHost for ExecutionHost<'_> {
                 computation = computation.with_symbolic_term(term);
             }
         }
-        computation = computation.with_provenance(
-            crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint),
-        );
+        computation = computation.with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
         let result_id = self.session.insert_result(computation);
         Ok(HostOutcome::Value(SlotValue::Result(result_id)))
     }
 
     fn read_binding(&mut self, key: SlotValue) -> Result<HostOutcome> {
-        let SlotValue::Symbol(symbol) = key else {
+        let SlotValue::Symbol(symbol) = key
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -764,12 +731,7 @@ impl VmHost for ExecutionHost<'_> {
         }
         if let Some(term) = self.session.defs.residual_binding(symbol) {
             let result_id = execute_ir_request(self.session, AthenaRequest::Term(term))?;
-            let out = self
-                .session
-                .results
-                .get(result_id)
-                .and_then(|r| r.symbolic_term)
-                .unwrap_or(term);
+            let out = self.session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
             return Ok(HostOutcome::Value(SlotValue::Term(out)));
         }
         Ok(HostOutcome::Value(SlotValue::Symbol(symbol)))
@@ -783,7 +745,8 @@ impl VmHost for ExecutionHost<'_> {
         evaluation: BindingEvaluationPolicy,
     ) -> Result<HostOutcome> {
         let _ = kind;
-        let SlotValue::Symbol(symbol) = key else {
+        let SlotValue::Symbol(symbol) = key
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -795,7 +758,8 @@ impl VmHost for ExecutionHost<'_> {
             SlotValue::Unit => {
                 if let Some(frame) = self.frames.as_mut_vec().last_mut() {
                     frame.unbind(symbol);
-                } else {
+                }
+                else {
                     self.session.defs.clear_symbol(symbol);
                 }
             }
@@ -836,7 +800,8 @@ impl VmHost for ExecutionHost<'_> {
     }
 
     fn exit_scope(&mut self, scope: SlotValue) -> Result<HostOutcome> {
-        let SlotValue::Scope(expected) = scope else {
+        let SlotValue::Scope(expected) = scope
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -861,15 +826,13 @@ impl VmHost for ExecutionHost<'_> {
             items.push(self.slot_as_term(*slot)?);
         }
         let span = athena_ir::TermNode::default_span();
-        let term = self
-            .session
-            .arena
-            .push(athena_ir::TermNode::Collection { kind, elements: items }, span);
+        let term = self.session.arena.push(athena_ir::TermNode::Collection { kind, elements: items }, span);
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
     fn apply_index(&mut self, op: IndexAxesId, target: SlotValue) -> Result<HostOutcome> {
-        let Some(axes) = self.index_axes.get(op.0 as usize).cloned() else {
+        let Some(axes) = self.index_axes.get(op.0 as usize).cloned()
+        else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
@@ -880,10 +843,7 @@ impl VmHost for ExecutionHost<'_> {
         let cur = self.slot_as_term(target)?;
         Ok(match evaluate_index_axes(self.session, cur, &axes)? {
             IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
-            IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid {
-                value: SlotValue::Term(echo),
-                diagnostic,
-            },
+            IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
         })
     }
 
@@ -898,20 +858,10 @@ impl VmHost for ExecutionHost<'_> {
         pattern: SlotValue,
         replacement: SlotValue,
     ) -> Result<HostOutcome> {
-        ExecutionHost::register_rule_dispatch(
-            self,
-            head,
-            athena_types::ExtensionOperatorId(operator.0),
-            pattern,
-            replacement,
-        )
+        ExecutionHost::register_rule_dispatch(self, head, athena_types::ExtensionOperatorId(operator.0), pattern, replacement)
     }
 
     fn register_compiled_rule(&mut self, table: u32, rule: u32) -> Result<HostOutcome> {
-        ExecutionHost::register_compiled_rule(
-            self,
-            athena_types::DispatchTableId(table),
-            athena_types::CompiledRuleId(rule),
-        )
+        ExecutionHost::register_compiled_rule(self, athena_types::DispatchTableId(table), athena_types::CompiledRuleId(rule))
     }
 }

@@ -1,7 +1,7 @@
 //! [`super::ExecutionCompiler`] 的 module 构造辅助。
 
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId, TermRef};
 use athena_ir::TermStore;
+use athena_types::{Diagnostic, DiagnosticCode, Result, TermId, TermRef};
 
 use crate::execution::ir::{
     BasicBlock, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken, ExecutionModule,

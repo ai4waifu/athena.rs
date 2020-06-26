@@ -203,11 +203,7 @@ fn non_dominating_cross_block_use_rejected() {
             effect_in: None,
             effect_out: None,
         }],
-        terminator: Terminator::Branch {
-            condition: cond,
-            then_edge: BlockEdge::jump(BlockId(1)),
-            else_edge: BlockEdge::jump(BlockId(2)),
-        },
+        terminator: Terminator::Branch { condition: cond, then_edge: BlockEdge::jump(BlockId(1)), else_edge: BlockEdge::jump(BlockId(2)) },
     };
     let then_block = BasicBlock {
         id: BlockId(1),
@@ -221,12 +217,8 @@ fn non_dominating_cross_block_use_rejected() {
         }],
         terminator: Terminator::return_value(then_val),
     };
-    let else_block = BasicBlock {
-        id: BlockId(2),
-        parameters: Vec::new(),
-        operations: Vec::new(),
-        terminator: Terminator::return_value(then_val),
-    };
+    let else_block =
+        BasicBlock { id: BlockId(2), parameters: Vec::new(), operations: Vec::new(), terminator: Terminator::return_value(then_val) };
     let region = Region {
         id: RegionId(0),
         entry: BlockId(0),
@@ -245,10 +237,7 @@ fn non_dominating_cross_block_use_rejected() {
     };
     module.fingerprint = ModuleFingerprint::of_module(&module);
     let err = verify_module(&module).expect_err("non-dominating use");
-    assert_eq!(
-        err.details.get("reason").map(|v| v.to_string()).as_deref(),
-        Some("ssa_def_does_not_dominate_use")
-    );
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("ssa_def_does_not_dominate_use"));
 }
 
 #[test]
@@ -280,12 +269,7 @@ fn cold_unreachable_handler_block_tolerated() {
         }],
         terminator: Terminator::return_value(v1),
     };
-    let region = Region {
-        id: RegionId(0),
-        entry: BlockId(0),
-        blocks: vec![entry, cold],
-        result_types: vec![ExecutionValueType::Boolean],
-    };
+    let region = Region { id: RegionId(0), entry: BlockId(0), blocks: vec![entry, cold], result_types: vec![ExecutionValueType::Boolean] };
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::boolean(true)],

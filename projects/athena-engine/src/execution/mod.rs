@@ -14,9 +14,9 @@ pub mod execution_host;
 pub mod ir;
 pub mod provider;
 pub mod reference;
+pub(crate) mod shape;
 pub mod vm;
 pub mod vm_codegen;
-pub(crate) mod shape;
 
 use athena_numeric::Number;
 use athena_types::{ComputationStatus, Diagnostic, Result as AthenaResult, ResultId, Severity, SymbolId, TermId};
@@ -31,8 +31,10 @@ pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFra
 /// 后端经 [`backend::select_execution_backend`] **显式选择**：选中 `AthenaVm` 时只走 VM，
 /// 失败返回诊断，**禁止**再静默回退 `ReferenceExecutor`。
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
-    use crate::api::request::DomainGoal;
-    use crate::execution::backend::{BackendKind, select_execution_backend};
+    use crate::{
+        api::request::DomainGoal,
+        execution::backend::{BackendKind, select_execution_backend},
+    };
     use athena_types::{Diagnostic, DiagnosticCode};
 
     let module = compiler::ExecutionCompiler::new().compile(session, &request)?;

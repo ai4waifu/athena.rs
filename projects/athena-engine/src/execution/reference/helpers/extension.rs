@@ -6,17 +6,10 @@ use athena_ir::ApplicationHead;
 use athena_types::{ExtensionOperatorId, Result, TermId};
 
 use super::re_eval_term;
-use crate::{
-    execution::push_extension,
-    runtime::session::Session,
-};
+use crate::{execution::push_extension, runtime::session::Session};
 
 /// 尝试 Session 扩展规则；命中则替换并再求值，否则 `None`。
-pub(crate) fn try_apply_extension_down_values(
-    session: &mut Session,
-    op: ExtensionOperatorId,
-    terms: &[TermId],
-) -> Result<Option<TermId>> {
+pub(crate) fn try_apply_extension_down_values(session: &mut Session, op: ExtensionOperatorId, terms: &[TermId]) -> Result<Option<TermId>> {
     let Some(rules) = session
         .defs
         .extension_dispatch_rules(op)
@@ -51,18 +44,15 @@ pub(crate) fn try_apply_extension_down_values(
             break;
         }
     }
-    let Some(substituted) = matched else {
+    let Some(substituted) = matched
+    else {
         return Ok(None);
     };
     Ok(Some(re_eval_term(session, substituted)?))
 }
 
 /// `Extension[args…]` — down-value 或残差扩展应用。
-pub(crate) fn evaluate_extension_apply_terms(
-    session: &mut Session,
-    op: ExtensionOperatorId,
-    terms: Vec<TermId>,
-) -> Result<(TermId, bool)> {
+pub(crate) fn evaluate_extension_apply_terms(session: &mut Session, op: ExtensionOperatorId, terms: Vec<TermId>) -> Result<(TermId, bool)> {
     if let Some(term) = try_apply_extension_down_values(session, op, &terms)? {
         return Ok((term, false));
     }

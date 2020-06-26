@@ -5,9 +5,9 @@ use athena_types::{SymbolId, TermId};
 /// VM 常量载荷（句柄闭集）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmConstant {
-    /// Boolean 字面量。
+    /// 布尔字面量。
     Boolean(bool),
-    /// Unit。
+    /// 空单元常量。
     Unit,
     /// `TermStore` 句柄（VM 不拥有 store）。
     Term(TermId),

@@ -1,4 +1,4 @@
-//! 执行配置（不含语义 planner 状态）。
+//! 执行配置（不含语义规划器状态）。
 
 use athena_gc::GcMode;
 
@@ -6,25 +6,21 @@ use crate::cancel::CancellationToken;
 
 /// VM 运行配置。
 ///
-/// `GcMode` 只影响本执行作用域内的主动 collect 倾向，**不**改变 reclaim authority。
+/// `GcMode` 只影响本执行作用域内的主动回收倾向，**不**改变回收权限归属。
 #[derive(Debug, Clone, Default)]
 pub struct VmConfig {
     /// 本执行有效的 GC 模式。
     pub gc_mode: GcMode,
-    /// 最大解释步数（`None` = 不设 VM 层步数上限）。
+    /// 最大解释步数（`None` 表示不设 VM 层步数上限）。
     pub max_steps: Option<u64>,
     /// 协作式取消令牌。
     pub cancellation: CancellationToken,
 }
 
 impl VmConfig {
-    /// 默认配置（Deferred GC · 无步数上限 · 未取消）。
+    /// 默认配置（延迟 GC · 无步数上限 · 未取消）。
     pub fn new() -> Self {
-        Self {
-            gc_mode: GcMode::Deferred,
-            max_steps: None,
-            cancellation: CancellationToken::new(),
-        }
+        Self { gc_mode: GcMode::Deferred, max_steps: None, cancellation: CancellationToken::new() }
     }
 
     /// 设置最大解释步数。

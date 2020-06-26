@@ -28,11 +28,7 @@ pub(crate) fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId
 }
 
 /// `Unary(f)[arg]` — 精确三角折叠 / machine 实数折叠，否则残差。
-pub(crate) fn evaluate_special_unary_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    terms: Vec<TermId>,
-) -> Result<TermId> {
+pub(crate) fn evaluate_special_unary_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
     if let Some(uf) = op.as_unary() {
         if terms.len() == 1 {
             let arg = terms[0];
@@ -281,12 +277,7 @@ pub(crate) fn rule_pair(session: &Session, expr: TermId) -> Option<(TermId, Term
 }
 
 /// 构造 `Rule` / `RuleDeferred` 残差应用（不求值左右部）。
-pub(crate) fn evaluate_rule_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    lhs: TermId,
-    rhs: TermId,
-) -> Result<TermId> {
+pub(crate) fn evaluate_rule_terms(session: &mut Session, op: SemanticOperator, lhs: TermId, rhs: TermId) -> Result<TermId> {
     if !matches!(op, SemanticOperator::Rule | SemanticOperator::RuleDeferred) {
         return Err(diag("rule_operator_expected"));
     }
@@ -300,7 +291,8 @@ pub(crate) fn evaluate_matches_terms(session: &mut Session, expr: TermId, pat: T
 
 /// `CollectMatches[list, pat]` — 按 pattern 过滤列表元素。
 pub(crate) fn evaluate_collect_matches_terms(session: &mut Session, list: TermId, pat: TermId) -> Result<TermId> {
-    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list) else {
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
         return Ok(push_semantic(session, SemanticOperator::CollectMatches, vec![list, pat]));
     };
     let items = items.clone();

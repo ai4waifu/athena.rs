@@ -264,37 +264,24 @@ impl<N, E> MutableGraph<N, E> {
     /// 复用内部 `outgoing` 索引，避免全边扫描。供上层（如 Metis）按 payload 过滤，
     /// 而不平行维护第二套邻接表。
     pub fn out_edges(&self, node: NodeId) -> impl Iterator<Item = (EdgeId, NodeId, &E)> + '_ {
-        self.outgoing
-            .get(node.0 as usize)
-            .into_iter()
-            .flatten()
-            .map(move |&edge| {
-                let neighbor = self.target_of_edge(edge, node);
-                let value = &self.edges[edge.0 as usize].2;
-                (edge, neighbor, value)
-            })
+        self.outgoing.get(node.0 as usize).into_iter().flatten().map(move |&edge| {
+            let neighbor = self.target_of_edge(edge, node);
+            let value = &self.edges[edge.0 as usize].2;
+            (edge, neighbor, value)
+        })
     }
 
     /// 入边 `(edge, neighbor, &payload)`。有向=入边源；无向=与 [`Self::out_edges`] 相同。
     pub fn in_edges(&self, node: NodeId) -> impl Iterator<Item = (EdgeId, NodeId, &E)> + '_ {
         let directed = self.direction() == GraphDirection::Directed;
         let edge_ids = if directed {
-            self.incoming
-                .get(node.0 as usize)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[])
-        } else {
-            self.outgoing
-                .get(node.0 as usize)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[])
+            self.incoming.get(node.0 as usize).map(|v| v.as_slice()).unwrap_or(&[])
+        }
+        else {
+            self.outgoing.get(node.0 as usize).map(|v| v.as_slice()).unwrap_or(&[])
         };
         edge_ids.iter().map(move |&edge| {
-            let neighbor = if directed {
-                self.source_of_edge(edge)
-            } else {
-                self.target_of_edge(edge, node)
-            };
+            let neighbor = if directed { self.source_of_edge(edge) } else { self.target_of_edge(edge, node) };
             let value = &self.edges[edge.0 as usize].2;
             (edge, neighbor, value)
         })

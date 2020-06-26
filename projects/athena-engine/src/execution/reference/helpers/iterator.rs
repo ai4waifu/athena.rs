@@ -3,14 +3,13 @@
 use athena_ir::SemanticOperator;
 use athena_types::{Result, TermId};
 
-use super::{
-    expand_iterator_session, fold_plus_symbolic, fold_times_symbolic, re_eval_term,
-};
+use super::{expand_iterator_session, fold_plus_symbolic, fold_times_symbolic, re_eval_term};
 use crate::{execution::push_semantic, runtime::session::Session};
 
 /// 展开 iterator，对 body 逐值替换并再求值。
 pub(crate) fn table_values_session(session: &mut Session, body: TermId, iter: TermId) -> Result<Option<Vec<TermId>>> {
-    let Some((var, values)) = expand_iterator_session(session, iter) else {
+    let Some((var, values)) = expand_iterator_session(session, iter)
+    else {
         return Ok(None);
     };
     let mut out = Vec::with_capacity(values.len());

@@ -207,9 +207,7 @@ fn index_oob_hard_fails_invalid_index() {
     let b = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
     let module = index_module(list, session.arena.epoch(), vec![IndexSpec::Scalar(IntegerIndex(9))]);
-    let err = ReferenceExecutor::new()
-        .execute(&mut session, &module, None)
-        .expect_err("index oob must hard-fail like VM");
+    let err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("index oob must hard-fail like VM");
     assert_eq!(err.code, DiagnosticCode::InvalidIndex);
 }
 
@@ -264,9 +262,7 @@ fn execute_configured_honours_cancel() {
     let token = athena_vm::CancellationToken::new();
     token.cancel();
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_cancellation(token);
-    let err = ReferenceExecutor::new()
-        .execute_configured(&mut session, &module, None, &cfg)
-        .expect_err("cancelled");
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("cancelled");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
 }
 
@@ -276,8 +272,6 @@ fn execute_configured_honours_max_steps() {
     let term = session.builder().int(1, Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_max_steps(0);
-    let err = ReferenceExecutor::new()
-        .execute_configured(&mut session, &module, None, &cfg)
-        .expect_err("budget");
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("budget");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("budget_exceeded"));
 }

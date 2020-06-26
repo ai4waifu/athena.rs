@@ -27,11 +27,7 @@ impl Frame {
     /// 将帧内局部下标映射为绝对槽下标。
     #[inline]
     pub const fn absolute(self, local: u32) -> Option<u32> {
-        if local >= self.locals {
-            None
-        } else {
-            Some(self.base.saturating_add(local))
-        }
+        if local >= self.locals { None } else { Some(self.base.saturating_add(local)) }
     }
 }
 

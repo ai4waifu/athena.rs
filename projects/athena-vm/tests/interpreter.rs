@@ -1,7 +1,7 @@
 //! 解释器骨架合同。
 
 use athena_vm::{
-    CancellationToken, HostOutcome, Instruction, Interpreter, SemanticOpId, SlotValue, VmConfig, VmConstant, VmExit, VmExecutor, VmHost,
+    CancellationToken, HostOutcome, Instruction, Interpreter, SemanticOpId, SlotValue, VmConfig, VmConstant, VmExecutor, VmExit, VmHost,
     VmModule,
 };
 
@@ -16,10 +16,7 @@ fn empty_return_module_exits_returned() {
 
 #[test]
 fn max_steps_budget() {
-    let module = VmModule::from_instructions(
-        vec![Instruction::Safepoint, Instruction::Safepoint, Instruction::Return],
-        0,
-    );
+    let module = VmModule::from_instructions(vec![Instruction::Safepoint, Instruction::Safepoint, Instruction::Return], 0);
     let mut vm = Interpreter::new();
     let cfg = VmConfig::new().with_max_steps(1);
     let exit = vm.execute(&module, &cfg).expect("execute");
@@ -49,11 +46,7 @@ fn empty_instructions_diagnostic() {
 #[test]
 fn load_constant_move_and_return() {
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::Move { dst: 1, src: 0 },
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::Move { dst: 1, src: 0 }, Instruction::Return],
         vec![VmConstant::Boolean(true)],
         2,
     );
@@ -67,11 +60,7 @@ fn load_constant_move_and_return() {
 #[test]
 fn guard_false_rejects() {
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::Guard { predicate: 0 },
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::Guard { predicate: 0 }, Instruction::Return],
         vec![VmConstant::Boolean(false)],
         1,
     );
@@ -92,19 +81,13 @@ fn apply_semantic_via_host() {
     }
 
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::apply_semantic1(1, SemanticOpId(7), 0),
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::apply_semantic1(1, SemanticOpId(7), 0), Instruction::Return],
         vec![VmConstant::Boolean(true)],
         2,
     );
     let mut vm = Interpreter::new();
     let mut host = EchoHost;
-    let exit = vm
-        .execute_with_host(&module, &VmConfig::new(), &mut host)
-        .expect("execute");
+    let exit = vm.execute_with_host(&module, &VmConfig::new(), &mut host).expect("execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(false)));
 }
@@ -112,11 +95,7 @@ fn apply_semantic_via_host() {
 #[test]
 fn null_host_apply_semantic_diagnostics() {
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::apply_semantic1(1, SemanticOpId(1), 0),
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::apply_semantic1(1, SemanticOpId(1), 0), Instruction::Return],
         vec![VmConstant::Unit],
         2,
     );
@@ -129,11 +108,7 @@ fn null_host_apply_semantic_diagnostics() {
 fn load_term_and_symbol_constants() {
     use athena_types::{SymbolId, TermId};
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::LoadConstant { dst: 1, constant: 1 },
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::LoadConstant { dst: 1, constant: 1 }, Instruction::Return],
         vec![VmConstant::Term(TermId(9)), VmConstant::Symbol(SymbolId(3))],
         2,
     );
@@ -149,21 +124,13 @@ fn branch_selects_then_or_else() {
     let module = VmModule::from_parts(
         vec![
             Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::Branch {
-                condition: 0,
-                then_pc: 2,
-                else_pc: 4,
-            },
+            Instruction::Branch { condition: 0, then_pc: 2, else_pc: 4 },
             Instruction::LoadConstant { dst: 1, constant: 1 },
             Instruction::ReturnValue { slot: 1 },
             Instruction::LoadConstant { dst: 1, constant: 2 },
             Instruction::ReturnValue { slot: 1 },
         ],
-        vec![
-            VmConstant::Boolean(true),
-            VmConstant::Boolean(true),
-            VmConstant::Boolean(false),
-        ],
+        vec![VmConstant::Boolean(true), VmConstant::Boolean(true), VmConstant::Boolean(false)],
         2,
     );
     let mut vm = Interpreter::new();
@@ -191,7 +158,8 @@ fn read_write_binding_via_host() {
         ) -> athena_types::Result<HostOutcome> {
             assert_eq!(kind, BindingKind::Session);
             assert_eq!(evaluation, BindingEvaluationPolicy::EvaluateBeforeStore);
-            let SlotValue::Symbol(symbol) = key else {
+            let SlotValue::Symbol(symbol) = key
+            else {
                 panic!("expected symbol key");
             };
             self.map.insert(symbol.0, value);
@@ -199,12 +167,11 @@ fn read_write_binding_via_host() {
         }
 
         fn read_binding(&mut self, key: SlotValue) -> athena_types::Result<HostOutcome> {
-            let SlotValue::Symbol(symbol) = key else {
+            let SlotValue::Symbol(symbol) = key
+            else {
                 panic!("expected symbol key");
             };
-            Ok(HostOutcome::Value(
-                self.map.get(&symbol.0).copied().unwrap_or(SlotValue::Unit),
-            ))
+            Ok(HostOutcome::Value(self.map.get(&symbol.0).copied().unwrap_or(SlotValue::Unit)))
         }
     }
 
@@ -226,12 +193,8 @@ fn read_write_binding_via_host() {
         4,
     );
     let mut vm = Interpreter::new();
-    let mut host = MapHost {
-        map: HashMap::new(),
-    };
-    let exit = vm
-        .execute_with_host(&module, &VmConfig::new(), &mut host)
-        .expect("execute");
+    let mut host = MapHost { map: HashMap::new() };
+    let exit = vm.execute_with_host(&module, &VmConfig::new(), &mut host).expect("execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(vm.slots().get(3), Some(SlotValue::Boolean(true)));
     assert_eq!(host.map.get(&9).copied(), Some(SlotValue::Boolean(true)));
@@ -250,7 +213,8 @@ fn enter_exit_scope_via_host() {
             Ok(HostOutcome::Value(SlotValue::Scope(d)))
         }
         fn exit_scope(&mut self, scope: SlotValue) -> athena_types::Result<HostOutcome> {
-            let SlotValue::Scope(expected) = scope else {
+            let SlotValue::Scope(expected) = scope
+            else {
                 panic!("expected scope");
             };
             let top = self.depth.saturating_sub(1);
@@ -272,9 +236,7 @@ fn enter_exit_scope_via_host() {
     );
     let mut vm = Interpreter::new();
     let mut host = ScopeHost { depth: 0 };
-    let exit = vm
-        .execute_with_host(&module, &VmConfig::new(), &mut host)
-        .expect("execute");
+    let exit = vm.execute_with_host(&module, &VmConfig::new(), &mut host).expect("execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(host.depth, 0);
     assert_eq!(vm.slots().get(1), Some(SlotValue::Boolean(true)));
@@ -289,11 +251,7 @@ fn construct_collection_via_host() {
         argc: usize,
     }
     impl VmHost for CollectHost {
-        fn construct_collection(
-            &mut self,
-            kind: CollectionKind,
-            args: &[SlotValue],
-        ) -> athena_types::Result<HostOutcome> {
+        fn construct_collection(&mut self, kind: CollectionKind, args: &[SlotValue]) -> athena_types::Result<HostOutcome> {
             self.kind = Some(kind);
             self.argc = args.len();
             assert_eq!(args, &[SlotValue::Boolean(true), SlotValue::Boolean(false)]);
@@ -308,25 +266,15 @@ fn construct_collection_via_host() {
         vec![
             Instruction::LoadConstant { dst: 0, constant: 0 },
             Instruction::LoadConstant { dst: 1, constant: 1 },
-            Instruction::ConstructCollection {
-                dst: 2,
-                kind: CollectionKind::OrderedCollection,
-                argc: 2,
-                args,
-            },
+            Instruction::ConstructCollection { dst: 2, kind: CollectionKind::OrderedCollection, argc: 2, args },
             Instruction::ReturnValue { slot: 2 },
         ],
         vec![VmConstant::Boolean(true), VmConstant::Boolean(false)],
         3,
     );
     let mut vm = Interpreter::new();
-    let mut host = CollectHost {
-        kind: None,
-        argc: 0,
-    };
-    let exit = vm
-        .execute_with_host(&module, &VmConfig::new(), &mut host)
-        .expect("execute");
+    let mut host = CollectHost { kind: None, argc: 0 };
+    let exit = vm.execute_with_host(&module, &VmConfig::new(), &mut host).expect("execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(host.kind, Some(CollectionKind::OrderedCollection));
     assert_eq!(host.argc, 2);

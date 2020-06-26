@@ -130,13 +130,7 @@ impl ModuleFingerprint {
                         mix(&mut hash, b);
                     }
                 }
-                Instruction::WriteBinding {
-                    dst,
-                    key,
-                    value,
-                    kind,
-                    evaluation,
-                } => {
+                Instruction::WriteBinding { dst, key, value, kind, evaluation } => {
                     mix(&mut hash, 22);
                     for b in dst.to_le_bytes() {
                         mix(&mut hash, b);
@@ -211,13 +205,7 @@ impl ModuleFingerprint {
                         }
                     }
                 }
-                Instruction::RegisterRuleDispatch {
-                    dst,
-                    head,
-                    operator,
-                    pattern,
-                    replacement,
-                } => {
+                Instruction::RegisterRuleDispatch { dst, head, operator, pattern, replacement } => {
                     mix(&mut hash, 28);
                     for b in dst.to_le_bytes() {
                         mix(&mut hash, b);
@@ -324,12 +312,7 @@ impl VmModule {
 
     /// 用指令 + 常量表构造并刷新指纹。
     pub fn from_parts(instructions: Vec<Instruction>, constants: Vec<VmConstant>, locals: u32) -> Self {
-        let mut module = Self {
-            instructions,
-            constants,
-            locals,
-            fingerprint: ModuleFingerprint(0),
-        };
+        let mut module = Self { instructions, constants, locals, fingerprint: ModuleFingerprint(0) };
         module.fingerprint = ModuleFingerprint::of_module(&module);
         module
     }

@@ -19,7 +19,8 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
         SemanticOperator::Abs => {
             if let Some(n) = number_of(session, term) {
                 Ok(push_number(session, num_abs(clone_number(n))))
-            } else {
+            }
+            else {
                 Ok(push_semantic(session, SemanticOperator::Abs, vec![term]))
             }
         }
@@ -29,7 +30,8 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                     Ok(v) => Ok(push_number(session, v)),
                     Err(_) => Ok(push_semantic(session, SemanticOperator::Factorial, vec![term])),
                 }
-            } else {
+            }
+            else {
                 Ok(push_semantic(session, SemanticOperator::Factorial, vec![term]))
             }
         }
@@ -39,7 +41,8 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                     Ok(Some(v)) => Ok(push_number(session, v)),
                     _ => Ok(push_semantic(session, SemanticOperator::Sqrt, vec![term])),
                 }
-            } else {
+            }
+            else {
                 Ok(push_semantic(session, SemanticOperator::Sqrt, vec![term]))
             }
         }
@@ -54,9 +57,7 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
         SemanticOperator::First => match session.arena.get(term) {
             Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => Ok(items[0]),
             Some(athena_ir::TermNode::Application { arguments, .. }) if !arguments.is_empty() => Ok(arguments[0]),
-            Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => {
-                Err(diag("first_empty"))
-            }
+            Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("first_empty")),
             _ => Ok(push_semantic(session, SemanticOperator::First, vec![term])),
         },
         SemanticOperator::Rest => match session.arena.get(term) {
@@ -69,9 +70,7 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 let rest = arguments[1..].to_vec();
                 Ok(session.builder().application(head, rest, Default::default()))
             }
-            Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => {
-                Err(diag("rest_empty"))
-            }
+            Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
             _ => Ok(push_semantic(session, SemanticOperator::Rest, vec![term])),
         },
         _ => Err(diag("semantic_operator_not_implemented")),

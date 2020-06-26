@@ -2,7 +2,7 @@
 //!
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
 //! `SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化
-//!（诚实边界：尚未独立 Semantic elaboration / CFG formation pass），但它们是具名阶段产物，
+//! （诚实边界：尚未独立 Semantic elaboration / CFG formation pass），但它们是具名阶段产物，
 //! 不再只是 `observe_compile` 的事后视图别名。
 
 use std::{
@@ -11,9 +11,9 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use crate::api::request::AthenaRequest;
-use crate::execution::ir::{
-    ExecutionModule, ExecutionValueType, ModuleFingerprint, OperationKind, Terminator,
+use crate::{
+    api::request::AthenaRequest,
+    execution::ir::{ExecutionModule, ExecutionValueType, ModuleFingerprint, OperationKind, Terminator},
 };
 
 /// 编译管线阶段种类。
@@ -147,11 +147,7 @@ pub fn canonicalize_request(request: &AthenaRequest) -> RequestProgram {
         kind.hash(h);
         term_index.hash(h);
     });
-    RequestProgram {
-        kind,
-        term_index,
-        fingerprint,
-    }
+    RequestProgram { kind, term_index, fingerprint }
 }
 
 /// P1：由 Request 程序产出 Plan 程序（不读 module、不 emit 指令）。
@@ -169,12 +165,7 @@ pub fn plan_from_request(request: &RequestProgram) -> PlanProgram {
         core::mem::discriminant(&intent).hash(h);
         provider_required.hash(h);
     });
-    PlanProgram {
-        request_fingerprint: request.fingerprint,
-        intent,
-        provider_required,
-        fingerprint,
-    }
+    PlanProgram { request_fingerprint: request.fingerprint, intent, provider_required, fingerprint }
 }
 
 /// 过渡：从已形成 module 物化 Semantic 程序。
@@ -205,12 +196,7 @@ pub fn materialize_semantic(module: &ExecutionModule) -> SemanticProgram {
         effect_edge_count.hash(h);
         provider_call_count.hash(h);
     });
-    SemanticProgram {
-        operations,
-        effect_edge_count,
-        provider_call_count,
-        fingerprint,
-    }
+    SemanticProgram { operations, effect_edge_count, provider_call_count, fingerprint }
 }
 
 /// 过渡：从已形成 module 物化 CFG SSA 程序。
@@ -227,14 +213,7 @@ pub fn materialize_cfg_ssa(module: &ExecutionModule) -> CfgSsaProgram {
         block_count.hash(h);
         entry_block.hash(h);
     });
-    CfgSsaProgram {
-        region_count,
-        block_count,
-        entry_block,
-        text,
-        module_fingerprint,
-        fingerprint,
-    }
+    CfgSsaProgram { region_count, block_count, entry_block, text, module_fingerprint, fingerprint }
 }
 
 pub(crate) fn render_cfg_text(module: &ExecutionModule) -> String {
@@ -249,13 +228,7 @@ pub(crate) fn render_cfg_text(module: &ExecutionModule) -> String {
                     Some(v) => format!("%{}", v.0),
                     None => "_".to_string(),
                 };
-                let _ = writeln!(
-                    out,
-                    "    {} = {} : {}",
-                    result,
-                    operation_kind_name(&op.kind),
-                    value_type_name(&op.result_type)
-                );
+                let _ = writeln!(out, "    {} = {} : {}", result, operation_kind_name(&op.kind), value_type_name(&op.result_type));
             }
             let _ = writeln!(out, "    {}", terminator_text(&block.terminator));
         }
@@ -269,27 +242,11 @@ fn terminator_text(terminator: &Terminator) -> String {
             let ids: Vec<String> = values.iter().map(|v| format!("%{}", v.0)).collect();
             format!("return {}", ids.join(","))
         }
-        Terminator::Branch {
-            condition,
-            then_edge,
-            else_edge,
-        } => {
-            format!(
-                "branch %{} then={} else={}",
-                condition.0, then_edge.target.0, else_edge.target.0
-            )
+        Terminator::Branch { condition, then_edge, else_edge } => {
+            format!("branch %{} then={} else={}", condition.0, then_edge.target.0, else_edge.target.0)
         }
-        Terminator::Switch {
-            discriminant,
-            cases,
-            default,
-        } => {
-            format!(
-                "switch %{} cases={} default={}",
-                discriminant.0,
-                cases.len(),
-                default.target.0
-            )
+        Terminator::Switch { discriminant, cases, default } => {
+            format!("switch %{} cases={} default={}", discriminant.0, cases.len(), default.target.0)
         }
         Terminator::Reject { exit } => format!("reject exit={:?}", exit.map(|e| e.0)),
         Terminator::Yield { values, resume } => {

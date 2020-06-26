@@ -4,7 +4,7 @@ use athena_engine::{
     Session,
     execution::vm::{empty_vm_module, execute_vm_module, vm_config_from_session},
 };
-use athena_vm::{CancellationToken, Instruction, Interpreter, SlotValue, VmConstant, VmExit, VmExecutor, VmModule};
+use athena_vm::{CancellationToken, Instruction, Interpreter, SlotValue, VmConstant, VmExecutor, VmExit, VmModule};
 
 #[test]
 fn session_projects_vm_config_and_runs_empty_module() {
@@ -42,11 +42,7 @@ fn cancel_token_projects_to_cancelled_exit() {
 fn bridge_runs_load_constant_guard_true() {
     let mut session = Session::new();
     let module = VmModule::from_parts(
-        vec![
-            Instruction::LoadConstant { dst: 0, constant: 0 },
-            Instruction::Guard { predicate: 0 },
-            Instruction::Return,
-        ],
+        vec![Instruction::LoadConstant { dst: 0, constant: 0 }, Instruction::Guard { predicate: 0 }, Instruction::Return],
         vec![VmConstant::Boolean(true)],
         1,
     );
@@ -151,10 +147,10 @@ fn execution_host_trueq_equal_unequal() {
 fn pin_module_terms_registers_captured_and_constant_terms() {
     use athena_engine::execution::{
         ir::{
-            BasicBlock, BlockId, CapturedRoot, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint,
-            Operation, OperationKind, Region, RegionId, SsaValueId, Terminator,
+            BasicBlock, BlockId, CapturedRoot, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation,
+            OperationKind, Region, RegionId, SsaValueId, Terminator,
         },
-        vm::{pin_module_terms, ExecutionLease},
+        vm::{ExecutionLease, pin_module_terms},
     };
     use athena_types::TermRef;
 
@@ -172,12 +168,7 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
         }],
         terminator: Terminator::return_value(SsaValueId(0)),
     };
-    let region = Region {
-        id: RegionId(0),
-        entry: BlockId(0),
-        blocks: vec![block],
-        result_types: vec![ExecutionValueType::Boolean],
-    };
+    let region = Region { id: RegionId(0), entry: BlockId(0), blocks: vec![block], result_types: vec![ExecutionValueType::Boolean] };
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(true), ConstantValue::Term(term)],
@@ -201,10 +192,10 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
 fn pinned_term_ref_stale_after_store_epoch_bump() {
     use athena_engine::execution::{
         ir::{
-            BasicBlock, BlockId, CapturedRoot, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint,
-            Operation, OperationKind, Region, RegionId, SsaValueId, Terminator,
+            BasicBlock, BlockId, CapturedRoot, ConstantId, ConstantValue, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation,
+            OperationKind, Region, RegionId, SsaValueId, Terminator,
         },
-        vm::{pin_module_terms, ExecutionLease},
+        vm::{ExecutionLease, pin_module_terms},
     };
     use athena_types::TermRef;
 
@@ -222,12 +213,7 @@ fn pinned_term_ref_stale_after_store_epoch_bump() {
         }],
         terminator: Terminator::return_value(SsaValueId(0)),
     };
-    let region = Region {
-        id: RegionId(0),
-        entry: BlockId(0),
-        blocks: vec![block],
-        result_types: vec![ExecutionValueType::Boolean],
-    };
+    let region = Region { id: RegionId(0), entry: BlockId(0), blocks: vec![block], result_types: vec![ExecutionValueType::Boolean] };
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(false)],
@@ -245,8 +231,5 @@ fn pinned_term_ref_stale_after_store_epoch_bump() {
     let pinned = lease.term_pins()[0];
     session.arena.bump_epoch();
     let err = session.arena.check_ref(pinned).expect_err("stale");
-    assert_eq!(
-        err.details.get("reason").map(|v| v.to_string()).as_deref(),
-        Some("stale_term_generation")
-    );
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("stale_term_generation"));
 }

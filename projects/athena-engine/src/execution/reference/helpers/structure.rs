@@ -28,11 +28,9 @@ pub(crate) fn evaluate_join_terms(session: &mut Session, terms: Vec<TermId>) -> 
 
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
 pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
-    let ints = terms
-        .iter()
-        .map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer()))
-        .collect::<Option<Vec<_>>>();
-    let Some(ints) = ints else {
+    let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
+    let Some(ints) = ints
+    else {
         return Ok(push_semantic(session, SemanticOperator::Range, terms));
     };
     let bounds = match ints.as_slice() {
@@ -41,16 +39,15 @@ pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) ->
         [a, b, step] => Some((*a, *b, *step)),
         _ => None,
     };
-    let Some((a, b, step)) = bounds else {
+    let Some((a, b, step)) = bounds
+    else {
         return Ok(push_semantic(session, SemanticOperator::Range, terms));
     };
-    let Some(values) = expand_span_3(a, step, b) else {
+    let Some(values) = expand_span_3(a, step, b)
+    else {
         return Ok(push_semantic(session, SemanticOperator::Range, terms));
     };
-    let out: Vec<TermId> = values
-        .into_iter()
-        .map(|v| session.builder().int(v, Default::default()))
-        .collect();
+    let out: Vec<TermId> = values.into_iter().map(|v| session.builder().int(v, Default::default())).collect();
     Ok(push_list(session, out))
 }
 
@@ -60,7 +57,8 @@ pub(crate) fn evaluate_size_terms(session: &mut Session, terms: Vec<TermId>) -> 
         return Ok(push_semantic(session, SemanticOperator::Size, terms));
     }
     let term = terms[0];
-    let Some((rows, cols)) = nested_list_shape(session, term) else {
+    let Some((rows, cols)) = nested_list_shape(session, term)
+    else {
         return Ok(push_semantic(session, SemanticOperator::Size, terms));
     };
     let r = session.builder().int(rows as i64, Default::default());
@@ -74,18 +72,17 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
         return Ok(push_semantic(session, SemanticOperator::Sum, terms));
     }
     let term = terms[0];
-    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term) else {
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
+    else {
         return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
     };
     let items = items.clone();
     if items.is_empty() {
         return Ok(session.builder().int(0, Default::default()));
     }
-    if matches!(
-        session.arena.get(items[0]),
-        Some(athena_ir::TermNode::Collection { elements: _, .. })
-    ) {
-        let Some((_, cols)) = nested_list_shape(session, term) else {
+    if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
+        let Some((_, cols)) = nested_list_shape(session, term)
+        else {
             return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
         };
         let mut out = Vec::with_capacity(cols as usize);
@@ -96,7 +93,8 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
                     Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.get(j).copied(),
                     _ => None,
                 };
-                let Some(cell) = cell else {
+                let Some(cell) = cell
+                else {
                     return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
                 };
                 col.push(cell);
@@ -109,12 +107,10 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
 }
 
 /// `Determinant[m]` — 有理矩阵 Bareiss；非矩阵或失败时残差，失败诊断可选。
-pub(crate) fn evaluate_determinant_term(
-    session: &mut Session,
-    term: TermId,
-) -> Result<(TermId, Option<Diagnostic>)> {
+pub(crate) fn evaluate_determinant_term(session: &mut Session, term: TermId) -> Result<(TermId, Option<Diagnostic>)> {
     let echo = push_semantic(session, SemanticOperator::Determinant, vec![term]);
-    let Some(matrix) = term_to_rational_matrix_session(session, term) else {
+    let Some(matrix) = term_to_rational_matrix_session(session, term)
+    else {
         return Ok((echo, None));
     };
     match det_bareiss(&matrix) {
@@ -124,12 +120,9 @@ pub(crate) fn evaluate_determinant_term(
 }
 
 /// `Zeros` / `Ones` / `Eye` — 按维度构造有理整数矩阵；非法维度则残差。
-pub(crate) fn evaluate_matrix_constructor_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    terms: Vec<TermId>,
-) -> Result<TermId> {
-    let Some((rows, cols)) = parse_matrix_dims(session, &terms) else {
+pub(crate) fn evaluate_matrix_constructor_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
+    let Some((rows, cols)) = parse_matrix_dims(session, &terms)
+    else {
         return Ok(push_semantic(session, op, terms));
     };
     let n = match rows.checked_mul(cols) {
@@ -157,12 +150,7 @@ pub(crate) fn evaluate_matrix_constructor_terms(
 }
 
 /// `ElementwiseMultiply` / `ElementwiseDivide` / `ElementwisePower` — 集合 zip + 标量广播。
-pub(crate) fn evaluate_elementwise_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    left: TermId,
-    right: TermId,
-) -> Result<TermId> {
+pub(crate) fn evaluate_elementwise_terms(session: &mut Session, op: SemanticOperator, left: TermId, right: TermId) -> Result<TermId> {
     let echo = push_semantic(session, op, vec![left, right]);
     let scalar_op = match op {
         SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
@@ -176,12 +164,7 @@ pub(crate) fn evaluate_elementwise_terms(
     }
 }
 
-fn elementwise_zip(
-    session: &mut Session,
-    scalar_op: SemanticOperator,
-    left: TermId,
-    right: TermId,
-) -> Result<Option<TermId>> {
+fn elementwise_zip(session: &mut Session, scalar_op: SemanticOperator, left: TermId, right: TermId) -> Result<Option<TermId>> {
     let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
     let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
     match (left_is_collection, right_is_collection) {

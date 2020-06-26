@@ -11,14 +11,16 @@ use crate::{
 
 fn map_func_supported(session: &Session, func: TermId) -> bool {
     match session.arena.get(func) {
-        Some(athena_ir::TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Function),
-            arguments,
-        }) if arguments.len() == 2 => true,
-        Some(athena_ir::TermNode::Application {
-            head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_),
-            arguments,
-        }) if arguments.is_empty() => true,
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), arguments })
+            if arguments.len() == 2 =>
+        {
+            true
+        }
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(_) | ApplicationHead::Extension(_), arguments })
+            if arguments.is_empty() =>
+        {
+            true
+        }
         _ => false,
     }
 }
@@ -39,8 +41,7 @@ fn map_apply_one(session: &mut Session, func: TermId, item: TermId) -> Result<Te
             let arguments = arguments.clone();
             if let [var, body] = arguments.as_slice() {
                 if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
-                    let instantiated =
-                        crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
+                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, *sym, item);
                     return re_eval_term(session, instantiated);
                 }
             }

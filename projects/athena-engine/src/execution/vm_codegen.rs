@@ -20,8 +20,8 @@ use athena_types::{Diagnostic, DiagnosticCode, IndexSpec, Result};
 use athena_vm::{IndexAxesId, Instruction, MAX_HOST_ARGS, ProviderOpId, SemanticOpId, VmConstant, VmModule};
 
 use crate::execution::ir::{
-    BasicBlock, BlockEdge, BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind,
-    Region, Terminator, verify_module,
+    BasicBlock, BlockEdge, BlockId, CapturedRoot, ConstantValue, ExecutionModule, GuardFailure, OperationKind, Region, Terminator,
+    verify_module,
 };
 
 /// Verified CFG 子集的 VM codegen 产物（布局 / 调用约定，不改变语义）。
@@ -42,19 +42,14 @@ fn supported_semantic_op(op: athena_ir::SemanticOperator) -> bool {
 }
 
 fn diag(reason: &'static str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "vm_codegen")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "vm_codegen").detail("reason", reason)
 }
 
 fn bump(max: &mut u32, id: u32) {
     *max = (*max).max(id.saturating_add(1));
 }
 
-fn edge_moves_interfere(
-    params: &[crate::execution::ir::BlockParameter],
-    arguments: &[crate::execution::ir::SsaValueId],
-) -> bool {
+fn edge_moves_interfere(params: &[crate::execution::ir::BlockParameter], arguments: &[crate::execution::ir::SsaValueId]) -> bool {
     let mut dsts = HashMap::new();
     for param in params {
         dsts.insert(param.value.0, ());
@@ -66,20 +61,12 @@ fn edge_trampoline_len(region: &Region, edge: &BlockEdge) -> Result<u32> {
     if edge.arguments.is_empty() {
         return Ok(0);
     }
-    let target = region
-        .blocks
-        .iter()
-        .find(|b| b.id == edge.target)
-        .ok_or_else(|| diag("lower_missing_edge_target"))?;
+    let target = region.blocks.iter().find(|b| b.id == edge.target).ok_or_else(|| diag("lower_missing_edge_target"))?;
     if target.parameters.len() != edge.arguments.len() {
         return Err(diag("lower_edge_arity_mismatch"));
     }
     let n = edge.arguments.len() as u32;
-    let moves = if edge_moves_interfere(&target.parameters, &edge.arguments) {
-        n.saturating_mul(2)
-    } else {
-        n
-    };
+    let moves = if edge_moves_interfere(&target.parameters, &edge.arguments) { n.saturating_mul(2) } else { n };
     Ok(moves.saturating_add(1))
 }
 
@@ -127,20 +114,14 @@ fn validate_op(module: &ExecutionModule, op: &crate::execution::ir::Operation) -
     let _ = op_instruction_len(op)?;
     match &op.kind {
         OperationKind::LoadTerm { root } => {
-            let captured = module
-                .captured_roots
-                .get(root.0 as usize)
-                .ok_or_else(|| diag("lower_missing_root"))?;
+            let captured = module.captured_roots.get(root.0 as usize).ok_or_else(|| diag("lower_missing_root"))?;
             match captured {
                 CapturedRoot::Term(_) => Ok(()),
                 CapturedRoot::Value(_) | CapturedRoot::Result(_) => Err(diag("lower_root_not_term")),
             }
         }
         OperationKind::Constant { constant } => {
-            let _ = module
-                .constants
-                .get(constant.0 as usize)
-                .ok_or_else(|| diag("lower_missing_constant"))?;
+            let _ = module.constants.get(constant.0 as usize).ok_or_else(|| diag("lower_missing_constant"))?;
             Ok(())
         }
         OperationKind::ApplySemanticOperator { operator, args } => {
@@ -233,17 +214,12 @@ fn lower_ops(
                 let _ = op_instruction_len(op)?;
                 bump(max_slot, predicate.0);
                 let _ = on_failure;
-                instructions.push(Instruction::Guard {
-                    predicate: predicate.0,
-                });
+                instructions.push(Instruction::Guard { predicate: predicate.0 });
             }
             OperationKind::LoadTerm { root } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
-                let captured = module
-                    .captured_roots
-                    .get(root.0 as usize)
-                    .ok_or_else(|| diag("lower_missing_root"))?;
+                let captured = module.captured_roots.get(root.0 as usize).ok_or_else(|| diag("lower_missing_root"))?;
                 let term = match captured {
                     CapturedRoot::Term(term_ref) => term_ref.id,
                     CapturedRoot::Value(_) | CapturedRoot::Result(_) => {
@@ -252,18 +228,12 @@ fn lower_ops(
                 };
                 let const_index = constants.len() as u32;
                 constants.push(VmConstant::Term(term));
-                instructions.push(Instruction::LoadConstant {
-                    dst: result.0,
-                    constant: const_index,
-                });
+                instructions.push(Instruction::LoadConstant { dst: result.0, constant: const_index });
             }
             OperationKind::Constant { constant } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
-                let value = module
-                    .constants
-                    .get(constant.0 as usize)
-                    .ok_or_else(|| diag("lower_missing_constant"))?;
+                let value = module.constants.get(constant.0 as usize).ok_or_else(|| diag("lower_missing_constant"))?;
                 let vm_const = match value {
                     ConstantValue::Boolean(v) => VmConstant::Boolean(*v),
                     ConstantValue::Unit => VmConstant::Unit,
@@ -272,10 +242,7 @@ fn lower_ops(
                 };
                 let const_index = constants.len() as u32;
                 constants.push(vm_const);
-                instructions.push(Instruction::LoadConstant {
-                    dst: result.0,
-                    constant: const_index,
-                });
+                instructions.push(Instruction::LoadConstant { dst: result.0, constant: const_index });
             }
             OperationKind::ApplySemanticOperator { operator, args } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
@@ -316,12 +283,7 @@ fn lower_ops(
                     args: packed,
                 });
             }
-            OperationKind::RegisterRuleDispatch {
-                head,
-                operator,
-                pattern,
-                replacement,
-            } => {
+            OperationKind::RegisterRuleDispatch { head, operator, pattern, replacement } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
                 bump(max_slot, head.0);
@@ -338,27 +300,15 @@ fn lower_ops(
             OperationKind::RegisterCompiledRule { table, rule } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
-                instructions.push(Instruction::RegisterCompiledRule {
-                    dst: result.0,
-                    table: table.0,
-                    rule: rule.0,
-                });
+                instructions.push(Instruction::RegisterCompiledRule { dst: result.0, table: table.0, rule: rule.0 });
             }
             OperationKind::ReadBinding { key } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
                 bump(max_slot, key.0);
-                instructions.push(Instruction::ReadBinding {
-                    dst: result.0,
-                    key: key.0,
-                });
+                instructions.push(Instruction::ReadBinding { dst: result.0, key: key.0 });
             }
-            OperationKind::WriteBinding {
-                key,
-                value,
-                kind,
-                evaluation,
-            } => {
+            OperationKind::WriteBinding { key, value, kind, evaluation } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
                 bump(max_slot, key.0);
@@ -381,10 +331,7 @@ fn lower_ops(
                     }
                     None => None,
                 };
-                instructions.push(Instruction::EnterScope {
-                    dst: result.0,
-                    parent: parent_slot,
-                });
+                instructions.push(Instruction::EnterScope { dst: result.0, parent: parent_slot });
             }
             OperationKind::ExitScope { scope } => {
                 let _ = op_instruction_len(op)?;
@@ -402,21 +349,13 @@ fn lower_ops(
                     bump(max_slot, arg.0);
                     packed[i] = arg.0;
                 }
-                instructions.push(Instruction::CallProvider {
-                    dst: result.0,
-                    op: ProviderOpId(call.0),
-                    argc: args.len() as u8,
-                    args: packed,
-                });
+                instructions.push(Instruction::CallProvider { dst: result.0, op: ProviderOpId(call.0), argc: args.len() as u8, args: packed });
             }
             OperationKind::PublishResult { source } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
                 bump(max_slot, result.0);
                 bump(max_slot, source.0);
-                instructions.push(Instruction::Move {
-                    dst: result.0,
-                    src: source.0,
-                });
+                instructions.push(Instruction::Move { dst: result.0, src: source.0 });
             }
             OperationKind::ConstructCollection { kind, elements } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
@@ -429,12 +368,7 @@ fn lower_ops(
                     bump(max_slot, arg.0);
                     packed[i] = arg.0;
                 }
-                instructions.push(Instruction::ConstructCollection {
-                    dst: result.0,
-                    kind: *kind,
-                    argc: elements.len() as u8,
-                    args: packed,
-                });
+                instructions.push(Instruction::ConstructCollection { dst: result.0, kind: *kind, argc: elements.len() as u8, args: packed });
             }
             OperationKind::Index { target, axes } => {
                 let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
@@ -442,11 +376,7 @@ fn lower_ops(
                 bump(max_slot, target.0);
                 let axes_id = IndexAxesId(index_axes.len() as u32);
                 index_axes.push(axes.clone());
-                instructions.push(Instruction::Index {
-                    dst: result.0,
-                    target: target.0,
-                    axes: axes_id,
-                });
+                instructions.push(Instruction::Index { dst: result.0, target: target.0, axes: axes_id });
             }
             _ => return Err(diag("lower_unsupported_operation")),
         }
@@ -467,9 +397,9 @@ fn block_body_len(region: &Region, block: &BasicBlock) -> Result<u32> {
             1u32
         }
         Terminator::Reject { .. } => 1u32,
-        Terminator::Branch { then_edge, else_edge, .. } => 1u32
-            .saturating_add(edge_trampoline_len(region, then_edge)?)
-            .saturating_add(edge_trampoline_len(region, else_edge)?),
+        Terminator::Branch { then_edge, else_edge, .. } => {
+            1u32.saturating_add(edge_trampoline_len(region, then_edge)?).saturating_add(edge_trampoline_len(region, else_edge)?)
+        }
         _ => return Err(diag("lower_unsupported_terminator")),
     };
     Ok(ops_len.saturating_add(term_len))
@@ -501,11 +431,7 @@ fn emit_edge_trampoline(
     if edge.arguments.is_empty() {
         return Ok(());
     }
-    let target = region
-        .blocks
-        .iter()
-        .find(|b| b.id == edge.target)
-        .ok_or_else(|| diag("lower_missing_edge_target"))?;
+    let target = region.blocks.iter().find(|b| b.id == edge.target).ok_or_else(|| diag("lower_missing_edge_target"))?;
     if target.parameters.len() != edge.arguments.len() {
         return Err(diag("lower_edge_arity_mismatch"));
     }
@@ -515,32 +441,22 @@ fn emit_edge_trampoline(
             bump(max_slot, arg.0);
             let tmp = *max_slot;
             *max_slot = max_slot.saturating_add(1);
-            instructions.push(Instruction::Move {
-                dst: tmp,
-                src: arg.0,
-            });
+            instructions.push(Instruction::Move { dst: tmp, src: arg.0 });
             temps.push(tmp);
         }
         for (param, tmp) in target.parameters.iter().zip(temps.iter()) {
             bump(max_slot, param.value.0);
-            instructions.push(Instruction::Move {
-                dst: param.value.0,
-                src: *tmp,
-            });
+            instructions.push(Instruction::Move { dst: param.value.0, src: *tmp });
         }
-    } else {
+    }
+    else {
         for (param, arg) in target.parameters.iter().zip(edge.arguments.iter()) {
             bump(max_slot, param.value.0);
             bump(max_slot, arg.0);
-            instructions.push(Instruction::Move {
-                dst: param.value.0,
-                src: arg.0,
-            });
+            instructions.push(Instruction::Move { dst: param.value.0, src: arg.0 });
         }
     }
-    let target_pc = *block_pcs
-        .get(&edge.target)
-        .ok_or_else(|| diag("lower_missing_edge_target_pc"))?;
+    let target_pc = *block_pcs.get(&edge.target).ok_or_else(|| diag("lower_missing_edge_target_pc"))?;
     instructions.push(Instruction::Jump { target: target_pc });
     Ok(())
 }
@@ -557,25 +473,15 @@ fn emit_branch(
     bump(max_slot, condition);
     let after_branch = (instructions.len() as u32).saturating_add(1);
     let then_tramp = edge_trampoline_len(region, then_edge)?;
-    let then_pc = if then_tramp == 0 {
-        *block_pcs
-            .get(&then_edge.target)
-            .ok_or_else(|| diag("lower_missing_then_block"))?
-    } else {
-        after_branch
-    };
+    let then_pc =
+        if then_tramp == 0 { *block_pcs.get(&then_edge.target).ok_or_else(|| diag("lower_missing_then_block"))? } else { after_branch };
     let else_pc = if edge_trampoline_len(region, else_edge)? == 0 {
-        *block_pcs
-            .get(&else_edge.target)
-            .ok_or_else(|| diag("lower_missing_else_block"))?
-    } else {
+        *block_pcs.get(&else_edge.target).ok_or_else(|| diag("lower_missing_else_block"))?
+    }
+    else {
         after_branch.saturating_add(then_tramp)
     };
-    instructions.push(Instruction::Branch {
-        condition,
-        then_pc,
-        else_pc,
-    });
+    instructions.push(Instruction::Branch { condition, then_pc, else_pc });
     emit_edge_trampoline(region, then_edge, block_pcs, instructions, max_slot)?;
     emit_edge_trampoline(region, else_edge, block_pcs, instructions, max_slot)?;
     Ok(())
@@ -600,14 +506,7 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<VmCodeg
 
     for block in &region.blocks {
         note_block_parameters(block, &mut max_slot);
-        lower_ops(
-            module,
-            block,
-            &mut constants,
-            &mut instructions,
-            &mut index_axes,
-            &mut max_slot,
-        )?;
+        lower_ops(module, block, &mut constants, &mut instructions, &mut index_axes, &mut max_slot)?;
         match &block.terminator {
             Terminator::Return { values } => {
                 let slot = values[0].0;
@@ -619,20 +518,8 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<VmCodeg
             Terminator::Reject { .. } => {
                 instructions.push(Instruction::Reject);
             }
-            Terminator::Branch {
-                condition,
-                then_edge,
-                else_edge,
-            } => {
-                emit_branch(
-                    region,
-                    condition.0,
-                    then_edge,
-                    else_edge,
-                    &block_pcs,
-                    &mut instructions,
-                    &mut max_slot,
-                )?;
+            Terminator::Branch { condition, then_edge, else_edge } => {
+                emit_branch(region, condition.0, then_edge, else_edge, &block_pcs, &mut instructions, &mut max_slot)?;
             }
             _ => return Err(diag("lower_unsupported_terminator")),
         }
@@ -640,9 +527,5 @@ pub fn try_lower_verified_cfg_module(module: &ExecutionModule) -> Result<VmCodeg
 
     debug_assert!(saw_return);
 
-    Ok(VmCodegenArtifact {
-        module: VmModule::from_parts(instructions, constants, max_slot),
-        result_slot,
-        index_axes,
-    })
+    Ok(VmCodegenArtifact { module: VmModule::from_parts(instructions, constants, max_slot), result_slot, index_axes })
 }

@@ -71,7 +71,8 @@ pub fn verify_module(module: &ExecutionModule) -> Result<()> {
                 for used in operands_of(&op.kind) {
                     if block_reachable {
                         verify_ssa_use(used, region.id, block.id, &local_defs, &def_block, &cfg)?;
-                    } else {
+                    }
+                    else {
                         verify_ssa_use_local_only(used, region.id, block.id, &local_defs, &def_block)?;
                     }
                 }
@@ -87,28 +88,16 @@ pub fn verify_module(module: &ExecutionModule) -> Result<()> {
                     }
                     _ => return Err(diag("effect_token_pair_mismatch")),
                 }
-                if let OperationKind::Guard {
-                    on_failure: GuardFailure::Exit(exit),
-                    ..
-                } = &op.kind
-                {
+                if let OperationKind::Guard { on_failure: GuardFailure::Exit(exit), .. } = &op.kind {
                     if !exit_ids.contains(exit) {
                         return Err(diag("guard_exit_unknown"));
                     }
                 }
             }
             if block_reachable {
-                verify_terminator(
-                    module,
-                    region.id,
-                    block.id,
-                    &block.terminator,
-                    &block_index,
-                    &local_defs,
-                    &def_block,
-                    &cfg,
-                )?;
-            } else {
+                verify_terminator(module, region.id, block.id, &block.terminator, &block_index, &local_defs, &def_block, &cfg)?;
+            }
+            else {
                 // 不可达块仍校验边目标存在与 arity，但不做支配证明。
                 verify_terminator_shape(module, region.id, &block.terminator, &block_index)?;
             }
@@ -134,9 +123,7 @@ fn verify_ssa_use_local_only(
     }
     match def_block.get(&used) {
         None => Err(diag("use_before_def")),
-        Some(&(def_region, def_bid)) if def_region == region && def_bid == use_block => {
-            Err(diag("use_before_def"))
-        }
+        Some(&(def_region, def_bid)) if def_region == region && def_bid == use_block => Err(diag("use_before_def")),
         Some(_) => Ok(()), // 不可达块上的跨块 use：Recover 冷路径迁移容忍
     }
 }
@@ -153,7 +140,8 @@ fn verify_ssa_use(
     if local_defs.contains(&used) {
         return Ok(());
     }
-    let Some(&(def_region, def_bid)) = def_block.get(&used) else {
+    let Some(&(def_region, def_bid)) = def_block.get(&used)
+    else {
         return Err(diag("use_before_def"));
     };
     if def_region != region {
@@ -187,15 +175,14 @@ impl RegionCfg {
             index_of.insert(block.id, idx);
             id_of.push(block.id);
         }
-        let entry_idx = *index_of
-            .get(&region.entry)
-            .ok_or_else(|| diag("missing_entry_block"))?;
+        let entry_idx = *index_of.get(&region.entry).ok_or_else(|| diag("missing_entry_block"))?;
 
         let mut succs = vec![Vec::new(); n];
         for block in &region.blocks {
             let from = index_of[&block.id];
             for target in terminator_targets(&block.terminator) {
-                let Some(&to) = index_of.get(&target) else {
+                let Some(&to) = index_of.get(&target)
+                else {
                     return Err(diag("terminator_unknown_target"));
                 };
                 succs[from].push(to);
@@ -271,22 +258,19 @@ impl RegionCfg {
             }
         }
 
-        Ok(Self {
-            entry: region.entry,
-            index_of,
-            idom,
-            reachable,
-        })
+        Ok(Self { entry: region.entry, index_of, idom, reachable })
     }
 
     fn dominates(&self, def: BlockId, use_block: BlockId) -> bool {
         if def == use_block {
             return true;
         }
-        let Some(&def_i) = self.index_of.get(&def) else {
+        let Some(&def_i) = self.index_of.get(&def)
+        else {
             return false;
         };
-        let Some(&use_i) = self.index_of.get(&use_block) else {
+        let Some(&use_i) = self.index_of.get(&use_block)
+        else {
             return false;
         };
         if !self.reachable.contains(&def) || !self.reachable.contains(&use_block) {
@@ -312,13 +296,7 @@ fn reverse_postorder(entry: usize, succs: &[Vec<usize>], reachable: &HashSet<usi
     let n = succs.len();
     let mut visited = vec![false; n];
     let mut post = Vec::new();
-    fn dfs(
-        u: usize,
-        succs: &[Vec<usize>],
-        reachable: &HashSet<usize>,
-        visited: &mut [bool],
-        post: &mut Vec<usize>,
-    ) {
+    fn dfs(u: usize, succs: &[Vec<usize>], reachable: &HashSet<usize>, visited: &mut [bool], post: &mut Vec<usize>) {
         visited[u] = true;
         for &v in &succs[u] {
             if reachable.contains(&v) && !visited[v] {
@@ -348,11 +326,7 @@ fn intersect(mut finger1: usize, mut finger2: usize, idom: &[usize], rpo_number:
 
 fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
     match terminator {
-        Terminator::Branch {
-            then_edge,
-            else_edge,
-            ..
-        } => {
+        Terminator::Branch { then_edge, else_edge, .. } => {
             vec![then_edge.target, else_edge.target]
         }
         Terminator::Switch { cases, default, .. } => {
@@ -392,26 +366,18 @@ fn verify_terminator_shape(
     block_index: &HashMap<(RegionId, BlockId), usize>,
 ) -> Result<()> {
     let check_edge = |target: BlockId, arguments: &[SsaValueId]| -> Result<()> {
-        let Some(idx) = block_index.get(&(region, target)).copied() else {
+        let Some(idx) = block_index.get(&(region, target)).copied()
+        else {
             return Err(diag("terminator_unknown_target"));
         };
-        let block = &module
-            .regions
-            .iter()
-            .find(|r| r.id == region)
-            .expect("region")
-            .blocks[idx];
+        let block = &module.regions.iter().find(|r| r.id == region).expect("region").blocks[idx];
         if block.parameters.len() != arguments.len() {
             return Err(diag("terminator_arity_mismatch"));
         }
         Ok(())
     };
     match terminator {
-        Terminator::Branch {
-            then_edge,
-            else_edge,
-            ..
-        } => {
+        Terminator::Branch { then_edge, else_edge, .. } => {
             check_edge(then_edge.target, &then_edge.arguments)?;
             check_edge(else_edge.target, &else_edge.arguments)?;
         }
@@ -440,15 +406,11 @@ fn verify_terminator(
     cfg: &RegionCfg,
 ) -> Result<()> {
     let check_edge = |target: BlockId, arguments: &[SsaValueId]| -> Result<()> {
-        let Some(idx) = block_index.get(&(region, target)).copied() else {
+        let Some(idx) = block_index.get(&(region, target)).copied()
+        else {
             return Err(diag("terminator_unknown_target"));
         };
-        let block = &module
-            .regions
-            .iter()
-            .find(|r| r.id == region)
-            .expect("region")
-            .blocks[idx];
+        let block = &module.regions.iter().find(|r| r.id == region).expect("region").blocks[idx];
         if block.parameters.len() != arguments.len() {
             return Err(diag("terminator_arity_mismatch"));
         }
@@ -459,20 +421,12 @@ fn verify_terminator(
     };
 
     match terminator {
-        Terminator::Branch {
-            condition,
-            then_edge,
-            else_edge,
-        } => {
+        Terminator::Branch { condition, then_edge, else_edge } => {
             verify_ssa_use(*condition, region, block_id, local_defs, def_block, cfg)?;
             check_edge(then_edge.target, &then_edge.arguments)?;
             check_edge(else_edge.target, &else_edge.arguments)?;
         }
-        Terminator::Switch {
-            discriminant,
-            cases,
-            default,
-        } => {
+        Terminator::Switch { discriminant, cases, default } => {
             verify_ssa_use(*discriminant, region, block_id, local_defs, def_block, cfg)?;
             for (_, edge) in cases {
                 check_edge(edge.target, &edge.arguments)?;
@@ -497,22 +451,13 @@ fn verify_terminator(
 
 fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
     match kind {
-        OperationKind::LoadInput { .. } | OperationKind::LoadTerm { .. } | OperationKind::Constant { .. } => {
-            Vec::new()
-        }
-        OperationKind::ApplySemanticOperator { args, .. } | OperationKind::ApplyExtensionOperator { args, .. } => {
-            args.clone()
-        }
+        OperationKind::LoadInput { .. } | OperationKind::LoadTerm { .. } | OperationKind::Constant { .. } => Vec::new(),
+        OperationKind::ApplySemanticOperator { args, .. } | OperationKind::ApplyExtensionOperator { args, .. } => args.clone(),
         OperationKind::ConstructCollection { elements, .. } => elements.clone(),
         OperationKind::Index { target, .. } => vec![*target],
         OperationKind::ReadBinding { key } => vec![*key],
         OperationKind::WriteBinding { key, value, .. } => vec![*key, *value],
-        OperationKind::RegisterRuleDispatch {
-            head,
-            pattern,
-            replacement,
-            ..
-        } => vec![*head, *pattern, *replacement],
+        OperationKind::RegisterRuleDispatch { head, pattern, replacement, .. } => vec![*head, *pattern, *replacement],
         OperationKind::RegisterCompiledRule { .. } => Vec::new(),
         OperationKind::EnterScope { parent } => parent.iter().copied().collect(),
         OperationKind::ExitScope { scope } => vec![*scope],
@@ -525,7 +470,5 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("component", "ExecutionIR.verifier")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("component", "ExecutionIR.verifier").detail("reason", reason)
 }

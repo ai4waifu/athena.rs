@@ -12,29 +12,21 @@ use crate::lease::ExecutionLease;
 #[derive(Debug)]
 pub struct VmExecutionContext<'a> {
     lease: Option<&'a mut ExecutionLease>,
-    /// 本执行进入 safepoint 的次数（显式 `Safepoint` 指令或隐式 host safepoint）。
+    /// 本执行进入 safepoint 的次数（显式 `Safepoint` 指令或隐式宿主 safepoint）。
     pub safepoint_count: u64,
     /// 本执行在 safepoint 触发的 `collect` 次数。
     pub collect_count: u64,
 }
 
 impl<'a> VmExecutionContext<'a> {
-    /// 携带执行期 lease / root set。
+    /// 携带执行期 lease / root 集合。
     pub fn with_lease(lease: &'a mut ExecutionLease) -> Self {
-        Self {
-            lease: Some(lease),
-            safepoint_count: 0,
-            collect_count: 0,
-        }
+        Self { lease: Some(lease), safepoint_count: 0, collect_count: 0 }
     }
 
-    /// 无 lease 的空上下文（骨架 / 无 GC 参与的冒烟路径）。
+    /// 无 lease 的空上下文（骨架 / 不参与 GC 的冒烟路径）。
     pub fn detached() -> Self {
-        Self {
-            lease: None,
-            safepoint_count: 0,
-            collect_count: 0,
-        }
+        Self { lease: None, safepoint_count: 0, collect_count: 0 }
     }
 
     /// 当前是否挂着执行 lease。

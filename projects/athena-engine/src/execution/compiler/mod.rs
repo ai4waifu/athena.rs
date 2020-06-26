@@ -30,13 +30,13 @@ mod helpers;
 mod stages;
 
 pub use dump::{
-    CompileObservation, CfgSsaStageView, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_ssa, dump_plan,
-    dump_request, dump_semantic, observe_compile, verify_observation,
+    CfgSsaStageView, CompileObservation, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_ssa, dump_plan, dump_request,
+    dump_semantic, observe_compile, verify_observation,
 };
 pub use elaboration::{ArgumentEvaluationKind, argument_evaluation_for_semantic};
 pub use stages::{
-    CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram,
-    StageFingerprint, StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request,
+    CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram, StageFingerprint,
+    StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request,
 };
 
 use builder::ModuleBuilder;
@@ -64,35 +64,15 @@ impl ExecutionCompiler {
         let module = self.lower_module(session, request)?;
         let semantic = materialize_semantic(&module);
         let cfg_ssa = materialize_cfg_ssa(&module);
-        let observation = CompileObservation::from_programs(
-            request_prog.clone(),
-            plan_prog.clone(),
-            semantic.clone(),
-            cfg_ssa.clone(),
-        );
+        let observation = CompileObservation::from_programs(request_prog.clone(), plan_prog.clone(), semantic.clone(), cfg_ssa.clone());
         verify_observation(&observation, &module)?;
-        Ok(StagedCompile {
-            request: request_prog,
-            plan: plan_prog,
-            semantic,
-            cfg_ssa,
-            module,
-        })
+        Ok(StagedCompile { request: request_prog, plan: plan_prog, semantic, cfg_ssa, module })
     }
 
     /// 编译并产出 Living `04` 四阶段可观测 dump（Request / Plan / Semantic / CFG SSA）。
-    pub fn compile_observed(
-        &self,
-        session: &mut Session,
-        request: &AthenaRequest,
-    ) -> Result<(ExecutionModule, CompileObservation)> {
+    pub fn compile_observed(&self, session: &mut Session, request: &AthenaRequest) -> Result<(ExecutionModule, CompileObservation)> {
         let staged = self.compile_staged(session, request)?;
-        let observation = CompileObservation::from_programs(
-            staged.request,
-            staged.plan,
-            staged.semantic,
-            staged.cfg_ssa,
-        );
+        let observation = CompileObservation::from_programs(staged.request, staged.plan, staged.semantic, staged.cfg_ssa);
         Ok((staged.module, observation))
     }
 

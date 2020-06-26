@@ -7,13 +7,12 @@
 mod helpers;
 
 pub(crate) use self::helpers::{
-    CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_arithmetic_terms, evaluate_compare_terms,
-    evaluate_join_terms, evaluate_range_terms, evaluate_size_terms, evaluate_sum_terms, evaluate_unary_term,
-    evaluate_determinant_term, evaluate_matrix_constructor_terms, evaluate_elementwise_terms, evaluate_index_axes,
-    evaluate_map_terms, evaluate_apply_terms, evaluate_apply_head_terms, evaluate_sum_iterator_terms,
-    evaluate_product_iterator_terms, evaluate_product_terms, evaluate_rule_terms, evaluate_replace_all_terms,
-    evaluate_matches_terms, evaluate_collect_matches_terms, evaluate_simplify_terms,
-    evaluate_special_unary_terms, evaluate_extension_apply_terms, slot_as_boolean_like,
+    CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms, evaluate_arithmetic_terms,
+    evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
+    evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms, evaluate_matches_terms,
+    evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
+    evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
+    evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
 };
 
 use athena_types::{Result, ResultId};

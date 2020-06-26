@@ -313,13 +313,8 @@ fn call_provider_without_domain_hard_fails() {
         b: Integer::from_i64(8),
     })));
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("goal");
-    let err = ReferenceExecutor::new()
-        .execute(&mut session, &module, None)
-        .expect_err("missing domain must hard-fail like VM");
-    assert_eq!(
-        err.details.get("reason").map(|v| v.to_string()).as_deref(),
-        Some("provider_domain_missing")
-    );
+    let err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("missing domain must hard-fail like VM");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("provider_domain_missing"));
 }
 
 #[test]

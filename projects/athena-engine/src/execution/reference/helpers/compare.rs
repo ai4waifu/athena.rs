@@ -94,11 +94,7 @@ pub(crate) fn compare_pair_term(
 /// Reference 与 `ExecutionHost` 共用的比较链求值。
 ///
 /// 全为数值时返回 Boolean 槽语义（`Ok(Either::Left)`）；否则返回 Term（广播 / 残差）。
-pub(crate) fn evaluate_compare_terms(
-    session: &mut Session,
-    op: SemanticOperator,
-    terms: Vec<TermId>,
-) -> Result<CompareOutcome> {
+pub(crate) fn evaluate_compare_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<CompareOutcome> {
     if terms.len() < 2 {
         return Err(diag("semantic_operator_arity"));
     }
@@ -114,11 +110,9 @@ pub(crate) fn evaluate_compare_terms(
             return Ok(CompareOutcome::Term(broadcast));
         }
     }
-    let numbers = terms
-        .iter()
-        .map(|t| number_of(session, *t).map(clone_number))
-        .collect::<Option<Vec<_>>>();
-    let Some(nums) = numbers else {
+    let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();
+    let Some(nums) = numbers
+    else {
         return Ok(CompareOutcome::Term(push_semantic(session, op, terms)));
     };
     let mut ok = true;

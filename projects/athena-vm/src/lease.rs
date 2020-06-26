@@ -5,13 +5,13 @@ use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 use athena_gc::{GcHeap, GcObjectId, RootKind, RootToken};
 use athena_types::TermRef;
 
-/// 单次 `VmExecutor::execute` / reference 解释期间的 root 登记。
+/// 单次 `VmExecutor::execute` 期间的 root 登记。
 ///
 /// Drop 时注销全部本 lease 登记的 object / numeric root，并清空 Term pin。
 /// 禁止把 lease 做成第二套 GC。
 ///
-/// **过渡**：`TermStore` 尚未 GC-backed 时，[`Self::register_term`] 只做执行期 pin 记账
-///（携带 [`TermRef`] generation）；TermStore 闭合后改为真 root。
+/// **过渡**：`TermStore` 尚未由 GC 托管时，[`Self::register_term`] 只做执行期 pin 记账
+/// （携带 [`TermRef`] generation）；TermStore 闭合后改为真 root。
 pub struct ExecutionLease {
     heap: Rc<RefCell<GcHeap>>,
     object_roots: Vec<RootToken>,
@@ -33,12 +33,7 @@ impl ExecutionLease {
     /// 绑定 Session / 宿主 heap。
     #[inline]
     pub fn new(heap: Rc<RefCell<GcHeap>>) -> Self {
-        Self {
-            heap,
-            object_roots: Vec::new(),
-            numeric_roots: Vec::new(),
-            term_pins: Vec::new(),
-        }
+        Self { heap, object_roots: Vec::new(), numeric_roots: Vec::new(), term_pins: Vec::new() }
     }
 
     /// 登记 object root（默认 [`RootKind::InFlight`]）。

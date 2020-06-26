@@ -31,10 +31,7 @@ pub struct VmCapabilityReport {
 impl VmCapabilityReport {
     /// 由缺口列表构造。
     pub fn from_gaps(gaps: Vec<VmCapabilityGap>) -> Self {
-        Self {
-            supports_athena_vm: gaps.is_empty(),
-            gaps,
-        }
+        Self { supports_athena_vm: gaps.is_empty(), gaps }
     }
 
     /// 首选后端。

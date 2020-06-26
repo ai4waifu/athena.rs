@@ -29,10 +29,7 @@ fn lease_pins_term_refs_and_clears_on_drop() {
     lease.register_term(TermRef::new(TermId(3), 1));
     lease.register_term(TermRef::new(TermId(7), 1));
     assert_eq!(lease.term_pin_count(), 2);
-    assert_eq!(
-        lease.term_pins(),
-        &[TermRef::new(TermId(3), 1), TermRef::new(TermId(7), 1)]
-    );
+    assert_eq!(lease.term_pins(), &[TermRef::new(TermId(3), 1), TermRef::new(TermId(7), 1)]);
     lease.release_all();
     assert_eq!(lease.term_pin_count(), 0);
 }

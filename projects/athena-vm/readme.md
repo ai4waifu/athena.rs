@@ -11,7 +11,7 @@
 - `VmConstant` 常量表与封闭指令：`LoadConstant` / `Move` / `Guard` / `Reject` / `Safepoint` / `Return`
 - 协作式 `CancellationToken` 与步数预算（在 safepoint / 步进处检查）
 - `ExecutionLease`：执行期 object / numeric root 登记，Drop 注销
-- 终态：Reference 解释循环归属本 crate；语义 / provider 经 `VmHost` 回调由 engine 提供
+- 解释循环归属本 crate；语义 / provider 经 `VmHost` 回调由 engine 提供
 
 ## 非职责
 

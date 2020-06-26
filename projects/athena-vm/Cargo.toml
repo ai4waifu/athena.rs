@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena restricted ExecutionIR runtime — frame/slot/safepoint interpreter (not a second engine)"
+description = "Athena 受限 ExecutionIR 运行时：帧 / 槽 / safepoint 解释器（不是第二套 engine）"
 publish = false
 
 [dependencies]
@@ -12,7 +12,8 @@ athena-types = { workspace = true }
 athena-gc = { workspace = true }
 
 [lints.rust]
-missing_docs = "warn"
+# 与 `src/lib.rs` 的 `#![deny(missing_docs)]` 对齐：公开项必须有中文文档注释。
+missing_docs = "deny"
 # `deny`（非 `forbid`）：解释器 / slot / frame 热路径允许经审查的 `unsafe`。
 # 禁止「为了方便」扩大 unsafe 面；禁止绕过 GC root · lease · generation。
 unsafe_code = "deny"

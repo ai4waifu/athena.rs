@@ -17,9 +17,7 @@ fn compile_staged_builds_request_plan_before_module() {
     assert_eq!(plan_prog.intent, PlanIntent::EvaluateTerm);
     assert_eq!(plan_prog.request_fingerprint, request_prog.fingerprint);
 
-    let staged = ExecutionCompiler::new()
-        .compile_staged(&mut session, &request)
-        .expect("staged");
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("staged");
     assert_eq!(staged.request.fingerprint, request_prog.fingerprint);
     assert_eq!(staged.plan.fingerprint, plan_prog.fingerprint);
     assert_eq!(staged.cfg_ssa.module_fingerprint, staged.module.fingerprint);
@@ -30,9 +28,7 @@ fn compile_observed_atom_term_stages() {
     let mut session = Session::new();
     let term = session.builder().int(3, Default::default());
     let request = AthenaRequest::Term(term);
-    let (module, observation) = ExecutionCompiler::new()
-        .compile_observed(&mut session, &request)
-        .expect("observed");
+    let (module, observation) = ExecutionCompiler::new().compile_observed(&mut session, &request).expect("observed");
 
     assert_eq!(observation.request.kind, "Term");
     assert_eq!(observation.request.term_index, Some(term.0));
@@ -62,9 +58,7 @@ fn compile_observed_boolean_constant_cfg_text() {
     let mut session = Session::new();
     let term = session.builder().boolean(true, Default::default());
     let request = AthenaRequest::Term(term);
-    let (_module, observation) = ExecutionCompiler::new()
-        .compile_observed(&mut session, &request)
-        .expect("observed");
+    let (_module, observation) = ExecutionCompiler::new().compile_observed(&mut session, &request).expect("observed");
     assert!(observation.cfg_ssa.block_count >= 1);
     assert!(observation.cfg_ssa.text.contains("return %"));
 }
