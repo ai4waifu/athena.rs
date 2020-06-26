@@ -2,17 +2,16 @@
 
 use athena_types::TermId;
 
-use athena_engine::{
-    Session,
-    reasoning::mgraph::{
-        AdmissionGate, CapabilityProviderId, Claim, Evidence, EvidenceCertificate, Guarantee, ProofForest, ProofStepKind, Proposition, Scope,
-        VerificationPolicy, closure::*, core::state::MGraphState,
-    },
+use athena_engine::reasoning::mgraph::{
+    AdmissionGate, CapabilityProviderId, Claim, Evidence, EvidenceCertificate, Guarantee, ProofStepKind, Proposition, Scope,
+    VerificationPolicy, closure::*, core::state::MGraphState,
 };
 use athena_ir::TermStore;
 
-fn seed_equality(state: &mut MGraphState, left: u32, right: u32) {
+/// 非结构相等的 ExactUF 种子：仅测试夹具策略可写（生产路径禁止）。
+fn seed_equality(store: &TermStore, state: &mut MGraphState, left: u32, right: u32) {
     AdmissionGate::admit_claim(
+        store,
         &mut state.semantic,
         Claim {
             proposition: Proposition::TermEquality { left: TermId(left), right: TermId(right) },
@@ -20,18 +19,18 @@ fn seed_equality(state: &mut MGraphState, left: u32, right: u32) {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CapabilityProviderId(0),
-                certificate: EvidenceCertificate::StructuralTermEquality { left: TermId(left), right: TermId(right) },
+                certificate: EvidenceCertificate::TestHarness,
                 summary: "seed".into(),
             },
         },
-        &VerificationPolicy::default(),
+        &VerificationPolicy::for_test_harness(),
     )
     .expect("admit");
 }
 
 #[test]
 fn empty_state_is_already_saturated() {
-    let store = athena_ir::TermStore::new();
+    let store = TermStore::new();
     let mut state = MGraphState::new();
     let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
     assert_eq!(result.stop, ClosureStopReason::Saturated);
@@ -42,10 +41,10 @@ fn empty_state_is_already_saturated() {
 
 #[test]
 fn closure_materializes_transitivity_proof_edge() {
-    let store = athena_ir::TermStore::new();
+    let store = TermStore::new();
     let mut state = MGraphState::new();
-    seed_equality(&mut state, 1, 2);
-    seed_equality(&mut state, 2, 3);
+    seed_equality(&store, &mut state, 1, 2);
+    seed_equality(&store, &mut state, 2, 3);
     assert_eq!(state.semantic.derived.proof_forest.len(), 2);
 
     let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
@@ -60,11 +59,11 @@ fn closure_materializes_transitivity_proof_edge() {
 
 #[test]
 fn step_budget_stops_before_saturation() {
-    let store = athena_ir::TermStore::new();
+    let store = TermStore::new();
     let mut state = MGraphState::new();
-    seed_equality(&mut state, 1, 2);
-    seed_equality(&mut state, 2, 3);
-    seed_equality(&mut state, 3, 4);
+    seed_equality(&store, &mut state, 1, 2);
+    seed_equality(&store, &mut state, 2, 3);
+    seed_equality(&store, &mut state, 3, 4);
     let result = run_closure_step(&store, &mut state, &ClosureLimits { max_steps: 1 });
     assert_eq!(result.stop, ClosureStopReason::StepBudget);
     assert_eq!(result.steps_applied, 1);
@@ -77,7 +76,7 @@ fn closure_drains_rewrite_hyper_edges_into_outer_pool() {
     use athena_ir::{Atom, TermNode};
     use athena_types::SourceSpan;
 
-    let mut store = athena_ir::TermStore::new();
+    let mut store = TermStore::new();
     let span = SourceSpan::default();
     let x = store.symbols_mut().intern("x");
     let y = store.symbols_mut().intern("y");

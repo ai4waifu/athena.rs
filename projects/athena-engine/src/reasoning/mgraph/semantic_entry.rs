@@ -131,6 +131,7 @@ pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &Proof
     let expression_fingerprint = obligation.known_objects[0].fingerprint;
     let variable_fingerprint = obligation.known_objects[1].fingerprint;
     let _ = AdmissionGate::admit_calculus_relation(
+        &session.arena,
         &mut session.mgraph.semantic,
         kind,
         expression_fingerprint,
@@ -148,7 +149,7 @@ fn materialize_already_known(session: &Session, relation: RelationRef) -> Result
             .detail("reason", "relation_missing")
             .arg("relation", relation.0));
     };
-    match &record.verified.claim.proposition {
+    match &record.verified.claim().proposition {
         crate::reasoning::mgraph::Proposition::CalculusRelation { result_term, .. } => {
             Ok(DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(*result_term), conditions: Vec::new() }))
         }

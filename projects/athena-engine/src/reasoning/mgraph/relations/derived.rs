@@ -44,13 +44,13 @@ impl DerivedIndexes {
         if !claim.admissible_for_exact_union() {
             return;
         }
-        match &claim.claim.proposition {
+        match &claim.claim().proposition {
             Proposition::PolynomialResult { .. } => {
                 self.rewrite_witnesses.push(RewriteWitness { provider: POLYNOMIAL_PROVIDER_ID, inputs: Vec::new(), outputs: Vec::new() });
             }
             Proposition::TermEquality { left, right } => {
                 self.exact_uf.union(*left, *right);
-                let step = proof_step_from_evidence(&claim.claim.evidence);
+                let step = proof_step_from_evidence(&claim.claim().evidence);
                 self.proof_forest.record(*left, *right, step);
             }
             Proposition::Congruence { modulus_fingerprint, left, right } => {
@@ -74,5 +74,44 @@ fn proof_step_from_evidence(evidence: &Evidence) -> ProofStepKind {
             | EvidenceCertificate::CalculusExact { .. }
             | EvidenceCertificate::CongruenceExact { .. } => ProofStepKind::AdmittedEquality,
         },
+    }
+}
+
+#[cfg(test)]
+mod step_kind_unit {
+    use super::proof_step_from_evidence;
+    use crate::reasoning::mgraph::{
+        core::types::CapabilityProviderId,
+        equivalence::proof_forest::ProofStepKind,
+        facts::claim::{Evidence, EvidenceCertificate, Guarantee},
+    };
+    use athena_types::TermId;
+
+    fn kernel(cert: EvidenceCertificate) -> Evidence {
+        Evidence::TrustedKernel { provider: CapabilityProviderId(0), certificate: cert, summary: String::new() }
+    }
+
+    #[test]
+    fn proof_step_kind_follows_certificate() {
+        assert_eq!(
+            proof_step_from_evidence(&kernel(EvidenceCertificate::ApplicationCongruence { left: TermId(1), right: TermId(2) })),
+            ProofStepKind::Congruence
+        );
+        assert_eq!(
+            proof_step_from_evidence(&kernel(EvidenceCertificate::TypedRewriteReplay {
+                rule: athena_rewriter::RewriteRuleId(0),
+                left: TermId(3),
+                right: TermId(4),
+            })),
+            ProofStepKind::TypedRewrite
+        );
+        assert_eq!(
+            proof_step_from_evidence(&kernel(EvidenceCertificate::StructuralTermEquality { left: TermId(1), right: TermId(2) })),
+            ProofStepKind::AdmittedEquality
+        );
+        assert_eq!(
+            proof_step_from_evidence(&kernel(EvidenceCertificate::Rejected { guarantee: Guarantee::Unknown })),
+            ProofStepKind::AdmittedEquality
+        );
     }
 }

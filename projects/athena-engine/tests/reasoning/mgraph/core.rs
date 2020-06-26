@@ -4,6 +4,7 @@ use athena_engine::reasoning::mgraph::{
     AdmissionGate, Claim, ClosureSeeds, Evidence, Guarantee, MGraphCore, MGraphView, OuterCandidate, POLYNOMIAL_PROVIDER_ID, Proposition,
     RelationStatus, Scope, ScopeRef, ScopeRelationKind, SemanticCore, VerificationPolicy, scope_from_ref, scope_to_ref,
 };
+use athena_ir::TermStore;
 
 #[test]
 fn scope_ref_roundtrip_unconditional() {
@@ -143,7 +144,9 @@ fn admit_into_state_wakes_matching_obligation() {
         scope: ScopeRef::UNCONDITIONAL,
         known_objects: vec![],
     });
-    let (id, wake) = AdmissionGate::admit_claim_into_state(&mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
+    let store = TermStore::new();
+    let (id, wake) =
+        AdmissionGate::admit_claim_into_state(&store, &mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
     assert_eq!(wake.wakes.len(), 1);
     assert_eq!(wake.wakes[0].relation, id);
     assert!(state.operational.obligation_index.is_empty());
@@ -153,7 +156,7 @@ fn admit_into_state_wakes_matching_obligation() {
 fn semantic_core_commit_syncs_core_and_admission_journal() {
     let mut semantic = SemanticCore::new();
     let id = admit_ok(&mut semantic, sample_claim(42));
-    assert_eq!(semantic.admission_journal.count(), 1);
+    assert_eq!(semantic.admission_journal().count(), 1);
     assert_eq!(semantic.relation_count(), 1);
     assert!(semantic.relation(id).is_some());
     assert!(semantic.view().relation(id).is_some());
@@ -189,7 +192,9 @@ fn close_seeds_placeholder_does_not_panic() {
 #[test]
 fn candidate_guarantee_is_rejected_by_admission_gate() {
     let mut semantic = SemanticCore::new();
+    let store = TermStore::new();
     let err = AdmissionGate::admit_claim(
+        &store,
         &mut semantic,
         Claim {
             proposition: Proposition::PolynomialResult {
@@ -280,15 +285,17 @@ fn admit_claim_with_premises_records_proof_dependencies() {
 
     let mut semantic = SemanticCore::new();
     let policy = VerificationPolicy::default();
-    let a = AdmissionGate::admit_claim(&mut semantic, sample_claim(501), &policy).expect("a");
-    let (b, dep) = AdmissionGate::admit_claim_with_premises(&mut semantic, sample_claim(502), &policy, &[a]).expect("b");
+    let store = TermStore::new();
+    let a = AdmissionGate::admit_claim(&store, &mut semantic, sample_claim(501), &policy).expect("a");
+    let (b, dep) = AdmissionGate::admit_claim_with_premises(&store, &mut semantic, sample_claim(502), &policy, &[a]).expect("b");
     dep.expect("dependency ok");
     assert!(semantic.proof_dependencies.depends_on(b, a));
     assert_eq!(semantic.proof_dependencies.premises(b), &[a]);
 }
 
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
-    AdmissionGate::admit_claim(semantic, claim, &VerificationPolicy::default()).expect("should admit")
+    let store = TermStore::new();
+    AdmissionGate::admit_claim(&store, semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }
 
 fn sample_claim(fingerprint: u64) -> Claim {

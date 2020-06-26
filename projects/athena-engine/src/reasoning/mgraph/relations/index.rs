@@ -47,12 +47,12 @@ impl RelationRecord {
 
     /// 接纳 / 重建路径使用的可失败构造。
     pub fn try_from_verified(claim: VerifiedClaim) -> Result<Self, crate::reasoning::mgraph::admission::AdmissionRejectReason> {
-        let scope = scope_to_ref(claim.claim.scope);
-        let status = relation_status_from_guarantee(claim.claim.guarantee);
-        let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim.proposition);
+        let scope = scope_to_ref(claim.claim().scope);
+        let status = relation_status_from_guarantee(claim.claim().guarantee);
+        let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim().proposition);
         Self::validate_predicate_subjects(predicate, theory, subjects.len())?;
-        let provider = provider_from_evidence(&claim.claim.evidence);
-        let witness = crate::reasoning::mgraph::facts::witness_ref_from_evidence(&claim.claim.evidence);
+        let provider = provider_from_evidence(&claim.claim().evidence);
+        let witness = crate::reasoning::mgraph::facts::witness_ref_from_evidence(&claim.claim().evidence);
         Ok(Self { predicate, subjects, scope, theory, provider, status, witness, verified: claim })
     }
 

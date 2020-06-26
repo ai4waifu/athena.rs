@@ -238,19 +238,24 @@ impl Claim {
 
 /// 经 admission gate 接纳的已验证事实。
 ///
+/// 字段私有：外部不得 `VerifiedClaim { claim: … }` 或调用构造器伪造。
+/// 唯一构造入口是 crate 内 [`Self::from_admission`]（仅 `EvidenceVerifier`）。
+///
 /// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedClaim {
-    /// 底层 claim。
-    pub claim: Claim,
+    claim: Claim,
 }
 
 impl VerifiedClaim {
     /// 仅由 [`crate::reasoning::mgraph::admission::gate::EvidenceVerifier`] 构造。
-    ///
-    /// 禁止任意代码伪造已验证事实。
-    pub fn from_admission(claim: Claim) -> Self {
+    pub(crate) fn from_admission(claim: Claim) -> Self {
         Self { claim }
+    }
+
+    /// 只读访问底层 claim。
+    pub fn claim(&self) -> &Claim {
+        &self.claim
     }
 
     /// Owning 复制。复制嵌套 [`Claim`]。
