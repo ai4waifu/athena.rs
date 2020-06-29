@@ -116,7 +116,8 @@ pub enum ScopeRelationKind {
     Refines,
     /// 限制到更窄上下文。
     Restricts,
-    /// 可并存。
+    /// 可并存（假设可组合）。**不**授予事实查询或义务唤醒的可见性。
+    /// 事实复用须经 `Refines` 蕴含或显式迁移证明。
     CompatibleWith,
     /// 不可并存。
     IncompatibleWith,

@@ -79,7 +79,9 @@ impl MGraphCore {
         self.scope_index.try_add_relation(from, to, ScopeRelationKind::Refines)
     }
 
-    /// 登记 `from` 可查阅 `to` 的局部事实（Compatible）。
+    /// 登记 `from` 与 `to` 的假设可组合（`CompatibleWith`）。
+    ///
+    /// **不**使任一方的局部事实对另一方的 `find_accepted` / 义务唤醒可见。
     pub fn mark_scopes_compatible(&mut self, from: ScopeRef, to: ScopeRef) -> Result<(), ScopeRelationConflict> {
         self.scope_index.try_add_relation(from, to, ScopeRelationKind::CompatibleWith)
     }
@@ -129,10 +131,9 @@ impl<'a> MGraphView<'a> {
 
     /// 在 `scope` 中查找已接纳 / 条件下接纳的谓词命中（Reflector 短路）。
     ///
-    /// 查询期传输：同时搜索经已登记
-    /// [`ScopeRelationKind::Refines`] 边可达的作用域（`scope ⊑ ancestor`），以及局部
-    /// [`ScopeRelationKind::CompatibleWith`] 对等体。标记为
-    /// [`ScopeRelationKind::IncompatibleWith`] 查询作用域的 fiber 会被跳过。
+    /// 查询期传输：仅搜索经已登记 [`ScopeRelationKind::Refines`] 边可达的作用域
+    /// （`scope ⊑ ancestor`）。标记为 [`ScopeRelationKind::IncompatibleWith`] 的 fiber 会被跳过。
+    /// [`ScopeRelationKind::CompatibleWith`] **不**参与事实可见性（可并存 ≠ 可复用）。
     /// **不会** 把关系复制到其他 fiber 或无条件闭包。
     pub fn find_accepted_by_predicate(&self, scope: ScopeRef, predicate: PredicateId) -> Option<RelationRef> {
         self.find_accepted(scope, predicate, &[])
@@ -140,11 +141,11 @@ impl<'a> MGraphView<'a> {
 
     /// 按谓词与已知对象前缀匹配已接纳关系（对象须按 subject 中 `Object` 顺序对齐）。
     ///
-    /// 传输规则（引导实现）：
+    /// 传输规则：
     /// - 沿 `Refines` 祖先行走（`scope ⊑* ancestor`），跳过标记为
     ///   与查询作用域 `IncompatibleWith` 的 fiber。
-    /// - 额外查阅 `CompatibleWith` 对等体的 **局部** 事实（不扩展对等体
-    ///   的祖先）。`IncompatibleWith` 优先于 `CompatibleWith`。
+    /// - `CompatibleWith` 仅表示假设可组合，**不得**把对等体局部事实当作
+    ///   `AlreadyKnown`。需要迁移时必须另有蕴含或 transport witness。
     pub fn find_accepted(&self, scope: ScopeRef, predicate: PredicateId, known_objects: &[ObjectRef]) -> Option<RelationRef> {
         let scopes = self.core.scope_index();
         let mut visited = std::collections::HashSet::new();
@@ -163,16 +164,6 @@ impl<'a> MGraphView<'a> {
                 if !scopes.incompatible_with(scope, ancestor) {
                     stack.push(ancestor);
                 }
-            }
-            // Compatible 对等体：仅局部 fiber（不压入 Refines 行走）。
-            for peer in scopes.compatible_peers(current) {
-                if visited.contains(&peer) || scopes.incompatible_with(scope, peer) {
-                    continue;
-                }
-                if let Some(id) = self.find_accepted_local(peer, predicate, known_objects) {
-                    return Some(id);
-                }
-                let _ = visited.insert(peer);
             }
         }
         None

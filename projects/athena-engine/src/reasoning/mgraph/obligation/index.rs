@@ -74,7 +74,8 @@ impl ObligationIndex {
     /// 唤醒并移除可在 `admitted_scope` 上观察 `predicate` 的义务。
     ///
     /// 匹配条件：谓词相同、作用域非 `IncompatibleWith`，且义务能经
-    /// 恒等 / `Refines` 祖先 / 有向 `CompatibleWith` 看见被接纳的纤维。
+    /// 恒等 / `Refines` 祖先看见被接纳的纤维。
+    /// `CompatibleWith` **不**授予唤醒可见性。
     pub fn wake_matching(
         &mut self,
         admitted_scope: ScopeRef,
@@ -87,7 +88,7 @@ impl ObligationIndex {
         for obligation in self.pending.drain(..) {
             let visible = obligation.predicate == predicate
                 && !scopes.incompatible_with(obligation.scope, admitted_scope)
-                && (scopes.is_refines_ancestor(obligation.scope, admitted_scope) || scopes.compatible_with(obligation.scope, admitted_scope));
+                && scopes.is_refines_ancestor(obligation.scope, admitted_scope);
             if visible {
                 wakes.push(ReflectorWake { obligation, relation });
             }

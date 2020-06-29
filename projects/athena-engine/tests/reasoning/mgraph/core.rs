@@ -217,7 +217,7 @@ fn candidate_guarantee_is_rejected_by_admission_gate() {
 }
 
 #[test]
-fn find_accepted_consults_compatible_peer_locally() {
+fn find_accepted_does_not_reuse_compatible_peer_facts() {
     use athena_engine::reasoning::mgraph::predicates;
     use athena_types::AssumptionSetId;
 
@@ -230,8 +230,23 @@ fn find_accepted_consults_compatible_peer_locally() {
     claim.scope = Scope::UnderAssumptions(AssumptionSetId(11));
     admit_ok(&mut semantic, claim);
 
-    assert!(semantic.view().find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT).is_some());
+    // CompatibleWith ≠ entailment：a 不得把 b 的局部事实当 AlreadyKnown。
+    assert!(semantic.view().find_accepted_by_predicate(a, predicates::POLYNOMIAL_RESULT).is_none());
+    assert!(semantic.view().find_accepted_by_predicate(b, predicates::POLYNOMIAL_RESULT).is_some());
     assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_none());
+}
+
+#[test]
+fn find_accepted_inherits_via_refines_ancestor() {
+    use athena_engine::reasoning::mgraph::predicates;
+    use athena_types::AssumptionSetId;
+
+    let mut semantic = SemanticCore::new();
+    let local = scope_to_ref(Scope::UnderAssumptions(AssumptionSetId(20)));
+    semantic.core.refine_scope(local, ScopeRef::UNCONDITIONAL).expect("refines");
+    admit_ok(&mut semantic, sample_claim(301));
+    assert!(semantic.view().find_accepted_by_predicate(ScopeRef::UNCONDITIONAL, predicates::POLYNOMIAL_RESULT).is_some());
+    assert!(semantic.view().find_accepted_by_predicate(local, predicates::POLYNOMIAL_RESULT).is_some());
 }
 
 #[test]
