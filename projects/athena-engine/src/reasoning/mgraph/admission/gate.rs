@@ -184,9 +184,21 @@ fn certificate_replays_proposition(claim: &Claim, policy: &VerificationPolicy) -
             EvidenceCertificate::CongruenceExact { modulus_fingerprint: m, left: l, right: r },
         ) => modulus_fingerprint == m && left == l && right == r,
         (
-            Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term },
-            EvidenceCertificate::CalculusExact { kind: k, expression_fingerprint: e, variable_fingerprint: v, result_term: t },
-        ) => kind == k && expression_fingerprint == e && variable_fingerprint == v && result_term == t,
+            Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                request_identity,
+                result_term,
+            },
+            EvidenceCertificate::CalculusExact {
+                kind: k,
+                expression_fingerprint: e,
+                variable_fingerprint: v,
+                request_identity: rid,
+                result_term: t,
+            },
+        ) => kind == k && expression_fingerprint == e && variable_fingerprint == v && request_identity == rid && result_term == t,
         (
             Proposition::TermEquality { left, right },
             EvidenceCertificate::StructuralTermEquality { left: l, right: r }
@@ -304,17 +316,30 @@ impl AdmissionGate {
         kind: CalculusRelationKind,
         expression_fingerprint: u64,
         variable_fingerprint: u64,
+        request_identity: u64,
         result_term: athena_types::TermId,
         policy: &VerificationPolicy,
     ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
         let claim = Claim {
-            proposition: Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term },
+            proposition: Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                request_identity,
+                result_term,
+            },
             scope: Scope::Unconditional,
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: CALCULUS_PROVIDER_ID,
-                certificate: EvidenceCertificate::CalculusExact { kind, expression_fingerprint, variable_fingerprint, result_term },
-                summary: format!("calculus:{kind:?}:{result_term:?}"),
+                certificate: EvidenceCertificate::CalculusExact {
+                    kind,
+                    expression_fingerprint,
+                    variable_fingerprint,
+                    request_identity,
+                    result_term,
+                },
+                summary: format!("calculus:{kind:?}:{request_identity}:{result_term:?}"),
             },
         };
         Self::admit_claim(terms, semantic, claim, policy)

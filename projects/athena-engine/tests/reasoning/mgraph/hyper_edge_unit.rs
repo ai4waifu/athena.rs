@@ -47,10 +47,11 @@ fn derivative_hyper_edge_stages_calculus_relation() {
     let edge = HyperEdge { nodes: vec![expr, var, result], predicate: predicates::DERIVATIVE_OF };
     let outer = hyper_edge_to_outer_candidate(&store, &edge).expect("stage");
     match outer.claim.proposition {
-        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
+        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, request_identity, result_term } => {
             assert_eq!(kind, CalculusRelationKind::DerivativeOf);
             assert_eq!(expression_fingerprint, canonical_hash(&store, expr));
             assert_eq!(variable_fingerprint, canonical_hash(&store, var));
+            assert_eq!(request_identity, 0);
             assert_eq!(result_term, result);
         }
         other => panic!("expected CalculusRelation, got {other:?}"),

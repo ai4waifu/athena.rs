@@ -72,6 +72,39 @@ fn calculus_second_goal_is_already_known_after_exact_admit() {
 }
 
 #[test]
+fn calculus_first_and_second_derivative_have_distinct_identities() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let three = dc.in_(3);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, three]);
+        (expression, variable)
+    };
+    let first_goal = DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
+        expression,
+        variable,
+        order: DerivativeOrder::First,
+        assumptions: AssumptionSet::empty(),
+    }));
+    let first = execute_domain_goal(&mut session, first_goal).expect("first");
+    assert!(matches!(first, DomainSemanticOutcome::Computed(_)));
+    let second_goal = DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
+        expression,
+        variable,
+        order: DerivativeOrder::Repeated(2),
+        assumptions: AssumptionSet::empty(),
+    }));
+    let second = execute_domain_goal(&mut session, second_goal).expect("second");
+    match second {
+        DomainSemanticOutcome::AlreadyKnown { .. } => panic!("second-order must not hit first-order AlreadyKnown"),
+        DomainSemanticOutcome::Computed(_) => {}
+        other => panic!("expected Computed second derivative, got {other:?}"),
+    }
+}
+
+#[test]
 fn polynomial_goal_computes_when_request_carries_polynomial() {
     use athena_engine::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest};
     use athena_types::SymbolId;

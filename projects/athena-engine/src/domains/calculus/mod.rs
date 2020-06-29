@@ -24,7 +24,7 @@ pub use differential::{DifferentialSolution, VerificationStatus, solve_ode_check
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};
 pub use limit::limit_checked;
 pub use object_ref::{SeriesObjectStore, SeriesRef};
-pub use request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection, TransformKind};
+pub use request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection, TransformKind, calculus_request_identity};
 pub use residue::{Residue, residue_checked};
 pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_assumptions};
 pub use series::{Remainder, Series, asymptotic, laurent, taylor};

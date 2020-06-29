@@ -72,6 +72,8 @@ pub enum EvidenceCertificate {
         expression_fingerprint: u64,
         /// 变量指纹。
         variable_fingerprint: u64,
+        /// 请求身份（阶数 / 上下限 / 中心 / 级数阶 / 假设等，不含结果）。
+        request_identity: u64,
         /// 结果项。
         result_term: TermId,
     },
@@ -121,10 +123,17 @@ impl EvidenceCertificate {
             },
             Self::Rejected { guarantee } => Self::Rejected { guarantee: *guarantee },
             Self::TestHarness => Self::TestHarness,
-            Self::CalculusExact { kind, expression_fingerprint, variable_fingerprint, result_term } => Self::CalculusExact {
+            Self::CalculusExact {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                request_identity,
+                result_term,
+            } => Self::CalculusExact {
                 kind: *kind,
                 expression_fingerprint: *expression_fingerprint,
                 variable_fingerprint: *variable_fingerprint,
+                request_identity: *request_identity,
                 result_term: *result_term,
             },
             Self::StructuralTermEquality { left, right } => Self::StructuralTermEquality { left: *left, right: *right },
@@ -202,6 +211,8 @@ pub enum Proposition {
         expression_fingerprint: u64,
         /// 变量指纹。
         variable_fingerprint: u64,
+        /// 请求身份（阶数 / 上下限 / 中心 / 级数阶 / 假设等）。
+        request_identity: u64,
         /// 结果项（payload 仍在 TermStore）。
         result_term: TermId,
     },

@@ -47,7 +47,13 @@ pub fn hyper_edge_to_outer_candidate(store: &TermStore, edge: &HyperEdge) -> Res
         let variable_fingerprint = term_fingerprint(store, var)?;
         require_present(store, result)?;
         return Ok(candidate_claim(
-            Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term: result },
+            Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                request_identity: 0,
+                result_term: result,
+            },
             format!("hyper-edge-calculus:{kind:?}:{expr:?}:{var:?}:{result:?}"),
         ));
     }

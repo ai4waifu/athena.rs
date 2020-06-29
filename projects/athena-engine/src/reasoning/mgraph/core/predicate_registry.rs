@@ -23,9 +23,9 @@ const DESCRIPTORS: &[PredicateDescriptor] = &[
     PredicateDescriptor { id: predicates::CONGRUENCE, theory: TheoryContextId::CONGRUENCE, subject_arity: 3..=3 },
     PredicateDescriptor { id: predicates::REWRITE_EQUIVALENT, theory: TheoryContextId::REWRITE, subject_arity: 2..=2 },
     PredicateDescriptor { id: predicates::EVALUATION_RESULT, theory: TheoryContextId::DEFAULT, subject_arity: 2..=2 },
-    PredicateDescriptor { id: predicates::DERIVATIVE_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
-    PredicateDescriptor { id: predicates::SERIES_EXPANSION, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
-    PredicateDescriptor { id: predicates::INTEGRAL_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=3 },
+    PredicateDescriptor { id: predicates::DERIVATIVE_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=4 },
+    PredicateDescriptor { id: predicates::SERIES_EXPANSION, theory: TheoryContextId::CALCULUS, subject_arity: 3..=4 },
+    PredicateDescriptor { id: predicates::INTEGRAL_OF, theory: TheoryContextId::CALCULUS, subject_arity: 3..=4 },
 ];
 
 /// 查找封闭谓词描述符。
