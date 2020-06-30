@@ -65,47 +65,58 @@ pub fn execute_verified_cfg_on_vm(
 }
 
 /// 在 `athena-vm` 上执行已验证 CFG 子集 module（显式 [`VmConfig`]）。
+///
+/// 若 Session 尚无共享执行控制，则用 `config` 安装根控制；嵌套入口继承取消与剩余预算。
 pub fn execute_verified_cfg_on_vm_with_config(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
     pending_domain: Option<crate::domains::dispatch::DomainRequest>,
     config: &VmConfig,
 ) -> athena_types::Result<VerifiedVmOutcome> {
-    let lowered = try_lower_verified_cfg_module(module)?;
-    let mut lease = ExecutionLease::new(session.heap().clone());
-    pin_module_terms(&mut lease, &session.arena, module)?;
-    let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(session, module.provider_calls.clone(), pending_domain, lowered.index_axes);
-    let exit = {
-        let mut ctx = VmExecutionContext::with_lease(&mut lease);
-        interpreter.execute_with_context(&lowered.module, config, &mut host, &mut ctx)?
-    };
-    let residual = interpreter.saw_host_residual();
-    drop(lease);
-    match exit {
-        VmExit::Returned => {
-            let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
-            let value = interpreter.slots().get(slot).ok_or_else(|| {
-                athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "execute_verified_cfg_on_vm")
-                    .detail("reason", "result_slot_empty")
-            })?;
-            Ok(VerifiedVmOutcome { value, residual })
+    use crate::runtime::session::SharedExecutionControl;
+
+    let installed = session.begin_shared_execution_root(SharedExecutionControl::from_vm_config(config));
+    let effective = vm_config_from_session(session);
+    let outcome = (|| {
+        let lowered = try_lower_verified_cfg_module(module)?;
+        let mut lease = ExecutionLease::new(session.heap().clone());
+        pin_module_terms(&mut lease, &session.arena, module)?;
+        let mut interpreter = Interpreter::new();
+        let exit = {
+            let mut host = ExecutionHost::new(session, module.provider_calls.clone(), pending_domain, lowered.index_axes);
+            let mut ctx = VmExecutionContext::with_lease(&mut lease);
+            interpreter.execute_with_context(&lowered.module, &effective, &mut host, &mut ctx)?
+        };
+        session.consume_execution_steps(interpreter.steps_executed());
+        let residual = interpreter.saw_host_residual();
+        drop(lease);
+        match exit {
+            VmExit::Returned => {
+                let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
+                let value = interpreter.slots().get(slot).ok_or_else(|| {
+                    athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "execute_verified_cfg_on_vm")
+                        .detail("reason", "result_slot_empty")
+                })?;
+                Ok(VerifiedVmOutcome { value, residual })
+            }
+            VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "execute_verified_cfg_on_vm")
+                .detail("reason", "rejected")),
+            VmExit::Cancelled => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "execute_verified_cfg_on_vm")
+                .detail("reason", "cancelled")),
+            VmExit::BudgetExceeded => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "execute_verified_cfg_on_vm")
+                .detail("reason", "budget_exceeded")),
+            VmExit::Suspended => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "execute_verified_cfg_on_vm")
+                .detail("reason", "suspended")),
+            VmExit::Diagnostic(diagnostic) => Err(diagnostic),
         }
-        VmExit::Rejected => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_verified_cfg_on_vm")
-            .detail("reason", "rejected")),
-        VmExit::Cancelled => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_verified_cfg_on_vm")
-            .detail("reason", "cancelled")),
-        VmExit::BudgetExceeded => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_verified_cfg_on_vm")
-            .detail("reason", "budget_exceeded")),
-        VmExit::Suspended => Err(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-            .detail("component", "execute_verified_cfg_on_vm")
-            .detail("reason", "suspended")),
-        VmExit::Diagnostic(diagnostic) => Err(diagnostic),
-    }
+    })();
+    session.end_shared_execution_root(installed);
+    outcome
 }
 
 /// 将 [`VerifiedVmOutcome`] 物化为 Session 上的 [`athena_types::ResultId`]。
@@ -168,9 +179,14 @@ pub fn materialize_verified_vm_outcome(
     }
 }
 
-/// 从 Session 投影 VM 配置（不复制语义状态）。
+/// 从 Session 投影 VM 配置（嵌套入口继承共享取消与剩余预算）。
 pub fn vm_config_from_session(session: &Session) -> VmConfig {
-    VmConfig { gc_mode: session.heap().borrow().effective_mode(), max_steps: None, cancellation: CancellationToken::new() }
+    let gc_mode = session.heap().borrow().effective_mode();
+    if let Some(ctrl) = session.shared_execution() {
+        VmConfig { gc_mode, max_steps: ctrl.steps_remaining, cancellation: ctrl.cancellation.clone() }
+    } else {
+        VmConfig { gc_mode, max_steps: None, cancellation: CancellationToken::new() }
+    }
 }
 
 /// 运行 VM 模块（parity / 冒烟）。生产 SSA 路径终态应走 VM 解释循环 + host，而非本函数替代。

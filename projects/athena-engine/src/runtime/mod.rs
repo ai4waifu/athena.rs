@@ -10,5 +10,5 @@ pub mod values;
 
 pub use frontier::{ComputationFrontier, FrontierStore, ResumeCheck};
 pub use results::{ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultProviderStamp, ResultStore};
-pub use session::{Session, TypedEgraphAdmitReport};
+pub use session::{Session, SharedExecutionControl, TypedEgraphAdmitReport};
 pub use values::{RuntimeValue, ValueStore};

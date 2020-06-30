@@ -70,6 +70,29 @@ impl TypedEgraphAdmitReport {
     }
 }
 
+/// 一次顶层请求共享的执行控制（嵌套 `re_eval` / host 子调用继承）。
+///
+/// 取消令牌可克隆共享。`steps_remaining` 为跨嵌套入口的剩余步数预算。
+#[derive(Debug, Clone)]
+pub struct SharedExecutionControl {
+    /// 协作取消（嵌套入口共用同一令牌）。
+    pub cancellation: athena_vm::CancellationToken,
+    /// 剩余解释步数（`None` = 本层不设上限）。
+    pub steps_remaining: Option<u64>,
+}
+
+impl SharedExecutionControl {
+    /// 由显式 [`athena_vm::VmConfig`] 安装根控制。
+    pub fn from_vm_config(config: &athena_vm::VmConfig) -> Self {
+        Self { cancellation: config.cancellation.clone(), steps_remaining: config.max_steps }
+    }
+
+    /// 默认根控制（新取消令牌 · 无步数上限）。
+    pub fn new_root() -> Self {
+        Self { cancellation: athena_vm::CancellationToken::new(), steps_remaining: None }
+    }
+}
+
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
     /// Core IR 符号项存储。
@@ -108,6 +131,8 @@ pub struct Session {
     pub assumption_scopes: AssumptionScopeTable,
     /// Session 级 `athena-gc` heap（object / numeric roots 编排）。
     heap: Rc<RefCell<GcHeap>>,
+    /// 当前顶层请求的共享执行控制（嵌套求值继承；无外层时为 `None`）。
+    shared_execution: Option<SharedExecutionControl>,
 }
 
 impl core::fmt::Debug for Session {
@@ -130,6 +155,7 @@ impl core::fmt::Debug for Session {
             .field("frontiers", &self.frontiers)
             .field("assumption_scopes", &self.assumption_scopes)
             .field("heap_id", &self.heap.borrow().id())
+            .field("shared_execution", &self.shared_execution.is_some())
             .finish()
     }
 }
@@ -167,6 +193,37 @@ impl Session {
             frontiers: FrontierStore::new(),
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
+            shared_execution: None,
+        }
+    }
+
+    /// 当前共享执行控制（若有）。
+    pub fn shared_execution(&self) -> Option<&SharedExecutionControl> {
+        self.shared_execution.as_ref()
+    }
+
+    /// 若尚无共享控制则安装根控制，返回是否由本调用安装（负责清理）。
+    pub(crate) fn begin_shared_execution_root(&mut self, control: SharedExecutionControl) -> bool {
+        if self.shared_execution.is_some() {
+            return false;
+        }
+        self.shared_execution = Some(control);
+        true
+    }
+
+    /// 结束由本调用安装的根共享控制。
+    pub(crate) fn end_shared_execution_root(&mut self, installed: bool) {
+        if installed {
+            self.shared_execution = None;
+        }
+    }
+
+    /// 从本轮 VM 解释步数扣减共享剩余预算。
+    pub(crate) fn consume_execution_steps(&mut self, used: u64) {
+        if let Some(ctrl) = self.shared_execution.as_mut() {
+            if let Some(rem) = ctrl.steps_remaining.as_mut() {
+                *rem = rem.saturating_sub(used);
+            }
         }
     }
 
