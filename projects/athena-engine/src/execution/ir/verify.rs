@@ -7,7 +7,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use super::{
     ModuleFingerprint,
-    ids::{BlockId, RegionId, SsaValueId},
+    ids::{BlockId, EffectToken, RegionId, SsaValueId},
     module::ExecutionModule,
     operation::{GuardFailure, OperationKind},
     terminator::Terminator,
@@ -341,22 +341,50 @@ fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
 
 fn verify_effect_edges(module: &ExecutionModule) -> Result<()> {
     let mut seen = HashSet::new();
+    let mut predecessor: HashMap<EffectToken, EffectToken> = HashMap::new();
     for edge in &module.effect_edges {
         if !seen.insert(edge.token) {
             return Err(diag("duplicate_effect_token"));
         }
-    }
-    for edge in &module.effect_edges {
         if let Some(prev) = edge.precedes_from {
             if prev == edge.token {
                 return Err(diag("effect_self_predecessor"));
             }
+            predecessor.insert(edge.token, prev);
+        }
+    }
+    for edge in &module.effect_edges {
+        if let Some(prev) = edge.precedes_from {
             if !seen.contains(&prev) {
                 return Err(diag("effect_predecessor_unknown"));
             }
         }
     }
+    if effect_predecessor_has_cycle(&predecessor) {
+        return Err(diag("effect_cycle"));
+    }
     Ok(())
+}
+
+/// `precedes_from` 形成的函数图若含环（含相互指向），则 effect 序不可线性化。
+fn effect_predecessor_has_cycle(predecessor: &HashMap<EffectToken, EffectToken>) -> bool {
+    for &start in predecessor.keys() {
+        let mut cur = start;
+        let mut on_path = HashSet::new();
+        while let Some(&prev) = predecessor.get(&cur) {
+            if !on_path.insert(cur) {
+                return true;
+            }
+            if on_path.contains(&prev) {
+                return true;
+            }
+            cur = prev;
+            if on_path.len() > predecessor.len() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn verify_terminator_shape(
