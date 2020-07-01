@@ -10,7 +10,8 @@ use athena_vm::{ExtensionOpId, HostOutcome, IndexAxesId, ProviderOpId, SemanticO
 
 use crate::{
     api::request::AthenaRequest,
-    domains::dispatch::{DomainRequest, execute_domain},
+    domains::dispatch::DomainRequest,
+    reasoning::mgraph::execute_domain_via_semantic_entry,
     execution::{
         LocalBinding, ScopeFrame, execute_ir_request,
         ir::ProviderCallDescriptor,
@@ -699,7 +700,9 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("op", op.0),
             ));
         };
-        let domain_result = execute_domain(self.session, domain)?;
+        // Goal→VM→CallProvider 必须与 `AthenaEngine::execute_domain` 同走 semantic entry，
+        // 禁止再直达 `domains::execute_domain` 旁路 M-Graph 查询/准入。
+        let domain_result = execute_domain_via_semantic_entry(self.session, domain)?;
         let projected = domain_result_symbolic_term(self.session, &domain_result);
         let mut computation = computation_from_domain(self.session, domain_result);
         if computation.symbolic_term.is_none() {
