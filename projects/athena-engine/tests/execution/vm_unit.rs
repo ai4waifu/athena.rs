@@ -172,7 +172,7 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(true), ConstantValue::Term(term)],
-        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
+        captured_roots: vec![CapturedRoot::term(session.arena.term_ref(term).expect("term_ref"))],
         regions: vec![region],
         effect_edges: Vec::new(),
         exits: Vec::new(),
@@ -184,7 +184,7 @@ fn pin_module_terms_registers_captured_and_constant_terms() {
     let mut lease = ExecutionLease::new(session.heap().clone());
     pin_module_terms(&mut lease, &session.arena, &module).expect("pin");
     assert_eq!(lease.term_pin_count(), 2);
-    let expected = TermRef::new(term, session.arena.epoch());
+    let expected = session.arena.term_ref(term).expect("expected");
     assert!(lease.term_pins().contains(&expected));
 }
 
@@ -217,7 +217,7 @@ fn pinned_term_ref_stale_after_store_epoch_bump() {
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: vec![ConstantValue::Boolean(false)],
-        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
+        captured_roots: vec![CapturedRoot::term(session.arena.term_ref(term).expect("term_ref"))],
         regions: vec![region],
         effect_edges: Vec::new(),
         exits: Vec::new(),

@@ -414,7 +414,7 @@ fn lower_and_execute_load_term_atom_on_vm() {
     let mut module = ExecutionModule {
         inputs: Vec::new(),
         constants: Vec::new(),
-        captured_roots: vec![CapturedRoot::term(TermRef::new(term, session.arena.epoch()))],
+        captured_roots: vec![CapturedRoot::term(session.arena.term_ref(term).expect("term_ref"))],
         regions: vec![region],
         effect_edges: Vec::new(),
         exits: Vec::new(),

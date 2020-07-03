@@ -9,9 +9,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TermId(pub u32);
 
-/// 带 generation 的项句柄（防 ABA · 对齐 `GcObjectId` 合同）。
+/// 带 generation 与 store 身份的项句柄（防 ABA · 防跨 store 误解引用）。
 ///
 /// 过渡期：`generation` 取自 `TermStore` epoch（整库代际）。
+/// `store_id` 区分不同 `TermStore` 实例（同 index+epoch 不得跨 store 复用）。
 /// TermStore GC 闭合后可演进为 per-slot generation，而不改公共字段名。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TermRef {
@@ -19,13 +20,15 @@ pub struct TermRef {
     pub id: TermId,
     /// Store / 槽代际（须与 `TermStore::epoch` 一致方可解引用）。
     pub generation: u32,
+    /// 所属 `TermStore` 实例身份（须与创建方一致）。
+    pub store_id: u64,
 }
 
 impl TermRef {
     /// 构造。
     #[inline]
-    pub const fn new(id: TermId, generation: u32) -> Self {
-        Self { id, generation }
+    pub const fn new(id: TermId, generation: u32, store_id: u64) -> Self {
+        Self { id, generation, store_id }
     }
 }
 

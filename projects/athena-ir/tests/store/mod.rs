@@ -41,7 +41,7 @@ fn term_ref_tracks_store_epoch() {
     assert_eq!(arena.epoch(), 1);
     let id = arena.push(TermNode::Atom(Atom::Boolean(true)), SourceSpan::default());
     let live = arena.term_ref(id).expect("ref");
-    assert_eq!(live, TermRef::new(id, 1));
+    assert_eq!(live, TermRef::new(id, 1, arena.store_id()));
     assert_eq!(arena.check_ref(live).expect("live"), id);
 
     arena.bump_epoch();
@@ -50,4 +50,17 @@ fn term_ref_tracks_store_epoch() {
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("stale_term_generation"));
     let refreshed = arena.term_ref(id).expect("ref2");
     assert_eq!(arena.check_ref(refreshed).expect("ok"), id);
+}
+
+#[test]
+fn term_ref_rejects_foreign_store() {
+    let mut a = TermStore::new();
+    let mut b = TermStore::new();
+    assert_ne!(a.store_id(), b.store_id());
+    let id = a.push(TermNode::Atom(Atom::Boolean(true)), SourceSpan::default());
+    let foreign = a.term_ref(id).expect("ref");
+    // Same index may exist after push into B — still foreign by store_id.
+    let _ = b.push(TermNode::Atom(Atom::Boolean(false)), SourceSpan::default());
+    let err = b.check_ref(foreign).expect_err("foreign");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("foreign_term_store"));
 }
