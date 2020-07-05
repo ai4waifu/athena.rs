@@ -414,7 +414,7 @@ impl Session {
 
     /// 经 TermStore 结构相等验证后接纳 `TermEquality`（写入 ExactUF + ProofForest）。
     pub fn admit_structural_term_equality(&mut self, left: TermId, right: TermId) -> Result<FactId, AdmissionRejectReason> {
-        admit_structural_term_equality(&self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
+        admit_structural_term_equality(&mut self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
     }
 
     /// 将 E-Graph 候选升级为 M-Graph 事实（仅当结构相等时可接纳）。
@@ -424,7 +424,7 @@ impl Session {
 
     /// 批量接纳 saturation 候选中结构相等的对（跳过改写型候选）。
     pub fn admit_structural_egraph_candidates(&mut self, candidates: &[CandidateEquivalence]) -> Vec<Result<FactId, AdmissionRejectReason>> {
-        admit_structural_candidates(&self.arena, &mut self.mgraph.semantic, candidates, &VerificationPolicy::default())
+        admit_structural_candidates(&mut self.arena, &mut self.mgraph.semantic, candidates, &VerificationPolicy::default())
     }
 
     /// 由已知 egraph 项发出 ExactUF 应用同余候选（不接纳）。
@@ -434,13 +434,13 @@ impl Session {
 
     /// 当头相同且参数 ExactUF 相等时接纳 `f(a…) ≈ f(b…)`。
     pub fn admit_application_congruence(&mut self, left: TermId, right: TermId) -> Result<FactId, AdmissionRejectReason> {
-        admit_application_congruence(&self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
+        admit_application_congruence(&mut self.arena, &mut self.mgraph.semantic, left, right, &VerificationPolicy::default())
     }
 
     /// 在 ExactUF 下扫描已知应用并接纳同余等式（受 `max_pairs` 约束）。
     pub fn rebuild_and_admit_application_congruence(&mut self, max_pairs: u32) -> Vec<Result<FactId, AdmissionRejectReason>> {
         let candidates = application_congruence_candidates(&self.arena, &self.egraph, &self.mgraph.semantic.derived.exact_uf, max_pairs);
-        admit_application_congruence_candidates(&self.arena, &mut self.mgraph.semantic, &candidates, &VerificationPolicy::default())
+        admit_application_congruence_candidates(&mut self.arena, &mut self.mgraph.semantic, &candidates, &VerificationPolicy::default())
     }
 
     /// 类型化 saturation，再结构接纳、类型化改写回放接纳，最后 ExactUF 同余。
@@ -455,7 +455,7 @@ impl Session {
     ) -> TypedEgraphAdmitReport {
         let saturation = saturate_typed(&mut self.egraph, &mut self.arena, roots, self.egraph_budget, rules);
         let structural_admitted =
-            admit_structural_candidates(&self.arena, &mut self.mgraph.semantic, &saturation.candidates, &VerificationPolicy::default());
+            admit_structural_candidates(&mut self.arena, &mut self.mgraph.semantic, &saturation.candidates, &VerificationPolicy::default());
         let rewrite_admitted = match rules {
             Some(rules) => admit_typed_rewrite_candidates(
                 &mut self.arena,
@@ -482,7 +482,7 @@ impl Session {
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
     pub fn admit_congruence(&mut self, modulus_fingerprint: u64, left: u64, right: u64) -> Result<FactId, AdmissionRejectReason> {
         crate::reasoning::mgraph::AdmissionGate::admit_congruence(
-            &self.arena,
+            &mut self.arena,
             &mut self.mgraph.semantic,
             modulus_fingerprint,
             left,
@@ -503,7 +503,7 @@ impl Session {
 
     /// 接纳通过 TermStore 结构相等的 OuterCandidate（升级为 ProvenExact）。
     pub fn admit_mgraph_outer_pool_if_structural(&mut self) -> crate::reasoning::mgraph::OuterAdmitReport {
-        crate::reasoning::mgraph::admit_outer_pool_if_structural(&self.arena, &mut self.mgraph, &VerificationPolicy::default())
+        crate::reasoning::mgraph::admit_outer_pool_if_structural(&mut self.arena, &mut self.mgraph, &VerificationPolicy::default())
     }
 
     /// 登记挂起的 ProofObligation，供 Reflector 在接纳时唤醒。
@@ -516,7 +516,7 @@ impl Session {
         &mut self,
         claim: crate::reasoning::mgraph::Claim,
     ) -> Result<(crate::reasoning::mgraph::FactId, crate::reasoning::mgraph::WakeReport), AdmissionRejectReason> {
-        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&self.arena, &mut self.mgraph, claim, &VerificationPolicy::default())
+        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.arena, &mut self.mgraph, claim, &VerificationPolicy::default())
     }
 
     /// 将一批唤醒的 Reflector 结果写入运行态队列。

@@ -102,7 +102,7 @@ pub fn verify_application_congruence(
 
 /// 将一条应用同余等式接纳进语义核心。
 pub fn admit_application_congruence(
-    store: &TermStore,
+    store: &mut TermStore,
     semantic: &mut SemanticCore,
     left: TermId,
     right: TermId,
@@ -114,7 +114,7 @@ pub fn admit_application_congruence(
 
 /// 接纳在当前 ExactUF 下仍能通过验证的全部应用同余候选。
 pub fn admit_application_congruence_candidates(
-    store: &TermStore,
+    store: &mut TermStore,
     semantic: &mut SemanticCore,
     candidates: &[CandidateEquivalence],
     policy: &VerificationPolicy,

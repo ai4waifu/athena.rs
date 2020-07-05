@@ -144,9 +144,9 @@ fn admit_into_state_wakes_matching_obligation() {
         scope: ScopeRef::UNCONDITIONAL,
         known_objects: vec![],
     });
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let (id, wake) =
-        AdmissionGate::admit_claim_into_state(&store, &mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
+        AdmissionGate::admit_claim_into_state(&mut store, &mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
     assert_eq!(wake.wakes.len(), 1);
     assert_eq!(wake.wakes[0].relation, id);
     assert!(state.operational.obligation_index.is_empty());
@@ -192,9 +192,9 @@ fn close_seeds_placeholder_does_not_panic() {
 #[test]
 fn candidate_guarantee_is_rejected_by_admission_gate() {
     let mut semantic = SemanticCore::new();
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let err = AdmissionGate::admit_claim(
-        &store,
+        &mut store,
         &mut semantic,
         Claim {
             proposition: Proposition::PolynomialResult {
@@ -300,17 +300,17 @@ fn admit_claim_with_premises_records_proof_dependencies() {
 
     let mut semantic = SemanticCore::new();
     let policy = VerificationPolicy::default();
-    let store = TermStore::new();
-    let a = AdmissionGate::admit_claim(&store, &mut semantic, sample_claim(501), &policy).expect("a");
-    let (b, dep) = AdmissionGate::admit_claim_with_premises(&store, &mut semantic, sample_claim(502), &policy, &[a]).expect("b");
+    let mut store = TermStore::new();
+    let a = AdmissionGate::admit_claim(&mut store, &mut semantic, sample_claim(501), &policy).expect("a");
+    let (b, dep) = AdmissionGate::admit_claim_with_premises(&mut store, &mut semantic, sample_claim(502), &policy, &[a]).expect("b");
     dep.expect("dependency ok");
     assert!(semantic.proof_dependencies.depends_on(b, a));
     assert_eq!(semantic.proof_dependencies.premises(b), &[a]);
 }
 
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
-    let store = TermStore::new();
-    AdmissionGate::admit_claim(&store, semantic, claim, &VerificationPolicy::default()).expect("should admit")
+    let mut store = TermStore::new();
+    AdmissionGate::admit_claim(&mut store, semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }
 
 fn sample_claim(fingerprint: u64) -> Claim {

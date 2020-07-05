@@ -126,7 +126,7 @@ pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &Proof
     let variable_fingerprint = obligation.known_objects[1].fingerprint;
     let request_identity = obligation.known_objects[2].fingerprint;
     let _ = AdmissionGate::admit_calculus_relation(
-        &session.arena,
+        &mut session.arena,
         &mut session.mgraph.semantic,
         kind,
         expression_fingerprint,
