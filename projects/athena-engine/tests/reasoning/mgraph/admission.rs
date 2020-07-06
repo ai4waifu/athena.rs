@@ -52,7 +52,7 @@ fn mgraph_state_splits_semantic_and_operational() {
 }
 
 fn admit_ok(terms: &mut TermStore, semantic: &mut SemanticCore, claim: Claim) -> FactId {
-    AdmissionGate::admit_claim(terms, semantic, claim, &VerificationPolicy::default()).expect("should admit")
+    AdmissionGate::admit_claim(terms, semantic, claim, &VerificationPolicy::default(), None).expect("should admit")
 }
 
 fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {

@@ -129,7 +129,7 @@ fn forged_true_equals_false_structural_equality_is_rejected() {
             summary: "forged-true-eq-false".into(),
         },
     };
-    let err = AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, forged, &VerificationPolicy::default())
+    let err = AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, forged, &VerificationPolicy::default(), None)
         .expect_err("true = false must not admit");
     assert_eq!(err, AdmissionRejectReason::NotExact);
     assert_eq!(session.mgraph.semantic.relation_count(), 0);
@@ -150,7 +150,7 @@ fn structural_equality_of_identical_term_admits() {
             summary: "reflexive".into(),
         },
     };
-    AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, claim, &VerificationPolicy::default()).expect("reflexive admit");
+    AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, claim, &VerificationPolicy::default(), None).expect("reflexive admit");
     assert_eq!(session.mgraph.semantic.relation_count(), 1);
 }
 
@@ -194,7 +194,7 @@ fn forged_typed_rewrite_without_rules_is_rejected() {
             summary: "forged-rewrite".into(),
         },
     };
-    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default()).expect_err("no rules");
+    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default(), None).expect_err("no rules");
     assert_eq!(err, AdmissionRejectReason::NotExact);
     assert_eq!(semantic.relation_count(), 0);
 }
@@ -213,7 +213,7 @@ fn rejected_certificate_never_admits() {
             summary: "rejected".into(),
         },
     };
-    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default()).expect_err("rejected cert");
+    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default(), None).expect_err("rejected cert");
     assert_eq!(err, AdmissionRejectReason::EvidenceMismatch);
     assert_eq!(semantic.relation_count(), 0);
 }

@@ -256,38 +256,23 @@ fn substantive_evidence_holds(claim: &Claim, ctx: &mut VerificationContext<'_>) 
 pub struct AdmissionGate;
 
 impl AdmissionGate {
-    /// 经 [`EvidenceVerifier`] 后写入 semantic core（通用 claim 唯一公开路径）。
+    /// 经 [`EvidenceVerifier`] 后写入 semantic core（唯一公开写入路径）。
     ///
-    /// `terms` 供 `StructuralTermEquality` / `ApplicationCongruence` /（可选规则下）
-    /// `TypedRewriteReplay` 实质检查；指纹类证书可传空 store。
+    /// `typed_rules`：仅 `TypedRewriteReplay` 需要；其它证书传 `None`。
+    /// 缺规则表时 `TypedRewriteReplay` 实质检查失败（不得字段伪造准入）。
     pub fn admit_claim(
         terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         claim: Claim,
         policy: &VerificationPolicy,
+        typed_rules: Option<&crate::reasoning::egraph::TypedRuleSet>,
     ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
         let outcome = {
             let uf = &semantic.derived.exact_uf;
-            let mut ctx = VerificationContext::with_terms(terms, Some(uf));
-            EvidenceVerifier::verify_in(&claim, policy, &mut ctx)
-        };
-        match outcome {
-            AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
-            AdmissionOutcome::Rejected { reason, .. } => Err(reason),
-        }
-    }
-
-    /// 与 [`Self::admit_claim`] 相同，但携带类型化改写规则表供 `TypedRewriteReplay` 重放。
-    pub fn admit_claim_with_typed_rules(
-        terms: &mut TermStore,
-        rules: &crate::reasoning::egraph::TypedRuleSet,
-        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
-        claim: Claim,
-        policy: &VerificationPolicy,
-    ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
-        let outcome = {
-            let uf = &semantic.derived.exact_uf;
-            let mut ctx = VerificationContext::with_terms_and_typed_rules(terms, Some(uf), rules);
+            let mut ctx = match typed_rules {
+                Some(rules) => VerificationContext::with_terms_and_typed_rules(terms, Some(uf), rules),
+                None => VerificationContext::with_terms(terms, Some(uf)),
+            };
             EvidenceVerifier::verify_in(&claim, policy, &mut ctx)
         };
         match outcome {
@@ -305,8 +290,9 @@ impl AdmissionGate {
         claim: Claim,
         policy: &VerificationPolicy,
         premises: &[crate::reasoning::mgraph::facts::FactId],
+        typed_rules: Option<&crate::reasoning::egraph::TypedRuleSet>,
     ) -> Result<(crate::reasoning::mgraph::facts::FactId, Result<(), athena_types::Diagnostic>), AdmissionRejectReason> {
-        let id = Self::admit_claim(terms, semantic, claim, policy)?;
+        let id = Self::admit_claim(terms, semantic, claim, policy, typed_rules)?;
         let dep = semantic.record_proof_dependencies(id, premises);
         Ok((id, dep))
     }
@@ -317,8 +303,9 @@ impl AdmissionGate {
         state: &mut MGraphState,
         claim: Claim,
         policy: &VerificationPolicy,
+        typed_rules: Option<&crate::reasoning::egraph::TypedRuleSet>,
     ) -> Result<(crate::reasoning::mgraph::facts::FactId, crate::reasoning::mgraph::WakeReport), AdmissionRejectReason> {
-        let id = Self::admit_claim(terms, &mut state.semantic, claim, policy)?;
+        let id = Self::admit_claim(terms, &mut state.semantic, claim, policy, typed_rules)?;
         let Some((predicate, admitted_scope)) = state.semantic.relation(id).map(|record| (record.predicate, record.scope))
         else {
             return Ok((id, crate::reasoning::mgraph::WakeReport::default()));
@@ -378,7 +365,7 @@ impl AdmissionGate {
                 summary: format!("calculus:{kind:?}:{request_identity}:{result_term:?}"),
             },
         };
-        Self::admit_claim(terms, semantic, claim, policy)
+        Self::admit_claim(terms, semantic, claim, policy, None)
     }
 
     /// 接纳无条件 `ProvenExact` 模同余关系（写入 modulus-isolated `CongruenceIndex`）。
@@ -400,7 +387,7 @@ impl AdmissionGate {
                 summary: format!("congruence:{modulus_fingerprint}:{left}:{right}"),
             },
         };
-        Self::admit_claim(terms, semantic, claim, policy)
+        Self::admit_claim(terms, semantic, claim, policy, None)
     }
 }
 

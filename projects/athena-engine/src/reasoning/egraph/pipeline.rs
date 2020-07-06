@@ -58,7 +58,7 @@ pub fn admit_structural_term_equality(
     policy: &VerificationPolicy,
 ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
     let claim = verify_structural_term_equality(store, left, right)?;
-    AdmissionGate::admit_claim(store, semantic, claim, policy)
+    AdmissionGate::admit_claim(store, semantic, claim, policy, None)
 }
 
 /// 仅接纳在 `store` 中结构相等的那些候选。

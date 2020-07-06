@@ -109,7 +109,7 @@ pub fn admit_application_congruence(
     policy: &VerificationPolicy,
 ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
     let claim = verify_application_congruence(store, &semantic.derived.exact_uf, left, right)?;
-    AdmissionGate::admit_claim(store, semantic, claim, policy)
+    AdmissionGate::admit_claim(store, semantic, claim, policy, None)
 }
 
 /// 接纳在当前 ExactUF 下仍能通过验证的全部应用同余候选。

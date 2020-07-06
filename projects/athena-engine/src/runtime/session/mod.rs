@@ -516,7 +516,7 @@ impl Session {
         &mut self,
         claim: crate::reasoning::mgraph::Claim,
     ) -> Result<(crate::reasoning::mgraph::FactId, crate::reasoning::mgraph::WakeReport), AdmissionRejectReason> {
-        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.arena, &mut self.mgraph, claim, &VerificationPolicy::default())
+        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.arena, &mut self.mgraph, claim, &VerificationPolicy::default(), None)
     }
 
     /// 将一批唤醒的 Reflector 结果写入运行态队列。
