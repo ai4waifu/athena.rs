@@ -107,7 +107,11 @@ fn calculus_kind_from_predicate(predicate: crate::reasoning::mgraph::PredicateId
     }
 }
 
-pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &ProofObligation, result: &DomainResult) {
+pub(crate) fn try_admit_calculus_exact(session: &mut Session, request: &DomainRequest, obligation: &ProofObligation, result: &DomainResult) {
+    let DomainRequest::Calculus(calc) = request
+    else {
+        return;
+    };
     let DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(result_term), conditions }) = result
     else {
         return;
@@ -119,22 +123,7 @@ pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &Proof
     else {
         return;
     };
-    if obligation.known_objects.len() < 3 {
-        return;
-    }
-    let expression_fingerprint = obligation.known_objects[0].fingerprint;
-    let variable_fingerprint = obligation.known_objects[1].fingerprint;
-    let request_identity = obligation.known_objects[2].fingerprint;
-    let _ = AdmissionGate::admit_calculus_relation(
-        &mut session.arena,
-        &mut session.mgraph.semantic,
-        kind,
-        expression_fingerprint,
-        variable_fingerprint,
-        request_identity,
-        *result_term,
-        &VerificationPolicy::default(),
-    );
+    let _ = AdmissionGate::admit_calculus_relation(session, calc, kind, *result_term, &VerificationPolicy::default());
 }
 
 fn materialize_already_known(session: &Session, relation: RelationRef) -> Result<DomainResult, Diagnostic> {

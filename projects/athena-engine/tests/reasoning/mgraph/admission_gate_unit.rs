@@ -56,6 +56,89 @@ fn mismatched_calculus_certificate_is_rejected() {
 }
 
 #[test]
+fn field_matched_calculus_certificate_still_rejected_without_recompute() {
+    let claim = Claim {
+        proposition: Proposition::CalculusRelation {
+            kind: CalculusRelationKind::DerivativeOf,
+            expression_fingerprint: 1,
+            variable_fingerprint: 2,
+            request_identity: 7,
+            result_term: TermId(3),
+        },
+        scope: Scope::Unconditional,
+        guarantee: Guarantee::ProvenExact,
+        evidence: Evidence::TrustedKernel {
+            provider: CALCULUS_PROVIDER_ID,
+            certificate: EvidenceCertificate::CalculusExact {
+                kind: CalculusRelationKind::DerivativeOf,
+                expression_fingerprint: 1,
+                variable_fingerprint: 2,
+                request_identity: 7,
+                result_term: TermId(3),
+            },
+            summary: "field-only".into(),
+        },
+    };
+    match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
+        other => panic!("expected NotExact without recompute, got {other:?}"),
+    }
+}
+
+#[test]
+fn verify_calculus_admits_honest_derivative_and_rejects_forged_term() {
+    use athena_engine::domains::{
+        calculus::{CalculusRequest, DerivativeOrder, execute_calculus},
+        context::DomainExecutionContext,
+    };
+    use athena_ir::SemanticOperator;
+    use athena_types::AssumptionSet;
+
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(2)]);
+        (expression, variable)
+    };
+    let request = CalculusRequest::Derivative {
+        expression,
+        variable,
+        order: DerivativeOrder::First,
+        assumptions: AssumptionSet::empty(),
+    };
+    let honest = match execute_calculus(&mut session, request.owning_copy()) {
+        athena_engine::domains::calculus::CalculusResult::Exact {
+            value: athena_engine::domains::calculus::CalculusValue::Expression(t),
+            ..
+        } => t,
+        other => panic!("expected Exact Expression, got {other:?}"),
+    };
+    match EvidenceVerifier::verify_calculus(
+        &mut session,
+        &request,
+        CalculusRelationKind::DerivativeOf,
+        honest,
+        &VerificationPolicy::default(),
+    ) {
+        AdmissionOutcome::Admitted(_) => {}
+        other => panic!("honest derivative must admit, got {other:?}"),
+    }
+    let forged = session.builder().number(athena_numeric::Number::small_int(999), Default::default());
+    match EvidenceVerifier::verify_calculus(
+        &mut session,
+        &request,
+        CalculusRelationKind::DerivativeOf,
+        forged,
+        &VerificationPolicy::default(),
+    ) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
+        other => panic!("forged result must reject, got {other:?}"),
+    }
+}
+
+#[test]
 fn test_harness_rejected_without_policy_flag() {
     let claim = Claim {
         proposition: Proposition::TermEquality { left: TermId(1), right: TermId(1) },

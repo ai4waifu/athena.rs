@@ -183,6 +183,10 @@ fn binding_mismatch(reason: &'static str) -> Diagnostic {
 pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     verify_plan_binding(session, &queued.binding, &queued.obligation, &request)?;
     let obligation = queued.obligation.owning_copy();
+    let calculus_for_admit = match &request {
+        DomainRequest::Calculus(calc) => Some(calc.owning_copy()),
+        _ => None,
+    };
     let (result, _report) = interpret_domain_plan(session, &queued.plan, request, |session, req| match req {
         DomainRequest::Polynomial(poly_req) => {
             let poly = execute_polynomial_mgraph(poly_req, &session.rings, &session.polynomial_objects, &mut session.mgraph);
@@ -190,7 +194,9 @@ pub fn execute_queued_plan(session: &mut Session, queued: &QueuedPlan, request: 
         }
         other => call_domain_provider(session, other),
     })?;
-    try_admit_calculus_exact(session, &obligation, &result);
+    if let Some(calc) = calculus_for_admit {
+        try_admit_calculus_exact(session, &DomainRequest::Calculus(calc), &obligation, &result);
+    }
     Ok(result)
 }
 
