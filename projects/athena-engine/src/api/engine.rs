@@ -35,12 +35,12 @@ impl AthenaEngine {
         }
     }
 
-    /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。
-    pub fn differentiate(&self, session: &mut Session, term: TermId, var: &str) -> TermId {
+    /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。执行失败经 [`Result`] 传播，禁止吞错。
+    pub fn differentiate(&self, session: &mut Session, term: TermId, var: &str) -> Result<TermId> {
         let mut dc = crate::domains::DomainExecutionContext::new(session);
         let var = dc.intern(var);
-        let d = crate::domains::calculus::differentiate(&mut dc, term, var);
-        self.evaluate(session, d)
+        let d = crate::domains::calculus::differentiate(&mut dc, term, var)?;
+        Ok(self.evaluate(session, d))
     }
 
     /// 域请求经 语义入口（[`Session::mgraph`] → Reflector → provider）。

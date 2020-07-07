@@ -163,13 +163,10 @@ impl<'a> DomainExecutionContext<'a> {
 
     /// 经唯一的 `ExecutionIR` 路径折叠（显式项请求，绝不用字符串头）。
     ///
-    /// **残余**：返回 `TermId` 的领域折叠 API 仍在失败时回落原项。host 嵌套路径
-    /// 已改走 [`crate::execution::reference::helpers::re_eval_term`] 传播诊断。
-    pub(crate) fn fold_term(&self, id: TermId) -> TermId {
-        match execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id)) {
-            Ok(result_id) => self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id),
-            Err(_) => id,
-        }
+    /// 失败诊断向上传播，禁止吞成原项。
+    pub(crate) fn fold_term(&self, id: TermId) -> athena_types::Result<TermId> {
+        let result_id = execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id))?;
+        Ok(self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id))
     }
 
     /// 数值原子。

@@ -1,7 +1,7 @@
 //! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · ）。
 
 use athena_ir::SemanticOperator;
-use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, SymbolId, TermId};
+use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
     derivative::differentiate_checked,
@@ -71,19 +71,19 @@ pub fn gradient_checked(
     expression: TermId,
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
-) -> CalculusResult<Gradient> {
+) -> Result<CalculusResult<Gradient>> {
     if variables.is_empty() {
-        return CalculusResult::Exact { value: Gradient { expression, variables: Vec::new(), components: Vec::new() }, conditions: Vec::new() };
+        return Ok(CalculusResult::Exact { value: Gradient { expression, variables: Vec::new(), components: Vec::new() }, conditions: Vec::new() });
     }
     let mut components = Vec::with_capacity(variables.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for v in variables {
-        let part = differentiate_checked(cc, expression, *v, assumptions);
+        let part = differentiate_checked(cc, expression, *v, assumptions)?;
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-        components.push(cc.fold_term(part.value));
+        components.push(cc.fold_term(part.value)?);
     }
-    finish_vector(Gradient { expression, variables: variables.to_vec(), components }, conditions, unresolved)
+    Ok(finish_vector(Gradient { expression, variables: variables.to_vec(), components }, conditions, unresolved))
 }
 
 /// `expressions` 关于 `variables` 的 Jacobian。
@@ -92,20 +92,20 @@ pub fn jacobian_checked(
     expressions: &[TermId],
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
-) -> CalculusResult<Jacobian> {
+) -> Result<CalculusResult<Jacobian>> {
     let mut rows = Vec::with_capacity(expressions.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for expr in expressions {
         let mut row = Vec::with_capacity(variables.len());
         for v in variables {
-            let part = differentiate_checked(cc, *expr, *v, assumptions);
+            let part = differentiate_checked(cc, *expr, *v, assumptions)?;
             merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-            row.push(cc.fold_term(part.value));
+            row.push(cc.fold_term(part.value)?);
         }
         rows.push(row);
     }
-    finish_vector(Jacobian { expressions: expressions.to_vec(), variables: variables.to_vec(), rows }, conditions, unresolved)
+    Ok(finish_vector(Jacobian { expressions: expressions.to_vec(), variables: variables.to_vec(), rows }, conditions, unresolved))
 }
 
 /// 标量 Hessian：先 ∂/∂xᵢ 再对 (∂f/∂xⱼ)，保持变量顺序。
@@ -114,24 +114,24 @@ pub fn hessian_checked(
     expression: TermId,
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
-) -> CalculusResult<Hessian> {
+) -> Result<CalculusResult<Hessian>> {
     let mut entries = Vec::with_capacity(variables.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for vi in variables {
-        let first = differentiate_checked(cc, expression, *vi, assumptions);
+        let first = differentiate_checked(cc, expression, *vi, assumptions)?;
         merge_conditions(&mut conditions, &mut unresolved, first.conditions.clone(), first.unresolved.clone());
-        let first_val = cc.fold_term(first.value);
+        let first_val = cc.fold_term(first.value)?;
         let mut row = Vec::with_capacity(variables.len());
         for vj in variables {
             // 顺序：先对 vi 求导，再对 vj（不做交换改写）。
-            let second = differentiate_checked(cc, first_val, *vj, assumptions);
+            let second = differentiate_checked(cc, first_val, *vj, assumptions)?;
             merge_conditions(&mut conditions, &mut unresolved, second.conditions, second.unresolved);
-            row.push(cc.fold_term(second.value));
+            row.push(cc.fold_term(second.value)?);
         }
         entries.push(row);
     }
-    finish_vector(Hessian { expression, variables: variables.to_vec(), entries }, conditions, unresolved)
+    Ok(finish_vector(Hessian { expression, variables: variables.to_vec(), entries }, conditions, unresolved))
 }
 
 /// 向量场散度：带标量值的独立对象。
@@ -176,35 +176,35 @@ pub fn divergence_checked(
     components: &[TermId],
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
-) -> CalculusResult<Divergence> {
+) -> Result<CalculusResult<Divergence>> {
     if components.len() != variables.len() {
         let comps = cc.ordered(components.to_vec());
         let vars = cc.ordered(variables.iter().copied().map(|v| cc.symbol_id(v)).collect());
-        return CalculusResult::Unevaluated {
+        return Ok(CalculusResult::Unevaluated {
             expression: Divergence {
                 components: components.to_vec(),
                 variables: variables.to_vec(),
                 value: cc.apply_semantic(SemanticOperator::Divergence, vec![comps, vars]),
             },
             reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
-        };
+        });
     }
     if components.is_empty() {
-        return CalculusResult::Exact {
+        return Ok(CalculusResult::Exact {
             value: Divergence { components: Vec::new(), variables: Vec::new(), value: cc.in_(0) },
             conditions: Vec::new(),
-        };
+        });
     }
     let mut parts = Vec::with_capacity(components.len());
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
     for (comp, var) in components.iter().zip(variables.iter()) {
-        let part = differentiate_checked(cc, *comp, *var, assumptions);
+        let part = differentiate_checked(cc, *comp, *var, assumptions)?;
         merge_conditions(&mut conditions, &mut unresolved, part.conditions, part.unresolved);
-        parts.push(cc.fold_term(part.value));
+        parts.push(cc.fold_term(part.value)?);
     }
-    let value = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) };
-    finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved)
+    let value = if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts))? };
+    Ok(finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved))
 }
 
 /// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
@@ -213,45 +213,45 @@ pub fn curl_checked(
     components: &[TermId],
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
-) -> CalculusResult<Curl> {
+) -> Result<CalculusResult<Curl>> {
     if components.len() != 3 || variables.len() != 3 {
-        return CalculusResult::Unevaluated {
+        return Ok(CalculusResult::Unevaluated {
             expression: Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: Vec::new() },
             reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
-        };
+        });
     }
     let (fx, fy, fz) = (components[0], components[1], components[2]);
     let (x, y, z) = (variables[0], variables[1], variables[2]);
     let mut conditions = Vec::new();
     let mut unresolved = Vec::new();
 
-    let d_fz_dy = differentiate_checked(cc, fz, y, assumptions);
+    let d_fz_dy = differentiate_checked(cc, fz, y, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fz_dy.conditions, d_fz_dy.unresolved);
-    let d_fy_dz = differentiate_checked(cc, fy, z, assumptions);
+    let d_fy_dz = differentiate_checked(cc, fy, z, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fy_dz.conditions, d_fy_dz.unresolved);
 
-    let d_fx_dz = differentiate_checked(cc, fx, z, assumptions);
+    let d_fx_dz = differentiate_checked(cc, fx, z, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fx_dz.conditions, d_fx_dz.unresolved);
-    let d_fz_dx = differentiate_checked(cc, fz, x, assumptions);
+    let d_fz_dx = differentiate_checked(cc, fz, x, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fz_dx.conditions, d_fz_dx.unresolved);
 
-    let d_fy_dx = differentiate_checked(cc, fy, x, assumptions);
+    let d_fy_dx = differentiate_checked(cc, fy, x, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fy_dx.conditions, d_fy_dx.unresolved);
-    let d_fx_dy = differentiate_checked(cc, fx, y, assumptions);
+    let d_fx_dy = differentiate_checked(cc, fx, y, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fx_dy.conditions, d_fx_dy.unresolved);
 
-    let cx = sub_terms(cc, cc.fold_term(d_fz_dy.value), cc.fold_term(d_fy_dz.value));
-    let cy = sub_terms(cc, cc.fold_term(d_fx_dz.value), cc.fold_term(d_fz_dx.value));
-    let cz = sub_terms(cc, cc.fold_term(d_fy_dx.value), cc.fold_term(d_fx_dy.value));
+    let cx = sub_terms(cc, cc.fold_term(d_fz_dy.value)?, cc.fold_term(d_fy_dz.value)?)?;
+    let cy = sub_terms(cc, cc.fold_term(d_fx_dz.value)?, cc.fold_term(d_fz_dx.value)?)?;
+    let cz = sub_terms(cc, cc.fold_term(d_fy_dx.value)?, cc.fold_term(d_fx_dy.value)?)?;
 
-    finish_vector(
+    Ok(finish_vector(
         Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: vec![cx, cy, cz] },
         conditions,
         unresolved,
-    )
+    ))
 }
 
-fn sub_terms(cc: &mut DomainExecutionContext<'_>, a: TermId, b: TermId) -> TermId {
+fn sub_terms(cc: &mut DomainExecutionContext<'_>, a: TermId, b: TermId) -> Result<TermId> {
     let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), b]);
     cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![a, neg]))
 }

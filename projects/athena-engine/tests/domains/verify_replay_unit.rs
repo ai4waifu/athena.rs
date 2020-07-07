@@ -4,6 +4,7 @@ use athena_engine::{
     Session,
     domains::{
         calculus::{CalculusRequest, CalculusResult, CalculusValue, DerivativeOrder},
+        context::DomainExecutionContext,
         group::GroupResult,
         linear_algebra::execute_linear_algebra,
         *,
@@ -15,14 +16,27 @@ use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, SymbolId, TermId};
 
 #[test]
 fn calculus_forged_exact_term_fails_recompute() {
+    use athena_ir::SemanticOperator;
+
     let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        // d/dx (x²) → Exact；伪造另一 Exact 项以触发重算失配（非空 TermId 上的 Unevaluated）。
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(2)]);
+        (expression, variable)
+    };
     let snapshot = VerifySnapshot::Calculus(CalculusRequest::Derivative {
-        expression: TermId(0),
-        variable: SymbolId(0),
+        expression,
+        variable,
         order: DerivativeOrder::First,
         assumptions: AssumptionSet::empty(),
     });
-    let forged = DomainResult::Calculus(CalculusResult::Exact { value: CalculusValue::Expression(TermId(999_999)), conditions: Vec::new() });
+    let forged = DomainResult::Calculus(CalculusResult::Exact {
+        value: CalculusValue::Expression(TermId(999_999)),
+        conditions: Vec::new(),
+    });
     let err = verify_recompute_domain_result(&mut session, &snapshot, &forged).expect_err("forge");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("calculus_recompute_mismatch"));
 }

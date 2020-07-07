@@ -1,7 +1,7 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · ）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
-use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
     derivative::differentiate,
@@ -69,15 +69,15 @@ impl Series {
     }
 
     /// 展开基幂：有限中心用 `(x-c)^p`，无穷用 `x^p`。
-    fn delta_power(&self, cc: &mut DomainExecutionContext<'_>, power: i64) -> TermId {
+    fn delta_power(&self, cc: &mut DomainExecutionContext<'_>, power: i64) -> Result<TermId> {
         if self.center_is_infinity(cc) {
             if power == 0 {
-                return cc.in_(1);
+                return Ok(cc.in_(1));
             }
             if power == 1 {
-                return cc.symbol_id(self.variable);
+                return Ok(cc.symbol_id(self.variable));
             }
-            return cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(self.variable), cc.in_(power)]);
+            return Ok(cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(self.variable), cc.in_(power)]));
         }
         let delta = if is_zero_term(cc, self.center) {
             cc.symbol_id(self.variable)
@@ -85,9 +85,9 @@ impl Series {
         else {
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), self.center]);
             let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(self.variable), neg]);
-            cc.fold_term(plus)
+            cc.fold_term(plus)?
         };
-        if power == 0 {
+        Ok(if power == 0 {
             cc.in_(1)
         }
         else if power == 1 {
@@ -95,7 +95,7 @@ impl Series {
         }
         else {
             cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_(power)])
-        }
+        })
     }
 
     fn center_is_infinity(&self, cc: &DomainExecutionContext<'_>) -> bool {
@@ -103,28 +103,29 @@ impl Series {
     }
 
     /// 精确时转为 Plus/Times/Power 多项式项。
-    pub fn to_term(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
+    pub fn to_term(&self, cc: &mut DomainExecutionContext<'_>) -> Result<TermId> {
         if self.terms.is_empty() {
-            return cc.in_(0);
+            return Ok(cc.in_(0));
         }
-        let parts: Vec<TermId> = self
+        let parts: Result<Vec<TermId>> = self
             .terms
             .iter()
             .map(|(coeff, power)| {
                 if *power == 0 {
-                    *coeff
+                    Ok(*coeff)
                 }
                 else {
-                    let dp = self.delta_power(cc, *power);
+                    let dp = self.delta_power(cc, *power)?;
                     cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![*coeff, dp]))
                 }
             })
             .collect();
-        if parts.len() == 1 { parts[0] } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) }
+        let parts = parts?;
+        if parts.len() == 1 { Ok(parts[0]) } else { cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts)) }
     }
 }
 
-fn residual_series(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> Series {
+fn residual_series(_cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, center: TermId, order: u32) -> Series {
     Series { variable, center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
 }
 
@@ -135,7 +136,7 @@ pub fn taylor(
     variable: SymbolId,
     center: TermId,
     order: u32,
-) -> CalculusResult<Series> {
+) -> Result<CalculusResult<Series>> {
     const SHIFT: &str = "__athena_taylor_t";
     let working = if is_zero_term(cc, center) {
         expression
@@ -144,7 +145,7 @@ pub fn taylor(
         // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
         let shifted_var = {
             let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol(SHIFT), center]);
-            cc.fold_term(plus)
+            cc.fold_term(plus)?
         };
         replace_symbol(cc, expression, variable, shifted_var)
     };
@@ -156,32 +157,32 @@ pub fn taylor(
     for n in 0..=order {
         if n > 0 {
             factorial = factorial.saturating_mul(n as i64);
-            let d = differentiate(cc, current, expand_var);
-            current = cc.fold_term(d);
+            let d = differentiate(cc, current, expand_var)?;
+            current = cc.fold_term(d)?;
         }
         let zero = cc.in_(0);
-        let at_zero = cc.fold_term(replace_symbol(cc, current, expand_var, zero));
+        let at_zero = cc.fold_term(replace_symbol(cc, current, expand_var, zero))?;
         if contains_symbol(cc, at_zero, expand_var) {
-            return CalculusResult::Unevaluated {
+            return Ok(CalculusResult::Unevaluated {
                 expression: residual_series(cc, expression, variable, center, order),
                 reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
-            };
+            });
         }
         let coeff = if n == 0 || factorial == 1 {
             at_zero
         }
         else {
-            cc.fold_term(cc.apply_semantic(SemanticOperator::Divide, vec![at_zero, cc.in_(factorial)]))
+            cc.fold_term(cc.apply_semantic(SemanticOperator::Divide, vec![at_zero, cc.in_(factorial)]))?
         };
         if !is_zero_term(cc, coeff) {
             terms.push((coeff, n as i64));
         }
     }
 
-    let next = differentiate(cc, current, expand_var);
-    let next = cc.fold_term(next);
+    let next = differentiate(cc, current, expand_var)?;
+    let next = cc.fold_term(next)?;
     let zero = cc.in_(0);
-    let next_at = cc.fold_term(replace_symbol(cc, next, expand_var, zero));
+    let next_at = cc.fold_term(replace_symbol(cc, next, expand_var, zero))?;
     let remainder = if is_zero_term(cc, next_at) && !contains_symbol(cc, next, expand_var) {
         Remainder::ExactTruncation
     }
@@ -192,13 +193,13 @@ pub fn taylor(
         else {
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
             let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(variable), neg]);
-            cc.fold_term(plus)
+            cc.fold_term(plus)?
         };
         let pow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_((order + 1) as i64)]);
         Remainder::BigO(pow)
     };
 
-    CalculusResult::Exact { value: Series { variable, center, terms, order, remainder }, conditions: Vec::new() }
+    Ok(CalculusResult::Exact { value: Series { variable, center, terms, order, remainder }, conditions: Vec::new() })
 }
 
 /// 关于 `center` 的 Laurent 展开：先清除有限阶极点，再 Taylor，再平移幂次。
@@ -210,7 +211,7 @@ pub fn laurent(
     variable: SymbolId,
     center: TermId,
     order: u32,
-) -> CalculusResult<Series> {
+) -> Result<CalculusResult<Series>> {
     const MAX_POLE: u32 = 8;
     let delta = if is_zero_term(cc, center) {
         cc.symbol_id(variable)
@@ -218,7 +219,7 @@ pub fn laurent(
     else {
         let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), center]);
         let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(variable), neg]);
-        cc.fold_term(plus)
+        cc.fold_term(plus)?
     };
 
     for m in 0..=MAX_POLE {
@@ -228,29 +229,29 @@ pub fn laurent(
         else {
             let dpow = cc.apply_semantic(SemanticOperator::Power, vec![delta, cc.in_(m as i64)]);
             let times = cc.apply_semantic(SemanticOperator::Multiply, vec![expression, dpow]);
-            cc.fold_term(times)
+            cc.fold_term(times)?
         };
-        match taylor(cc, cleared, variable, center, order.saturating_add(m)) {
+        match taylor(cc, cleared, variable, center, order.saturating_add(m))? {
             CalculusResult::Exact { value: series, conditions } => {
                 if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(cc, *coeff)) {
                     continue;
                 }
-                return CalculusResult::Exact { value: remap_laurent_series(cc, series, variable, center, order, m, delta), conditions };
+                return Ok(CalculusResult::Exact { value: remap_laurent_series(cc, series, variable, center, order, m, delta), conditions });
             }
             CalculusResult::Conditional { value: series, conditions } => {
                 if series.terms.iter().any(|(coeff, _)| term_has_singular_zero_power(cc, *coeff)) {
                     continue;
                 }
-                return CalculusResult::Conditional { value: remap_laurent_series(cc, series, variable, center, order, m, delta), conditions };
+                return Ok(CalculusResult::Conditional { value: remap_laurent_series(cc, series, variable, center, order, m, delta), conditions });
             }
             CalculusResult::Unevaluated { .. } => continue,
         }
     }
 
-    CalculusResult::Unevaluated {
+    Ok(CalculusResult::Unevaluated {
         expression: residual_series(cc, expression, variable, center, order),
         reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
-    }
+    })
 }
 
 fn remap_laurent_series(
@@ -277,35 +278,35 @@ fn remap_laurent_series(
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
 ///
 /// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
-pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, order: u32) -> CalculusResult<Series> {
+pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, order: u32) -> Result<CalculusResult<Series>> {
     const T: &str = "__athena_asymp_t";
     let infinity = cc.symbol("Infinity");
     let t_sym = cc.symbol(T);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![t_sym, cc.in_(-1)]);
     let substituted = replace_symbol(cc, expression, variable, inv);
-    let g = cc.fold_term(substituted);
+    let g = cc.fold_term(substituted)?;
     let t_sym = cc.intern(T);
-    let g = clear_negative_powers_of_var(cc, g, t_sym);
+    let g = clear_negative_powers_of_var(cc, g, t_sym)?;
     let zero = cc.in_(0);
-    match laurent(cc, g, t_sym, zero, order) {
+    match laurent(cc, g, t_sym, zero, order)? {
         CalculusResult::Exact { value: series, conditions } => {
-            CalculusResult::Exact { value: remap_asymptotic_series(cc, series, variable, order), conditions }
+            Ok(CalculusResult::Exact { value: remap_asymptotic_series(cc, series, variable, order), conditions })
         }
         CalculusResult::Conditional { value: series, conditions } => {
-            CalculusResult::Conditional { value: remap_asymptotic_series(cc, series, variable, order), conditions }
+            Ok(CalculusResult::Conditional { value: remap_asymptotic_series(cc, series, variable, order), conditions })
         }
-        CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
+        CalculusResult::Unevaluated { .. } => Ok(CalculusResult::Unevaluated {
             expression: residual_series(cc, expression, variable, infinity, order),
             reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
-        },
+        }),
     }
 }
 
 /// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
-fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
+fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Result<TermId> {
     let Some((head, args)) = cc.application_head(expr)
     else {
-        return expr;
+        return Ok(expr);
     };
     match head {
         ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 => {
@@ -313,24 +314,24 @@ fn clear_negative_powers_of_var(cc: &mut DomainExecutionContext<'_>, expr: TermI
                 if let Some(k) = negative_valuation(cc, args[0], var) {
                     if k > 0 {
                         let scale = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(var), cc.in_(k as i64)]);
-                        let cleared_den = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![args[0], scale]));
+                        let cleared_den = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![args[0], scale]))?;
                         let den_inv = cc.apply_semantic(SemanticOperator::Power, vec![cleared_den, cc.in_(-1)]);
                         return cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![scale, den_inv]));
                     }
                 }
             }
-            let base = clear_negative_powers_of_var(cc, args[0], var);
-            cc.apply_semantic(SemanticOperator::Power, vec![base, args[1]])
+            let base = clear_negative_powers_of_var(cc, args[0], var)?;
+            Ok(cc.apply_semantic(SemanticOperator::Power, vec![base, args[1]]))
         }
         ApplicationHead::Semantic(SemanticOperator::Add) => {
-            let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts))
+            let parts: Result<Vec<_>> = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
+            cc.fold_term(cc.apply_semantic(SemanticOperator::Add, parts?))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) => {
-            let parts = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
-            cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, parts))
+            let parts: Result<Vec<_>> = args.iter().map(|a| clear_negative_powers_of_var(cc, *a, var)).collect();
+            cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, parts?))
         }
-        _ => expr,
+        _ => Ok(expr),
     }
 }
 

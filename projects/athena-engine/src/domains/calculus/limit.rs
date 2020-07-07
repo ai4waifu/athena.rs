@@ -2,7 +2,7 @@
 
 use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, SymbolId, TermId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
     request::{LimitApproach, LimitDirection},
@@ -19,7 +19,7 @@ pub fn limit_checked(
     approach: &LimitApproach,
     direction: LimitDirection,
     _assumptions: &AssumptionSet,
-) -> CalculusResult<TermId> {
+) -> Result<CalculusResult<TermId>> {
     match approach {
         LimitApproach::Finite(point) => limit_finite(cc, expression, variable, *point, direction),
         LimitApproach::PositiveInfinity => limit_infinity(cc, expression, variable, true),
@@ -33,54 +33,62 @@ fn limit_finite(
     variable: SymbolId,
     point: TermId,
     direction: LimitDirection,
-) -> CalculusResult<TermId> {
+) -> Result<CalculusResult<TermId>> {
     if let Some(v) = try_known_finite_limit(cc, expression, variable, point) {
-        return CalculusResult::Exact { value: v, conditions: Vec::new() };
+        return Ok(CalculusResult::Exact { value: v, conditions: Vec::new() });
     }
 
     let substituted = replace_symbol(cc, expression, variable, point);
-    let value = cc.fold_term(substituted);
+    let value = cc.fold_term(substituted)?;
 
     let silent_zero_over_zero = cc.number_of(value).is_some_and(|n| n.is_zero())
-        && split_quotient(cc, expression).is_some_and(|(num, den)| {
-            let num_at = cc.fold_term(replace_symbol(cc, num, variable, point));
-            let den_at = cc.fold_term(replace_symbol(cc, den, variable, point));
-            cc.number_of(num_at).is_some_and(|n| n.is_zero()) && cc.number_of(den_at).is_some_and(|n| n.is_zero())
-        });
+        && is_silent_zero_over_zero(cc, expression, variable, point)?;
 
     if is_indeterminate_form(cc, value) || silent_zero_over_zero {
-        if let Some(v) = try_lhopital_once(cc, expression, variable, point, direction) {
-            return CalculusResult::Exact { value: v, conditions: Vec::new() };
+        if let Some(v) = try_lhopital_once(cc, expression, variable, point, direction)? {
+            return Ok(CalculusResult::Exact { value: v, conditions: Vec::new() });
         }
-        return CalculusResult::Unevaluated {
+        return Ok(CalculusResult::Unevaluated {
             expression: limit_form(cc, expression, variable, &LimitApproach::Finite(point), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
-        };
+        });
     }
 
     if is_singular_form(cc, value) {
         if direction != LimitDirection::TwoSided {
-            if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction) {
-                return CalculusResult::Exact { value: v, conditions: Vec::new() };
+            if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction)? {
+                return Ok(CalculusResult::Exact { value: v, conditions: Vec::new() });
             }
         }
-        return CalculusResult::Unevaluated {
+        return Ok(CalculusResult::Unevaluated {
             expression: limit_form(cc, expression, variable, &LimitApproach::Finite(point), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
-        };
+        });
     }
 
     if !contains_symbol(cc, value, variable) && !is_open_limit_head(cc, value) {
-        return CalculusResult::Exact { value, conditions: Vec::new() };
+        return Ok(CalculusResult::Exact { value, conditions: Vec::new() });
     }
 
     if direction != LimitDirection::TwoSided {
-        if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction) {
-            return CalculusResult::Exact { value: v, conditions: Vec::new() };
+        if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction)? {
+            return Ok(CalculusResult::Exact { value: v, conditions: Vec::new() });
         }
     }
 
-    unevaluated_limit(cc, expression, variable, &LimitApproach::Finite(point), direction)
+    Ok(unevaluated_limit(cc, expression, variable, &LimitApproach::Finite(point), direction))
+}
+
+fn is_silent_zero_over_zero(
+    cc: &mut DomainExecutionContext<'_>,
+    expression: TermId,
+    variable: SymbolId,
+    point: TermId,
+) -> Result<bool> {
+    let Some((num, den)) = split_quotient(cc, expression) else { return Ok(false) };
+    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point))?;
+    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point))?;
+    Ok(cc.number_of(num_at).is_some_and(|n| n.is_zero()) && cc.number_of(den_at).is_some_and(|n| n.is_zero()))
 }
 
 fn try_known_finite_limit(cc: &DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> Option<TermId> {
@@ -132,24 +140,24 @@ fn try_lhopital_once(
     variable: SymbolId,
     point: TermId,
     _direction: LimitDirection,
-) -> Option<TermId> {
-    let (num, den) = split_quotient(cc, expression)?;
-    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point));
-    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point));
+) -> Result<Option<TermId>> {
+    let Some((num, den)) = split_quotient(cc, expression) else { return Ok(None) };
+    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point))?;
+    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point))?;
     let num_zero = cc.number_of(num_at).is_some_and(|n| n.is_zero());
     let den_zero = cc.number_of(den_at).is_some_and(|n| n.is_zero());
     if !(num_zero && den_zero) {
-        return None;
+        return Ok(None);
     }
-    let num_d = super::derivative::differentiate(cc, num, variable);
-    let den_d = super::derivative::differentiate(cc, den, variable);
+    let num_d = super::derivative::differentiate(cc, num, variable)?;
+    let den_d = super::derivative::differentiate(cc, den, variable)?;
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![den_d, cc.in_(-1)]);
     let ratio = cc.apply_semantic(SemanticOperator::Multiply, vec![num_d, inv]);
-    let value = cc.fold_term(replace_symbol(cc, ratio, variable, point));
+    let value = cc.fold_term(replace_symbol(cc, ratio, variable, point))?;
     if is_indeterminate_form(cc, value) || is_singular_form(cc, value) || contains_symbol(cc, value, variable) {
-        return None;
+        return Ok(None);
     }
-    Some(value)
+    Ok(Some(value))
 }
 
 fn split_quotient(cc: &DomainExecutionContext<'_>, expression: TermId) -> Option<(TermId, TermId)> {
@@ -191,7 +199,7 @@ fn try_onesided_simple_pole(
     variable: SymbolId,
     point: TermId,
     direction: LimitDirection,
-) -> Option<TermId> {
+) -> Result<Option<TermId>> {
     let (num, den) = match cc.application_head(expression) {
         Some((ApplicationHead::Semantic(SemanticOperator::Divide), args)) if args.len() == 2 => (args[0], args[1]),
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args)) if args.len() == 2 => {
@@ -199,63 +207,63 @@ fn try_onesided_simple_pole(
                 (cc.in_(1), args[0])
             }
             else {
-                return None;
+                return Ok(None);
             }
         }
-        _ => return None,
+        _ => return Ok(None),
     };
 
-    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point));
-    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point));
-    let num_n = cc.number_of(num_at).map(|n| cc.copy(n))?;
-    let den_n = cc.number_of(den_at).map(|n| cc.copy(n))?;
+    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point))?;
+    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point))?;
+    let Some(num_n) = cc.number_of(num_at).map(|n| cc.copy(n)) else { return Ok(None) };
+    let Some(den_n) = cc.number_of(den_at).map(|n| cc.copy(n)) else { return Ok(None) };
     if den_n.is_zero() && !num_n.is_zero() {
         let eps = cc.in_(1);
         let probe = match direction {
-            LimitDirection::FromAbove => cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![point, eps])),
+            LimitDirection::FromAbove => cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![point, eps]))?,
             LimitDirection::FromBelow => {
                 let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), eps]);
-                cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![point, neg]))
+                cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![point, neg]))?
             }
-            LimitDirection::TwoSided => return None,
+            LimitDirection::TwoSided => return Ok(None),
         };
-        let den_side = cc.fold_term(replace_symbol(cc, den, variable, probe));
-        let den_side_n = cc.number_of(den_side).map(|n| cc.copy(n))?;
-        let sign_den = num_compare(&den_side_n, &Number::small_int(0))?;
-        let sign_num = num_compare(&num_n, &Number::small_int(0))?;
+        let den_side = cc.fold_term(replace_symbol(cc, den, variable, probe))?;
+        let Some(den_side_n) = cc.number_of(den_side).map(|n| cc.copy(n)) else { return Ok(None) };
+        let Some(sign_den) = num_compare(&den_side_n, &Number::small_int(0)) else { return Ok(None) };
+        let Some(sign_num) = num_compare(&num_n, &Number::small_int(0)) else { return Ok(None) };
         use std::cmp::Ordering::*;
         let positive = match (sign_num, sign_den) {
             (Greater, Greater) | (Less, Less) => true,
             (Greater, Less) | (Less, Greater) => false,
-            _ => return None,
+            _ => return Ok(None),
         };
-        return Some(if positive {
+        return Ok(Some(if positive {
             cc.symbol("Infinity")
         }
         else {
             cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
-        });
+        }));
     }
-    None
+    Ok(None)
 }
 
-fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, positive: bool) -> CalculusResult<TermId> {
-    if let Some((degree, leading)) = polynomial_degree_leading(cc, expression, variable) {
+fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, positive: bool) -> Result<CalculusResult<TermId>> {
+    if let Some((degree, leading)) = polynomial_degree_leading(cc, expression, variable)? {
         if degree == 0 {
-            return CalculusResult::Exact { value: cc.num(leading), conditions: Vec::new() };
+            return Ok(CalculusResult::Exact { value: cc.num(leading), conditions: Vec::new() });
         }
         if degree < 0 {
-            return CalculusResult::Exact { value: cc.in_(0), conditions: Vec::new() };
+            return Ok(CalculusResult::Exact { value: cc.in_(0), conditions: Vec::new() });
         }
         let mut sign_positive = num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
         if leading.is_zero() {
-            return unevaluated_limit(
+            return Ok(unevaluated_limit(
                 cc,
                 expression,
                 variable,
                 if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
                 LimitDirection::TwoSided,
-            );
+            ));
         }
         if num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Less) {
             sign_positive = false;
@@ -269,49 +277,49 @@ fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
         else {
             cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
         };
-        return CalculusResult::Exact { value, conditions: Vec::new() };
+        return Ok(CalculusResult::Exact { value, conditions: Vec::new() });
     }
-    unevaluated_limit(
+    Ok(unevaluated_limit(
         cc,
         expression,
         variable,
         if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
         LimitDirection::TwoSided,
-    )
+    ))
 }
 
-fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Option<(i64, Number)> {
-    match cc.shape(expr)? {
-        Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
-        Shape::Symbol(s) if cc.symbol_id_is(s, var) => Some((1, Number::small_int(1))),
-        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) | Shape::Collection(_) => None,
-        Shape::Application(head, args) => match head {
+fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Result<Option<(i64, Number)>> {
+    match cc.shape(expr) {
+        Some(Shape::Number) => Ok(Some((0, cc.number_of(expr).map(|n| cc.copy(n)).expect("number")))),
+        Some(Shape::Symbol(s)) if cc.symbol_id_is(s, var) => Ok(Some((1, Number::small_int(1)))),
+        Some(Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) | Shape::Collection(_)) => Ok(None),
+        Some(Shape::Application(head, args)) => match head {
             ApplicationHead::Semantic(SemanticOperator::Add) => {
                 let mut best: Option<(i64, Number)> = None;
                 for a in args {
-                    let (d, c) = polynomial_degree_leading(cc, a, var)?;
+                    let Some((d, c)) = polynomial_degree_leading(cc, a, var)? else { return Ok(None) };
                     best = match best {
                         None => Some((d, c)),
                         Some((bd, _bc)) if d > bd => Some((d, c)),
-                        Some((bd, bc)) if d == bd => Some((bd, num_add(bc, c).ok()?)),
+                        Some((bd, bc)) if d == bd => Some((bd, num_add(bc, c).ok().expect("add"))),
                         Some(b) => Some(b),
                     };
                 }
-                best
+                Ok(best)
             }
             ApplicationHead::Semantic(SemanticOperator::Multiply) => {
                 let mut deg = 0i64;
                 let mut coeff = Number::small_int(1);
                 for a in args {
-                    let (d, c) = polynomial_degree_leading(cc, a, var)?;
+                    let Some((d, c)) = polynomial_degree_leading(cc, a, var)? else { return Ok(None) };
                     deg += d;
-                    coeff = num_mul(coeff, c).ok()?;
+                    coeff = num_mul(coeff, c).ok().expect("mul");
                 }
-                Some((deg, coeff))
+                Ok(Some((deg, coeff)))
             }
             ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_id(cc, args[0], var) => {
-                let n = cc.int_exp(args[1])?;
-                Some((n, Number::small_int(1)))
+                let Some(n) = cc.int_exp(args[1]) else { return Ok(None) };
+                Ok(Some((n, Number::small_int(1))))
             }
             ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
                 let inv = cc.apply_semantic(SemanticOperator::Power, vec![args[1], cc.in_(-1)]);
@@ -323,8 +331,9 @@ fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, 
                 let rewritten = cc.apply_semantic(SemanticOperator::Add, vec![args[0], neg]);
                 polynomial_degree_leading(cc, rewritten, var)
             }
-            _ => None,
+            _ => Ok(None),
         },
+        None => Ok(None),
     }
 }
 

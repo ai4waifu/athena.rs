@@ -1,6 +1,6 @@
 //! 统一的微积分 / 域值（表达式、级数或向量微积分对象）。
 
-use athena_types::TermId;
+use athena_types::{Result, TermId};
 
 use crate::domains::context::DomainExecutionContext;
 
@@ -101,13 +101,13 @@ impl From<TransformResult> for CalculusValue {
 
 impl CalculusValue {
     /// 展平为单一表达式桥接项（仅余微积分内桥接用）。
-    pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
-        match self {
+    pub fn materialize_expression(&self, cc: &mut DomainExecutionContext<'_>) -> Result<TermId> {
+        Ok(match self {
             Self::Expression(t) => *t,
             Self::Series(r) => {
                 let series =
                     cc.session().series_objects.get(*r).map(Series::owning_copy).expect("SeriesRef must resolve in Session::series_objects");
-                series.to_term(cc)
+                series.to_term(cc)?
             }
             Self::Gradient(g) => g.materialize_list_expression(cc),
             Self::Jacobian(j) => j.materialize_list_expression(cc),
@@ -117,7 +117,7 @@ impl CalculusValue {
             Self::Residue(r) => r.materialize_expression(),
             Self::DifferentialSolution(d) => d.to_equal_term(cc),
             Self::Transform(t) => t.materialize_expression(cc),
-        }
+        })
     }
 }
 
@@ -245,7 +245,7 @@ pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResul
 }
 
 /// 抽取 evaluate 风格 API 的主载荷（写回 session arena）。
-pub fn materialize_calculus_result_term(cc: &mut DomainExecutionContext<'_>, r: &CalculusResult<CalculusValue>) -> TermId {
+pub fn materialize_calculus_result_term(cc: &mut DomainExecutionContext<'_>, r: &CalculusResult<CalculusValue>) -> Result<TermId> {
     match r {
         CalculusResult::Exact { value, .. }
         | CalculusResult::Conditional { value, .. }

@@ -37,9 +37,25 @@ pub use vector::{
     Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked, jacobian_checked,
 };
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use crate::{domains::context::DomainExecutionContext, runtime::session::Session};
+
+/// 执行失败仅在此边界映为 `Unevaluated`；子模块一律经 [`athena_types::Result`] 传播。
+fn map_exec<T>(
+    expression: CalculusValue,
+    r: athena_types::Result<CalculusResult<T>>,
+    map: impl FnOnce(CalculusResult<T>) -> CalculusResult<CalculusValue>,
+) -> CalculusResult<CalculusValue> {
+    match r {
+        Ok(cr) => map(cr),
+        Err(reason) => CalculusResult::Unevaluated { expression, reason },
+    }
+}
+
+fn uneval_expr(expression: TermId, reason: Diagnostic) -> CalculusResult<CalculusValue> {
+    CalculusResult::Unevaluated { expression: CalculusValue::Expression(expression), reason }
+}
 
 /// 将微积分域请求分派到对应子模块（读写调用方 session arena）。
 pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
@@ -54,11 +70,23 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 return CalculusResult::Exact { value: CalculusValue::Expression(expression), conditions: Vec::new() };
             }
             let mut value = expression;
-            let mut last = differentiate_checked(&mut dc, value, variable, &assumptions);
-            value = dc.fold_term(last.value);
+            let mut last = match differentiate_checked(&mut dc, value, variable, &assumptions) {
+                Ok(c) => c,
+                Err(d) => return uneval_expr(expression, d),
+            };
+            value = match dc.fold_term(last.value) {
+                Ok(v) => v,
+                Err(d) => return uneval_expr(expression, d),
+            };
             for _ in 1..times {
-                last = differentiate_checked(&mut dc, value, variable, &assumptions);
-                value = dc.fold_term(last.value);
+                last = match differentiate_checked(&mut dc, value, variable, &assumptions) {
+                    Ok(c) => c,
+                    Err(d) => return uneval_expr(expression, d),
+                };
+                value = match dc.fold_term(last.value) {
+                    Ok(v) => v,
+                    Err(d) => return uneval_expr(expression, d),
+                };
             }
             map_term_result(CalculusResult::from_conditional(ConditionalResult {
                 value,
@@ -66,55 +94,88 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
                 unresolved: last.unresolved,
             }))
         }
-        CalculusRequest::Integral { expression, variable, assumptions: _ } => map_term_result(integrate_checked(&mut dc, expression, variable)),
-        CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => {
-            map_term_result(definite_integrate_checked(&mut dc, expression, variable, lower, upper))
+        CalculusRequest::Integral { expression, variable, assumptions: _ } => {
+            map_exec(CalculusValue::Expression(expression), integrate_checked(&mut dc, expression, variable), map_term_result)
         }
-        CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => {
-            map_term_result(limit_checked(&mut dc, expression, variable, &approach, direction, &assumptions))
-        }
-        CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => {
-            let series_result = taylor(&mut dc, expression, variable, center, order);
-            map_series_result(&mut dc.session_mut().series_objects, series_result)
-        }
-        CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => {
-            let series_result = laurent(&mut dc, expression, variable, center, order);
-            map_series_result(&mut dc.session_mut().series_objects, series_result)
-        }
-        CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => {
-            let series_result = asymptotic(&mut dc, expression, variable, order);
-            map_series_result(&mut dc.session_mut().series_objects, series_result)
-        }
+        CalculusRequest::DefiniteIntegral { expression, variable, lower, upper, assumptions: _ } => map_exec(
+            CalculusValue::Expression(expression),
+            definite_integrate_checked(&mut dc, expression, variable, lower, upper),
+            map_term_result,
+        ),
+        CalculusRequest::Limit { expression, variable, approach, direction, assumptions } => map_exec(
+            CalculusValue::Expression(expression),
+            limit_checked(&mut dc, expression, variable, &approach, direction, &assumptions),
+            map_term_result,
+        ),
+        CalculusRequest::Series { expression, variable, center, order, assumptions: _ } => map_exec(
+            CalculusValue::Expression(expression),
+            taylor(&mut dc, expression, variable, center, order),
+            |r| map_series_result(&mut dc.session_mut().series_objects, r),
+        ),
+        CalculusRequest::Laurent { expression, variable, center, order, assumptions: _ } => map_exec(
+            CalculusValue::Expression(expression),
+            laurent(&mut dc, expression, variable, center, order),
+            |r| map_series_result(&mut dc.session_mut().series_objects, r),
+        ),
+        CalculusRequest::Asymptotic { expression, variable, order, assumptions: _ } => map_exec(
+            CalculusValue::Expression(expression),
+            asymptotic(&mut dc, expression, variable, order),
+            |r| map_series_result(&mut dc.session_mut().series_objects, r),
+        ),
         CalculusRequest::Residue { expression, variable, point, assumptions: _ } => {
-            map_residue_result(residue_checked(&mut dc, expression, variable, point))
+            map_exec(CalculusValue::Expression(expression), residue_checked(&mut dc, expression, variable, point), map_residue_result)
         }
-        CalculusRequest::Gradient { expression, variables, assumptions } => {
-            map_gradient_result(gradient_checked(&mut dc, expression, &variables, &assumptions))
-        }
+        CalculusRequest::Gradient { expression, variables, assumptions } => map_exec(
+            CalculusValue::Expression(expression),
+            gradient_checked(&mut dc, expression, &variables, &assumptions),
+            map_gradient_result,
+        ),
         CalculusRequest::Jacobian { expressions, variables, assumptions } => {
-            map_jacobian_result(jacobian_checked(&mut dc, &expressions, &variables, &assumptions))
+            let echo = expressions.first().copied().unwrap_or_else(|| dc.in_(0));
+            map_exec(
+                CalculusValue::Expression(echo),
+                jacobian_checked(&mut dc, &expressions, &variables, &assumptions),
+                map_jacobian_result,
+            )
         }
         CalculusRequest::Hessian { expression, variables, assumptions } => {
-            map_hessian_result(hessian_checked(&mut dc, expression, &variables, &assumptions))
+            map_exec(CalculusValue::Expression(expression), hessian_checked(&mut dc, expression, &variables, &assumptions), map_hessian_result)
         }
         CalculusRequest::Divergence { components, variables, assumptions } => {
-            map_divergence_result(divergence_checked(&mut dc, &components, &variables, &assumptions))
+            let echo = components.first().copied().unwrap_or_else(|| dc.in_(0));
+            map_exec(
+                CalculusValue::Expression(echo),
+                divergence_checked(&mut dc, &components, &variables, &assumptions),
+                map_divergence_result,
+            )
         }
         CalculusRequest::Curl { components, variables, assumptions } => {
-            map_curl_result(curl_checked(&mut dc, &components, &variables, &assumptions))
+            let echo = components.first().copied().unwrap_or_else(|| dc.in_(0));
+            map_exec(CalculusValue::Expression(echo), curl_checked(&mut dc, &components, &variables, &assumptions), map_curl_result)
         }
-        CalculusRequest::SolveOde { equation, dependent, independent, initial, assumptions } => {
-            map_ode_result(solve_ode_checked(&mut dc, equation, dependent, independent, initial, &assumptions))
+        CalculusRequest::SolveOde { equation, dependent, independent, initial, assumptions } => map_exec(
+            CalculusValue::Expression(equation),
+            solve_ode_checked(&mut dc, equation, dependent, independent, initial, &assumptions),
+            map_ode_result,
+        ),
+        CalculusRequest::Transform { kind, expression, time_variable, transform_variable, assumptions } => {
+            let echo = CalculusValue::Expression(expression);
+            match kind {
+                TransformKind::Laplace => map_exec(
+                    echo,
+                    laplace_checked(&mut dc, expression, time_variable, transform_variable, &assumptions),
+                    map_transform_result,
+                ),
+                TransformKind::Fourier => map_exec(
+                    echo,
+                    fourier_checked(&mut dc, expression, time_variable, transform_variable, &assumptions),
+                    map_transform_result,
+                ),
+                TransformKind::Z => {
+                    map_exec(echo, z_checked(&mut dc, expression, time_variable, transform_variable, &assumptions), map_transform_result)
+                }
+            }
         }
-        CalculusRequest::Transform { kind, expression, time_variable, transform_variable, assumptions } => match kind {
-            TransformKind::Laplace => {
-                map_transform_result(laplace_checked(&mut dc, expression, time_variable, transform_variable, &assumptions))
-            }
-            TransformKind::Fourier => {
-                map_transform_result(fourier_checked(&mut dc, expression, time_variable, transform_variable, &assumptions))
-            }
-            TransformKind::Z => map_transform_result(z_checked(&mut dc, expression, time_variable, transform_variable, &assumptions)),
-        },
     }
 }
 

@@ -1,7 +1,7 @@
 //! 复分析留数 — 经 Laurent `(z-a)^{-1}` 系数提取（引导实现 · arena 版 ）。
 
 use athena_ir::SemanticOperator;
-use athena_types::{Diagnostic, DiagnosticCode, SymbolId, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
     result::CalculusResult,
@@ -34,18 +34,18 @@ impl Residue {
 /// 计算 `Res(expression, variable → point)`。
 ///
 /// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
-pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> CalculusResult<Residue> {
+pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> Result<CalculusResult<Residue>> {
     let zero = cc.in_(0);
-    match laurent(cc, expression, variable, point, 0) {
+    Ok(match laurent(cc, expression, variable, point, 0)? {
         CalculusResult::Exact { value: series, conditions } => {
             let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
             let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| *c).unwrap_or(zero);
             // 若余项未知且无主部，不假装精确 0
             if matches!(series.remainder, Remainder::Unknown) && pole_order == 0 && is_zero_like(cc, value) {
-                return CalculusResult::Unevaluated {
+                return Ok(CalculusResult::Unevaluated {
                     expression: Residue { expression, variable, point, value: residue_echo(cc, expression, variable, point), pole_order: 0 },
                     reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
-                };
+                });
             }
             let _ = conditions;
             CalculusResult::Exact { value: Residue { expression, variable, point, value, pole_order }, conditions: Vec::new() }
@@ -59,7 +59,7 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
             expression: Residue { expression, variable, point, value: residue_echo(cc, expression, variable, point), pole_order: 0 },
             reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
         },
-    }
+    })
 }
 
 fn residue_echo(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> TermId {
