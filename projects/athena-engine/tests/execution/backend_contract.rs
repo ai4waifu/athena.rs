@@ -24,8 +24,8 @@ fn reference_backend_trait_matches_direct_execute() {
     let b = session.results.get(via_direct).expect("b");
     assert_eq!(a.symbolic_term, Some(term));
     assert_eq!(b.symbolic_term, Some(term));
-    assert_eq!(a.status, ComputationStatus::Exact);
-    assert_eq!(b.status, ComputationStatus::Exact);
+    assert_eq!(a.status, ComputationStatus::Candidate);
+    assert_eq!(b.status, ComputationStatus::Candidate);
     assert_eq!(BackendKind::Reference, ReferenceExecutor::new().kind());
 }
 

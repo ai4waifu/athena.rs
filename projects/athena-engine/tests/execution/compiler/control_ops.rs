@@ -26,7 +26,7 @@ fn compile_and_execute_boolean_branch() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(then_term));
-    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
 }
 
 #[test]

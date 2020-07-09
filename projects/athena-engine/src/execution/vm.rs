@@ -128,8 +128,13 @@ pub fn materialize_verified_vm_outcome(
     use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
     use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode};
 
-    let (status, coverage) =
-        if outcome.residual { (ComputationStatus::Unknown, CoverageStatus::Partial) } else { (ComputationStatus::Exact, CoverageStatus::Full) };
+    // VM 成功返回 ≠ 数学 Exact / Full。无 residual 仅表示宿主未标残差，保证为 Candidate。
+    // `SlotValue::Result` 已由 provider / 上游携带正确状态，直接透传。
+    let (status, coverage) = if outcome.residual {
+        (ComputationStatus::Unknown, CoverageStatus::Partial)
+    } else {
+        (ComputationStatus::Candidate, CoverageStatus::Partial)
+    };
     match outcome.value {
         SlotValue::Result(result_id) => Ok(result_id),
         SlotValue::Boolean(value) => {

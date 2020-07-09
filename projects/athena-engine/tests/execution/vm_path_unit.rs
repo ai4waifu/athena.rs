@@ -16,8 +16,8 @@ fn execute_ir_request_not_uses_vm_path() {
     let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Not), vec![t], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.status, ComputationStatus::Exact);
-    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
+    assert_eq!(loaded.coverage, CoverageStatus::Partial);
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -32,8 +32,8 @@ fn execute_ir_request_atom_term_uses_vm_load_term() {
     let term = session.builder().int(7, Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.status, ComputationStatus::Exact);
-    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
+    assert_eq!(loaded.coverage, CoverageStatus::Partial);
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     assert_eq!(loaded.symbolic_term, Some(term));
     match session.arena.get(term) {
@@ -61,7 +61,7 @@ fn execute_ir_request_add_integers_uses_vm_host() {
     let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Add), vec![a, b], Default::default());
     let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("exec");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -521,8 +521,8 @@ fn execute_ir_request_control_index_uses_vm_path() {
     let request = AthenaRequest::Control(ControlPlan::Index { target: list, axes: vec![IndexSpec::Scalar(IntegerIndex(2))] });
     let result_id = execute_ir_request(&mut session, request).expect("index");
     let loaded = session.results.get(result_id).expect("result");
-    assert_eq!(loaded.status, ComputationStatus::Exact);
-    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
+    assert_eq!(loaded.coverage, CoverageStatus::Partial);
     assert_eq!(loaded.provenance.as_ref().map(|p| p.request_kind), Some("ExecutionIR/athena-vm"));
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {

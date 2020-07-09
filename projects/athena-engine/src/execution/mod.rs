@@ -75,7 +75,20 @@ pub fn evaluate_term(session: &mut Session, expr: TermId) -> TermEvaluation {
             let diagnostics = result.diagnostics.clone();
             let status = result.status;
             let has_error = diagnostics.iter().any(|d| d.severity == Severity::Error);
-            let kind = if status == ComputationStatus::Exact && !has_error { EvalKind::Value } else { EvalKind::Unevaluated };
+            // `EvalKind::Value` = 已归约出可用项。状态轴独立：Candidate ≠ Exact。
+            let kind = match status {
+                ComputationStatus::Exact
+                | ComputationStatus::Verified
+                | ComputationStatus::Candidate
+                | ComputationStatus::Conditional
+                | ComputationStatus::Partial
+                | ComputationStatus::Probable
+                    if !has_error =>
+                {
+                    EvalKind::Value
+                }
+                _ => EvalKind::Unevaluated,
+            };
             TermEvaluation { term, kind, status, diagnostics }
         }
         Err(diagnostic) => TermEvaluation::invalid(expr, diagnostic),
