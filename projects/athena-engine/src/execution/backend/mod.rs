@@ -69,7 +69,7 @@ impl ExecutionBackend for ReferenceExecutor {
     }
 
     fn execute(&self, session: &mut Session, module: &ExecutionModule) -> Result<ResultId> {
-        ReferenceExecutor::execute(self, session, module, None)
+        ReferenceExecutor::execute(self, session, module)
     }
 }
 

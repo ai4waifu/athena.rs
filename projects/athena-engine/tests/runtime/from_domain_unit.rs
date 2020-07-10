@@ -12,7 +12,7 @@ use athena_engine::{
 use athena_types::ComputationStatus;
 
 #[test]
-fn machine_rank_projects_candidate_not_exact() {
+fn machine_rank_projects_candidate_full_coverage() {
     let mut session = Session::new();
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
         value: LinearAlgebraValue::MachineRank {
@@ -23,11 +23,11 @@ fn machine_rank_projects_candidate_not_exact() {
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.status, ComputationStatus::Candidate);
     assert!(!result.status.is_unconditional_exact());
-    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
 }
 
 #[test]
-fn machine_solve_projects_candidate_partial_coverage() {
+fn machine_solve_projects_candidate_full_coverage() {
     let mut session = Session::new();
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
         value: LinearAlgebraValue::MachineSolve(MachineSolveResult {
@@ -39,7 +39,7 @@ fn machine_solve_projects_candidate_partial_coverage() {
     });
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.status, ComputationStatus::Candidate);
-    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
 }
 
 #[test]

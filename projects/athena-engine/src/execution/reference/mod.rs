@@ -19,7 +19,6 @@ use athena_types::{Result, ResultId};
 use athena_vm::VmConfig;
 
 use crate::{
-    domains::dispatch::DomainRequest,
     execution::{
         ir::{ExecutionModule, verify_module},
         vm::{execute_verified_cfg_on_vm_with_config, materialize_verified_vm_outcome, vm_config_from_session},
@@ -42,25 +41,18 @@ impl ReferenceExecutor {
 
     /// 在给定 Session / 运行时上下文中执行已校验 module。
     ///
-    /// 当 `domain` 为 `Some` 时，首条 `CallProvider` 边运行 `execute_domain`
-    /// 并返回该物化的 `ResultId`（IR 形态的 Goal 路径）。
-    pub fn execute(&self, session: &mut Session, module: &ExecutionModule, domain: Option<DomainRequest>) -> Result<ResultId> {
+    /// 领域 Goal 载荷须已写入 module [`crate::execution::ir::ProviderCallDescriptor::payload`]。
+    pub fn execute(&self, session: &mut Session, module: &ExecutionModule) -> Result<ResultId> {
         let config = vm_config_from_session(session);
-        self.execute_configured(session, module, domain, &config)
+        self.execute_configured(session, module, &config)
     }
 
     /// 带 [`VmConfig`]（cancel / budget / gc_mode）的执行入口。
     ///
-    /// SoftInvalid / 非布尔分支 / 缺 domain 与 VM 同合同：**硬失败**，不再软续跑。
-    pub fn execute_configured(
-        &self,
-        session: &mut Session,
-        module: &ExecutionModule,
-        domain: Option<DomainRequest>,
-        config: &VmConfig,
-    ) -> Result<ResultId> {
+    /// SoftInvalid / 非布尔分支 / 缺 payload 与 VM 同合同：**硬失败**，不再软续跑。
+    pub fn execute_configured(&self, session: &mut Session, module: &ExecutionModule, config: &VmConfig) -> Result<ResultId> {
         verify_module(module)?;
-        let outcome = execute_verified_cfg_on_vm_with_config(session, module, domain, config)?;
+        let outcome = execute_verified_cfg_on_vm_with_config(session, module, config)?;
         materialize_verified_vm_outcome(session, outcome, "ExecutionIR/athena-vm")
     }
 }

@@ -90,14 +90,13 @@ impl Interpreter {
         self.last_steps = 0;
     }
 
-    fn check_budget_and_cancel(&self, steps: u64, config: &VmConfig) -> Option<VmExit> {
+    fn check_budget_and_cancel(&self, config: &VmConfig) -> Option<VmExit> {
         if config.cancellation.is_cancelled() {
             return Some(VmExit::Cancelled);
         }
-        if let Some(max) = config.max_steps {
-            if steps > max {
-                return Some(VmExit::BudgetExceeded);
-            }
+        // 实时扣减共享预算。嵌套入口看到的是同一剩余计数，而非启动时快照。
+        if !config.step_budget.consume_one() {
+            return Some(VmExit::BudgetExceeded);
         }
         None
     }
@@ -212,7 +211,7 @@ impl VmExecutor for Interpreter {
         while (pc as usize) < module.instructions.len() {
             steps = steps.saturating_add(1);
             self.last_steps = steps;
-            if let Some(exit) = self.check_budget_and_cancel(steps, config) {
+            if let Some(exit) = self.check_budget_and_cancel(config) {
                 return Ok(exit);
             }
             if let Some(frame) = self.frames.current_mut() {

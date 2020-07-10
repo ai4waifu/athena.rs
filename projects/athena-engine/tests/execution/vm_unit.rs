@@ -4,7 +4,7 @@ use athena_engine::{
     Session,
     execution::vm::{empty_vm_module, execute_vm_module, vm_config_from_session},
 };
-use athena_vm::{CancellationToken, Instruction, Interpreter, SlotValue, VmConstant, VmExecutor, VmExit, VmModule};
+use athena_vm::{CancellationToken, Instruction, Interpreter, SlotValue, StepBudget, VmConstant, VmExecutor, VmExit, VmModule};
 
 #[test]
 fn session_projects_vm_config_and_runs_empty_module() {
@@ -20,7 +20,7 @@ fn safepoint_then_return_under_budget() {
     let mut session = Session::new();
     let module = VmModule::from_instructions(vec![Instruction::Safepoint, Instruction::Return], 0);
     let mut cfg = vm_config_from_session(&session);
-    cfg.max_steps = Some(8);
+    cfg.step_budget = StepBudget::limited(8);
     let mut interpreter = Interpreter::new();
     let exit = interpreter.execute(&module, &cfg).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
@@ -79,7 +79,7 @@ fn execution_host_not_via_vm_interpreter() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), Vec::new());
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(1), Some(SlotValue::Boolean(false)));
@@ -105,7 +105,7 @@ fn execution_host_and_or_via_vm_interpreter() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), Vec::new());
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(false)));
@@ -134,7 +134,7 @@ fn execution_host_trueq_equal_unequal() {
     );
     let mut interpreter = Interpreter::new();
     let cfg = vm_config_from_session(&session);
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), Vec::new());
     let exit = interpreter.execute_with_host(&module, &cfg, &mut host).expect("vm execute");
     assert_eq!(exit, VmExit::Returned);
     assert_eq!(interpreter.slots().get(2), Some(SlotValue::Boolean(true)));

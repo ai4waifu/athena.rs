@@ -228,7 +228,7 @@ fn session_setdelayed_evaluates_on_use() {
         evaluation: BindingEvaluationPolicy::StoreResidualTerm,
     });
     let module = ExecutionCompiler::new().compile(&mut c.s, &request).expect("define residual");
-    ReferenceExecutor::new().execute(&mut c.s, &module, None).expect("exec");
+    ReferenceExecutor::new().execute(&mut c.s, &module).expect("exec");
     assert_eq!(t(symbol("a", &mut c), &mut c), "2");
 }
 

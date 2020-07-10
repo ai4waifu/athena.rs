@@ -27,25 +27,21 @@ pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFra
 
 /// 仅在 `ExecutionIR` 路径上编译并执行一次请求。
 ///
-/// `Goal::Dispatch` 在运行时把 `DomainRequest` 带入 `CallProvider`。
+/// `Goal::Dispatch` 在编译期将 `DomainRequest` intern 进 Session 载荷仓，
+/// 并把 [`DomainPayloadId`](crate::domains::DomainPayloadId) 写入
+/// [`ProviderCallDescriptor::payload`]（无 host `pending_domain` 侧通道）。
 /// 后端经 [`backend::select_execution_backend`] **显式选择**：选中 `AthenaVm` 时只走 VM，
 /// 失败返回诊断，**禁止**再静默回退 `ReferenceExecutor`。
 pub fn execute_ir_request(session: &mut Session, request: AthenaRequest) -> AthenaResult<ResultId> {
-    use crate::{
-        api::request::DomainGoal,
-        execution::backend::{BackendKind, select_execution_backend},
-    };
+    use crate::execution::backend::{BackendKind, select_execution_backend};
     use athena_types::{Diagnostic, DiagnosticCode};
 
+    let is_domain_goal = matches!(request, AthenaRequest::Goal(_));
     let module = compiler::ExecutionCompiler::new().compile(session, &request)?;
-    let domain = match request {
-        AthenaRequest::Goal(DomainGoal::Dispatch(domain)) => Some(domain),
-        _ => None,
-    };
-    match select_execution_backend(&module, domain.is_some()) {
+    match select_execution_backend(&module, is_domain_goal) {
         BackendKind::AthenaVm | BackendKind::Reference => {
             // Reference 名仍可出现在能力报告历史路径，但执行一律走 VM，禁止第二套 CFG。
-            match vm::execute_verified_cfg_on_vm(session, &module, domain) {
+            match vm::execute_verified_cfg_on_vm(session, &module) {
                 Ok(outcome) => vm::materialize_verified_vm_outcome(session, outcome, "ExecutionIR/athena-vm"),
                 Err(diagnostic) => Err(diagnostic
                     .detail("component", "execute_ir_request")

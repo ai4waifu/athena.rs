@@ -58,7 +58,20 @@ fn uneval_expr(expression: TermId, reason: Diagnostic) -> CalculusResult<Calculu
 }
 
 /// 将微积分域请求分派到对应子模块（读写调用方 session arena）。
+///
+/// 无条件 `Exact` 表达式结果会登记到 Session，供准入热路径免二次重算。
 pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
+    let identity = calculus_request_identity(&request);
+    let result = execute_calculus_dispatch(session, request);
+    if let CalculusResult::Exact { value: CalculusValue::Expression(term), conditions } = &result {
+        if conditions.is_empty() {
+            session.remember_trusted_calculus(identity, *term);
+        }
+    }
+    result
+}
+
+fn execute_calculus_dispatch(session: &mut Session, request: CalculusRequest) -> CalculusResult<CalculusValue> {
     let mut dc = DomainExecutionContext::new(session);
     match request {
         CalculusRequest::Derivative { expression, variable, order, assumptions } => {

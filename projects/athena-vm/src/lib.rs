@@ -13,6 +13,7 @@
 
 #![deny(missing_docs)]
 
+mod budget;
 mod cancel;
 mod config;
 mod constant;
@@ -26,6 +27,7 @@ mod lease;
 mod module;
 mod slot;
 
+pub use budget::StepBudget;
 pub use cancel::CancellationToken;
 pub use config::VmConfig;
 pub use constant::VmConstant;

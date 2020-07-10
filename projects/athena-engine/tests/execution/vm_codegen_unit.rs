@@ -118,7 +118,7 @@ fn lower_and_execute_not_on_vm() {
     let module = not_module(true);
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     assert_eq!(lowered.result_slot, 1);
-    let value = execute_verified_cfg_on_vm(&mut session, &module, None).expect("vm").value;
+    let value = execute_verified_cfg_on_vm(&mut session, &module).expect("vm").value;
     assert_eq!(value, SlotValue::Boolean(false));
 }
 
@@ -126,9 +126,9 @@ fn lower_and_execute_not_on_vm() {
 fn lower_and_execute_boolean_branch_on_vm() {
     let mut session = Session::new();
     let then_mod = branch_module(true);
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &then_mod, None).expect("then").value, SlotValue::Boolean(true));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &then_mod).expect("then").value, SlotValue::Boolean(true));
     let else_mod = branch_module(false);
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &else_mod, None).expect("else").value, SlotValue::Boolean(false));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &else_mod).expect("else").value, SlotValue::Boolean(false));
 }
 
 fn edge_arg_phi_module(cond: bool, then_val: bool, else_val: bool) -> ExecutionModule {
@@ -194,9 +194,9 @@ fn lower_and_execute_boolean_edge_arg_phi_on_vm() {
     let mut session = Session::new();
     let then_mod = edge_arg_phi_module(true, true, false);
     assert!(try_lower_verified_cfg_module(&then_mod).is_ok());
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &then_mod, None).expect("then").value, SlotValue::Boolean(true));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &then_mod).expect("then").value, SlotValue::Boolean(true));
     let else_mod = edge_arg_phi_module(false, true, false);
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &else_mod, None).expect("else").value, SlotValue::Boolean(false));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &else_mod).expect("else").value, SlotValue::Boolean(false));
 }
 
 fn guarded_boolean_module(pred: bool) -> ExecutionModule {
@@ -250,14 +250,14 @@ fn guarded_boolean_module(pred: bool) -> ExecutionModule {
 fn lower_guard_reject_passes_on_true() {
     let mut session = Session::new();
     let module = guarded_boolean_module(true);
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module, None).expect("pass").value, SlotValue::Boolean(true));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module).expect("pass").value, SlotValue::Boolean(true));
 }
 
 #[test]
 fn lower_guard_reject_fails_on_false() {
     let mut session = Session::new();
     let module = guarded_boolean_module(false);
-    let err = execute_verified_cfg_on_vm(&mut session, &module, None).expect_err("reject");
+    let err = execute_verified_cfg_on_vm(&mut session, &module).expect_err("reject");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("rejected"));
 }
 
@@ -310,7 +310,7 @@ fn lower_terminator_reject_on_else_edge() {
     module.fingerprint = ModuleFingerprint::of_module(&module);
     let mut session = Session::new();
     assert!(try_lower_verified_cfg_module(&module).is_ok());
-    let err = execute_verified_cfg_on_vm(&mut session, &module, None).expect_err("else reject");
+    let err = execute_verified_cfg_on_vm(&mut session, &module).expect_err("else reject");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("rejected"));
 }
 
@@ -387,7 +387,7 @@ fn lower_interfering_edge_arg_swap_uses_temps() {
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let has_temp_move = lowered.module.instructions.iter().any(|insn| matches!(insn, athena_vm::Instruction::Move { dst, .. } if *dst >= 5));
     assert!(has_temp_move, "expected temporary Move slots for interfering phi");
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module, None).expect("swap").value, SlotValue::Boolean(false));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module).expect("swap").value, SlotValue::Boolean(false));
 }
 
 #[test]
@@ -424,5 +424,5 @@ fn lower_and_execute_load_term_atom_on_vm() {
     module.fingerprint = ModuleFingerprint::of_module(&module);
 
     assert!(try_lower_verified_cfg_module(&module).is_ok());
-    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module, None).expect("vm").value, SlotValue::Term(term));
+    assert_eq!(execute_verified_cfg_on_vm(&mut session, &module).expect("vm").value, SlotValue::Term(term));
 }

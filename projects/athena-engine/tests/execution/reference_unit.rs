@@ -23,11 +23,11 @@ fn execute_compiled_atom_term() {
     let mut session = Session::new();
     let term = session.builder().int(9, Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(term));
-    assert_eq!(loaded.status, ComputationStatus::Candidate);
-    assert_eq!(loaded.coverage, CoverageStatus::Partial);
+    assert_eq!(loaded.status, ComputationStatus::Exact);
+    assert_eq!(loaded.coverage, CoverageStatus::Full);
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn execute_boolean_branch() {
     module.fingerprint = ModuleFingerprint::of_module(&module);
 
     let mut session = Session::new();
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("branch");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("branch");
     let loaded = session.results.get(result_id).expect("result");
     let term = loaded.symbolic_term.expect("term");
     match session.arena.get(term) {
@@ -110,7 +110,7 @@ fn truthy_and_or_with_zero_one() {
     let or_term = session.builder().application(or, vec![z, one], Default::default());
 
     let and_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(and_term)).expect("and");
-    let and_id = ReferenceExecutor::new().execute(&mut session, &and_mod, None).expect("and exec");
+    let and_id = ReferenceExecutor::new().execute(&mut session, &and_mod).expect("and exec");
     let and_out = session.results.get(and_id).expect("and result").symbolic_term.expect("term");
     match session.arena.get(and_out) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
@@ -118,7 +118,7 @@ fn truthy_and_or_with_zero_one() {
     }
 
     let or_mod = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(or_term)).expect("or");
-    let or_id = ReferenceExecutor::new().execute(&mut session, &or_mod, None).expect("or exec");
+    let or_id = ReferenceExecutor::new().execute(&mut session, &or_mod).expect("or exec");
     let or_out = session.results.get(or_id).expect("or result").symbolic_term.expect("term");
     match session.arena.get(or_out) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
@@ -134,7 +134,7 @@ fn unknown_head_marks_partial_unknown() {
     let one = session.builder().int(1, Default::default());
     let term = session.builder().application(foo, vec![one], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.status, ComputationStatus::Unknown);
     assert_eq!(loaded.coverage, CoverageStatus::Partial);
@@ -206,7 +206,7 @@ fn index_oob_hard_fails_invalid_index() {
     let b = session.builder().int(2, Default::default());
     let list = session.builder().list(vec![a, b], Default::default());
     let module = index_module(session.arena.term_ref(list).expect("ref"), vec![IndexSpec::Scalar(IntegerIndex(9))]);
-    let err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("index oob must hard-fail like VM");
+    let err = ReferenceExecutor::new().execute(&mut session, &module).expect_err("index oob must hard-fail like VM");
     assert_eq!(err.code, DiagnosticCode::InvalidIndex);
 }
 
@@ -221,7 +221,7 @@ fn index_range_extracts_slice() {
         session.arena.term_ref(list).expect("ref"),
         vec![IndexSpec::Range { start: IntegerIndex(1), end: IntegerIndex(2), step: 1 }],
     );
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -244,7 +244,7 @@ fn index_all_then_scalar_selects_column() {
     let row1 = session.builder().list(vec![c, d], Default::default());
     let matrix = session.builder().list(vec![row0, row1], Default::default());
     let module = index_module(session.arena.term_ref(matrix).expect("ref"), vec![IndexSpec::All, IndexSpec::Scalar(IntegerIndex(2))]);
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -264,7 +264,7 @@ fn execute_configured_honours_cancel() {
     let token = athena_vm::CancellationToken::new();
     token.cancel();
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_cancellation(token);
-    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("cancelled");
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, &cfg).expect_err("cancelled");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
 }
 
@@ -274,7 +274,7 @@ fn execute_configured_honours_max_steps() {
     let term = session.builder().int(1, Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_max_steps(0);
-    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("budget");
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, &cfg).expect_err("budget");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("budget_exceeded"));
 }
 
@@ -301,7 +301,7 @@ fn nested_map_re_eval_shares_outer_cancellation() {
     let token = athena_vm::CancellationToken::new();
     token.cancel();
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_cancellation(token);
-    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("cancelled");
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, &cfg).expect_err("cancelled");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
     assert!(session.shared_execution().is_none(), "root shared control must clear after execute");
 }
@@ -312,6 +312,6 @@ fn nested_execute_consumes_shared_step_budget() {
     let term = session.builder().int(1, Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
     let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_max_steps(1);
-    let _ = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg);
+    let _ = ReferenceExecutor::new().execute_configured(&mut session, &module, &cfg);
     assert!(session.shared_execution().is_none());
 }

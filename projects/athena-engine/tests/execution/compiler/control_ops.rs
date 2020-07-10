@@ -23,10 +23,10 @@ fn compile_and_execute_boolean_branch() {
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("branch");
     assert_eq!(module.regions[0].blocks.len(), 3);
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(then_term));
-    assert_eq!(loaded.status, ComputationStatus::Candidate);
+    assert_eq!(loaded.status, ComputationStatus::Exact);
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn compile_and_execute_define_write_binding() {
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define");
     assert!(!module.effect_edges.is_empty());
-    ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.defs.binding(symbol), Some(value));
 }
 
@@ -75,12 +75,12 @@ fn compile_and_execute_define_deferred_evaluates_on_read() {
         evaluation: BindingEvaluationPolicy::StoreResidualTerm,
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define residual");
-    ReferenceExecutor::new().execute(&mut session, &module, None).expect("define exec");
+    ReferenceExecutor::new().execute(&mut session, &module).expect("define exec");
     assert!(session.defs.binding(symbol).is_none());
     assert_eq!(session.defs.residual_binding(symbol), Some(rhs));
 
     let read_module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(sym_term)).expect("read");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &read_module, None).expect("read exec");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &read_module).expect("read exec");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -108,11 +108,11 @@ fn compile_and_execute_define_then_read_binding() {
         evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
     });
     let define_module = ExecutionCompiler::new().compile(&mut session, &define).expect("define");
-    ReferenceExecutor::new().execute(&mut session, &define_module, None).expect("define exec");
+    ReferenceExecutor::new().execute(&mut session, &define_module).expect("define exec");
 
     let read = AthenaRequest::Term(sym_term);
     let read_module = ExecutionCompiler::new().compile(&mut session, &read).expect("read");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &read_module, None).expect("read exec");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &read_module).expect("read exec");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(value));
 }
@@ -143,7 +143,7 @@ fn compile_and_execute_sequence_define_read_clear() {
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("sequence");
     assert_eq!(module.regions[0].blocks.len(), 3);
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     // 最后一步清除；结果为 Unit → Null 项。
     match session.arena.get(loaded.symbolic_term.expect("term")) {
@@ -163,7 +163,7 @@ fn compile_and_execute_counted_loop_unroll() {
     let iter = session.builder().list(vec![a, b, c], Default::default());
     let request = AthenaRequest::Control(ControlPlan::CountedLoop { variable: var, iterator: iter, body: Box::new(AthenaRequest::Term(var)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("counted");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(c));
     let symbol = match session.arena.get(var) {
@@ -190,7 +190,7 @@ fn compile_and_execute_iterate_collects_collection() {
         evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("iterate");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(term) {
         Some(TermNode::Collection { elements, .. }) => {
@@ -211,7 +211,7 @@ fn compile_and_execute_control_index_scalar() {
     let list = session.builder().list(vec![a, b, c], Default::default());
     let request = AthenaRequest::Control(ControlPlan::Index { target: list, axes: vec![IndexSpec::Scalar(IntegerIndex(2))] });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("index");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
         other => panic!("expected Index[..., 2] == 20, got {other:?}"),
@@ -228,7 +228,7 @@ fn compile_and_execute_term_counted_loop_range() {
     let iter = session.builder().application(range_op, vec![one, three], Default::default());
     let request = AthenaRequest::Control(ControlPlan::CountedLoop { variable: var, iterator: iter, body: Box::new(AthenaRequest::Term(var)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("counted range");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3) => {}
         other => panic!("expected CountedLoop range last value == 3, got {other:?}"),
@@ -243,7 +243,7 @@ fn compile_and_execute_loop_while_false() {
     let request = AthenaRequest::Control(ControlPlan::LoopWhile { condition: cond, body: Box::new(AthenaRequest::Term(body)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("loop");
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::BudgetCheck)));
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     match session.arena.get(loaded.symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Null)) => {}
@@ -258,7 +258,7 @@ fn compile_and_execute_term_loop_while_zero() {
     let body = session.builder().int(1, Default::default());
     let request = AthenaRequest::Control(ControlPlan::LoopWhile { condition: zero, body: Box::new(AthenaRequest::Term(body)) });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("loop control");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     match session.arena.get(loaded.symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Null)) => {}
@@ -300,7 +300,7 @@ fn compile_and_execute_goal_call_provider_dispatches_domain() {
 }
 
 #[test]
-fn call_provider_without_domain_hard_fails() {
+fn call_provider_without_payload_hard_fails() {
     use athena_engine::{
         api::request::DomainGoal,
         domains::{dispatch::DomainRequest, number_theory::NumberTheoryRequest},
@@ -312,9 +312,13 @@ fn call_provider_without_domain_hard_fails() {
         a: Integer::from_i64(12),
         b: Integer::from_i64(8),
     })));
-    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("goal");
-    let err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("missing domain must hard-fail like VM");
-    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("provider_domain_missing"));
+    let mut module = ExecutionCompiler::new().compile(&mut session, &request).expect("goal");
+    assert_eq!(module.provider_calls.len(), 1);
+    // 模拟未绑定 payload 的 CallProvider：不得靠 host 侧通道补救。
+    module.provider_calls[0].payload = None;
+    module.fingerprint = athena_engine::execution::ir::ModuleFingerprint::of_module(&module);
+    let err = ReferenceExecutor::new().execute(&mut session, &module).expect_err("unbound payload must hard-fail");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("provider_payload_unbound"));
 }
 
 #[test]
@@ -327,7 +331,7 @@ fn compile_and_execute_recover_success_body() {
         handler: Box::new(AthenaRequest::Term(handler)),
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("recover");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(body));
 }
@@ -341,7 +345,7 @@ fn compile_and_execute_recover_reject_and_success() {
         handler: Box::new(AthenaRequest::Term(one)),
     });
     let err_mod = ExecutionCompiler::new().compile(&mut session, &err_req).expect("recover reject");
-    let err_id = ReferenceExecutor::new().execute(&mut session, &err_mod, None).expect("err exec");
+    let err_id = ReferenceExecutor::new().execute(&mut session, &err_mod).expect("err exec");
     let err_out = session.results.get(err_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(err_out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
@@ -355,7 +359,7 @@ fn compile_and_execute_recover_reject_and_success() {
         handler: Box::new(AthenaRequest::Term(three)),
     });
     let ok_mod = ExecutionCompiler::new().compile(&mut session, &ok_req).expect("recover ok");
-    let ok_id = ReferenceExecutor::new().execute(&mut session, &ok_mod, None).expect("ok exec");
+    let ok_id = ReferenceExecutor::new().execute(&mut session, &ok_mod).expect("ok exec");
     let ok_out = session.results.get(ok_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(ok_out) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
@@ -376,7 +380,7 @@ fn compile_and_execute_cond_second_arm() {
         otherwise: Some(Box::new(AthenaRequest::Term(otherwise))),
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("cond");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(a1));
 }
@@ -389,7 +393,7 @@ fn compile_and_execute_local_scope_body() {
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("scope");
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::EnterScope)));
     assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::ExitScope)));
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(term));
 }
@@ -423,7 +427,7 @@ fn compile_and_execute_local_scope_shadows_session() {
         })),
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("scope");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(local));
     // 局部作用域退出后 Session Own 不变。
@@ -440,7 +444,7 @@ fn compile_and_execute_boolean_not_and() {
     let and_term = session.builder().application(and, vec![t, f], Default::default());
     let term = session.builder().application(not, vec![and_term], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("bool ops");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -462,7 +466,7 @@ fn compile_and_execute_control_branch_boolean() {
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("branch");
     assert_eq!(module.regions[0].blocks.len(), 3);
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(then_term));
 }
 
@@ -476,7 +480,7 @@ fn compile_and_execute_sequence_and_hold() {
         steps: vec![AthenaRequest::Term(one), AthenaRequest::Term(two), AthenaRequest::Term(three)],
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("sequence");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(three));
 
     let plus = ApplicationHead::Semantic(SemanticOperator::Add);
@@ -484,7 +488,7 @@ fn compile_and_execute_sequence_and_hold() {
     let inner = session.builder().application(plus, vec![one, one], Default::default());
     let held = session.builder().application(hold, vec![inner], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(held)).expect("hold");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Application { head, arguments })
@@ -512,7 +516,7 @@ fn compile_and_execute_cond_picks_true_arm() {
         otherwise: None,
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("cond");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(two));
 }
 
@@ -543,7 +547,7 @@ fn compile_and_execute_define_in_sequence() {
         ],
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define seq");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6) => {}
         other => panic!("expected Define then Add == 6, got {other:?}"),
@@ -564,7 +568,7 @@ fn compile_and_execute_runtime_branch() {
         else_branch: Some(Box::new(AthenaRequest::Term(eight))),
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("branch");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(seven));
 
     let fals = session.builder().boolean(false, Default::default());
@@ -574,7 +578,7 @@ fn compile_and_execute_runtime_branch() {
         else_branch: Some(Box::new(AthenaRequest::Term(eight))),
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("branch false");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(eight));
 }
 
@@ -589,7 +593,7 @@ fn compile_and_execute_sameq_and_trueq() {
     let term = session.builder().application(true_q, vec![same_term], Default::default());
     // `TrueQ[SameQ[True,False]]` == `TrueQ[False]` == `False`
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sameq");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     match session.arena.get(loaded.symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Boolean(false))) => {}
@@ -601,7 +605,7 @@ fn compile_and_execute_sameq_and_trueq() {
     let eq = ApplicationHead::Semantic(SemanticOperator::Equal);
     let eq_term = session.builder().application(eq, vec![a, b], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(eq_term)).expect("equal");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     match session.arena.get(loaded.symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Boolean(true))) => {}
@@ -619,7 +623,7 @@ fn equal_symbolic_stays_residual_identical_is_structural() {
     let pow = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Power), vec![x, two], Default::default());
     let eq = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Equal), vec![pow, one], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(eq)).expect("eq");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     match session.arena.get(out) {
         Some(TermNode::Application { head, .. }) if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Equal)) => {}
@@ -627,7 +631,7 @@ fn equal_symbolic_stays_residual_identical_is_structural() {
     }
     let same = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Identical), vec![one, two], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(same)).expect("same");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
         Some(TermNode::Atom(Atom::Boolean(false))) => {}
         other => panic!("expected Identical false, got {other:?}"),

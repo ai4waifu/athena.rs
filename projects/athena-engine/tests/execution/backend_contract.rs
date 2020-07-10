@@ -18,14 +18,14 @@ fn reference_backend_trait_matches_direct_execute() {
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
 
     let via_trait = ExecutionBackend::execute(&ReferenceExecutor::new(), &mut session, &module).expect("trait");
-    let via_direct = ReferenceExecutor::new().execute(&mut session, &module, None).expect("direct");
+    let via_direct = ReferenceExecutor::new().execute(&mut session, &module).expect("direct");
 
     let a = session.results.get(via_trait).expect("a");
     let b = session.results.get(via_direct).expect("b");
     assert_eq!(a.symbolic_term, Some(term));
     assert_eq!(b.symbolic_term, Some(term));
-    assert_eq!(a.status, ComputationStatus::Candidate);
-    assert_eq!(b.status, ComputationStatus::Candidate);
+    assert_eq!(a.status, ComputationStatus::Exact);
+    assert_eq!(b.status, ComputationStatus::Exact);
     assert_eq!(BackendKind::Reference, ReferenceExecutor::new().kind());
 }
 

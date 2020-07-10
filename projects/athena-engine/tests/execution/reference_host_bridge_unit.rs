@@ -14,7 +14,7 @@ fn reference_boolean_and_delegates_via_host_path() {
     let f = session.builder().boolean(false, Default::default());
     let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::And), vec![t, f], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
@@ -30,7 +30,7 @@ fn reference_numeric_and_still_uses_truthiness_path() {
     let one = session.builder().int(1, Default::default());
     let term = session.builder().application(ApplicationHead::Semantic(SemanticOperator::And), vec![zero, one], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
-    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     let out = loaded.symbolic_term.expect("term");
     match session.arena.get(out) {
