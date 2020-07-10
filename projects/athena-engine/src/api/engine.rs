@@ -27,12 +27,10 @@ impl AthenaEngine {
         Self {}
     }
 
-    /// 在内建定义下求值（唯一 `ExecutionIR` 路径）。返回归约后的 [`TermId`]（内部投影，非正式公共结果）。
-    pub fn evaluate(&self, session: &mut Session, term: TermId) -> TermId {
-        match execution::execute_ir_request(session, AthenaRequest::Term(term)) {
-            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term),
-            Err(_) => term,
-        }
+    /// 在内建定义下求值（唯一 `ExecutionIR` 路径）。执行失败经 [`Result`] 传播，禁止吞错。
+    pub fn evaluate(&self, session: &mut Session, term: TermId) -> Result<TermId> {
+        let result_id = execution::execute_ir_request(session, AthenaRequest::Term(term))?;
+        Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
     }
 
     /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。执行失败经 [`Result`] 传播，禁止吞错。
@@ -40,7 +38,7 @@ impl AthenaEngine {
         let mut dc = crate::domains::DomainExecutionContext::new(session);
         let var = dc.intern(var);
         let d = crate::domains::calculus::differentiate(&mut dc, term, var)?;
-        Ok(self.evaluate(session, d))
+        self.evaluate(session, d)
     }
 
     /// 域请求经 语义入口（[`Session::mgraph`] → Reflector → provider）。

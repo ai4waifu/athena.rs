@@ -21,7 +21,7 @@ fn extension_named_plus_is_not_semantic_add() {
         Some(TermNode::Application { head: ApplicationHead::Extension(_), .. }) => {}
         other => panic!("expected Extension head for surface Plus, got {other:?}"),
     }
-    let evaluated = fx.evaluate_term(term);
+    let evaluated = fx.evaluate_term(term).expect("evaluate");
     assert!(
         fx.session().arena.get(evaluated).is_some_and(|n| !matches!(n, TermNode::Atom(Atom::Number(_)))),
         "extension Plus must not evaluate as core Add"

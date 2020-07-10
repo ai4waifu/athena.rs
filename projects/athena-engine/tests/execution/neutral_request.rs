@@ -12,6 +12,6 @@ fn term_request_roundtrip_evaluate() {
         t.multiply([a, b])
     };
     let _req = term_request(term);
-    let out = fx.evaluate_term(term);
+    let out = fx.evaluate_term(term).expect("evaluate");
     assert_exact_integer(fx.session(), out, 20);
 }

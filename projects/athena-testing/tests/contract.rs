@@ -90,7 +90,7 @@ fn semantic_add_and_cos_pi_evaluate_exactly() {
         let b = t.integer(3);
         t.add([a, b])
     };
-    let sum_out = fx.evaluate_term(sum);
+    let sum_out = fx.evaluate_term(sum).expect("evaluate");
     assert_exact_integer(fx.session(), sum_out, 5);
 
     let cos_pi = {
@@ -98,7 +98,7 @@ fn semantic_add_and_cos_pi_evaluate_exactly() {
         let pi = t.math_constant(MathematicalConstant::Pi);
         t.unary_function(UnaryFunction::Cos, pi)
     };
-    let cos_out = fx.evaluate_term(cos_pi);
+    let cos_out = fx.evaluate_term(cos_pi).expect("evaluate");
     assert_exact_integer(fx.session(), cos_out, -1);
 }
 
@@ -132,7 +132,7 @@ fn register_compiled_rule_dispatches_extension_apply() {
         };
         push_extension(fx.session_mut(), f_op, vec![three])
     };
-    let out = fx.evaluate_term(call);
+    let out = fx.evaluate_term(call).expect("evaluate");
     assert_exact_integer(fx.session(), out, 9);
 }
 
@@ -146,7 +146,7 @@ fn zero_ary_sin_maps_over_ordered_collection() {
         let list = t.ordered([zero]);
         t.semantic(SemanticOperator::Map, [sin, list])
     };
-    let out = fx.evaluate_term(mapped);
+    let out = fx.evaluate_term(mapped).expect("evaluate");
     match fx.session().arena.get(out) {
         Some(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements }) if elements.len() == 1 => {
             assert_exact_integer(fx.session(), elements[0], 0);
@@ -229,7 +229,7 @@ fn session_binding_define_uses_typed_policy() {
         let one = t.integer(1);
         t.add([x, one])
     };
-    let out = fx.evaluate_term(sum);
+    let out = fx.evaluate_term(sum).expect("evaluate");
     assert_exact_integer(fx.session(), out, 6);
 }
 
