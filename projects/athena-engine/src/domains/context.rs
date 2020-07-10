@@ -37,25 +37,32 @@ pub(crate) struct ResidualExtensionIds {
 }
 
 /// 领域提供者共享的项读/建能力。
+///
+/// 构造时吃掉独占 [`Session`] 借用并收成裸指针，用 [`PhantomData`] 绑定生命周期。
+///
+/// **合同**：
+/// - 原子建项（`in_` / `num` / `apply_*`）可用 `&self`，便于 `apply(vec![in_(1), …])` 嵌套
+/// - `fold_term` / `session_mut` **必须** `&mut self`，禁止从共享借用制造第二份 `&mut Session`
+/// - `number_of` 返回拥有副本，禁止长寿命 `&Number` 与建项交错
 pub struct DomainExecutionContext<'a> {
-    s: *mut Session,
+    session: *mut Session,
     ext: ResidualExtensionIds,
-    _marker: PhantomData<&'a mut Session>,
+    _borrow: PhantomData<&'a mut Session>,
 }
 
 impl<'a> DomainExecutionContext<'a> {
     /// 在领域调用期间绑定独占的会话借用。
-    pub fn new(s: &'a mut Session) -> Self {
+    pub fn new(session: &'a mut Session) -> Self {
         let ext = ResidualExtensionIds {
-            indeterminate: s.extensions.intern("Indeterminate"),
-            re: s.extensions.intern("Re"),
-            element: s.extensions.intern("Element"),
-            unit_step: s.extensions.intern("UnitStep"),
-            heaviside_theta: s.extensions.intern("HeavisideTheta"),
-            kronecker_delta: s.extensions.intern("KroneckerDelta"),
-            discrete_delta: s.extensions.intern("DiscreteDelta"),
+            indeterminate: session.extensions.intern("Indeterminate"),
+            re: session.extensions.intern("Re"),
+            element: session.extensions.intern("Element"),
+            unit_step: session.extensions.intern("UnitStep"),
+            heaviside_theta: session.extensions.intern("HeavisideTheta"),
+            kronecker_delta: session.extensions.intern("KroneckerDelta"),
+            discrete_delta: session.extensions.intern("DiscreteDelta"),
         };
-        Self { s: s as *mut Session, ext, _marker: PhantomData }
+        Self { session: session as *mut Session, ext, _borrow: PhantomData }
     }
 
     /// 本会话的残差扩展 id 表。
@@ -91,7 +98,7 @@ impl<'a> DomainExecutionContext<'a> {
 
     /// 驻留扩展算子 id（ODE 因变量头等 · 非核心数学）。
     pub fn intern_extension(&self, name: &str) -> ExtensionOperatorId {
-        self.session_mut().extensions.intern(name)
+        self.session_for_build().extensions.intern(name)
     }
 
     /// 按 [`ExtensionOperatorId`] 做扩展应用。
@@ -101,14 +108,23 @@ impl<'a> DomainExecutionContext<'a> {
 
     #[inline]
     pub(crate) fn session(&self) -> &Session {
-        // SAFETY: 生命周期独占性与原先 `CalculusCtx` 不变量一致。
-        unsafe { &*self.s }
+        // SAFETY: `new` 吃掉的 `&mut Session` 在 `'a` 内唯一；只读借用。
+        unsafe { &*self.session }
     }
 
+    /// 需要执行折叠 / 重入 IR 时的独占会话借用（禁止 `&self` 入口）。
     #[inline]
-    pub(crate) fn session_mut(&self) -> &mut Session {
-        // SAFETY: 串行建造 / 折叠使用；无重叠的 `&mut Session`。
-        unsafe { &mut *self.s }
+    pub(crate) fn session_mut(&mut self) -> &mut Session {
+        // SAFETY: `&mut self` 证明此时无重叠的 `DomainExecutionContext` 读借用跨越本调用。
+        unsafe { &mut *self.session }
+    }
+
+    /// 短生命周期建项：仅 arena / extension intern，立即返回拥有 `TermId`。
+    #[inline]
+    fn session_for_build(&self) -> &mut Session {
+        // SAFETY: 原子建项不返回指向 Session 内部的引用；调用方不得在持有
+        // `number_of` 等内部借用时嵌套调用本路径（`number_of` 已改为拥有副本）。
+        unsafe { &mut *self.session }
     }
 
     /// 廉价结构快照（不克隆数值载荷）。
@@ -133,17 +149,17 @@ impl<'a> DomainExecutionContext<'a> {
         }
     }
 
-    /// 堆上数值引用。
-    pub(crate) fn number_of(&self, id: TermId) -> Option<&Number> {
+    /// 堆上数值的拥有副本（禁止返回 `&Number` 以免与建项交错）。
+    pub(crate) fn number_of(&self, id: TermId) -> Option<Number> {
         match self.session().arena.get(id) {
-            Some(athena_ir::TermNode::Atom(Atom::Number(n))) => Some(n),
+            Some(athena_ir::TermNode::Atom(Atom::Number(n))) => Some(clone_number(n)),
             _ => None,
         }
     }
 
     /// 当原子为精确小整数时取其整数指数。
     pub(crate) fn int_exp(&self, id: TermId) -> Option<i64> {
-        self.number_of(id).and_then(|n| n.as_integer_exp())
+        self.number_of(id).as_ref().and_then(|n| n.as_integer_exp())
     }
 
     /// 可移植折叠路径用的拥有式数值副本。
@@ -164,39 +180,39 @@ impl<'a> DomainExecutionContext<'a> {
     /// 经唯一的 `ExecutionIR` 路径折叠（显式项请求，绝不用字符串头）。
     ///
     /// 失败诊断向上传播，禁止吞成原项。
-    pub(crate) fn fold_term(&self, id: TermId) -> athena_types::Result<TermId> {
+    pub(crate) fn fold_term(&mut self, id: TermId) -> athena_types::Result<TermId> {
         let result_id = execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id))?;
         Ok(self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id))
     }
 
     /// 数值原子。
     pub(crate) fn num(&self, n: Number) -> TermId {
-        execution::push_number(self.session_mut(), n)
+        execution::push_number(self.session_for_build(), n)
     }
 
     /// 精确小整数。
     pub fn in_(&self, n: i64) -> TermId {
-        crate::runtime::values::arena::push_int(self.session_mut(), n)
+        crate::runtime::values::arena::push_int(self.session_for_build(), n)
     }
 
     /// 机器浮点原子。
     pub(crate) fn real(&self, x: f64) -> TermId {
-        execution::push_number(self.session_mut(), Number::machine(x))
+        execution::push_number(self.session_for_build(), Number::machine(x))
     }
 
     /// 按显示名构造符号原子（用户符号，非算子）。
     pub(crate) fn symbol(&self, name: &str) -> TermId {
-        crate::runtime::values::arena::push_symbol_name(self.session_mut(), name)
+        crate::runtime::values::arena::push_symbol_name(self.session_for_build(), name)
     }
 
     /// 闭数学常量原子。
     pub(crate) fn math_constant(&self, value: athena_ir::MathematicalConstant) -> TermId {
-        crate::runtime::values::arena::push_constant(self.session_mut(), value)
+        crate::runtime::values::arena::push_constant(self.session_for_build(), value)
     }
 
     /// 驻留用户符号名。
     pub fn intern(&self, name: &str) -> SymbolId {
-        self.session_mut().arena.symbols_mut().intern(name)
+        self.session_for_build().arena.symbols_mut().intern(name)
     }
 
     /// 将 [`SymbolId`] 解析为显示名（仅用户符号表）。
@@ -207,13 +223,13 @@ impl<'a> DomainExecutionContext<'a> {
     /// 由已有 [`SymbolId`] 构造符号原子。
     pub fn symbol_id(&self, id: SymbolId) -> TermId {
         let span = athena_ir::TermNode::default_span();
-        self.session_mut().arena.push(athena_ir::TermNode::Atom(Atom::Symbol(id)), span)
+        self.session_for_build().arena.push(athena_ir::TermNode::Atom(Atom::Symbol(id)), span)
     }
 
     /// 显式集合种类（绝不静默使用 `"List"` 头）。
     pub(crate) fn collection(&self, kind: CollectionKind, items: Vec<TermId>) -> TermId {
         let span = athena_ir::TermNode::default_span();
-        self.session_mut().arena.push(athena_ir::TermNode::Collection { kind, elements: items }, span)
+        self.session_for_build().arena.push(athena_ir::TermNode::Collection { kind, elements: items }, span)
     }
 
     /// 有序集合便捷构造。
@@ -223,11 +239,11 @@ impl<'a> DomainExecutionContext<'a> {
 
     /// 重建时保留已有 [`ApplicationHead`]。
     pub(crate) fn apply_head(&self, head: ApplicationHead, args: Vec<TermId>) -> TermId {
-        crate::runtime::values::arena::push_application_head(self.session_mut(), head, args)
+        crate::runtime::values::arena::push_application_head(self.session_for_build(), head, args)
     }
 
     /// 核心语义应用。
     pub fn apply_semantic(&self, op: SemanticOperator, args: Vec<TermId>) -> TermId {
-        crate::runtime::values::arena::push_semantic(self.session_mut(), op, args)
+        crate::runtime::values::arena::push_semantic(self.session_for_build(), op, args)
     }
 }

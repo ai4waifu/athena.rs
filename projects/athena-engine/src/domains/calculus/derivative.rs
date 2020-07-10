@@ -56,7 +56,7 @@ fn differentiate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: 
                     let pow = dc.apply_semantic(SemanticOperator::Power, vec![base, n1]);
                     let d = differentiate_symbol(dc, base, var)?;
                     dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(n), pow, d]))?
-                } else if let Some(nf) = dc.number_of(exp).map(|n| dc.copy(n)).and_then(|n| n.as_machine_f64()) {
+                } else if let Some(nf) = dc.number_of(exp).and_then(|n| n.as_machine_f64()) {
                     let base_pow = dc.apply_semantic(SemanticOperator::Power, vec![base, dc.real(nf - 1.0)]);
                     let d = differentiate_symbol(dc, base, var)?;
                     dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![dc.real(nf), base_pow, d]))?

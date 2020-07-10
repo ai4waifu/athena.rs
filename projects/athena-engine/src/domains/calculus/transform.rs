@@ -189,7 +189,7 @@ fn echo_transform(
 }
 
 fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s: SymbolId) -> Result<Option<(TermId, RegionOfConvergence)>> {
-    if let Some(n) = cc.number_of(expr).map(|n| cc.copy(n)) {
+    if let Some(n) = cc.number_of(expr) {
         // 拉普拉斯：ℒ{c} = c/s，Re(s)>0
         let sinv = cc.apply_semantic(SemanticOperator::Power, vec![cc.symbol_id(s), cc.in_(-1)]);
         let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(n), sinv]))?;
@@ -221,12 +221,12 @@ fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s
             Ok(Some((body, RegionOfConvergence::re_s_greater(cc, s, roc_bound))))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
-            if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[0]) {
                 let Some((inner, roc)) = laplace_one(cc, args[1], t, s)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
             }
-            if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[1]) {
                 let Some((inner, roc)) = laplace_one(cc, args[0], t, s)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
@@ -293,12 +293,12 @@ fn fourier_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, o
             Ok(Some((body, RegionOfConvergence::real_line(cc, omega))))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
-            if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[0]) {
                 let Some((inner, roc)) = fourier_one(cc, args[1], t, omega)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
             }
-            if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[1]) {
                 let Some((inner, roc)) = fourier_one(cc, args[0], t, omega)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
@@ -392,16 +392,12 @@ fn match_neg_coeff_abs_var(cc: &mut DomainExecutionContext<'_>, term: TermId, va
         return Ok(None);
     }
     let coeff = if is_abs_of(cc, args[1], var) {
-        {
-            let Some(n) = cc.number_of(args[0]) else { return Ok(None) };
-            cc.copy(n)
-        }
+        let Some(n) = cc.number_of(args[0]) else { return Ok(None) };
+        n
     }
     else if is_abs_of(cc, args[0], var) {
-        {
-            let Some(n) = cc.number_of(args[1]) else { return Ok(None) };
-            cc.copy(n)
-        }
+        let Some(n) = cc.number_of(args[1]) else { return Ok(None) };
+        n
     }
     else {
         return Ok(None);
@@ -430,13 +426,13 @@ fn match_neg_coeff_square_var(cc: &mut DomainExecutionContext<'_>, term: TermId,
     let coeff = if is_square_of(cc, args[1], var) {
         {
             let Some(n) = cc.number_of(args[0]) else { return Ok(None) };
-            cc.copy(n)
+            n
         }
     }
     else if is_square_of(cc, args[0], var) {
         {
             let Some(n) = cc.number_of(args[1]) else { return Ok(None) };
-            cc.copy(n)
+            n
         }
     }
     else {
@@ -462,7 +458,7 @@ fn is_square_of(cc: &DomainExecutionContext<'_>, term: TermId, var: SymbolId) ->
 fn evaluate_neg_number(cc: &mut DomainExecutionContext<'_>, n: &Number) -> Result<Option<Number>> {
     let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(n))]);
     let t = cc.fold_term(neg)?;
-    Ok(cc.number_of(t).map(|v| cc.copy(v)))
+    Ok(cc.number_of(t))
 }
 
 fn number_is_positive(n: &Number) -> bool {
@@ -476,10 +472,10 @@ fn match_coeff_times_var(cc: &mut DomainExecutionContext<'_>, term: TermId, var:
     let Some((head, args)) = cc.application_head(term) else { return None };
     if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
         if is_symbol_id(cc, args[1], var) {
-            return cc.number_of(args[0]).map(|n| cc.copy(n));
+            return cc.number_of(args[0]);
         }
         if is_symbol_id(cc, args[0], var) {
-            return cc.number_of(args[1]).map(|n| cc.copy(n));
+            return cc.number_of(args[1]);
         }
     }
     None
@@ -490,13 +486,13 @@ fn roc_half_plane_bound(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConve
     // 形态：Greater[Re[s], a]
     let (head, args) = cc.application_head(pred)?;
     if matches!(head, ApplicationHead::Semantic(SemanticOperator::Greater)) && args.len() == 2 {
-        return cc.number_of(args[1]).map(|n| cc.copy(n));
+        return cc.number_of(args[1]);
     }
     None
 }
 
 fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: SymbolId, z: SymbolId) -> Result<Option<(TermId, RegionOfConvergence)>> {
-    if let Some(c) = cc.number_of(expr).map(|n| cc.copy(n)) {
+    if let Some(c) = cc.number_of(expr) {
         // Z 变换：c·u[n] → c·z/(z-1)，|z|>1
         let base = z_over_z_minus(cc, z, &Number::small_int(1))?;
         let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), base]))?;
@@ -541,12 +537,12 @@ fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: SymbolId, z: Symb
             Ok(Some((body, roc)))
         }
         ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
-            if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[0]) {
                 let Some((inner, roc)) = z_one(cc, args[1], n, z)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
             }
-            if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
+            if let Some(c) = cc.number_of(args[1]) {
                 let Some((inner, roc)) = z_one(cc, args[0], n, z)? else { return Ok(None) };
                 let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), inner]))?;
                 return Ok(Some((body, roc)));
@@ -568,7 +564,7 @@ fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: SymbolId, z: Symb
             Ok(None)
         }
         ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_id(cc, args[1], n) => {
-            let Some(a) = cc.number_of(args[0]).map(|n| cc.copy(n)) else { return Ok(None) };
+            let Some(a) = cc.number_of(args[0]) else { return Ok(None) };
             // Z 变换：aⁿ → z/(z-a)，|z|>|a|
             let radius = num_abs(cc.copy(&a));
             Ok(Some((z_over_z_minus(cc, z, &a)?, RegionOfConvergence::abs_z_greater(cc, z, radius))))
@@ -603,7 +599,7 @@ fn match_n_times_power(cc: &DomainExecutionContext<'_>, args: &[TermId], n: Symb
 fn match_power_base(cc: &DomainExecutionContext<'_>, term: TermId, n: SymbolId) -> Option<Number> {
     let Some((head, args)) = cc.application_head(term) else { return None };
     if matches!(head, ApplicationHead::Semantic(SemanticOperator::Power)) && args.len() == 2 && is_symbol_id(cc, args[1], n) {
-        return cc.number_of(args[0]).map(|n| cc.copy(n));
+        return cc.number_of(args[0]);
     }
     None
 }
@@ -615,7 +611,7 @@ fn roc_abs_radius(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConvergence
     if matches!(head, ApplicationHead::Semantic(SemanticOperator::Greater)) && args.len() == 2 {
         if let Some((ah, inner)) = cc.application_head(args[0]) {
             if matches!(ah, ApplicationHead::Semantic(SemanticOperator::Abs)) && inner.len() == 1 {
-                return cc.number_of(args[1]).map(|n| cc.copy(n));
+                return cc.number_of(args[1]);
             }
         }
     }
