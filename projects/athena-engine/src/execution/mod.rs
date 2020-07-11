@@ -76,6 +76,7 @@ pub fn evaluate_term(session: &mut Session, expr: TermId) -> TermEvaluation {
                 ComputationStatus::Exact
                 | ComputationStatus::Verified
                 | ComputationStatus::Candidate
+                | ComputationStatus::Approximate
                 | ComputationStatus::Conditional
                 | ComputationStatus::Partial
                 | ComputationStatus::Probable
