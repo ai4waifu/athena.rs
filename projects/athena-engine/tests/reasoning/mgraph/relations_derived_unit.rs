@@ -50,11 +50,12 @@ fn rebuild_projects_term_equality_into_uf_and_proof_forest() {
 fn rebuild_projects_congruence_into_fingerprint_index() {
     let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
-    admit_congruence(&mut store, &mut semantic, 97, 10, 20);
-    admit_congruence(&mut store, &mut semantic, 97, 20, 30);
+    // 10 ≡ 107 ≡ 204 (mod 97)
+    admit_congruence(&mut store, &mut semantic, 97, 10, 107);
+    admit_congruence(&mut store, &mut semantic, 97, 107, 204);
     semantic.rebuild_derived();
     let derived = &semantic.derived;
-    assert_eq!(derived.congruence.find(97, 10), derived.congruence.find(97, 30));
+    assert_eq!(derived.congruence.find(97, 10), derived.congruence.find(97, 204));
     assert_eq!(derived.congruence.union_count(), 2);
     assert!(derived.proof_forest.is_empty());
     assert_eq!(derived.exact_uf.union_count(), 0);
@@ -64,12 +65,12 @@ fn rebuild_projects_congruence_into_fingerprint_index() {
 fn rebuild_keeps_congruence_classes_per_modulus() {
     let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
-    admit_congruence(&mut store, &mut semantic, 7, 10, 20);
-    admit_congruence(&mut store, &mut semantic, 11, 10, 30);
+    admit_congruence(&mut store, &mut semantic, 7, 10, 17);
+    admit_congruence(&mut store, &mut semantic, 11, 10, 21);
     semantic.rebuild_derived();
     let derived = &semantic.derived;
-    assert_eq!(derived.congruence.find(7, 10), derived.congruence.find(7, 20));
-    assert_ne!(derived.congruence.find(7, 10), derived.congruence.find(7, 30));
+    assert_eq!(derived.congruence.find(7, 10), derived.congruence.find(7, 17));
+    assert_ne!(derived.congruence.find(7, 10), derived.congruence.find(7, 21));
     assert_eq!(derived.congruence.modulus_count(), 2);
 }
 

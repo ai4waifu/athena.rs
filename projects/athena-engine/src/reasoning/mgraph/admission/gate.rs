@@ -255,6 +255,43 @@ impl EvidenceVerifier {
         }
         AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim))
     }
+
+    /// 整数同余：`left ≡ right (mod modulus)`，模为 0 或三者字段不一致时拒绝。
+    ///
+    /// 通用 [`Self::verify_in`] 对 [`EvidenceCertificate::CongruenceExact`] 实质检查恒失败。
+    /// `modulus_fingerprint` / `left` / `right` 在此入口解释为非负整数操作数（非任意哈希）。
+    pub fn verify_congruence(
+        modulus: u64,
+        left: u64,
+        right: u64,
+        policy: &VerificationPolicy,
+    ) -> AdmissionOutcome {
+        if modulus == 0 {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::MalformedRelation, guarantee: Guarantee::Unknown };
+        }
+        let m = i128::from(modulus);
+        let congruent = (i128::from(left) - i128::from(right)).rem_euclid(m) == 0;
+        if !congruent {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+        }
+        let claim = Claim {
+            proposition: Proposition::Congruence { modulus_fingerprint: modulus, left, right },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CONGRUENCE_PROVIDER_ID,
+                certificate: EvidenceCertificate::CongruenceExact { modulus_fingerprint: modulus, left, right },
+                summary: format!("congruence:{modulus}:{left}:{right}"),
+            },
+        };
+        if !policy.accepts(claim.guarantee) {
+            return AdmissionOutcome::Rejected { reason: reject_reason_for_guarantee(claim.guarantee), guarantee: claim.guarantee };
+        }
+        if !certificate_replays_proposition(&claim, policy) {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, guarantee: claim.guarantee };
+        }
+        AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim))
+    }
 }
 
 fn calculus_expression_variable(request: &CalculusRequest) -> Option<(TermId, athena_types::SymbolId)> {
@@ -344,10 +381,11 @@ fn substantive_evidence_holds(claim: &Claim, ctx: &mut VerificationContext<'_>) 
             // 字段一致 ≠ 微积分成立。须经 [`EvidenceVerifier::verify_calculus`]（可信登记或重算）。
             false
         }
-        EvidenceCertificate::PolynomialExact { .. }
-        | EvidenceCertificate::CongruenceExact { .. }
-        | EvidenceCertificate::TestHarness
-        | EvidenceCertificate::Rejected { .. } => true,
+        EvidenceCertificate::CongruenceExact { .. } => {
+            // 字段一致 ≠ 同余成立。须经 [`EvidenceVerifier::verify_congruence`]（整数模运算）。
+            false
+        }
+        EvidenceCertificate::PolynomialExact { .. } | EvidenceCertificate::TestHarness | EvidenceCertificate::Rejected { .. } => true,
     }
 }
 
@@ -444,26 +482,21 @@ impl AdmissionGate {
         }
     }
 
-    /// 接纳无条件 `ProvenExact` 模同余关系（写入 modulus-isolated `CongruenceIndex`）。
+    /// 接纳无条件 `ProvenExact` 整数同余关系（写入 modulus-isolated `CongruenceIndex`）。
+    ///
+    /// 经 [`EvidenceVerifier::verify_congruence`]：要求 `left ≡ right (mod modulus)`，禁止字段-only 准入。
     pub fn admit_congruence(
-        terms: &mut TermStore,
+        _terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         modulus_fingerprint: u64,
         left: u64,
         right: u64,
         policy: &VerificationPolicy,
     ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
-        let claim = Claim {
-            proposition: Proposition::Congruence { modulus_fingerprint, left, right },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: CONGRUENCE_PROVIDER_ID,
-                certificate: EvidenceCertificate::CongruenceExact { modulus_fingerprint, left, right },
-                summary: format!("congruence:{modulus_fingerprint}:{left}:{right}"),
-            },
-        };
-        Self::admit_claim(terms, semantic, claim, policy, None)
+        match EvidenceVerifier::verify_congruence(modulus_fingerprint, left, right, policy) {
+            AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
+            AdmissionOutcome::Rejected { reason, .. } => Err(reason),
+        }
     }
 }
 

@@ -18,10 +18,11 @@ fn admit_congruence_rebuilds_modulus_isolated_index() {
     let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
     let policy = VerificationPolicy::default();
-    AdmissionGate::admit_congruence(&mut store, &mut semantic, 7, 10, 20, &policy).expect("mod7");
-    AdmissionGate::admit_congruence(&mut store, &mut semantic, 11, 10, 30, &policy).expect("mod11");
-    assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 20));
-    assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 30));
+    // 10 ≡ 17 (mod 7)，10 ≡ 21 (mod 11)
+    AdmissionGate::admit_congruence(&mut store, &mut semantic, 7, 10, 17, &policy).expect("mod7");
+    AdmissionGate::admit_congruence(&mut store, &mut semantic, 11, 10, 21, &policy).expect("mod11");
+    assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 17));
+    assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 21));
     assert_eq!(semantic.derived.congruence.modulus_count(), 2);
 }
 
@@ -82,6 +83,36 @@ fn field_matched_calculus_certificate_still_rejected_without_recompute() {
     match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
         other => panic!("expected NotExact without recompute, got {other:?}"),
+    }
+}
+
+#[test]
+fn congruence_field_only_certificate_is_rejected() {
+    let claim = Claim {
+        proposition: Proposition::Congruence { modulus_fingerprint: 7, left: 10, right: 20 },
+        scope: Scope::Unconditional,
+        guarantee: Guarantee::ProvenExact,
+        evidence: Evidence::TrustedKernel {
+            provider: CapabilityProviderId(0),
+            certificate: EvidenceCertificate::CongruenceExact { modulus_fingerprint: 7, left: 10, right: 20 },
+            summary: "field-only".into(),
+        },
+    };
+    match EvidenceVerifier::verify(&claim, &VerificationPolicy::default()) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
+        other => panic!("expected NotExact for field-only congruence, got {other:?}"),
+    }
+}
+
+#[test]
+fn verify_congruence_admits_residue_class_and_rejects_incongruent() {
+    match EvidenceVerifier::verify_congruence(7, 10, 17, &VerificationPolicy::default()) {
+        AdmissionOutcome::Admitted(_) => {}
+        other => panic!("10 ≡ 17 (mod 7) must admit, got {other:?}"),
+    }
+    match EvidenceVerifier::verify_congruence(7, 10, 20, &VerificationPolicy::default()) {
+        AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
+        other => panic!("10 ≢ 20 (mod 7) must reject, got {other:?}"),
     }
 }
 
