@@ -27,11 +27,14 @@ pub(crate) fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId
     Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
 }
 
-/// `Unary(f)[arg]` — 精确三角折叠 / machine 实数折叠，否则残差。
+/// `Unary(f)[arg]` — 精确特殊值 / 精确三角折叠 / machine 实数折叠，否则残差。
 pub(crate) fn evaluate_special_unary_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
     if let Some(uf) = op.as_unary() {
         if terms.len() == 1 {
             let arg = terms[0];
+            if let Some(exact) = eval_exact_special_unary(session, uf, arg) {
+                return Ok(exact);
+            }
             if let Some(exact) = eval_trig_exact_session(session, uf, arg) {
                 return Ok(exact);
             }
@@ -52,6 +55,16 @@ pub(crate) fn evaluate_special_unary_terms(session: &mut Session, op: SemanticOp
         }
     }
     Ok(push_semantic(session, op, terms))
+}
+
+/// Exact kernel specials: `Exp[0]→1`, `Log[1]→0` (and machine equivalents already covered below).
+fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg: TermId) -> Option<TermId> {
+    let n = number_of(session, arg)?;
+    match function {
+        UnaryFunction::Exp if n.is_zero() => Some(session.builder().int(1, Default::default())),
+        UnaryFunction::Log if n.is_one() => Some(session.builder().int(0, Default::default())),
+        _ => None,
+    }
 }
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {

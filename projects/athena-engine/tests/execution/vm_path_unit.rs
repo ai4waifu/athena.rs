@@ -554,3 +554,38 @@ fn execute_ir_request_map_sin_list_uses_vm_host() {
         other => panic!("expected mapped list, got {other:?}"),
     }
 }
+
+#[test]
+fn execute_ir_request_folds_exp_0_and_log_1_exactly() {
+    let mut session = Session::new();
+    let zero = session.builder().int(0, Default::default());
+    let one = session.builder().int(1, Default::default());
+    let exp0 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::from_unary(athena_ir::UnaryFunction::Exp)),
+        vec![zero],
+        Default::default(),
+    );
+    let log1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::from_unary(athena_ir::UnaryFunction::Log)),
+        vec![one],
+        Default::default(),
+    );
+
+    let exp_id = execute_ir_request(&mut session, AthenaRequest::Term(exp0)).expect("Exp[0]");
+    let exp_loaded = session.results.get(exp_id).expect("exp result");
+    assert_eq!(exp_loaded.status, ComputationStatus::Exact);
+    assert_eq!(exp_loaded.coverage, CoverageStatus::Full);
+    match session.arena.get(exp_loaded.symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
+        other => panic!("expected Exp[0]->1, got {other:?}"),
+    }
+
+    let log_id = execute_ir_request(&mut session, AthenaRequest::Term(log1)).expect("Log[1]");
+    let log_loaded = session.results.get(log_id).expect("log result");
+    assert_eq!(log_loaded.status, ComputationStatus::Exact);
+    assert_eq!(log_loaded.coverage, CoverageStatus::Full);
+    match session.arena.get(log_loaded.symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0) => {}
+        other => panic!("expected Log[1]->0, got {other:?}"),
+    }
+}
