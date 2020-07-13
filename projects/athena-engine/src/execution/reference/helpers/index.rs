@@ -104,6 +104,10 @@ pub(crate) fn index_one(session: &mut Session, expr: TermId, spec: &IndexSpec) -
             }
             Ok(IndexStep::Next(cur))
         }
+        // Handled by `evaluate_index_axes` (needs full target shape). Fallback: scalar.
+        IndexSpec::LinearColumnMajor(IntegerIndex(idx)) => {
+            index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(*idx)))
+        }
         IndexSpec::DomainSpecific(_) => Ok(IndexStep::Residual),
     }
 }
@@ -133,6 +137,16 @@ pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: 
         }
     }
 
+    // MATLAB `A(k)`: rewrite column-major linear index once the runtime target shape is known.
+    let axes_owned;
+    let axes = if let [IndexSpec::LinearColumnMajor(IntegerIndex(k))] = axes {
+        axes_owned = rewrite_linear_column_major(session, cur, *k);
+        axes_owned.as_slice()
+    }
+    else {
+        axes
+    };
+
     for axis in axes {
         match index_one(session, cur, axis)? {
             IndexStep::Next(next) => cur = next,
@@ -143,4 +157,40 @@ pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: 
         }
     }
     Ok(IndexOutcome::Term(cur))
+}
+
+fn nested_matrix_shape(session: &Session, term: TermId) -> Option<(usize, usize)> {
+    let rows = match session.arena.get(term)? {
+        athena_ir::TermNode::Collection { elements, .. } => elements.clone(),
+        _ => return None,
+    };
+    if rows.is_empty() {
+        return None;
+    }
+    let first = match session.arena.get(rows[0])? {
+        athena_ir::TermNode::Collection { elements, .. } => elements.clone(),
+        _ => return None,
+    };
+    let ncols = first.len();
+    for row in &rows {
+        match session.arena.get(*row)? {
+            athena_ir::TermNode::Collection { elements, .. } if elements.len() == ncols => {}
+            _ => return None,
+        }
+    }
+    Some((rows.len(), ncols))
+}
+
+fn rewrite_linear_column_major(session: &Session, target: TermId, k: i64) -> Vec<IndexSpec> {
+    if k < 1 {
+        return vec![IndexSpec::Scalar(IntegerIndex(k))];
+    }
+    if let Some((nrows, _ncols)) = nested_matrix_shape(session, target) {
+        if nrows > 0 {
+            let r = ((k - 1).rem_euclid(nrows as i64)) + 1;
+            let c = ((k - 1) / nrows as i64) + 1;
+            return vec![IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))];
+        }
+    }
+    vec![IndexSpec::Scalar(IntegerIndex(k))]
 }

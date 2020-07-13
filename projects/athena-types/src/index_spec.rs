@@ -17,6 +17,9 @@ pub struct IndexSpecId(pub u32);
 pub enum IndexSpec {
     /// 标量下标。
     Scalar(IntegerIndex),
+    /// 1-based column-major linear index on a rectangular nested matrix
+    /// (MATLAB `A(k)`). Falls back to [`Self::Scalar`] on flat collections.
+    LinearColumnMajor(IntegerIndex),
     /// 闭区间步进范围。
     Range {
         /// 起点。
