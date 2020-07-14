@@ -511,6 +511,37 @@ fn compile_and_execute_local_scope_shadows_session() {
 }
 
 #[test]
+fn compile_and_execute_local_scope_clear_hides_session_own() {
+    use athena_engine::api::request::SessionCommand;
+
+    let mut session = Session::new();
+    let sym_term = session.builder().symbol("b", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let global = session.builder().int(5, Default::default());
+    session.defs.write_binding(symbol, global);
+
+    let request = AthenaRequest::Control(ControlPlan::DynamicScope {
+        body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::ClearDefinition { symbol }),
+                AthenaRequest::Term(sym_term),
+            ],
+        })),
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("scope clear");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let loaded = session.results.get(result_id).expect("result");
+    match session.arena.get(loaded.symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Symbol(id))) if *id == symbol => {}
+        other => panic!("expected cleared local to yield symbol b, got {other:?}"),
+    }
+    assert_eq!(session.defs.binding(symbol), Some(global));
+}
+
+#[test]
 fn compile_and_execute_boolean_not_and() {
     let mut session = Session::new();
     let t = session.builder().boolean(true, Default::default());

@@ -739,8 +739,15 @@ impl VmHost for ExecutionHost<'_> {
             ));
         };
         for frame in self.frames.as_slice().iter().rev() {
-            if let Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
-                return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            match frame.lookup(symbol) {
+                Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) => {
+                    return Ok(HostOutcome::Value(SlotValue::Term(term)));
+                }
+                Some(LocalBinding::Cleared) => {
+                    // Dynamic clear: do not fall through to session Own.
+                    return Ok(HostOutcome::Value(SlotValue::Symbol(symbol)));
+                }
+                None => {}
             }
         }
         if let Some(term) = self.session.defs.binding(symbol) {
@@ -774,7 +781,7 @@ impl VmHost for ExecutionHost<'_> {
         match value {
             SlotValue::Unit => {
                 if let Some(frame) = self.frames.as_mut_vec().last_mut() {
-                    frame.unbind(symbol);
+                    frame.clear(symbol);
                 }
                 else {
                     self.session.defs.clear_symbol(symbol);
