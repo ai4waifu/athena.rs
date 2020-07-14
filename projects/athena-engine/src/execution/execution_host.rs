@@ -18,12 +18,13 @@ use crate::{
         provider::ProviderCallHandoff,
         push_semantic,
         reference::{
-            CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms,
-            evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_determinant_term,
-            evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms,
-            evaluate_matches_terms, evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms,
-            evaluate_range_terms, evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms,
-            evaluate_special_unary_terms, evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
+            CompareOutcome, IndexOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
+            evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
+            evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
+            evaluate_join_terms, evaluate_map_terms, evaluate_matches_terms, evaluate_matrix_constructor_terms,
+            evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
+            evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
+            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -439,6 +440,17 @@ impl<'a> ExecutionHost<'a> {
                 let b = self.slot_as_term(SlotValue::Term(b))?;
                 if self.session.arena.structural_eq(a, b) {
                     return Ok(bool_out(true));
+                }
+                let pick = match op {
+                    SemanticOperator::Equal => |o: core::cmp::Ordering| o == core::cmp::Ordering::Equal,
+                    SemanticOperator::Unequal => |o: core::cmp::Ordering| o != core::cmp::Ordering::Equal,
+                    _ => {
+                        let echo = push_semantic(self.session, op, vec![a, b]);
+                        return Ok(HostOutcome::Residual(SlotValue::Term(echo)));
+                    }
+                };
+                if let Some(broadcast) = compare_list_broadcast(self.session, op, a, b, pick)? {
+                    return Ok(HostOutcome::Value(SlotValue::Term(broadcast)));
                 }
                 let na = number_of(self.session, a).map(clone_number);
                 let nb = number_of(self.session, b).map(clone_number);

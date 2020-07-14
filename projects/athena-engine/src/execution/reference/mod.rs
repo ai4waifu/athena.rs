@@ -12,7 +12,7 @@ pub(crate) use self::helpers::{
     evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_terms, evaluate_matches_terms,
     evaluate_matrix_constructor_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
     evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
-    evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
+    evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast,
 };
 
 use athena_types::{Result, ResultId};
