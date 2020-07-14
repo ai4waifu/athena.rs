@@ -20,6 +20,8 @@ pub enum IndexSpec {
     /// 1-based column-major linear index on a rectangular nested matrix
     /// (MATLAB `A(k)`). Falls back to [`Self::Scalar`] on flat collections.
     LinearColumnMajor(IntegerIndex),
+    /// Flatten a rectangular nested matrix in column-major order (MATLAB `A(:)`).
+    ColumnMajorFlatten,
     /// 闭区间步进范围。
     Range {
         /// 起点。
