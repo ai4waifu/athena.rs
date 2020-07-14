@@ -23,6 +23,16 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
     if matches!(operator, SemanticOperator::Hold | SemanticOperator::Function) {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
+    // `Rule` (`->`): evaluate RHS at construction. Capture LHS (patterns / unevaluated heads).
+    // `RuleDeferred` (`:>`): capture both sides until ReplaceAll applies the rule.
+    if matches!(operator, SemanticOperator::Rule | SemanticOperator::RuleDeferred) && arg_count >= 2 {
+        return if operator == SemanticOperator::Rule && index == 1 {
+            ArgumentEvaluationKind::Evaluate
+        }
+        else {
+            ArgumentEvaluationKind::CaptureAsTerm
+        };
+    }
     if index == 0
         && (operator == SemanticOperator::Product
             || (operator == SemanticOperator::Sum && arg_count == 2)
