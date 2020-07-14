@@ -638,6 +638,12 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::ElementwisePower.discriminant() {
             return self.apply_elementwise(SemanticOperator::ElementwisePower, args);
         }
+        if op.0 == SemanticOperator::ElementwiseAnd.discriminant() {
+            return self.apply_elementwise(SemanticOperator::ElementwiseAnd, args);
+        }
+        if op.0 == SemanticOperator::ElementwiseOr.discriminant() {
+            return self.apply_elementwise(SemanticOperator::ElementwiseOr, args);
+        }
         if op.0 == SemanticOperator::Map.discriminant() {
             return self.apply_map(args);
         }

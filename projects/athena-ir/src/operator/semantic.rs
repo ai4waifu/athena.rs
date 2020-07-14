@@ -133,6 +133,10 @@ pub enum SemanticOperator {
     ElementwiseDivide,
     /// 逐元素幂。
     ElementwisePower,
+    /// 逐元素布尔与（MATLAB `&`，非短路 `And`）。
+    ElementwiseAnd,
+    /// 逐元素布尔或（MATLAB `|`，非短路 `Or`）。
+    ElementwiseOr,
     // 比较 / 逻辑
     /// 结构 / 数值相等。
     Equal,
@@ -255,6 +259,8 @@ impl SemanticOperator {
             Self::ElementwiseMultiply => 7,
             Self::ElementwiseDivide => 8,
             Self::ElementwisePower => 9,
+            Self::ElementwiseAnd => 47,
+            Self::ElementwiseOr => 48,
             Self::Equal => 10,
             Self::Unequal => 11,
             Self::Identical => 12,
@@ -322,6 +328,8 @@ impl SemanticOperator {
             7 => Some(Self::ElementwiseMultiply),
             8 => Some(Self::ElementwiseDivide),
             9 => Some(Self::ElementwisePower),
+            47 => Some(Self::ElementwiseAnd),
+            48 => Some(Self::ElementwiseOr),
             10 => Some(Self::Equal),
             11 => Some(Self::Unequal),
             12 => Some(Self::Identical),
@@ -393,6 +401,8 @@ impl SemanticOperator {
             Self::ElementwiseMultiply => "ElementwiseMultiply",
             Self::ElementwiseDivide => "ElementwiseDivide",
             Self::ElementwisePower => "ElementwisePower",
+            Self::ElementwiseAnd => "ElementwiseAnd",
+            Self::ElementwiseOr => "ElementwiseOr",
             Self::Equal => "Equal",
             Self::Unequal => "Unequal",
             Self::Identical => "Identical",

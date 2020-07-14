@@ -149,18 +149,102 @@ pub(crate) fn evaluate_matrix_constructor_terms(session: &mut Session, op: Seman
     Ok(push_list(session, rows_out))
 }
 
-/// `ElementwiseMultiply` / `ElementwiseDivide` / `ElementwisePower` — 集合 zip + 标量广播。
+/// `ElementwiseMultiply` / `ElementwiseDivide` / `ElementwisePower` /
+/// `ElementwiseAnd` / `ElementwiseOr` — 集合 zip + 标量广播。
 pub(crate) fn evaluate_elementwise_terms(session: &mut Session, op: SemanticOperator, left: TermId, right: TermId) -> Result<TermId> {
     let echo = push_semantic(session, op, vec![left, right]);
-    let scalar_op = match op {
-        SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
-        SemanticOperator::ElementwiseDivide => SemanticOperator::Divide,
-        SemanticOperator::ElementwisePower => SemanticOperator::Power,
-        _ => return Ok(echo),
-    };
-    match elementwise_zip(session, scalar_op, left, right)? {
-        Some(term) => Ok(term),
-        None => Ok(echo),
+    match op {
+        SemanticOperator::ElementwiseAnd | SemanticOperator::ElementwiseOr => {
+            match elementwise_logical_zip(session, op, left, right)? {
+                Some(term) => Ok(term),
+                None => Ok(echo),
+            }
+        }
+        SemanticOperator::ElementwiseMultiply | SemanticOperator::ElementwiseDivide | SemanticOperator::ElementwisePower => {
+            let scalar_op = match op {
+                SemanticOperator::ElementwiseMultiply => SemanticOperator::Multiply,
+                SemanticOperator::ElementwiseDivide => SemanticOperator::Divide,
+                SemanticOperator::ElementwisePower => SemanticOperator::Power,
+                _ => return Ok(echo),
+            };
+            match elementwise_zip(session, scalar_op, left, right)? {
+                Some(term) => Ok(term),
+                None => Ok(echo),
+            }
+        }
+        _ => Ok(echo),
+    }
+}
+
+fn elementwise_logical_zip(session: &mut Session, op: SemanticOperator, left: TermId, right: TermId) -> Result<Option<TermId>> {
+    let left_is_collection = matches!(session.arena.get(left), Some(athena_ir::TermNode::Collection { .. }));
+    let right_is_collection = matches!(session.arena.get(right), Some(athena_ir::TermNode::Collection { .. }));
+    match (left_is_collection, right_is_collection) {
+        (true, true) => {
+            let a = match session.arena.get(left) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let b = match session.arena.get(right) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            if a.len() != b.len() {
+                return Ok(None);
+            }
+            let mut out = Vec::with_capacity(a.len());
+            for (lhs, rhs) in a.into_iter().zip(b.into_iter()) {
+                match elementwise_logical_zip(session, op, lhs, rhs)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (true, false) => {
+            let a = match session.arena.get(left) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let mut out = Vec::with_capacity(a.len());
+            for lhs in a {
+                match elementwise_logical_zip(session, op, lhs, right)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (false, true) => {
+            let b = match session.arena.get(right) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => return Ok(None),
+            };
+            let mut out = Vec::with_capacity(b.len());
+            for rhs in b {
+                match elementwise_logical_zip(session, op, left, rhs)? {
+                    Some(term) => out.push(term),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(push_list(session, out)))
+        }
+        (false, false) => {
+            let Some(a) = super::as_boolean_like_term(session, left)
+            else {
+                return Ok(None);
+            };
+            let Some(b) = super::as_boolean_like_term(session, right)
+            else {
+                return Ok(None);
+            };
+            let value = match op {
+                SemanticOperator::ElementwiseAnd => a && b,
+                SemanticOperator::ElementwiseOr => a || b,
+                _ => return Ok(None),
+            };
+            Ok(Some(session.builder().boolean(value, Default::default())))
+        }
     }
 }
 
