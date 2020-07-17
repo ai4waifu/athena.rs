@@ -24,6 +24,19 @@ fn compile_staged_builds_request_plan_before_module() {
 }
 
 #[test]
+fn compile_routes_root_by_plan_intent() {
+    let mut session = Session::new();
+    let term = session.builder().int(7, Default::default());
+    let request = AthenaRequest::Term(term);
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("compile consumes plan");
+    assert!(!module.regions.is_empty());
+
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("staged");
+    assert_eq!(staged.plan.intent, PlanIntent::EvaluateTerm);
+    assert!(!staged.plan.provider_required);
+}
+
+#[test]
 fn compile_observed_atom_term_stages() {
     let mut session = Session::new();
     let term = session.builder().int(3, Default::default());

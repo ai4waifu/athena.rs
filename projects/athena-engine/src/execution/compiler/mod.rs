@@ -48,20 +48,21 @@ impl ExecutionCompiler {
         Self {}
     }
 
-    /// 对照 Session 快照将请求 lowering 为 `ExecutionIR`。
+    /// 对照 Session 快照将请求 lowering 为 [`ExecutionModule`]。
     ///
-    /// 先产出 [`RequestProgram`] / [`PlanProgram`]，再走 fused CFG lowering。
+    /// 先产出 [`RequestProgram`] / [`PlanProgram`]，根 lowering 按 [`PlanIntent`] 路由，
+    /// 嵌套控制体仍走 fused [`Self::lower_request`]（子请求各自可再 canonicalize）。
     pub fn compile(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
-        let _request_prog = canonicalize_request(request);
-        let _plan_prog = plan_from_request(&_request_prog);
-        self.lower_module(session, request)
+        let request_prog = canonicalize_request(request);
+        let plan_prog = plan_from_request(&request_prog);
+        self.lower_module(session, request, &plan_prog)
     }
 
     /// 分阶段编译：具名 Request → Plan →（fused）module → Semantic / CFG SSA。
     pub fn compile_staged(&self, session: &mut Session, request: &AthenaRequest) -> Result<StagedCompile> {
         let request_prog = canonicalize_request(request);
         let plan_prog = plan_from_request(&request_prog);
-        let module = self.lower_module(session, request)?;
+        let module = self.lower_module(session, request, &plan_prog)?;
         let semantic = materialize_semantic(&module);
         let cfg_ssa = materialize_cfg_ssa(&module);
         let observation = CompileObservation::from_programs(request_prog.clone(), plan_prog.clone(), semantic.clone(), cfg_ssa.clone());
@@ -76,11 +77,11 @@ impl ExecutionCompiler {
         Ok((staged.module, observation))
     }
 
-    fn lower_module(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
+    fn lower_module(&self, session: &mut Session, request: &AthenaRequest, plan: &PlanProgram) -> Result<ExecutionModule> {
         let mut builder = ModuleBuilder::default();
         let entry = builder.block_id();
         let mut blocks = Vec::new();
-        let value = self.lower_request(session, &mut builder, &mut blocks, entry, request)?;
+        let value = self.lower_root(session, &mut builder, &mut blocks, entry, request, plan)?;
         // 当 lowering 只产生单块返回时，确保入口块存在并返回。
         if blocks.iter().all(|b| b.id != entry) {
             blocks.insert(
@@ -91,6 +92,46 @@ impl ExecutionCompiler {
         builder.finish(blocks, entry)
     }
 
+    /// 根请求：由 [`PlanProgram`] 选择路径，载荷仍取自 [`AthenaRequest`]。
+    fn lower_root(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+        request: &AthenaRequest,
+        plan: &PlanProgram,
+    ) -> Result<SsaValueId> {
+        match (plan.intent, request) {
+            (PlanIntent::EvaluateTerm, AthenaRequest::Term(term)) => self.lower_term(session, builder, blocks, block_id, *term),
+            (PlanIntent::RunControl, AthenaRequest::Control(control)) => {
+                self.lower_control(session, builder, blocks, block_id, control)
+            }
+            (PlanIntent::SessionCommand, AthenaRequest::Command(command)) => {
+                self.lower_command(session, builder, blocks, block_id, command)
+            }
+            (PlanIntent::DomainProvider, AthenaRequest::Goal(goal)) => {
+                if !plan.provider_required {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "ExecutionCompiler")
+                        .detail("reason", "plan_provider_required_false"));
+                }
+                match goal {
+                    crate::api::request::DomainGoal::Dispatch(domain) => {
+                        let payload = session.domain_payloads.intern(domain.owning_copy());
+                        self.lower_goal_provider(builder, blocks, block_id, payload)
+                    }
+                }
+            }
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("reason", "plan_intent_payload_mismatch")
+                .detail("intent", format!("{:?}", plan.intent))
+                .detail("request", request.kind_name())),
+        }
+    }
+
+    /// Nested / fused lowering：直接按请求载荷分支（控制体、Define RHS 等）。
     fn lower_request(
         &self,
         session: &mut Session,
