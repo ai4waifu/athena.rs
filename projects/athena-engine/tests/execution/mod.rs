@@ -13,6 +13,7 @@ mod ir_parity;
 mod ir_verify_unit;
 mod mod_unit;
 mod neutral_request;
+mod parameterized_unit;
 mod provider_unit;
 mod reference_host_bridge_unit;
 mod reference_unit;
