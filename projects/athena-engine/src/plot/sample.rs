@@ -3,7 +3,10 @@
 use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use crate::{api::request::AthenaRequest, execution, runtime::session::Session};
+use crate::{
+    execution::{ParameterizedTermPlan, number_of, push_number},
+    runtime::session::Session,
+};
 
 use super::types::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy};
 
@@ -12,8 +15,9 @@ const MAX_SAMPLES_HARD: u32 = 1_000_000;
 
 /// 对一元表达式在实区间上均匀采样。
 ///
-/// `expr` 中的符号 `var` 被替换为机器实数后求值；无法得到有限 `f64` 的点记为 gap。
-/// 相邻有效点若相对跳跃超过 [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
+/// 先对 `expr` 编译一次 [`ParameterizedTermPlan`]，再在局部帧中绑定 `var` 求值；
+/// 无法得到有限 `f64` 的点记为 gap。相邻有效点若相对跳跃超过
+/// [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
 pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleDomain, policy: SamplingPolicy) -> Result<SampledCurve> {
     if policy.is_cancelled() {
         return Err(cancelled());
@@ -32,6 +36,8 @@ pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleD
             .arg("max_samples", u64::from(policy.max_samples)));
     }
 
+    let plan = ParameterizedTermPlan::compile(session, expr)?;
+    let vs = var_symbol(session, var);
     let n = policy.max_samples as usize;
     let mut curve = SampledCurve { points: Vec::with_capacity(n), gaps: Vec::new() };
     let span = domain.end - domain.start;
@@ -42,14 +48,12 @@ pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleD
         }
         let t = i as f64 / (n - 1) as f64;
         let x = domain.start + span * t;
-        let point = execution::push_number(session, Number::machine(x));
-        let vs = var_symbol(session, var);
-        let substituted = execution::substitute_symbol(session, expr, vs, point);
-        let value = match execution::execute_ir_request(session, AthenaRequest::Term(substituted)) {
-            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(substituted),
-            Err(_) => substituted,
+        let point = push_number(session, Number::machine(x));
+        let value = match plan.execute_with_locals(session, &[(vs, point)]) {
+            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr),
+            Err(_) => expr,
         };
-        let (y, valid) = match execution::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
+        let (y, valid) = match number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
         };
