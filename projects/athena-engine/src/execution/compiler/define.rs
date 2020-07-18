@@ -160,8 +160,9 @@ impl ExecutionCompiler {
             },
         });
 
+        let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
         let rhs_value = self.lower_request(session, builder, blocks, eval_block, &AthenaRequest::Term(rhs))?;
-        self.rewrite_returns_to_join(builder, blocks, bind_block, rhs_value)?;
+        self.rewrite_returns_to_join(builder, blocks, bind_block, rhs_value, &preexisting)?;
 
         let value_param = builder.ssa();
         let key = builder.ssa();

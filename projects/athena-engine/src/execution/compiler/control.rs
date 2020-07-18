@@ -348,9 +348,10 @@ impl ExecutionCompiler {
             },
         });
 
+        let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
         let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
         // Body 返回后带着新累加器继续到 header。
-        self.rewrite_returns_to_join(builder, blocks, header, body_value)?;
+        self.rewrite_returns_to_join(builder, blocks, header, body_value, &preexisting)?;
 
         blocks.push(BasicBlock {
             id: exit,
@@ -412,12 +413,14 @@ impl ExecutionCompiler {
             },
         });
 
+        let preexisting_body: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
         let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
         self.rewrite_rejects_to_handler(builder, blocks, handler_block)?;
-        self.rewrite_returns_to_join(builder, blocks, join, body_value)?;
+        self.rewrite_returns_to_join(builder, blocks, join, body_value, &preexisting_body)?;
 
+        let preexisting_handler: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
         let handler_value = self.lower_request(session, builder, blocks, handler_block, handler)?;
-        self.rewrite_returns_to_join(builder, blocks, join, handler_value)?;
+        self.rewrite_returns_to_join(builder, blocks, join, handler_value, &preexisting_handler)?;
 
         blocks.push(BasicBlock {
             id: join,
@@ -516,16 +519,22 @@ impl ExecutionCompiler {
                     else_edge: BlockEdge::jump(else_target),
                 },
             });
-            let arm_value = self.lower_request(session, builder, blocks, arm_block, arm)?;
-            self.rewrite_returns_to_join(builder, blocks, join, arm_value)?;
+            let arm_value = {
+                let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
+                let arm_value = self.lower_request(session, builder, blocks, arm_block, arm)?;
+                self.rewrite_returns_to_join(builder, blocks, join, arm_value, &preexisting)?;
+                arm_value
+            };
         }
 
         match otherwise {
             Some(request) => {
+                let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
                 let other_value = self.lower_request(session, builder, blocks, otherwise_block, request)?;
-                self.rewrite_returns_to_join(builder, blocks, join, other_value)?;
+                self.rewrite_returns_to_join(builder, blocks, join, other_value, &preexisting)?;
             }
             None => {
+                let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
                 let value = builder.ssa();
                 let constant = builder.push_constant(ConstantValue::Unit);
                 blocks.push(BasicBlock {
@@ -540,7 +549,7 @@ impl ExecutionCompiler {
                     }],
                     terminator: Terminator::Return { values: vec![value] },
                 });
-                self.rewrite_returns_to_join(builder, blocks, join, value)?;
+                self.rewrite_returns_to_join(builder, blocks, join, value, &preexisting)?;
             }
         }
 
@@ -553,16 +562,21 @@ impl ExecutionCompiler {
         Ok(result_param)
     }
 
-    /// 将当前 `Return` 终结器改写为带块参数跳转到 `join`。
+    /// 将 `preexisting` 之外的新块上的 `Return` 终结器改写为带块参数跳转到 `join`。
     pub(crate) fn rewrite_returns_to_join(
         &self,
         builder: &mut ModuleBuilder,
         blocks: &mut Vec<BasicBlock>,
         join: BlockId,
         fallback: SsaValueId,
+        preexisting: &std::collections::HashSet<BlockId>,
     ) -> Result<()> {
-        let return_block_ids: Vec<BlockId> =
-            blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
+        let return_block_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| !preexisting.contains(&b.id))
+            .filter(|b| matches!(b.terminator, Terminator::Return { .. }))
+            .map(|b| b.id)
+            .collect();
         for block_id in return_block_ids {
             let forwarded = {
                 let block = blocks.iter().find(|b| b.id == block_id).expect("block");
@@ -714,21 +728,31 @@ impl ExecutionCompiler {
         let mut last_value = SsaValueId(0);
         for (index, step) in steps.iter().enumerate() {
             let block_id = step_blocks[index];
+            let preexisting: std::collections::HashSet<BlockId> = blocks.iter().map(|b| b.id).collect();
             last_value = self.lower_request(session, builder, blocks, block_id, step)?;
             if index + 1 < steps.len() {
                 let next = step_blocks[index + 1];
-                // 将本步产生的每个 `Return`（含立即复合 `Define` 的嵌套
-                // eval/bind 块）改写为跳到下一步。
-                self.rewrite_returns_to_continue(builder, blocks, next)?;
+                // 只改写本步新产生的 `Return`（含 Define 嵌套块），禁止扫到外层 Branch/Cond 臂。
+                self.rewrite_returns_to_continue(builder, blocks, next, &preexisting)?;
             }
         }
         Ok(last_value)
     }
 
-    /// 串联 sequence 步骤：将未处理的 `Return` 终结器改为跳到 `next`。
-    pub(crate) fn rewrite_returns_to_continue(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, next: BlockId) -> Result<()> {
-        let return_block_ids: Vec<BlockId> =
-            blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
+    /// 串联 sequence 步骤：将本步新块上的 `Return` 终结器改为跳到 `next`。
+    pub(crate) fn rewrite_returns_to_continue(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        next: BlockId,
+        preexisting: &std::collections::HashSet<BlockId>,
+    ) -> Result<()> {
+        let return_block_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| !preexisting.contains(&b.id))
+            .filter(|b| matches!(b.terminator, Terminator::Return { .. }))
+            .map(|b| b.id)
+            .collect();
         for block_id in return_block_ids {
             let cond = builder.ssa();
             let true_const = builder.push_constant(ConstantValue::boolean(true));

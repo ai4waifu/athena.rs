@@ -662,6 +662,45 @@ fn compile_and_execute_define_in_sequence() {
 }
 
 #[test]
+fn compile_and_execute_branch_then_sequence_with_define() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::execution::execute_ir_request;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let z = session.builder().symbol("z", Default::default());
+    let symbol = match session.arena.get(z) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let seven = session.builder().int(7, Default::default());
+    let tru = session.builder().boolean(true, Default::default());
+    let fals = session.builder().boolean(false, Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Branch {
+        condition: tru,
+        then_branch: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value: seven,
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Term(tru),
+            ],
+        })),
+        else_branch: Some(Box::new(AthenaRequest::Term(fals))),
+    });
+    let result_id = execute_ir_request(&mut session, request).expect("branch+sequence");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Boolean(true))) => {}
+        other => panic!("expected True from then Sequence, got {other:?}"),
+    }
+    assert_eq!(session.defs.binding(symbol), Some(seven));
+}
+
+#[test]
 fn compile_and_execute_runtime_branch() {
     let mut session = Session::new();
     let one = session.builder().int(1, Default::default());
