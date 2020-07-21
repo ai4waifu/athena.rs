@@ -65,6 +65,55 @@ fn integrate_reciprocal_yields_log() {
 }
 
 #[test]
+fn integrate_x_sin_x_by_parts() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let sin_x = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Sin), vec![xs]);
+        let expression = dc.apply_semantic(SemanticOperator::Multiply, vec![xs, sin_x]);
+        (expression, variable)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Integral { expression, variable, assumptions: AssumptionSet::empty() },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Expression(term), .. } => term,
+        other => panic!("expected Exact by-parts antiderivative, got {other:?}"),
+    };
+    // `-x Cos[x] + Sin[x]` folds to an `Add` that still contains `Sin` and `Cos` of `x`.
+    fn contains_unary(session: &Session, term: athena_types::TermId, uf: UnaryFunction, var: athena_types::SymbolId) -> bool {
+        match session.arena.get(term) {
+            Some(TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(op),
+                arguments,
+            }) if op.as_unary() == Some(uf)
+                && arguments.len() == 1
+                && matches!(session.arena.get(arguments[0]), Some(TermNode::Atom(Atom::Symbol(s))) if *s == var) =>
+            {
+                true
+            }
+            Some(TermNode::Application { arguments, .. }) => arguments.iter().any(|a| contains_unary(session, *a, uf, var)),
+            _ => false,
+        }
+    }
+    assert!(contains_unary(&session, term, UnaryFunction::Sin, variable), "missing Sin[x]: {:?}", session.arena.get(term));
+    assert!(contains_unary(&session, term, UnaryFunction::Cos, variable), "missing Cos[x]: {:?}", session.arena.get(term));
+    assert!(
+        !matches!(
+            session.arena.get(term),
+            Some(TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Integrate),
+                ..
+            })
+        ),
+        "still residual Integrate"
+    );
+}
+
+#[test]
 fn limit_reciprocal_at_positive_infinity_is_zero() {
     let mut session = Session::new();
     let (expression, variable) = {
