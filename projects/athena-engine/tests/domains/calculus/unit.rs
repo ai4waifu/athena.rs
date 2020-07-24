@@ -11,6 +11,31 @@ use athena_ir::{Atom, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::AssumptionSet;
 
 #[test]
+fn series_exp_order_two_coefficients() {
+    let mut session = Session::new();
+    let (expression, variable, center) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![xs]);
+        (expression, variable, dc.in_(0))
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Series { expression, variable, center, order: 2, assumptions: AssumptionSet::empty() },
+    );
+    let series_ref = match result {
+        CalculusResult::Exact { value: CalculusValue::Series(r), .. } => r,
+        other => panic!("expected Exact Series, got {other:?}"),
+    };
+    let series = session.series_objects.get(series_ref).expect("series");
+    assert_eq!(series.terms.len(), 3);
+    assert!(matches!(session.arena.get(series.terms[0].0), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(series.terms[1].0), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert_eq!(series.terms[2].1, 2);
+}
+
+#[test]
 fn series_goal_interns_series_ref_into_session() {
     let mut session = Session::new();
     let (expression, variable, center) = {

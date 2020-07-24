@@ -5,6 +5,7 @@ use athena_types::{ComputationStatus, Condition, Diagnostic, TermId};
 use crate::{
     domains::{
         calculus::{CalculusResult, CalculusValue},
+        context::DomainExecutionContext,
         dispatch::DomainResult,
         field::FieldResult,
         galois::GaloisResult,
@@ -65,7 +66,7 @@ struct DomainMeta {
     provider: Option<ResultProviderStamp>,
 }
 
-fn map_domain_meta(session: &Session, domain: &DomainResult) -> DomainMeta {
+fn map_domain_meta(session: &mut Session, domain: &DomainResult) -> DomainMeta {
     match domain {
         DomainResult::Calculus(r) => map_calculus(session, r),
         DomainResult::NumberTheory(r) => map_number_theory(r),
@@ -91,20 +92,19 @@ fn candidate_provider(provider: ResultProviderId) -> DomainMeta {
     }
 }
 
-fn map_calculus(session: &Session, result: &CalculusResult<CalculusValue>) -> DomainMeta {
+fn map_calculus(session: &mut Session, result: &CalculusResult<CalculusValue>) -> DomainMeta {
     match result {
         CalculusResult::Exact { value, conditions } => {
             // 领域 Exact ≠ 已准入。仅当 journal 中已有同结果项的 `CalculusRelation` 才抬 Exact/Full。
-            let (status, coverage) = match (calculus_term(value), conditions.is_empty()) {
-                (Some(term), true) if calculus_result_admitted(session, term) => {
-                    (ComputationStatus::Exact, CoverageStatus::Full)
-                }
+            let term = calculus_bridge_term(session, value);
+            let (status, coverage) = match (term, conditions.is_empty()) {
+                (Some(t), true) if calculus_result_admitted(session, t) => (ComputationStatus::Exact, CoverageStatus::Full),
                 _ => (ComputationStatus::Candidate, CoverageStatus::Partial),
             };
             DomainMeta {
                 status,
                 coverage,
-                symbolic_term: calculus_term(value),
+                symbolic_term: term,
                 conditions: conditions.clone(),
                 diagnostics: Vec::new(),
                 evidence: Vec::new(),
@@ -114,7 +114,7 @@ fn map_calculus(session: &Session, result: &CalculusResult<CalculusValue>) -> Do
         CalculusResult::Conditional { value, conditions } => DomainMeta {
             status: ComputationStatus::Conditional,
             coverage: CoverageStatus::Partial,
-            symbolic_term: calculus_term(value),
+            symbolic_term: calculus_bridge_term(session, value),
             conditions: conditions.clone(),
             diagnostics: Vec::new(),
             evidence: Vec::new(),
@@ -123,7 +123,7 @@ fn map_calculus(session: &Session, result: &CalculusResult<CalculusValue>) -> Do
         CalculusResult::Unevaluated { expression, reason } => DomainMeta {
             status: ComputationStatus::Unknown,
             coverage: CoverageStatus::Unsupported,
-            symbolic_term: calculus_term(expression),
+            symbolic_term: calculus_bridge_term(session, expression),
             conditions: Vec::new(),
             diagnostics: vec![reason.clone()],
             evidence: Vec::new(),
@@ -142,10 +142,23 @@ fn calculus_result_admitted(session: &Session, result_term: TermId) -> bool {
     })
 }
 
-fn calculus_term(value: &CalculusValue) -> Option<TermId> {
+/// Bridge typed calculus payloads to a display/eval `TermId` without dropping the `DomainResult` value.
+fn calculus_bridge_term(session: &mut Session, value: &CalculusValue) -> Option<TermId> {
     match value {
         CalculusValue::Expression(term) => Some(*term),
-        _ => None,
+        CalculusValue::Series(r) => {
+            let series = session.series_objects.get(*r)?.owning_copy();
+            // Empty residual series (unevaluated) must not collapse to `0`.
+            if series.terms.is_empty() {
+                return None;
+            }
+            let mut dc = DomainExecutionContext::new(session);
+            series.to_term(&mut dc).ok()
+        }
+        other => {
+            let mut dc = DomainExecutionContext::new(session);
+            other.materialize_expression(&mut dc).ok()
+        }
     }
 }
 
