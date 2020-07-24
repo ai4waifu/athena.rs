@@ -1,6 +1,6 @@
 //! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · ）。
 
-use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
+use athena_ir::{ApplicationHead, MathematicalConstant, SemanticOperator, UnaryFunction};
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
@@ -98,6 +98,9 @@ fn try_known_finite_limit(cc: &DomainExecutionContext<'_>, expression: TermId, v
     if is_sinc_form(cc, expression, variable) {
         return Some(cc.in_(1));
     }
+    if is_one_plus_var_to_reciprocal(cc, expression, variable) {
+        return Some(cc.math_constant(MathematicalConstant::EulerNumber));
+    }
     None
 }
 
@@ -118,6 +121,29 @@ fn is_sinc_form(cc: &DomainExecutionContext<'_>, expression: TermId, variable: S
     }
 }
 
+/// `(1 + x)^(1/x)` as `x → 0` is `E`.
+fn is_one_plus_var_to_reciprocal(cc: &DomainExecutionContext<'_>, expression: TermId, variable: SymbolId) -> bool {
+    matches!(
+        cc.application_head(expression),
+        Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
+            if args.len() == 2 && is_one_plus_var(cc, args[0], variable) && is_reciprocal_var(cc, args[1], variable)
+    )
+}
+
+fn is_one_plus_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: SymbolId) -> bool {
+    matches!(
+        cc.application_head(expr),
+        Some((ApplicationHead::Semantic(SemanticOperator::Add), args))
+            if args.len() == 2
+                && ((is_exact_one(cc, args[0]) && is_symbol_id(cc, args[1], variable))
+                    || (is_exact_one(cc, args[1]) && is_symbol_id(cc, args[0], variable)))
+    )
+}
+
+fn is_exact_one(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
+    cc.number_of(expr).is_some_and(|n| n.as_exact_integer() == Some(1))
+}
+
 fn is_sin_of_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: SymbolId) -> bool {
     matches!(
         cc.application_head(expr),
@@ -127,11 +153,19 @@ fn is_sin_of_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: Symbol
 }
 
 fn is_reciprocal_var(cc: &DomainExecutionContext<'_>, expr: TermId, variable: SymbolId) -> bool {
-    matches!(
-        cc.application_head(expr),
+    match cc.application_head(expr) {
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
-            if args.len() == 2 && is_symbol_id(cc, args[0], variable) && cc.int_exp(args[1]) == Some(-1)
-    )
+            if args.len() == 2 && is_symbol_id(cc, args[0], variable) && cc.int_exp(args[1]) == Some(-1) =>
+        {
+            true
+        }
+        Some((ApplicationHead::Semantic(SemanticOperator::Divide), args))
+            if args.len() == 2 && is_exact_one(cc, args[0]) && is_symbol_id(cc, args[1], variable) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 fn try_lhopital_once(
