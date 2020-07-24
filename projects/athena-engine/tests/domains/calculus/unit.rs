@@ -102,6 +102,28 @@ fn definite_gaussian_exp_neg_square_is_sqrt_pi() {
 }
 
 #[test]
+fn residue_shifted_simple_pole_is_one() {
+    let mut session = Session::new();
+    let (expression, variable, point) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("z");
+        let zs = dc.symbol_id(variable);
+        let den = dc.apply_semantic(SemanticOperator::Subtract, vec![zs, dc.in_(1)]);
+        let expression = dc.apply_semantic(SemanticOperator::Divide, vec![dc.in_(1), den]);
+        (expression, variable, dc.in_(1))
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Residue { expression, variable, point, assumptions: AssumptionSet::empty() },
+    );
+    let value = match result {
+        CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => r.value,
+        other => panic!("expected Exact Residue 1, got {other:?}"),
+    };
+    assert!(matches!(session.arena.get(value), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
