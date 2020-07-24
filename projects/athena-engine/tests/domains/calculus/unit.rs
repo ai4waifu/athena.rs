@@ -60,6 +60,48 @@ fn series_goal_interns_series_ref_into_session() {
 }
 
 #[test]
+fn definite_gaussian_exp_neg_square_is_sqrt_pi() {
+    let mut session = Session::new();
+    let (expression, variable, lower, upper) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let x2 = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(2)]);
+        let neg = dc.apply_semantic(SemanticOperator::Negate, vec![x2]);
+        let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![neg]);
+        let infinity = dc.symbol_id(dc.intern("Infinity"));
+        let lower = dc.apply_semantic(SemanticOperator::Negate, vec![infinity]);
+        (expression, variable, lower, infinity)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::DefiniteIntegral {
+            expression,
+            variable,
+            lower,
+            upper,
+            assumptions: AssumptionSet::empty(),
+        },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Expression(term), .. } => term,
+        other => panic!("expected Exact Sqrt[Pi], got {other:?}"),
+    };
+    match session.arena.get(term) {
+        Some(TermNode::Application {
+            head: athena_ir::ApplicationHead::Semantic(op),
+            arguments,
+        }) if op.as_unary() == Some(UnaryFunction::Sqrt) && arguments.len() == 1 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(TermNode::Atom(Atom::Constant(athena_ir::MathematicalConstant::Pi)))
+            ));
+        }
+        other => panic!("expected Sqrt[Pi], got {other:?}"),
+    }
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {

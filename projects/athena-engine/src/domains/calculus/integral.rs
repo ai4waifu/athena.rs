@@ -1,6 +1,6 @@
 //! 会话 arena 上的不定 / 定积分（初等子集 · `DomainExecutionContext` · ）。
 
-use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
+use athena_ir::{ApplicationHead, MathematicalConstant, SemanticOperator, UnaryFunction};
 use athena_types::{Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
@@ -182,6 +182,9 @@ pub fn definite_integrate_checked(
     lower: TermId,
     upper: TermId,
 ) -> Result<CalculusResult<TermId>> {
+    if let Some(value) = try_known_definite_integral(dc, expr, var, lower, upper) {
+        return Ok(CalculusResult::Exact { value, conditions: Vec::new() });
+    }
     Ok(match integrate_checked(dc, expr, var)? {
         CalculusResult::Exact { value: anti, conditions } => {
             let at_upper = dc.fold_term(replace_symbol(dc, anti, var, upper))?;
@@ -210,6 +213,66 @@ pub fn definite_integrate_checked(
             reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary),
         },
     })
+}
+
+/// Known definite forms that are not elementary via antiderivative substitution.
+fn try_known_definite_integral(
+    dc: &mut DomainExecutionContext<'_>,
+    expr: TermId,
+    var: SymbolId,
+    lower: TermId,
+    upper: TermId,
+) -> Option<TermId> {
+    if !(is_negative_infinity(dc, lower) && is_positive_infinity(dc, upper)) {
+        return None;
+    }
+    if is_gaussian_exp_neg_square(dc, expr, var) {
+        let pi = dc.math_constant(MathematicalConstant::Pi);
+        return Some(dc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Sqrt), vec![pi]));
+    }
+    None
+}
+
+fn is_positive_infinity(dc: &DomainExecutionContext<'_>, term: TermId) -> bool {
+    matches!(dc.shape(term), Some(Shape::Symbol(s)) if dc.symbol_id_is(s, dc.intern("Infinity")))
+}
+
+fn is_negative_infinity(dc: &DomainExecutionContext<'_>, term: TermId) -> bool {
+    match dc.application_head(term) {
+        Some((ApplicationHead::Semantic(SemanticOperator::Negate), args)) if args.len() == 1 => is_positive_infinity(dc, args[0]),
+        Some((ApplicationHead::Semantic(SemanticOperator::Multiply), args)) if args.len() == 2 => {
+            (dc.number_of(args[0]).is_some_and(|n| n.as_exact_integer() == Some(-1)) && is_positive_infinity(dc, args[1]))
+                || (dc.number_of(args[1]).is_some_and(|n| n.as_exact_integer() == Some(-1)) && is_positive_infinity(dc, args[0]))
+        }
+        _ => false,
+    }
+}
+
+fn is_gaussian_exp_neg_square(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> bool {
+    matches!(
+        dc.application_head(expr),
+        Some((ApplicationHead::Semantic(op), args))
+            if op.as_unary() == Some(UnaryFunction::Exp) && args.len() == 1 && is_neg_var_squared(dc, args[0], var)
+    )
+}
+
+fn is_neg_var_squared(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> bool {
+    match dc.application_head(expr) {
+        Some((ApplicationHead::Semantic(SemanticOperator::Negate), args)) if args.len() == 1 => is_var_squared(dc, args[0], var),
+        Some((ApplicationHead::Semantic(SemanticOperator::Multiply), args)) if args.len() == 2 => {
+            (dc.number_of(args[0]).is_some_and(|n| n.as_exact_integer() == Some(-1)) && is_var_squared(dc, args[1], var))
+                || (dc.number_of(args[1]).is_some_and(|n| n.as_exact_integer() == Some(-1)) && is_var_squared(dc, args[0], var))
+        }
+        _ => false,
+    }
+}
+
+fn is_var_squared(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> bool {
+    matches!(
+        dc.application_head(expr),
+        Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
+            if args.len() == 2 && is_symbol_id(dc, args[0], var) && dc.int_exp(args[1]) == Some(2)
+    )
 }
 
 fn residual_definite(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId, lower: TermId, upper: TermId) -> TermId {
