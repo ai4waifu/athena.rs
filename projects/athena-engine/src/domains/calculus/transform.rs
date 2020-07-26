@@ -19,8 +19,13 @@ pub struct RegionOfConvergence {
 impl RegionOfConvergence {
     /// 已知半平面 `Re[s] > a`（实数 `a`）。
     pub fn re_s_greater(cc: &mut DomainExecutionContext<'_>, s: SymbolId, a: Number) -> Self {
+        Self::re_s_greater_term(cc, s, cc.num(a))
+    }
+
+    /// 已知半平面 `Re[s] > a`（`a` 可为符号项）。
+    pub fn re_s_greater_term(cc: &mut DomainExecutionContext<'_>, s: SymbolId, a: TermId) -> Self {
         let re = cc.apply_extension(cc.residual_extensions().re, vec![cc.symbol_id(s)]);
-        let greater = cc.apply_semantic(SemanticOperator::Greater, vec![re, cc.num(a)]);
+        let greater = cc.apply_semantic(SemanticOperator::Greater, vec![re, a]);
         Self { predicate: Some(greater), known: true }
     }
 
@@ -246,13 +251,19 @@ fn laplace_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, t: SymbolId, s
             Ok(Some((body, RegionOfConvergence::re_s_greater(cc, s, Number::small_int(0)))))
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Exp) && args.len() == 1 => {
-            // 形态：Exp[a t] 或 Exp[Times[a,t]]
-            let Some(a) = match_coeff_times_var(cc, args[0], t) else { return Ok(None) };
-            // 1/(s-a), Re(s)>a（实数 a）
-            let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.num(cc.copy(&a))]);
-            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(s), neg]);
+            // 形态：Exp[a t] / Exp[Times[a,t]] / Exp[Times[-1,a,t]]（`a` 可为符号）
+            let Some(a) = match_term_coeff_times_var(cc, args[0], t) else { return Ok(None) };
+            // 1/(s-a) = (s + (-a))^(-1)
+            let neg_a = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), a]);
+            let plus = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(s), neg_a]);
             let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Power, vec![plus, cc.in_(-1)]))?;
-            Ok(Some((body, RegionOfConvergence::re_s_greater(cc, s, a))))
+            let roc = if let Some(n) = cc.number_of(a) {
+                RegionOfConvergence::re_s_greater(cc, s, n)
+            }
+            else {
+                RegionOfConvergence::re_s_greater_term(cc, s, a)
+            };
+            Ok(Some((body, roc)))
         }
         ApplicationHead::Semantic(op) if op.as_unary() == Some(UnaryFunction::Sin) && args.len() == 1 => {
             let Some(w) = match_coeff_times_var(cc, args[0], t) else { return Ok(None) };
@@ -466,19 +477,44 @@ fn number_is_positive(n: &Number) -> bool {
 }
 
 fn match_coeff_times_var(cc: &mut DomainExecutionContext<'_>, term: TermId, var: SymbolId) -> Option<Number> {
+    let coeff = match_term_coeff_times_var(cc, term, var)?;
+    cc.number_of(coeff)
+}
+
+/// 匹配 `c * var`（含 n-ary `Times`），返回系数项 `c`（可为符号）。
+fn match_term_coeff_times_var(cc: &DomainExecutionContext<'_>, term: TermId, var: SymbolId) -> Option<TermId> {
     if is_symbol_id(cc, term, var) {
-        return Some(Number::small_int(1));
+        return Some(cc.in_(1));
     }
-    let Some((head, args)) = cc.application_head(term) else { return None };
-    if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
-        if is_symbol_id(cc, args[1], var) {
-            return cc.number_of(args[0]);
+    let Some((head, args)) = cc.application_head(term)
+    else {
+        return None;
+    };
+    match head {
+        ApplicationHead::Semantic(SemanticOperator::Negate) if args.len() == 1 => {
+            let inner = match_term_coeff_times_var(cc, args[0], var)?;
+            Some(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), inner]))
         }
-        if is_symbol_id(cc, args[0], var) {
-            return cc.number_of(args[1]);
+        ApplicationHead::Semantic(SemanticOperator::Multiply) if !args.is_empty() => {
+            let mut var_idx = None;
+            for (i, a) in args.iter().enumerate() {
+                if is_symbol_id(cc, *a, var) {
+                    if var_idx.is_some() {
+                        return None;
+                    }
+                    var_idx = Some(i);
+                }
+            }
+            let idx = var_idx?;
+            let rest: Vec<TermId> = args.iter().enumerate().filter(|(i, _)| *i != idx).map(|(_, a)| *a).collect();
+            match rest.as_slice() {
+                [] => Some(cc.in_(1)),
+                [only] => Some(*only),
+                many => Some(cc.apply_semantic(SemanticOperator::Multiply, many.to_vec())),
+            }
         }
+        _ => None,
     }
-    None
 }
 
 fn roc_half_plane_bound(cc: &mut DomainExecutionContext<'_>, roc: &RegionOfConvergence) -> Option<Number> {

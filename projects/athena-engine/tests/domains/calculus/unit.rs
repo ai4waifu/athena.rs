@@ -202,6 +202,54 @@ fn curl_2d_rotation_field_is_two() {
 }
 
 #[test]
+fn laplace_exp_neg_a_t_is_one_over_a_plus_s() {
+    let mut session = Session::new();
+    let (expression, time_variable, transform_variable, a_sym) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let t = dc.intern("t");
+        let s = dc.intern("s");
+        let a = dc.intern("a");
+        let neg_a_t = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), dc.symbol_id(a), dc.symbol_id(t)]);
+        let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![neg_a_t]);
+        (expression, t, s, a)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Transform {
+            kind: TransformKind::Laplace,
+            expression,
+            time_variable,
+            transform_variable,
+            assumptions: AssumptionSet::empty(),
+        },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => tr.expression,
+        other => panic!("expected Exact Laplace image, got {other:?}"),
+    };
+    fn mentions(session: &Session, term: athena_types::TermId, sym: athena_types::SymbolId) -> bool {
+        match session.arena.get(term) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s == sym,
+            Some(TermNode::Application { arguments, .. }) => arguments.iter().any(|a| mentions(session, *a, sym)),
+            Some(TermNode::Collection { elements, .. }) => elements.iter().any(|a| mentions(session, *a, sym)),
+            _ => false,
+        }
+    }
+    assert!(mentions(&session, term, transform_variable), "missing s in {:?}", session.arena.get(term));
+    assert!(mentions(&session, term, a_sym), "missing a in {:?}", session.arena.get(term));
+    assert!(
+        !matches!(
+            session.arena.get(term),
+            Some(TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::LaplaceTransform),
+                ..
+            })
+        ),
+        "image should not re-wrap LaplaceTransform"
+    );
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
