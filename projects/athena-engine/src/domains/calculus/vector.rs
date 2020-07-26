@@ -152,21 +152,26 @@ impl Divergence {
     }
 }
 
-/// 三维向量场旋度：独立对象（引导实现仅 ℝ³）。
+/// 二维 / 三维向量场旋度：ℝ² 为标量 `∂F_y/∂x−∂F_x/∂y`，ℝ³ 为三分量向量。
 #[derive(Debug, PartialEq)]
 pub struct Curl {
-    /// 输入分量 (Fₓ, Fᵧ, F_z)。
+    /// 输入分量（ℝ² 或 ℝ³）。
     pub components: Vec<TermId>,
-    /// 坐标 (x, y, z)。
+    /// 坐标（与分量同维）。
     pub variables: Vec<SymbolId>,
-    /// 旋度分量（与 `variables` 同序）。
+    /// 旋度：ℝ² 单标量，或 ℝ³ 三分量（与 `variables` 同序）。
     pub curl_components: Vec<TermId>,
 }
 
 impl Curl {
-    /// 桥接列表形态。
+    /// 桥接形态：ℝ² 标量，ℝ³ 有序列表。
     pub fn materialize_list_expression(&self, cc: &mut DomainExecutionContext<'_>) -> TermId {
-        cc.ordered(self.curl_components.clone())
+        if self.curl_components.len() == 1 {
+            self.curl_components[0]
+        }
+        else {
+            cc.ordered(self.curl_components.clone())
+        }
     }
 }
 
@@ -207,13 +212,31 @@ pub fn divergence_checked(
     Ok(finish_vector(Divergence { components: components.to_vec(), variables: variables.to_vec(), value }, conditions, unresolved))
 }
 
-/// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
+/// ℝ² 标量旋度 `∂F_y/∂x−∂F_x/∂y`，或 ℝ³ 向量旋度。
 pub fn curl_checked(
     cc: &mut DomainExecutionContext<'_>,
     components: &[TermId],
     variables: &[SymbolId],
     assumptions: &AssumptionSet,
 ) -> Result<CalculusResult<Curl>> {
+    if components.len() == 2 && variables.len() == 2 {
+        let (fx, fy) = (components[0], components[1]);
+        let (x, y) = (variables[0], variables[1]);
+        let mut conditions = Vec::new();
+        let mut unresolved = Vec::new();
+        let d_fy_dx = differentiate_checked(cc, fy, x, assumptions)?;
+        merge_conditions(&mut conditions, &mut unresolved, d_fy_dx.conditions, d_fy_dx.unresolved);
+        let d_fx_dy = differentiate_checked(cc, fx, y, assumptions)?;
+        merge_conditions(&mut conditions, &mut unresolved, d_fx_dy.conditions, d_fx_dy.unresolved);
+        let fy_dx = cc.fold_term(d_fy_dx.value)?;
+        let fx_dy = cc.fold_term(d_fx_dy.value)?;
+        let scalar = sub_terms(cc, fy_dx, fx_dy)?;
+        return Ok(finish_vector(
+            Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: vec![scalar] },
+            conditions,
+            unresolved,
+        ));
+    }
     if components.len() != 3 || variables.len() != 3 {
         return Ok(CalculusResult::Unevaluated {
             expression: Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: Vec::new() },
