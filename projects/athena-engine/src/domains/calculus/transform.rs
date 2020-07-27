@@ -534,6 +534,14 @@ fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: SymbolId, z: Symb
         let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(c), base]))?;
         return Ok(Some((body, RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1)))));
     }
+    if is_symbol_id(cc, expr, n) {
+        // Z 变换：n → z/(z-1)²，|z|>1
+        let zm1 = cc.apply_semantic(SemanticOperator::Add, vec![cc.symbol_id(z), cc.in_(-1)]);
+        let den = cc.fold_term(cc.apply_semantic(SemanticOperator::Power, vec![zm1, cc.in_(2)]))?;
+        let dinv = cc.apply_semantic(SemanticOperator::Power, vec![den, cc.in_(-1)]);
+        let body = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.symbol_id(z), dinv]))?;
+        return Ok(Some((body, RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1)))));
+    }
     if is_kronecker_delta(cc, expr, n) {
         return Ok(Some((cc.in_(1), RegionOfConvergence::entire_plane(cc, z))));
     }
