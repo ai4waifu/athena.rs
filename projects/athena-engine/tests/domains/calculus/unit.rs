@@ -250,6 +250,54 @@ fn laplace_exp_neg_a_t_is_one_over_a_plus_s() {
 }
 
 #[test]
+fn fourier_exp_neg_x_squared_is_sqrt_pi_gaussian() {
+    let mut session = Session::new();
+    let (expression, time_variable, transform_variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let x = dc.intern("x");
+        let k = dc.intern("k");
+        let x2 = dc.apply_semantic(SemanticOperator::Power, vec![dc.symbol_id(x), dc.in_(2)]);
+        let neg_x2 = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), x2]);
+        let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![neg_x2]);
+        (expression, x, k)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Transform {
+            kind: TransformKind::Fourier,
+            expression,
+            time_variable,
+            transform_variable,
+            assumptions: AssumptionSet::empty(),
+        },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => tr.expression,
+        other => panic!("expected Exact Fourier image, got {other:?}"),
+    };
+    fn has_unary(session: &Session, term: athena_types::TermId, uf: UnaryFunction) -> bool {
+        match session.arena.get(term) {
+            Some(TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(op),
+                arguments,
+            }) => op.as_unary() == Some(uf) || arguments.iter().any(|a| has_unary(session, *a, uf)),
+            Some(TermNode::Collection { elements, .. }) => elements.iter().any(|a| has_unary(session, *a, uf)),
+            _ => false,
+        }
+    }
+    fn has_pi(session: &Session, term: athena_types::TermId) -> bool {
+        match session.arena.get(term) {
+            Some(TermNode::Atom(Atom::Constant(athena_ir::MathematicalConstant::Pi))) => true,
+            Some(TermNode::Application { arguments, .. }) => arguments.iter().any(|a| has_pi(session, *a)),
+            Some(TermNode::Collection { elements, .. }) => elements.iter().any(|a| has_pi(session, *a)),
+            _ => false,
+        }
+    }
+    assert!(has_unary(&session, term, UnaryFunction::Exp), "missing Exp in {:?}", session.arena.get(term));
+    assert!(has_pi(&session, term), "missing Pi in {:?}", session.arena.get(term));
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
