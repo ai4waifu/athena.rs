@@ -34,6 +34,7 @@ pub fn select_domain_representation(session: &Session, request: &DomainRequest) 
         DomainRequest::GaloisTheory(_) => Ok(SelectedRepresentation { family: "extension_presentation" }),
         DomainRequest::GraphTheory(_) => Ok(SelectedRepresentation { family: "graph_object" }),
         DomainRequest::Optimization(_) => Ok(SelectedRepresentation { family: "optimization_problem" }),
+        DomainRequest::Solve(_) => Ok(SelectedRepresentation { family: "solve_problem" }),
     }
 }
 

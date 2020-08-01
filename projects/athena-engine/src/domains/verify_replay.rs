@@ -158,7 +158,8 @@ pub fn verify_recompute_domain_result(session: &mut Session, snapshot: &VerifySn
             | DomainResult::GaloisTheory(_)
             | DomainResult::GraphTheory(_)
             | DomainResult::LinearAlgebra(_)
-            | DomainResult::Optimization(_) => Ok(()),
+            | DomainResult::Optimization(_)
+            | DomainResult::Solve(_) => Ok(()),
         },
     }
 }

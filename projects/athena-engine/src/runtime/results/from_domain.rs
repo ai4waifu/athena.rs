@@ -77,6 +77,7 @@ fn map_domain_meta(session: &mut Session, domain: &DomainResult) -> DomainMeta {
         DomainResult::GraphTheory(r) => map_graph(r),
         DomainResult::LinearAlgebra(r) => map_linear_algebra(r),
         DomainResult::Optimization(r) => map_optimization(r),
+        DomainResult::Solve(r) => map_solve(r),
     }
 }
 
@@ -358,6 +359,29 @@ fn map_optimization(result: &OptimizationResult) -> DomainMeta {
         OptimizationResult::InvalidInput { reason } | OptimizationResult::Unevaluated { reason } => {
             unevaluated(reason, ResultProviderId::OPTIMIZATION)
         }
+    }
+}
+
+fn map_solve(result: &crate::domains::solve::SolveResult) -> DomainMeta {
+    match result {
+        crate::domains::solve::SolveResult::Exact { term } => DomainMeta {
+            status: ComputationStatus::Candidate,
+            coverage: CoverageStatus::Partial,
+            symbolic_term: Some(*term),
+            conditions: Vec::new(),
+            diagnostics: Vec::new(),
+            evidence: Vec::new(),
+            provider: Some(ResultProviderId::SOLVE.stamped()),
+        },
+        crate::domains::solve::SolveResult::Unevaluated { expression, reason } => DomainMeta {
+            status: ComputationStatus::Unknown,
+            coverage: CoverageStatus::Unsupported,
+            symbolic_term: Some(*expression),
+            conditions: Vec::new(),
+            diagnostics: vec![reason.clone()],
+            evidence: Vec::new(),
+            provider: Some(ResultProviderId::SOLVE.stamped()),
+        },
     }
 }
 
