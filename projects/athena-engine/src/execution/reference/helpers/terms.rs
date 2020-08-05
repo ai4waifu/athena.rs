@@ -522,13 +522,20 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
 pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate::domains::dispatch::DomainResult) -> Option<TermId> {
     use crate::domains::{
         dispatch::DomainResult,
-        linear_algebra::{ExactDetResult, ExactSolveResult, LinearAlgebraResult, LinearAlgebraValue},
+        linear_algebra::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, LinearAlgebraResult, LinearAlgebraValue},
     };
     match domain {
         DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) => match value {
             LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, m).ok(),
             LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
             LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
+            LinearAlgebraValue::ExactRank(ExactRankResult { rank, .. }) => {
+                let Ok(n) = i64::try_from(*rank) else {
+                    return None;
+                };
+                Some(session.builder().int(n, Default::default()))
+            }
+            LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, matrix).ok(),
             _ => None,
         },
         _ => None,
