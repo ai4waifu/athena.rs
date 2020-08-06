@@ -62,6 +62,11 @@ pub enum LinearAlgebraRequest {
         /// 输入方阵。
         matrix: MatrixRef,
     },
+    /// 矩阵迹（精确路径）。
+    Trace {
+        /// 输入。
+        matrix: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -77,6 +82,7 @@ impl LinearAlgebraRequest {
             Self::Rref { matrix } => Self::Rref { matrix: *matrix },
             Self::Solve { a, b } => Self::Solve { a: *a, b: *b },
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
+            Self::Trace { matrix } => Self::Trace { matrix: *matrix },
         }
     }
 }

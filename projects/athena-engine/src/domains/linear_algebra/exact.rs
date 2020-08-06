@@ -28,6 +28,15 @@ pub struct ExactDetResult {
     pub guarantee: AlgorithmGuarantee,
 }
 
+/// 精确矩阵迹结果。
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExactTraceResult {
+    /// 主对角元之和（有理）。
+    pub value: Rational,
+    /// 保证级别。
+    pub guarantee: AlgorithmGuarantee,
+}
+
 /// 精确线性求解结果。
 #[derive(Debug, PartialEq)]
 pub struct ExactSolveResult {
@@ -56,6 +65,13 @@ impl ExactDetResult {
     /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { det: clone_rational(&self.det), guarantee: self.guarantee }
+    }
+}
+
+impl ExactTraceResult {
+    /// Owning 复制（禁止默认 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { value: clone_rational(&self.value), guarantee: self.guarantee }
     }
 }
 
@@ -400,4 +416,27 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
         }
     }
     MatrixValue::from_rationals_row_major(n, n, data)
+}
+
+/// 精确矩阵迹：主对角元之和（取 `min(rows, cols)`）。
+pub fn trace_exact(matrix: &MatrixValue) -> Result<ExactTraceResult, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "trace_exact_rejects_machine"));
+    }
+    let n = matrix.shape().rows.min(matrix.shape().cols);
+    let mut sum = Rational::zero();
+    for i in 0..n {
+        match matrix.get(i, i)? {
+            MatrixEntry::Integer(z) => {
+                sum = sum.add(&Rational::from_integer(z));
+            }
+            MatrixEntry::Rational(r) => {
+                sum = sum.add(&r);
+            }
+            MatrixEntry::MachineF64(_) => {
+                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "trace_entry_machine"));
+            }
+        }
+    }
+    Ok(ExactTraceResult { value: sum, guarantee: AlgorithmGuarantee::Exact })
 }
