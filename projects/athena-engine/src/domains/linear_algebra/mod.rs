@@ -20,7 +20,7 @@ mod status;
 pub mod value;
 
 pub use equality::{MatrixEqualityKind, matrices_equal};
-pub use exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact};
+pub use exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, invert_exact, rank_exact, rref_rational, solve_exact};
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
 pub use object_ref::{MatrixObjectStore, MatrixRef};

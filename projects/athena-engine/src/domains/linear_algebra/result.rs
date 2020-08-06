@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
-    exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, rank_exact, rref_rational, solve_exact},
+    exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, invert_exact, rank_exact, rref_rational, solve_exact},
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{hadamard, index_scalar, matmul, transpose},
@@ -82,6 +82,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Det { .. } => "det",
         LinearAlgebraRequest::Rref { .. } => "rref",
         LinearAlgebraRequest::Solve { .. } => "solve",
+        LinearAlgebraRequest::Inverse { .. } => "inverse",
     }
 }
 
@@ -160,6 +161,15 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
             else {
                 Ok(LinearAlgebraValue::ExactSolve(solve_exact(&a, &b)?))
             }
+        }
+        LinearAlgebraRequest::Inverse { matrix } => {
+            let matrix = resolve(store, matrix)?;
+            if matrix.parent().element.is_machine() {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("reason", "machine_inverse_deferred")
+                    .detail("hint", "use exact parent"));
+            }
+            Ok(LinearAlgebraValue::Matrix(invert_exact(&matrix)?))
         }
     }
 }

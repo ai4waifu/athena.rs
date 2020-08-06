@@ -4,8 +4,9 @@ use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
+    shape::{MatrixShape, StorageOrder},
     status::{AlgorithmGuarantee, SolveDisposition},
-    value::MatrixValue,
+    value::{MatrixEntry, MatrixValue},
 };
 use crate::runtime::values::numeric_clone::{clone_integer, clone_rational, clone_rationals, resize_rationals};
 
@@ -349,4 +350,54 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
             guarantee: AlgorithmGuarantee::Exact,
         })
     }
+}
+
+/// 精确求逆：逐列求解 `A X = I`。
+pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "invert_exact_rejects_machine"));
+    }
+    if !matrix.shape().is_square() {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "invert_requires_square"));
+    }
+    let n = matrix.shape().rows;
+    if n == 0 {
+        return MatrixValue::zeros(matrix.parent(), MatrixShape::new(0, 0), StorageOrder::RowMajor);
+    }
+    let eye = MatrixValue::identity(matrix.parent(), n)?;
+    let mut columns: Vec<Vec<Rational>> = Vec::with_capacity(n as usize);
+    for j in 0..n {
+        let mut b_data = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            match eye.get(i, j)? {
+                MatrixEntry::Integer(z) => b_data.push(Rational::from_integer(z)),
+                MatrixEntry::Rational(r) => b_data.push(r),
+                MatrixEntry::MachineF64(_) => {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "invert_eye_machine"));
+                }
+            }
+        }
+        let b = MatrixValue::from_rationals_row_major(n, 1, b_data)?;
+        let solved = solve_exact(matrix, &b)?;
+        match solved.disposition {
+            SolveDisposition::Unique => {
+                let particular = solved.particular.ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "invert_missing_particular")
+                })?;
+                columns.push(particular.to_rationals_row_major()?);
+            }
+            _ => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("reason", "invert_singular_or_underdetermined")
+                    .detail("disposition", format!("{:?}", solved.disposition)));
+            }
+        }
+    }
+    let mut data = Vec::with_capacity((n * n) as usize);
+    for i in 0..n {
+        for j in 0..n {
+            data.push(clone_rational(&columns[j as usize][i as usize]));
+        }
+    }
+    MatrixValue::from_rationals_row_major(n, n, data)
 }
