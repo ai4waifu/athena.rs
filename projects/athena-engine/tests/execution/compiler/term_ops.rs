@@ -297,6 +297,38 @@ fn compile_and_execute_zeros_eye() {
 }
 
 #[test]
+fn compile_and_execute_diagonal_matrix() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let diag = session.builder().list(vec![one, two], Default::default());
+    let head = ApplicationHead::Semantic(SemanticOperator::DiagonalMatrix);
+    let term = session.builder().application(head, vec![diag], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("diag");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            let expected = [[1i64, 0], [0, 2]];
+            for (i, row) in rows.iter().enumerate() {
+                match session.arena.get(*row) {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
+                        for (j, cell) in cells.iter().enumerate() {
+                            match session.arena.get(*cell) {
+                                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected[i][j]) => {}
+                                other => panic!("expected DiagonalMatrix[{i},{j}]={}, got {other:?}", expected[i][j]),
+                            }
+                        }
+                    }
+                    other => panic!("expected DiagonalMatrix row, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected DiagonalMatrix[{{1,2}}], got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_replace_all() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
