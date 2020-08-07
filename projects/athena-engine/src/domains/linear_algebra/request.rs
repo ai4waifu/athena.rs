@@ -67,6 +67,13 @@ pub enum LinearAlgebraRequest {
         /// 输入。
         matrix: MatrixRef,
     },
+    /// 点积 / 矩阵乘收缩（Mathematica `Dot`）。
+    Dot {
+        /// 左。
+        lhs: MatrixRef,
+        /// 右。
+        rhs: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -83,6 +90,7 @@ impl LinearAlgebraRequest {
             Self::Solve { a, b } => Self::Solve { a: *a, b: *b },
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
+            Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
         }
     }
 }

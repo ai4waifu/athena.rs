@@ -225,3 +225,34 @@ pub fn hadamard(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Dia
         }
     }
 }
+
+/// Mathematica 风格 `Dot`：在需要时把 `1×n` / `n×1` 向量对齐后做矩阵乘。
+pub fn dot(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    require_same_element_parent(lhs, rhs)?;
+    let (a, b) = align_dot_operands(lhs, rhs)?;
+    matmul(&a, &b)
+}
+
+fn align_dot_operands(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<(MatrixValue, MatrixValue), Diagnostic> {
+    let ls = lhs.shape();
+    let rs = rhs.shape();
+    if ls.cols == rs.rows {
+        return Ok((lhs.owning_copy(), rhs.owning_copy()));
+    }
+    // `m×n` · `1×n`（嵌套 List 向量常落成行向量）→ 右端转成 `n×1`
+    if rs.rows == 1 && ls.cols == rs.cols {
+        return Ok((lhs.owning_copy(), transpose(rhs).owning_copy()));
+    }
+    // `1×n` · `1×n` → `1×n` · `n×1` 得标量
+    if ls.rows == 1 && rs.rows == 1 && ls.cols == rs.cols {
+        return Ok((lhs.owning_copy(), transpose(rhs).owning_copy()));
+    }
+    // `n×1` · `n×1` → `(1×n) · (n×1)`
+    if ls.cols == 1 && rs.cols == 1 && ls.rows == rs.rows {
+        return Ok((transpose(lhs).owning_copy(), rhs.owning_copy()));
+    }
+    Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+        .detail("reason", "dot_incompatible_shapes")
+        .detail("lhs", format!("{}x{}", ls.rows, ls.cols))
+        .detail("rhs", format!("{}x{}", rs.rows, rs.cols)))
+}
