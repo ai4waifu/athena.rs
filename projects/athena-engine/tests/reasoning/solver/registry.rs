@@ -1,14 +1,12 @@
-//! M-Graph / solver 骨架冒烟测试。
+//! M-Graph / solver registry 合同测试。
 
 use std::sync::Arc;
 
 use athena_engine::reasoning::{
     mgraph::{CapabilityProviderId, ClosureLimits, ClosureStopReason, MGraphState, SolverCandidate, run_closure_step},
-    solver::{
-        DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverOperation, SolverRegistry, SolverRequest, score_candidate,
-    },
+    solver::{ReflectionResult, Reflector, SolverContext, SolverRegistry, SolverRequest, score_candidate},
 };
-use athena_types::{AssumptionSetId, Diagnostic, TermId};
+use athena_types::{Diagnostic, TermId};
 
 struct StubReflector;
 
@@ -48,14 +46,3 @@ fn score_candidate_is_stable_integer() {
     assert_ne!(a.tie_breaker, 0);
 }
 
-#[test]
-fn solver_request_smoke() {
-    let req = SolverRequest {
-        domain: DomainRef::Arithmetic,
-        roots: vec![TermId(1)],
-        operation: SolverOperation { name: "noop".into() },
-        limits: SolverLimits::default(),
-        assumptions: AssumptionSetId(0),
-    };
-    assert_eq!(req.operation.name, "noop");
-}

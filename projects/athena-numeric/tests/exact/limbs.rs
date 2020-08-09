@@ -1,4 +1,4 @@
-//! 进位安全算术冒烟测试（经 `Natural` 锻炼 limb 内核）。
+//! 进位安全算术合同（经 `Natural` 锻炼 limb 内核）。
 
 use athena_numeric::natural::Natural;
 use std::str::FromStr;

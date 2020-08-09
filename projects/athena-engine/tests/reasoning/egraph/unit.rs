@@ -31,7 +31,7 @@ fn add_term_builds_eclasses_without_mgraph_side_effects() {
 fn saturate_respects_zero_iteration_budget() {
     let store = athena_ir::TermStore::new();
     let mut graph = EGraph::new();
-    let report = saturate(&mut graph, &store, &[], SaturationBudget { max_iterations: 0, ..SaturationBudget::smoke() }, None);
+    let report = saturate(&mut graph, &store, &[], SaturationBudget { max_iterations: 0, ..SaturationBudget::tight() }, None);
     assert_eq!(report.stop, SaturationStopReason::ResourceBudget);
     assert!(report.candidates.is_empty());
 }
@@ -58,7 +58,7 @@ fn saturate_adds_roots_to_fixed_point() {
     let span = SourceSpan::default();
     let x = store.push(TermNode::Atom(athena_ir::Atom::Number(athena_numeric::Number::small_int(0))), span);
     let mut graph = EGraph::new();
-    let report = saturate(&mut graph, &store, &[x], SaturationBudget::smoke(), None);
+    let report = saturate(&mut graph, &store, &[x], SaturationBudget::tight(), None);
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
     assert!(graph.class_of_term(x).is_some());
     assert!(report.candidates.is_empty());
@@ -139,7 +139,7 @@ fn saturate_emits_candidates_from_structural_rule_match() {
     let rule_id = rules.push(pattern, replacement, Some("zero_to_one"));
 
     let mut graph = EGraph::new();
-    let report = saturate(&mut graph, &store, &[zero], SaturationBudget::smoke(), Some(&rules));
+    let report = saturate(&mut graph, &store, &[zero], SaturationBudget::tight(), Some(&rules));
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
     assert_eq!(report.candidates.len(), 1);
     assert_eq!(report.candidates[0].left_term, zero);
@@ -207,7 +207,7 @@ fn saturate_typed_binds_and_substitutes_replacement() {
     let mut rules = TypedRuleSet::new();
     let rule_id = rules.push(pattern, x_term, Some("add_same"));
     let mut graph = EGraph::new();
-    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::smoke(), Some(&rules));
+    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::tight(), Some(&rules));
     assert_eq!(report.stop, SaturationStopReason::FixedPoint);
     assert_eq!(report.candidates.len(), 1);
     assert_eq!(report.candidates[0].left_term, add);
@@ -257,7 +257,7 @@ fn typed_rewrite_replay_admits_add_same_candidate() {
     let mut rules = TypedRuleSet::new();
     rules.push(pattern, x_term, Some("add_same"));
     let mut graph = EGraph::new();
-    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::smoke(), Some(&rules));
+    let report = saturate_typed(&mut graph, &mut store, &[add], SaturationBudget::tight(), Some(&rules));
     assert_eq!(report.candidates.len(), 1);
 
     let mut semantic = SemanticCore::new();

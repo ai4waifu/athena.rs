@@ -24,7 +24,7 @@ fn parse_and_arith() {
 }
 
 #[test]
-fn mod_pow_smoke() {
+fn mod_pow_three_to_four_mod_seven() {
     let base = Natural::from_u64(3);
     let exp = Natural::from_u64(4);
     let m = Natural::from_u64(7);

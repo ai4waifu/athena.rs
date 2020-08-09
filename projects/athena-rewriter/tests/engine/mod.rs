@@ -19,7 +19,7 @@ fn rule_set_registers_typed_rewrite_ids() {
     let pattern = b.number(NumericValue::small_int(0), SourceSpan::default());
     let replacement = b.number(NumericValue::small_int(1), SourceSpan::default());
     let mut rules = RuleSet::new();
-    let id = rules.push(pattern, replacement, Some("smoke"));
+    let id = rules.push(pattern, replacement, Some("zero_to_one"));
     assert_eq!(rules.len(), 1);
     assert_eq!(rules.get(id).map(|r| r.pattern), Some(pattern));
 }

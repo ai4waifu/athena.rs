@@ -20,8 +20,8 @@ impl Default for SaturationBudget {
 }
 
 impl SaturationBudget {
-    /// 冒烟 / 契约测试用的小预算。
-    pub const fn smoke() -> Self {
+    /// 合同测用的紧预算（小 eclass / 迭代上限）。
+    pub const fn tight() -> Self {
         Self { max_eclasses: 32, max_enodes: 128, max_iterations: 8, max_candidate_unions: 16 }
     }
 }

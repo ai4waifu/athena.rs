@@ -11,7 +11,7 @@ fn sample_ring(table: &mut RingTable, order: MonomialOrder) -> athena_engine::do
 }
 
 #[test]
-fn lex_grlex_grevlex_compare_smoke() {
+fn lex_grlex_grevlex_compare_exponents() {
     let order_lex = MonomialOrder::Lex;
     let e1 = vec![1u32, 0];
     let e2 = vec![0u32, 1];

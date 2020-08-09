@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Athena neutral test helpers — builders, asserts, and lib contract smoke"
+description = "Athena neutral test helpers — builders, asserts, and lib contract checks"
 publish = false
 
 [lib]

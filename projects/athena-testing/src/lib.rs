@@ -24,3 +24,6 @@ pub mod values;
 pub use assertions::{assert_exact_integer, assert_structural_eq, expect_diagnostic};
 pub use builders::{DomainRequestBuilder, SessionFixture, TermBuilder};
 pub use requests::{goal_request, term_request};
+
+#[cfg(test)]
+mod contract;

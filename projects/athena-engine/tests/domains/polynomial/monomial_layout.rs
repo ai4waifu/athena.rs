@@ -23,7 +23,7 @@ fn compiled_grlex_matches_declarative_order() {
 }
 
 #[test]
-fn compiled_elimination_order_smoke() {
+fn compiled_elimination_order_prefers_eliminated_variable() {
     let order = MonomialOrder::Elimination { eliminate: 1, rest: Box::new(MonomialOrder::Lex) };
     let layout = MonomialLayout::compile(&order, 2).unwrap();
     let front = vec![1, 0];
