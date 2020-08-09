@@ -309,3 +309,28 @@ fn goal_dot_matrix_vector_projects_flat_list() {
     assert!(matches!(session.arena.get(items[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
     assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(7)));
 }
+
+#[test]
+fn goal_cross_projects_flat_list() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![i(1), i(0), i(0)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![i(0), i(1), i(0)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Cross { lhs: a, rhs: b })));
+    let result_id = execute_ir_request(&mut session, request).expect("cross goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list")
+    else {
+        panic!("expected flat list");
+    };
+    assert_eq!(items.len(), 3);
+    assert!(matches!(session.arena.get(items[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+    assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+    assert!(matches!(session.arena.get(items[2]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+}

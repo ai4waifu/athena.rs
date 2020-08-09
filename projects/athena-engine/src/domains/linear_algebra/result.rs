@@ -9,7 +9,7 @@ use super::{
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
-    ops::{dot, hadamard, index_scalar, matmul, transpose},
+    ops::{cross, dot, hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
     value::MatrixValue,
@@ -94,6 +94,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Inverse { .. } => "inverse",
         LinearAlgebraRequest::Trace { .. } => "trace",
         LinearAlgebraRequest::Dot { .. } => "dot",
+        LinearAlgebraRequest::Cross { .. } => "cross",
     }
 }
 
@@ -195,6 +196,11 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
             let lhs = resolve(store, lhs)?;
             let rhs = resolve(store, rhs)?;
             Ok(LinearAlgebraValue::Dot(dot(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::Cross { lhs, rhs } => {
+            let lhs = resolve(store, lhs)?;
+            let rhs = resolve(store, rhs)?;
+            Ok(LinearAlgebraValue::Dot(cross(&lhs, &rhs)?))
         }
     }
 }

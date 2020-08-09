@@ -74,6 +74,13 @@ pub enum LinearAlgebraRequest {
         /// 右。
         rhs: MatrixRef,
     },
+    /// 三维叉积（Mathematica `Cross`）。
+    Cross {
+        /// 左。
+        lhs: MatrixRef,
+        /// 右。
+        rhs: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -91,6 +98,7 @@ impl LinearAlgebraRequest {
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
+            Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
         }
     }
 }

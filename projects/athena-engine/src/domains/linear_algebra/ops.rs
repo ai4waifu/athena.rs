@@ -256,3 +256,44 @@ fn align_dot_operands(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<(MatrixVal
         .detail("lhs", format!("{}x{}", ls.rows, ls.cols))
         .detail("rhs", format!("{}x{}", rs.rows, rs.cols)))
 }
+
+/// 三维叉积（`1×3` / `3×1` 向量）；结果为 `1×3` 行向量。
+pub fn cross(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    require_same_element_parent(lhs, rhs)?;
+    if lhs.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cross_exact_only"));
+    }
+    let a = vector3_rationals(lhs)?;
+    let b = vector3_rationals(rhs)?;
+    let c0 = a[1].mul(&b[2]).sub(&a[2].mul(&b[1]));
+    let c1 = a[2].mul(&b[0]).sub(&a[0].mul(&b[2]));
+    let c2 = a[0].mul(&b[1]).sub(&a[1].mul(&b[0]));
+    MatrixValue::from_rationals_row_major(1, 3, vec![c0, c1, c2])
+}
+
+fn vector3_rationals(matrix: &MatrixValue) -> Result<[Rational; 3], Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    let entries = if rows == 1 && cols == 3 {
+        [matrix.get(0, 0)?, matrix.get(0, 1)?, matrix.get(0, 2)?]
+    }
+    else if rows == 3 && cols == 1 {
+        [matrix.get(0, 0)?, matrix.get(1, 0)?, matrix.get(2, 0)?]
+    }
+    else {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+            .detail("reason", "cross_requires_3_vector")
+            .detail("shape", format!("{rows}x{cols}")));
+    };
+    let mut out = [Rational::zero(), Rational::zero(), Rational::zero()];
+    for (i, entry) in entries.into_iter().enumerate() {
+        out[i] = match entry {
+            MatrixEntry::Integer(z) => Rational::from_integer(z),
+            MatrixEntry::Rational(r) => r,
+            MatrixEntry::MachineF64(_) => {
+                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cross_entry_machine"));
+            }
+        };
+    }
+    Ok(out)
+}
