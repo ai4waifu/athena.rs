@@ -1,6 +1,6 @@
 //! 精确路径：`ℚ` Gaussian 消元 / RREF / 秩 / 求解，以及 `ℤ` Bareiss。
 
-use athena_numeric::{Integer, Rational};
+use athena_numeric::{Integer, Number, Rational, sqrt as num_sqrt};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
@@ -32,6 +32,15 @@ pub struct ExactDetResult {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExactTraceResult {
     /// 主对角元之和（有理）。
+    pub value: Rational,
+    /// 保证级别。
+    pub guarantee: AlgorithmGuarantee,
+}
+
+/// 精确欧几里得范数结果（仅完美平方根可交付）。
+#[derive(Debug, PartialEq, Eq)]
+pub struct ExactNormResult {
+    /// 范数。
     pub value: Rational,
     /// 保证级别。
     pub guarantee: AlgorithmGuarantee,
@@ -69,6 +78,13 @@ impl ExactDetResult {
 }
 
 impl ExactTraceResult {
+    /// Owning 复制（禁止默认 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
+        Self { value: clone_rational(&self.value), guarantee: self.guarantee }
+    }
+}
+
+impl ExactNormResult {
     /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { value: clone_rational(&self.value), guarantee: self.guarantee }
@@ -439,6 +455,55 @@ pub fn trace_exact(matrix: &MatrixValue) -> Result<ExactTraceResult, Diagnostic>
         }
     }
     Ok(ExactTraceResult { value: sum, guarantee: AlgorithmGuarantee::Exact })
+}
+
+/// 精确欧几里得 2-范数（行/列向量）；仅完美平方根可交付。
+pub fn norm2_exact(matrix: &MatrixValue) -> Result<ExactNormResult, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "norm2_exact_rejects_machine"));
+    }
+    let comps = vector_rationals_any(matrix)?;
+    let mut sum_sq = Rational::zero();
+    for c in &comps {
+        sum_sq = sum_sq.add(&c.mul(c));
+    }
+    let Some(root) = (match num_sqrt(&Number::from_rational_normalized(clone_rational(&sum_sq))) {
+        Ok(Some(Number::Rational(r))) => Some(r),
+        Ok(Some(Number::Integer(z))) => Some(Rational::from_integer(z)),
+        _ => None,
+    })
+    else {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "norm2_non_perfect_square"));
+    };
+    Ok(ExactNormResult { value: root, guarantee: AlgorithmGuarantee::Exact })
+}
+
+fn vector_rationals_any(matrix: &MatrixValue) -> Result<Vec<Rational>, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    let (n, as_row) = if rows == 1 && cols >= 1 {
+        (cols, true)
+    }
+    else if cols == 1 && rows >= 1 {
+        (rows, false)
+    }
+    else {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+            .detail("reason", "norm_requires_vector")
+            .detail("shape", format!("{rows}x{cols}")));
+    };
+    let mut out = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        let entry = if as_row { matrix.get(0, i)? } else { matrix.get(i, 0)? };
+        out.push(match entry {
+            MatrixEntry::Integer(z) => Rational::from_integer(z),
+            MatrixEntry::Rational(r) => r,
+            MatrixEntry::MachineF64(_) => {
+                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "norm_entry_machine"));
+            }
+        });
+    }
+    Ok(out)
 }
 
 /// 精确零空间基：RREF 自由列各生成一个行向量（Mathematica `NullSpace` 形状）。

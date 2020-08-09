@@ -76,7 +76,8 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         | LinearAlgebraRequest::Rref { matrix }
         | LinearAlgebraRequest::Inverse { matrix }
         | LinearAlgebraRequest::Trace { matrix }
-        | LinearAlgebraRequest::NullSpace { matrix } => check(matrix)?,
+        | LinearAlgebraRequest::NullSpace { matrix }
+        | LinearAlgebraRequest::Norm { matrix } => check(matrix)?,
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
         | LinearAlgebraRequest::Solve { a: lhs, b: rhs }

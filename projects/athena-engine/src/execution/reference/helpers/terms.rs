@@ -561,7 +561,8 @@ pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate:
     use crate::domains::{
         dispatch::DomainResult,
         linear_algebra::{
-            ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, LinearAlgebraResult, LinearAlgebraValue,
+            ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, LinearAlgebraResult,
+            LinearAlgebraValue,
         },
     };
     match domain {
@@ -571,6 +572,7 @@ pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate:
             LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
             LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
             LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
+            LinearAlgebraValue::ExactNorm(ExactNormResult { value, .. }) => Some(rational_to_term_session(session, value)),
             LinearAlgebraValue::ExactRank(ExactRankResult { rank, .. }) => {
                 let Ok(n) = i64::try_from(*rank) else {
                     return None;
