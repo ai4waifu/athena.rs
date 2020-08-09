@@ -21,8 +21,8 @@ pub mod value;
 
 pub use equality::{MatrixEqualityKind, matrices_equal};
 pub use exact::{
-    ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, rank_exact, rref_rational,
-    solve_exact, trace_exact,
+    ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, nullspace_exact, rank_exact,
+    rref_rational, solve_exact, trace_exact,
 };
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};

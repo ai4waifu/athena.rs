@@ -4,8 +4,8 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     exact::{
-        ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, rank_exact,
-        rref_rational, solve_exact, trace_exact,
+        ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, nullspace_exact,
+        rank_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
@@ -95,6 +95,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Trace { .. } => "trace",
         LinearAlgebraRequest::Dot { .. } => "dot",
         LinearAlgebraRequest::Cross { .. } => "cross",
+        LinearAlgebraRequest::NullSpace { .. } => "nullspace",
     }
 }
 
@@ -201,6 +202,15 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
             let lhs = resolve(store, lhs)?;
             let rhs = resolve(store, rhs)?;
             Ok(LinearAlgebraValue::Dot(cross(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::NullSpace { matrix } => {
+            let matrix = resolve(store, matrix)?;
+            if matrix.parent().element.is_machine() {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("reason", "machine_nullspace_deferred")
+                    .detail("hint", "use exact parent"));
+            }
+            Ok(LinearAlgebraValue::Matrix(nullspace_exact(&matrix)?))
         }
     }
 }
