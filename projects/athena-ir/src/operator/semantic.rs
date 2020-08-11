@@ -246,6 +246,18 @@ pub enum SemanticOperator {
     Divergence,
     /// 向量旋度残差。
     Curl,
+    /// 单位阶跃（因果指示 · 方言 `UnitStep`/`HeavisideTheta` 映射至此）。
+    UnitStep,
+    /// 集合成员关系谓词（方言 `Element` 映射至此）。
+    MemberOf,
+    /// Kronecker δ。
+    KroneckerDelta,
+    /// 离散 δ。
+    DiscreteDelta,
+    /// 不定式残差标记。
+    Indeterminate,
+    /// 实部投影（收敛域谓词等）。
+    RealPart,
 }
 
 impl SemanticOperator {
@@ -316,10 +328,16 @@ impl SemanticOperator {
             Self::ZTransform => 211,
             Self::Divergence => 212,
             Self::Curl => 213,
+            Self::UnitStep => 214,
+            Self::MemberOf => 215,
+            Self::KroneckerDelta => 216,
+            Self::DiscreteDelta => 217,
+            Self::Indeterminate => 218,
+            Self::RealPart => 219,
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分残差 200–213）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分残差 200–219）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -389,6 +407,12 @@ impl SemanticOperator {
             211 => Some(Self::ZTransform),
             212 => Some(Self::Divergence),
             213 => Some(Self::Curl),
+            214 => Some(Self::UnitStep),
+            215 => Some(Self::MemberOf),
+            216 => Some(Self::KroneckerDelta),
+            217 => Some(Self::DiscreteDelta),
+            218 => Some(Self::Indeterminate),
+            219 => Some(Self::RealPart),
             _ => None,
         }
     }
@@ -460,6 +484,12 @@ impl SemanticOperator {
             Self::ZTransform => "ZTransform",
             Self::Divergence => "Divergence",
             Self::Curl => "Curl",
+            Self::UnitStep => "UnitStep",
+            Self::MemberOf => "MemberOf",
+            Self::KroneckerDelta => "KroneckerDelta",
+            Self::DiscreteDelta => "DiscreteDelta",
+            Self::Indeterminate => "Indeterminate",
+            Self::RealPart => "RealPart",
         }
     }
 
