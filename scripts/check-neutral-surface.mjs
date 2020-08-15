@@ -50,6 +50,10 @@ const banned = [
     why: "Extension intern of core surface name",
   },
   {
+    re: /\.extensions\.intern\(\s*"(Indeterminate|Re|Element|UnitStep|HeavisideTheta|KroneckerDelta|DiscreteDelta)"\s*\)/,
+    why: "Extension intern of core math surface name (use SemanticOperator)",
+  },
+  {
     re: /match\s+name\.as_str\(\)\s*\{[\s\S]{0,240}"(LinearSolve|Import|Export|Timing|Define|CountedLoop|Cond|Recover|Plus|Times|Integrate|Limit|D)"/,
     why: "Extension surface-name match dispatch",
   },
