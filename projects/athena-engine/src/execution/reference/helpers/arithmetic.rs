@@ -16,6 +16,48 @@ fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
     matches!(head, ApplicationHead::Semantic(o) if o == op)
 }
 
+fn push_indeterminate(session: &mut Session) -> TermId {
+    push_semantic(session, SemanticOperator::Indeterminate, Vec::new())
+}
+
+fn is_indeterminate_term(session: &Session, term: TermId) -> bool {
+    matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Application { head, .. }) if is_sem(*head, SemanticOperator::Indeterminate)
+    )
+}
+
+/// 裸 `Infinity` 符号内核（与极限构造共用暂态字符串身份，待迁入数学常量原子）。
+fn is_infinity_kernel(session: &Session, term: TermId) -> bool {
+    matches!(super::symbol_name(session, term).as_deref(), Some("Infinity"))
+}
+
+fn factor_contains_infinity(session: &Session, term: TermId) -> bool {
+    if is_infinity_kernel(session, term) {
+        return true;
+    }
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Multiply) => {
+            arguments.iter().any(|a| is_infinity_kernel(session, *a))
+        }
+        _ => false,
+    }
+}
+
+/// `Power[0, e]` 且 `e` 为负整数：与零相乘时不得吸收成 `0`。
+fn is_zero_to_negative_power(session: &Session, term: TermId) -> bool {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { head, arguments })
+            if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 =>
+        {
+            let base_zero = number_of(session, arguments[0]).is_some_and(Number::is_zero);
+            let exp_neg = number_of(session, arguments[1]).is_some_and(|e| e.as_integer_exp().is_some_and(|n| n < 0));
+            base_zero && exp_neg
+        }
+        _ => false,
+    }
+}
+
 pub(crate) fn fold_plus_symbolic(session: &mut Session, terms: Vec<TermId>) -> TermId {
     // 展平一层嵌套 `Plus` 并合并数值加项。
     let mut flat = Vec::with_capacity(terms.len());
@@ -109,8 +151,12 @@ pub(crate) fn split_numeric_coeff_session(session: &mut Session, term: TermId) -
 
 pub(crate) fn groups_to_plus_terms_session(session: &mut Session, groups: Vec<(TermId, Number)>) -> Vec<TermId> {
     let mut out = Vec::new();
+    let mut canceled_infinity = false;
     for (kernel, coef) in groups {
         if coef.is_zero() {
+            if is_infinity_kernel(session, kernel) {
+                canceled_infinity = true;
+            }
             continue;
         }
         else if number_of(session, kernel).is_some_and(Number::is_one) {
@@ -123,6 +169,10 @@ pub(crate) fn groups_to_plus_terms_session(session: &mut Session, groups: Vec<(T
             let coef_id = push_number(session, coef);
             out.push(fold_times_symbolic(session, vec![coef_id, kernel]));
         }
+    }
+    // `∞ − ∞`（及同核抵消）在精确符号域标为不定式，禁止静默成 `0`。
+    if canceled_infinity {
+        return vec![push_indeterminate(session)];
     }
     out
 }
@@ -138,7 +188,15 @@ pub(crate) fn fold_times_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
             _ => flat.push(term),
         }
     }
-    if flat.iter().any(|t| number_of(session, *t).is_some_and(Number::is_zero)) {
+    if flat.iter().any(|t| is_indeterminate_term(session, *t)) {
+        return push_indeterminate(session);
+    }
+    let has_numeric_zero = flat.iter().any(|t| number_of(session, *t).is_some_and(Number::is_zero));
+    if has_numeric_zero {
+        // `0·∞`、`0·0^(-1)` 等奇异积不得被零吸收成 `0`。
+        if flat.iter().any(|t| factor_contains_infinity(session, *t) || is_zero_to_negative_power(session, *t)) {
+            return push_indeterminate(session);
+        }
         return session.builder().int(0, Default::default());
     }
     let mut out = Vec::with_capacity(flat.len());
@@ -259,6 +317,13 @@ pub(crate) fn fold_divide_symbolic(session: &mut Session, terms: Vec<TermId>) ->
         return push_semantic(session, SemanticOperator::Divide, terms);
     }
     let (num, den) = (terms[0], terms[1]);
+    if number_of(session, den).is_some_and(Number::is_zero) {
+        if number_of(session, num).is_some_and(Number::is_zero) {
+            return push_indeterminate(session);
+        }
+        // 非零 / 0：保留 `Divide` 残差，禁止经 `·0^(-1)` 再被零吸收误折叠。
+        return push_semantic(session, SemanticOperator::Divide, terms);
+    }
     let neg1 = session.builder().int(-1, Default::default());
     let inv = fold_power_symbolic(session, vec![den, neg1]);
     fold_times_symbolic(session, vec![num, inv])
@@ -286,9 +351,12 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     let (base, exp) = (terms[0], terms[1]);
     if let Some(e) = number_of(session, exp) {
         if e.is_zero() {
-            // 标量 `x^0 → 1`；列表底数保持残差（逐元用 `DotPower`）。
+            // 标量 `x^0 → 1`；`0^0` → `Indeterminate`；列表底数保持残差（逐元用 `DotPower`）。
             if matches!(session.arena.get(base), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
                 return push_semantic(session, SemanticOperator::Power, terms);
+            }
+            if number_of(session, base).is_some_and(Number::is_zero) {
+                return push_indeterminate(session);
             }
             return session.builder().int(1, Default::default());
         }
