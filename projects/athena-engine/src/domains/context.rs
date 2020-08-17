@@ -37,6 +37,11 @@ impl<'a> DomainExecutionContext<'a> {
         Self { session: session as *mut Session, _borrow: PhantomData }
     }
 
+    /// 正无穷数学常量原子（非用户符号 `Infinity`）。
+    pub(crate) fn is_positive_infinity_term(&self, term: TermId) -> bool {
+        matches!(self.shape(term), Some(Shape::Constant(athena_ir::MathematicalConstant::Infinity)))
+    }
+
     /// `Indeterminate` 中性算子头。
     pub(crate) fn is_indeterminate(&self, head: ApplicationHead) -> bool {
         matches!(head, ApplicationHead::Semantic(SemanticOperator::Indeterminate))

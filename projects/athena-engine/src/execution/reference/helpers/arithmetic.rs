@@ -3,7 +3,7 @@
 use athena_numeric::{Number, add as num_add, div as num_div, mul as num_mul, pow as num_pow};
 use athena_types::{Result, TermId};
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator};
 
 use super::{diag, matrix_to_nested_list_session, term_to_rational_matrix_session};
 use crate::{
@@ -27,9 +27,12 @@ fn is_indeterminate_term(session: &Session, term: TermId) -> bool {
     )
 }
 
-/// 裸 `Infinity` 符号内核（与极限构造共用暂态字符串身份，待迁入数学常量原子）。
+/// 裸正无穷内核（`MathematicalConstant::Infinity`）。
 fn is_infinity_kernel(session: &Session, term: TermId) -> bool {
-    matches!(super::symbol_name(session, term).as_deref(), Some("Infinity"))
+    matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity)))
+    )
 }
 
 fn factor_contains_infinity(session: &Session, term: TermId) -> bool {

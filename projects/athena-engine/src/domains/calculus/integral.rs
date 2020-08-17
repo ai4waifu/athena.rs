@@ -234,7 +234,7 @@ fn try_known_definite_integral(
 }
 
 fn is_positive_infinity(dc: &DomainExecutionContext<'_>, term: TermId) -> bool {
-    matches!(dc.shape(term), Some(Shape::Symbol(s)) if dc.symbol_id_is(s, dc.intern("Infinity")))
+    dc.is_positive_infinity_term(term)
 }
 
 fn is_negative_infinity(dc: &DomainExecutionContext<'_>, term: TermId) -> bool {

@@ -1,6 +1,6 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · ）。
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::{ApplicationHead, MathematicalConstant, SemanticOperator};
 use athena_types::{Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
@@ -99,7 +99,7 @@ impl Series {
     }
 
     fn center_is_infinity(&self, cc: &DomainExecutionContext<'_>) -> bool {
-        matches!(cc.shape(self.center), Some(Shape::Symbol(s)) if cc.symbol_id_is(s, cc.intern("Infinity")))
+        cc.is_positive_infinity_term(self.center)
     }
 
     /// 精确时转为 Plus/Times/Power 多项式项。
@@ -280,7 +280,7 @@ fn remap_laurent_series(
 /// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
 pub fn asymptotic(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, order: u32) -> Result<CalculusResult<Series>> {
     const T: &str = "__athena_asymp_t";
-    let infinity = cc.symbol("Infinity");
+    let infinity = cc.math_constant(MathematicalConstant::Infinity);
     let t_sym = cc.symbol(T);
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![t_sym, cc.in_(-1)]);
     let substituted = replace_symbol(cc, expression, variable, inv);
@@ -391,7 +391,7 @@ fn remap_asymptotic_series(cc: &mut DomainExecutionContext<'_>, series: Series, 
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    let center = cc.symbol("Infinity");
+    let center = cc.math_constant(MathematicalConstant::Infinity);
     Series { variable, center, terms, order, remainder }
 }
 

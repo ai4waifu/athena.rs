@@ -272,10 +272,10 @@ fn try_onesided_simple_pole(
             _ => return Ok(None),
         };
         return Ok(Some(if positive {
-            cc.symbol("Infinity")
+            cc.math_constant(MathematicalConstant::Infinity)
         }
         else {
-            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
+            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.math_constant(MathematicalConstant::Infinity)])
         }));
     }
     Ok(None)
@@ -306,10 +306,10 @@ fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
             sign_positive = !sign_positive;
         }
         let value = if sign_positive {
-            cc.symbol("Infinity")
+            cc.math_constant(MathematicalConstant::Infinity)
         }
         else {
-            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")])
+            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.math_constant(MathematicalConstant::Infinity)])
         };
         return Ok(CalculusResult::Exact { value, conditions: Vec::new() });
     }
@@ -388,8 +388,10 @@ fn limit_form(
 ) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
-        LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
-        LimitApproach::NegativeInfinity => cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.symbol("Infinity")]),
+        LimitApproach::PositiveInfinity => cc.math_constant(MathematicalConstant::Infinity),
+        LimitApproach::NegativeInfinity => {
+            cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), cc.math_constant(MathematicalConstant::Infinity)])
+        },
     };
     let spec = cc.ordered(vec![cc.symbol_id(variable), approach_term]);
     let mut args = vec![expression, spec];
