@@ -7,7 +7,7 @@ use athena_engine::{
     api::{AthenaRequest, DomainGoal},
     domains::DomainRequest,
 };
-use athena_ir::{Atom, SemanticOperator, TermNode, UnaryFunction};
+use athena_ir::{Atom, MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::AssumptionSet;
 
 #[test]
@@ -62,6 +62,7 @@ fn series_goal_interns_series_ref_into_session() {
 #[test]
 fn definite_gaussian_exp_neg_square_is_sqrt_pi() {
     let mut session = Session::new();
+    let infinity = session.builder().constant(MathematicalConstant::Infinity, Default::default());
     let (expression, variable, lower, upper) = {
         let dc = DomainExecutionContext::new(&mut session);
         let variable = dc.intern("x");
@@ -69,7 +70,6 @@ fn definite_gaussian_exp_neg_square_is_sqrt_pi() {
         let x2 = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(2)]);
         let neg = dc.apply_semantic(SemanticOperator::Negate, vec![x2]);
         let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![neg]);
-        let infinity = dc.symbol_id(dc.intern("Infinity"));
         let lower = dc.apply_semantic(SemanticOperator::Negate, vec![infinity]);
         (expression, variable, lower, infinity)
     };

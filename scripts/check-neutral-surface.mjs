@@ -39,6 +39,9 @@ const banned = [
   { re: /\bhead_name\s*[:=(]/, why: "string head semantic hub" },
   { re: /\.as_deref\(\)\s*==\s*Some\(\s*"Pi"\s*\)/, why: "symbol-name Pi constant check" },
   { re: /\.as_deref\(\)\s*==\s*Some\(\s*"E"\s*\)/, why: "symbol-name E constant check" },
+  { re: /\.as_deref\(\)\s*==\s*Some\(\s*"Infinity"\s*\)/, why: "symbol-name Infinity constant check" },
+  { re: /\.symbol\(\s*"Infinity"\s*\)/, why: "construct Infinity via user symbol (use MathematicalConstant)" },
+  { re: /\.intern\(\s*"Infinity"\s*\)/, why: "intern Infinity for math identity (use MathematicalConstant)" },
   { re: /Some\(\s*"True"\s*\)\s*=>/, why: "symbol-name True boolean arm" },
   { re: /Some\(\s*"False"\s*\)\s*=>/, why: "symbol-name False boolean arm" },
   {
@@ -97,6 +100,14 @@ const allowMatch = (rel, why) => {
     // `application_display_name` / comments mentioning head_name history are ok if we only ban `head_name` token as API.
     // Keep strict: only allow diagnostics comments that don't define the API.
     if (rel.includes("/diagnostics/")) return true;
+  }
+  // Negative contrast fixtures: typed Infinity ≠ user symbol named Infinity.
+  if (
+    (why === "construct Infinity via user symbol (use MathematicalConstant)" ||
+      why === "intern Infinity for math identity (use MathematicalConstant)") &&
+    rel.includes("athena-testing/")
+  ) {
+    return true;
   }
   return false;
 };

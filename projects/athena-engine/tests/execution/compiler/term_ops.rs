@@ -559,7 +559,7 @@ fn singular_forms_fold_to_indeterminate() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
 
-    let infinity = session.builder().symbol("Infinity", Default::default());
+    let infinity = session.builder().constant(MathematicalConstant::Infinity, Default::default());
     let inf_minus_inf = session.builder().application(subtract, vec![infinity, infinity], Default::default());
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(inf_minus_inf)).expect("inf-inf");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
