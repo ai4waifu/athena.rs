@@ -22,7 +22,14 @@ pub enum ArgumentEvaluationKind {
 pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: usize, index: usize) -> ArgumentEvaluationKind {
     // `Simplify` captures its argument: it is an algebraic transform of a value, not a fresh
     // source evaluation. Evaluating first would re-apply ambient Own (result transform leak).
-    if matches!(operator, SemanticOperator::Hold | SemanticOperator::Function | SemanticOperator::Simplify) {
+    if matches!(
+        operator,
+        SemanticOperator::Hold
+            | SemanticOperator::HoldComplete
+            | SemanticOperator::Unevaluated
+            | SemanticOperator::Function
+            | SemanticOperator::Simplify
+    ) {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
     // `Rule` (`->`): evaluate RHS at construction. Capture LHS (patterns / unevaluated heads).

@@ -163,7 +163,13 @@ impl ExecutionCompiler {
         block_id: BlockId,
         term: TermId,
     ) -> Result<SsaValueId> {
-        if matches!(session.arena.get(term), Some(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Hold), .. })) {
+        if matches!(
+            session.arena.get(term),
+            Some(TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Hold | SemanticOperator::HoldComplete | SemanticOperator::Unevaluated),
+                ..
+            })
+        ) {
             return self.lower_held_term(session, builder, blocks, block_id, term);
         }
         self.lower_term_into_block(session, builder, blocks, block_id, term)
