@@ -213,6 +213,10 @@ pub enum SemanticOperator {
     Simplify,
     /// 保持 / 引用参数。
     Hold,
+    /// 完全保持（比 `Hold` 更深的求值屏障；方言 `HoldComplete`）。
+    HoldComplete,
+    /// 单次不求值包装（方言 `Unevaluated`）。
+    Unevaluated,
     /// 匿名函数绑定器。
     Function,
     /// 封闭一元特殊函数。
@@ -334,10 +338,12 @@ impl SemanticOperator {
             Self::DiscreteDelta => 217,
             Self::Indeterminate => 218,
             Self::RealPart => 219,
+            Self::HoldComplete => 220,
+            Self::Unevaluated => 221,
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分残差 200–219）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分残差 200–221）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -413,6 +419,8 @@ impl SemanticOperator {
             217 => Some(Self::DiscreteDelta),
             218 => Some(Self::Indeterminate),
             219 => Some(Self::RealPart),
+            220 => Some(Self::HoldComplete),
+            221 => Some(Self::Unevaluated),
             _ => None,
         }
     }
@@ -468,6 +476,8 @@ impl SemanticOperator {
             Self::Matches => "Matches",
             Self::Simplify => "Simplify",
             Self::Hold => "Hold",
+            Self::HoldComplete => "HoldComplete",
+            Self::Unevaluated => "Unevaluated",
             Self::Function => "Function",
             Self::Unary(f) => f.debug_label(),
             Self::PolyGamma => "PolyGamma",
