@@ -249,7 +249,8 @@ fn call_args_from_axes(session: &mut Session, axes: &[IndexSpec]) -> Option<Vec<
     Some(args)
 }
 
-/// 1-based scalar / linear store into a collection. Returns the updated collection term.
+/// 1-based scalar / linear / `EndRelative` store into a collection.
+/// Out-of-range positive indices grow the collection, padding with exact `0`.
 pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[IndexSpec], value: TermId) -> Result<IndexOutcome> {
     let items = match session.arena.get(cur) {
         Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
@@ -264,33 +265,12 @@ pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[Index
     let len = items.len();
     match axes {
         [IndexSpec::Scalar(IntegerIndex(k))] | [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => {
-            if *k == 0 {
-                return Ok(IndexOutcome::Invalid {
-                    echo: cur,
-                    diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)),
-                });
-            }
-            let pos = if *k > 0 {
-                (*k - 1) as usize
-            } else {
-                let pos = len as i64 + *k;
-                if pos < 0 {
-                    return Ok(IndexOutcome::Invalid {
-                        echo: cur,
-                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)),
-                    });
-                }
-                pos as usize
-            };
-            if pos >= len {
-                return Ok(IndexOutcome::Invalid {
-                    echo: cur,
-                    diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)).detail("reason", "store_index_out_of_range"),
-                });
-            }
-            let mut next = items;
-            next[pos] = value;
-            Ok(IndexOutcome::Term(push_list(session, next)))
+            store_flat_at_one_based(session, cur, &items, len, *k, value)
+        }
+        [IndexSpec::EndRelative(IntegerOffset(off))] => {
+            // `end` → len, `end+1` → len+1 (grow/append).
+            let one_based = len as i64 + *off;
+            store_flat_at_one_based(session, cur, &items, len, one_based, value)
         }
         [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => {
             store_nested_matrix_cell(session, cur, *r, *c, value, &items, len)
@@ -302,6 +282,45 @@ pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[Index
                 .detail("reason", "unsupported_store_axes"),
         }),
     }
+}
+
+fn exact_zero(session: &mut Session) -> TermId {
+    session.builder().int(0, Default::default())
+}
+
+fn store_flat_at_one_based(
+    session: &mut Session,
+    cur: TermId,
+    items: &[TermId],
+    len: usize,
+    one_based: i64,
+    value: TermId,
+) -> Result<IndexOutcome> {
+    if one_based == 0 {
+        return Ok(IndexOutcome::Invalid {
+            echo: cur,
+            diagnostic: crate::diagnostics::invalid_index_diagnostic(one_based, Some(len as u64)),
+        });
+    }
+    let pos = if one_based > 0 {
+        (one_based - 1) as usize
+    } else {
+        let pos = len as i64 + one_based;
+        if pos < 0 {
+            return Ok(IndexOutcome::Invalid {
+                echo: cur,
+                diagnostic: crate::diagnostics::invalid_index_diagnostic(one_based, Some(len as u64)),
+            });
+        }
+        pos as usize
+    };
+    let mut next = items.to_vec();
+    if pos >= next.len() {
+        let zero = exact_zero(session);
+        next.resize(pos + 1, zero);
+    }
+    next[pos] = value;
+    Ok(IndexOutcome::Term(push_list(session, next)))
 }
 
 fn store_nested_matrix_cell(
@@ -321,37 +340,42 @@ fn store_nested_matrix_cell(
     }
     let ri = (row_1based - 1) as usize;
     let ci = (col_1based - 1) as usize;
-    if ri >= nrows {
-        return Ok(IndexOutcome::Invalid {
-            echo: cur,
-            diagnostic: crate::diagnostics::invalid_index_diagnostic(row_1based, Some(nrows as u64))
-                .detail("reason", "store_index_row_out_of_range"),
-        });
-    }
-    let cols = match session.arena.get(rows[ri]) {
-        Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
-        _ => {
-            return Ok(IndexOutcome::Invalid {
-                echo: cur,
-                diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "store_index_axes")
-                    .detail("reason", "store_index_row_not_collection"),
-            });
+
+    let current_ncols = rows
+        .first()
+        .and_then(|row| match session.arena.get(*row) {
+            Some(athena_ir::TermNode::Collection { elements, .. }) => Some(elements.len()),
+            _ => None,
+        })
+        .unwrap_or(0);
+    let target_ncols = current_ncols.max(ci + 1);
+
+    let mut new_rows = Vec::with_capacity(nrows.max(ri + 1));
+    for r in 0..nrows.max(ri + 1) {
+        let mut cols = if r < nrows {
+            match session.arena.get(rows[r]) {
+                Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+                _ => {
+                    return Ok(IndexOutcome::Invalid {
+                        echo: cur,
+                        diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "store_index_axes")
+                            .detail("reason", "store_index_row_not_collection"),
+                    });
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        if cols.len() < target_ncols {
+            let zero = exact_zero(session);
+            cols.resize(target_ncols, zero);
         }
-    };
-    let ncols = cols.len();
-    if ci >= ncols {
-        return Ok(IndexOutcome::Invalid {
-            echo: cur,
-            diagnostic: crate::diagnostics::invalid_index_diagnostic(col_1based, Some(ncols as u64))
-                .detail("reason", "store_index_col_out_of_range"),
-        });
+        if r == ri {
+            cols[ci] = value;
+        }
+        new_rows.push(push_list(session, cols));
     }
-    let mut new_cols = cols;
-    new_cols[ci] = value;
-    let new_row = push_list(session, new_cols);
-    let mut new_rows = rows.to_vec();
-    new_rows[ri] = new_row;
     Ok(IndexOutcome::Term(push_list(session, new_rows)))
 }
 
