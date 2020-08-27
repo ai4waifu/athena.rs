@@ -292,6 +292,9 @@ pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[Index
             next[pos] = value;
             Ok(IndexOutcome::Term(push_list(session, next)))
         }
+        [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => {
+            store_nested_matrix_cell(session, cur, *r, *c, value, &items, len)
+        }
         _ => Ok(IndexOutcome::Invalid {
             echo: cur,
             diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
@@ -299,6 +302,57 @@ pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[Index
                 .detail("reason", "unsupported_store_axes"),
         }),
     }
+}
+
+fn store_nested_matrix_cell(
+    session: &mut Session,
+    cur: TermId,
+    row_1based: i64,
+    col_1based: i64,
+    value: TermId,
+    rows: &[TermId],
+    nrows: usize,
+) -> Result<IndexOutcome> {
+    if row_1based <= 0 || col_1based <= 0 {
+        return Ok(IndexOutcome::Invalid {
+            echo: cur,
+            diagnostic: crate::diagnostics::invalid_index_diagnostic(row_1based, Some(nrows as u64)),
+        });
+    }
+    let ri = (row_1based - 1) as usize;
+    let ci = (col_1based - 1) as usize;
+    if ri >= nrows {
+        return Ok(IndexOutcome::Invalid {
+            echo: cur,
+            diagnostic: crate::diagnostics::invalid_index_diagnostic(row_1based, Some(nrows as u64))
+                .detail("reason", "store_index_row_out_of_range"),
+        });
+    }
+    let cols = match session.arena.get(rows[ri]) {
+        Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+        _ => {
+            return Ok(IndexOutcome::Invalid {
+                echo: cur,
+                diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "store_index_axes")
+                    .detail("reason", "store_index_row_not_collection"),
+            });
+        }
+    };
+    let ncols = cols.len();
+    if ci >= ncols {
+        return Ok(IndexOutcome::Invalid {
+            echo: cur,
+            diagnostic: crate::diagnostics::invalid_index_diagnostic(col_1based, Some(ncols as u64))
+                .detail("reason", "store_index_col_out_of_range"),
+        });
+    }
+    let mut new_cols = cols;
+    new_cols[ci] = value;
+    let new_row = push_list(session, new_cols);
+    let mut new_rows = rows.to_vec();
+    new_rows[ri] = new_row;
+    Ok(IndexOutcome::Term(push_list(session, new_rows)))
 }
 
 fn flatten_column_major(session: &mut Session, target: TermId) -> TermId {
