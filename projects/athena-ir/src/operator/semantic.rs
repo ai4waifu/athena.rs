@@ -217,6 +217,10 @@ pub enum SemanticOperator {
     HoldComplete,
     /// 单次不求值包装（方言 `Unevaluated`）。
     Unevaluated,
+    /// 计时包装（方言 `Timing`；HoldAll 捕获实参，无计时 runtime 时保持残差）。
+    Timing,
+    /// 求值轨迹包装（方言 `Trace`；HoldAll 捕获实参，无轨迹 runtime 时保持残差）。
+    Trace,
     /// 匿名函数绑定器。
     Function,
     /// 封闭一元特殊函数。
@@ -340,10 +344,12 @@ impl SemanticOperator {
             Self::RealPart => 219,
             Self::HoldComplete => 220,
             Self::Unevaluated => 221,
+            Self::Timing => 222,
+            Self::Trace => 223,
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分残差 200–221）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–223）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -421,6 +427,8 @@ impl SemanticOperator {
             219 => Some(Self::RealPart),
             220 => Some(Self::HoldComplete),
             221 => Some(Self::Unevaluated),
+            222 => Some(Self::Timing),
+            223 => Some(Self::Trace),
             _ => None,
         }
     }
@@ -478,6 +486,8 @@ impl SemanticOperator {
             Self::Hold => "Hold",
             Self::HoldComplete => "HoldComplete",
             Self::Unevaluated => "Unevaluated",
+            Self::Timing => "Timing",
+            Self::Trace => "Trace",
             Self::Function => "Function",
             Self::Unary(f) => f.debug_label(),
             Self::PolyGamma => "PolyGamma",
