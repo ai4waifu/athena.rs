@@ -9,6 +9,8 @@ fn hold_and_function_capture_all_args() {
         SemanticOperator::Hold,
         SemanticOperator::HoldComplete,
         SemanticOperator::Unevaluated,
+        SemanticOperator::Timing,
+        SemanticOperator::Trace,
         SemanticOperator::Function,
     ] {
         assert_eq!(argument_evaluation_for_semantic(op, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);

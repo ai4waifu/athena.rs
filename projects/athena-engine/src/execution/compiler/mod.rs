@@ -166,7 +166,13 @@ impl ExecutionCompiler {
         if matches!(
             session.arena.get(term),
             Some(TermNode::Application {
-                head: ApplicationHead::Semantic(SemanticOperator::Hold | SemanticOperator::HoldComplete | SemanticOperator::Unevaluated),
+                head: ApplicationHead::Semantic(
+                    SemanticOperator::Hold
+                        | SemanticOperator::HoldComplete
+                        | SemanticOperator::Unevaluated
+                        | SemanticOperator::Timing
+                        | SemanticOperator::Trace
+                ),
                 ..
             })
         ) {
