@@ -249,6 +249,58 @@ fn call_args_from_axes(session: &mut Session, axes: &[IndexSpec]) -> Option<Vec<
     Some(args)
 }
 
+/// 1-based scalar / linear store into a collection. Returns the updated collection term.
+pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[IndexSpec], value: TermId) -> Result<IndexOutcome> {
+    let items = match session.arena.get(cur) {
+        Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+        _ => {
+            return Ok(IndexOutcome::Invalid {
+                echo: cur,
+                diagnostic: crate::diagnostics::invalid_index_diagnostic(0, None)
+                    .detail("reason", "store_index_target_not_collection"),
+            });
+        }
+    };
+    let len = items.len();
+    match axes {
+        [IndexSpec::Scalar(IntegerIndex(k))] | [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => {
+            if *k == 0 {
+                return Ok(IndexOutcome::Invalid {
+                    echo: cur,
+                    diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)),
+                });
+            }
+            let pos = if *k > 0 {
+                (*k - 1) as usize
+            } else {
+                let pos = len as i64 + *k;
+                if pos < 0 {
+                    return Ok(IndexOutcome::Invalid {
+                        echo: cur,
+                        diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)),
+                    });
+                }
+                pos as usize
+            };
+            if pos >= len {
+                return Ok(IndexOutcome::Invalid {
+                    echo: cur,
+                    diagnostic: crate::diagnostics::invalid_index_diagnostic(*k, Some(len as u64)).detail("reason", "store_index_out_of_range"),
+                });
+            }
+            let mut next = items;
+            next[pos] = value;
+            Ok(IndexOutcome::Term(push_list(session, next)))
+        }
+        _ => Ok(IndexOutcome::Invalid {
+            echo: cur,
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "store_index_axes")
+                .detail("reason", "unsupported_store_axes"),
+        }),
+    }
+}
+
 fn flatten_column_major(session: &mut Session, target: TermId) -> TermId {
     let Some((nrows, ncols)) = nested_matrix_shape(session, target)
     else {

@@ -176,6 +176,13 @@ fn hash_operation_kind(hasher: &mut DefaultHasher, kind: &OperationKind) {
                 hash_index_spec(hasher, axis);
             }
         }
+        OperationKind::StoreIndex { target, axes, value } => {
+            target.0.hash(hasher);
+            value.0.hash(hasher);
+            for axis in axes {
+                hash_index_spec(hasher, axis);
+            }
+        }
         OperationKind::ReadBinding { key } => key.0.hash(hasher),
         OperationKind::WriteBinding { key, value, kind, evaluation } => {
             key.0.hash(hasher);

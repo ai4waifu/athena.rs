@@ -265,6 +265,7 @@ fn operation_kind_name(kind: &OperationKind) -> &'static str {
         OperationKind::ApplyExtensionOperator { .. } => "ApplyExtensionOperator",
         OperationKind::ConstructCollection { .. } => "ConstructCollection",
         OperationKind::Index { .. } => "Index",
+        OperationKind::StoreIndex { .. } => "StoreIndex",
         OperationKind::ReadBinding { .. } => "ReadBinding",
         OperationKind::WriteBinding { .. } => "WriteBinding",
         OperationKind::RegisterRuleDispatch { .. } => "RegisterRuleDispatch",

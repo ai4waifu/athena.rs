@@ -83,6 +83,7 @@ fn op_instruction_len(op: &crate::execution::ir::Operation) -> Result<u32> {
         | OperationKind::PublishResult { .. }
         | OperationKind::ConstructCollection { .. }
         | OperationKind::Index { .. }
+        | OperationKind::StoreIndex { .. }
         | OperationKind::RegisterRuleDispatch { .. }
         | OperationKind::RegisterCompiledRule { .. } => {
             if op.result.is_none() {
@@ -158,6 +159,7 @@ fn validate_op(module: &ExecutionModule, op: &crate::execution::ir::Operation) -
         | OperationKind::ExitScope { .. }
         | OperationKind::PublishResult { .. }
         | OperationKind::Index { .. }
+        | OperationKind::StoreIndex { .. }
         | OperationKind::RegisterRuleDispatch { .. }
         | OperationKind::RegisterCompiledRule { .. } => Ok(()),
         _ => Err(diag("lower_unsupported_operation")),
@@ -377,6 +379,20 @@ fn lower_ops(
                 let axes_id = IndexAxesId(index_axes.len() as u32);
                 index_axes.push(axes.clone());
                 instructions.push(Instruction::Index { dst: result.0, target: target.0, axes: axes_id });
+            }
+            OperationKind::StoreIndex { target, axes, value } => {
+                let result = op.result.ok_or_else(|| diag("lower_rejects_unit_only_op"))?;
+                bump(max_slot, result.0);
+                bump(max_slot, target.0);
+                bump(max_slot, value.0);
+                let axes_id = IndexAxesId(index_axes.len() as u32);
+                index_axes.push(axes.clone());
+                instructions.push(Instruction::StoreIndex {
+                    dst: result.0,
+                    target: target.0,
+                    value: value.0,
+                    axes: axes_id,
+                });
             }
             _ => return Err(diag("lower_unsupported_operation")),
         }

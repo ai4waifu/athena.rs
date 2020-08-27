@@ -41,6 +41,9 @@ impl ExecutionCompiler {
                 self.lower_iterate(session, builder, blocks, block_id, *binder, *range, body)
             }
             ControlPlan::Index { target, axes } => self.lower_index(session, builder, blocks, block_id, *target, axes),
+            ControlPlan::StoreIndex { target, axes, value } => {
+                self.lower_store_index(session, builder, blocks, block_id, *target, axes, *value)
+            }
             ControlPlan::Match { target, pattern } => self.lower_match_pattern(session, builder, blocks, block_id, *target, pattern),
             ControlPlan::CollectMatches { source, pattern } => self.lower_collect_matches(session, builder, blocks, block_id, *source, pattern),
         }
@@ -118,6 +121,79 @@ impl ExecutionCompiler {
             terminator: Terminator::return_value(indexed),
         });
         Ok(indexed)
+    }
+
+    /// Resolve Own for a symbol target, store through axes, write binding back, return RHS.
+    pub(crate) fn lower_store_index(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        target: TermId,
+        axes: &[athena_types::IndexSpec],
+        value: TermId,
+    ) -> Result<SsaValueId> {
+        use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+        let symbol = match session.arena.get(target) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            _ => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionCompiler")
+                    .detail("reason", "store_index_requires_symbol_target"));
+            }
+        };
+
+        let mut operations = Vec::new();
+        let key = builder.ssa();
+        let key_constant = builder.push_constant(crate::execution::ir::ConstantValue::symbol(symbol));
+        operations.push(Operation {
+            result: Some(key),
+            result_type: ExecutionValueType::Symbol,
+            kind: OperationKind::Constant { constant: key_constant },
+            effect_in: None,
+            effect_out: None,
+        });
+        let loaded = builder.ssa();
+        operations.push(Operation {
+            result: Some(loaded),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::ReadBinding { key },
+            effect_in: None,
+            effect_out: None,
+        });
+        let rhs = self.lower_pure_expr(session, builder, &mut operations, value)?;
+        let stored = builder.ssa();
+        operations.push(Operation {
+            result: Some(stored),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::StoreIndex { target: loaded, axes: axes.to_vec(), value: rhs },
+            effect_in: None,
+            effect_out: None,
+        });
+        let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+        let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+        let unit = builder.ssa();
+        operations.push(Operation {
+            result: Some(unit),
+            result_type: ExecutionValueType::Unit,
+            kind: OperationKind::WriteBinding {
+                key,
+                value: stored,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            },
+            effect_in: Some(effect_in),
+            effect_out: Some(effect_out),
+        });
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations,
+            terminator: Terminator::return_value(rhs),
+        });
+        Ok(rhs)
     }
 
     /// 编译期展开常量范围、替换绑定符，再 lowering 为 body 集合。
