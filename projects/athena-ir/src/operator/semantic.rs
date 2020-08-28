@@ -221,6 +221,10 @@ pub enum SemanticOperator {
     Timing,
     /// 求值轨迹包装（方言 `Trace`；HoldAll 捕获实参，无轨迹 runtime 时保持残差）。
     Trace,
+    /// 并行求值包装（方言 `ParallelEvaluate`；HoldAll 捕获，无并行 runtime 时保持残差）。
+    ParallelEvaluate,
+    /// 输入形式包装（方言 `InputForm`；HoldAllComplete 捕获，无格式化 runtime 时保持残差）。
+    InputForm,
     /// 匿名函数绑定器。
     Function,
     /// 封闭一元特殊函数。
@@ -346,10 +350,12 @@ impl SemanticOperator {
             Self::Unevaluated => 221,
             Self::Timing => 222,
             Self::Trace => 223,
+            Self::ParallelEvaluate => 224,
+            Self::InputForm => 225,
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–223）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–225）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -429,6 +435,8 @@ impl SemanticOperator {
             221 => Some(Self::Unevaluated),
             222 => Some(Self::Timing),
             223 => Some(Self::Trace),
+            224 => Some(Self::ParallelEvaluate),
+            225 => Some(Self::InputForm),
             _ => None,
         }
     }
@@ -488,6 +496,8 @@ impl SemanticOperator {
             Self::Unevaluated => "Unevaluated",
             Self::Timing => "Timing",
             Self::Trace => "Trace",
+            Self::ParallelEvaluate => "ParallelEvaluate",
+            Self::InputForm => "InputForm",
             Self::Function => "Function",
             Self::Unary(f) => f.debug_label(),
             Self::PolyGamma => "PolyGamma",
