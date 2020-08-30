@@ -172,6 +172,8 @@ impl ExecutionCompiler {
                         | SemanticOperator::Unevaluated
                         | SemanticOperator::Timing
                         | SemanticOperator::Trace
+                        | SemanticOperator::ParallelEvaluate
+                        | SemanticOperator::InputForm
                 ),
                 ..
             })

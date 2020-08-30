@@ -29,6 +29,8 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
             | SemanticOperator::Unevaluated
             | SemanticOperator::Timing
             | SemanticOperator::Trace
+            | SemanticOperator::ParallelEvaluate
+            | SemanticOperator::InputForm
             | SemanticOperator::Function
             | SemanticOperator::Simplify
     ) {
