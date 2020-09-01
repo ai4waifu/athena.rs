@@ -13,6 +13,7 @@ fn hold_and_function_capture_all_args() {
         SemanticOperator::Trace,
         SemanticOperator::ParallelEvaluate,
         SemanticOperator::InputForm,
+        SemanticOperator::Cancel,
         SemanticOperator::Function,
     ] {
         assert_eq!(argument_evaluation_for_semantic(op, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
