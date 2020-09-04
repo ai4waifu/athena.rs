@@ -9,11 +9,14 @@ use crate::{
     execution::{number_of, push_number, push_semantic},
     runtime::{
         session::Session,
-        values::{arena::push_list, numeric_clone::clone_number},
+        values::{
+            arena::{push_list, push_symbol_name},
+            numeric_clone::clone_number,
+        },
     },
 };
 
-/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest`。
+/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Head`。
 pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, term: TermId) -> Result<TermId> {
     match op {
         SemanticOperator::Abs => {
@@ -72,6 +75,18 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
             _ => Ok(push_semantic(session, SemanticOperator::Rest, vec![term])),
+        },
+        SemanticOperator::Head => match session.arena.get(term) {
+            // Ordered collections present as dialect `List`; Head returns that surface symbol.
+            Some(athena_ir::TermNode::Collection { .. }) => Ok(push_symbol_name(session, "List")),
+            Some(athena_ir::TermNode::Application { head, .. }) => match *head {
+                athena_ir::ApplicationHead::Semantic(inner) => Ok(push_semantic(session, inner, Vec::new())),
+                athena_ir::ApplicationHead::Extension(id) => {
+                    let name = session.extensions.display_name(id).unwrap_or("?").to_string();
+                    Ok(push_symbol_name(session, &name))
+                }
+            },
+            _ => Ok(push_semantic(session, SemanticOperator::Head, vec![term])),
         },
         _ => Err(diag("semantic_operator_not_implemented")),
     }
