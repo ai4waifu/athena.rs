@@ -1,9 +1,9 @@
 //! `Apply` / `ApplyHead` 应用形态。
 
-use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_ir::SemanticOperator;
 use athena_types::{Result, TermId};
 
-use super::{re_eval_term, rebuild_application};
+use super::{re_eval_term, rebuild_application, try_apply_callable};
 use crate::{execution::push_semantic, runtime::session::Session};
 
 /// `Apply[head, list]` — 列表实参展开后重建应用并再求值。
@@ -16,21 +16,10 @@ pub(crate) fn evaluate_apply_terms(session: &mut Session, head: TermId, second: 
     re_eval_term(session, app)
 }
 
-/// `ApplyHead[head, args…]` — `Function[var, body]` 绑定或 typed 残差。
+/// `ApplyHead[head, args…]` — `Function` 绑定（单参或多参 binder 列表）或 typed 残差。
 pub(crate) fn evaluate_apply_head_terms(session: &mut Session, head: TermId, call_args: Vec<TermId>) -> Result<TermId> {
-    // `Function[var, body][arg…]` → 替换并重新求值。
-    // 纯 `Function[body]` 需要方言 lowering 的 `AnonymousArgument`（不是字符串 Slot）。
-    if let Some(athena_ir::TermNode::Application { head: op, arguments }) = session.arena.get(head) {
-        if matches!(*op, ApplicationHead::Semantic(SemanticOperator::Function)) && call_args.len() == 1 {
-            let arguments = arguments.clone();
-            if let [var, body] = arguments.as_slice() {
-                if let Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(sym))) = session.arena.get(*var) {
-                    let sym = *sym;
-                    let instantiated = crate::execution::builtins::patterns::substitute_symbol(session, *body, sym, call_args[0]);
-                    return re_eval_term(session, instantiated);
-                }
-            }
-        }
+    if let Some(term) = try_apply_callable(session, head, &call_args)? {
+        return Ok(term);
     }
     // 禁止裸符号经显示名 intern 成扩展算子；保留 typed `ApplyHead` 残差。
     let mut wrapped = Vec::with_capacity(call_args.len() + 1);
