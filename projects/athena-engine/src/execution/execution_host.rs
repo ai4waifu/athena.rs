@@ -646,6 +646,12 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Rest.discriminant() {
             return self.apply_unary(SemanticOperator::Rest, args);
         }
+        if op.0 == SemanticOperator::Most.discriminant() {
+            return self.apply_unary(SemanticOperator::Most, args);
+        }
+        if op.0 == SemanticOperator::Reverse.discriminant() {
+            return self.apply_unary(SemanticOperator::Reverse, args);
+        }
         if op.0 == SemanticOperator::Head.discriminant() {
             return self.apply_unary(SemanticOperator::Head, args);
         }

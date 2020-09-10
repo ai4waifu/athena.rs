@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Head`。
+/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Most` / `Reverse` / `Head`。
 pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, term: TermId) -> Result<TermId> {
     match op {
         SemanticOperator::Abs => {
@@ -75,6 +75,33 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("rest_empty")),
             _ => Ok(push_semantic(session, SemanticOperator::Rest, vec![term])),
+        },
+        SemanticOperator::Most => match session.arena.get(term) {
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) if !items.is_empty() => {
+                let most = items[..items.len() - 1].to_vec();
+                Ok(push_list(session, most))
+            }
+            Some(athena_ir::TermNode::Application { head, arguments }) if !arguments.is_empty() => {
+                let head = *head;
+                let most = arguments[..arguments.len() - 1].to_vec();
+                Ok(session.builder().application(head, most, Default::default()))
+            }
+            Some(athena_ir::TermNode::Collection { elements: _, .. } | athena_ir::TermNode::Application { .. }) => Err(diag("most_empty")),
+            _ => Ok(push_semantic(session, SemanticOperator::Most, vec![term])),
+        },
+        SemanticOperator::Reverse => match session.arena.get(term) {
+            Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+                let mut rev = items.clone();
+                rev.reverse();
+                Ok(push_list(session, rev))
+            }
+            Some(athena_ir::TermNode::Application { head, arguments }) => {
+                let head = *head;
+                let mut rev = arguments.clone();
+                rev.reverse();
+                Ok(session.builder().application(head, rev, Default::default()))
+            }
+            _ => Ok(push_semantic(session, SemanticOperator::Reverse, vec![term])),
         },
         SemanticOperator::Head => match session.arena.get(term) {
             // Ordered collections present as dialect `List`; Head returns that surface symbol.

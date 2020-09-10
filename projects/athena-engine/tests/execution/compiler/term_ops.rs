@@ -141,6 +141,37 @@ fn compile_and_execute_first_rest_join() {
 }
 
 #[test]
+fn compile_and_execute_most_and_reverse() {
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let list = session.builder().list(vec![a, b, c], Default::default());
+
+    let most_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Most, vec![list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(most_term)).expect("most");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [a, b] => {}
+        other => panic!("expected Most == OrderedCollection[1,2], got {other:?}"),
+    }
+
+    let rev_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Reverse, vec![list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(rev_term)).expect("reverse");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [c, b, a] => {}
+        other => panic!("expected Reverse == OrderedCollection[3,2,1], got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
