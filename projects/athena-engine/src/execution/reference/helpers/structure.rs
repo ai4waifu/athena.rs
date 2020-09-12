@@ -26,6 +26,58 @@ pub(crate) fn evaluate_join_terms(session: &mut Session, terms: Vec<TermId>) -> 
     Ok(push_list(session, out))
 }
 
+/// `Take[list, n]` — 取前 `n` 个元素（`n ≥ 0`）；否则残差。
+pub(crate) fn evaluate_take_terms(session: &mut Session, list: TermId, count: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, count).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Take, vec![list, count]));
+    };
+    if n < 0 {
+        return Ok(push_semantic(session, SemanticOperator::Take, vec![list, count]));
+    }
+    let n = n as usize;
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let end = n.min(items.len());
+            let taken = items[..end].to_vec();
+            Ok(push_list(session, taken))
+        }
+        Some(athena_ir::TermNode::Application { head, arguments }) => {
+            let head = *head;
+            let end = n.min(arguments.len());
+            let taken = arguments[..end].to_vec();
+            Ok(session.builder().application(head, taken, Default::default()))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::Take, vec![list, count])),
+    }
+}
+
+/// `Drop[list, n]` — 丢弃前 `n` 个元素（`n ≥ 0`）；否则残差。
+pub(crate) fn evaluate_drop_terms(session: &mut Session, list: TermId, count: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, count).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Drop, vec![list, count]));
+    };
+    if n < 0 {
+        return Ok(push_semantic(session, SemanticOperator::Drop, vec![list, count]));
+    }
+    let n = n as usize;
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let start = n.min(items.len());
+            let dropped = items[start..].to_vec();
+            Ok(push_list(session, dropped))
+        }
+        Some(athena_ir::TermNode::Application { head, arguments }) => {
+            let head = *head;
+            let start = n.min(arguments.len());
+            let dropped = arguments[start..].to_vec();
+            Ok(session.builder().application(head, dropped, Default::default()))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::Drop, vec![list, count])),
+    }
+}
+
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
 pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
     let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
