@@ -177,6 +177,8 @@ pub enum SemanticOperator {
     Take,
     /// 丢弃前缀（方言 `Drop`；`Drop[list, n]`）。
     Drop,
+    /// 展平嵌套集合（方言 `Flatten`；默认全深度）。
+    Flatten,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -322,6 +324,7 @@ impl SemanticOperator {
             Self::Reverse => 231,
             Self::Take => 232,
             Self::Drop => 233,
+            Self::Flatten => 234,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -379,7 +382,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–233）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–234）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -412,6 +415,7 @@ impl SemanticOperator {
             231 => Some(Self::Reverse),
             232 => Some(Self::Take),
             233 => Some(Self::Drop),
+            234 => Some(Self::Flatten),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -506,6 +510,7 @@ impl SemanticOperator {
             Self::Reverse => "Reverse",
             Self::Take => "Take",
             Self::Drop => "Drop",
+            Self::Flatten => "Flatten",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
