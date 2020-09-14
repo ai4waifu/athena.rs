@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Most` / `Reverse` / `Head`。
+/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Most` / `Reverse` / `Flatten` / `Head`。
 pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, term: TermId) -> Result<TermId> {
     match op {
         SemanticOperator::Abs => {
@@ -103,6 +103,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             _ => Ok(push_semantic(session, SemanticOperator::Reverse, vec![term])),
         },
+        SemanticOperator::Flatten => match session.arena.get(term) {
+            Some(athena_ir::TermNode::Collection { .. }) => {
+                let mut out = Vec::new();
+                flatten_collections_into(session, term, &mut out);
+                Ok(push_list(session, out))
+            }
+            _ => Ok(push_semantic(session, SemanticOperator::Flatten, vec![term])),
+        },
         SemanticOperator::Head => match session.arena.get(term) {
             // Ordered collections present as dialect `List`; Head returns that surface symbol.
             Some(athena_ir::TermNode::Collection { .. }) => Ok(push_symbol_name(session, "List")),
@@ -116,5 +124,17 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             _ => Ok(push_semantic(session, SemanticOperator::Head, vec![term])),
         },
         _ => Err(diag("semantic_operator_not_implemented")),
+    }
+}
+
+/// 递归展平有序集合元素（叶子非集合保留原样）。
+fn flatten_collections_into(session: &Session, term: TermId, out: &mut Vec<TermId>) {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            for item in items {
+                flatten_collections_into(session, *item, out);
+            }
+        }
+        _ => out.push(term),
     }
 }
