@@ -78,6 +78,44 @@ pub(crate) fn evaluate_drop_terms(session: &mut Session, list: TermId, count: Te
     }
 }
 
+/// `Append[list, elem]` — 末尾追加；非集合则残差。
+pub(crate) fn evaluate_append_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let mut out = items.clone();
+            out.push(elem);
+            Ok(push_list(session, out))
+        }
+        Some(athena_ir::TermNode::Application { head, arguments }) => {
+            let head = *head;
+            let mut out = arguments.clone();
+            out.push(elem);
+            Ok(session.builder().application(head, out, Default::default()))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::Append, vec![list, elem])),
+    }
+}
+
+/// `Prepend[list, elem]` — 头部插入；非集合则残差。
+pub(crate) fn evaluate_prepend_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let mut out = Vec::with_capacity(items.len() + 1);
+            out.push(elem);
+            out.extend_from_slice(items);
+            Ok(push_list(session, out))
+        }
+        Some(athena_ir::TermNode::Application { head, arguments }) => {
+            let head = *head;
+            let mut out = Vec::with_capacity(arguments.len() + 1);
+            out.push(elem);
+            out.extend_from_slice(arguments);
+            Ok(session.builder().application(head, out, Default::default()))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::Prepend, vec![list, elem])),
+    }
+}
+
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
 pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
     let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();
