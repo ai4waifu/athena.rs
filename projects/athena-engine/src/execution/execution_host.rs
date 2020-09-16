@@ -22,7 +22,8 @@ use crate::{
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
             evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
-            evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms, evaluate_matrix_constructor_terms,
+            evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
+            evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms, evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
@@ -219,6 +220,34 @@ impl<'a> ExecutionHost<'a> {
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_prepend_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_member_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::MemberQ.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_member_q_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_sort(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Sort.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let term = evaluate_sort_terms(self.session, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_delete_duplicates(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::DeleteDuplicates.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let term = evaluate_delete_duplicates_terms(self.session, list)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -712,6 +741,15 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Prepend.discriminant() {
             return self.apply_prepend(args);
+        }
+        if op.0 == SemanticOperator::MemberQ.discriminant() {
+            return self.apply_member_q(args);
+        }
+        if op.0 == SemanticOperator::Sort.discriminant() {
+            return self.apply_sort(args);
+        }
+        if op.0 == SemanticOperator::DeleteDuplicates.discriminant() {
+            return self.apply_delete_duplicates(args);
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);
