@@ -189,6 +189,12 @@ pub enum SemanticOperator {
     Sort,
     /// 去重（方言 `DeleteDuplicates`；首次出现保留）。
     DeleteDuplicates,
+    /// 计数（方言 `Count`；结构相等出现次数）。
+    Count,
+    /// 分组切片（方言 `Partition`；`Partition[list, n]`）。
+    Partition,
+    /// 常数数组（方言 `ConstantArray`）。
+    ConstantArray,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -340,6 +346,9 @@ impl SemanticOperator {
             Self::MemberQ => 237,
             Self::Sort => 238,
             Self::DeleteDuplicates => 239,
+            Self::Count => 240,
+            Self::Partition => 241,
+            Self::ConstantArray => 242,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -397,7 +406,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–239）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–242）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -436,6 +445,9 @@ impl SemanticOperator {
             237 => Some(Self::MemberQ),
             238 => Some(Self::Sort),
             239 => Some(Self::DeleteDuplicates),
+            240 => Some(Self::Count),
+            241 => Some(Self::Partition),
+            242 => Some(Self::ConstantArray),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -536,6 +548,9 @@ impl SemanticOperator {
             Self::MemberQ => "MemberQ",
             Self::Sort => "Sort",
             Self::DeleteDuplicates => "DeleteDuplicates",
+            Self::Count => "Count",
+            Self::Partition => "Partition",
+            Self::ConstantArray => "ConstantArray",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
