@@ -167,6 +167,58 @@ pub(crate) fn evaluate_delete_duplicates_terms(session: &mut Session, list: Term
     Ok(push_list(session, out))
 }
 
+/// `Count[list, elem]` — 结构相等出现次数。
+pub(crate) fn evaluate_count_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let n = items.iter().filter(|item| session.arena.structural_eq(**item, elem)).count() as i64;
+            Ok(session.builder().int(n, Default::default()))
+        }
+        Some(athena_ir::TermNode::Application { arguments, .. }) => {
+            let n = arguments.iter().filter(|item| session.arena.structural_eq(**item, elem)).count() as i64;
+            Ok(session.builder().int(n, Default::default()))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::Count, vec![list, elem])),
+    }
+}
+
+/// `Partition[list, n]` — 按长度 `n` 切块（丢弃不足一块的尾部）。
+pub(crate) fn evaluate_partition_terms(session: &mut Session, list: TermId, size: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, size).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Partition, vec![list, size]));
+    };
+    if n <= 0 {
+        return Ok(push_semantic(session, SemanticOperator::Partition, vec![list, size]));
+    }
+    let n = n as usize;
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Partition, vec![list, size]));
+    };
+    let items = items.clone();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i + n <= items.len() {
+        let chunk = push_list(session, items[i..i + n].to_vec());
+        out.push(chunk);
+        i += n;
+    }
+    Ok(push_list(session, out))
+}
+
+/// `ConstantArray[elem, n]` — 长度 `n` 的常数列表。
+pub(crate) fn evaluate_constant_array_terms(session: &mut Session, elem: TermId, count: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, count).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::ConstantArray, vec![elem, count]));
+    };
+    if n < 0 {
+        return Ok(push_semantic(session, SemanticOperator::ConstantArray, vec![elem, count]));
+    }
+    Ok(push_list(session, vec![elem; n as usize]))
+}
+
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
 pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
     let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();

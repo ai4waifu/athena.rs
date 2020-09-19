@@ -23,7 +23,8 @@ use crate::{
             evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
-            evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms, evaluate_matrix_constructor_terms,
+            evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
+            evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
@@ -248,6 +249,36 @@ impl<'a> ExecutionHost<'a> {
         }
         let list = self.slot_as_term(args[0])?;
         let term = evaluate_delete_duplicates_terms(self.session, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_count(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Count.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_count_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_partition(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Partition.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let size = self.slot_as_term(args[1])?;
+        let term = evaluate_partition_terms(self.session, list, size)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_constant_array(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ConstantArray.discriminant())));
+        }
+        let elem = self.slot_as_term(args[0])?;
+        let count = self.slot_as_term(args[1])?;
+        let term = evaluate_constant_array_terms(self.session, elem, count)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -750,6 +781,15 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::DeleteDuplicates.discriminant() {
             return self.apply_delete_duplicates(args);
+        }
+        if op.0 == SemanticOperator::Count.discriminant() {
+            return self.apply_count(args);
+        }
+        if op.0 == SemanticOperator::Partition.discriminant() {
+            return self.apply_partition(args);
+        }
+        if op.0 == SemanticOperator::ConstantArray.discriminant() {
+            return self.apply_constant_array(args);
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);
