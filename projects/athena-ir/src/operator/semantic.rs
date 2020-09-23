@@ -195,6 +195,18 @@ pub enum SemanticOperator {
     Partition,
     /// 常数数组（方言 `ConstantArray`）。
     ConstantArray,
+    /// 并集（方言 `Union`；结构去重，精确整数时升序）。
+    Union,
+    /// 交集（方言 `Intersection`；结构相等，精确整数时升序）。
+    Intersection,
+    /// 前缀累加（方言 `Accumulate`）。
+    Accumulate,
+    /// 相邻差分（方言 `Differences`）。
+    Differences,
+    /// 自由谓词（方言 `FreeQ`；顶层元素无匹配）。
+    FreeQ,
+    /// 按位置提取（方言 `Extract`；1-based 整数下标）。
+    Extract,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -349,6 +361,12 @@ impl SemanticOperator {
             Self::Count => 240,
             Self::Partition => 241,
             Self::ConstantArray => 242,
+            Self::Union => 243,
+            Self::Intersection => 244,
+            Self::Accumulate => 245,
+            Self::Differences => 246,
+            Self::FreeQ => 247,
+            Self::Extract => 248,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -406,7 +424,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–242）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–248）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -448,6 +466,12 @@ impl SemanticOperator {
             240 => Some(Self::Count),
             241 => Some(Self::Partition),
             242 => Some(Self::ConstantArray),
+            243 => Some(Self::Union),
+            244 => Some(Self::Intersection),
+            245 => Some(Self::Accumulate),
+            246 => Some(Self::Differences),
+            247 => Some(Self::FreeQ),
+            248 => Some(Self::Extract),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -551,6 +575,12 @@ impl SemanticOperator {
             Self::Count => "Count",
             Self::Partition => "Partition",
             Self::ConstantArray => "ConstantArray",
+            Self::Union => "Union",
+            Self::Intersection => "Intersection",
+            Self::Accumulate => "Accumulate",
+            Self::Differences => "Differences",
+            Self::FreeQ => "FreeQ",
+            Self::Extract => "Extract",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
