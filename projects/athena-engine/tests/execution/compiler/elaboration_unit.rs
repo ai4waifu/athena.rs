@@ -48,9 +48,8 @@ fn map_and_map_indexed_capture_first() {
 }
 
 #[test]
-fn head_captures_first_arg_only() {
-    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Head, 1, 0), ArgumentEvaluationKind::CaptureAsTerm);
-    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Head, 2, 1), ArgumentEvaluationKind::Evaluate);
+fn head_evaluates_argument() {
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Head, 1, 0), ArgumentEvaluationKind::Evaluate);
 }
 
 #[test]

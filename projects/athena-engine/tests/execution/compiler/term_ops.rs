@@ -458,6 +458,7 @@ fn compile_and_execute_head_of_add_and_list() {
     let mut session = Session::new();
     let one = session.builder().int(1, Default::default());
     let two = session.builder().int(2, Default::default());
+    // Head evaluates args: Head[1+2] → Head[3] → Integer (not HoldFirst → Add).
     let sum = session.builder().application_semantic(SemanticOperator::Add, vec![one, two], Default::default());
     let head_sum = session
         .builder()
@@ -465,13 +466,7 @@ fn compile_and_execute_head_of_add_and_list() {
     let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(head_sum)).expect("head add");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
-    match session.arena.get(out) {
-        Some(TermNode::Application {
-            head: ApplicationHead::Semantic(SemanticOperator::Add),
-            arguments,
-        }) if arguments.is_empty() => {}
-        other => panic!("expected 0-ary Add from Head[1+2], got {other:?}"),
-    }
+    assert_eq!(symbol_name(&session, out).as_deref(), Some("Integer"));
 
     let list = session.builder().list(vec![one, two], Default::default());
     let head_list = session
@@ -481,6 +476,23 @@ fn compile_and_execute_head_of_add_and_list() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     assert_eq!(symbol_name(&session, out).as_deref(), Some("List"));
+
+    let a = session.builder().symbol("a", Default::default());
+    let b = session.builder().symbol("b", Default::default());
+    let free_sum = session.builder().application_semantic(SemanticOperator::Add, vec![a, b], Default::default());
+    let head_free = session
+        .builder()
+        .application_semantic(SemanticOperator::Head, vec![free_sum], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(head_free)).expect("head free");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+        }) if arguments.is_empty() => {}
+        other => panic!("expected 0-ary Add from Head[a+b], got {other:?}"),
+    }
 }
 
 #[test]
