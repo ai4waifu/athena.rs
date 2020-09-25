@@ -71,6 +71,19 @@ impl TypedEgraphAdmitReport {
     }
 }
 
+/// Exact-domain convention for `0^0` (both operands exact zero).
+///
+/// Neutral kernel default is [`Self::Indeterminate`]. Dialects may select [`Self::One`]
+/// (MATLAB exact-domain) without lowering literal special-cases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ZeroPowerZeroConvention {
+    /// Map `0^0` to `Indeterminate` (Athena / Mathematica default).
+    #[default]
+    Indeterminate,
+    /// Map `0^0` to exact integer `1` (MATLAB exact-domain convention).
+    One,
+}
+
 /// 一次顶层请求共享的执行控制（嵌套 `re_eval` / host 子调用继承）。
 ///
 /// 取消令牌与步数预算均可克隆共享；步进在 VM 解释循环中实时扣减。
@@ -136,6 +149,8 @@ pub struct Session {
     heap: Rc<RefCell<GcHeap>>,
     /// 当前顶层请求的共享执行控制（嵌套求值继承；无外层时为 `None`）。
     shared_execution: Option<SharedExecutionControl>,
+    /// Exact-domain `0^0` convention (dialect-selected; default `Indeterminate`).
+    pub zero_pow_zero: ZeroPowerZeroConvention,
     /// 可信微积分内核本轮精确结果（`request_identity` → 结果项），供准入免重算。
     trusted_calculus: HashMap<u64, TermId>,
 }
@@ -162,6 +177,7 @@ impl core::fmt::Debug for Session {
             .field("assumption_scopes", &self.assumption_scopes)
             .field("heap_id", &self.heap.borrow().id())
             .field("shared_execution", &self.shared_execution.is_some())
+            .field("zero_pow_zero", &self.zero_pow_zero)
             .finish()
     }
 }
@@ -201,6 +217,7 @@ impl Session {
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
             shared_execution: None,
+            zero_pow_zero: ZeroPowerZeroConvention::Indeterminate,
             trusted_calculus: HashMap::new(),
         }
     }
