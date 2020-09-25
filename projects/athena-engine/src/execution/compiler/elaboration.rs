@@ -56,7 +56,12 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
             || (operator == SemanticOperator::Sum && arg_count == 2)
             || matches!(
                 operator,
-                SemanticOperator::Apply | SemanticOperator::Map | SemanticOperator::MapIndexed | SemanticOperator::MapThread
+                SemanticOperator::Apply
+                    | SemanticOperator::Map
+                    | SemanticOperator::MapIndexed
+                    | SemanticOperator::MapThread
+                    // `Array` first arg is an operator value (`f` / 0-ary head), same capture as `Map`.
+                    | SemanticOperator::Array
             ))
     {
         return ArgumentEvaluationKind::CaptureAsTerm;

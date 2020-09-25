@@ -26,7 +26,8 @@ use crate::{
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
-            evaluate_extract_terms, evaluate_matrix_constructor_terms,
+            evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
+            evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
@@ -337,6 +338,46 @@ impl<'a> ExecutionHost<'a> {
         let list = self.slot_as_term(args[0])?;
         let index = self.slot_as_term(args[1])?;
         let term = evaluate_extract_terms(self.session, list, index)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_pad_left(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::PadLeft.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let len = self.slot_as_term(args[1])?;
+        let term = evaluate_pad_left_terms(self.session, list, len)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_riffle(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Riffle.discriminant())));
+        }
+        let left = self.slot_as_term(args[0])?;
+        let right = self.slot_as_term(args[1])?;
+        let term = evaluate_riffle_terms(self.session, left, right)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_position(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Position.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_position_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_array(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Array.discriminant())));
+        }
+        let func = self.slot_as_term(args[0])?;
+        let count = self.slot_as_term(args[1])?;
+        let term = evaluate_array_terms(self.session, func, count)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -866,6 +907,18 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Extract.discriminant() {
             return self.apply_extract(args);
+        }
+        if op.0 == SemanticOperator::PadLeft.discriminant() {
+            return self.apply_pad_left(args);
+        }
+        if op.0 == SemanticOperator::Riffle.discriminant() {
+            return self.apply_riffle(args);
+        }
+        if op.0 == SemanticOperator::Position.discriminant() {
+            return self.apply_position(args);
+        }
+        if op.0 == SemanticOperator::Array.discriminant() {
+            return self.apply_array(args);
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);
