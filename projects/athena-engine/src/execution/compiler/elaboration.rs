@@ -24,8 +24,8 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
     // Hold / HoldComplete / Unevaluated / Function: true hold barriers.
     // Timing / Trace / ParallelEvaluate: Mathematica HoldAll — capture is language-correct;
     //   wall-clock / step-list / scheduler runtimes are still missing (residuals).
-    // InputForm / Cancel: **not** HoldAll in Mathematica — kept here only as temporary
-    //   Form-preservation stubs; must move to presentation / algebra contracts, not stay as capture.
+    // InputForm: Mathematica HoldAllComplete — capture is language-correct until presentation runtime.
+    // Cancel: **not** Hold — args evaluate; residual echo until algebra Cancel kernel exists.
     if matches!(
         operator,
         SemanticOperator::Hold
@@ -35,7 +35,6 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
             | SemanticOperator::Trace
             | SemanticOperator::ParallelEvaluate
             | SemanticOperator::InputForm
-            | SemanticOperator::Cancel
             | SemanticOperator::Function
             | SemanticOperator::Simplify
     ) {

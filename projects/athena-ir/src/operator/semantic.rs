@@ -275,9 +275,9 @@ pub enum SemanticOperator {
     ParallelEvaluate,
     /// 输入形式包装（方言 `InputForm`；HoldAllComplete 捕获，无格式化 runtime 时保持残差）。
     InputForm,
-    /// 有理消去包装（方言 `Cancel`；捕获实参，无 Cancel kernel 时保持残差，禁止提前代数改写）。
+    /// 有理消去（方言 `Cancel`；实参求值；无 Cancel kernel 时残差回声）。
     Cancel,
-    /// 提取应用 / 集合的 head（方言 `Head`；HoldFirst 捕获第 0 参，再结构抽取）。
+    /// 提取应用 / 集合的 head（方言 `Head`；实参先求值再结构抽取）。
     Head,
     /// 匿名函数绑定器。
     Function,
