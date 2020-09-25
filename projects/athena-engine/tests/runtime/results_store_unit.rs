@@ -25,3 +25,16 @@ fn computation_result_with_provider_stamps_version() {
     assert_eq!(result.provider, Some(ResultProviderId::NUMBER_THEORY.stamped()));
     assert_eq!(result.coverage, CoverageStatus::Full);
 }
+
+#[test]
+fn result_store_links_derived_from_parent() {
+    use athena_engine::runtime::results::ResultStore;
+    use athena_types::ResultId;
+
+    let mut store = ResultStore::new();
+    let parent = store.insert(ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full));
+    let child = store.insert(ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full));
+    assert!(store.link_derived_from(child, parent));
+    assert_eq!(store.get(child).and_then(|r| r.derived_from), Some(parent));
+    assert!(!store.link_derived_from(child, ResultId(999)));
+}
