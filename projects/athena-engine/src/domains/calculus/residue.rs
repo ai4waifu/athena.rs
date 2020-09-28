@@ -35,9 +35,9 @@ impl Residue {
 
 /// 计算 `Res(expression, variable → point)`。
 ///
-/// 引导实现：对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
+/// 引导实现：先尝试简单极点商式 `f/g`（含 `1/g`）；否则对 `point` 做 Laurent（正则部分阶 0），提取 `power == -1` 的系数。
 pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> Result<CalculusResult<Residue>> {
-    if let Some(value) = try_simple_reciprocal_pole(cc, expression, variable, point)? {
+    if let Some(value) = try_simple_pole_quotient(cc, expression, variable, point)? {
         return Ok(CalculusResult::Exact {
             value: Residue { expression, variable, point, value, pole_order: 1 },
             conditions: Vec::new(),
@@ -77,55 +77,96 @@ pub fn residue_checked(cc: &mut DomainExecutionContext<'_>, expression: TermId, 
     })
 }
 
-/// `1/g` with simple zero of `g` at `point` → residue `1/g'(point)`.
-fn try_simple_reciprocal_pole(
+/// Simple pole: `f/g` or `f·g^{-1}` with `g(a)=0`, `g'(a)≠0` → residue `f(a)/g'(a)`.
+///
+/// Covers `1/z`, `1/(z-1)`, and `Exp[z]/z` (not only exact reciprocal `1/g`).
+fn try_simple_pole_quotient(
     cc: &mut DomainExecutionContext<'_>,
     expression: TermId,
     variable: SymbolId,
     point: TermId,
 ) -> Result<Option<TermId>> {
-    let Some(base) = reciprocal_base(cc, expression) else {
+    let Some((num, den)) = quotient_parts(cc, expression)
+    else {
         return Ok(None);
     };
-    let at = cc.fold_term(replace_symbol(cc, base, variable, point))?;
-    if !is_zero_like(cc, at) {
+    let den_at = cc.fold_term(replace_symbol(cc, den, variable, point))?;
+    if !is_zero_like(cc, den_at) {
         return Ok(None);
     }
-    let deriv = differentiate(cc, base, variable)?;
-    let d_at = cc.fold_term(replace_symbol(cc, deriv, variable, point))?;
-    if is_zero_like(cc, d_at) || contains_open_head(cc, d_at) {
+    let num_at = cc.fold_term(replace_symbol(cc, num, variable, point))?;
+    if looks_singular_value(cc, num_at) {
         return Ok(None);
+    }
+    let deriv = differentiate(cc, den, variable)?;
+    let d_at = cc.fold_term(replace_symbol(cc, deriv, variable, point))?;
+    if is_zero_like(cc, d_at) || looks_singular_value(cc, d_at) || contains_open_head(cc, d_at) {
+        return Ok(None);
+    }
+    if is_zero_like(cc, num_at) {
+        return Ok(Some(cc.in_(0)));
     }
     if cc.number_of(d_at).is_some_and(|n| n.is_one()) {
-        return Ok(Some(cc.in_(1)));
+        return Ok(Some(num_at));
     }
     let inv = cc.apply_semantic(SemanticOperator::Power, vec![d_at, cc.in_(-1)]);
-    Ok(Some(cc.fold_term(inv)?))
+    let prod = cc.apply_semantic(SemanticOperator::Multiply, vec![num_at, inv]);
+    Ok(Some(cc.fold_term(prod)?))
 }
 
-fn reciprocal_base(cc: &DomainExecutionContext<'_>, expression: TermId) -> Option<TermId> {
+/// Split `f/g`, `g^{-1}`, or `f·g^{-1}` (exactly one reciprocal power factor) into `(f, g)`.
+fn quotient_parts(cc: &mut DomainExecutionContext<'_>, expression: TermId) -> Option<(TermId, TermId)> {
     match cc.application_head(expression) {
+        Some((ApplicationHead::Semantic(SemanticOperator::Divide), args)) if args.len() == 2 => Some((args[0], args[1])),
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
             if args.len() == 2 && cc.int_exp(args[1]) == Some(-1) =>
         {
-            Some(args[0])
+            Some((cc.in_(1), args[0]))
         }
-        Some((ApplicationHead::Semantic(SemanticOperator::Divide), args)) if args.len() == 2 && is_exact_one(cc, args[0]) => Some(args[1]),
+        Some((ApplicationHead::Semantic(SemanticOperator::Multiply), args)) if !args.is_empty() => {
+            let mut reciprocal: Option<TermId> = None;
+            let mut num_factors = Vec::new();
+            for arg in args {
+                match cc.application_head(arg) {
+                    Some((ApplicationHead::Semantic(SemanticOperator::Power), pargs))
+                        if pargs.len() == 2 && cc.int_exp(pargs[1]) == Some(-1) =>
+                    {
+                        if reciprocal.is_some() {
+                            return None;
+                        }
+                        reciprocal = Some(pargs[0]);
+                    }
+                    _ => num_factors.push(arg),
+                }
+            }
+            let den = reciprocal?;
+            let num = match num_factors.as_slice() {
+                [] => cc.in_(1),
+                [only] => *only,
+                many => cc.apply_semantic(SemanticOperator::Multiply, many.to_vec()),
+            };
+            Some((num, den))
+        }
         _ => None,
     }
 }
 
-fn is_exact_one(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
-    cc.number_of(term).is_some_and(|n| n.as_exact_integer() == Some(1))
-}
-
 fn is_singular_at_point(cc: &mut DomainExecutionContext<'_>, expression: TermId, variable: SymbolId, point: TermId) -> Result<bool> {
     let at = cc.fold_term(replace_symbol(cc, expression, variable, point))?;
-    Ok(matches!(
-        cc.application_head(at),
+    Ok(looks_singular_value(cc, at) || contains_open_head(cc, at))
+}
+
+fn looks_singular_value(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
+    match cc.application_head(term) {
+        Some((ApplicationHead::Semantic(SemanticOperator::Indeterminate), _)) => true,
         Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
-            if args.len() == 2 && is_zero_like(cc, args[0]) && !is_zero_like(cc, args[1])
-    ) || contains_open_head(cc, at))
+            if args.len() == 2 && is_zero_like(cc, args[0]) && !is_zero_like(cc, args[1]) =>
+        {
+            true
+        }
+        Some((ApplicationHead::Semantic(SemanticOperator::Divide), args)) if args.len() == 2 && is_zero_like(cc, args[1]) => true,
+        _ => false,
+    }
 }
 
 fn contains_open_head(cc: &DomainExecutionContext<'_>, term: TermId) -> bool {
