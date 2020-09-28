@@ -2,4 +2,4 @@
 
 pub mod fingerprint;
 
-pub use fingerprint::{canonical_hash, canonical_hash_named, fnv1a64};
+pub use fingerprint::{canonical_hash, fnv1a64};
