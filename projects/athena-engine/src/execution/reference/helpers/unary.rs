@@ -6,7 +6,7 @@ use athena_types::{Result, TermId};
 
 use super::diag;
 use crate::{
-    execution::{number_of, push_number, push_semantic},
+    execution::{number_of, push_extension, push_number, push_semantic},
     runtime::{
         session::Session,
         values::{
@@ -116,10 +116,8 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             Some(athena_ir::TermNode::Collection { .. }) => Ok(push_symbol_name(session, "List")),
             Some(athena_ir::TermNode::Application { head, .. }) => match *head {
                 athena_ir::ApplicationHead::Semantic(inner) => Ok(push_semantic(session, inner, Vec::new())),
-                athena_ir::ApplicationHead::Extension(id) => {
-                    let name = session.extensions.display_name(id).unwrap_or("?").to_string();
-                    Ok(push_symbol_name(session, &name))
-                }
+                // Keep Extension identity; do not reify display_name into a Symbol atom.
+                athena_ir::ApplicationHead::Extension(id) => Ok(push_extension(session, id, Vec::new())),
             },
             Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer().is_some() => {
                 Ok(push_symbol_name(session, "Integer"))
