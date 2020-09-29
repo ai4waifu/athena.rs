@@ -15,7 +15,7 @@ use crate::{
 
 use super::stages::{
     self, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, StageFingerprint, canonicalize_request,
-    materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text,
+    materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text, request_stage_fingerprint,
 };
 
 /// 兼容旧名：Request 阶段视图即 [`RequestProgram`]。
@@ -49,8 +49,11 @@ impl CompileObservation {
     /// 渲染四阶段稳定观测文本。
     pub fn render(&self) -> String {
         let mut out = String::new();
-        let _ =
-            writeln!(out, "stage request kind={} term={:?} fp={:#x}", self.request.kind, self.request.term_index, self.request.fingerprint.0);
+        let _ = writeln!(
+            out,
+            "stage request kind={} term={:?} payload={:?} fp={:#x}",
+            self.request.kind, self.request.term_index, self.request.payload_tag, self.request.fingerprint.0
+        );
         let _ = writeln!(
             out,
             "stage plan intent={:?} provider_required={} fp={:#x}",
@@ -146,7 +149,8 @@ pub fn verify_observation(observation: &CompileObservation, module: &ExecutionMo
     if observation.semantic.fingerprint != recomputed_semantic.fingerprint {
         return Err(stage_diag(CompileStageKind::Semantic, "semantic_fingerprint_drift"));
     }
-    let recomputed_request = canonicalize_request_fingerprint(observation.request.kind, observation.request.term_index);
+    let recomputed_request =
+        request_stage_fingerprint(observation.request.kind, observation.request.term_index, observation.request.payload_tag);
     if observation.request.fingerprint != recomputed_request {
         return Err(stage_diag(CompileStageKind::Request, "request_fingerprint_drift"));
     }
@@ -161,14 +165,6 @@ fn dump_plan_intent_for_kind(kind: &str) -> Result<PlanIntent> {
         "Goal" => Ok(PlanIntent::DomainProvider),
         _ => Err(stage_diag(CompileStageKind::Request, "unknown_request_kind")),
     }
-}
-
-fn canonicalize_request_fingerprint(kind: &str, term_index: Option<u32>) -> StageFingerprint {
-    stages::stage_fingerprint(CompileStageKind::Request, |h| {
-        use std::hash::Hash;
-        kind.hash(h);
-        term_index.hash(h);
-    })
 }
 
 fn stage_diag(stage: CompileStageKind, reason: &str) -> Diagnostic {
