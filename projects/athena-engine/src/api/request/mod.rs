@@ -14,6 +14,8 @@ pub use domain_goal::DomainGoal;
 pub use session_command::SessionCommand;
 
 /// 一次后端请求（方言 lowering 的目标合同）。
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum AthenaRequest {
     /// 纯符号项 / 数学项求值或改写入口。
@@ -34,6 +36,16 @@ impl AthenaRequest {
             Self::Command(_) => "Command",
             Self::Control(_) => "Control",
             Self::Goal(_) => "Goal",
+        }
+    }
+
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Term(term) => Self::Term(*term),
+            Self::Command(command) => Self::Command(command.clone()),
+            Self::Control(control) => Self::Control(control.owning_copy()),
+            Self::Goal(goal) => Self::Goal(goal.owning_copy()),
         }
     }
 }

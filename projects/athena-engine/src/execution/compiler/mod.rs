@@ -51,7 +51,7 @@ impl ExecutionCompiler {
     /// 对照 Session 快照将请求 lowering 为 [`ExecutionModule`]。
     ///
     /// 先产出 [`RequestProgram`] / [`PlanProgram`]，校验阶段链后由二者驱动根路由。
-    /// Term / Goal / Command 载荷取自 [`RequestProgram`]；控制流仍过渡读 [`AthenaRequest`]。
+    /// Term / Goal / Command / Control 载荷取自 [`RequestProgram`]（嵌套体仍 fused）。
     pub fn compile(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
         let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
@@ -65,7 +65,12 @@ impl ExecutionCompiler {
         let module = self.lower_module(session, request, &request_prog, &plan_prog)?;
         let semantic = materialize_semantic(&module);
         let cfg_ssa = materialize_cfg_ssa(&module);
-        let observation = CompileObservation::from_programs(request_prog.clone(), plan_prog.clone(), semantic.clone(), cfg_ssa.clone());
+        let observation = CompileObservation::from_programs(
+            request_prog.owning_copy(),
+            plan_prog.clone(),
+            semantic.clone(),
+            cfg_ssa.clone(),
+        );
         verify_observation(&observation, &module)?;
         Ok(StagedCompile { request: request_prog, plan: plan_prog, semantic, cfg_ssa, module })
     }
@@ -99,14 +104,14 @@ impl ExecutionCompiler {
         builder.finish(blocks, entry)
     }
 
-    /// 根请求：由 [`PlanProgram`] 选择路径。Term / Goal / Command 来自 [`RequestProgram`]；控制过渡读 [`AthenaRequest`]。
+    /// 根请求：由 [`PlanProgram`] 选择路径。四种根载荷均来自 [`RequestProgram`]。
     fn lower_root(
         &self,
         session: &mut Session,
         builder: &mut ModuleBuilder,
         blocks: &mut Vec<BasicBlock>,
         block_id: BlockId,
-        request: &AthenaRequest,
+        _request: &AthenaRequest,
         request_prog: &RequestProgram,
         plan: &PlanProgram,
     ) -> Result<SsaValueId> {
@@ -117,10 +122,10 @@ impl ExecutionCompiler {
                 })?);
                 self.lower_term(session, builder, blocks, block_id, term)
             }
-            PlanIntent::RunControl => match request {
-                AthenaRequest::Control(control) => self.lower_control(session, builder, blocks, block_id, control),
-                _ => Err(stage_mismatch("plan_run_control_without_control_request")),
-            },
+            PlanIntent::RunControl => {
+                let control = request_prog.control.as_ref().ok_or_else(|| stage_mismatch("plan_run_control_missing_payload"))?;
+                self.lower_control(session, builder, blocks, block_id, control)
+            }
             PlanIntent::SessionCommand => {
                 let command = request_prog.command.as_ref().ok_or_else(|| stage_mismatch("plan_session_command_missing_payload"))?;
                 self.lower_command(session, builder, blocks, block_id, command)
@@ -580,7 +585,7 @@ fn stage_mismatch(reason: &str) -> Diagnostic {
         .detail("reason", reason)
 }
 
-/// Compile 路径：canonicalize 后 intern Goal 载荷、克隆 Command，供根 lowering 消费。
+/// Compile 路径：canonicalize 后 intern Goal 载荷、克隆 Command、深拷贝 Control。
 fn prepare_request_program(session: &mut Session, request: &AthenaRequest) -> RequestProgram {
     let mut prog = canonicalize_request(request);
     match request {
@@ -589,6 +594,9 @@ fn prepare_request_program(session: &mut Session, request: &AthenaRequest) -> Re
         }
         AthenaRequest::Command(command) => {
             prog.command = Some(command.clone());
+        }
+        AthenaRequest::Control(control) => {
+            prog.control = Some(control.owning_copy());
         }
         _ => {}
     }
@@ -627,7 +635,11 @@ fn verify_request_plan_chain(request: &AthenaRequest, request_prog: &RequestProg
                 return Err(stage_mismatch("request_domain_payload_missing"));
             }
         }
-        PlanIntent::RunControl => {}
+        PlanIntent::RunControl => {
+            if request_prog.control.is_none() {
+                return Err(stage_mismatch("request_control_payload_missing"));
+            }
+        }
     }
     Ok(())
 }

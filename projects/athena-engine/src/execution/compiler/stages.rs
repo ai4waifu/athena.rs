@@ -1,10 +1,9 @@
 //! Living `04` 薄但真实的编译阶段程序类型。
 //!
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
-//! 根 `ExecutionCompiler::compile` 校验 Request→Plan 指纹链；Term 载荷取自
-//! `term_index`，Goal 取自 `domain_payload`，Command 取自拥有的 `command`。
-//! `SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化
-//! （诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
+//! 根 `ExecutionCompiler::compile` 校验 Request→Plan 指纹链；Term / Goal / Command / Control
+//! 载荷取自 `RequestProgram`。`SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的
+//! `ExecutionModule` 物化（诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
 //! 但它们是具名阶段产物，不再只是 `observe_compile` 的事后视图别名。
 
 use std::{
@@ -50,7 +49,9 @@ pub enum PlanIntent {
 }
 
 /// P0：不可变 Request 程序（薄 canonicalize + 可选 compile 载荷句柄）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+#[derive(Debug, PartialEq)]
 pub struct RequestProgram {
     /// `AthenaRequest::kind_name`。
     pub kind: &'static str,
@@ -62,8 +63,25 @@ pub struct RequestProgram {
     pub domain_payload: Option<DomainPayloadId>,
     /// Command compile 路径：拥有的会话命令（dump 路径可为空）。
     pub command: Option<SessionCommand>,
+    /// Control compile 路径：拥有的控制计划（dump 路径可为空）。
+    pub control: Option<crate::api::request::ControlPlan>,
     /// 本阶段指纹。
     pub fingerprint: StageFingerprint,
+}
+
+impl RequestProgram {
+    /// Owning 复制（含控制计划深拷贝）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            kind: self.kind,
+            term_index: self.term_index,
+            payload_tag: self.payload_tag,
+            domain_payload: self.domain_payload,
+            command: self.command.clone(),
+            control: self.control.as_ref().map(|c| c.owning_copy()),
+            fingerprint: self.fingerprint,
+        }
+    }
 }
 
 /// P1：不可变 Plan 程序（薄 planning）。
@@ -123,7 +141,9 @@ pub struct CfgSsaProgram {
 }
 
 /// 一次分阶段编译的具名产物（含冻结 module）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **不**实现 [`Clone`]。需要副本时分别 `owning_copy` / clone 各阶段产物。
+#[derive(Debug, PartialEq)]
 pub struct StagedCompile {
     /// P0 Request。
     pub request: RequestProgram,
@@ -147,7 +167,7 @@ pub(crate) fn stage_fingerprint(stage: CompileStageKind, fill: impl FnOnce(&mut 
 
 /// P0：从显式请求 canonicalize 出 Request 程序（无 Session 副作用）。
 ///
-/// 不 intern Goal 载荷、不克隆 Command。compile 路径须再经
+/// 不 intern Goal 载荷、不克隆 Command / Control。compile 路径须再经
 /// [`super::ExecutionCompiler`] 的 prepare 步骤填充句柄。
 pub fn canonicalize_request(request: &AthenaRequest) -> RequestProgram {
     let term_index = match request {
@@ -163,6 +183,7 @@ pub fn canonicalize_request(request: &AthenaRequest) -> RequestProgram {
         payload_tag,
         domain_payload: None,
         command: None,
+        control: None,
         fingerprint,
     }
 }
