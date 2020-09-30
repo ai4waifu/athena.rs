@@ -1,9 +1,9 @@
 //! Living `04` 薄但真实的编译阶段程序类型。
 //!
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
-//! 根 `ExecutionCompiler::compile` 校验 Request→Plan 指纹链；Term / Goal / Command / Control
-//! 载荷取自 `RequestProgram`。`SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的
-//! `ExecutionModule` 物化（诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
+//! 根与嵌套子请求均 prepare→plan，经 `lower_prepared` 消费阶段载荷。
+//! `SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化
+//! （诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
 //! 但它们是具名阶段产物，不再只是 `observe_compile` 的事后视图别名。
 
 use std::{

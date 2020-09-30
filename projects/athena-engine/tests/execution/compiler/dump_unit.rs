@@ -126,3 +126,28 @@ fn compile_control_consumes_owned_control_plan() {
     assert!(staged.request.control.is_some());
     assert_eq!(staged.plan.intent, PlanIntent::RunControl);
 }
+
+#[test]
+fn nested_goal_inside_sequence_uses_prepared_domain_payload() {
+    use athena_engine::api::request::{ControlPlan, DomainGoal};
+    use athena_engine::domains::linear_algebra::{LinearAlgebraRequest, MatrixValue};
+    use athena_engine::domains::DomainRequest;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let mat = session.matrix_objects.intern(
+        MatrixValue::from_integers_row_major(2, 2, vec![Integer::from_i64(1), Integer::from_i64(2), Integer::from_i64(3), Integer::from_i64(4)])
+            .unwrap(),
+    );
+    let goal = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
+        matrix: mat,
+    })));
+    let one = session.builder().int(1, Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![goal, AthenaRequest::Term(one)],
+    });
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("nested goal");
+    assert_eq!(staged.plan.intent, PlanIntent::RunControl);
+    assert!(staged.cfg_ssa.text.contains("CallProvider"));
+    assert!(session.domain_payloads.len() >= 1);
+}
