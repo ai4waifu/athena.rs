@@ -5,7 +5,7 @@ use std::{cell::RefCell, collections::HashMap, ptr::NonNull, rc::Rc};
 use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
 use athena_ir::{ExtensionRegistry, TermBuilder, TermStore};
 use athena_numeric::{ExecutionBudget, NumericContext};
-use athena_types::{TermId, ValueId};
+use athena_types::{SymbolId, TermId, ValueId};
 
 use athena_rewriter::RuleSet;
 
@@ -18,7 +18,7 @@ use crate::{
         galois::{GaloisRequest, GaloisResult, execute_galois_with_tables},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         group::{GroupRequest, GroupResult, execute_group_with_table_mut},
-        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, execute_linear_algebra},
+        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, MatrixRef, execute_linear_algebra},
         payload::DomainPayloadStore,
         polynomial::{
             PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
@@ -313,6 +313,26 @@ impl Session {
     /// 清除符号定义（不触及 heap / rings）。
     pub fn clear_definitions(&mut self) {
         self.defs.clear();
+    }
+
+    /// 写入矩阵 DomainObject 绑定（与 term / residual 绑定互斥）。
+    pub fn bind_matrix(&mut self, symbol: SymbolId, matrix: MatrixRef) {
+        self.defs.write_matrix_binding(symbol, matrix);
+    }
+
+    /// 查矩阵 DomainObject 绑定。
+    pub fn matrix_binding(&self, symbol: SymbolId) -> Option<MatrixRef> {
+        self.defs.matrix_binding(symbol)
+    }
+
+    /// 将矩阵句柄包装为运行时值。
+    pub fn insert_matrix_value(&mut self, matrix: MatrixRef) -> ValueId {
+        self.values.insert(RuntimeValue::Matrix(matrix))
+    }
+
+    /// 若该值载荷是矩阵 DomainObject，返回句柄。
+    pub fn matrix_of_value(&self, value: ValueId) -> Option<MatrixRef> {
+        self.values.get(value).and_then(RuntimeValue::as_matrix)
     }
 
     /// Session 运行时 heap。

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use athena_types::{TermId, ValueId};
 
 use crate::domains::dispatch::DomainResult;
+use crate::domains::linear_algebra::MatrixRef;
 
 /// 运行时值载荷。
 ///
@@ -17,6 +18,8 @@ pub enum RuntimeValue {
     Boolean(bool),
     /// 空值。
     Null,
+    /// 矩阵 DomainObject 句柄（绑定 / host 读出，非 `TermId` 伪装）。
+    Matrix(MatrixRef),
     /// 领域分派结果（`DomainGoal` 路径必须保留，禁止丢弃后返回空 Exact）。
     Domain(DomainResult),
 }
@@ -26,6 +29,14 @@ impl RuntimeValue {
     pub fn as_symbolic_term(&self) -> Option<TermId> {
         match self {
             Self::SymbolicTerm(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    /// 若载荷是矩阵 DomainObject，返回句柄。
+    pub fn as_matrix(&self) -> Option<MatrixRef> {
+        match self {
+            Self::Matrix(matrix) => Some(*matrix),
             _ => None,
         }
     }

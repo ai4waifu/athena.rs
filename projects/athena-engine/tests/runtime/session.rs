@@ -62,6 +62,34 @@ fn value_store_owns_runtime_payload_not_term_bijection() {
 }
 
 #[test]
+fn session_matrix_binding_is_exclusive_of_term_binding() {
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+    use athena_types::SymbolId;
+
+    let mut session = Session::new();
+    let symbol = SymbolId(42);
+    let term = session.builder().int(1, Default::default());
+    session.defs.write_binding(symbol, term);
+    assert_eq!(session.defs.binding(symbol), Some(term));
+
+    let matrix = MatrixValue::from_integers_row_major(1, 1, vec![Integer::from(9)]).expect("matrix");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    session.bind_matrix(symbol, matrix_ref);
+    assert_eq!(session.matrix_binding(symbol), Some(matrix_ref));
+    assert_eq!(session.defs.binding(symbol), None);
+    assert_eq!(session.defs.residual_binding(symbol), None);
+
+    let value = session.insert_matrix_value(matrix_ref);
+    assert_eq!(session.matrix_of_value(value), Some(matrix_ref));
+    assert_eq!(session.symbolic_term_of_value(value), None);
+
+    session.defs.write_binding(symbol, term);
+    assert_eq!(session.defs.binding(symbol), Some(term));
+    assert_eq!(session.matrix_binding(symbol), None);
+}
+
+#[test]
 fn result_store_owns_computation_result_payload() {
     let mut values = ValueStore::new();
     let mut results = ResultStore::new();

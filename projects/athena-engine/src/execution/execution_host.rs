@@ -178,6 +178,14 @@ impl<'a> ExecutionHost<'a> {
         }
     }
 
+    fn bind_matrix(&mut self, symbol: SymbolId, matrix: crate::domains::linear_algebra::MatrixRef) {
+        if let Some(frame) = self.frames.as_mut_vec().last_mut() {
+            frame.bind(symbol, LocalBinding::Matrix(matrix));
+            return;
+        }
+        self.session.bind_matrix(symbol, matrix);
+    }
+
     fn apply_join(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
@@ -1073,6 +1081,10 @@ impl VmHost for ExecutionHost<'_> {
                 Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) => {
                     return Ok(HostOutcome::Value(SlotValue::Term(term)));
                 }
+                Some(LocalBinding::Matrix(matrix)) => {
+                    let value = self.session.insert_matrix_value(matrix);
+                    return Ok(HostOutcome::Value(SlotValue::Value(value)));
+                }
                 Some(LocalBinding::Cleared) => {
                     // Dynamic clear: do not fall through to session Own.
                     return Ok(HostOutcome::Value(SlotValue::Symbol(symbol)));
@@ -1087,6 +1099,10 @@ impl VmHost for ExecutionHost<'_> {
             let result_id = execute_ir_request(self.session, AthenaRequest::Term(term))?;
             let out = self.session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
             return Ok(HostOutcome::Value(SlotValue::Term(out)));
+        }
+        if let Some(matrix) = self.session.defs.matrix_binding(symbol) {
+            let value = self.session.insert_matrix_value(matrix);
+            return Ok(HostOutcome::Value(SlotValue::Value(value)));
         }
         Ok(HostOutcome::Value(SlotValue::Symbol(symbol)))
     }
@@ -1133,6 +1149,34 @@ impl VmHost for ExecutionHost<'_> {
             SlotValue::Symbol(sym) => {
                 let term = self.session.builder().symbol_id(sym, Default::default());
                 self.bind_term(symbol, term, residual);
+            }
+            SlotValue::Value(value_id) => {
+                enum ValuePayload {
+                    Matrix(crate::domains::linear_algebra::MatrixRef),
+                    Term(TermId),
+                    Boolean(bool),
+                }
+                let payload = match self.session.values.get(value_id) {
+                    Some(crate::runtime::RuntimeValue::Matrix(matrix)) => ValuePayload::Matrix(*matrix),
+                    Some(crate::runtime::RuntimeValue::SymbolicTerm(term)) => ValuePayload::Term(*term),
+                    Some(crate::runtime::RuntimeValue::Boolean(v)) => ValuePayload::Boolean(*v),
+                    _ => {
+                        return Ok(HostOutcome::Diagnostic(
+                            Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                                .detail("component", "ExecutionHost")
+                                .detail("reason", "write_value_payload_unsupported")
+                                .detail("value", format!("{value_id:?}")),
+                        ));
+                    }
+                };
+                match payload {
+                    ValuePayload::Matrix(matrix) => self.bind_matrix(symbol, matrix),
+                    ValuePayload::Term(term) => self.bind_term(symbol, term, residual),
+                    ValuePayload::Boolean(v) => {
+                        let term = self.session.builder().boolean(v, Default::default());
+                        self.bind_term(symbol, term, residual);
+                    }
+                }
             }
             other => {
                 return Ok(HostOutcome::Diagnostic(
