@@ -231,6 +231,7 @@ fn control_plan_tag(control: &crate::api::request::ControlPlan) -> &'static str 
 fn session_command_tag(command: &SessionCommand) -> &'static str {
     match command {
         SessionCommand::Define { .. } => "Define",
+        SessionCommand::DefineMatrix { .. } => "DefineMatrix",
         SessionCommand::RegisterRuleDispatch { .. } => "RegisterRuleDispatch",
         SessionCommand::ClearDefinition { .. } => "ClearDefinition",
     }

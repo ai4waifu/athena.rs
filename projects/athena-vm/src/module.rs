@@ -36,6 +36,12 @@ impl ModuleFingerprint {
                         mix(&mut hash, b);
                     }
                 }
+                VmConstant::Value(value) => {
+                    mix(&mut hash, 6);
+                    for b in value.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
             }
         }
         for insn in &module.instructions {

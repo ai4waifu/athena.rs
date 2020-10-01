@@ -16,6 +16,13 @@ pub enum SessionCommand {
         /// 求值策略。
         evaluation: BindingEvaluationPolicy,
     },
+    /// 写入矩阵 DomainObject 绑定（与 term 绑定互斥）。
+    DefineMatrix {
+        /// 被定义符号。
+        symbol: SymbolId,
+        /// Session 局部矩阵句柄。
+        matrix: crate::domains::linear_algebra::MatrixRef,
+    },
     /// 注册已编译规则到分派表。
     RegisterRuleDispatch {
         /// 目标分派表。

@@ -54,6 +54,28 @@ fn compile_and_execute_define_write_binding() {
 }
 
 #[test]
+fn compile_and_execute_define_matrix() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let sym_term = session.builder().symbol("A", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let matrix = MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(1), Integer::from(2)]).expect("matrix");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    let request = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define matrix");
+    assert!(!module.effect_edges.is_empty());
+    ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_eq!(session.matrix_binding(symbol), Some(matrix_ref));
+    assert_eq!(session.defs.binding(symbol), None);
+}
+
+#[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
     use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
