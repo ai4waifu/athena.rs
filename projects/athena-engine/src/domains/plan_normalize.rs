@@ -176,18 +176,18 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
         }
     };
     match *request {
-        LinearAlgebraRequest::Transpose { matrix } => match matrix {
-            crate::domains::linear_algebra::MatrixOperand::Object(matrix) => check(matrix),
-            crate::domains::linear_algebra::MatrixOperand::Binding(_) => Ok(()),
-        },
-        LinearAlgebraRequest::Index { matrix, .. }
+        LinearAlgebraRequest::Transpose { matrix }
         | LinearAlgebraRequest::Rank { matrix }
         | LinearAlgebraRequest::Det { matrix }
         | LinearAlgebraRequest::Rref { matrix }
         | LinearAlgebraRequest::Inverse { matrix }
         | LinearAlgebraRequest::Trace { matrix }
         | LinearAlgebraRequest::NullSpace { matrix }
-        | LinearAlgebraRequest::Norm { matrix } => check(matrix),
+        | LinearAlgebraRequest::Norm { matrix } => match matrix {
+            crate::domains::linear_algebra::MatrixOperand::Object(matrix) => check(matrix),
+            crate::domains::linear_algebra::MatrixOperand::Binding(_) => Ok(()),
+        },
+        LinearAlgebraRequest::Index { matrix, .. } => check(matrix),
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
         | LinearAlgebraRequest::Solve { a: lhs, b: rhs }

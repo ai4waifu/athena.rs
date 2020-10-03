@@ -154,7 +154,7 @@ fn run(
             Ok(LinearAlgebraValue::Matrix(hadamard(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 let (rank, guarantee) = rank_machine(&matrix, DEFAULT_PIVOT_THRESHOLD)?;
                 Ok(LinearAlgebraValue::MachineRank { rank, guarantee })
@@ -164,7 +164,7 @@ fn run(
             }
         }
         LinearAlgebraRequest::Det { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_det_deferred_l2")
@@ -173,7 +173,7 @@ fn run(
             Ok(LinearAlgebraValue::ExactDet(det_bareiss(&matrix)?))
         }
         LinearAlgebraRequest::Rref { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "rref_exact_only"));
             }
@@ -193,7 +193,7 @@ fn run(
             }
         }
         LinearAlgebraRequest::Inverse { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_inverse_deferred")
@@ -202,7 +202,7 @@ fn run(
             Ok(LinearAlgebraValue::Matrix(invert_exact(&matrix)?))
         }
         LinearAlgebraRequest::Trace { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_trace_deferred")
@@ -221,7 +221,7 @@ fn run(
             Ok(LinearAlgebraValue::Dot(cross(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::NullSpace { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_nullspace_deferred")
@@ -230,7 +230,7 @@ fn run(
             Ok(LinearAlgebraValue::Matrix(nullspace_exact(&matrix)?))
         }
         LinearAlgebraRequest::Norm { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_norm_deferred")
