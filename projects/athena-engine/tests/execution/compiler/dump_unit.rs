@@ -81,7 +81,7 @@ fn compile_goal_consumes_domain_payload_from_request_program() {
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(2, 2, vec![Integer::from_i64(1), Integer::from_i64(2), Integer::from_i64(3), Integer::from_i64(4)]).unwrap());
     let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
-        matrix: mat,
+        matrix: mat.into(),
     })));
     let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("goal staged");
     assert_eq!(staged.request.kind, "Goal");
@@ -140,7 +140,7 @@ fn nested_goal_inside_sequence_uses_prepared_domain_payload() {
             .unwrap(),
     );
     let goal = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
-        matrix: mat,
+        matrix: mat.into(),
     })));
     let one = session.builder().int(1, Default::default());
     let request = AthenaRequest::Control(ControlPlan::Sequence {

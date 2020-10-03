@@ -69,8 +69,13 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         }
     };
     match *request {
-        LinearAlgebraRequest::Transpose { matrix }
-        | LinearAlgebraRequest::Index { matrix, .. }
+        LinearAlgebraRequest::Transpose { matrix } => match matrix {
+            crate::domains::linear_algebra::MatrixOperand::Object(matrix) => check(matrix)?,
+            crate::domains::linear_algebra::MatrixOperand::Binding(_) => {
+                // Binding is resolved at execute time (DefineMatrix may be a prior Sequence step).
+            }
+        },
+        LinearAlgebraRequest::Index { matrix, .. }
         | LinearAlgebraRequest::Rank { matrix }
         | LinearAlgebraRequest::Det { matrix }
         | LinearAlgebraRequest::Rref { matrix }

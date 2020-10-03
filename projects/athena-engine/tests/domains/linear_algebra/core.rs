@@ -170,7 +170,9 @@ fn goal_transpose_projects_nested_list_via_execution() {
     let matrix = session
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose { matrix })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
+        matrix: matrix.into(),
+    })));
     let result_id = execute_ir_request(&mut session, request).expect("transpose goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     // {{1, 3}, {2, 4}}
@@ -191,6 +193,41 @@ fn goal_transpose_projects_nested_list_via_execution() {
     assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
     assert!(matches!(session.arena.get(r1[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
     assert!(matches!(session.arena.get(r1[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)));
+}
+
+#[test]
+fn goal_transpose_resolves_matrix_binding_at_execute_time() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal, SessionCommand},
+        domains::linear_algebra::MatrixOperand,
+        execution::execute_ir_request,
+    };
+    use athena_ir::{Atom, TermNode};
+    use athena_types::SymbolId;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let symbol = SymbolId(9);
+    let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix });
+    execute_ir_request(&mut session, define).expect("define matrix");
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
+        matrix: MatrixOperand::binding(symbol),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("transpose binding");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
+    else {
+        panic!("expected nested list");
+    };
+    assert_eq!(rows.len(), 2);
+    let TermNode::Collection { elements: r0, .. } = session.arena.get(rows[0]).expect("r0")
+    else {
+        panic!("row0");
+    };
+    assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
 }
 
 #[test]

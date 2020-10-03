@@ -1,6 +1,6 @@
 //! 线性代数域结果与分派。
 
-use athena_types::{Diagnostic, DiagnosticCode};
+use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 
 use super::{
     exact::{
@@ -105,7 +105,16 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
 
 /// 执行线性代数请求（经 [`MatrixObjectStore`] 解析 [`MatrixRef`]）。
 pub fn execute_linear_algebra(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> LinearAlgebraResult {
-    match run(request, store) {
+    execute_linear_algebra_with_bindings(request, store, &|_| None)
+}
+
+/// 执行线性代数请求，并允许 [`MatrixOperand::Binding`] 经定义层解析。
+pub fn execute_linear_algebra_with_bindings(
+    request: LinearAlgebraRequest,
+    store: &MatrixObjectStore,
+    matrix_binding: &dyn Fn(SymbolId) -> Option<MatrixRef>,
+) -> LinearAlgebraResult {
+    match run(request, store, matrix_binding) {
         Ok(value) => LinearAlgebraResult::Ok { value },
         Err(diagnostic) => LinearAlgebraResult::Err { diagnostic },
     }
@@ -120,10 +129,14 @@ fn resolve(store: &MatrixObjectStore, r: MatrixRef) -> Result<MatrixValue, Diagn
     })
 }
 
-fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<LinearAlgebraValue, Diagnostic> {
+fn run(
+    request: LinearAlgebraRequest,
+    store: &MatrixObjectStore,
+    matrix_binding: &dyn Fn(SymbolId) -> Option<MatrixRef>,
+) -> Result<LinearAlgebraValue, Diagnostic> {
     match request {
         LinearAlgebraRequest::Transpose { matrix } => {
-            let matrix = resolve(store, matrix)?;
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::Matrix(transpose(&matrix)))
         }
         LinearAlgebraRequest::Index { matrix, row, col } => {
