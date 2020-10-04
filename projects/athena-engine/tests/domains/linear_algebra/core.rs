@@ -70,8 +70,8 @@ fn neutral_matmul_and_hadamard_requests_are_distinct() {
     let a = store.intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
     let b = store.intern(MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap());
 
-    let mm = LinearAlgebraRequest::MatMul { lhs: a, rhs: b };
-    let had = LinearAlgebraRequest::Hadamard { lhs: a, rhs: b };
+    let mm = LinearAlgebraRequest::MatMul { lhs: a.into(), rhs: b.into() };
+    let had = LinearAlgebraRequest::Hadamard { lhs: a.into(), rhs: b.into() };
     assert_ne!(mm, had);
 
     let r1 = execute_linear_algebra(mm.owning_copy(), &store);
@@ -255,6 +255,42 @@ fn goal_det_resolves_matrix_binding_at_execute_time() {
 }
 
 #[test]
+fn goal_dot_resolves_matrix_bindings_at_execute_time() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal, SessionCommand},
+        domains::linear_algebra::MatrixOperand,
+        execution::execute_ir_request,
+    };
+    use athena_ir::{Atom, TermNode};
+    use athena_types::SymbolId;
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 1, vec![i(1), i(1)]).unwrap());
+    let sa = SymbolId(21);
+    let sb = SymbolId(22);
+    execute_ir_request(&mut session, AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a })).expect("define a");
+    execute_ir_request(&mut session, AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sb, matrix: b })).expect("define b");
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Dot {
+        lhs: MatrixOperand::binding(sa),
+        rhs: MatrixOperand::binding(sb),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("dot binding");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list")
+    else {
+        panic!("expected flat list");
+    };
+    assert_eq!(items.len(), 2);
+    assert!(matches!(session.arena.get(items[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+    assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(7)));
+}
+
+#[test]
 fn goal_rank_projects_integer_via_execution() {
     use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
     use athena_ir::{Atom, TermNode};
@@ -360,7 +396,7 @@ fn goal_dot_matrix_vector_projects_flat_list() {
     let b = session
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(2, 1, vec![i(1), i(1)]).unwrap());
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Dot { lhs: a, rhs: b })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Dot { lhs: a.into(), rhs: b.into() })));
     let result_id = execute_ir_request(&mut session, request).expect("dot goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list")
@@ -384,7 +420,7 @@ fn goal_dot_rejects_row_vector_without_explicit_orientation() {
     let b = session
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(1)]).unwrap());
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Dot { lhs: a, rhs: b })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Dot { lhs: a.into(), rhs: b.into() })));
     let result_id = execute_ir_request(&mut session, request).expect("shape errors become results");
     let result = session.results.get(result_id).expect("result");
     assert_ne!(result.status, ComputationStatus::Exact, "incompatible 2x2·1x2 must not succeed as Exact");
@@ -409,7 +445,7 @@ fn goal_cross_projects_flat_list() {
     let b = session
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(1, 3, vec![i(0), i(1), i(0)]).unwrap());
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Cross { lhs: a, rhs: b })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Cross { lhs: a.into(), rhs: b.into() })));
     let result_id = execute_ir_request(&mut session, request).expect("cross goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list")

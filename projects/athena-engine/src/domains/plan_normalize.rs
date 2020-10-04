@@ -175,6 +175,12 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
                 .arg("ref", r.0))
         }
     };
+    let check_op = |op: crate::domains::linear_algebra::MatrixOperand| -> Result<(), Diagnostic> {
+        match op {
+            crate::domains::linear_algebra::MatrixOperand::Object(matrix) => check(matrix),
+            crate::domains::linear_algebra::MatrixOperand::Binding(_) => Ok(()),
+        }
+    };
     match *request {
         LinearAlgebraRequest::Transpose { matrix }
         | LinearAlgebraRequest::Rank { matrix }
@@ -183,18 +189,15 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
         | LinearAlgebraRequest::Inverse { matrix }
         | LinearAlgebraRequest::Trace { matrix }
         | LinearAlgebraRequest::NullSpace { matrix }
-        | LinearAlgebraRequest::Norm { matrix } => match matrix {
-            crate::domains::linear_algebra::MatrixOperand::Object(matrix) => check(matrix),
-            crate::domains::linear_algebra::MatrixOperand::Binding(_) => Ok(()),
-        },
+        | LinearAlgebraRequest::Norm { matrix } => check_op(matrix),
         LinearAlgebraRequest::Index { matrix, .. } => check(matrix),
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
         | LinearAlgebraRequest::Solve { a: lhs, b: rhs }
         | LinearAlgebraRequest::Dot { lhs, rhs }
         | LinearAlgebraRequest::Cross { lhs, rhs } => {
-            check(lhs)?;
-            check(rhs)
+            check_op(lhs)?;
+            check_op(rhs)
         }
     }
 }
