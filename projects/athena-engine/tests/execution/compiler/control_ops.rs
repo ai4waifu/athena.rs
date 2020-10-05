@@ -144,6 +144,34 @@ fn compile_and_execute_store_index_on_matrix_binding() {
 }
 
 #[test]
+fn compile_and_execute_read_matrix_binding_as_nested_list() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let symbol = match session.arena.get(a) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let matrix = MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(1), Integer::from(2), Integer::from(3), Integer::from(4)]).expect("matrix");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, AthenaRequest::Term(a)],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("read matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    // Nested list {{1,2},{3,4}} shape for dialect render.
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {}
+        other => panic!("expected nested list matrix projection, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
     use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};

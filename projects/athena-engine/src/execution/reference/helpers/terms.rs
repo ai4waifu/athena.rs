@@ -588,3 +588,33 @@ pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate:
         _ => None,
     }
 }
+
+/// 将 `ValueStore` 载荷投影为可渲染符号项（矩阵 DomainObject → 嵌套 List）。
+pub(crate) fn symbolic_term_from_value_id(session: &mut Session, value_id: athena_types::ValueId) -> Result<TermId> {
+    use crate::runtime::RuntimeValue;
+    enum Copied {
+        Matrix(crate::domains::linear_algebra::MatrixRef),
+        Term(TermId),
+        Boolean(bool),
+        Null,
+    }
+    let copied = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(matrix)) => Copied::Matrix(*matrix),
+        Some(RuntimeValue::SymbolicTerm(term)) => Copied::Term(*term),
+        Some(RuntimeValue::Boolean(v)) => Copied::Boolean(*v),
+        Some(RuntimeValue::Null) => Copied::Null,
+        Some(RuntimeValue::Domain(_)) => {
+            return Err(diag("value_domain_needs_publish_result"));
+        }
+        None => return Err(diag("value_id_missing")),
+    };
+    match copied {
+        Copied::Matrix(matrix_ref) => {
+            let matrix = session.matrix_objects.resolve_owning(matrix_ref).ok_or_else(|| diag("matrix_ref_missing"))?;
+            matrix_to_nested_list_session(session, &matrix)
+        }
+        Copied::Term(term) => Ok(term),
+        Copied::Boolean(v) => Ok(session.builder().boolean(v, Default::default())),
+        Copied::Null => Ok(session.builder().null(Default::default())),
+    }
+}
