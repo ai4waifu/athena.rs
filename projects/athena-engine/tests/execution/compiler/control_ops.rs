@@ -172,6 +172,48 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 }
 
 #[test]
+fn compile_and_execute_multiply_matrix_bindings_via_slot_projection() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let b_term = session.builder().symbol("B", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let sb = match session.arena.get(b_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol B, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(1), Integer::from(2), Integer::from(3), Integer::from(4)]).expect("a"));
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(5), Integer::from(6), Integer::from(7), Integer::from(8)]).expect("b"));
+    let product = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Multiply), vec![a_term, b_term], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sb, matrix: b }),
+            AthenaRequest::Term(product),
+        ],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("mul matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    // [[19,22],[43,50]]
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {}
+        other => panic!("expected matrix product nested list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
     use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};
