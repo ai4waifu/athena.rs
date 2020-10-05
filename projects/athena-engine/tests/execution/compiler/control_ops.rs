@@ -76,6 +76,74 @@ fn compile_and_execute_define_matrix() {
 }
 
 #[test]
+fn compile_and_execute_index_on_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let symbol = match session.arena.get(a) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let matrix = MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(1), Integer::from(2), Integer::from(3), Integer::from(4)]).expect("matrix");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
+    let read = AthenaRequest::Control(ControlPlan::Index {
+        target: a,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence { steps: vec![define, read] });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("index matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+        other => panic!("expected A(1,2) == 2, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_store_index_on_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let symbol = match session.arena.get(a) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let nine = session.builder().int(9, Default::default());
+    let matrix = MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(1), Integer::from(2), Integer::from(3), Integer::from(4)]).expect("matrix");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: a,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+        value: nine,
+    });
+    let read = AthenaRequest::Control(ControlPlan::Index {
+        target: a,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, read],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("store matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(9) => {}
+        other => panic!("expected A(1,2) == 9 after StoreIndex, got {other:?}"),
+    }
+    assert!(session.matrix_binding(symbol).is_some());
+    assert!(session.defs.binding(symbol).is_none());
+}
+
+#[test]
 fn compile_and_execute_define_deferred_evaluates_on_read() {
     use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};

@@ -7,9 +7,9 @@
 mod helpers;
 
 pub(crate) use self::helpers::{
-    CompareOutcome, IndexOutcome, domain_result_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms, evaluate_arithmetic_terms,
+    CompareOutcome, IndexOutcome, MatrixStoreOutcome, domain_result_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms, evaluate_arithmetic_terms,
     evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_determinant_term, evaluate_elementwise_terms,
-    evaluate_extension_apply_terms, evaluate_index_axes, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms,
+    evaluate_extension_apply_terms, evaluate_index_axes, evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms,
     evaluate_map_thread_terms, evaluate_matches_terms,
     evaluate_matrix_constructor_terms, evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
     evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
@@ -18,7 +18,7 @@ pub(crate) use self::helpers::{
     evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
     evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
     evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
-    evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes,
+    evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes, store_index_axes_matrix,
 };
 
 use athena_types::{Result, ResultId};

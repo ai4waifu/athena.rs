@@ -1,10 +1,15 @@
 //! 中立 `IndexSpec` 求值（Reference 与 `ExecutionHost` 共用）。
 
 use athena_ir::{ApplicationHead, SemanticOperator};
+use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, IndexSpec, IntegerIndex, IntegerOffset, Result, TermId};
 
-use super::{evaluate_apply_head_terms, expand_span_3};
-use crate::runtime::{session::Session, values::arena::push_list};
+use super::{evaluate_apply_head_terms, expand_span_3, matrix_entry_to_term_session, matrix_to_nested_list_session};
+use crate::{
+    domains::linear_algebra::{ElementParentKind, MatrixEntry, MatrixValue},
+    execution::number_of,
+    runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_rational},
+};
 
 /// 单轴索引步骤结果。
 #[derive(Debug)]
@@ -22,6 +27,15 @@ pub(crate) enum IndexStep {
 pub(crate) enum IndexOutcome {
     /// 成功或残差项。
     Term(TermId),
+    /// 非法下标。
+    Invalid { echo: TermId, diagnostic: Diagnostic },
+}
+
+/// 矩阵 DomainObject 上的 `StoreIndex` 结果。
+#[derive(Debug)]
+pub(crate) enum MatrixStoreOutcome {
+    /// 新 intern 的矩阵运行时值。
+    Value(athena_types::ValueId),
     /// 非法下标。
     Invalid { echo: TermId, diagnostic: Diagnostic },
 }
@@ -180,6 +194,159 @@ pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: 
         }
     }
     Ok(IndexOutcome::Term(cur))
+}
+
+/// 对矩阵 DomainObject 执行 `IndexSpec` 轴序列（MATLAB 列优先线性 / 二维标量）。
+pub(crate) fn evaluate_index_axes_matrix(session: &mut Session, matrix: &MatrixValue, axes: &[IndexSpec]) -> Result<IndexOutcome> {
+    let echo = matrix_to_nested_list_session(session, matrix).unwrap_or_else(|_| session.builder().null(Default::default()));
+    match matrix_axes_to_cell(matrix, axes) {
+        MatrixAxes::Cell(row, col) => match matrix_entry_to_term_session(session, matrix, row, col) {
+            Ok(term) => Ok(IndexOutcome::Term(term)),
+            Err(diagnostic) => Ok(IndexOutcome::Invalid { echo, diagnostic }),
+        },
+        MatrixAxes::Flatten => flatten_matrix_column_major(session, matrix),
+        MatrixAxes::Invalid(index) => Ok(IndexOutcome::Invalid {
+            echo,
+            diagnostic: crate::diagnostics::invalid_index_diagnostic(index, matrix.shape().element_count().ok().map(|n| n as u64)),
+        }),
+        MatrixAxes::Unsupported => Ok(IndexOutcome::Invalid {
+            echo,
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "evaluate_index_axes_matrix")
+                .detail("reason", "unsupported_matrix_index_axes"),
+        }),
+    }
+}
+
+/// 对矩阵 DomainObject 写入后 intern 新句柄（写时复制）。
+pub(crate) fn store_index_axes_matrix(
+    session: &mut Session,
+    mut matrix: MatrixValue,
+    axes: &[IndexSpec],
+    value: TermId,
+) -> Result<MatrixStoreOutcome> {
+    let echo = matrix_to_nested_list_session(session, &matrix).unwrap_or_else(|_| session.builder().null(Default::default()));
+    let (row, col) = match matrix_axes_to_cell(&matrix, axes) {
+        MatrixAxes::Cell(row, col) => (row, col),
+        MatrixAxes::Invalid(index) => {
+            return Ok(MatrixStoreOutcome::Invalid {
+                echo,
+                diagnostic: crate::diagnostics::invalid_index_diagnostic(index, matrix.shape().element_count().ok().map(|n| n as u64)),
+            });
+        }
+        MatrixAxes::Flatten | MatrixAxes::Unsupported => {
+            return Ok(MatrixStoreOutcome::Invalid {
+                echo,
+                diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "store_index_axes_matrix")
+                    .detail("reason", "unsupported_matrix_store_axes"),
+            });
+        }
+    };
+    let entry = match term_to_matrix_entry(session, value, matrix.parent().element) {
+        Ok(entry) => entry,
+        Err(diagnostic) => return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic }),
+    };
+    if let Err(diagnostic) = matrix.set_owned(row, col, entry) {
+        return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic });
+    }
+    let stored = session.matrix_objects.intern(matrix);
+    Ok(MatrixStoreOutcome::Value(session.insert_matrix_value(stored)))
+}
+
+enum MatrixAxes {
+    Cell(u64, u64),
+    Flatten,
+    Invalid(i64),
+    Unsupported,
+}
+
+fn matrix_axes_to_cell(matrix: &MatrixValue, axes: &[IndexSpec]) -> MatrixAxes {
+    let nrows = matrix.shape().rows;
+    let ncols = matrix.shape().cols;
+    match axes {
+        [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => linear_column_major_cell(nrows, ncols, *k),
+        [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => one_based_cell(*r, *c, nrows, ncols),
+        [IndexSpec::ColumnMajorFlatten] => MatrixAxes::Flatten,
+        _ => MatrixAxes::Unsupported,
+    }
+}
+
+fn linear_column_major_cell(nrows: u64, ncols: u64, k: i64) -> MatrixAxes {
+    if k < 1 {
+        return MatrixAxes::Invalid(k);
+    }
+    let n = (k as u64) - 1;
+    let len = nrows.saturating_mul(ncols);
+    if n >= len || nrows == 0 {
+        return MatrixAxes::Invalid(k);
+    }
+    let col = n / nrows;
+    let row = n % nrows;
+    MatrixAxes::Cell(row, col)
+}
+
+fn one_based_cell(row_1: i64, col_1: i64, nrows: u64, ncols: u64) -> MatrixAxes {
+    if row_1 < 1 || col_1 < 1 {
+        return MatrixAxes::Invalid(row_1);
+    }
+    let row = (row_1 as u64) - 1;
+    let col = (col_1 as u64) - 1;
+    if row >= nrows || col >= ncols {
+        return MatrixAxes::Invalid(row_1);
+    }
+    MatrixAxes::Cell(row, col)
+}
+
+fn flatten_matrix_column_major(session: &mut Session, matrix: &MatrixValue) -> Result<IndexOutcome> {
+    let (nrows, ncols) = (matrix.shape().rows, matrix.shape().cols);
+    let mut out = Vec::with_capacity((nrows.saturating_mul(ncols)) as usize);
+    for c in 0..ncols {
+        for r in 0..nrows {
+            let cell = matrix_entry_to_term_session(session, matrix, r, c)?;
+            out.push(push_list(session, vec![cell]));
+        }
+    }
+    Ok(IndexOutcome::Term(push_list(session, out)))
+}
+
+fn term_to_matrix_entry(session: &Session, term: TermId, kind: ElementParentKind) -> Result<MatrixEntry> {
+    let Some(n) = number_of(session, term)
+    else {
+        return Err(Diagnostic::new(athena_types::DiagnosticCode::TypeMismatch).detail("reason", "store_value_not_number"));
+    };
+    match kind {
+        ElementParentKind::Integers => {
+            if let Some(i) = n.as_exact_integer() {
+                Ok(MatrixEntry::Integer(Integer::from(i)))
+            }
+            else {
+                Err(Diagnostic::new(athena_types::DiagnosticCode::TypeMismatch).detail("reason", "store_value_not_integer"))
+            }
+        }
+        ElementParentKind::Rationals => {
+            if let Some(i) = n.as_exact_integer() {
+                Ok(MatrixEntry::Rational(Rational::from_integer(Integer::from(i))))
+            }
+            else if let Some(r) = n.as_rational() {
+                Ok(MatrixEntry::Rational(clone_rational(r)))
+            }
+            else {
+                Err(Diagnostic::new(athena_types::DiagnosticCode::TypeMismatch).detail("reason", "store_value_not_rational"))
+            }
+        }
+        ElementParentKind::MachineReal => {
+            if let Some(x) = n.as_machine_f64() {
+                Ok(MatrixEntry::MachineF64(x))
+            }
+            else if let Some(i) = n.as_exact_integer() {
+                Ok(MatrixEntry::MachineF64(i as f64))
+            }
+            else {
+                Err(Diagnostic::new(athena_types::DiagnosticCode::TypeMismatch).detail("reason", "store_value_not_machine"))
+            }
+        }
+    }
 }
 
 fn nested_matrix_shape(session: &Session, term: TermId) -> Option<(usize, usize)> {
