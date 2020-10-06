@@ -2,9 +2,9 @@
 //!
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
 //! 根与嵌套子请求均 prepare→plan，经 `lower_prepared` 消费阶段载荷。
-//! `SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化
-//! （诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
-//! 但它们是具名阶段产物，不再只是 `observe_compile` 的事后视图别名。
+//! `SemanticProgram` 由 [`elaborate_semantic`] 在 lowering **前**按 Plan 意图 elaboration（独立于 module）。
+//! `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化（诚实边界：尚未独立 CFG formation pass）。
+//! [`materialize_semantic`] 仅保留为对照 module 的调试物化，不再作为 staged 主路径。
 
 use std::{
     collections::hash_map::DefaultHasher,
@@ -110,14 +110,16 @@ pub struct SemanticOpSummary {
     pub effect_out: Option<u32>,
 }
 
-/// P3：薄 Semantic 程序（当前由 module 物化，非独立 elaboration）。
+/// P3：薄 Semantic 程序（Plan 驱动 elaboration · 非 module 反向扫描）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticProgram {
-    /// 按块遍历顺序的操作摘要。
+    /// 上游 Plan 指纹（阶段链）。
+    pub plan_fingerprint: StageFingerprint,
+    /// 计划级操作摘要（lowering 前封闭意图，不是 SSA 回放）。
     pub operations: Vec<SemanticOpSummary>,
-    /// effect 边数量。
+    /// 计划 effect 边数量（粗粒度）。
     pub effect_edge_count: usize,
-    /// provider call 描述符数量。
+    /// 计划 provider call 数量。
     pub provider_call_count: usize,
     /// 本阶段指纹。
     pub fingerprint: StageFingerprint,
@@ -149,7 +151,7 @@ pub struct StagedCompile {
     pub request: RequestProgram,
     /// P1 Plan。
     pub plan: PlanProgram,
-    /// P3 Semantic（过渡物化）。
+    /// P3 Semantic（Plan 驱动 elaboration）。
     pub semantic: SemanticProgram,
     /// P4/P5 CFG SSA（过渡物化）。
     pub cfg_ssa: CfgSsaProgram,
@@ -272,7 +274,50 @@ pub fn plan_from_request(request: &RequestProgram) -> PlanProgram {
     PlanProgram { request_fingerprint: request.fingerprint, intent, provider_required, fingerprint }
 }
 
-/// 过渡：从已形成 module 物化 Semantic 程序。
+fn planned_op(kind: &'static str, result_type: &'static str) -> SemanticOpSummary {
+    SemanticOpSummary { kind, result_type, effect_in: None, effect_out: None }
+}
+
+/// P3：在 lowering **前**由 Request/Plan elaboration 出 Semantic 程序（不读 module）。
+pub fn elaborate_semantic(request: &RequestProgram, plan: &PlanProgram) -> SemanticProgram {
+    let operations = match plan.intent {
+        PlanIntent::EvaluateTerm => vec![planned_op("TermElaboration", "Term")],
+        PlanIntent::RunControl => {
+            let tag = request.payload_tag.unwrap_or("Control");
+            vec![planned_op(tag, "Unit")]
+        }
+        PlanIntent::SessionCommand => match request.payload_tag.unwrap_or("Command") {
+            "Define" | "DefineMatrix" | "ClearDefinition" => vec![planned_op("WriteBinding", "Unit")],
+            "RegisterRuleDispatch" => vec![planned_op("RegisterCompiledRule", "Unit")],
+            other => vec![planned_op(other, "Unit")],
+        },
+        PlanIntent::DomainProvider => vec![planned_op("CallProvider", "Result")],
+    };
+    let effect_edge_count = operations
+        .iter()
+        .filter(|op| matches!(op.kind, "WriteBinding" | "RegisterCompiledRule" | "CallProvider"))
+        .count();
+    let provider_call_count = usize::from(plan.provider_required);
+    let fingerprint = stage_fingerprint(CompileStageKind::Semantic, |h| {
+        plan.fingerprint.0.hash(h);
+        operations.len().hash(h);
+        for op in &operations {
+            op.kind.hash(h);
+            op.result_type.hash(h);
+        }
+        effect_edge_count.hash(h);
+        provider_call_count.hash(h);
+    });
+    SemanticProgram {
+        plan_fingerprint: plan.fingerprint,
+        operations,
+        effect_edge_count,
+        provider_call_count,
+        fingerprint,
+    }
+}
+
+/// 调试：从已形成 module 物化 Semantic 视图（非 staged 主路径）。
 pub fn materialize_semantic(module: &ExecutionModule) -> SemanticProgram {
     let mut operations = Vec::new();
     for region in &module.regions {
@@ -290,6 +335,7 @@ pub fn materialize_semantic(module: &ExecutionModule) -> SemanticProgram {
     let effect_edge_count = module.effect_edges.len();
     let provider_call_count = module.provider_calls.len();
     let fingerprint = stage_fingerprint(CompileStageKind::Semantic, |h| {
+        0u8.hash(h); // realized-from-module marker
         operations.len().hash(h);
         for op in &operations {
             op.kind.hash(h);
@@ -300,7 +346,13 @@ pub fn materialize_semantic(module: &ExecutionModule) -> SemanticProgram {
         effect_edge_count.hash(h);
         provider_call_count.hash(h);
     });
-    SemanticProgram { operations, effect_edge_count, provider_call_count, fingerprint }
+    SemanticProgram {
+        plan_fingerprint: StageFingerprint(0),
+        operations,
+        effect_edge_count,
+        provider_call_count,
+        fingerprint,
+    }
 }
 
 /// 过渡：从已形成 module 物化 CFG SSA 程序。

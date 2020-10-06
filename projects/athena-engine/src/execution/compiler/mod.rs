@@ -31,12 +31,13 @@ mod stages;
 
 pub use dump::{
     CfgSsaStageView, CompileObservation, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_ssa, dump_plan, dump_request,
-    dump_semantic, observe_compile, verify_observation,
+    dump_semantic, dump_semantic_realized, observe_compile, verify_observation,
 };
 pub use elaboration::{ArgumentEvaluationKind, argument_evaluation_for_semantic};
 pub use stages::{
     CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram, StageFingerprint,
-    StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request, request_stage_fingerprint,
+    StagedCompile, canonicalize_request, elaborate_semantic, materialize_cfg_ssa, materialize_semantic, plan_from_request,
+    request_stage_fingerprint,
 };
 
 use builder::ModuleBuilder;
@@ -58,12 +59,12 @@ impl ExecutionCompiler {
         self.lower_module(session, request, &request_prog, &plan_prog)
     }
 
-    /// 分阶段编译：具名 Request → Plan →（fused）module → Semantic / CFG SSA。
+    /// 分阶段编译：具名 Request → Plan → Semantic elaboration → module → CFG SSA。
     pub fn compile_staged(&self, session: &mut Session, request: &AthenaRequest) -> Result<StagedCompile> {
         let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
+        let semantic = elaborate_semantic(&request_prog, &plan_prog);
         let module = self.lower_module(session, request, &request_prog, &plan_prog)?;
-        let semantic = materialize_semantic(&module);
         let cfg_ssa = materialize_cfg_ssa(&module);
         let observation = CompileObservation::from_programs(
             request_prog.owning_copy(),

@@ -1,7 +1,7 @@
 //! Living `04` 可观测编译阶段投影（迁移切片）。
 //!
 //! 观测视图由 [`super::stages`] 具名程序投影而来。
-//! Request / Plan 在 lowering 前真实产出；Semantic / CFG SSA 仍过渡物化自 module。
+//! Request / Plan / Semantic 在 lowering 前真实产出；CFG SSA 仍过渡物化自 module。
 //! 禁止把 dump 当成第二套执行路径。
 
 use std::fmt::Write as _;
@@ -15,7 +15,7 @@ use crate::{
 
 use super::stages::{
     self, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, StageFingerprint, canonicalize_request,
-    materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text, request_stage_fingerprint,
+    elaborate_semantic, materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text, request_stage_fingerprint,
 };
 
 /// 兼容旧名：Request 阶段视图即 [`RequestProgram`]。
@@ -87,11 +87,11 @@ impl CompileObservation {
     }
 }
 
-/// 由请求与已校验 module 构造四阶段观测（Request/Plan 先于 module 决策）。
+/// 由请求与已校验 module 构造四阶段观测（Request/Plan/Semantic 先于 module 决策）。
 pub fn observe_compile(request: &AthenaRequest, module: &ExecutionModule) -> Result<CompileObservation> {
     let request_prog = canonicalize_request(request);
     let plan_prog = plan_from_request(&request_prog);
-    let semantic = materialize_semantic(module);
+    let semantic = elaborate_semantic(&request_prog, &plan_prog);
     let cfg_ssa = materialize_cfg_ssa(module);
     let observation = CompileObservation::from_programs(request_prog, plan_prog, semantic, cfg_ssa);
     verify_observation(&observation, module)?;
@@ -108,8 +108,15 @@ pub fn dump_plan(request: &AthenaRequest) -> PlanStageView {
     plan_from_request(&canonicalize_request(request))
 }
 
-/// Semantic 阶段（委托物化）。
-pub fn dump_semantic(module: &ExecutionModule) -> SemanticStageView {
+/// Semantic 阶段（Plan 驱动 elaboration）。
+pub fn dump_semantic(request: &AthenaRequest) -> SemanticStageView {
+    let request_prog = canonicalize_request(request);
+    let plan_prog = plan_from_request(&request_prog);
+    elaborate_semantic(&request_prog, &plan_prog)
+}
+
+/// 调试：从 module 物化 Semantic 视图（非 staged 主路径）。
+pub fn dump_semantic_realized(module: &ExecutionModule) -> SemanticStageView {
     materialize_semantic(module)
 }
 
@@ -132,6 +139,9 @@ pub fn verify_observation(observation: &CompileObservation, module: &ExecutionMo
     if observation.plan.request_fingerprint != observation.request.fingerprint {
         return Err(stage_diag(CompileStageKind::Plan, "request_plan_chain_mismatch"));
     }
+    if observation.semantic.plan_fingerprint != observation.plan.fingerprint {
+        return Err(stage_diag(CompileStageKind::Semantic, "plan_semantic_chain_mismatch"));
+    }
 
     if observation.cfg_ssa.module_fingerprint != module.fingerprint {
         return Err(stage_diag(CompileStageKind::CfgSsa, "module_fingerprint_mismatch"));
@@ -147,7 +157,7 @@ pub fn verify_observation(observation: &CompileObservation, module: &ExecutionMo
         return Err(stage_diag(CompileStageKind::CfgSsa, "cfg_text_drift"));
     }
 
-    let recomputed_semantic = materialize_semantic(module);
+    let recomputed_semantic = elaborate_semantic(&observation.request, &observation.plan);
     if observation.semantic.fingerprint != recomputed_semantic.fingerprint {
         return Err(stage_diag(CompileStageKind::Semantic, "semantic_fingerprint_drift"));
     }
