@@ -104,6 +104,20 @@ fn result_store_owns_computation_result_payload() {
     assert_eq!(loaded.coverage, CoverageStatus::Unsupported);
     assert_eq!(loaded.value, Some(value));
     assert_eq!(loaded.diagnostics.len(), 1);
+    assert!(results.require_symbolic_term(r0).is_err());
+}
+
+#[test]
+fn result_store_require_symbolic_term_ok() {
+    let mut values = ValueStore::new();
+    let mut results = ResultStore::new();
+    let term = TermId(7);
+    let value = values.insert(RuntimeValue::SymbolicTerm(term));
+    let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+        .with_value(value)
+        .with_symbolic_term(term);
+    let r0 = results.insert(result);
+    assert_eq!(results.require_symbolic_term(r0).expect("term"), term);
 }
 
 #[test]

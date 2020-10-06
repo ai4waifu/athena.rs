@@ -69,7 +69,22 @@ pub fn evaluate_term(session: &mut Session, expr: TermId) -> TermEvaluation {
             else {
                 return TermEvaluation::unevaluated(expr);
             };
-            let term = result.symbolic_term.unwrap_or(expr);
+            let Some(term) = result.symbolic_term
+            else {
+                let mut diagnostics = result.diagnostics.clone();
+                diagnostics.push(
+                    Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "evaluate_term")
+                        .detail("reason", "result_has_no_symbolic_term")
+                        .arg("result_id", result_id.0.to_string()),
+                );
+                return TermEvaluation {
+                    term: expr,
+                    kind: EvalKind::Unevaluated,
+                    status: result.status,
+                    diagnostics,
+                };
+            };
             let diagnostics = result.diagnostics.clone();
             let status = result.status;
             let has_error = diagnostics.iter().any(|d| d.severity == Severity::Error);

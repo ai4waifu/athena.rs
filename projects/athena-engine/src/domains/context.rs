@@ -151,7 +151,7 @@ impl<'a> DomainExecutionContext<'a> {
     /// 失败诊断向上传播，禁止吞成原项。
     pub(crate) fn fold_term(&mut self, id: TermId) -> athena_types::Result<TermId> {
         let result_id = execution::execute_ir_request(self.session_mut(), AthenaRequest::Term(id))?;
-        Ok(self.session().results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(id))
+        self.session().results.require_symbolic_term(result_id)
     }
 
     /// 数值原子。

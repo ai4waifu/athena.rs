@@ -307,7 +307,7 @@ impl Session {
     /// 正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
     pub fn evaluate(&mut self, expr: TermId) -> athena_types::Result<TermId> {
         let result_id = execution::execute_ir_request(self, AthenaRequest::Term(expr))?;
-        Ok(self.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr))
+        self.results.require_symbolic_term(result_id)
     }
 
     /// 清除符号定义（不触及 heap / rings）。

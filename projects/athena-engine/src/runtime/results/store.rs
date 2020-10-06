@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use athena_types::{ComputationStatus, Condition, Diagnostic, ResultId, TermId, ValueId};
+use athena_types::{ComputationStatus, Condition, Diagnostic, DiagnosticCode, Result, ResultId, TermId, ValueId};
 
 use super::CoverageStatus;
 
@@ -218,6 +218,17 @@ impl ResultStore {
     /// 读取载荷。
     pub fn get(&self, id: ResultId) -> Option<&ComputationResult> {
         self.results.get(&id)
+    }
+
+    /// 要求结果带有符号项投影。缺失时硬失败，禁止回落到输入项或发明 `Null`。
+    pub fn require_symbolic_term(&self, id: ResultId) -> Result<TermId> {
+        match self.get(id).and_then(|r| r.symbolic_term) {
+            Some(term) => Ok(term),
+            None => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ResultStore")
+                .detail("reason", "result_has_no_symbolic_term")
+                .arg("result_id", id.0.to_string())),
+        }
     }
 
     /// 可变读取载荷。

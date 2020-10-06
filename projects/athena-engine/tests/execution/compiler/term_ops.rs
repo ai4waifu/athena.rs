@@ -936,7 +936,7 @@ fn simplify_does_not_reapply_ambient_own_to_free_symbol() {
     ReferenceExecutor::new().execute(&mut session, &define_module).expect("define exec");
 
     let engine = AthenaEngine::new();
-    let simplified = engine.simplify(&mut session, x);
+    let simplified = engine.simplify(&mut session, x).expect("simplify");
     assert!(
         session.arena.structural_eq(simplified, x),
         "Simplify of a free symbol must not substitute ambient Own (result transform contract)"
