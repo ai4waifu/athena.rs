@@ -397,6 +397,32 @@ fn linear_algebra_paths() {
 }
 
 #[test]
+fn unbound_matrix_solve_echoes_linear_solve_residual() {
+    use athena_engine::{
+        api::request::DomainGoal,
+        domains::{
+            dispatch::DomainRequest,
+            linear_algebra::{LinearAlgebraRequest, MatrixOperand},
+        },
+        runtime::values::arena::application_display_name,
+    };
+    use athena_types::ComputationStatus;
+
+    let mut s = Session::new();
+    let a = s.arena.symbols_mut().intern("A");
+    let b = s.arena.symbols_mut().intern("b");
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve {
+        a: MatrixOperand::binding(a),
+        b: MatrixOperand::binding(b),
+    })));
+    let result_id = execution::execute_ir_request(&mut s, request).expect("goal");
+    let loaded = s.results.get(result_id).expect("result");
+    assert_eq!(loaded.status, ComputationStatus::Unknown);
+    let term = loaded.symbolic_term.expect("residual Own");
+    assert_eq!(application_display_name(&s, term).as_deref(), Some("LinearSolve"));
+}
+
+#[test]
 fn term_evaluation_exposed() {
     let mut s = Session::new();
     let e = sem(SemanticOperator::Add, vec![int(1, &mut s), int(2, &mut s)], &mut s);

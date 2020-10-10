@@ -589,6 +589,64 @@ pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate:
     }
 }
 
+/// 领域请求的残差 Extension 回声（未绑定矩阵等 Own 投影）。
+pub(crate) fn domain_request_residual_term(session: &mut Session, domain: &crate::domains::dispatch::DomainRequest) -> Option<TermId> {
+    use crate::domains::{dispatch::DomainRequest, linear_algebra::LinearAlgebraRequest};
+    match domain {
+        DomainRequest::LinearAlgebra(req) => linear_algebra_request_residual_term(session, req),
+        _ => None,
+    }
+}
+
+/// 线性代数 Err 是否因矩阵绑定缺失（可 Own 回声，而非输入形状硬失败）。
+pub(crate) fn linear_algebra_missing_binding(domain: &crate::domains::dispatch::DomainResult) -> bool {
+    use athena_types::DiagnosticValue;
+    use crate::domains::{dispatch::DomainResult, linear_algebra::LinearAlgebraResult};
+    match domain {
+        DomainResult::LinearAlgebra(LinearAlgebraResult::Err { diagnostic }) => {
+            matches!(diagnostic.details.get("reason"), Some(DiagnosticValue::Text(reason)) if reason == "missing_matrix_binding")
+        }
+        _ => false,
+    }
+}
+
+fn linear_algebra_request_residual_term(
+    session: &mut Session,
+    request: &crate::domains::linear_algebra::LinearAlgebraRequest,
+) -> Option<TermId> {
+    use crate::domains::linear_algebra::{LinearAlgebraRequest, MatrixOperand};
+    use crate::runtime::values::arena::push_extension;
+
+    let matrix_op_term = |session: &mut Session, op: MatrixOperand| -> Option<TermId> {
+        match op {
+            MatrixOperand::Binding(symbol) => Some(session.builder().symbol_id(symbol, Default::default())),
+            MatrixOperand::Object(matrix_ref) => {
+                let matrix = session.matrix_objects.resolve_owning(matrix_ref)?;
+                matrix_to_nested_list_session(session, &matrix).ok()
+            }
+        }
+    };
+
+    let (head, args) = match request {
+        LinearAlgebraRequest::Transpose { matrix } => ("Transpose", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Det { matrix } => ("Det", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Rank { matrix } => ("MatrixRank", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Inverse { matrix } => ("Inverse", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Trace { matrix } => ("Tr", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Rref { matrix } => ("RowReduce", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Norm { matrix } => ("Norm", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::NullSpace { matrix } => ("NullSpace", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Solve { a, b } => ("LinearSolve", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
+        LinearAlgebraRequest::MatMul { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Hadamard { lhs, rhs } => ("DotTimes", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Dot { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Cross { lhs, rhs } => ("Cross", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Index { .. } => return None,
+    };
+    let op = session.extensions.intern(head);
+    Some(push_extension(session, op, args))
+}
+
 /// 将 `ValueStore` 载荷投影为可渲染符号项（矩阵 DomainObject → 嵌套 List）。
 pub(crate) fn symbolic_term_from_value_id(session: &mut Session, value_id: athena_types::ValueId) -> Result<TermId> {
     use crate::runtime::RuntimeValue;

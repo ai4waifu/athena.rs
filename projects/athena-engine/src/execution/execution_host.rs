@@ -32,6 +32,7 @@ use crate::{
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id,
+            domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -1056,12 +1057,21 @@ impl VmHost for ExecutionHost<'_> {
         let handoff = ProviderCallHandoff::from_descriptor(descriptor);
         // Goal→VM→CallProvider 必须与 `AthenaEngine::execute_domain` 同走 semantic entry，
         // 禁止再直达 `domains::execute_domain` 旁路 M-Graph 查询/准入。
+        let residual = domain_request_residual_term(self.session, &domain);
         let domain_result = execute_domain_via_semantic_entry(self.session, domain)?;
         let projected = domain_result_symbolic_term(self.session, &domain_result);
+        let missing_binding = linear_algebra_missing_binding(&domain_result);
         let mut computation = computation_from_domain(self.session, domain_result);
         if computation.symbolic_term.is_none() {
             if let Some(term) = projected {
                 computation = computation.with_symbolic_term(term);
+            } else if missing_binding {
+                if let Some(term) = residual {
+                    // 未绑定矩阵：Own 回声 Extension，状态从 Invalid 降为 Unknown。
+                    computation = computation.with_symbolic_term(term);
+                    computation.status = athena_types::ComputationStatus::Unknown;
+                    computation.coverage = crate::runtime::results::CoverageStatus::Unsupported;
+                }
             }
         }
         computation = computation.with_provenance(crate::runtime::results::ResultProvenance::call_provider(handoff.capabilities.fingerprint));
