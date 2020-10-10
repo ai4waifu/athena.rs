@@ -499,22 +499,19 @@ pub(crate) fn rational_to_term_session(session: &mut Session, r: &Rational) -> T
 
 pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
     let (rows, cols) = (m.shape().rows, m.shape().cols);
+    // 1×n 行向量投影为平坦 List，匹配 MATLAB / Mathematica 向量表面。
+    if rows == 1 {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            row.push(matrix_entry_to_term_session(session, m, 0, j)?);
+        }
+        return Ok(push_list(session, row));
+    }
     let mut out = Vec::with_capacity(rows as usize);
     for i in 0..rows {
         let mut row = Vec::with_capacity(cols as usize);
         for j in 0..cols {
-            match m.get(i, j)? {
-                MatrixEntry::Rational(r) => row.push(rational_to_term_session(session, &r)),
-                MatrixEntry::Integer(n) => {
-                    if let Some(i64v) = n.to_i64() {
-                        row.push(session.builder().int(i64v, Default::default()));
-                    }
-                    else {
-                        row.push(push_number(session, Number::integer(clone_integer(&n))));
-                    }
-                }
-                MatrixEntry::MachineF64(x) => row.push(push_number(session, Number::machine(x))),
-            }
+            row.push(matrix_entry_to_term_session(session, m, i, j)?);
         }
         out.push(push_list(session, row));
     }
