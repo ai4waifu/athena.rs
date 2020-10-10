@@ -3,7 +3,8 @@
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
 //! 根与嵌套子请求均 prepare→plan，经 `lower_prepared` 消费阶段载荷。
 //! `SemanticProgram` 由 [`elaborate_semantic`] 在 lowering **前**按 Plan 意图 elaboration（独立于 module）。
-//! `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化（诚实边界：尚未独立 CFG formation pass）。
+//! `CfgOutlineProgram` 由 [`elaborate_cfg_outline`] 在 lowering **前**按 Semantic 产出粗粒度 region/entry 意图。
+//! `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化完整 SSA 文本（诚实边界：尚未独立 CFG formation pass）。
 //! [`materialize_semantic`] 仅保留为对照 module 的调试物化，不再作为 staged 主路径。
 
 use std::{
@@ -125,6 +126,21 @@ pub struct SemanticProgram {
     pub fingerprint: StageFingerprint,
 }
 
+/// P4：lowering 前 CFG outline（独立于 module · 粗粒度 region/entry 意图）。
+///
+/// 完整 SSA 文本 / block 计数仍由 [`materialize_cfg_ssa`] 从 module 物化。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CfgOutlineProgram {
+    /// 上游 Semantic 指纹（阶段链）。
+    pub semantic_fingerprint: StageFingerprint,
+    /// 计划 region 数（当前 VM 闭集为 1）。
+    pub region_count: usize,
+    /// 入口 region 下标。
+    pub entry_region: u32,
+    /// 本阶段 outline 指纹（与物化 [`CfgSsaProgram::fingerprint`] 分立）。
+    pub fingerprint: StageFingerprint,
+}
+
 /// P4/P5：薄 CFG SSA 程序（当前由 module 物化，非独立 CFG formation）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CfgSsaProgram {
@@ -153,6 +169,8 @@ pub struct StagedCompile {
     pub plan: PlanProgram,
     /// P3 Semantic（Plan 驱动 elaboration）。
     pub semantic: SemanticProgram,
+    /// P4 CFG outline（Semantic 驱动 · lowering 前）。
+    pub cfg_outline: CfgOutlineProgram,
     /// P4/P5 CFG SSA（过渡物化）。
     pub cfg_ssa: CfgSsaProgram,
     /// P9 冻结 module。
@@ -315,6 +333,36 @@ pub fn elaborate_semantic(request: &RequestProgram, plan: &PlanProgram) -> Seman
         provider_call_count,
         fingerprint,
     }
+}
+
+/// P4：在 lowering **前**由 Semantic 产出 CFG outline（不读 module、不 emit SSA）。
+pub fn elaborate_cfg_outline(semantic: &SemanticProgram) -> CfgOutlineProgram {
+    // 当前 verify/codegen 闭集仍是单 region。多 region 属独立 CFG formation 后续债。
+    let region_count = 1usize;
+    let entry_region = 0u32;
+    let fingerprint = stage_fingerprint(CompileStageKind::CfgSsa, |h| {
+        1u8.hash(h); // outline marker（与物化 CfgSsa fingerprint 分立）
+        semantic.fingerprint.0.hash(h);
+        region_count.hash(h);
+        entry_region.hash(h);
+    });
+    CfgOutlineProgram {
+        semantic_fingerprint: semantic.fingerprint,
+        region_count,
+        entry_region,
+        fingerprint,
+    }
+}
+
+/// 校验 outline 与物化 CFG 的粗粒度一致（region 数 / 入口 region）。
+pub fn verify_cfg_outline(outline: &CfgOutlineProgram, cfg: &CfgSsaProgram) -> Result<(), &'static str> {
+    if outline.region_count != cfg.region_count {
+        return Err("cfg_outline_region_count_mismatch");
+    }
+    if outline.entry_region != 0 {
+        return Err("cfg_outline_entry_region_unsupported");
+    }
+    Ok(())
 }
 
 /// 调试：从已形成 module 物化 Semantic 视图（非 staged 主路径）。
