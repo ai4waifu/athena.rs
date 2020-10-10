@@ -144,6 +144,46 @@ fn compile_and_execute_store_index_on_matrix_binding() {
 }
 
 #[test]
+fn compile_and_execute_store_index_grows_matrix_row_vector() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_numeric::Integer;
+    use athena_types::{IndexSpec, IntegerIndex, IntegerOffset};
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let symbol = match session.arena.get(a) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let five = session.builder().int(5, Default::default());
+    let matrix = MatrixValue::from_integers_row_major(1, 4, vec![
+        Integer::from(1),
+        Integer::from(2),
+        Integer::from(3),
+        Integer::from(4),
+    ])
+    .expect("row");
+    let matrix_ref = session.matrix_objects.intern(matrix);
+    let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: a,
+        axes: vec![IndexSpec::EndRelative(IntegerOffset(1))],
+        value: five,
+    });
+    let read = AthenaRequest::Term(a);
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, read],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("grow row");
+    let _result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let grown = session.matrix_objects.resolve_owning(session.matrix_binding(symbol).expect("matrix own")).expect("value");
+    assert_eq!(grown.shape().rows, 1);
+    assert_eq!(grown.shape().cols, 5);
+    assert_eq!(grown.get(0, 4).expect("cell").owning_copy(), athena_engine::domains::linear_algebra::MatrixEntry::Integer(Integer::from(5)));
+}
+
+#[test]
 fn compile_and_execute_read_matrix_binding_as_nested_list() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
