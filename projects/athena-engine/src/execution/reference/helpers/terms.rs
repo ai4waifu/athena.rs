@@ -556,32 +556,73 @@ pub(crate) fn matrix_to_dot_term_session(session: &mut Session, m: &MatrixValue)
     matrix_to_nested_list_session(session, m)
 }
 
+/// 线性代数 `Ok` 载荷 → 可渲染符号项（矩阵 List / 标量 / 无特解残差）。
+pub(crate) fn linear_algebra_value_symbolic_term(
+    session: &mut Session,
+    value: &crate::domains::linear_algebra::LinearAlgebraValue,
+) -> Option<TermId> {
+    use crate::domains::linear_algebra::{
+        ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, LinearAlgebraValue,
+        MachineSolveResult,
+    };
+
+    match value {
+        LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, m).ok(),
+        LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, m).ok(),
+        LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
+        LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: None, disposition, .. }) => {
+            solve_disposition_residual_term(session, disposition)
+        }
+        LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
+        LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: None, disposition, .. }) => {
+            solve_disposition_residual_term(session, disposition)
+        }
+        LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
+        LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
+        LinearAlgebraValue::ExactNorm(ExactNormResult { value, .. }) => Some(rational_to_term_session(session, value)),
+        LinearAlgebraValue::ExactRank(ExactRankResult { rank, .. }) | LinearAlgebraValue::MachineRank { rank, .. } => {
+            let Ok(n) = i64::try_from(*rank) else {
+                return None;
+            };
+            Some(session.builder().int(n, Default::default()))
+        }
+        LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, matrix).ok(),
+    }
+}
+
+/// 无特解 / 无机器解时的诚实残差：不一致为空 List，其余为 `LinearSolve[Disposition]` Extension。
+fn solve_disposition_residual_term(
+    session: &mut Session,
+    disposition: &crate::domains::linear_algebra::SolveDisposition,
+) -> Option<TermId> {
+    use crate::domains::linear_algebra::SolveDisposition;
+    use crate::runtime::values::arena::{push_extension, push_list};
+
+    match disposition {
+        SolveDisposition::Inconsistent => Some(push_list(session, Vec::new())),
+        SolveDisposition::Unique
+        | SolveDisposition::Infinite { .. }
+        | SolveDisposition::Singular
+        | SolveDisposition::ResourceLimited => {
+            let tag = match disposition {
+                SolveDisposition::Unique => "Unique",
+                SolveDisposition::Infinite { .. } => "Infinite",
+                SolveDisposition::Singular => "Singular",
+                SolveDisposition::ResourceLimited => "ResourceLimited",
+                SolveDisposition::Inconsistent => unreachable!(),
+            };
+            let op = session.extensions.intern("LinearSolve");
+            let arg = session.builder().symbol(tag, Default::default());
+            Some(push_extension(session, op, vec![arg]))
+        }
+    }
+}
+
 /// 投影缺少内置符号项的领域结果（例如精确线性求解）。
 pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate::domains::dispatch::DomainResult) -> Option<TermId> {
-    use crate::domains::{
-        dispatch::DomainResult,
-        linear_algebra::{
-            ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, LinearAlgebraResult,
-            LinearAlgebraValue,
-        },
-    };
+    use crate::domains::{dispatch::DomainResult, linear_algebra::LinearAlgebraResult};
     match domain {
-        DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) => match value {
-            LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, m).ok(),
-            LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, m).ok(),
-            LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
-            LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
-            LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
-            LinearAlgebraValue::ExactNorm(ExactNormResult { value, .. }) => Some(rational_to_term_session(session, value)),
-            LinearAlgebraValue::ExactRank(ExactRankResult { rank, .. }) => {
-                let Ok(n) = i64::try_from(*rank) else {
-                    return None;
-                };
-                Some(session.builder().int(n, Default::default()))
-            }
-            LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, matrix).ok(),
-            _ => None,
-        },
+        DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) => linear_algebra_value_symbolic_term(session, value),
         _ => None,
     }
 }

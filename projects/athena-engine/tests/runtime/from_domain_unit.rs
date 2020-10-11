@@ -24,6 +24,11 @@ fn machine_rank_projects_approximate_full_coverage() {
     assert_eq!(result.status, ComputationStatus::Approximate);
     assert!(!result.status.is_unconditional_exact());
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    let term = result.symbolic_term.expect("machine rank projects int");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer() == Some(2)
+    ));
 }
 
 #[test]
@@ -40,6 +45,7 @@ fn machine_solve_projects_approximate_full_coverage() {
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.status, ComputationStatus::Approximate);
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    assert!(result.symbolic_term.is_some(), "missing solution still gets residual Extension");
 }
 
 #[test]
@@ -56,6 +62,54 @@ fn exact_rank_still_projects_exact_full() {
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.status, ComputationStatus::Exact);
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    let term = result.symbolic_term.expect("exact rank projects int");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer() == Some(1)
+    ));
+}
+
+#[test]
+fn machine_solve_with_solution_projects_list_term() {
+    use athena_engine::domains::linear_algebra::MatrixValue;
+
+    let mut session = Session::new();
+    let solution = MatrixValue::from_f64_row_major(2, 1, vec![1.0, 2.0]).expect("column");
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::MachineSolve(MachineSolveResult {
+            disposition: SolveDisposition::Unique,
+            solution: Some(solution),
+            witness: None,
+            guarantee: AlgorithmGuarantee::Approximate,
+        }),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Approximate);
+    let term = result.symbolic_term.expect("machine solve projects list");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Collection { elements, .. }) if elements.len() == 2
+    ));
+}
+
+#[test]
+fn inconsistent_exact_solve_projects_empty_list() {
+    use athena_engine::domains::linear_algebra::ExactSolveResult;
+
+    let mut session = Session::new();
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
+            disposition: SolveDisposition::Inconsistent,
+            particular: None,
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    let term = result.symbolic_term.expect("inconsistent projects empty list");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Collection { elements, .. }) if elements.is_empty()
+    ));
 }
 
 #[test]
