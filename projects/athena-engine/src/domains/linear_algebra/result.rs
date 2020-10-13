@@ -151,7 +151,8 @@ fn run(
         LinearAlgebraRequest::Hadamard { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::Matrix(hadamard(&lhs, &rhs)?))
+            // 与 `Dot` 同表面：行/列向量结果投影为平坦 List（MATLAB `.*`）。
+            Ok(LinearAlgebraValue::Dot(hadamard(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;

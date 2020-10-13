@@ -498,15 +498,9 @@ pub(crate) fn rational_to_term_session(session: &mut Session, r: &Rational) -> T
 }
 
 pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
+    // Domain 矩阵结果（含 NullSpace 行基、Inverse、Rref）一律嵌套行 List。
+    // 1×n 不得压成平坦 List，否则 `NullSpace` 单基向量会丢外层 `{{…}}`。
     let (rows, cols) = (m.shape().rows, m.shape().cols);
-    // 1×n 行向量投影为平坦 List，匹配 MATLAB / Mathematica 向量表面。
-    if rows == 1 {
-        let mut row = Vec::with_capacity(cols as usize);
-        for j in 0..cols {
-            row.push(matrix_entry_to_term_session(session, m, 0, j)?);
-        }
-        return Ok(push_list(session, row));
-    }
     let mut out = Vec::with_capacity(rows as usize);
     for i in 0..rows {
         let mut row = Vec::with_capacity(cols as usize);
@@ -516,6 +510,19 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
         out.push(push_list(session, row));
     }
     Ok(push_list(session, out))
+}
+
+/// Own / 槽位投影：`1×n` 行向量 → 平坦 List（MATLAB 向量表面）；其它形状走嵌套。
+pub(crate) fn matrix_to_own_surface_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
+    let (rows, cols) = (m.shape().rows, m.shape().cols);
+    if rows == 1 {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            row.push(matrix_entry_to_term_session(session, m, 0, j)?);
+        }
+        return Ok(push_list(session, row));
+    }
+    matrix_to_nested_list_session(session, m)
 }
 
 pub(crate) fn matrix_entry_to_term_session(session: &mut Session, m: &MatrixValue, row: u64, col: u64) -> Result<TermId> {
@@ -707,7 +714,7 @@ pub(crate) fn symbolic_term_from_value_id(session: &mut Session, value_id: athen
     match copied {
         Copied::Matrix(matrix_ref) => {
             let matrix = session.matrix_objects.resolve_owning(matrix_ref).ok_or_else(|| diag("matrix_ref_missing"))?;
-            matrix_to_nested_list_session(session, &matrix)
+            matrix_to_own_surface_list_session(session, &matrix)
         }
         Copied::Term(term) => Ok(term),
         Copied::Boolean(v) => Ok(session.builder().boolean(v, Default::default())),
