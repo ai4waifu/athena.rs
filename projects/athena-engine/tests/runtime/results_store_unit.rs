@@ -9,6 +9,9 @@ fn provider_stamp_uses_contract_version() {
     assert_eq!(stamp.id, ResultProviderId::POLYNOMIAL);
     assert_eq!(stamp.version, ResultProviderId::CONTRACT_VERSION);
     assert!(stamp.matches_current_contract());
+    assert_eq!(ResultProviderId::POLYNOMIAL.name(), "Polynomial");
+    assert_eq!(ResultProviderId::LINEAR_ALGEBRA.name(), "LinearAlgebra");
+    assert_eq!(ResultProviderId(99).name(), "Unknown");
 }
 
 #[test]

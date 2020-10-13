@@ -41,6 +41,23 @@ impl ResultProviderId {
     pub const fn stamped(self) -> ResultProviderStamp {
         ResultProviderStamp { id: self, version: Self::CONTRACT_VERSION }
     }
+
+    /// 稳定机器可读名（宿主产品面投影用）。
+    pub const fn name(self) -> &'static str {
+        match self.0 {
+            1 => "Calculus",
+            2 => "NumberTheory",
+            3 => "Polynomial",
+            4 => "Group",
+            5 => "Field",
+            6 => "Galois",
+            7 => "GraphTheory",
+            8 => "LinearAlgebra",
+            9 => "Optimization",
+            10 => "Solve",
+            _ => "Unknown",
+        }
+    }
 }
 
 /// Provider 身份 + 合同版本（结果 / Frontier 共用戳）。
