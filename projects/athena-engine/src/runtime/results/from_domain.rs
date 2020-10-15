@@ -27,9 +27,9 @@ use crate::{
 ///
 /// **禁止**把领域枚举名 `Exact` 自动抬成 [`ComputationStatus::Exact`]。
 ///
-/// - 微积分：仅 `AdmissionGate` journal 已接纳同结果项时抬 `Exact`/`Full`
+/// - 微积分：仅 `AdmissionGate` journal 已接纳同结果项时抬 `Exact`/`Full`，并附 `AdmittedRelation`
 /// - 图论 / 群 / 域 / 伽罗瓦：摘要或骨架证书 → `Candidate`/`Partial`
-/// - 多项式：无结果级 admission 绑定时不得抬升（`Exact` 枚举名 ≠ 已准入）
+/// - 多项式：仅 journal 已接纳且 operational verified 缓存与值对齐时抬 `Exact`/`Full`（附 `AdmittedRelation`）
 /// - 数论可信 kernel（如 gcd）可带 provider stamp 保留 `Exact`（非字段伪造路径）
 /// - 线性代数：跟 `AlgorithmGuarantee`，禁止机器近似抬 Exact
 pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> ComputationResult {
@@ -70,7 +70,7 @@ fn map_domain_meta(session: &mut Session, domain: &DomainResult) -> DomainMeta {
     match domain {
         DomainResult::Calculus(r) => map_calculus(session, r),
         DomainResult::NumberTheory(r) => map_number_theory(r),
-        DomainResult::Polynomial(r) => map_polynomial(r),
+        DomainResult::Polynomial(r) => map_polynomial(session, r),
         DomainResult::GroupTheory(r) => map_group(r),
         DomainResult::FieldTheory(r) => map_field(r),
         DomainResult::GaloisTheory(r) => map_galois(r),
@@ -98,9 +98,14 @@ fn map_calculus(session: &mut Session, result: &CalculusResult<CalculusValue>) -
         CalculusResult::Exact { value, conditions } => {
             // 领域 Exact ≠ 已准入。仅当 journal 中已有同结果项的 `CalculusRelation` 才抬 Exact/Full。
             let term = calculus_bridge_term(session, value);
-            let (status, coverage) = match (term, conditions.is_empty()) {
-                (Some(t), true) if calculus_result_admitted(session, t) => (ComputationStatus::Exact, CoverageStatus::Full),
-                _ => (ComputationStatus::Candidate, CoverageStatus::Partial),
+            let admitted = term.filter(|_| conditions.is_empty()).and_then(|t| calculus_admitted_fact(session, t));
+            let (status, coverage, evidence) = match admitted {
+                Some(fact) => (
+                    ComputationStatus::Exact,
+                    CoverageStatus::Full,
+                    vec![ResultEvidence::AdmittedRelation { fact }],
+                ),
+                None => (ComputationStatus::Candidate, CoverageStatus::Partial, Vec::new()),
             };
             DomainMeta {
                 status,
@@ -108,7 +113,7 @@ fn map_calculus(session: &mut Session, result: &CalculusResult<CalculusValue>) -
                 symbolic_term: term,
                 conditions: conditions.clone(),
                 diagnostics: Vec::new(),
-                evidence: Vec::new(),
+                evidence,
                 provider: Some(ResultProviderId::CALCULUS.stamped()),
             }
         }
@@ -133,14 +138,48 @@ fn map_calculus(session: &mut Session, result: &CalculusResult<CalculusValue>) -
     }
 }
 
-fn calculus_result_admitted(session: &Session, result_term: TermId) -> bool {
-    use crate::reasoning::mgraph::Proposition;
-    session.mgraph.semantic.admission_journal().claims().iter().any(|verified| {
-        matches!(
-            &verified.claim().proposition,
-            Proposition::CalculusRelation { result_term: t, .. } if *t == result_term
-        )
+fn calculus_admitted_fact(session: &Session, result_term: TermId) -> Option<crate::reasoning::mgraph::FactId> {
+    use crate::reasoning::mgraph::{FactId, Proposition};
+    session.mgraph.semantic.admission_journal().claims().iter().enumerate().find_map(|(i, verified)| {
+        match &verified.claim().proposition {
+            Proposition::CalculusRelation { result_term: t, .. } if *t == result_term => Some(FactId(i as u64)),
+            _ => None,
+        }
     })
+}
+
+/// journal 中的 `PolynomialResult` 命题须与 operational verified 缓存中的同指纹 Exact 值对齐。
+fn polynomial_admitted_fact(
+    session: &Session,
+    value: &crate::domains::polynomial::PolynomialDomainValue,
+) -> Option<crate::reasoning::mgraph::FactId> {
+    use crate::reasoning::mgraph::{FactId, Proposition, PolynomialCacheTier};
+    use crate::domains::polynomial::PolynomialResult;
+
+    for (i, verified) in session.mgraph.semantic.admission_journal().claims().iter().enumerate() {
+        let Proposition::PolynomialResult { request_fingerprint, .. } = verified.claim().proposition
+        else {
+            continue;
+        };
+        let Some(entry) = session
+            .mgraph
+            .operational
+            .result_cache
+            .polynomial
+            .get_by_request_fingerprint(request_fingerprint)
+        else {
+            continue;
+        };
+        if entry.tier != PolynomialCacheTier::Verified {
+            continue;
+        }
+        if let PolynomialResult::Exact { value: cached } = &entry.result {
+            if cached == value {
+                return Some(FactId(i as u64));
+            }
+        }
+    }
+    None
 }
 
 /// Bridge typed calculus payloads to a display/eval `TermId` without dropping the `DomainResult` value.
@@ -215,10 +254,21 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
     }
 }
 
-fn map_polynomial(result: &PolynomialResult) -> DomainMeta {
+fn map_polynomial(session: &Session, result: &PolynomialResult) -> DomainMeta {
     match result {
-        // 多项式 Exact 枚举名 ≠ 已准入；结果级 admission 绑定前不得抬 Exact/Full。
-        PolynomialResult::Exact { .. } => candidate_provider(ResultProviderId::POLYNOMIAL),
+        // 多项式 Exact 枚举名 ≠ 已准入；仅 journal + verified 缓存值对齐后抬 Exact/Full。
+        PolynomialResult::Exact { value } => match polynomial_admitted_fact(session, value) {
+            Some(fact) => DomainMeta {
+                status: ComputationStatus::Exact,
+                coverage: CoverageStatus::Full,
+                symbolic_term: None,
+                conditions: Vec::new(),
+                diagnostics: Vec::new(),
+                evidence: vec![ResultEvidence::AdmittedRelation { fact }],
+                provider: Some(ResultProviderId::POLYNOMIAL.stamped()),
+            },
+            None => candidate_provider(ResultProviderId::POLYNOMIAL),
+        },
         PolynomialResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::POLYNOMIAL),
     }
 }

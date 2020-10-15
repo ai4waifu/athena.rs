@@ -91,6 +91,11 @@ pub enum ResultEvidence {
         /// 人类可读摘要。
         summary: String,
     },
+    /// 已写入 admission journal 的关系（`FactId` / `RelationRef`）。摘要不得冒充本变体。
+    AdmittedRelation {
+        /// journal 中的已接纳事实。
+        fact: crate::reasoning::mgraph::FactId,
+    },
 }
 
 /// 结果来源审计。
