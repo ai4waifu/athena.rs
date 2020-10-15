@@ -83,3 +83,60 @@ fn solve_x_squared_eq_one_via_domain_goal() {
     };
     assert_eq!(branches.len(), 2);
 }
+
+#[test]
+fn solve_two_linear_equations_projects_rules() {
+    let mut session = Session::new();
+    let (equations, unknowns) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let x = dc.intern("x");
+        let y = dc.intern("y");
+        let xs = dc.symbol_id(x);
+        let ys = dc.symbol_id(y);
+        let eq1 = dc.apply_semantic(SemanticOperator::Equal, vec![dc.apply_semantic(SemanticOperator::Add, vec![xs, ys]), dc.in_(3)]);
+        let eq2 = dc.apply_semantic(
+            SemanticOperator::Equal,
+            vec![dc.apply_semantic(SemanticOperator::Subtract, vec![xs, ys]), dc.in_(1)],
+        );
+        (vec![eq1, eq2], vec![x, y])
+    };
+    let result = execute_solve(&mut session, SolveRequest::LinearEquations { equations, unknowns: unknowns.clone() });
+    let term = match result {
+        SolveResult::Exact { term, coverage } => {
+            assert_eq!(coverage, athena_engine::domains::solve::CoverageStatus::Complete);
+            term
+        }
+        other => panic!("expected Exact rule list, got {other:?}"),
+    };
+    let Some(TermNode::Collection { elements: branches, .. }) = session.arena.get(term)
+    else {
+        panic!("expected OrderedCollection, got {:?}", session.arena.get(term));
+    };
+    assert_eq!(branches.len(), 1);
+    let Some(TermNode::Collection { elements: rules, .. }) = session.arena.get(branches[0])
+    else {
+        panic!("expected rule list branch");
+    };
+    assert_eq!(rules.len(), 2);
+    let mut got = Vec::new();
+    for rule in rules {
+        let Some(TermNode::Application {
+            head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Rule),
+            arguments,
+        }) = session.arena.get(*rule)
+        else {
+            panic!("expected Rule");
+        };
+        let Some(TermNode::Atom(Atom::Symbol(s))) = session.arena.get(arguments[0])
+        else {
+            panic!("expected symbol lhs");
+        };
+        let Some(TermNode::Atom(Atom::Number(n))) = session.arena.get(arguments[1])
+        else {
+            panic!("expected number rhs");
+        };
+        got.push((*s, n.as_exact_integer().expect("int")));
+    }
+    got.sort_by_key(|(s, _)| s.0);
+    assert_eq!(got, vec![(unknowns[0], 2), (unknowns[1], 1)]);
+}
