@@ -21,7 +21,10 @@ fn solve_x_squared_eq_one_via_execute_solve() {
     };
     let result = execute_solve(&mut session, SolveRequest::UnivariateEquation { equation, unknown });
     let term = match result {
-        SolveResult::Exact { term } => term,
+        SolveResult::Exact { term, coverage } => {
+            assert_eq!(coverage, athena_engine::domains::solve::CoverageStatus::Complete);
+            term
+        }
         other => panic!("expected Exact rule list, got {other:?}"),
     };
     // `{{x -> -1}, {x -> 1}}` nested lists of Rule
@@ -69,7 +72,11 @@ fn solve_x_squared_eq_one_via_domain_goal() {
     };
     let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::Solve(SolveRequest::UnivariateEquation { equation, unknown })));
     let result_id = execute_ir_request(&mut session, request).expect("solve goal");
-    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    let stored = session.results.get(result_id).expect("result");
+    assert_eq!(stored.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    assert_eq!(stored.status, athena_types::ComputationStatus::Candidate);
+    assert_eq!(stored.evidence.len(), 1);
+    let term = stored.symbolic_term.expect("term");
     let Some(TermNode::Collection { elements: branches, .. }) = session.arena.get(term)
     else {
         panic!("expected OrderedCollection, got {:?}", session.arena.get(term));

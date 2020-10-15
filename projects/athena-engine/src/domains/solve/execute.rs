@@ -7,7 +7,7 @@ use athena_numeric::{Number, add as num_add, div as num_div, mul as num_mul};
 use athena_types::{Diagnostic, DiagnosticCode, Result, SourceSpan, SymbolId, TermId};
 
 use super::{
-    BoundSymbol, Constraint, SolveDomain, SolveGoal, SolvePolicy, SolveRequest, SolveResult, UnivariateAdaptedSolution,
+    BoundSymbol, Constraint, SolveDomain, SolveGoal, SolvePolicy, SolveRequest, SolveResult,
     assemble_solve_problem, execute_polynomial_root_goal, normalize_relational_application, value_table::BindingValue, ExecutionLimits,
 };
 use crate::{
@@ -29,7 +29,7 @@ use crate::{
 pub fn execute_solve(session: &mut Session, request: SolveRequest) -> SolveResult {
     match request {
         SolveRequest::UnivariateEquation { equation, unknown } => match solve_univariate_equation(session, equation, unknown) {
-            Ok(term) => SolveResult::Exact { term },
+            Ok((term, coverage)) => SolveResult::Exact { term, coverage },
             Err(reason) => SolveResult::Unevaluated {
                 expression: echo_solve(session, equation, unknown),
                 reason,
@@ -44,7 +44,7 @@ fn echo_solve(session: &mut Session, equation: TermId, unknown: SymbolId) -> Ter
     push_extension(session, ext, vec![equation, var])
 }
 
-fn solve_univariate_equation(session: &mut Session, equation: TermId, unknown: SymbolId) -> Result<TermId> {
+fn solve_univariate_equation(session: &mut Session, equation: TermId, unknown: SymbolId) -> Result<(TermId, super::CoverageStatus)> {
     let poly_term = equation_to_zero_form(session, equation)?;
     let coeffs = {
         let mut dc = DomainExecutionContext::new(session);
@@ -72,7 +72,12 @@ fn solve_univariate_equation(session: &mut Session, equation: TermId, unknown: S
         ExecutionLimits::default(),
     )?;
     let adapted = execute_polynomial_root_goal(&problem, polynomial, &session.rings, PolynomialFactorLimits::default())?;
-    materialize_univariate_rules(session, &adapted, unknown)
+    let coverage = adapted.solution.coverage.owning_copy();
+    if matches!(coverage, super::CoverageStatus::Unsupported | super::CoverageStatus::Invalid) && adapted.solution.branches.is_empty() {
+        return Err(diag("unsupported_root_set"));
+    }
+    let term = materialize_solution_rules(session, &adapted.solution, &adapted.values)?;
+    Ok((term, coverage))
 }
 
 fn equation_to_zero_form(session: &mut Session, equation: TermId) -> Result<TermId> {
@@ -200,23 +205,34 @@ fn convolve(a: &BTreeMap<u32, Number>, b: &BTreeMap<u32, Number>) -> Result<BTre
     Ok(out)
 }
 
-fn materialize_univariate_rules(session: &mut Session, adapted: &UnivariateAdaptedSolution, unknown: SymbolId) -> Result<TermId> {
-    let unknown_key = BoundSymbol::free(unknown);
+/// 将 [`SolutionSet`] 分支物化为 `{{v -> …}, …}` 规则列表（多未知量按变量序并列 Rule）。
+fn materialize_solution_rules(
+    session: &mut Session,
+    solution: &super::SolutionSet,
+    values: &super::value_table::BindingValueTable,
+) -> Result<TermId> {
     let mut sortable: Vec<(String, TermId)> = Vec::new();
-    for branch in &adapted.solution.branches {
-        let Some(binding_tid) = branch.bindings.get(&unknown_key)
-        else {
+    for branch in &solution.branches {
+        let mut rules = Vec::new();
+        let mut sort_parts = Vec::new();
+        for var in &solution.variables {
+            let Some(binding_tid) = branch.bindings.get(var)
+            else {
+                continue;
+            };
+            let Some(value) = values.get(binding_tid)
+            else {
+                continue;
+            };
+            let value_term = binding_value_to_term(session, value);
+            sort_parts.push(binding_sort_key(value));
+            let sym = session.builder().symbol_id(var.symbol, SourceSpan::default());
+            rules.push(push_semantic(session, SemanticOperator::Rule, vec![sym, value_term]));
+        }
+        if rules.is_empty() {
             continue;
-        };
-        let Some(value) = adapted.values.get(binding_tid)
-        else {
-            continue;
-        };
-        let value_term = binding_value_to_term(session, value);
-        let sort_key = binding_sort_key(value);
-        let sym = session.builder().symbol_id(unknown, SourceSpan::default());
-        let rule = push_semantic(session, SemanticOperator::Rule, vec![sym, value_term]);
-        sortable.push((sort_key, push_list(session, vec![rule])));
+        }
+        sortable.push((sort_parts.join("|"), push_list(session, rules)));
     }
     sortable.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(push_list(session, sortable.into_iter().map(|(_, t)| t).collect()))
