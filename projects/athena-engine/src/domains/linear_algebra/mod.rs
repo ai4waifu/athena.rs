@@ -10,6 +10,7 @@ mod equality;
 mod exact;
 mod index;
 mod machine;
+mod matrix_result;
 mod object_ref;
 mod operand;
 mod ops;
@@ -27,6 +28,7 @@ pub use exact::{
 };
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
+pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
 pub use ops::{cross, dot, hadamard, index_scalar, matmul, slice_matrix, transpose};
