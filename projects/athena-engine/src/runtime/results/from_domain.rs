@@ -308,13 +308,14 @@ fn map_linear_algebra(session: &mut Session, result: &LinearAlgebraResult) -> Do
             let (status, coverage) = linear_algebra_status_coverage(value);
             // 发布时即写入可渲染项，避免宿主 evaluate 成功但 toString 因缺 symbolic_term 硬失败。
             let symbolic_term = crate::execution::reference::linear_algebra_value_symbolic_term(session, value);
+            let (diagnostics, evidence) = linear_algebra_envelope_meta(value);
             DomainMeta {
                 status,
                 coverage,
                 symbolic_term,
                 conditions: Vec::new(),
-                diagnostics: Vec::new(),
-                evidence: Vec::new(),
+                diagnostics,
+                evidence,
                 provider: Some(ResultProviderId::LINEAR_ALGEBRA.stamped()),
             }
         }
@@ -330,19 +331,54 @@ fn map_linear_algebra(session: &mut Session, result: &LinearAlgebraResult) -> Do
     }
 }
 
+/// Pull Living 16 `MatrixResult` diagnostics / residual / conditioning onto the session result.
+fn linear_algebra_envelope_meta(
+    value: &crate::domains::linear_algebra::LinearAlgebraValue,
+) -> (Vec<Diagnostic>, Vec<ResultEvidence>) {
+    use crate::domains::linear_algebra::LinearAlgebraValue;
+
+    let LinearAlgebraValue::Matrix(envelope) = value else {
+        return (Vec::new(), Vec::new());
+    };
+    let diagnostics = envelope.diagnostics.clone();
+    let mut evidence = Vec::new();
+    if let Some(residual_inf) = envelope.residual_inf {
+        let mut summary = format!("residual_inf={residual_inf}");
+        if let Some(conditioning) = envelope.conditioning {
+            summary.push_str(&format!(" conditioning={conditioning}"));
+        }
+        evidence.push(ResultEvidence::TrustedKernelSummary {
+            provider: ResultProviderId::LINEAR_ALGEBRA,
+            summary,
+        });
+    } else if let Some(conditioning) = envelope.conditioning {
+        evidence.push(ResultEvidence::TrustedKernelSummary {
+            provider: ResultProviderId::LINEAR_ALGEBRA,
+            summary: format!("conditioning={conditioning}"),
+        });
+    }
+    if let (Some(matrix_ref), Some(revision)) = (envelope.matrix_ref, envelope.revision) {
+        evidence.push(ResultEvidence::TrustedKernelSummary {
+            provider: ResultProviderId::LINEAR_ALGEBRA,
+            summary: format!("matrix_ref={} revision={revision}", matrix_ref.0),
+        });
+    }
+    evidence.push(ResultEvidence::TrustedKernelSummary {
+        provider: ResultProviderId::LINEAR_ALGEBRA,
+        summary: format!(
+            "shape={}x{} element_domain={:?} guarantee={:?}",
+            envelope.shape.rows, envelope.shape.cols, envelope.element_domain, envelope.guarantee
+        ),
+    });
+    (diagnostics, evidence)
+}
+
 /// 按值载荷与 [`AlgorithmGuarantee`] 投影顶层状态。禁止把机器近似 `Ok` 抬成 Exact+Full。
 fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::LinearAlgebraValue) -> (ComputationStatus, CoverageStatus) {
     use crate::domains::linear_algebra::{LinearAlgebraValue, SolveDisposition};
 
     match value {
-        LinearAlgebraValue::Matrix(matrix) => {
-            if matrix.parent().element.is_machine() {
-                // 机器矩阵完整交付：Approximate + Full（非 Partial 截断，非搜索 Candidate）。
-                (ComputationStatus::Approximate, CoverageStatus::Full)
-            } else {
-                (ComputationStatus::Exact, CoverageStatus::Full)
-            }
-        }
+        LinearAlgebraValue::Matrix(envelope) => algorithm_guarantee_status(envelope.guarantee),
         LinearAlgebraValue::ExactRank(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::MachineRank { guarantee, .. } => algorithm_guarantee_status(*guarantee),
         LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),

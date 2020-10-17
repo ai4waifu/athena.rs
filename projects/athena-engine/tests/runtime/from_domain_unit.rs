@@ -93,6 +93,67 @@ fn machine_solve_with_solution_projects_list_term() {
 }
 
 #[test]
+fn matrix_result_envelope_projects_shape_evidence_and_status() {
+    use athena_engine::domains::linear_algebra::{MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let value = MatrixValue::from_integers_row_major(2, 2, vec![
+        Integer::from_i64(1),
+        Integer::from_i64(2),
+        Integer::from_i64(3),
+        Integer::from_i64(4),
+    ])
+    .expect("matrix");
+    let envelope = MatrixResult::from_owned(value, AlgorithmGuarantee::Exact);
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::Matrix(envelope),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    assert!(result.symbolic_term.is_some());
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("shape=2x2") && summary.contains("guarantee=Exact")
+        )),
+        "expected shape/guarantee evidence, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
+fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
+    use athena_engine::domains::linear_algebra::{MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+
+    let mut session = Session::new();
+    let value = MatrixValue::from_f64_row_major(1, 1, vec![1.5]).expect("machine");
+    let envelope = MatrixResult::from_owned(value, AlgorithmGuarantee::Approximate).with_machine_witness(1e-12, Some(2.0));
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::Matrix(envelope),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Approximate);
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("residual_inf=") && summary.contains("conditioning=")
+        )),
+        "expected residual evidence, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn inconsistent_exact_solve_projects_empty_list() {
     use athena_engine::domains::linear_algebra::ExactSolveResult;
 
