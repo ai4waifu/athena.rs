@@ -128,6 +128,34 @@ fn matrix_result_envelope_projects_shape_evidence_and_status() {
 }
 
 #[test]
+fn dot_matrix_result_envelope_projects_shape_evidence_and_status() {
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let value = MatrixValue::from_integers_row_major(1, 1, vec![Integer::from_i64(14)]).expect("scalar-like");
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::dot_outcome(value),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
+    assert!(result.symbolic_term.is_some());
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("shape=1x1") && summary.contains("guarantee=Exact")
+        )),
+        "Dot envelope must publish shape/guarantee with the same result, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
     use athena_engine::domains::linear_algebra::{MatrixResult, MatrixValue};
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};

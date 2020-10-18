@@ -337,8 +337,9 @@ fn linear_algebra_envelope_meta(
 ) -> (Vec<Diagnostic>, Vec<ResultEvidence>) {
     use crate::domains::linear_algebra::LinearAlgebraValue;
 
-    let LinearAlgebraValue::Matrix(envelope) = value else {
-        return (Vec::new(), Vec::new());
+    let envelope = match value {
+        LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope) => envelope,
+        _ => return (Vec::new(), Vec::new()),
     };
     let diagnostics = envelope.diagnostics.clone();
     let mut evidence = Vec::new();
@@ -384,13 +385,7 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
         LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactTrace(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactNorm(r) => algorithm_guarantee_status(r.guarantee),
-        LinearAlgebraValue::Dot(matrix) => {
-            if matrix.parent().element.is_machine() {
-                (ComputationStatus::Approximate, CoverageStatus::Full)
-            } else {
-                (ComputationStatus::Exact, CoverageStatus::Full)
-            }
-        }
+        LinearAlgebraValue::Dot(envelope) => algorithm_guarantee_status(envelope.guarantee),
         LinearAlgebraValue::ExactRref(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactSolve(r) => {
             let (status, coverage) = algorithm_guarantee_status(r.guarantee);

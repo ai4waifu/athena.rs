@@ -44,8 +44,8 @@ pub enum LinearAlgebraValue {
     ExactTrace(ExactTraceResult),
     /// 精确欧几里得范数。
     ExactNorm(ExactNormResult),
-    /// `Dot` 收缩结果（向量投影为平坦 List，标量为原子）。
-    Dot(MatrixValue),
+    /// `Dot` / Hadamard / Cross 收缩结果（Living 16 信封；投影仍可压成平坦 List / 标量）。
+    Dot(MatrixResult),
     /// 精确 RREF。
     ExactRref(ExactRrefResult),
     /// 精确求解。
@@ -57,12 +57,22 @@ pub enum LinearAlgebraValue {
 impl LinearAlgebraValue {
     /// Wrap an owned matrix with default guarantee from its element parent.
     pub fn matrix_outcome(value: MatrixValue) -> Self {
+        Self::Matrix(Self::owned_envelope(value))
+    }
+
+    /// Same envelope as [`Self::matrix_outcome`], but keep the `Dot` projection surface
+    /// (scalar / flat vector / nested matrix) instead of always nested lists.
+    pub fn dot_outcome(value: MatrixValue) -> Self {
+        Self::Dot(Self::owned_envelope(value))
+    }
+
+    fn owned_envelope(value: MatrixValue) -> MatrixResult {
         let guarantee = if value.parent().element.is_machine() {
             AlgorithmGuarantee::Approximate
         } else {
             AlgorithmGuarantee::Exact
         };
-        Self::Matrix(MatrixResult::from_owned(value, guarantee))
+        MatrixResult::from_owned(value, guarantee)
     }
 
     /// Owning 复制。
@@ -166,7 +176,7 @@ fn run(
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
             // 与 `Dot` 同表面：行/列向量结果投影为平坦 List（MATLAB `.*`）。
-            Ok(LinearAlgebraValue::Dot(hadamard(&lhs, &rhs)?))
+            Ok(LinearAlgebraValue::dot_outcome(hadamard(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
@@ -228,12 +238,12 @@ fn run(
         LinearAlgebraRequest::Dot { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::Dot(dot(&lhs, &rhs)?))
+            Ok(LinearAlgebraValue::dot_outcome(dot(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Cross { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::Dot(cross(&lhs, &rhs)?))
+            Ok(LinearAlgebraValue::dot_outcome(cross(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::NullSpace { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;

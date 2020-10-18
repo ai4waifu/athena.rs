@@ -575,7 +575,7 @@ pub(crate) fn linear_algebra_value_symbolic_term(
 
     match value {
         LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, &m.value).ok(),
-        LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, m).ok(),
+        LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, &m.value).ok(),
         LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
         LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: None, disposition, .. }) => {
             solve_disposition_residual_term(session, disposition)
