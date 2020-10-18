@@ -448,6 +448,9 @@ pub(crate) fn evaluate_arithmetic_terms(session: &mut Session, op: SemanticOpera
         }
     }
     if op == SemanticOperator::Multiply && terms.len() == 2 {
+        // Fallback for nested Collection Terms that never entered `MatrixObjectStore`.
+        // Prefer `apply_arithmetic` MatMul on `RuntimeValue::Matrix` (Living 16) when both
+        // operands already carry MatrixRef handles.
         if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
             let left_matrixish = matches!(
                 session.arena.get(terms[0]),
