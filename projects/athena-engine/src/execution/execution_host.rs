@@ -496,6 +496,30 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Determinant.discriminant())));
         }
+        // Living 16: typed MatrixRef → Det goal. Nested Collection reverse recognition stays fallback.
+        let matrix_ref = match args[0] {
+            SlotValue::Value(value_id) => self.session.matrix_of_value(value_id),
+            SlotValue::Symbol(symbol) => self.session.matrix_binding(symbol),
+            _ => None,
+        };
+        if let Some(matrix_ref) = matrix_ref {
+            use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+            let request = LinearAlgebraRequest::Det {
+                matrix: MatrixOperand::object(matrix_ref),
+            };
+            match self.session.execute_linear_algebra(request) {
+                LinearAlgebraResult::Ok { value: LinearAlgebraValue::ExactDet(det) } => {
+                    use athena_numeric::Number;
+                    use crate::execution::push_number;
+                    let term = push_number(self.session, Number::rational(det.det));
+                    return Ok(HostOutcome::Value(SlotValue::Term(term)));
+                }
+                LinearAlgebraResult::Err { diagnostic } => {
+                    return Ok(HostOutcome::Diagnostic(diagnostic));
+                }
+                LinearAlgebraResult::Ok { .. } => {}
+            }
+        }
         let term = self.slot_as_term(args[0])?;
         let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
         // Bareiss 失败：SoftInvalid（VM 解释器提升为硬 Diagnostic，与 Index OOB 同合同）。
