@@ -429,6 +429,31 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: Prefer typed MatrixRef shape. Nested Collection reverse recognition is fallback only.
+        if args.len() == 1 {
+            if let SlotValue::Value(value_id) = args[0] {
+                if let Some(matrix_ref) = self.session.matrix_of_value(value_id) {
+                    if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
+                        use crate::runtime::values::arena::push_list;
+                        let shape = matrix.shape();
+                        let r = self.session.builder().int(shape.rows as i64, Default::default());
+                        let c = self.session.builder().int(shape.cols as i64, Default::default());
+                        return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
+                    }
+                }
+            }
+            if let SlotValue::Symbol(symbol) = args[0] {
+                if let Some(matrix_ref) = self.session.matrix_binding(symbol) {
+                    if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
+                        use crate::runtime::values::arena::push_list;
+                        let shape = matrix.shape();
+                        let r = self.session.builder().int(shape.rows as i64, Default::default());
+                        let c = self.session.builder().int(shape.cols as i64, Default::default());
+                        return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
+                    }
+                }
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
