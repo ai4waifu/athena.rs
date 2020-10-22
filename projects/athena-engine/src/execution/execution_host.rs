@@ -137,31 +137,44 @@ impl<'a> ExecutionHost<'a> {
         }
     }
 
+    fn matrix_ref_from_slot(&self, slot: SlotValue) -> Option<crate::domains::linear_algebra::MatrixRef> {
+        match slot {
+            SlotValue::Value(value_id) => self.session.matrix_of_value(value_id),
+            SlotValue::Symbol(symbol) => self.session.matrix_binding(symbol),
+            _ => None,
+        }
+    }
+
+    fn host_hadamard(
+        &mut self,
+        lhs: crate::domains::linear_algebra::MatrixRef,
+        rhs: crate::domains::linear_algebra::MatrixRef,
+    ) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+        let request = LinearAlgebraRequest::Hadamard {
+            lhs: MatrixOperand::object(lhs),
+            rhs: MatrixOperand::object(rhs),
+        };
+        Ok(match self.session.execute_linear_algebra(request) {
+            LinearAlgebraResult::Ok {
+                value: LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope),
+            } => {
+                let matrix_ref = self.session.matrix_objects.intern(envelope.value);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Some(HostOutcome::Value(SlotValue::Value(value_id)))
+            }
+            LinearAlgebraResult::Err { diagnostic } => Some(HostOutcome::Diagnostic(diagnostic)),
+            LinearAlgebraResult::Ok { .. } => None,
+        })
+    }
+
     fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: `Multiply` on typed matrices is Hadamard (element-wise), never MatMul.
         // Dialects must lower MATLAB `A*B` / Mathematica `Dot` to explicit MatMul / Dot goals.
-        // Do not project operands to nested List and reverse-recognize them as matrices.
         if op == SemanticOperator::Multiply && args.len() == 2 {
-            if let (SlotValue::Value(lhs_id), SlotValue::Value(rhs_id)) = (args[0], args[1]) {
-                if let (Some(lhs), Some(rhs)) = (self.session.matrix_of_value(lhs_id), self.session.matrix_of_value(rhs_id)) {
-                    use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
-                    let request = LinearAlgebraRequest::Hadamard {
-                        lhs: MatrixOperand::object(lhs),
-                        rhs: MatrixOperand::object(rhs),
-                    };
-                    match self.session.execute_linear_algebra(request) {
-                        LinearAlgebraResult::Ok {
-                            value: LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope),
-                        } => {
-                            let matrix_ref = self.session.matrix_objects.intern(envelope.value);
-                            let value_id = self.session.insert_matrix_value(matrix_ref);
-                            return Ok(HostOutcome::Value(SlotValue::Value(value_id)));
-                        }
-                        LinearAlgebraResult::Err { diagnostic } => {
-                            return Ok(HostOutcome::Diagnostic(diagnostic));
-                        }
-                        LinearAlgebraResult::Ok { .. } => {}
-                    }
+            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+                if let Some(outcome) = self.host_hadamard(lhs, rhs)? {
+                    return Ok(outcome);
                 }
             }
         }
@@ -431,26 +444,13 @@ impl<'a> ExecutionHost<'a> {
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: Prefer typed MatrixRef shape. Nested Collection reverse recognition is fallback only.
         if args.len() == 1 {
-            if let SlotValue::Value(value_id) = args[0] {
-                if let Some(matrix_ref) = self.session.matrix_of_value(value_id) {
-                    if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
-                        use crate::runtime::values::arena::push_list;
-                        let shape = matrix.shape();
-                        let r = self.session.builder().int(shape.rows as i64, Default::default());
-                        let c = self.session.builder().int(shape.cols as i64, Default::default());
-                        return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
-                    }
-                }
-            }
-            if let SlotValue::Symbol(symbol) = args[0] {
-                if let Some(matrix_ref) = self.session.matrix_binding(symbol) {
-                    if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
-                        use crate::runtime::values::arena::push_list;
-                        let shape = matrix.shape();
-                        let r = self.session.builder().int(shape.rows as i64, Default::default());
-                        let c = self.session.builder().int(shape.cols as i64, Default::default());
-                        return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
-                    }
+            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
+                    use crate::runtime::values::arena::push_list;
+                    let shape = matrix.shape();
+                    let r = self.session.builder().int(shape.rows as i64, Default::default());
+                    let c = self.session.builder().int(shape.cols as i64, Default::default());
+                    return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
                 }
             }
         }
@@ -497,12 +497,7 @@ impl<'a> ExecutionHost<'a> {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Determinant.discriminant())));
         }
         // Living 16: typed MatrixRef → Det goal. Nested Collection reverse recognition stays fallback.
-        let matrix_ref = match args[0] {
-            SlotValue::Value(value_id) => self.session.matrix_of_value(value_id),
-            SlotValue::Symbol(symbol) => self.session.matrix_binding(symbol),
-            _ => None,
-        };
-        if let Some(matrix_ref) = matrix_ref {
+        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
             use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
             let request = LinearAlgebraRequest::Det {
                 matrix: MatrixOperand::object(matrix_ref),
@@ -550,6 +545,14 @@ impl<'a> ExecutionHost<'a> {
     fn apply_elementwise(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
+        }
+        // Living 16: typed matrix `ElementwiseMultiply` is Hadamard, not nested-list zip.
+        if op == SemanticOperator::ElementwiseMultiply {
+            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+                if let Some(outcome) = self.host_hadamard(lhs, rhs)? {
+                    return Ok(outcome);
+                }
+            }
         }
         let left = self.slot_as_term(args[0])?;
         let right = self.slot_as_term(args[1])?;
