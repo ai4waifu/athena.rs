@@ -213,6 +213,30 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 
 #[test]
 #[test]
+fn compile_and_execute_eye_returns_matrix_value() {
+    use athena_ir::ApplicationHead;
+    use athena_engine::runtime::RuntimeValue;
+
+    let mut session = Session::new();
+    let n = session.builder().int(2, Default::default());
+    let eye = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Eye), vec![n], Default::default());
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(eye))
+        .expect("eye");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let matrix = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(matrix.shape().rows, 2);
+    assert_eq!(matrix.shape().cols, 2);
+}
+
+#[test]
 fn compile_and_execute_elementwise_multiply_matrix_bindings_via_hadamard() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;

@@ -19,7 +19,7 @@ pub(crate) use self::helpers::{
     evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
     evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
     evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes, store_index_axes_matrix,
-    domain_request_residual_term, linear_algebra_missing_binding, symbolic_term_from_value_id,
+    domain_request_residual_term, linear_algebra_missing_binding, symbolic_term_from_value_id, parse_matrix_dims,
 };
 
 use athena_types::{Result, ResultId};
