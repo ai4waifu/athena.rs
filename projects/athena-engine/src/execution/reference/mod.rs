@@ -20,7 +20,7 @@ pub(crate) use self::helpers::{
     evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
     evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes, store_index_axes_matrix,
     domain_request_residual_term, linear_algebra_missing_binding, symbolic_term_from_value_id, parse_matrix_dims,
-    term_scalar_rational_session,
+    term_scalar_rational_session, rational_to_term_session,
 };
 
 use athena_types::{Result, ResultId};
