@@ -41,7 +41,45 @@ pub(crate) fn evaluate_product_iterator_terms(session: &mut Session, body: TermI
     }
 }
 
-/// 非迭代器 `Product[args…]` — 当前仅保残差（无列表积折叠）。
+/// 非迭代器 `Product[args…]` — 向量标量积 / 矩阵按列求积（与 `Sum` 对称）。
 pub(crate) fn evaluate_product_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
-    Ok(push_semantic(session, SemanticOperator::Product, terms))
+    use super::{fold_times_symbolic, nested_list_shape};
+    use crate::runtime::values::arena::push_list;
+
+    if terms.len() != 1 {
+        return Ok(push_semantic(session, SemanticOperator::Product, terms));
+    }
+    let term = terms[0];
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Product, vec![term]));
+    };
+    let items = items.clone();
+    if items.is_empty() {
+        return Ok(session.builder().int(1, Default::default()));
+    }
+    if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
+        let Some((_, cols)) = nested_list_shape(session, term)
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Product, vec![term]));
+        };
+        let mut out = Vec::with_capacity(cols as usize);
+        for j in 0..cols as usize {
+            let mut col = Vec::with_capacity(items.len());
+            for row in &items {
+                let cell = match session.arena.get(*row) {
+                    Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.get(j).copied(),
+                    _ => None,
+                };
+                let Some(cell) = cell
+                else {
+                    return Ok(push_semantic(session, SemanticOperator::Product, vec![term]));
+                };
+                col.push(cell);
+            }
+            out.push(fold_times_symbolic(session, col));
+        }
+        return Ok(push_list(session, out));
+    }
+    Ok(fold_times_symbolic(session, items))
 }
