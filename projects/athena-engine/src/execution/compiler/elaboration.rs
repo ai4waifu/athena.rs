@@ -51,7 +51,7 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
         };
     }
     if index == 0
-        && (operator == SemanticOperator::Product
+        && ((operator == SemanticOperator::Product && arg_count == 2)
             || (operator == SemanticOperator::Sum && arg_count == 2)
             || matches!(
                 operator,
