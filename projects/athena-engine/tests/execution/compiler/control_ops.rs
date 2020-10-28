@@ -608,6 +608,54 @@ fn compile_and_execute_elementwise_divide_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_elementwise_power_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let b_term = session.builder().symbol("B", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let sb = match session.arena.get(b_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol B, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(2), Integer::from(3)]).expect("a"));
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(3), Integer::from(2)]).expect("b"));
+    let powered = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::ElementwisePower),
+        vec![a_term, b_term],
+        Default::default(),
+    );
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sb, matrix: b }),
+            AthenaRequest::Term(powered),
+        ],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("ew pow");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
+            assert!(matches!(session.arena.get(cells[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(8)));
+            assert!(matches!(session.arena.get(cells[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(9)));
+        }
+        other => panic!("expected flat power list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_det_on_matrix_binding() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;

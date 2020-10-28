@@ -31,7 +31,7 @@ pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, 
 pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
-pub use ops::{cross, dot, elementwise_divide, hadamard, index_scalar, matmul, slice_matrix, transpose};
+pub use ops::{cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, matmul, slice_matrix, transpose};
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;
 pub use result::{

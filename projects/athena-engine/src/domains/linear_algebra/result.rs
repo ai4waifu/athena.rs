@@ -10,7 +10,7 @@ use super::{
     machine::{MachineSolveResult, rank_machine, solve_machine},
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
-    ops::{cross, dot, elementwise_divide, hadamard, index_scalar, matmul, transpose},
+    ops::{cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
     value::MatrixValue,
@@ -115,6 +115,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::MatMul { .. } => "matmul",
         LinearAlgebraRequest::Hadamard { .. } => "hadamard",
         LinearAlgebraRequest::ElementwiseDivide { .. } => "elementwise_divide",
+        LinearAlgebraRequest::ElementwisePower { .. } => "elementwise_power",
         LinearAlgebraRequest::Rank { .. } => "rank",
         LinearAlgebraRequest::Det { .. } => "det",
         LinearAlgebraRequest::Rref { .. } => "rref",
@@ -183,6 +184,11 @@ fn run(
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::dot_outcome(elementwise_divide(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::ElementwisePower { lhs, rhs } => {
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(elementwise_power(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;

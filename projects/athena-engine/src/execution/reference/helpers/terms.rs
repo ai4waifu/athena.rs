@@ -687,6 +687,9 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::ElementwiseDivide { lhs, rhs } => {
             ("DotDivide", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?])
         }
+        LinearAlgebraRequest::ElementwisePower { lhs, rhs } => {
+            ("DotPower", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?])
+        }
         LinearAlgebraRequest::Dot { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Cross { lhs, rhs } => ("Cross", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Index { .. } => return None,
