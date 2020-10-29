@@ -259,9 +259,126 @@ impl<'a> ExecutionHost<'a> {
                 }
             }
         }
+        // Living 16: First / Rest / Flatten stay on MatrixRef (no nested-list reverse recognition).
+        if matches!(
+            op,
+            SemanticOperator::First | SemanticOperator::Rest | SemanticOperator::Flatten
+        ) {
+            if let Some(outcome) = self.host_matrix_unary_structure(op, args[0])? {
+                return Ok(outcome);
+            }
+        }
         let term = self.slot_as_term(args[0])?;
         let out = evaluate_unary_term(self.session, op, term)?;
         Ok(HostOutcome::Value(SlotValue::Term(out)))
+    }
+
+    fn host_matrix_unary_structure(&mut self, op: SemanticOperator, slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{
+            AxisRange, IndexSpec, MatrixEntry, flatten_row_major, slice_matrix,
+        };
+        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        else {
+            return Ok(None);
+        };
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        match op {
+            SemanticOperator::First => {
+                if shape.rows == 0 || shape.cols == 0 {
+                    return Ok(Some(HostOutcome::Diagnostic(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "first_empty_matrix"),
+                    )));
+                }
+                if shape.rows == 1 {
+                    let term = match matrix.get(0, 0)? {
+                        MatrixEntry::Integer(x) => {
+                            let Some(i) = x.to_i64()
+                            else {
+                                return Ok(Some(HostOutcome::Diagnostic(
+                                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "first_integer_too_large"),
+                                )));
+                            };
+                            self.session.builder().int(i, Default::default())
+                        }
+                        MatrixEntry::Rational(x) => rational_to_term_session(self.session, &x),
+                        MatrixEntry::MachineF64(x) => self.session.builder().real(x, Default::default()),
+                    };
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                let row = slice_matrix(
+                    &matrix,
+                    &IndexSpec::Slice {
+                        rows: AxisRange::Range { start: 0, end: 1 },
+                        cols: AxisRange::All,
+                    },
+                )?;
+                let matrix_ref = self.session.matrix_objects.intern(row);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            SemanticOperator::Rest => {
+                if shape.rows == 0 || shape.cols == 0 {
+                    return Ok(Some(HostOutcome::Diagnostic(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "rest_empty_matrix"),
+                    )));
+                }
+                let rest = if shape.rows == 1 {
+                    if shape.cols == 0 {
+                        return Ok(Some(HostOutcome::Diagnostic(
+                            Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "rest_empty_matrix"),
+                        )));
+                    }
+                    if shape.cols == 1 {
+                        // Rest of a singleton vector → empty 1×0 row.
+                        slice_matrix(
+                            &matrix,
+                            &IndexSpec::Slice {
+                                rows: AxisRange::All,
+                                cols: AxisRange::Range { start: 1, end: 1 },
+                            },
+                        )
+                    }
+                    else {
+                        slice_matrix(
+                            &matrix,
+                            &IndexSpec::Slice {
+                                rows: AxisRange::All,
+                                cols: AxisRange::Range {
+                                    start: 1,
+                                    end: shape.cols,
+                                },
+                            },
+                        )
+                    }
+                }
+                else {
+                    slice_matrix(
+                        &matrix,
+                        &IndexSpec::Slice {
+                            rows: AxisRange::Range {
+                                start: 1,
+                                end: shape.rows,
+                            },
+                            cols: AxisRange::All,
+                        },
+                    )
+                }?;
+                let matrix_ref = self.session.matrix_objects.intern(rest);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            SemanticOperator::Flatten => {
+                let flat = flatten_row_major(&matrix)?;
+                let matrix_ref = self.session.matrix_objects.intern(flat);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            _ => Ok(None),
+        }
     }
 
     fn bind_term(&mut self, symbol: SymbolId, term: TermId, residual: bool) {

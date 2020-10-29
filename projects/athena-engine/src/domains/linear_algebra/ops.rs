@@ -362,6 +362,52 @@ pub fn elementwise_power(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixV
     }
 }
 
+/// 行主序展平为 `1×(rows*cols)`（Mathematica `Flatten` 对矩形嵌套 List 的默认序）。
+pub fn flatten_row_major(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    let n = matrix.shape().element_count()?;
+    let n_u64 = n as u64;
+    match matrix.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(n);
+            for i in 0..rows {
+                for j in 0..cols {
+                    match matrix.get(i, j)? {
+                        MatrixEntry::Integer(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            MatrixValue::from_integers_row_major(1, n_u64, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(n);
+            for i in 0..rows {
+                for j in 0..cols {
+                    match matrix.get(i, j)? {
+                        MatrixEntry::Rational(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            MatrixValue::from_rationals_row_major(1, n_u64, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity(n);
+            for i in 0..rows {
+                for j in 0..cols {
+                    match matrix.get(i, j)? {
+                        MatrixEntry::MachineF64(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            MatrixValue::from_f64_row_major(1, n_u64, data)
+        }
+    }
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not
