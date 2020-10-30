@@ -259,10 +259,14 @@ impl<'a> ExecutionHost<'a> {
                 }
             }
         }
-        // Living 16: First / Rest / Flatten stay on MatrixRef (no nested-list reverse recognition).
+        // Living 16: First / Rest / Most / Reverse / Flatten stay on MatrixRef (no nested-list reverse recognition).
         if matches!(
             op,
-            SemanticOperator::First | SemanticOperator::Rest | SemanticOperator::Flatten
+            SemanticOperator::First
+                | SemanticOperator::Rest
+                | SemanticOperator::Most
+                | SemanticOperator::Reverse
+                | SemanticOperator::Flatten
         ) {
             if let Some(outcome) = self.host_matrix_unary_structure(op, args[0])? {
                 return Ok(outcome);
@@ -275,7 +279,7 @@ impl<'a> ExecutionHost<'a> {
 
     fn host_matrix_unary_structure(&mut self, op: SemanticOperator, slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{
-            AxisRange, IndexSpec, MatrixEntry, flatten_row_major, slice_matrix,
+            AxisRange, IndexSpec, MatrixEntry, flatten_row_major, reverse_matrix, slice_matrix,
         };
         let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
         else {
@@ -374,6 +378,57 @@ impl<'a> ExecutionHost<'a> {
             SemanticOperator::Flatten => {
                 let flat = flatten_row_major(&matrix)?;
                 let matrix_ref = self.session.matrix_objects.intern(flat);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            SemanticOperator::Most => {
+                if shape.rows == 0 || shape.cols == 0 {
+                    return Ok(Some(HostOutcome::Diagnostic(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "most_empty_matrix"),
+                    )));
+                }
+                let most = if shape.rows == 1 {
+                    if shape.cols == 1 {
+                        slice_matrix(
+                            &matrix,
+                            &IndexSpec::Slice {
+                                rows: AxisRange::All,
+                                cols: AxisRange::Range { start: 0, end: 0 },
+                            },
+                        )
+                    }
+                    else {
+                        slice_matrix(
+                            &matrix,
+                            &IndexSpec::Slice {
+                                rows: AxisRange::All,
+                                cols: AxisRange::Range {
+                                    start: 0,
+                                    end: shape.cols - 1,
+                                },
+                            },
+                        )
+                    }
+                }
+                else {
+                    slice_matrix(
+                        &matrix,
+                        &IndexSpec::Slice {
+                            rows: AxisRange::Range {
+                                start: 0,
+                                end: shape.rows - 1,
+                            },
+                            cols: AxisRange::All,
+                        },
+                    )
+                }?;
+                let matrix_ref = self.session.matrix_objects.intern(most);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            SemanticOperator::Reverse => {
+                let reversed = reverse_matrix(&matrix)?;
+                let matrix_ref = self.session.matrix_objects.intern(reversed);
                 let value_id = self.session.insert_matrix_value(matrix_ref);
                 Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
             }
