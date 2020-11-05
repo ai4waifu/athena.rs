@@ -783,6 +783,108 @@ fn compile_and_execute_first_rest_flatten_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_take_drop_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(3, 2, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+            Integer::from(4),
+            Integer::from(5),
+            Integer::from(6),
+        ]).expect("a"));
+    let two = session.builder().int(2, Default::default());
+    let take = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Take),
+        vec![a_term, two],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+                    AthenaRequest::Term(take),
+                ],
+            }),
+        )
+        .expect("take");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute take");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            let r0 = match session.arena.get(rows[0]) {
+                Some(TermNode::Collection { elements: cells, .. }) => cells.clone(),
+                other => panic!("row0: {other:?}"),
+            };
+            assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+            assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
+        }
+        other => panic!("expected Take nested list, got {other:?}"),
+    }
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(3, 2, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+            Integer::from(4),
+            Integer::from(5),
+            Integer::from(6),
+        ]).expect("a"));
+    let one = session.builder().int(1, Default::default());
+    let drop = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Drop),
+        vec![a_term, one],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+                    AthenaRequest::Term(drop),
+                ],
+            }),
+        )
+        .expect("drop");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute drop");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            let r0 = match session.arena.get(rows[0]) {
+                Some(TermNode::Collection { elements: cells, .. }) => cells.clone(),
+                other => panic!("row0: {other:?}"),
+            };
+            assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+            assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)));
+        }
+        other => panic!("expected Drop nested list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_most_reverse_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;

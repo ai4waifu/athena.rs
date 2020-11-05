@@ -472,6 +472,9 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Take.discriminant())));
         }
+        if let Some(outcome) = self.host_matrix_take_drop(SemanticOperator::Take, args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let count = self.slot_as_term(args[1])?;
         let term = evaluate_take_terms(self.session, list, count)?;
@@ -482,10 +485,70 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Drop.discriminant())));
         }
+        if let Some(outcome) = self.host_matrix_take_drop(SemanticOperator::Drop, args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let count = self.slot_as_term(args[1])?;
         let term = evaluate_drop_terms(self.session, list, count)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    /// Living 16: `Take`/`Drop` on typed matrices (row-major list semantics).
+    fn host_matrix_take_drop(&mut self, op: SemanticOperator, matrix_slot: SlotValue, count_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{AxisRange, IndexSpec, slice_matrix};
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(matrix_slot)
+        else {
+            return Ok(None);
+        };
+        let count_term = self.slot_as_term(count_slot)?;
+        let Some(n) = number_of(self.session, count_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        if n < 0 {
+            return Ok(None);
+        }
+        let n = n as u64;
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        let sliced = if shape.rows == 1 {
+            let cols = shape.cols;
+            let (start, end) = match op {
+                SemanticOperator::Take => (0, n.min(cols)),
+                SemanticOperator::Drop => (n.min(cols), cols),
+                _ => return Ok(None),
+            };
+            slice_matrix(
+                &matrix,
+                &IndexSpec::Slice {
+                    rows: AxisRange::All,
+                    cols: AxisRange::Range { start, end },
+                },
+            )?
+        }
+        else {
+            let rows = shape.rows;
+            let (start, end) = match op {
+                SemanticOperator::Take => (0, n.min(rows)),
+                SemanticOperator::Drop => (n.min(rows), rows),
+                _ => return Ok(None),
+            };
+            slice_matrix(
+                &matrix,
+                &IndexSpec::Slice {
+                    rows: AxisRange::Range { start, end },
+                    cols: AxisRange::All,
+                },
+            )?
+        };
+        let matrix_ref = self.session.matrix_objects.intern(sliced);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_append(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
