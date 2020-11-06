@@ -605,6 +605,67 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
     }
 }
 
+/// Append / prepend a scalar onto a `1×n` vector matrix.
+pub fn extend_row_vector_scalar(matrix: &MatrixValue, scalar: MatrixEntry, prepend: bool) -> Result<MatrixValue, Diagnostic> {
+    use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
+
+    if matrix.shape().rows != 1 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "extend_requires_row_vector"));
+    }
+    let cols = matrix.shape().cols;
+    match (matrix.parent().element, scalar) {
+        (ElementParentKind::Integers, MatrixEntry::Integer(x)) => {
+            let mut data = Vec::with_capacity(cols as usize + 1);
+            if prepend {
+                data.push(clone_integer(&x));
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::Integer(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            if !prepend {
+                data.push(x);
+            }
+            MatrixValue::from_integers_row_major(1, cols + 1, data)
+        }
+        (ElementParentKind::Rationals, MatrixEntry::Rational(x)) => {
+            let mut data = Vec::with_capacity(cols as usize + 1);
+            if prepend {
+                data.push(clone_rational(&x));
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::Rational(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            if !prepend {
+                data.push(x);
+            }
+            MatrixValue::from_rationals_row_major(1, cols + 1, data)
+        }
+        (ElementParentKind::MachineReal, MatrixEntry::MachineF64(x)) => {
+            let mut data = Vec::with_capacity(cols as usize + 1);
+            if prepend {
+                data.push(x);
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::MachineF64(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            if !prepend {
+                data.push(x);
+            }
+            MatrixValue::from_f64_row_major(1, cols + 1, data)
+        }
+        _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "extend_entry_parent_mismatch")),
+    }
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not
