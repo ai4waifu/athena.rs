@@ -32,7 +32,7 @@ pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
 pub use ops::{
-    cross, dot, elementwise_divide, elementwise_power, flatten_row_major, hadamard, index_scalar, matmul, reverse_matrix,
+    cross, dot, elementwise_divide, elementwise_power, flatten_row_major, hadamard, index_scalar, join_matrices, matmul, reverse_matrix,
     slice_matrix, transpose,
 };
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};

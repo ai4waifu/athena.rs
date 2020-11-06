@@ -491,6 +491,120 @@ pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     }
 }
 
+/// Join matrices with Mathematica list-level-1 semantics.
+///
+/// - All `1×n` → concatenate along columns (`1×Σn`)
+/// - Otherwise → stack along rows when column counts match
+pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> {
+    if parts.is_empty() {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "join_empty"));
+    }
+    let parent = parts[0].parent();
+    for p in parts.iter().skip(1) {
+        if p.parent().element != parent.element {
+            return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "join_parent_mismatch"));
+        }
+    }
+    let all_rows = parts.iter().all(|p| p.shape().rows == 1);
+    if all_rows {
+        let cols: u64 = parts.iter().map(|p| p.shape().cols).sum();
+        match parent.element {
+            ElementParentKind::Integers => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for p in parts {
+                    for j in 0..p.shape().cols {
+                        match p.get(0, j)? {
+                            MatrixEntry::Integer(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_integers_row_major(1, cols, data)
+            }
+            ElementParentKind::Rationals => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for p in parts {
+                    for j in 0..p.shape().cols {
+                        match p.get(0, j)? {
+                            MatrixEntry::Rational(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_rationals_row_major(1, cols, data)
+            }
+            ElementParentKind::MachineReal => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for p in parts {
+                    for j in 0..p.shape().cols {
+                        match p.get(0, j)? {
+                            MatrixEntry::MachineF64(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_f64_row_major(1, cols, data)
+            }
+        }
+    }
+    else {
+        let cols = parts[0].shape().cols;
+        for p in parts.iter().skip(1) {
+            if p.shape().cols != cols {
+                return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+                    .detail("reason", "join_column_mismatch")
+                    .detail("cols", cols.to_string())
+                    .detail("other_cols", p.shape().cols.to_string()));
+            }
+        }
+        let rows: u64 = parts.iter().map(|p| p.shape().rows).sum();
+        match parent.element {
+            ElementParentKind::Integers => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for p in parts {
+                    for i in 0..p.shape().rows {
+                        for j in 0..cols {
+                            match p.get(i, j)? {
+                                MatrixEntry::Integer(x) => data.push(x),
+                                _ => unreachable!(),
+                            }
+                        }
+                    }
+                }
+                MatrixValue::from_integers_row_major(rows, cols, data)
+            }
+            ElementParentKind::Rationals => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for p in parts {
+                    for i in 0..p.shape().rows {
+                        for j in 0..cols {
+                            match p.get(i, j)? {
+                                MatrixEntry::Rational(x) => data.push(x),
+                                _ => unreachable!(),
+                            }
+                        }
+                    }
+                }
+                MatrixValue::from_rationals_row_major(rows, cols, data)
+            }
+            ElementParentKind::MachineReal => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for p in parts {
+                    for i in 0..p.shape().rows {
+                        for j in 0..cols {
+                            match p.get(i, j)? {
+                                MatrixEntry::MachineF64(x) => data.push(x),
+                                _ => unreachable!(),
+                            }
+                        }
+                    }
+                }
+                MatrixValue::from_f64_row_major(rows, cols, data)
+            }
+        }
+    }
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not

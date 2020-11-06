@@ -783,6 +783,67 @@ fn compile_and_execute_first_rest_flatten_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_join_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let b_term = session.builder().symbol("B", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let sb = match session.arena.get(b_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol B, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+            Integer::from(4),
+        ]).expect("a"));
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(5), Integer::from(6)]).expect("b"));
+    let join = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Join),
+        vec![a_term, b_term],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sb, matrix: b }),
+                    AthenaRequest::Term(join),
+                ],
+            }),
+        )
+        .expect("join");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute join");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 3 => {
+            let r2 = match session.arena.get(rows[2]) {
+                Some(TermNode::Collection { elements: cells, .. }) => cells.clone(),
+                other => panic!("row2: {other:?}"),
+            };
+            assert!(matches!(session.arena.get(r2[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5)));
+            assert!(matches!(session.arena.get(r2[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6)));
+        }
+        other => panic!("expected Join nested list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_take_drop_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
