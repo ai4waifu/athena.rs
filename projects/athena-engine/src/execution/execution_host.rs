@@ -710,9 +710,53 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Sort.discriminant())));
         }
+        // Living 16: sort typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_sort(args[0])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let term = evaluate_sort_terms(self.session, list)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_sort(&mut self, slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
+        use athena_numeric::Integer;
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        else {
+            return Ok(None);
+        };
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows != 1 || shape.cols == 0 {
+            return Ok(None);
+        }
+        let mut values: Vec<i64> = Vec::with_capacity(shape.cols as usize);
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                MatrixEntry::Integer(z) => {
+                    let Some(i) = z.to_i64()
+                    else {
+                        return Ok(None);
+                    };
+                    values.push(i);
+                }
+                _ => return Ok(None),
+            }
+        }
+        values.sort_unstable();
+        let data: Vec<Integer> = values.into_iter().map(Integer::from).collect();
+        let sorted = match MatrixValue::from_integers_row_major(1, shape.cols, data) {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+        let matrix_ref = self.session.matrix_objects.intern(sorted);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_delete_duplicates(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -738,10 +782,66 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Partition.discriminant())));
         }
+        // Living 16: partition typed 1×n MatrixRef into row blocks.
+        if let Some(outcome) = self.host_matrix_partition(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let size = self.slot_as_term(args[1])?;
         let term = evaluate_partition_terms(self.session, list, size)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_partition(&mut self, list_slot: SlotValue, size_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
+        use athena_numeric::Integer;
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        else {
+            return Ok(None);
+        };
+        let size_term = self.slot_as_term(size_slot)?;
+        let Some(n) = number_of(self.session, size_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        if n <= 0 {
+            return Ok(None);
+        }
+        let n = n as u64;
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows != 1 || shape.cols == 0 {
+            return Ok(None);
+        }
+        let full = (shape.cols / n) * n;
+        if full == 0 {
+            let empty = match MatrixValue::from_integers_row_major(0, n, Vec::new()) {
+                Ok(m) => m,
+                Err(_) => return Ok(None),
+            };
+            let matrix_ref = self.session.matrix_objects.intern(empty);
+            let value_id = self.session.insert_matrix_value(matrix_ref);
+            return Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))));
+        }
+        let out_rows = full / n;
+        let mut data: Vec<Integer> = Vec::with_capacity(full as usize);
+        for j in 0..full {
+            match matrix.get(0, j)? {
+                MatrixEntry::Integer(z) => data.push(z),
+                _ => return Ok(None),
+            }
+        }
+        let partitioned = match MatrixValue::from_integers_row_major(out_rows, n, data) {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+        let matrix_ref = self.session.matrix_objects.intern(partitioned);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_constant_array(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
