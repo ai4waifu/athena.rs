@@ -1115,6 +1115,58 @@ fn compile_and_execute_sort_partition_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_delete_duplicates_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 5, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(1),
+            Integer::from(3),
+            Integer::from(2),
+        ]).expect("v"));
+    let dedupe = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::DeleteDuplicates),
+        vec![v_term],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(dedupe),
+                ],
+            }),
+        )
+        .expect("delete_duplicates");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute delete_duplicates");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 3 => {
+            assert!(matches!(session.arena.get(cells[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+            assert!(matches!(session.arena.get(cells[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
+            assert!(matches!(session.arena.get(cells[2]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+        }
+        other => panic!("expected DeleteDuplicates flat list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_take_drop_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
