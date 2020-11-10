@@ -1136,10 +1136,40 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::FreeQ.discriminant())));
         }
+        // Living 16: FreeQ on typed 1×n MatrixRef is the negation of MemberQ.
+        if let Some(outcome) = self.host_matrix_free_q(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_free_q_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_free_q(
+        &mut self,
+        list_slot: SlotValue,
+        elem_slot: SlotValue,
+    ) -> Result<Option<HostOutcome>> {
+        let Some((matrix, needle)) = self.matrix_1xn_integer_needle(list_slot, elem_slot)?
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        let mut found = false;
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                crate::domains::linear_algebra::MatrixEntry::Integer(z) => {
+                    if z.to_i64() == Some(needle) {
+                        found = true;
+                        break;
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+        let term = self.session.builder().boolean(!found, Default::default());
+        Ok(Some(HostOutcome::Value(SlotValue::Term(term))))
     }
 
     fn apply_extract(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -1176,10 +1206,41 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Position.discriminant())));
         }
+        // Living 16: Position on typed 1×n MatrixRef returns top-level 1-based index lists.
+        if let Some(outcome) = self.host_matrix_position(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_position_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_position(
+        &mut self,
+        list_slot: SlotValue,
+        elem_slot: SlotValue,
+    ) -> Result<Option<HostOutcome>> {
+        use crate::runtime::values::arena::push_list;
+
+        let Some((matrix, needle)) = self.matrix_1xn_integer_needle(list_slot, elem_slot)?
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        let mut positions = Vec::new();
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                crate::domains::linear_algebra::MatrixEntry::Integer(z) => {
+                    if z.to_i64() == Some(needle) {
+                        let idx = self.session.builder().int((j as i64) + 1, Default::default());
+                        positions.push(push_list(self.session, vec![idx]));
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+        Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, positions)))))
     }
 
     fn apply_array(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {

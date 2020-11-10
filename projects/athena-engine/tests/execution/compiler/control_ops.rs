@@ -1167,6 +1167,101 @@ fn compile_and_execute_delete_duplicates_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_free_q_position_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(1),
+        ]).expect("v"));
+    let three = session.builder().int(3, Default::default());
+    let free = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::FreeQ),
+        vec![v_term, three],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(free),
+                ],
+            }),
+        )
+        .expect("free_q");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute free_q");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Boolean(true)))));
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(1),
+        ]).expect("v"));
+    let one = session.builder().int(1, Default::default());
+    let position = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Position),
+        vec![v_term, one],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(position),
+                ],
+            }),
+        )
+        .expect("position");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute position");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            for (row, expect) in rows.iter().zip([1i64, 3]) {
+                match session.arena.get(*row) {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 1 => {
+                        assert!(matches!(
+                            session.arena.get(cells[0]),
+                            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect)
+                        ));
+                    }
+                    other => panic!("expected singleton index list, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Position nested list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_member_q_count_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
