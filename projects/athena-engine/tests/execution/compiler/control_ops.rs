@@ -1262,6 +1262,106 @@ fn compile_and_execute_free_q_position_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_pad_left_riffle_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(1), Integer::from(2)]).expect("v"));
+    let four = session.builder().int(4, Default::default());
+    let pad = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::PadLeft),
+        vec![v_term, four],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(pad),
+                ],
+            }),
+        )
+        .expect("pad_left");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute pad_left");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 4 => {
+            for (cell, expect) in cells.iter().zip([0i64, 0, 1, 2]) {
+                assert!(matches!(
+                    session.arena.get(*cell),
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect)
+                ));
+            }
+        }
+        other => panic!("expected PadLeft row, got {other:?}"),
+    }
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let b_term = session.builder().symbol("B", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let sb = match session.arena.get(b_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol B, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(1), Integer::from(2)]).expect("a"));
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![Integer::from(9), Integer::from(8)]).expect("b"));
+    let riffle = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Riffle),
+        vec![a_term, b_term],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sb, matrix: b }),
+                    AthenaRequest::Term(riffle),
+                ],
+            }),
+        )
+        .expect("riffle");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute riffle");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 4 => {
+            for (cell, expect) in cells.iter().zip([1i64, 9, 2, 8]) {
+                assert!(matches!(
+                    session.arena.get(*cell),
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect)
+                ));
+            }
+        }
+        other => panic!("expected Riffle row, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_member_q_count_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
