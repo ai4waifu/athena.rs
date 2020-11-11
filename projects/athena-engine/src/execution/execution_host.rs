@@ -986,6 +986,10 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_union(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: Union on typed integer 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_union_intersection(true, args)? {
+            return Ok(outcome);
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
@@ -995,12 +999,58 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_intersection(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: Intersection on typed integer 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_union_intersection(false, args)? {
+            return Ok(outcome);
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_intersection_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_union_intersection(&mut self, is_union: bool, args: &[SlotValue]) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{intersection_integer_row_vectors, union_integer_row_vectors};
+
+        if args.is_empty() {
+            return Ok(None);
+        }
+        let mut refs = Vec::with_capacity(args.len());
+        for slot in args {
+            let Some(matrix_ref) = self.matrix_ref_from_slot(*slot)
+            else {
+                return Ok(None);
+            };
+            refs.push(matrix_ref);
+        }
+        let mut owned = Vec::with_capacity(refs.len());
+        for matrix_ref in refs {
+            let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+            else {
+                return Ok(None);
+            };
+            if matrix.shape().rows != 1 {
+                return Ok(None);
+            }
+            owned.push(matrix);
+        }
+        let parts: Vec<&_> = owned.iter().collect();
+        let built = if is_union {
+            union_integer_row_vectors(&parts)
+        }
+        else {
+            intersection_integer_row_vectors(&parts)
+        };
+        match built {
+            Ok(matrix) => {
+                let matrix_ref = self.session.matrix_objects.intern(matrix);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            Err(_) => Ok(None),
+        }
     }
 
     fn apply_accumulate(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
