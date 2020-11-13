@@ -1226,10 +1226,73 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Extract.discriminant())));
         }
+        // Living 16: Extract on typed MatrixRef (row or vector element) without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_extract(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let index = self.slot_as_term(args[1])?;
         let term = evaluate_extract_terms(self.session, list, index)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_extract(&mut self, list_slot: SlotValue, index_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{AxisRange, IndexSpec, MatrixEntry, slice_matrix};
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        else {
+            return Ok(None);
+        };
+        let index_term = self.slot_as_term(index_slot)?;
+        let Some(n) = number_of(self.session, index_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        if n <= 0 {
+            return Ok(None);
+        }
+        let idx = (n as u64) - 1;
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows == 0 || shape.cols == 0 {
+            return Ok(None);
+        }
+        if shape.rows == 1 {
+            if idx >= shape.cols {
+                return Ok(None);
+            }
+            let term = match matrix.get(0, idx)? {
+                MatrixEntry::Integer(x) => {
+                    let Some(i) = x.to_i64()
+                    else {
+                        return Ok(None);
+                    };
+                    self.session.builder().int(i, Default::default())
+                }
+                MatrixEntry::Rational(x) => rational_to_term_session(self.session, &x),
+                MatrixEntry::MachineF64(x) => self.session.builder().real(x, Default::default()),
+            };
+            return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+        }
+        if idx >= shape.rows {
+            return Ok(None);
+        }
+        let row = slice_matrix(
+            &matrix,
+            &IndexSpec::Slice {
+                rows: AxisRange::Range {
+                    start: idx,
+                    end: idx + 1,
+                },
+                cols: AxisRange::All,
+            },
+        )?;
+        let matrix_ref = self.session.matrix_objects.intern(row);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_pad_left(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
