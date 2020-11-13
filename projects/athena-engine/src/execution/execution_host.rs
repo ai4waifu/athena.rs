@@ -32,7 +32,7 @@ use crate::{
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims, term_scalar_rational_session,
-            rational_to_term_session,
+            rational_to_term_session, expand_span_3,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -1499,12 +1499,60 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_range(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: exact-integer Range intern typed 1×n MatrixRef.
+        if let Some(outcome) = self.host_matrix_range(args)? {
+            return Ok(outcome);
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_range_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_range(&mut self, args: &[SlotValue]) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::MatrixValue;
+        use athena_numeric::Integer;
+
+        let mut ints = Vec::with_capacity(args.len());
+        for slot in args {
+            let term = self.slot_as_term(*slot)?;
+            let Some(n) = number_of(self.session, term).and_then(|v| v.as_exact_integer())
+            else {
+                return Ok(None);
+            };
+            ints.push(n);
+        }
+        let bounds = match ints.as_slice() {
+            [n] => Some((1i64, *n, 1i64)),
+            [a, b] => Some((*a, *b, 1i64)),
+            [a, b, step] => Some((*a, *b, *step)),
+            _ => None,
+        };
+        let Some((a, b, step)) = bounds
+        else {
+            return Ok(None);
+        };
+        let Some(values) = expand_span_3(a, step, b)
+        else {
+            return Ok(None);
+        };
+        if values.len() > 4096 {
+            return Ok(None);
+        }
+        let cols = values.len() as u64;
+        let mut data = Vec::with_capacity(values.len());
+        for v in values {
+            data.push(Integer::from(v));
+        }
+        let Ok(matrix) = MatrixValue::from_integers_row_major(1, cols, data)
+        else {
+            return Ok(None);
+        };
+        let matrix_ref = self.session.matrix_objects.intern(matrix);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {

@@ -524,6 +524,40 @@ fn compile_and_execute_constant_array_returns_matrix_value() {
 }
 
 #[test]
+fn compile_and_execute_range_returns_matrix_value() {
+    use athena_engine::runtime::RuntimeValue;
+    use athena_ir::ApplicationHead;
+
+    let mut session = Session::new();
+    let three = session.builder().int(3, Default::default());
+    let term = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Range),
+        vec![three],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(term))
+        .expect("range");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute range");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let matrix = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(matrix.shape().rows, 1);
+    assert_eq!(matrix.shape().cols, 3);
+    for (j, expect) in [1i64, 2, 3].into_iter().enumerate() {
+        match matrix.get(0, j as u64).expect("entry") {
+            athena_engine::domains::linear_algebra::MatrixEntry::Integer(z) => {
+                assert_eq!(z.to_i64(), Some(expect));
+            }
+            other => panic!("expected Integer, got {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn compile_and_execute_diagonal_matrix_returns_matrix_value() {
     use athena_engine::runtime::RuntimeValue;
     use athena_ir::ApplicationHead;
