@@ -979,10 +979,70 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ConstantArray.discriminant())));
         }
+        // Living 16: ConstantArray of numeric scalar intern typed 1×n MatrixRef.
+        if let Some(outcome) = self.host_matrix_constant_array(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let elem = self.slot_as_term(args[0])?;
         let count = self.slot_as_term(args[1])?;
         let term = evaluate_constant_array_terms(self.session, elem, count)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_constant_array(&mut self, elem_slot: SlotValue, count_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::MatrixValue;
+        use athena_numeric::Integer;
+        use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
+
+        let count_term = self.slot_as_term(count_slot)?;
+        let Some(n) = number_of(self.session, count_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        if n < 0 || n > 4096 {
+            return Ok(None);
+        }
+        let cols = n as u64;
+        let elem_term = self.slot_as_term(elem_slot)?;
+        let Some(num) = number_of(self.session, elem_term)
+        else {
+            return Ok(None);
+        };
+        let built = if let Some(i) = num.as_exact_integer() {
+            let mut data = Vec::with_capacity(cols as usize);
+            for _ in 0..cols {
+                data.push(Integer::from(i));
+            }
+            MatrixValue::from_integers_row_major(1, cols, data).ok()
+        }
+        else if let Some(z) = num.as_integer() {
+            let mut data = Vec::with_capacity(cols as usize);
+            for _ in 0..cols {
+                data.push(clone_integer(z));
+            }
+            MatrixValue::from_integers_row_major(1, cols, data).ok()
+        }
+        else if let Some(r) = num.as_rational() {
+            let mut data = Vec::with_capacity(cols as usize);
+            for _ in 0..cols {
+                data.push(clone_rational(r));
+            }
+            MatrixValue::from_rationals_row_major(1, cols, data).ok()
+        }
+        else if let Some(x) = num.as_machine_f64() {
+            let data = vec![x; cols as usize];
+            MatrixValue::from_f64_row_major(1, cols, data).ok()
+        }
+        else {
+            None
+        };
+        let Some(matrix) = built
+        else {
+            return Ok(None);
+        };
+        let matrix_ref = self.session.matrix_objects.intern(matrix);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_union(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
