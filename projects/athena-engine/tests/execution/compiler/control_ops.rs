@@ -2057,6 +2057,48 @@ fn compile_and_execute_det_on_matrix_binding() {
 }
 
 #[test]
+fn compile_and_execute_det_on_nested_list_inters_then_det() {
+    use athena_ir::ApplicationHead;
+    use athena_types::CollectionKind;
+
+    let mut session = Session::new();
+    let a00 = session.builder().int(1, Default::default());
+    let a01 = session.builder().int(2, Default::default());
+    let a10 = session.builder().int(3, Default::default());
+    let a11 = session.builder().int(4, Default::default());
+    let row0 = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![a00, a01], Default::default());
+    let row1 = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![a10, a11], Default::default());
+    let matrix = session
+        .builder()
+        .collection(CollectionKind::OrderedCollection, vec![row0, row1], Default::default());
+    let det = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Determinant),
+        vec![matrix],
+        Default::default(),
+    );
+    let before = session.matrix_objects.len();
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(det))
+        .expect("det_literal");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute det_literal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)
+    ));
+    assert!(
+        session.matrix_objects.len() > before,
+        "Living 16: nested Det literal should intern MatrixRef before Bareiss"
+    );
+}
+
+#[test]
 fn compile_and_execute_size_on_matrix_binding() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
