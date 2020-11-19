@@ -110,6 +110,24 @@ fn compile_and_execute_abs_and_length() {
         Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(2) => {}
         other => panic!("expected Length[OrderedCollection[1,2]] == 2, got {other:?}"),
     }
+
+    // Living 16: scalar atoms must not be interned as 1×1 matrices for Length.
+    let five = session.builder().int(5, Default::default());
+    let length_atom = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Length), vec![five], Default::default());
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(length_atom))
+        .expect("length_atom");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute length_atom");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Length),
+            arguments,
+            ..
+        }) if arguments.len() == 1 => {}
+        other => panic!("expected Length residual on atom, got {other:?}"),
+    }
 }
 
 #[test]
