@@ -146,6 +146,15 @@ impl<'a> ExecutionHost<'a> {
         }
     }
 
+    /// Living 16: reuse typed MatrixRef, or intern a numeric Collection literal once.
+    fn matrix_ref_or_intern_numeric(&mut self, slot: SlotValue) -> Result<Option<crate::domains::linear_algebra::MatrixRef>> {
+        if let Some(matrix_ref) = self.matrix_ref_from_slot(slot) {
+            return Ok(Some(matrix_ref));
+        }
+        let term = self.slot_as_term(slot)?;
+        Ok(term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix)))
+    }
+
     fn host_hadamard(
         &mut self,
         lhs: crate::domains::linear_algebra::MatrixRef,
@@ -250,7 +259,7 @@ impl<'a> ExecutionHost<'a> {
         }
         // Living 16: Length of typed MatrixRef matches Own surface (1×n → cols, else rows).
         if op == SemanticOperator::Length {
-            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
                 if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
                     let shape = matrix.shape();
                     let len = if shape.rows == 1 { shape.cols } else { shape.rows };
@@ -259,7 +268,7 @@ impl<'a> ExecutionHost<'a> {
                 }
             }
         }
-        // Living 16: First / Rest / Most / Reverse / Flatten stay on MatrixRef (no nested-list reverse recognition).
+        // Living 16: First / Rest / Most / Reverse / Flatten stay on MatrixRef (numeric literals intern once).
         if matches!(
             op,
             SemanticOperator::First
@@ -281,7 +290,7 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{
             AxisRange, IndexSpec, MatrixEntry, flatten_row_major, reverse_matrix, slice_matrix,
         };
-        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
         else {
             return Ok(None);
         };
@@ -1140,8 +1149,8 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Accumulate.discriminant())));
         }
-        // Living 16: vector MatrixRef prefix sums without nested-list reverse recognition.
-        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+        // Living 16: vector MatrixRef prefix sums. Numeric Collection literals intern once.
+        if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
             if let Some(outcome) = self.accumulate_matrix_ref(matrix_ref)? {
                 return Ok(outcome);
             }
@@ -1155,8 +1164,8 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Differences.discriminant())));
         }
-        // Living 16: vector MatrixRef adjacent differences without nested-list reverse recognition.
-        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+        // Living 16: vector MatrixRef adjacent differences. Numeric Collection literals intern once.
+        if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
             if let Some(outcome) = self.differences_matrix_ref(matrix_ref)? {
                 return Ok(outcome);
             }
@@ -1579,9 +1588,9 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
-        // Living 16: Prefer typed MatrixRef shape. Nested Collection reverse recognition is fallback only.
+        // Living 16: Prefer typed MatrixRef shape. Numeric Collection literals intern once.
         if args.len() == 1 {
-            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
                 if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
                     use crate::runtime::values::arena::push_list;
                     let shape = matrix.shape();
@@ -1608,14 +1617,7 @@ impl<'a> ExecutionHost<'a> {
         }
         // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
-            let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
-                Some(matrix_ref)
-            }
-            else {
-                let term = self.slot_as_term(args[0])?;
-                term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
-            };
-            if let Some(matrix_ref) = matrix_ref {
+            if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
                 if let Some(outcome) = self.sum_matrix_ref(matrix_ref)? {
                     return Ok(outcome);
                 }
@@ -1691,14 +1693,7 @@ impl<'a> ExecutionHost<'a> {
         }
         // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
-            let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
-                Some(matrix_ref)
-            }
-            else {
-                let term = self.slot_as_term(args[0])?;
-                term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
-            };
-            if let Some(matrix_ref) = matrix_ref {
+            if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
                 if let Some(outcome) = self.product_matrix_ref(matrix_ref)? {
                     return Ok(outcome);
                 }
@@ -1774,14 +1769,7 @@ impl<'a> ExecutionHost<'a> {
         // Living 16: Det prefers typed MatrixRef + LinearAlgebraRequest.
         // Nested Collection literals are interned once (no parallel Bareiss helper path).
         let from_literal = self.matrix_ref_from_slot(args[0]).is_none();
-        let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
-            Some(matrix_ref)
-        }
-        else {
-            let term = self.slot_as_term(args[0])?;
-            term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
-        };
-        if let Some(matrix_ref) = matrix_ref {
+        if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
             let request = LinearAlgebraRequest::Det {
                 matrix: MatrixOperand::object(matrix_ref),
             };
