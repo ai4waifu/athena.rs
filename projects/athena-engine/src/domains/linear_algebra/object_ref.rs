@@ -14,7 +14,7 @@ pub struct MatrixRef(pub u64);
 struct MatrixObjectEntry {
     fingerprint: u64,
     /// Monotonic revision for this handle (Living 16). Content-addressed `intern`
-    /// keeps revision `0`; in-place replace paths will bump it in a later slice.
+    /// keeps revision `0`; Own store paths bump via [`MatrixObjectStore::replace`].
     revision: u64,
     matrix: MatrixValue,
 }
@@ -74,6 +74,19 @@ impl MatrixObjectStore {
     /// Handle revision (Living 16). Fresh intern is `0`.
     pub fn revision(&self, r: MatrixRef) -> Option<u64> {
         self.entries.get(r.0 as usize).map(|e| e.revision)
+    }
+
+    /// In-place replace for Own mutation (Living 16). Same handle, bumped revision.
+    ///
+    /// Content-addressed [`Self::intern`] stays the path for fresh values; store/grow
+    /// paths that keep binding identity must call this instead of silently sharing
+    /// a new interned snapshot without a revision bump.
+    pub fn replace(&mut self, r: MatrixRef, matrix: MatrixValue) -> Option<u64> {
+        let entry = self.entries.get_mut(r.0 as usize)?;
+        entry.fingerprint = provisional_matrix_fingerprint(&matrix);
+        entry.revision = entry.revision.saturating_add(1);
+        entry.matrix = matrix;
+        Some(entry.revision)
     }
 
     /// M-Graph 的 [`ObjectRef`]（`TheoryContextId::MATRIX`）。

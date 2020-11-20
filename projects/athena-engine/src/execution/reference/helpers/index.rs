@@ -235,15 +235,24 @@ pub(crate) fn evaluate_index_axes_matrix(session: &mut Session, matrix: &MatrixV
     }
 }
 
-/// 对矩阵 DomainObject 写入后 intern 新句柄（写时复制）。
+/// 对矩阵 DomainObject 写入后原地替换并递增 revision（Living 16 Own 合同）。
 ///
 /// 支持行/列向量线性扩容、`end+k`，以及二维单元格越界扩形（零填充）。
 pub(crate) fn store_index_axes_matrix(
     session: &mut Session,
-    mut matrix: MatrixValue,
+    matrix_ref: crate::domains::linear_algebra::MatrixRef,
     axes: &[IndexSpec],
     value: TermId,
 ) -> Result<MatrixStoreOutcome> {
+    let Some(mut matrix) = session.matrix_objects.resolve_owning(matrix_ref)
+    else {
+        return Ok(MatrixStoreOutcome::Invalid {
+            echo: session.builder().null(Default::default()),
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "store_index_axes_matrix")
+                .detail("reason", "matrix_ref_missing"),
+        });
+    };
     let echo = matrix_to_nested_list_session(session, &matrix).unwrap_or_else(|_| session.builder().null(Default::default()));
     let (row, col) = match matrix_axes_to_store_target(&matrix, axes, true) {
         MatrixAxes::Cell(row, col) => (row, col),
@@ -289,8 +298,15 @@ pub(crate) fn store_index_axes_matrix(
     if let Err(diagnostic) = matrix.set_owned(row, col, entry) {
         return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic });
     }
-    let stored = session.matrix_objects.intern(matrix);
-    Ok(MatrixStoreOutcome::Value(session.insert_matrix_value(stored)))
+    if session.matrix_objects.replace(matrix_ref, matrix).is_none() {
+        return Ok(MatrixStoreOutcome::Invalid {
+            echo,
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "store_index_axes_matrix")
+                .detail("reason", "matrix_replace_missing"),
+        });
+    }
+    Ok(MatrixStoreOutcome::Value(session.insert_matrix_value(matrix_ref)))
 }
 
 enum MatrixAxes {
