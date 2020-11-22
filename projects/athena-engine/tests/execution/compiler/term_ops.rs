@@ -854,6 +854,44 @@ fn compile_and_execute_zeros_eye() {
         }
         other => panic!("expected Eye[2], got {other:?}"),
     }
+    assert!(
+        session.matrix_objects.len() >= 2,
+        "Zeros/Eye must intern typed MatrixRef (got {})",
+        session.matrix_objects.len()
+    );
+}
+
+#[test]
+fn compile_and_execute_rectangular_eye_inters_matrix_ref() {
+    let mut session = Session::new();
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let eye = ApplicationHead::Semantic(SemanticOperator::Eye);
+    let term = session.builder().application(eye, vec![two, three], Default::default());
+    let before = session.matrix_objects.len();
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("eye");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(session.matrix_objects.len() > before, "rectangular Eye must intern MatrixRef");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            let expected = [[1i64, 0, 0], [0, 1, 0]];
+            for (i, row) in rows.iter().enumerate() {
+                match session.arena.get(*row) {
+                    Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 3 => {
+                        for (j, cell) in cells.iter().enumerate() {
+                            match session.arena.get(*cell) {
+                                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected[i][j]) => {}
+                                other => panic!("expected Eye[{i},{j}]={}, got {other:?}", expected[i][j]),
+                            }
+                        }
+                    }
+                    other => panic!("expected Eye row len 3, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Eye[2,3] 2x3, got {other:?}"),
+    }
 }
 
 #[test]
