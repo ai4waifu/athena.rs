@@ -527,38 +527,12 @@ pub(crate) fn evaluate_matrix_constructor_terms(session: &mut Session, op: Seman
     Ok(push_semantic(session, op, terms))
 }
 
-/// `DiagonalMatrix[{d0,…}]` — 对角元向量构造成方阵；非法则残差。
+/// `DiagonalMatrix` residual echo when the host cannot intern a typed `MatrixRef`.
+///
+/// Living 16: numeric diagonal vectors are owned by `ExecutionHost::apply_diagonal_matrix`.
+/// This helper must not rebuild nested Collection matrices (including symbolic diagonals).
 pub(crate) fn evaluate_diagonal_matrix_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
-    let echo = push_semantic(session, SemanticOperator::DiagonalMatrix, terms.clone());
-    if terms.len() != 1 {
-        return Ok(echo);
-    }
-    let Some(athena_ir::TermNode::Collection { elements: diag, .. }) = session.arena.get(terms[0])
-    else {
-        return Ok(echo);
-    };
-    let diag = diag.clone();
-    let n = diag.len();
-    if n == 0 {
-        return Ok(push_list(session, Vec::new()));
-    }
-    if n > 4096 {
-        return Ok(echo);
-    }
-    let mut rows_out = Vec::with_capacity(n);
-    for r in 0..n {
-        let mut row = Vec::with_capacity(n);
-        for c in 0..n {
-            if r == c {
-                row.push(diag[r]);
-            }
-            else {
-                row.push(session.builder().int(0, Default::default()));
-            }
-        }
-        rows_out.push(push_list(session, row));
-    }
-    Ok(push_list(session, rows_out))
+    Ok(push_semantic(session, SemanticOperator::DiagonalMatrix, terms))
 }
 
 /// `ElementwiseMultiply` / `ElementwiseDivide` / `ElementwisePower` /

@@ -924,6 +924,29 @@ fn compile_and_execute_diagonal_matrix() {
         }
         other => panic!("expected DiagonalMatrix[{{1,2}}], got {other:?}"),
     }
+    assert!(
+        session.matrix_objects.len() >= 1,
+        "numeric DiagonalMatrix must intern typed MatrixRef"
+    );
+}
+
+#[test]
+fn compile_and_execute_symbolic_diagonal_matrix_residuals() {
+    let mut session = Session::new();
+    let x = session.builder().symbol("x", Default::default());
+    let diag = session.builder().list(vec![x], Default::default());
+    let head = ApplicationHead::Semantic(SemanticOperator::DiagonalMatrix);
+    let term = session.builder().application(head, vec![diag], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("diag");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::DiagonalMatrix),
+            arguments,
+        }) if arguments.len() == 1 => {}
+        other => panic!("symbolic DiagonalMatrix must residual, got {other:?}"),
+    }
 }
 
 #[test]
