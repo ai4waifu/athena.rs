@@ -479,7 +479,9 @@ pub(crate) fn evaluate_size_terms(session: &mut Session, terms: Vec<TermId>) -> 
     Ok(push_list(session, vec![r, c]))
 }
 
-/// `Sum[list]` — 向量标量和 / 矩阵按列求和。迭代器二元形式仍残差（需 Table 展开）。
+/// `Sum[list]` — flat Collection fold. Nested matrix column sums are host/`MatrixRef` only.
+///
+/// Living 16: do not reverse-recognize nested Collections as matrices here.
 pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
     if terms.len() != 1 {
         return Ok(push_semantic(session, SemanticOperator::Sum, terms));
@@ -493,28 +495,9 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
     if items.is_empty() {
         return Ok(session.builder().int(0, Default::default()));
     }
-    if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
-        let Some((_, cols)) = nested_list_shape(session, term)
-        else {
-            return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
-        };
-        let mut out = Vec::with_capacity(cols as usize);
-        for j in 0..cols as usize {
-            let mut col = Vec::with_capacity(items.len());
-            for row in &items {
-                let cell = match session.arena.get(*row) {
-                    Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.get(j).copied(),
-                    _ => None,
-                };
-                let Some(cell) = cell
-                else {
-                    return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
-                };
-                col.push(cell);
-            }
-            out.push(fold_plus_symbolic(session, col));
-        }
-        return Ok(push_list(session, out));
+    // Nested Collection → residual (typed matrix Sum owns the MatrixRef path).
+    if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { .. })) {
+        return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
     }
     Ok(fold_plus_symbolic(session, items))
 }
