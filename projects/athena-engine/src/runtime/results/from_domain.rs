@@ -58,7 +58,7 @@ pub fn computation_from_domain(session: &mut Session, mut domain: DomainResult) 
     result
 }
 
-/// Intern owned `Matrix` / `Dot` envelopes so published `MatrixResult` carries `matrix_ref` + revision.
+/// Intern owned matrix envelopes so published `MatrixResult` carries `matrix_ref` + revision.
 fn attach_linear_algebra_matrix_refs(session: &mut Session, domain: &mut DomainResult) {
     let DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) = domain else {
         return;
@@ -66,6 +66,7 @@ fn attach_linear_algebra_matrix_refs(session: &mut Session, domain: &mut DomainR
     let envelope = match value {
         crate::domains::linear_algebra::LinearAlgebraValue::Matrix(envelope)
         | crate::domains::linear_algebra::LinearAlgebraValue::Dot(envelope) => envelope,
+        crate::domains::linear_algebra::LinearAlgebraValue::ExactRref(r) => &mut r.matrix,
         _ => return,
     };
     if envelope.matrix_ref.is_some() {
@@ -360,6 +361,7 @@ fn linear_algebra_envelope_meta(
 
     let envelope = match value {
         LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope) => envelope,
+        LinearAlgebraValue::ExactRref(r) => &r.matrix,
         _ => return (Vec::new(), Vec::new()),
     };
     let diagnostics = envelope.diagnostics.clone();

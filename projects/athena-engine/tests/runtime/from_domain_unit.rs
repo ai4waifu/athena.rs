@@ -180,6 +180,56 @@ fn dot_matrix_result_envelope_projects_shape_evidence_and_status() {
 }
 
 #[test]
+fn exact_rref_envelope_projects_matrix_ref_evidence() {
+    use athena_engine::domains::linear_algebra::{ExactRrefResult, MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let value = MatrixValue::from_integers_row_major(2, 2, vec![
+        Integer::from_i64(1),
+        Integer::from_i64(0),
+        Integer::from_i64(0),
+        Integer::from_i64(1),
+    ])
+    .expect("identity");
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactRref(ExactRrefResult {
+            matrix: MatrixResult::from_owned(value, AlgorithmGuarantee::Exact),
+            pivot_cols: vec![0, 1],
+            rank: 2,
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let before = session.matrix_objects.len();
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert!(session.matrix_objects.len() > before, "ExactRref matrix must be interned");
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=") && summary.contains("revision=")
+        )),
+        "ExactRref must publish matrix_ref/revision, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("shape=2x2")
+        )),
+        "ExactRref must publish shape evidence, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
     use athena_engine::domains::linear_algebra::{MatrixResult, MatrixValue};
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};

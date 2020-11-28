@@ -4,6 +4,7 @@ use athena_numeric::{Integer, Number, Rational, sqrt as num_sqrt};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
+    matrix_result::MatrixResult,
     shape::{MatrixShape, StorageOrder},
     status::{AlgorithmGuarantee, SolveDisposition},
     value::{MatrixEntry, MatrixValue},
@@ -60,8 +61,8 @@ pub struct ExactSolveResult {
 /// RREF 结果。
 #[derive(Debug, PartialEq)]
 pub struct ExactRrefResult {
-    /// 行最简形。
-    pub matrix: MatrixValue,
+    /// 行最简形（Living 16 `MatrixResult` 信封）。
+    pub matrix: MatrixResult,
     /// 主元列（0-based）。
     pub pivot_cols: Vec<u64>,
     /// 秩。
@@ -175,8 +176,9 @@ pub fn rref_rational(matrix: &MatrixValue) -> Result<ExactRrefResult, Diagnostic
         row += 1;
     }
     let rank = pivot_cols.len() as u64;
+    let value = MatrixValue::from_rationals_row_major(rows, cols, a)?;
     Ok(ExactRrefResult {
-        matrix: MatrixValue::from_rationals_row_major(rows, cols, a)?,
+        matrix: MatrixResult::from_owned(value, AlgorithmGuarantee::Exact),
         pivot_cols,
         rank,
         guarantee: AlgorithmGuarantee::Exact,
@@ -523,8 +525,8 @@ pub fn nullspace_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> 
     if free_cols.is_empty() {
         return MatrixValue::from_rationals_row_major(0, cols, Vec::new());
     }
-    let rref_rats = rref.matrix.to_rationals_row_major()?;
-    let rref_cols = rref.matrix.shape().cols;
+    let rref_rats = rref.matrix.value.to_rationals_row_major()?;
+    let rref_cols = rref.matrix.value.shape().cols;
     let mut data = Vec::with_capacity(free_cols.len() * cols as usize);
     for &free_j in &free_cols {
         let mut row = Vec::with_capacity(cols as usize);
