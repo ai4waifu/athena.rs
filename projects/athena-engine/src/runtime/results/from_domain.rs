@@ -67,6 +67,14 @@ fn attach_linear_algebra_matrix_refs(session: &mut Session, domain: &mut DomainR
         crate::domains::linear_algebra::LinearAlgebraValue::Matrix(envelope)
         | crate::domains::linear_algebra::LinearAlgebraValue::Dot(envelope) => envelope,
         crate::domains::linear_algebra::LinearAlgebraValue::ExactRref(r) => &mut r.matrix,
+        crate::domains::linear_algebra::LinearAlgebraValue::ExactSolve(r) => match &mut r.particular {
+            Some(envelope) => envelope,
+            None => return,
+        },
+        crate::domains::linear_algebra::LinearAlgebraValue::MachineSolve(r) => match &mut r.solution {
+            Some(envelope) => envelope,
+            None => return,
+        },
         _ => return,
     };
     if envelope.matrix_ref.is_some() {
@@ -362,6 +370,14 @@ fn linear_algebra_envelope_meta(
     let envelope = match value {
         LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope) => envelope,
         LinearAlgebraValue::ExactRref(r) => &r.matrix,
+        LinearAlgebraValue::ExactSolve(r) => match &r.particular {
+            Some(envelope) => envelope,
+            None => return (Vec::new(), Vec::new()),
+        },
+        LinearAlgebraValue::MachineSolve(r) => match &r.solution {
+            Some(envelope) => envelope,
+            None => return (Vec::new(), Vec::new()),
+        },
         _ => return (Vec::new(), Vec::new()),
     };
     let diagnostics = envelope.diagnostics.clone();

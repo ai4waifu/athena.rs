@@ -3,6 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
+    matrix_result::MatrixResult,
     status::{AlgorithmGuarantee, MachineSolveWitness, SolveDisposition},
     value::MatrixValue,
 };
@@ -44,8 +45,8 @@ impl MachineLuFactorization {
 pub struct MachineSolveResult {
     /// 分类。
     pub disposition: SolveDisposition,
-    /// 解（`n×1`）。
-    pub solution: Option<MatrixValue>,
+    /// 解（`n×1`，Living 16 `MatrixResult` 信封）。
+    pub solution: Option<MatrixResult>,
     /// 残差见证。
     pub witness: Option<MachineSolveWitness>,
     /// 保证级别。
@@ -57,7 +58,7 @@ impl MachineSolveResult {
     pub fn owning_copy(&self) -> Self {
         Self {
             disposition: self.disposition.owning_copy(),
-            solution: self.solution.as_ref().map(MatrixValue::owning_copy),
+            solution: self.solution.as_ref().map(MatrixResult::owning_copy),
             witness: self.witness,
             guarantee: self.guarantee,
         }
@@ -180,7 +181,7 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
         }
         x[i as usize] /= diag;
     }
-    let solution = MatrixValue::from_f64_row_major(n, 1, x)?;
+    let solution = MatrixResult::from_owned(MatrixValue::from_f64_row_major(n, 1, x)?, AlgorithmGuarantee::Approximate);
     Ok(MachineSolveResult {
         disposition: SolveDisposition::Unique,
         solution: Some(solution),
@@ -193,8 +194,8 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
 pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> Result<MachineSolveResult, Diagnostic> {
     let lu = lu_partial_pivot(a, pivot_threshold)?;
     let mut result = solve_lu(&lu, b)?;
-    if let Some(sol) = &result.solution {
-        let ax = super::ops::matmul(a, sol)?;
+    if let Some(sol) = result.solution.take() {
+        let ax = super::ops::matmul(a, &sol.value)?;
         let mut residual = 0.0_f64;
         for i in 0..b.shape().rows {
             let avi = match ax.get(i, 0)? {
@@ -208,6 +209,7 @@ pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> 
             residual = residual.max((avi - bvi).abs());
         }
         result.witness = Some(MachineSolveWitness { residual_inf: residual, numerical_rank: lu.numerical_rank, pivot_threshold });
+        result.solution = Some(sol.with_machine_witness(residual, None));
     }
     Ok(result)
 }

@@ -393,7 +393,7 @@ fn linear_solve_via_domain_goal() {
     match c.s.values.get(value_id).expect("runtime") {
         RuntimeValue::Domain(DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
             value: LinearAlgebraValue::ExactSolve(ExactSolveResult { disposition: SolveDisposition::Unique, particular: Some(x), .. }),
-        })) => assert!(matrices_equal(x, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
+        })) => assert!(matrices_equal(&x.value, &expected, MatrixEqualityKind::ExactMathematical).unwrap()),
         other => panic!("expected ExactSolve unique, got {other:?}"),
     }
 }

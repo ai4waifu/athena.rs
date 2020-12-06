@@ -39,13 +39,13 @@ pub fn adapt_exact_linear_solve(
     let branches = match &disposition {
         SolveDisposition::Unique => {
             let particular = result.particular.ok_or_else(|| diag("unique_missing_particular"))?;
-            vec![branch_from_column(&particular, &unknowns, &mut values, BranchStatus::Verified)?]
+            vec![branch_from_column(&particular.value, &unknowns, &mut values, BranchStatus::Verified)?]
         }
         SolveDisposition::Inconsistent => Vec::new(),
         SolveDisposition::Infinite { .. } => {
             let particular = result.particular.ok_or_else(|| diag("infinite_missing_particular"))?;
             // 无零空间基：仅特解分支，coverage 为 CertifiedSubset。
-            vec![branch_from_column(&particular, &unknowns, &mut values, BranchStatus::Conditional)?]
+            vec![branch_from_column(&particular.value, &unknowns, &mut values, BranchStatus::Conditional)?]
         }
         SolveDisposition::Singular | SolveDisposition::ResourceLimited => Vec::new(),
     };
@@ -82,7 +82,7 @@ pub fn adapt_machine_linear_solve(
     let branches = match &disposition {
         SolveDisposition::Unique => {
             let sol = result.solution.ok_or_else(|| diag("unique_missing_solution"))?;
-            vec![branch_from_column(&sol, &unknowns, &mut values, BranchStatus::Verified)?]
+            vec![branch_from_column(&sol.value, &unknowns, &mut values, BranchStatus::Verified)?]
         }
         _ => Vec::new(),
     };
