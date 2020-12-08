@@ -367,21 +367,37 @@ fn linear_algebra_envelope_meta(
 ) -> (Vec<Diagnostic>, Vec<ResultEvidence>) {
     use crate::domains::linear_algebra::LinearAlgebraValue;
 
+    let mut evidence = Vec::new();
+    match value {
+        LinearAlgebraValue::ExactSolve(r) => {
+            evidence.push(ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary: format!("disposition={:?}", r.disposition),
+            });
+        }
+        LinearAlgebraValue::MachineSolve(r) => {
+            evidence.push(ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary: format!("disposition={:?}", r.disposition),
+            });
+        }
+        _ => {}
+    }
+
     let envelope = match value {
         LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope) => envelope,
         LinearAlgebraValue::ExactRref(r) => &r.matrix,
         LinearAlgebraValue::ExactSolve(r) => match &r.particular {
             Some(envelope) => envelope,
-            None => return (Vec::new(), Vec::new()),
+            None => return (Vec::new(), evidence),
         },
         LinearAlgebraValue::MachineSolve(r) => match &r.solution {
             Some(envelope) => envelope,
-            None => return (Vec::new(), Vec::new()),
+            None => return (Vec::new(), evidence),
         },
-        _ => return (Vec::new(), Vec::new()),
+        _ => return (Vec::new(), evidence),
     };
     let diagnostics = envelope.diagnostics.clone();
-    let mut evidence = Vec::new();
     if let Some(residual_inf) = envelope.residual_inf {
         let mut summary = format!("residual_inf={residual_inf}");
         if let Some(conditioning) = envelope.conditioning {
