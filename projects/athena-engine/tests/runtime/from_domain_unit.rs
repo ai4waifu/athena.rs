@@ -298,6 +298,63 @@ fn exact_rref_envelope_projects_matrix_ref_evidence() {
         "ExactRref must publish shape evidence, got {:?}",
         result.evidence
     );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("rank=2") && summary.contains("pivot_cols=2")
+        )),
+        "ExactRref must publish rank/pivot evidence, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
+fn infinite_exact_solve_projects_free_vars_evidence() {
+    use athena_engine::domains::linear_algebra::{ExactSolveResult, MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let particular = MatrixResult::from_owned(
+        MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(2), Integer::from_i64(0)]).expect("col"),
+        AlgorithmGuarantee::Exact,
+    );
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
+            disposition: SolveDisposition::Infinite { free_vars: vec![1] },
+            particular: Some(particular),
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("disposition=Infinite")
+                && summary.contains("free_var_count=1")
+                && summary.contains("free_vars=[1]")
+        )),
+        "Infinite ExactSolve must publish free_vars evidence, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=")
+        )),
+        "Infinite ExactSolve particular must still intern, got {:?}",
+        result.evidence
+    );
 }
 
 #[test]

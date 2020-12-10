@@ -372,13 +372,19 @@ fn linear_algebra_envelope_meta(
         LinearAlgebraValue::ExactSolve(r) => {
             evidence.push(ResultEvidence::TrustedKernelSummary {
                 provider: ResultProviderId::LINEAR_ALGEBRA,
-                summary: format!("disposition={:?}", r.disposition),
+                summary: solve_disposition_summary(&r.disposition),
             });
         }
         LinearAlgebraValue::MachineSolve(r) => {
             evidence.push(ResultEvidence::TrustedKernelSummary {
                 provider: ResultProviderId::LINEAR_ALGEBRA,
-                summary: format!("disposition={:?}", r.disposition),
+                summary: solve_disposition_summary(&r.disposition),
+            });
+        }
+        LinearAlgebraValue::ExactRref(r) => {
+            evidence.push(ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary: format!("rank={} pivot_cols={}", r.rank, r.pivot_cols.len()),
             });
         }
         _ => {}
@@ -427,6 +433,21 @@ fn linear_algebra_envelope_meta(
         ),
     });
     (diagnostics, evidence)
+}
+
+/// Stable Solve disposition summary for Living 16 result evidence (includes Infinite free vars).
+fn solve_disposition_summary(disposition: &crate::domains::linear_algebra::SolveDisposition) -> String {
+    use crate::domains::linear_algebra::SolveDisposition;
+
+    match disposition {
+        SolveDisposition::Unique => "disposition=Unique".to_string(),
+        SolveDisposition::Inconsistent => "disposition=Inconsistent".to_string(),
+        SolveDisposition::Singular => "disposition=Singular".to_string(),
+        SolveDisposition::ResourceLimited => "disposition=ResourceLimited".to_string(),
+        SolveDisposition::Infinite { free_vars } => {
+            format!("disposition=Infinite free_var_count={} free_vars={free_vars:?}", free_vars.len())
+        }
+    }
 }
 
 /// 按值载荷与 [`AlgorithmGuarantee`] 投影顶层状态。禁止把机器近似 `Ok` 抬成 Exact+Full。
