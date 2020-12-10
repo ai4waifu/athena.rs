@@ -140,6 +140,18 @@ fn l1_exact_solve_inconsistent_and_infinite() {
 }
 
 #[test]
+fn l1_machine_solve_singular_rank_deficient() {
+    let a = MatrixValue::from_f64_row_major(2, 2, vec![1.0, 2.0, 2.0, 4.0]).unwrap();
+    let b = MatrixValue::from_f64_row_major(2, 1, vec![1.0, 0.0]).unwrap();
+    let sol = solve_machine(&a, &b, 1e-12).unwrap();
+    assert_eq!(sol.disposition, SolveDisposition::Singular);
+    assert!(sol.solution.is_none());
+    let w = sol.witness.expect("singular carries witness");
+    assert_eq!(w.numerical_rank, 1);
+    assert_eq!(sol.guarantee, AlgorithmGuarantee::Approximate);
+}
+
+#[test]
 fn l1_machine_solve_with_residual() {
     let a = MatrixValue::from_f64_row_major(2, 2, vec![3.0, 1.0, 1.0, 2.0]).unwrap();
     let b = MatrixValue::from_f64_row_major(2, 1, vec![9.0, 8.0]).unwrap();
