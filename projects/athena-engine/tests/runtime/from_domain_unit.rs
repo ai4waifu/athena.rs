@@ -42,7 +42,7 @@ fn singular_machine_solve_projects_disposition_and_witness_evidence() {
             disposition: SolveDisposition::Singular,
             solution: None,
             witness: Some(MachineSolveWitness {
-                residual_inf: f64::NAN,
+                residual_inf: None,
                 numerical_rank: 1,
                 pivot_threshold: 1e-12,
             }),

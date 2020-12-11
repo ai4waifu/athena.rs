@@ -51,8 +51,8 @@ impl SolveDisposition {
 /// 数值残差与条件信息（机器路径）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MachineSolveWitness {
-    /// `‖Ax − b‖_∞`。
-    pub residual_inf: f64,
+    /// `‖Ax − b‖_∞`（Singular / 无解时为 `None`，禁止 `NaN` 哨兵）。
+    pub residual_inf: Option<f64>,
     /// 估计数值秩。
     pub numerical_rank: u64,
     /// 主元阈值（用于秩判定）。

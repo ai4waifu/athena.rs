@@ -144,7 +144,7 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
             disposition: SolveDisposition::Singular,
             solution: None,
             witness: Some(MachineSolveWitness {
-                residual_inf: f64::NAN,
+                residual_inf: None,
                 numerical_rank: lu.numerical_rank,
                 pivot_threshold: lu.pivot_threshold,
             }),
@@ -172,7 +172,7 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
                 disposition: SolveDisposition::Singular,
                 solution: None,
                 witness: Some(MachineSolveWitness {
-                    residual_inf: f64::NAN,
+                    residual_inf: None,
                     numerical_rank: lu.numerical_rank,
                     pivot_threshold: lu.pivot_threshold,
                 }),
@@ -208,7 +208,11 @@ pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> 
             };
             residual = residual.max((avi - bvi).abs());
         }
-        result.witness = Some(MachineSolveWitness { residual_inf: residual, numerical_rank: lu.numerical_rank, pivot_threshold });
+        result.witness = Some(MachineSolveWitness {
+            residual_inf: Some(residual),
+            numerical_rank: lu.numerical_rank,
+            pivot_threshold,
+        });
         result.solution = Some(sol.with_machine_witness(residual, None));
     }
     Ok(result)
