@@ -4,8 +4,8 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 
 use super::{
     exact::{
-        ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact,
-        norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
+        ExactDetResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult,
+        det_bareiss, invert_exact, norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     matrix_result::MatrixResult,
@@ -48,6 +48,8 @@ pub enum LinearAlgebraValue {
     Dot(MatrixResult),
     /// 精确 RREF。
     ExactRref(ExactRrefResult),
+    /// 精确零空间基。
+    ExactNullSpace(ExactNullSpaceResult),
     /// 精确求解。
     ExactSolve(ExactSolveResult),
     /// 机器求解。
@@ -86,6 +88,7 @@ impl LinearAlgebraValue {
             Self::ExactNorm(r) => Self::ExactNorm(r.owning_copy()),
             Self::Dot(m) => Self::Dot(m.owning_copy()),
             Self::ExactRref(r) => Self::ExactRref(r.owning_copy()),
+            Self::ExactNullSpace(r) => Self::ExactNullSpace(r.owning_copy()),
             Self::ExactSolve(r) => Self::ExactSolve(r.owning_copy()),
             Self::MachineSolve(r) => Self::MachineSolve(r.owning_copy()),
         }
@@ -264,7 +267,7 @@ fn run(
                     .detail("reason", "machine_nullspace_deferred")
                     .detail("hint", "use exact parent"));
             }
-            Ok(LinearAlgebraValue::matrix_outcome(nullspace_exact(&matrix)?))
+            Ok(LinearAlgebraValue::ExactNullSpace(nullspace_exact(&matrix)?))
         }
         LinearAlgebraRequest::Norm { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;

@@ -569,8 +569,8 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     value: &crate::domains::linear_algebra::LinearAlgebraValue,
 ) -> Option<TermId> {
     use crate::domains::linear_algebra::{
-        ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, LinearAlgebraValue,
-        MachineSolveResult,
+        ExactDetResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult,
+        LinearAlgebraValue, MachineSolveResult,
     };
 
     match value {
@@ -594,6 +594,7 @@ pub(crate) fn linear_algebra_value_symbolic_term(
             Some(session.builder().int(n, Default::default()))
         }
         LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, &matrix.value).ok(),
+        LinearAlgebraValue::ExactNullSpace(ExactNullSpaceResult { basis, .. }) => matrix_to_nested_list_session(session, &basis.value).ok(),
     }
 }
 

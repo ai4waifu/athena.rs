@@ -537,6 +537,15 @@ fn goal_nullspace_rank1_projects_row_basis() {
     assert_eq!(r0.len(), 2);
     assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)));
     assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    let evidence = &session.results.get(result_id).expect("result").evidence;
+    assert!(
+        evidence.iter().any(|e| matches!(
+            e,
+            athena_engine::runtime::results::ResultEvidence::TrustedKernelSummary { summary, .. }
+                if summary.contains("nullity=1")
+        )),
+        "NullSpace must publish nullity evidence, got {evidence:?}"
+    );
 }
 
 #[test]
