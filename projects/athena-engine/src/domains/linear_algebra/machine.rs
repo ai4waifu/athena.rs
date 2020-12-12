@@ -190,6 +190,30 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
     })
 }
 
+/// Crude κ estimate from `|U_ii|` ratio after partial-pivot LU (Living 16 conditioning witness).
+fn conditioning_from_u_diag(lu: &MachineLuFactorization) -> Option<f64> {
+    let n = lu.combined.shape().rows;
+    if lu.numerical_rank < n {
+        return None;
+    }
+    let a = lu.combined.to_f64_row_major().ok()?;
+    let mut max_abs = 0.0_f64;
+    let mut min_abs = f64::INFINITY;
+    for i in 0..n {
+        let d = a[idx(n, i, i)].abs();
+        if d <= lu.pivot_threshold {
+            return None;
+        }
+        max_abs = max_abs.max(d);
+        min_abs = min_abs.min(d);
+    }
+    if min_abs.is_finite() && min_abs > 0.0 {
+        Some(max_abs / min_abs)
+    } else {
+        None
+    }
+}
+
 /// 机器路径求解并附残差。
 pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> Result<MachineSolveResult, Diagnostic> {
     let lu = lu_partial_pivot(a, pivot_threshold)?;
@@ -208,12 +232,13 @@ pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> 
             };
             residual = residual.max((avi - bvi).abs());
         }
+        let conditioning = conditioning_from_u_diag(&lu);
         result.witness = Some(MachineSolveWitness {
             residual_inf: Some(residual),
             numerical_rank: lu.numerical_rank,
             pivot_threshold,
         });
-        result.solution = Some(sol.with_machine_witness(residual, None));
+        result.solution = Some(sol.with_machine_witness(residual, conditioning));
     }
     Ok(result)
 }
