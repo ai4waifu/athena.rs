@@ -461,6 +461,97 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     MatrixValue::from_rationals_row_major(n, n, data)
 }
 
+/// 右除求解 `X B = A`：等价于 `Bᵀ Y = Aᵀ` 再转置（Living 16 / MATLAB mrdivide）。
+pub fn right_solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult, Diagnostic> {
+    use super::ops::transpose;
+
+    if a.parent().element.is_machine() || b.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_exact_rejects_machine"));
+    }
+    if a.shape().cols != b.shape().cols {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "right_solve_cols_mismatch"));
+    }
+    if !b.shape().is_square() {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "right_solve_b_requires_square"));
+    }
+    let at = transpose(a);
+    let bt = transpose(b);
+    let n = bt.shape().rows;
+    let m = at.shape().cols;
+    let mut y_cols: Vec<Vec<Rational>> = Vec::with_capacity(m as usize);
+    let mut infinite_free: Option<Vec<u64>> = None;
+    for j in 0..m {
+        let mut col_data = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            match at.get(i, j)? {
+                MatrixEntry::Integer(z) => col_data.push(Rational::from_integer(z)),
+                MatrixEntry::Rational(r) => col_data.push(r),
+                MatrixEntry::MachineF64(_) => {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_at_machine"));
+                }
+            }
+        }
+        let rhs = MatrixValue::from_rationals_row_major(n, 1, col_data)?;
+        let solved = solve_exact(&bt, &rhs)?;
+        match solved.disposition {
+            SolveDisposition::Unique => {
+                let particular = solved.particular.ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "right_solve_missing_particular")
+                })?;
+                y_cols.push(particular.value.to_rationals_row_major()?);
+            }
+            SolveDisposition::Infinite { free_vars } => {
+                let particular = solved.particular.ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "right_solve_missing_particular")
+                })?;
+                y_cols.push(particular.value.to_rationals_row_major()?);
+                if infinite_free.is_none() {
+                    infinite_free = Some(free_vars);
+                }
+            }
+            SolveDisposition::Inconsistent => {
+                return Ok(ExactSolveResult {
+                    disposition: SolveDisposition::Inconsistent,
+                    particular: None,
+                    guarantee: AlgorithmGuarantee::Exact,
+                });
+            }
+            SolveDisposition::Singular => {
+                return Ok(ExactSolveResult {
+                    disposition: SolveDisposition::Singular,
+                    particular: None,
+                    guarantee: AlgorithmGuarantee::Exact,
+                });
+            }
+            SolveDisposition::ResourceLimited => {
+                return Ok(ExactSolveResult {
+                    disposition: SolveDisposition::ResourceLimited,
+                    particular: None,
+                    guarantee: AlgorithmGuarantee::Exact,
+                });
+            }
+        }
+    }
+    let mut y_data = Vec::with_capacity((n * m) as usize);
+    for i in 0..n {
+        for j in 0..m {
+            y_data.push(clone_rational(&y_cols[j as usize][i as usize]));
+        }
+    }
+    let y = MatrixValue::from_rationals_row_major(n, m, y_data)?;
+    let x = transpose(&y);
+    let particular = MatrixResult::from_owned(x, AlgorithmGuarantee::Exact);
+    let disposition = match infinite_free {
+        Some(free_vars) => SolveDisposition::Infinite { free_vars },
+        None => SolveDisposition::Unique,
+    };
+    Ok(ExactSolveResult {
+        disposition,
+        particular: Some(particular),
+        guarantee: AlgorithmGuarantee::Exact,
+    })
+}
+
 /// 精确矩阵迹：主对角元之和（取 `min(rows, cols)`）。
 pub fn trace_exact(matrix: &MatrixValue) -> Result<ExactTraceResult, Diagnostic> {
     if matrix.parent().element.is_machine() {

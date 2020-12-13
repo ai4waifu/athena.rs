@@ -5,9 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 use super::{
     exact::{
         ExactDetResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult,
-        det_bareiss, invert_exact, norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
+        det_bareiss, invert_exact, norm2_exact, nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
     },
-    machine::{MachineSolveResult, rank_machine, solve_machine},
+    machine::{MachineSolveResult, rank_machine, right_solve_machine, solve_machine},
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, matmul, transpose},
@@ -123,6 +123,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Det { .. } => "det",
         LinearAlgebraRequest::Rref { .. } => "rref",
         LinearAlgebraRequest::Solve { .. } => "solve",
+        LinearAlgebraRequest::RightSolve { .. } => "right_solve",
         LinearAlgebraRequest::Inverse { .. } => "inverse",
         LinearAlgebraRequest::Trace { .. } => "trace",
         LinearAlgebraRequest::Dot { .. } => "dot",
@@ -230,6 +231,19 @@ fn run(
             }
             else {
                 Ok(LinearAlgebraValue::ExactSolve(solve_exact(&a, &b)?))
+            }
+        }
+        LinearAlgebraRequest::RightSolve { a, b } => {
+            let a = a.resolve_value(store, matrix_binding)?;
+            let b = b.resolve_value(store, matrix_binding)?;
+            if a.parent().element.is_machine() || b.parent().element.is_machine() {
+                if !(a.parent().element.is_machine() && b.parent().element.is_machine()) {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_parent_mixed"));
+                }
+                Ok(LinearAlgebraValue::MachineSolve(right_solve_machine(&a, &b, DEFAULT_PIVOT_THRESHOLD)?))
+            }
+            else {
+                Ok(LinearAlgebraValue::ExactSolve(right_solve_exact(&a, &b)?))
             }
         }
         LinearAlgebraRequest::Inverse { matrix } => {

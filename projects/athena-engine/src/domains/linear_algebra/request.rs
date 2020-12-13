@@ -71,6 +71,13 @@ pub enum LinearAlgebraRequest {
         /// 右端 `m×1`（对象句柄或符号绑定）。
         b: MatrixOperand,
     },
+    /// 右除求解 `x B = A`（MATLAB `A/B` / mrdivide；不显式求逆）。
+    RightSolve {
+        /// 左端 `A`（对象句柄或符号绑定）。
+        a: MatrixOperand,
+        /// 右端系数 `B`（方阵；对象句柄或符号绑定）。
+        b: MatrixOperand,
+    },
     /// 矩阵逆（精确路径）。
     Inverse {
         /// 输入方阵（对象句柄或符号绑定）。
@@ -121,6 +128,7 @@ impl LinearAlgebraRequest {
             Self::Det { matrix } => Self::Det { matrix: *matrix },
             Self::Rref { matrix } => Self::Rref { matrix: *matrix },
             Self::Solve { a, b } => Self::Solve { a: *a, b: *b },
+            Self::RightSolve { a, b } => Self::RightSolve { a: *a, b: *b },
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },

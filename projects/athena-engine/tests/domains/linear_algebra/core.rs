@@ -6,7 +6,7 @@ use athena_engine::{
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
             MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, matmul,
-            matrices_equal, rank_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose,
+            matrices_equal, rank_exact, right_solve_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose,
         },
     },
     runtime::Session,
@@ -561,4 +561,68 @@ fn goal_norm_projects_integer() {
     let result_id = execute_ir_request(&mut session, request).expect("norm goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5)));
+}
+
+#[test]
+fn l1_right_solve_exact_row_vector() {
+    // MATLAB `[1, 2] / [[1, 2], [3, 4]]` → `[1, 0]`
+    let a = MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(2)]).unwrap();
+    let b = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
+    let sol = right_solve_exact(&a, &b).unwrap();
+    assert_eq!(sol.disposition, SolveDisposition::Unique);
+    let x = sol.particular.expect("particular");
+    assert_eq!(x.shape.rows, 1);
+    assert_eq!(x.shape.cols, 2);
+    assert_eq!(x.value.get(0, 0).unwrap(), MatrixEntry::Rational(q(1, 1)));
+    assert_eq!(x.value.get(0, 1).unwrap(), MatrixEntry::Rational(q(0, 1)));
+}
+
+#[test]
+fn l1_right_solve_exact_square_identity() {
+    let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
+    let sol = right_solve_exact(&a, &a).unwrap();
+    assert_eq!(sol.disposition, SolveDisposition::Unique);
+    let x = sol.particular.expect("particular");
+    assert_eq!(x.value.get(0, 0).unwrap(), MatrixEntry::Rational(q(1, 1)));
+    assert_eq!(x.value.get(0, 1).unwrap(), MatrixEntry::Rational(q(0, 1)));
+    assert_eq!(x.value.get(1, 0).unwrap(), MatrixEntry::Rational(q(0, 1)));
+    assert_eq!(x.value.get(1, 1).unwrap(), MatrixEntry::Rational(q(1, 1)));
+}
+
+#[test]
+fn goal_right_solve_projects_row() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(2)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::RightSolve {
+        a: a.into(),
+        b: b.into(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("right solve goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("row")
+    else {
+        panic!("expected flat or nested list");
+    };
+    // 1×2 may project as flat list or nested single row.
+    if items.len() == 2 {
+        assert!(matches!(session.arena.get(items[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+        assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+    } else {
+        assert_eq!(items.len(), 1);
+        let TermNode::Collection { elements: r0, .. } = session.arena.get(items[0]).expect("r0")
+        else {
+            panic!("row0");
+        };
+        assert_eq!(r0.len(), 2);
+        assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+        assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+    }
 }
