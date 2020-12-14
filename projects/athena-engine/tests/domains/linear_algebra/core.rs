@@ -590,6 +590,37 @@ fn l1_right_solve_exact_square_identity() {
 }
 
 #[test]
+fn l1_right_solve_machine_with_residual() {
+    use athena_engine::domains::linear_algebra::right_solve_machine;
+
+    let a = MatrixValue::from_f64_row_major(1, 2, vec![1.0, 2.0]).unwrap();
+    let b = MatrixValue::from_f64_row_major(2, 2, vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+    let sol = right_solve_machine(&a, &b, 1e-12).unwrap();
+    assert_eq!(sol.disposition, SolveDisposition::Unique);
+    let w = sol.witness.expect("witness");
+    assert!(w.residual_inf.expect("residual") < 1e-9);
+    let x = sol.solution.expect("solution");
+    assert!((match x.value.get(0, 0).unwrap() {
+        MatrixEntry::MachineF64(v) => v,
+        _ => panic!("f64"),
+    } - 1.0)
+        .abs()
+        < 1e-9);
+}
+
+#[test]
+fn l1_right_solve_machine_singular() {
+    use athena_engine::domains::linear_algebra::right_solve_machine;
+
+    let a = MatrixValue::from_f64_row_major(1, 2, vec![1.0, 0.0]).unwrap();
+    let b = MatrixValue::from_f64_row_major(2, 2, vec![1.0, 2.0, 2.0, 4.0]).unwrap();
+    let sol = right_solve_machine(&a, &b, 1e-12).unwrap();
+    assert_eq!(sol.disposition, SolveDisposition::Singular);
+    assert!(sol.solution.is_none());
+    assert!(sol.witness.expect("witness").residual_inf.is_none());
+}
+
+#[test]
 fn goal_right_solve_projects_row() {
     use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
     use athena_ir::{Atom, TermNode};
