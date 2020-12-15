@@ -311,6 +311,34 @@ fn exact_solve_particular_projects_matrix_ref_evidence() {
 }
 
 #[test]
+fn exact_inverse_singular_projects_disposition_evidence() {
+    use athena_engine::domains::linear_algebra::ExactInverseResult;
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+
+    let mut session = Session::new();
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactInverse(ExactInverseResult {
+            disposition: SolveDisposition::Singular,
+            inverse: None,
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Partial);
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("disposition=Singular")
+        )),
+        "ExactInverse Singular must publish disposition, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn exact_nullspace_projects_nullity_and_matrix_ref_evidence() {
     use athena_engine::domains::linear_algebra::{ExactNullSpaceResult, MatrixResult, MatrixValue};
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
