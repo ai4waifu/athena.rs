@@ -594,7 +594,14 @@ pub(crate) fn linear_algebra_value_symbolic_term(
             Some(session.builder().int(n, Default::default()))
         }
         LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, &matrix.value).ok(),
-        LinearAlgebraValue::ExactNullSpace(ExactNullSpaceResult { basis, .. }) => matrix_to_nested_list_session(session, &basis.value).ok(),
+        LinearAlgebraValue::ExactNullSpace(ExactNullSpaceResult { basis, .. }) => {
+            // Empty basis (`0×n` row or `n×0` column) projects as `{}` / `[]`, not n empty rows.
+            if basis.value.shape().is_empty() {
+                Some(crate::runtime::values::arena::push_list(session, Vec::new()))
+            } else {
+                matrix_to_nested_list_session(session, &basis.value).ok()
+            }
+        }
         LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: Some(m), .. }) => {
             matrix_to_nested_list_session(session, &m.value).ok()
         }
@@ -688,7 +695,7 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::Trace { matrix } => ("Tr", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Rref { matrix } => ("RowReduce", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Norm { matrix } => ("Norm", vec![matrix_op_term(session, *matrix)?]),
-        LinearAlgebraRequest::NullSpace { matrix } => ("NullSpace", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::NullSpace { matrix, .. } => ("NullSpace", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Solve { a, b } => ("LinearSolve", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
         LinearAlgebraRequest::RightSolve { a, b } => ("Mrdivide", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
         LinearAlgebraRequest::MatMul { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),

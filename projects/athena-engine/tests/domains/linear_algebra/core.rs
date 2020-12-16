@@ -570,7 +570,10 @@ fn goal_nullspace_rank1_projects_row_basis() {
     let matrix = session
         .matrix_objects
         .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::NullSpace { matrix: matrix.into() })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::NullSpace {
+        matrix: matrix.into(),
+        column_basis: false,
+    })));
     let result_id = execute_ir_request(&mut session, request).expect("nullspace goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
@@ -594,6 +597,60 @@ fn goal_nullspace_rank1_projects_row_basis() {
         )),
         "NullSpace must publish nullity evidence, got {evidence:?}"
     );
+}
+
+#[test]
+fn goal_nullspace_column_basis_projects_column() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::NullSpace {
+        matrix: matrix.into(),
+        column_basis: true,
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("nullspace column goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
+    else {
+        panic!("expected nested list");
+    };
+    // Column basis of one free vector → 2×1 → nested [[-2],[1]] or similar.
+    assert_eq!(rows.len(), 2);
+    for (idx, expected) in [(0, -2), (1, 1)] {
+        let TermNode::Collection { elements: cell, .. } = session.arena.get(rows[idx]).expect("cell")
+        else {
+            panic!("expected singleton row");
+        };
+        assert_eq!(cell.len(), 1);
+        assert!(matches!(session.arena.get(cell[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expected)));
+    }
+}
+
+#[test]
+fn goal_nullspace_column_basis_full_rank_empty() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::TermNode;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(0), i(0), i(1)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::NullSpace {
+        matrix: matrix.into(),
+        column_basis: true,
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("nullspace empty");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    // n×0 projects as empty list of rows.
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
+    else {
+        panic!("expected nested list");
+    };
+    assert!(rows.is_empty());
 }
 
 #[test]
