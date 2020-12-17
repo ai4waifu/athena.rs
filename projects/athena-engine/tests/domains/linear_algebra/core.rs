@@ -5,8 +5,9 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, matmul,
-            matrices_equal, rank_exact, right_solve_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, kronecker,
+            matmul, matrices_equal, rank_exact, right_solve_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril,
+            triu,
         },
     },
     runtime::Session,
@@ -808,4 +809,90 @@ fn goal_right_solve_projects_row() {
         assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
         assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
     }
+}
+
+#[test]
+fn l0_tril_triu_mask_integer() {
+    let m = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
+    let lo = tril(&m).unwrap();
+    assert_eq!(lo.get(0, 0).unwrap(), MatrixEntry::Integer(i(1)));
+    assert_eq!(lo.get(0, 1).unwrap(), MatrixEntry::Integer(i(0)));
+    assert_eq!(lo.get(1, 0).unwrap(), MatrixEntry::Integer(i(3)));
+    assert_eq!(lo.get(1, 1).unwrap(), MatrixEntry::Integer(i(4)));
+    let up = triu(&m).unwrap();
+    assert_eq!(up.get(0, 0).unwrap(), MatrixEntry::Integer(i(1)));
+    assert_eq!(up.get(0, 1).unwrap(), MatrixEntry::Integer(i(2)));
+    assert_eq!(up.get(1, 0).unwrap(), MatrixEntry::Integer(i(0)));
+    assert_eq!(up.get(1, 1).unwrap(), MatrixEntry::Integer(i(4)));
+}
+
+#[test]
+fn l0_kronecker_row_vectors() {
+    // MATLAB kron([1, 2], [3, 4]) → [3, 4, 6, 8]
+    let a = MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(2)]).unwrap();
+    let b = MatrixValue::from_integers_row_major(1, 2, vec![i(3), i(4)]).unwrap();
+    let k = kronecker(&a, &b).unwrap();
+    assert_eq!(k.shape().rows, 1);
+    assert_eq!(k.shape().cols, 4);
+    assert_eq!(k.get(0, 0).unwrap(), MatrixEntry::Integer(i(3)));
+    assert_eq!(k.get(0, 1).unwrap(), MatrixEntry::Integer(i(4)));
+    assert_eq!(k.get(0, 2).unwrap(), MatrixEntry::Integer(i(6)));
+    assert_eq!(k.get(0, 3).unwrap(), MatrixEntry::Integer(i(8)));
+}
+
+#[test]
+fn goal_tril_and_kronecker_project_nested_list() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::Tril { matrix: matrix.into() },
+    )));
+    let result_id = execute_ir_request(&mut session, request).expect("tril goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Exact);
+    let term = result.symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("list") else {
+        panic!("expected nested list");
+    };
+    assert_eq!(rows.len(), 2);
+
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(2)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![i(3), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::Kronecker {
+            lhs: a.into(),
+            rhs: b.into(),
+        },
+    )));
+    let result_id = execute_ir_request(&mut session, request).expect("kronecker goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Exact);
+    let term = result.symbolic_term.expect("projected");
+    // 1×4 may project as flat List or nested single row.
+    let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list") else {
+        panic!("expected list");
+    };
+    let flat: Vec<_> = if items.len() == 4 {
+        items.to_vec()
+    } else if items.len() == 1 {
+        let TermNode::Collection { elements: row, .. } = session.arena.get(items[0]).expect("row") else {
+            panic!("expected nested row");
+        };
+        assert_eq!(row.len(), 4);
+        row.to_vec()
+    } else {
+        panic!("unexpected projection len {}", items.len());
+    };
+    assert!(matches!(session.arena.get(flat[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+    assert!(matches!(session.arena.get(flat[3]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(8)));
 }

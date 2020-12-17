@@ -11,7 +11,9 @@ use super::{
     machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
-    ops::{cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, matmul, transpose},
+    ops::{
+        cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, kronecker, matmul, transpose, tril, triu,
+    },
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
     value::MatrixValue,
@@ -149,6 +151,9 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::NullSpace { .. } => "nullspace",
         LinearAlgebraRequest::Norm { .. } => "norm",
         LinearAlgebraRequest::ConditionNumber { .. } => "condition_number",
+        LinearAlgebraRequest::Tril { .. } => "tril",
+        LinearAlgebraRequest::Triu { .. } => "triu",
+        LinearAlgebraRequest::Kronecker { .. } => "kronecker",
     }
 }
 
@@ -326,6 +331,19 @@ fn run(
                 numerical_rank,
                 guarantee,
             })
+        }
+        LinearAlgebraRequest::Tril { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(tril(&matrix)?))
+        }
+        LinearAlgebraRequest::Triu { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(triu(&matrix)?))
+        }
+        LinearAlgebraRequest::Kronecker { lhs, rhs } => {
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(kronecker(&lhs, &rhs)?))
         }
     }
 }

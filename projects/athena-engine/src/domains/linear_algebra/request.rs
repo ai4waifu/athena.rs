@@ -119,6 +119,23 @@ pub enum LinearAlgebraRequest {
         /// 输入方阵（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 下三角（含对角）。
+    Tril {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
+    /// 上三角（含对角）。
+    Triu {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
+    /// Kronecker 积 `A ⊗ B`。
+    Kronecker {
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -146,6 +163,9 @@ impl LinearAlgebraRequest {
             },
             Self::Norm { matrix } => Self::Norm { matrix: *matrix },
             Self::ConditionNumber { matrix } => Self::ConditionNumber { matrix: *matrix },
+            Self::Tril { matrix } => Self::Tril { matrix: *matrix },
+            Self::Triu { matrix } => Self::Triu { matrix: *matrix },
+            Self::Kronecker { lhs, rhs } => Self::Kronecker { lhs: *lhs, rhs: *rhs },
         }
     }
 }
