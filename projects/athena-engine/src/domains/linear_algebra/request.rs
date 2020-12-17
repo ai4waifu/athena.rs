@@ -114,6 +114,11 @@ pub enum LinearAlgebraRequest {
         /// 输入向量（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 条件数估计（机器路径；精确输入会先提升到 `f64`）。
+    ConditionNumber {
+        /// 输入方阵（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -140,6 +145,7 @@ impl LinearAlgebraRequest {
                 column_basis: *column_basis,
             },
             Self::Norm { matrix } => Self::Norm { matrix: *matrix },
+            Self::ConditionNumber { matrix } => Self::ConditionNumber { matrix: *matrix },
         }
     }
 }

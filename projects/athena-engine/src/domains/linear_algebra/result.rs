@@ -8,7 +8,7 @@ use super::{
         ExactTraceResult, det_bareiss, invert_exact, norm2_exact, nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact,
         trace_exact,
     },
-    machine::{MachineSolveResult, rank_machine, right_solve_machine, solve_machine},
+    machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, matmul, transpose},
@@ -36,6 +36,15 @@ pub enum LinearAlgebraValue {
     MachineRank {
         /// 数值秩。
         rank: u64,
+        /// 保证。
+        guarantee: AlgorithmGuarantee,
+    },
+    /// 机器条件数估计（`‖U‖` 主元比；奇异时为 `+∞`）。
+    MachineCond {
+        /// 条件数估计。
+        value: f64,
+        /// 数值秩。
+        numerical_rank: u64,
         /// 保证。
         guarantee: AlgorithmGuarantee,
     },
@@ -86,6 +95,11 @@ impl LinearAlgebraValue {
             Self::Matrix(m) => Self::Matrix(m.owning_copy()),
             Self::ExactRank(r) => Self::ExactRank(*r),
             Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
+            Self::MachineCond { value, numerical_rank, guarantee } => Self::MachineCond {
+                value: *value,
+                numerical_rank: *numerical_rank,
+                guarantee: *guarantee,
+            },
             Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
             Self::ExactTrace(r) => Self::ExactTrace(r.owning_copy()),
             Self::ExactNorm(r) => Self::ExactNorm(r.owning_copy()),
@@ -134,6 +148,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Cross { .. } => "cross",
         LinearAlgebraRequest::NullSpace { .. } => "nullspace",
         LinearAlgebraRequest::Norm { .. } => "norm",
+        LinearAlgebraRequest::ConditionNumber { .. } => "condition_number",
     }
 }
 
@@ -301,6 +316,16 @@ fn run(
                     .detail("hint", "use exact parent"));
             }
             Ok(LinearAlgebraValue::ExactNorm(norm2_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::ConditionNumber { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            let MachineCondEstimate { value, numerical_rank, guarantee } =
+                condition_number_machine(&matrix, DEFAULT_PIVOT_THRESHOLD)?;
+            Ok(LinearAlgebraValue::MachineCond {
+                value,
+                numerical_rank,
+                guarantee,
+            })
         }
     }
 }
