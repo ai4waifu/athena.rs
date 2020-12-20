@@ -713,6 +713,15 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::Dot { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Cross { lhs, rhs } => ("Cross", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Kronecker { lhs, rhs } => ("KroneckerProduct", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::IsDiagonal { matrix } => ("IsDiagonalMatrix", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::IsTriangular { matrix, lower } => {
+            if *lower {
+                ("IsLowerTriangular", vec![matrix_op_term(session, *matrix)?])
+            } else {
+                ("IsUpperTriangular", vec![matrix_op_term(session, *matrix)?])
+            }
+        }
+        LinearAlgebraRequest::IsSymmetric { matrix } => ("IsSymmetricMatrix", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Index { .. } => return None,
     };
     let op = session.extensions.intern(head);

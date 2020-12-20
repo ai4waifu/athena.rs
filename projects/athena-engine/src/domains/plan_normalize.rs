@@ -192,7 +192,10 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
         | LinearAlgebraRequest::Norm { matrix }
         | LinearAlgebraRequest::ConditionNumber { matrix }
         | LinearAlgebraRequest::Tril { matrix }
-        | LinearAlgebraRequest::Triu { matrix } => check_op(matrix),
+        | LinearAlgebraRequest::Triu { matrix }
+        | LinearAlgebraRequest::IsDiagonal { matrix }
+        | LinearAlgebraRequest::IsTriangular { matrix, .. }
+        | LinearAlgebraRequest::IsSymmetric { matrix } => check_op(matrix),
         LinearAlgebraRequest::Index { matrix, .. } => check(matrix),
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }

@@ -12,7 +12,8 @@ use super::{
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{
-        cross, dot, elementwise_divide, elementwise_power, hadamard, index_scalar, kronecker, matmul, transpose, tril, triu,
+        cross, dot, elementwise_divide, elementwise_power, flag_matrix, hadamard, index_scalar, is_diagonal, is_lower_triangular,
+        is_symmetric, is_upper_triangular, kronecker, matmul, transpose, tril, triu,
     },
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
@@ -154,6 +155,9 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Tril { .. } => "tril",
         LinearAlgebraRequest::Triu { .. } => "triu",
         LinearAlgebraRequest::Kronecker { .. } => "kronecker",
+        LinearAlgebraRequest::IsDiagonal { .. } => "is_diagonal",
+        LinearAlgebraRequest::IsTriangular { .. } => "is_triangular",
+        LinearAlgebraRequest::IsSymmetric { .. } => "is_symmetric",
     }
 }
 
@@ -345,6 +349,23 @@ fn run(
             let rhs = rhs.resolve_value(store, matrix_binding)?;
             // Living 16: 行/列向量 Kronecker 与 Dot 同表面（平坦 List），方块积仍为嵌套矩阵。
             Ok(LinearAlgebraValue::dot_outcome(kronecker(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::IsDiagonal { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(flag_matrix(is_diagonal(&matrix)?)?))
+        }
+        LinearAlgebraRequest::IsTriangular { matrix, lower } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            let ok = if lower {
+                is_lower_triangular(&matrix)?
+            } else {
+                is_upper_triangular(&matrix)?
+            };
+            Ok(LinearAlgebraValue::dot_outcome(flag_matrix(ok)?))
+        }
+        LinearAlgebraRequest::IsSymmetric { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(flag_matrix(is_symmetric(&matrix)?)?))
         }
     }
 }

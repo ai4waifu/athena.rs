@@ -153,6 +153,80 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
     }
 }
 
+fn entry_is_zero(entry: &MatrixEntry) -> bool {
+    match entry {
+        MatrixEntry::Integer(x) => x.is_zero(),
+        MatrixEntry::Rational(x) => x.is_zero(),
+        MatrixEntry::MachineF64(x) => *x == 0.0,
+    }
+}
+
+/// 对角阵判定（非对角元为零；允许非方阵）。
+pub fn is_diagonal(matrix: &MatrixValue) -> Result<bool, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    for i in 0..rows {
+        for j in 0..cols {
+            if i != j && !entry_is_zero(&matrix.get(i, j)?) {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// 下三角判定（严格上三角为零；含对角；允许非方阵）。
+pub fn is_lower_triangular(matrix: &MatrixValue) -> Result<bool, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    for i in 0..rows {
+        for j in 0..cols {
+            if j > i && !entry_is_zero(&matrix.get(i, j)?) {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// 上三角判定（严格下三角为零；含对角；允许非方阵）。
+pub fn is_upper_triangular(matrix: &MatrixValue) -> Result<bool, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    for i in 0..rows {
+        for j in 0..cols {
+            if j < i && !entry_is_zero(&matrix.get(i, j)?) {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// 对称判定（须方阵；`A[i,j] = A[j,i]`）。
+pub fn is_symmetric(matrix: &MatrixValue) -> Result<bool, Diagnostic> {
+    let n = matrix.shape().rows;
+    if n != matrix.shape().cols {
+        return Ok(false);
+    }
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let a = matrix.get(i, j)?;
+            let b = matrix.get(j, i)?;
+            if a != b {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// 将布尔谓词投成 `1×1` 整数矩阵（供 `Dot` 表面压成标量 `0`/`1`）。
+pub fn flag_matrix(value: bool) -> Result<MatrixValue, Diagnostic> {
+    let bit = if value { Integer::one() } else { Integer::zero() };
+    MatrixValue::from_integers_row_major(1, 1, vec![bit])
+}
+
 /// Kronecker 积 `A ⊗ B`（块缩放）。
 pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     require_same_element_parent(lhs, rhs)?;

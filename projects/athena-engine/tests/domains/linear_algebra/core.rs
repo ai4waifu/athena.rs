@@ -5,9 +5,9 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, kronecker,
-            matmul, matrices_equal, rank_exact, right_solve_exact, scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril,
-            triu,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_linear_algebra, hadamard, is_diagonal,
+            is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact, scalar_index_from_one_based,
+            solve_exact, solve_machine, transpose, tril, triu,
         },
     },
     runtime::Session,
@@ -895,4 +895,41 @@ fn goal_tril_and_kronecker_project_nested_list() {
     };
     assert!(matches!(session.arena.get(flat[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
     assert!(matches!(session.arena.get(flat[3]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(8)));
+}
+
+#[test]
+fn l0_matrix_structure_predicates() {
+    let eye = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(0), i(0), i(1)]).unwrap();
+    assert!(is_diagonal(&eye).unwrap());
+    assert!(is_lower_triangular(&eye).unwrap());
+    assert!(is_symmetric(&eye).unwrap());
+    let lower = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(0), i(3), i(4)]).unwrap();
+    assert!(!is_diagonal(&lower).unwrap());
+    assert!(is_lower_triangular(&lower).unwrap());
+    assert!(!is_symmetric(&lower).unwrap());
+    let full = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
+    assert!(!is_lower_triangular(&full).unwrap());
+}
+
+#[test]
+fn goal_is_diagonal_projects_scalar_one() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(0), i(0), i(2)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::IsDiagonal { matrix: matrix.into() },
+    )));
+    let result_id = execute_ir_request(&mut session, request).expect("isdiag goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Exact);
+    let term = result.symbolic_term.expect("projected");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(n))) => assert_eq!(n.as_exact_integer(), Some(1)),
+        other => panic!("expected scalar 1, got {other:?}"),
+    }
 }
