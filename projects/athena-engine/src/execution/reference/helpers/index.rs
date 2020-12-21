@@ -8,7 +8,10 @@ use super::{evaluate_apply_head_terms, expand_span_3, matrix_entry_to_term_sessi
 use crate::{
     domains::linear_algebra::{ElementParentKind, MatrixEntry, MatrixValue},
     execution::number_of,
-    runtime::{session::Session, values::arena::push_list, values::numeric_clone::clone_rational},
+    runtime::{
+        session::Session,
+        values::{arena::push_list, numeric_clone::clone_rational},
+    },
 };
 
 /// 单轴索引步骤结果。
@@ -120,9 +123,7 @@ pub(crate) fn index_one(session: &mut Session, expr: TermId, spec: &IndexSpec) -
             Ok(IndexStep::Next(cur))
         }
         // Handled by `evaluate_index_axes` (needs full target shape). Fallback: scalar.
-        IndexSpec::LinearColumnMajor(IntegerIndex(idx)) => {
-            index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(*idx)))
-        }
+        IndexSpec::LinearColumnMajor(IntegerIndex(idx)) => index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(*idx))),
         IndexSpec::ColumnMajorFlatten => Ok(IndexStep::Residual),
         IndexSpec::DomainSpecific(_) => Ok(IndexStep::Residual),
     }
@@ -226,6 +227,12 @@ pub(crate) fn evaluate_index_axes_matrix(session: &mut Session, matrix: &MatrixV
                 .detail("component", "evaluate_index_axes_matrix")
                 .detail("reason", "unsupported_matrix_index_axes"),
         }),
+        MatrixAxes::AxisSlice { .. } => Ok(IndexOutcome::Invalid {
+            echo,
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "evaluate_index_axes_matrix")
+                .detail("reason", "matrix_axis_slice_store_only"),
+        }),
         MatrixAxes::Grow { .. } => Ok(IndexOutcome::Invalid {
             echo,
             diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
@@ -257,16 +264,41 @@ pub(crate) fn store_index_axes_matrix(
     let (row, col) = match matrix_axes_to_store_target(&matrix, axes, true) {
         MatrixAxes::Cell(row, col) => (row, col),
         MatrixAxes::Grow { row, col, rows, cols } => {
-            let grown = if cols == 1 && matrix.shape().cols > 1 {
-                column_major_grow_vector(&matrix, rows)
-            } else {
-                matrix.resize_owned(rows, cols)
-            };
+            let grown =
+                if cols == 1 && matrix.shape().cols > 1 { column_major_grow_vector(&matrix, rows) } else { matrix.resize_owned(rows, cols) };
             match grown {
                 Ok(m) => matrix = m,
                 Err(diagnostic) => return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic }),
             }
             (row, col)
+        }
+        MatrixAxes::AxisSlice { column, fixed, rows, cols } => {
+            if rows != matrix.shape().rows || cols != matrix.shape().cols {
+                match matrix.resize_owned(rows, cols) {
+                    Ok(m) => matrix = m,
+                    Err(diagnostic) => return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic }),
+                }
+            }
+            let expected = if column { rows } else { cols };
+            let entries = match term_to_matrix_entries(session, value, matrix.parent().element, expected) {
+                Ok(entries) => entries,
+                Err(diagnostic) => return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic }),
+            };
+            for (i, entry) in entries.into_iter().enumerate() {
+                let (row, col) = if column { (i as u64, fixed) } else { (fixed, i as u64) };
+                if let Err(diagnostic) = matrix.set_owned(row, col, entry) {
+                    return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic });
+                }
+            }
+            if session.matrix_objects.replace(matrix_ref, matrix).is_none() {
+                return Ok(MatrixStoreOutcome::Invalid {
+                    echo,
+                    diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "store_index_axes_matrix")
+                        .detail("reason", "matrix_replace_missing"),
+                });
+            }
+            return Ok(MatrixStoreOutcome::Value(session.insert_matrix_value(matrix_ref)));
         }
         MatrixAxes::Row(_) => {
             return Ok(MatrixStoreOutcome::Invalid {
@@ -313,6 +345,17 @@ enum MatrixAxes {
     Cell(u64, u64),
     /// Full row (0-based) for first-axis [`IndexSpec::Scalar`] on `m×n` with `m>1` and `n>1`.
     Row(u64),
+    /// MATLAB `A(:,c)` / `A(r,:)` 整列或整行写入（0-based）。
+    AxisSlice {
+        /// `true` = 固定列写各行；`false` = 固定行写各列。
+        column: bool,
+        /// 固定轴下标。
+        fixed: u64,
+        /// 写入前扩容到的行数（可等于当前）。
+        rows: u64,
+        /// 写入前扩容到的列数（可等于当前）。
+        cols: u64,
+    },
     /// 写入前需扩容到 `(rows, cols)`，再写 `(row, col)`。
     Grow {
         row: u64,
@@ -341,9 +384,11 @@ fn matrix_axes_to_store_target(matrix: &MatrixValue, axes: &[IndexSpec], allow_g
         [IndexSpec::Scalar(IntegerIndex(k))] => {
             if nrows == 1 {
                 one_based_cell_target(1, *k, nrows, ncols, allow_grow)
-            } else if ncols == 1 {
+            }
+            else if ncols == 1 {
                 one_based_cell_target(*k, 1, nrows, ncols, allow_grow)
-            } else {
+            }
+            else {
                 first_axis_row_target(*k, nrows)
             }
         }
@@ -353,6 +398,8 @@ fn matrix_axes_to_store_target(matrix: &MatrixValue, axes: &[IndexSpec], allow_g
             linear_column_major_target(nrows, ncols, numel + *off, allow_grow)
         }
         [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => one_based_cell_target(*r, *c, nrows, ncols, allow_grow),
+        [IndexSpec::All, IndexSpec::Scalar(IntegerIndex(c))] => one_based_axis_slice_target(true, *c, nrows, ncols, allow_grow),
+        [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::All] => one_based_axis_slice_target(false, *r, nrows, ncols, allow_grow),
         [IndexSpec::ColumnMajorFlatten] => MatrixAxes::Flatten,
         _ => MatrixAxes::Unsupported,
     }
@@ -363,11 +410,7 @@ fn first_axis_row_target(row_1: i64, nrows: u64) -> MatrixAxes {
         return MatrixAxes::Invalid(row_1);
     }
     let row = (row_1 as u64) - 1;
-    if row < nrows {
-        MatrixAxes::Row(row)
-    } else {
-        MatrixAxes::Invalid(row_1)
-    }
+    if row < nrows { MatrixAxes::Row(row) } else { MatrixAxes::Invalid(row_1) }
 }
 
 fn linear_column_major_target(nrows: u64, ncols: u64, k: i64, allow_grow: bool) -> MatrixAxes {
@@ -386,22 +429,39 @@ fn linear_column_major_target(nrows: u64, ncols: u64, k: i64, allow_grow: bool) 
     }
     // 行向量保形扩列；列向量保形扩行；一般矩阵线性越界 → 列向量（MATLAB 合同）。
     if nrows == 1 {
-        MatrixAxes::Grow {
-            row: 0,
-            col: n,
-            rows: 1,
-            cols: n + 1,
-        }
-    } else {
-        MatrixAxes::Grow {
-            row: n,
-            col: 0,
-            rows: n + 1,
-            cols: 1,
-        }
+        MatrixAxes::Grow { row: 0, col: n, rows: 1, cols: n + 1 }
+    }
+    else {
+        MatrixAxes::Grow { row: n, col: 0, rows: n + 1, cols: 1 }
     }
 }
 
+fn one_based_axis_slice_target(column: bool, fixed_1: i64, nrows: u64, ncols: u64, allow_grow: bool) -> MatrixAxes {
+    if fixed_1 < 1 {
+        return MatrixAxes::Invalid(fixed_1);
+    }
+    let fixed = (fixed_1 as u64) - 1;
+    if column {
+        if fixed < ncols {
+            MatrixAxes::AxisSlice { column: true, fixed, rows: nrows.max(1), cols: ncols }
+        }
+        else if allow_grow {
+            MatrixAxes::AxisSlice { column: true, fixed, rows: nrows.max(1), cols: fixed + 1 }
+        }
+        else {
+            MatrixAxes::Invalid(fixed_1)
+        }
+    }
+    else if fixed < nrows {
+        MatrixAxes::AxisSlice { column: false, fixed, rows: nrows, cols: ncols.max(1) }
+    }
+    else if allow_grow {
+        MatrixAxes::AxisSlice { column: false, fixed, rows: fixed + 1, cols: ncols.max(1) }
+    }
+    else {
+        MatrixAxes::Invalid(fixed_1)
+    }
+}
 fn one_based_cell_target(row_1: i64, col_1: i64, nrows: u64, ncols: u64, allow_grow: bool) -> MatrixAxes {
     if row_1 < 1 || col_1 < 1 {
         return MatrixAxes::Invalid(row_1);
@@ -414,12 +474,7 @@ fn one_based_cell_target(row_1: i64, col_1: i64, nrows: u64, ncols: u64, allow_g
     if !allow_grow {
         return MatrixAxes::Invalid(row_1);
     }
-    MatrixAxes::Grow {
-        row,
-        col,
-        rows: nrows.max(row + 1),
-        cols: ncols.max(col + 1),
-    }
+    MatrixAxes::Grow { row, col, rows: nrows.max(row + 1), cols: ncols.max(col + 1) }
 }
 
 /// 列优先展平后扩成 `new_len×1` 列向量（一般矩阵线性越界写入）。
@@ -491,6 +546,43 @@ fn term_to_matrix_entry(session: &Session, term: TermId, kind: ElementParentKind
     }
 }
 
+/// 将标量或列/行向量 Term 展开为固定长度的 [`MatrixEntry`] 序列（MATLAB `A(:,c)=v`）。
+fn term_to_matrix_entries(session: &Session, term: TermId, kind: ElementParentKind, expected: u64) -> Result<Vec<MatrixEntry>> {
+    if expected == 0 {
+        return Err(Diagnostic::new(athena_types::DiagnosticCode::ShapeMismatch).detail("reason", "store_axis_empty"));
+    }
+    if number_of(session, term).is_some() {
+        if expected != 1 {
+            return Err(Diagnostic::new(athena_types::DiagnosticCode::ShapeMismatch)
+                .detail("reason", "store_axis_scalar_len_mismatch")
+                .detail("expected", expected.to_string())
+                .detail("got", "1"));
+        }
+        return Ok(vec![term_to_matrix_entry(session, term, kind)?]);
+    }
+    let elements = match session.arena.get(term) {
+        Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+        _ => {
+            return Err(Diagnostic::new(athena_types::DiagnosticCode::TypeMismatch).detail("reason", "store_axis_value_not_vector"));
+        }
+    };
+    // Accept flat list or column of 1-cell rows: [[e1],[e2],…]
+    let mut flat = Vec::with_capacity(elements.len());
+    for el in &elements {
+        match session.arena.get(*el) {
+            Some(athena_ir::TermNode::Collection { elements: inner, .. }) if inner.len() == 1 => flat.push(inner[0]),
+            _ => flat.push(*el),
+        }
+    }
+    if flat.len() as u64 != expected {
+        return Err(Diagnostic::new(athena_types::DiagnosticCode::ShapeMismatch)
+            .detail("reason", "store_axis_len_mismatch")
+            .detail("expected", expected.to_string())
+            .detail("got", flat.len().to_string()));
+    }
+    flat.into_iter().map(|t| term_to_matrix_entry(session, t, kind)).collect()
+}
+
 fn nested_matrix_shape(session: &Session, term: TermId) -> Option<(usize, usize)> {
     let rows = match session.arena.get(term)? {
         athena_ir::TermNode::Collection { elements, .. } => elements.clone(),
@@ -535,10 +627,7 @@ fn is_function_term(session: &Session, term: TermId) -> bool {
 }
 
 fn is_indexable_target(session: &Session, term: TermId) -> bool {
-    matches!(
-        session.arena.get(term),
-        Some(athena_ir::TermNode::Collection { .. } | athena_ir::TermNode::Application { .. })
-    )
+    matches!(session.arena.get(term), Some(athena_ir::TermNode::Collection { .. } | athena_ir::TermNode::Application { .. }))
 }
 
 /// Rebuild call arguments from Index axes when the target is a call head, not a container.
@@ -566,8 +655,7 @@ pub(crate) fn store_index_axes(session: &mut Session, cur: TermId, axes: &[Index
         _ => {
             return Ok(IndexOutcome::Invalid {
                 echo: cur,
-                diagnostic: crate::diagnostics::invalid_index_diagnostic(0, None)
-                    .detail("reason", "store_index_target_not_collection"),
+                diagnostic: crate::diagnostics::invalid_index_diagnostic(0, None).detail("reason", "store_index_target_not_collection"),
             });
         }
     };
@@ -606,14 +694,12 @@ fn store_flat_at_one_based(
     value: TermId,
 ) -> Result<IndexOutcome> {
     if one_based == 0 {
-        return Ok(IndexOutcome::Invalid {
-            echo: cur,
-            diagnostic: crate::diagnostics::invalid_index_diagnostic(one_based, Some(len as u64)),
-        });
+        return Ok(IndexOutcome::Invalid { echo: cur, diagnostic: crate::diagnostics::invalid_index_diagnostic(one_based, Some(len as u64)) });
     }
     let pos = if one_based > 0 {
         (one_based - 1) as usize
-    } else {
+    }
+    else {
         let pos = len as i64 + one_based;
         if pos < 0 {
             return Ok(IndexOutcome::Invalid {
@@ -673,7 +759,8 @@ fn store_nested_matrix_cell(
                     });
                 }
             }
-        } else {
+        }
+        else {
             Vec::new()
         };
         if cols.len() < target_ncols {

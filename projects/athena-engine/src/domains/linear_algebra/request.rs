@@ -12,6 +12,11 @@ pub enum LinearAlgebraRequest {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 共轭转置（当前元素域为实数时等于转置）。
+    ConjugateTranspose {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
     /// 标量索引（内核 0-based）。
     Index {
         /// 输入。
@@ -160,6 +165,7 @@ impl LinearAlgebraRequest {
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Transpose { matrix } => Self::Transpose { matrix: *matrix },
+            Self::ConjugateTranspose { matrix } => Self::ConjugateTranspose { matrix: *matrix },
             Self::Index { matrix, row, col } => Self::Index { matrix: *matrix, row: *row, col: *col },
             Self::MatMul { lhs, rhs } => Self::MatMul { lhs: *lhs, rhs: *rhs },
             Self::Hadamard { lhs, rhs } => Self::Hadamard { lhs: *lhs, rhs: *rhs },
@@ -174,20 +180,14 @@ impl LinearAlgebraRequest {
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
-            Self::NullSpace { matrix, column_basis } => Self::NullSpace {
-                matrix: *matrix,
-                column_basis: *column_basis,
-            },
+            Self::NullSpace { matrix, column_basis } => Self::NullSpace { matrix: *matrix, column_basis: *column_basis },
             Self::Norm { matrix } => Self::Norm { matrix: *matrix },
             Self::ConditionNumber { matrix } => Self::ConditionNumber { matrix: *matrix },
             Self::Tril { matrix } => Self::Tril { matrix: *matrix },
             Self::Triu { matrix } => Self::Triu { matrix: *matrix },
             Self::Kronecker { lhs, rhs } => Self::Kronecker { lhs: *lhs, rhs: *rhs },
             Self::IsDiagonal { matrix } => Self::IsDiagonal { matrix: *matrix },
-            Self::IsTriangular { matrix, lower } => Self::IsTriangular {
-                matrix: *matrix,
-                lower: *lower,
-            },
+            Self::IsTriangular { matrix, lower } => Self::IsTriangular { matrix: *matrix, lower: *lower },
             Self::IsSymmetric { matrix } => Self::IsSymmetric { matrix: *matrix },
         }
     }

@@ -28,10 +28,7 @@ fn is_indeterminate_term(session: &Session, term: TermId) -> bool {
 
 /// 裸正无穷内核（`MathematicalConstant::Infinity`）。
 fn is_infinity_kernel(session: &Session, term: TermId) -> bool {
-    matches!(
-        session.arena.get(term),
-        Some(athena_ir::TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity)))
-    )
+    matches!(session.arena.get(term), Some(athena_ir::TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity))))
 }
 
 fn factor_contains_infinity(session: &Session, term: TermId) -> bool {
@@ -49,9 +46,7 @@ fn factor_contains_infinity(session: &Session, term: TermId) -> bool {
 /// `Power[0, e]` 且 `e` 为负整数：与零相乘时不得吸收成 `0`。
 fn is_zero_to_negative_power(session: &Session, term: TermId) -> bool {
     match session.arena.get(term) {
-        Some(athena_ir::TermNode::Application { head, arguments })
-            if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 =>
-        {
+        Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Power) && arguments.len() == 2 => {
             let base_zero = number_of(session, arguments[0]).is_some_and(Number::is_zero);
             let exp_neg = number_of(session, arguments[1]).is_some_and(|e| e.as_integer_exp().is_some_and(|n| n < 0));
             base_zero && exp_neg
@@ -443,6 +438,11 @@ pub(crate) fn evaluate_arithmetic_terms(session: &mut Session, op: SemanticOpera
             _ => return Err(diag("semantic_operator_arity")),
         };
         if let Some(folded) = folded {
+            // Living 16 / I-6: machine Inf-Inf (and similar) collapses to NaN; publish Indeterminate
+            // instead of a silent non-finite Number that dialects may treat as success.
+            if folded.as_machine_f64().is_some_and(|x| x.is_nan()) {
+                return Ok(push_indeterminate(session));
+            }
             return Ok(push_number(session, folded));
         }
     }
