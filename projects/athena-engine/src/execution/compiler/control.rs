@@ -154,6 +154,8 @@ impl ExecutionCompiler {
     }
 
     /// Resolve Own for a symbol target, store through axes, write binding back, return RHS.
+    ///
+    /// A non-symbol target is a pure copy: return the updated collection and do not write a binding.
     pub(crate) fn lower_store_index(
         &self,
         session: &mut Session,
@@ -168,11 +170,7 @@ impl ExecutionCompiler {
 
         let symbol = match session.arena.get(target) {
             Some(TermNode::Atom(Atom::Symbol(s))) => *s,
-            _ => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("component", "ExecutionCompiler")
-                    .detail("reason", "store_index_requires_symbol_target"));
-            }
+            _ => return self.lower_store_index_copy(session, builder, blocks, entry, target, axes, value),
         };
 
         let mut operations = Vec::new();
@@ -224,6 +222,37 @@ impl ExecutionCompiler {
             terminator: Terminator::return_value(rhs),
         });
         Ok(rhs)
+    }
+
+    /// Store into an already-materialized collection and return the updated term.
+    fn lower_store_index_copy(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        target: TermId,
+        axes: &[athena_types::IndexSpec],
+        value: TermId,
+    ) -> Result<SsaValueId> {
+        let mut operations = Vec::new();
+        let loaded = self.lower_pure_expr(session, builder, &mut operations, target)?;
+        let rhs = self.lower_pure_expr(session, builder, &mut operations, value)?;
+        let stored = builder.ssa();
+        operations.push(Operation {
+            result: Some(stored),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::StoreIndex { target: loaded, axes: axes.to_vec(), value: rhs },
+            effect_in: None,
+            effect_out: None,
+        });
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations,
+            terminator: Terminator::return_value(stored),
+        });
+        Ok(stored)
     }
 
     /// 编译期展开常量范围、替换绑定符，再 lowering 为 body 集合。
