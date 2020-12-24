@@ -1295,3 +1295,28 @@ fn nonzero_over_zero_keeps_divide_residual() {
         other => panic!("expected Divide[1,0] residual, got {other:?}"),
     }
 }
+
+#[test]
+fn divide_by_zero_residuals_cancel_to_indeterminate() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let zero = session.builder().int(0, Default::default());
+    let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+    let pole = session.builder().application(divide, vec![one, zero], Default::default());
+    let subtract = ApplicationHead::Semantic(SemanticOperator::Subtract);
+    let term = session.builder().application(subtract, vec![pole, pole], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("1/0 - 1/0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+
+    let mut session = Session::new();
+    let one = session.builder().real(1.0, Default::default());
+    let zero = session.builder().real(0.0, Default::default());
+    let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+    let pole = session.builder().application(divide, vec![one, zero], Default::default());
+    let subtract = ApplicationHead::Semantic(SemanticOperator::Subtract);
+    let term = session.builder().application(subtract, vec![pole, pole], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("1.0/0.0 - 1.0/0.0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+}
