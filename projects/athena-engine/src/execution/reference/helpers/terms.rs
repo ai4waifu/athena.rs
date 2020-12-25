@@ -612,7 +612,7 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     }
 }
 
-/// 无矩阵载荷时的诚实残差：不一致为空 List，其余为 `Head[Disposition]` Extension。
+/// 无矩阵载荷时的诚实残差：`Head[Disposition]` Extension（含 `Inconsistent`，禁止空 List 冒充无解）。
 fn solve_disposition_residual_term(
     session: &mut Session,
     head: &str,
@@ -620,24 +620,20 @@ fn solve_disposition_residual_term(
 ) -> Option<TermId> {
     use crate::{
         domains::linear_algebra::SolveDisposition,
-        runtime::values::arena::{push_extension, push_list},
+        runtime::values::arena::push_extension,
     };
 
-    match disposition {
-        SolveDisposition::Inconsistent => Some(push_list(session, Vec::new())),
-        SolveDisposition::Unique | SolveDisposition::Infinite { .. } | SolveDisposition::Singular | SolveDisposition::ResourceLimited => {
-            let tag = match disposition {
-                SolveDisposition::Unique => "Unique",
-                SolveDisposition::Infinite { .. } => "Infinite",
-                SolveDisposition::Singular => "Singular",
-                SolveDisposition::ResourceLimited => "ResourceLimited",
-                SolveDisposition::Inconsistent => unreachable!(),
-            };
-            let op = session.extensions.intern(head);
-            let arg = session.builder().symbol(tag, Default::default());
-            Some(push_extension(session, op, vec![arg]))
-        }
-    }
+    // Living 16 / R-4.1.14: none (Inconsistent) must not masquerade as an empty solution list.
+    let tag = match disposition {
+        SolveDisposition::Unique => "Unique",
+        SolveDisposition::Infinite { .. } => "Infinite",
+        SolveDisposition::Inconsistent => "Inconsistent",
+        SolveDisposition::Singular => "Singular",
+        SolveDisposition::ResourceLimited => "ResourceLimited",
+    };
+    let op = session.extensions.intern(head);
+    let arg = session.builder().symbol(tag, Default::default());
+    Some(push_extension(session, op, vec![arg]))
 }
 
 /// 投影缺少内置符号项的领域结果（例如精确线性求解）。

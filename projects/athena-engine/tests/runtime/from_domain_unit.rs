@@ -527,9 +527,11 @@ fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
 }
 
 #[test]
-fn inconsistent_exact_solve_projects_empty_list() {
+fn inconsistent_exact_solve_projects_disposition_residual() {
     use athena_engine::domains::linear_algebra::ExactSolveResult;
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_engine::runtime::values::arena::application_display_name;
+    use athena_ir::Atom;
 
     let mut session = Session::new();
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
@@ -540,11 +542,14 @@ fn inconsistent_exact_solve_projects_empty_list() {
         }),
     });
     let result = computation_from_domain(&mut session, domain);
-    let term = result.symbolic_term.expect("inconsistent projects empty list");
-    assert!(matches!(
-        session.arena.get(term),
-        Some(athena_ir::TermNode::Collection { elements, .. }) if elements.is_empty()
-    ));
+    let term = result.symbolic_term.expect("inconsistent projects residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("LinearSolve"));
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { arguments, .. }) if arguments.len() == 1 => {
+            assert!(matches!(session.arena.get(arguments[0]), Some(athena_ir::TermNode::Atom(Atom::Symbol(_)))));
+        }
+        other => panic!("expected LinearSolve[Inconsistent], got {other:?}"),
+    }
     assert!(
         result.evidence.iter().any(|e| matches!(
             e,
