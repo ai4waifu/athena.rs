@@ -444,9 +444,11 @@ fn exact_rref_envelope_projects_matrix_ref_evidence() {
 }
 
 #[test]
-fn infinite_exact_solve_projects_free_vars_evidence() {
+fn infinite_exact_solve_projects_disposition_residual_and_free_vars_evidence() {
     use athena_engine::domains::linear_algebra::{ExactSolveResult, MatrixResult, MatrixValue};
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_engine::runtime::values::arena::application_display_name;
+    use athena_ir::{Atom, TermNode};
     use athena_numeric::Integer;
 
     let mut session = Session::new();
@@ -463,6 +465,18 @@ fn infinite_exact_solve_projects_free_vars_evidence() {
     });
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    let term = result.symbolic_term.expect("infinite residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("LinearSolve"));
+    match session.arena.get(term) {
+        Some(TermNode::Application { arguments, .. }) if arguments.len() == 2 => {
+            assert!(matches!(session.arena.get(arguments[0]), Some(TermNode::Atom(Atom::Symbol(_)))));
+            assert!(matches!(
+                session.arena.get(arguments[1]),
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)
+            ));
+        }
+        other => panic!("expected LinearSolve[Infinite, 1], got {other:?}"),
+    }
     assert!(
         result.evidence.iter().any(|e| matches!(
             e,

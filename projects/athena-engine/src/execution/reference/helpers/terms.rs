@@ -576,14 +576,19 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     match value {
         LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, &m.value).ok(),
         LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, &m.value).ok(),
-        LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, &m.value).ok(),
-        LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: None, disposition, .. }) => {
-            solve_disposition_residual_term(session, "LinearSolve", disposition)
-        }
-        LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: Some(m), .. }) => matrix_to_nested_list_session(session, &m.value).ok(),
-        LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: None, disposition, .. }) => {
-            solve_disposition_residual_term(session, "LinearSolve", disposition)
-        }
+        LinearAlgebraValue::ExactSolve(ExactSolveResult { particular, disposition, .. }) => match disposition {
+            // Unique keeps the particular matrix surface. Affine / none / singular stay disposition residuals.
+            crate::domains::linear_algebra::SolveDisposition::Unique => {
+                particular.as_ref().and_then(|m| matrix_to_nested_list_session(session, &m.value).ok())
+            }
+            other => solve_disposition_residual_term(session, "LinearSolve", other),
+        },
+        LinearAlgebraValue::MachineSolve(MachineSolveResult { solution, disposition, .. }) => match disposition {
+            crate::domains::linear_algebra::SolveDisposition::Unique => {
+                solution.as_ref().and_then(|m| matrix_to_nested_list_session(session, &m.value).ok())
+            }
+            other => solve_disposition_residual_term(session, "LinearSolve", other),
+        },
         LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
         LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
         LinearAlgebraValue::ExactNorm(ExactNormResult { value, .. }) => Some(rational_to_term_session(session, value)),
@@ -612,7 +617,7 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     }
 }
 
-/// 无矩阵载荷时的诚实残差：`Head[Disposition]` Extension（含 `Inconsistent`，禁止空 List 冒充无解）。
+/// 解空间诚实残差：`Head[Disposition]` Extension。`Infinite` 后跟 0-based `free_vars` 整数。禁止空 List / particular 冒充 affine。
 fn solve_disposition_residual_term(
     session: &mut Session,
     head: &str,
@@ -623,7 +628,7 @@ fn solve_disposition_residual_term(
         runtime::values::arena::push_extension,
     };
 
-    // Living 16 / R-4.1.14: none (Inconsistent) must not masquerade as an empty solution list.
+    // Living 16 / R-4.1.14: none / affine must not masquerade as a plain solution list.
     let tag = match disposition {
         SolveDisposition::Unique => "Unique",
         SolveDisposition::Infinite { .. } => "Infinite",
@@ -632,8 +637,16 @@ fn solve_disposition_residual_term(
         SolveDisposition::ResourceLimited => "ResourceLimited",
     };
     let op = session.extensions.intern(head);
-    let arg = session.builder().symbol(tag, Default::default());
-    Some(push_extension(session, op, vec![arg]))
+    let mut args = vec![session.builder().symbol(tag, Default::default())];
+    if let SolveDisposition::Infinite { free_vars } = disposition {
+        for index in free_vars {
+            let Ok(n) = i64::try_from(*index) else {
+                return None;
+            };
+            args.push(session.builder().int(n, Default::default()));
+        }
+    }
+    Some(push_extension(session, op, args))
 }
 
 /// 投影缺少内置符号项的领域结果（例如精确线性求解）。
