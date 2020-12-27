@@ -54,6 +54,46 @@ fn l0_conjugate_transpose_matches_transpose_on_reals() {
 }
 
 #[test]
+fn l0_conjugate_transpose_negates_imag_on_complex_exact() {
+    let m = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(2, 1)), (q(3, 1), q(4, 1)), (q(5, 1), q(6, 1)), (q(7, 1), q(8, 1))],
+    )
+    .expect("m");
+    let ct = conjugate_transpose(&m);
+    assert_eq!(ct.shape(), MatrixShape::new(2, 2));
+    assert_eq!(
+        ct.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(-2, 1),
+        }
+    );
+    assert_eq!(
+        ct.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(5, 1),
+            im: q(-6, 1),
+        }
+    );
+    assert_eq!(
+        ct.get(1, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(3, 1),
+            im: q(-4, 1),
+        }
+    );
+    assert_eq!(
+        ct.get(1, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(7, 1),
+            im: q(-8, 1),
+        }
+    );
+}
+
+#[test]
 fn l0_matmul_and_hadamard_shape_checks() {
     let a = MatrixValue::from_f64_row_major(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let b = MatrixValue::from_f64_row_major(3, 2, vec![1.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();

@@ -461,6 +461,9 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<ExactInverseResult, Diagnost
                 MatrixEntry::MachineF64(_) => {
                     return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "invert_eye_machine"));
                 }
+                MatrixEntry::ComplexExact { .. } => {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "invert_eye_complex"));
+                }
             }
         }
         let b = MatrixValue::from_rationals_row_major(n, 1, b_data)?;
@@ -533,6 +536,9 @@ pub fn right_solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveR
                 MatrixEntry::Rational(r) => col_data.push(r),
                 MatrixEntry::MachineF64(_) => {
                     return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_at_machine"));
+                }
+                MatrixEntry::ComplexExact { .. } => {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_at_complex"));
                 }
             }
         }
@@ -615,6 +621,9 @@ pub fn trace_exact(matrix: &MatrixValue) -> Result<ExactTraceResult, Diagnostic>
             MatrixEntry::MachineF64(_) => {
                 return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "trace_entry_machine"));
             }
+            MatrixEntry::ComplexExact { .. } => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "trace_entry_complex_pending"));
+            }
         }
     }
     Ok(ExactTraceResult { value: sum, guarantee: AlgorithmGuarantee::Exact })
@@ -663,6 +672,9 @@ fn vector_rationals_any(matrix: &MatrixValue) -> Result<Vec<Rational>, Diagnosti
             MatrixEntry::Rational(r) => r,
             MatrixEntry::MachineF64(_) => {
                 return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "norm_entry_machine"));
+            }
+            MatrixEntry::ComplexExact { .. } => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "norm_entry_complex_pending"));
             }
         });
     }

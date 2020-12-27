@@ -382,6 +382,9 @@ fn matrix_as_machine_f64(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
                     Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cond_rational_to_f64")
                 })?,
                 super::value::MatrixEntry::MachineF64(x) => x,
+                super::value::MatrixEntry::ComplexExact { .. } => {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "cond_complex_pending"));
+                }
             };
             data.push(v);
         }

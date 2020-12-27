@@ -32,7 +32,7 @@ use crate::{
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
-            rational_to_term_session, expand_span_3, term_to_rational_matrix_session,
+            rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -328,6 +328,9 @@ impl<'a> ExecutionHost<'a> {
                         }
                         MatrixEntry::Rational(x) => rational_to_term_session(self.session, &x),
                         MatrixEntry::MachineF64(x) => self.session.builder().real(x, Default::default()),
+                        MatrixEntry::ComplexExact { re, im } => {
+                            complex_exact_to_term_session(self.session, &re, &im)
+                        }
                     };
                     return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
                 }
@@ -702,6 +705,23 @@ impl<'a> ExecutionHost<'a> {
                     return Ok(None);
                 };
                 MatrixEntry::MachineF64(x)
+            }
+            ElementParentKind::ComplexExact => {
+                if let Some(i) = n.as_exact_integer() {
+                    MatrixEntry::ComplexExact {
+                        re: Rational::from_integer(Integer::from(i)),
+                        im: Rational::zero(),
+                    }
+                }
+                else if let Some(r) = n.as_rational() {
+                    MatrixEntry::ComplexExact {
+                        re: clone_rational(r),
+                        im: Rational::zero(),
+                    }
+                }
+                else {
+                    return Ok(None);
+                }
             }
         };
         match extend_row_vector_scalar(&base, entry, prepend) {
@@ -1215,6 +1235,7 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::Integer(z) => Rational::from_integer(z),
                 MatrixEntry::Rational(r) => r,
                 MatrixEntry::MachineF64(_) => return None,
+                MatrixEntry::ComplexExact { .. } => return None,
             });
         }
         Some((as_row, out))
@@ -1375,6 +1396,7 @@ impl<'a> ExecutionHost<'a> {
                 }
                 MatrixEntry::Rational(x) => rational_to_term_session(self.session, &x),
                 MatrixEntry::MachineF64(x) => self.session.builder().real(x, Default::default()),
+                MatrixEntry::ComplexExact { re, im } => complex_exact_to_term_session(self.session, &re, &im),
             };
             return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
         }
@@ -1656,6 +1678,7 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
                 MatrixEntry::Rational(r) => Some(r),
                 MatrixEntry::MachineF64(_) => None,
+                MatrixEntry::ComplexExact { .. } => None,
             }
         };
         if rows == 1 {
@@ -1732,6 +1755,7 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
                 MatrixEntry::Rational(r) => Some(r),
                 MatrixEntry::MachineF64(_) => None,
+                MatrixEntry::ComplexExact { .. } => None,
             }
         };
         if rows == 1 {
@@ -1908,6 +1932,7 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::Integer(z) => diag.push(Rational::from_integer(z)),
                 MatrixEntry::Rational(r) => diag.push(r),
                 MatrixEntry::MachineF64(_) => return Ok(None),
+                MatrixEntry::ComplexExact { .. } => return Ok(None),
             }
         }
         let n = diag.len() as u64;
