@@ -497,19 +497,38 @@ pub(crate) fn rational_to_term_session(session: &mut Session, r: &Rational) -> T
     push_number(session, Number::from_rational_normalized(clone_rational(r)))
 }
 
-/// Exact complex entry → `re + im * I` (symbol `I` · dialect skin).
+/// Exact complex entry → `re ± im I` (symbol `I` · dialect skin).
+///
+/// Unit imag omits `1*`. Negative imag uses `Subtract` / `Negate` so surfaces avoid `+ -`.
 pub(crate) fn complex_exact_to_term_session(session: &mut Session, re: &Rational, im: &Rational) -> TermId {
     let re_t = rational_to_term_session(session, re);
     if im.is_zero() {
         return re_t;
     }
-    let im_t = rational_to_term_session(session, im);
     let i = session.builder().symbol("I", Default::default());
-    let times = push_semantic(session, SemanticOperator::Multiply, vec![im_t, i]);
-    if re.is_zero() {
-        times
+    let imag_factor = |session: &mut Session, abs_im: &Rational, i: TermId| -> TermId {
+        if *abs_im == Rational::one() {
+            i
+        } else {
+            let im_t = rational_to_term_session(session, abs_im);
+            push_semantic(session, SemanticOperator::Multiply, vec![im_t, i])
+        }
+    };
+    if im.is_negative() {
+        let abs_im = im.neg();
+        let times = imag_factor(session, &abs_im, i);
+        if re.is_zero() {
+            push_semantic(session, SemanticOperator::Negate, vec![times])
+        } else {
+            push_semantic(session, SemanticOperator::Subtract, vec![re_t, times])
+        }
     } else {
-        push_semantic(session, SemanticOperator::Add, vec![re_t, times])
+        let times = imag_factor(session, im, i);
+        if re.is_zero() {
+            times
+        } else {
+            push_semantic(session, SemanticOperator::Add, vec![re_t, times])
+        }
     }
 }
 
