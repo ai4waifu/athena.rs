@@ -5,7 +5,7 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, execute_linear_algebra,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra,
             hadamard, is_diagonal, is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact,
             scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril, triu,
         },
@@ -89,6 +89,60 @@ fn l0_conjugate_transpose_negates_imag_on_complex_exact() {
         MatrixEntry::ComplexExact {
             re: q(7, 1),
             im: q(-8, 1),
+        }
+    );
+}
+
+#[test]
+fn l0_complex_exact_matmul_and_hadamard() {
+    let a = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(1, 1)), (q(0, 1), q(0, 1)), (q(0, 1), q(0, 1)), (q(1, 1), q(-1, 1))],
+    )
+    .expect("a");
+    let b = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(0, 1)), (q(0, 1), q(1, 1)), (q(0, 1), q(-1, 1)), (q(1, 1), q(0, 1))],
+    )
+    .expect("b");
+    let m = matmul(&a, &b).expect("matmul");
+    assert_eq!(
+        m.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(1, 1),
+        }
+    );
+    assert_eq!(
+        m.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(-1, 1),
+            im: q(1, 1),
+        }
+    );
+    let h = hadamard(&a, &a).expect("hadamard");
+    // (1+i)^2 = 1+2i-1 = 2i
+    assert_eq!(
+        h.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(2, 1),
+        }
+    );
+}
+
+#[test]
+fn l0_complex_exact_elementwise_divide() {
+    let a = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(1, 1))]).expect("a");
+    let b = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(0, 1))]).expect("b");
+    let d = elementwise_divide(&a, &b).expect("div");
+    assert_eq!(
+        d.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(1, 1),
         }
     );
 }
