@@ -148,6 +148,47 @@ fn l0_complex_exact_elementwise_divide() {
 }
 
 #[test]
+fn l0_complex_exact_tril_triu() {
+    let m = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(1, 1)), (q(2, 1), q(0, 1)), (q(3, 1), q(0, 1)), (q(4, 1), q(-1, 1))],
+    )
+    .expect("m");
+    let lower = tril(&m).expect("tril");
+    assert_eq!(
+        lower.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(0, 1),
+        }
+    );
+    assert_eq!(
+        lower.get(1, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(3, 1),
+            im: q(0, 1),
+        }
+    );
+    let upper = triu(&m).expect("triu");
+    assert_eq!(
+        upper.get(1, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(0, 1),
+        }
+    );
+    assert_eq!(
+        upper.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(2, 1),
+            im: q(0, 1),
+        }
+    );
+}
+
+
+#[test]
 fn l0_matmul_and_hadamard_shape_checks() {
     let a = MatrixValue::from_f64_row_major(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let b = MatrixValue::from_f64_row_major(3, 2, vec![1.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();

@@ -122,7 +122,18 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
     let zero = MatrixEntry::zero(matrix.parent().element)?;
     match matrix.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity((rows * cols) as usize);
+            for i in 0..rows {
+                for j in 0..cols {
+                    let keep = if lower { j <= i } else { j >= i };
+                    if keep {
+                        data.push(complex_exact_entry(matrix.get(i, j)?)?);
+                    } else {
+                        data.push((Rational::zero(), Rational::zero()));
+                    }
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(rows, cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity((rows * cols) as usize);
