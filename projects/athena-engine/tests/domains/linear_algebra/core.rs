@@ -5,7 +5,7 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major,
             hadamard, is_diagonal, is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact,
             scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril, triu,
         },
@@ -186,6 +186,33 @@ fn l0_complex_exact_tril_triu() {
         }
     );
 }
+
+#[test]
+fn l0_complex_exact_flatten_row_major() {
+    let m = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(1, 1)), (q(2, 1), q(0, 1)), (q(3, 1), q(0, 1)), (q(4, 1), q(0, 1))],
+    )
+    .expect("m");
+    let flat = flatten_row_major(&m).expect("flatten");
+    assert_eq!(flat.shape(), MatrixShape::new(1, 4));
+    assert_eq!(
+        flat.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(1, 1),
+        }
+    );
+    assert_eq!(
+        flat.get(0, 2).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(3, 1),
+            im: q(0, 1),
+        }
+    );
+}
+
 
 
 #[test]
