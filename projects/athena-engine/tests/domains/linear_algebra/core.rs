@@ -5,7 +5,7 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major, reverse_matrix, join_matrices, slice_matrix,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major, reverse_matrix, join_matrices, slice_matrix, riffle_row_vectors, pad_left_row_vector, elementwise_power,
             hadamard, is_diagonal, is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact,
             scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril, triu,
         },
@@ -242,6 +242,73 @@ fn l0_complex_exact_reverse_join_slice() {
         }
     );
 }
+
+#[test]
+fn l0_complex_exact_kronecker_power_pad_riffle() {
+    let a = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(1, 1))]).expect("a");
+    let b = MatrixValue::from_complex_exact_row_major(1, 2, vec![(q(1, 1), q(0, 1)), (q(0, 1), q(1, 1))]).expect("b");
+    let k = kronecker(&a, &b).expect("kronecker");
+    assert_eq!(k.shape(), MatrixShape::new(1, 2));
+    // (1+i)*1 = 1+i
+    assert_eq!(
+        k.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(1, 1),
+        }
+    );
+    // (1+i)*i = i + i^2 = -1 + i
+    assert_eq!(
+        k.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(-1, 1),
+            im: q(1, 1),
+        }
+    );
+
+    let base = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(1, 1))]).expect("base");
+    let exp = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(2, 1), q(0, 1))]).expect("exp");
+    let p = elementwise_power(&base, &exp).expect("pow");
+    // (1+i)^2 = 2i
+    assert_eq!(
+        p.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(2, 1),
+        }
+    );
+
+    let row = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(1, 1))]).expect("row");
+    let padded = pad_left_row_vector(&row, 3).expect("pad");
+    assert_eq!(padded.shape(), MatrixShape::new(1, 3));
+    assert_eq!(
+        padded.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(0, 1),
+        }
+    );
+    assert_eq!(
+        padded.get(0, 2).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(1, 1),
+            im: q(1, 1),
+        }
+    );
+
+    let left = MatrixValue::from_complex_exact_row_major(1, 2, vec![(q(1, 1), q(0, 1)), (q(2, 1), q(0, 1))]).expect("L");
+    let right = MatrixValue::from_complex_exact_row_major(1, 2, vec![(q(0, 1), q(1, 1)), (q(0, 1), q(2, 1))]).expect("R");
+    let rif = riffle_row_vectors(&left, &right).expect("riffle");
+    assert_eq!(rif.shape(), MatrixShape::new(1, 4));
+    assert_eq!(
+        rif.get(0, 1).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(0, 1),
+            im: q(1, 1),
+        }
+    );
+}
+
 
 
 
