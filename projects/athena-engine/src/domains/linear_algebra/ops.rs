@@ -375,8 +375,50 @@ pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Di
 fn complex_exact_entry(entry: MatrixEntry) -> Result<(Rational, Rational), Diagnostic> {
     match entry {
         MatrixEntry::ComplexExact { re, im } => Ok((re, im)),
-        _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "expected_complex_exact_entry")),
+        MatrixEntry::Rational(re) => Ok((re, Rational::zero())),
+        MatrixEntry::Integer(z) => Ok((Rational::from_integer(z), Rational::zero())),
+        _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "expected_exact_entry_for_complex")),
     }
+}
+
+fn rational_entry(entry: MatrixEntry) -> Result<Rational, Diagnostic> {
+    match entry {
+        MatrixEntry::Rational(r) => Ok(r),
+        MatrixEntry::Integer(z) => Ok(Rational::from_integer(z)),
+        _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "expected_exact_rational_entry")),
+    }
+}
+
+/// Unify exact parents for Join / Riffle: `ComplexExact` wins over `ℤ`/`ℚ`, then `ℚ` over `ℤ`.
+fn unify_exact_element_parents(kinds: impl IntoIterator<Item = ElementParentKind>) -> Result<ElementParentKind, Diagnostic> {
+    let mut has_complex = false;
+    let mut has_rational = false;
+    let mut has_integer = false;
+    let mut has_machine = false;
+    for kind in kinds {
+        match kind {
+            ElementParentKind::ComplexExact => has_complex = true,
+            ElementParentKind::Rationals => has_rational = true,
+            ElementParentKind::Integers => has_integer = true,
+            ElementParentKind::MachineReal => has_machine = true,
+        }
+    }
+    if has_machine && (has_complex || has_rational || has_integer) {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "exact_machine_parent_mismatch"));
+    }
+    if has_machine {
+        return Ok(ElementParentKind::MachineReal);
+    }
+    if has_complex {
+        return Ok(ElementParentKind::ComplexExact);
+    }
+    if has_rational {
+        return Ok(ElementParentKind::Rationals);
+    }
+    if has_integer {
+        return Ok(ElementParentKind::Integers);
+    }
+    Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "empty_parent_unify"))
 }
 
 fn complex_mul(a: &(Rational, Rational), b: &(Rational, Rational)) -> (Rational, Rational) {
@@ -927,16 +969,11 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
     if parts.is_empty() {
         return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "join_empty"));
     }
-    let parent = parts[0].parent();
-    for p in parts.iter().skip(1) {
-        if p.parent().element != parent.element {
-            return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "join_parent_mismatch"));
-        }
-    }
+    let element = unify_exact_element_parents(parts.iter().map(|p| p.parent().element))?;
     let all_rows = parts.iter().all(|p| p.shape().rows == 1);
     if all_rows {
         let cols: u64 = parts.iter().map(|p| p.shape().cols).sum();
-        match parent.element {
+        match element {
             ElementParentKind::ComplexExact => {
                 let mut data = Vec::with_capacity(cols as usize);
                 for p in parts {
@@ -962,10 +999,7 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
                 let mut data = Vec::with_capacity(cols as usize);
                 for p in parts {
                     for j in 0..p.shape().cols {
-                        match p.get(0, j)? {
-                            MatrixEntry::Rational(x) => data.push(x),
-                            _ => unreachable!(),
-                        }
+                        data.push(rational_entry(p.get(0, j)?)?);
                     }
                 }
                 MatrixValue::from_rationals_row_major(1, cols, data)
@@ -995,7 +1029,7 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
             }
         }
         let rows: u64 = parts.iter().map(|p| p.shape().rows).sum();
-        match parent.element {
+        match element {
             ElementParentKind::ComplexExact => {
                 let mut data = Vec::with_capacity((rows * cols) as usize);
                 for p in parts {
@@ -1026,10 +1060,7 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
                 for p in parts {
                     for i in 0..p.shape().rows {
                         for j in 0..cols {
-                            match p.get(i, j)? {
-                                MatrixEntry::Rational(x) => data.push(x),
-                                _ => unreachable!(),
-                            }
+                            data.push(rational_entry(p.get(i, j)?)?);
                         }
                     }
                 }
@@ -1185,12 +1216,10 @@ pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<Mat
     if left.shape().rows != 1 || right.shape().rows != 1 {
         return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "riffle_requires_row_vectors"));
     }
-    if left.parent().element != right.parent().element {
-        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "riffle_parent_mismatch"));
-    }
+    let element = unify_exact_element_parents([left.parent().element, right.parent().element])?;
     let n = left.shape().cols.min(right.shape().cols);
     let out_cols = n.saturating_mul(2);
-    match left.parent().element {
+    match element {
         ElementParentKind::ComplexExact => {
             let mut data = Vec::with_capacity(out_cols as usize);
             for j in 0..n {
@@ -1216,14 +1245,8 @@ pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<Mat
         ElementParentKind::Rationals => {
             let mut data = Vec::with_capacity(out_cols as usize);
             for j in 0..n {
-                match left.get(0, j)? {
-                    MatrixEntry::Rational(v) => data.push(v),
-                    _ => unreachable!(),
-                }
-                match right.get(0, j)? {
-                    MatrixEntry::Rational(v) => data.push(v),
-                    _ => unreachable!(),
-                }
+                data.push(rational_entry(left.get(0, j)?)?);
+                data.push(rational_entry(right.get(0, j)?)?);
             }
             MatrixValue::from_rationals_row_major(1, out_cols, data)
         }
