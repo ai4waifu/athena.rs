@@ -450,6 +450,160 @@ pub(crate) fn term_scalar_rational_session(session: &Session, term: TermId) -> O
     n.as_rational().map(clone_rational)
 }
 
+
+/// Exact complex scalar from arena terms (`I` / `i`, Add / Multiply / Negate / Subtract).
+pub(crate) fn term_scalar_complex_session(session: &Session, term: TermId) -> Option<(Rational, Rational)> {
+    if let Some(q) = term_scalar_rational_session(session, term) {
+        return Some((q, Rational::zero()));
+    }
+    match session.arena.get(term)? {
+        athena_ir::TermNode::Atom(Atom::Symbol(_)) => {
+            let name = symbol_name(session, term)?;
+            if name == "I" || name == "i" || name == "J" || name == "j" {
+                Some((Rational::zero(), Rational::one()))
+            } else {
+                None
+            }
+        }
+        athena_ir::TermNode::Application { head, arguments, .. } => {
+            match head {
+                ApplicationHead::Semantic(SemanticOperator::Add) => {
+                    let mut re = Rational::zero();
+                    let mut im = Rational::zero();
+                    for &a in arguments {
+                        let (r, i) = term_scalar_complex_session(session, a)?;
+                        re = re.add(&r);
+                        im = im.add(&i);
+                    }
+                    Some((re, im))
+                }
+                ApplicationHead::Semantic(SemanticOperator::Subtract) if arguments.len() == 2 => {
+                    let (ar, ai) = term_scalar_complex_session(session, arguments[0])?;
+                    let (br, bi) = term_scalar_complex_session(session, arguments[1])?;
+                    Some((ar.add(&br.neg()), ai.add(&bi.neg())))
+                }
+                ApplicationHead::Semantic(SemanticOperator::Negate) if arguments.len() == 1 => {
+                    let (re, im) = term_scalar_complex_session(session, arguments[0])?;
+                    Some((re.neg(), im.neg()))
+                }
+                ApplicationHead::Semantic(SemanticOperator::Multiply) if !arguments.is_empty() => {
+                    let mut acc = (Rational::one(), Rational::zero());
+                    for &a in arguments {
+                        let (br, bi) = term_scalar_complex_session(session, a)?;
+                        acc = (
+                            acc.0.mul(&br).add(&acc.1.mul(&bi).neg()),
+                            acc.0.mul(&bi).add(&acc.1.mul(&br)),
+                        );
+                    }
+                    Some(acc)
+                }
+                ApplicationHead::Extension(_) => {
+                    let name = debug_head_label_session(session, term)?;
+                    match name.as_str() {
+                        "Plus" | "Add" => {
+                            let mut re = Rational::zero();
+                            let mut im = Rational::zero();
+                            for &a in arguments {
+                                let (r, i) = term_scalar_complex_session(session, a)?;
+                                re = re.add(&r);
+                                im = im.add(&i);
+                            }
+                            Some((re, im))
+                        }
+                        "Subtract" if arguments.len() == 2 => {
+                            let (ar, ai) = term_scalar_complex_session(session, arguments[0])?;
+                            let (br, bi) = term_scalar_complex_session(session, arguments[1])?;
+                            Some((ar.add(&br.neg()), ai.add(&bi.neg())))
+                        }
+                        "Minus" if arguments.len() == 1 => {
+                            let (re, im) = term_scalar_complex_session(session, arguments[0])?;
+                            Some((re.neg(), im.neg()))
+                        }
+                        "Times" | "Multiply" if arguments.len() >= 1 => {
+                            let mut acc = (Rational::one(), Rational::zero());
+                            for &a in arguments {
+                                let (br, bi) = term_scalar_complex_session(session, a)?;
+                                acc = (
+                                    acc.0.mul(&br).add(&acc.1.mul(&bi).neg()),
+                                    acc.0.mul(&bi).add(&acc.1.mul(&br)),
+                                );
+                            }
+                            Some(acc)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Intern nested list terms as exact rational or `ComplexExact` matrices.
+pub(crate) fn term_to_exact_matrix_session(session: &Session, term: TermId) -> Option<MatrixValue> {
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Collection { elements: rows, .. }) if !rows.is_empty() => {
+            let nested = matches!(session.arena.get(rows[0]), Some(athena_ir::TermNode::Collection { .. }));
+            let mut complexes = Vec::new();
+            let mut cols: Option<u64> = None;
+            let mut any_imag = false;
+            if nested {
+                for row in rows {
+                    let cells = match session.arena.get(*row) {
+                        Some(athena_ir::TermNode::Collection { elements: cells, .. }) => cells.clone(),
+                        _ => return None,
+                    };
+                    let c = cells.len() as u64;
+                    match cols {
+                        Some(prev) if prev != c => return None,
+                        None => cols = Some(c),
+                        _ => {}
+                    }
+                    for cell in cells {
+                        let (re, im) = term_scalar_complex_session(session, cell)?;
+                        if !im.is_zero() {
+                            any_imag = true;
+                        }
+                        complexes.push((re, im));
+                    }
+                }
+                let nrows = rows.len() as u64;
+                let ncols = cols.unwrap_or(0);
+                if any_imag {
+                    MatrixValue::from_complex_exact_row_major(nrows, ncols, complexes).ok()
+                } else {
+                    let data: Vec<_> = complexes.into_iter().map(|(re, _)| re).collect();
+                    MatrixValue::from_rationals_row_major(nrows, ncols, data).ok()
+                }
+            } else {
+                for cell in rows {
+                    let (re, im) = term_scalar_complex_session(session, *cell)?;
+                    if !im.is_zero() {
+                        any_imag = true;
+                    }
+                    complexes.push((re, im));
+                }
+                let n = complexes.len() as u64;
+                if any_imag {
+                    MatrixValue::from_complex_exact_row_major(1, n, complexes).ok()
+                } else {
+                    let data: Vec<_> = complexes.into_iter().map(|(re, _)| re).collect();
+                    MatrixValue::from_rationals_row_major(1, n, data).ok()
+                }
+            }
+        }
+        _ => {
+            let (re, im) = term_scalar_complex_session(session, term)?;
+            if im.is_zero() {
+                MatrixValue::from_rationals_row_major(1, 1, vec![re]).ok()
+            } else {
+                MatrixValue::from_complex_exact_row_major(1, 1, vec![(re, im)]).ok()
+            }
+        }
+    }
+}
+
 pub(crate) fn term_to_rational_matrix_session(session: &Session, term: TermId) -> Option<MatrixValue> {
     match session.arena.get(term) {
         Some(athena_ir::TermNode::Collection { elements: rows, .. }) if !rows.is_empty() => {
