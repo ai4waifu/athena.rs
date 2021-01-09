@@ -1245,6 +1245,43 @@ impl<'a> ExecutionHost<'a> {
         Some((as_row, out))
     }
 
+    fn vector_entries_complex(
+        &self,
+        matrix: &crate::domains::linear_algebra::MatrixValue,
+    ) -> Option<(bool, Vec<(athena_numeric::Rational, athena_numeric::Rational)>)> {
+        use crate::domains::linear_algebra::MatrixEntry;
+        use athena_numeric::Rational;
+
+        let rows = matrix.shape().rows;
+        let cols = matrix.shape().cols;
+        let as_row = if rows == 1 {
+            true
+        }
+        else if cols == 1 {
+            false
+        }
+        else {
+            return None;
+        };
+        let n = if as_row { cols } else { rows };
+        let mut out = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            let entry = if as_row {
+                matrix.get(0, i).ok()?
+            }
+            else {
+                matrix.get(i, 0).ok()?
+            };
+            out.push(match entry {
+                MatrixEntry::Integer(z) => (Rational::from_integer(z), Rational::zero()),
+                MatrixEntry::Rational(r) => (r, Rational::zero()),
+                MatrixEntry::ComplexExact { re, im } => (re, im),
+                MatrixEntry::MachineF64(_) => return None,
+            });
+        }
+        Some((as_row, out))
+    }
+
     fn matrix_from_vector_rationals(
         &mut self,
         as_row: bool,
@@ -1267,6 +1304,28 @@ impl<'a> ExecutionHost<'a> {
         Some(HostOutcome::Value(SlotValue::Value(value_id)))
     }
 
+    fn matrix_from_vector_complex(
+        &mut self,
+        as_row: bool,
+        values: Vec<(athena_numeric::Rational, athena_numeric::Rational)>,
+    ) -> Option<HostOutcome> {
+        use crate::domains::linear_algebra::MatrixValue;
+
+        let n = values.len() as u64;
+        if n == 0 {
+            return None;
+        }
+        let matrix = if as_row {
+            MatrixValue::from_complex_exact_row_major(1, n, values).ok()?
+        }
+        else {
+            MatrixValue::from_complex_exact_row_major(n, 1, values).ok()?
+        };
+        let matrix_ref = self.session.matrix_objects.intern(matrix);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Some(HostOutcome::Value(SlotValue::Value(value_id)))
+    }
+
     fn accumulate_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
         use crate::runtime::values::numeric_clone::clone_rational;
         use athena_numeric::Rational;
@@ -1275,25 +1334,48 @@ impl<'a> ExecutionHost<'a> {
         else {
             return Ok(None);
         };
-        let Some((as_row, values)) = self.vector_entries_rational(&matrix)
+        if let Some((as_row, values)) = self.vector_entries_rational(&matrix) {
+            let mut prefix = Vec::with_capacity(values.len());
+            let mut acc = Rational::zero();
+            for value in values {
+                acc = acc.add(&value);
+                prefix.push(clone_rational(&acc));
+            }
+            return Ok(self.matrix_from_vector_rationals(as_row, prefix));
+        }
+        let Some((as_row, values)) = self.vector_entries_complex(&matrix)
         else {
             return Ok(None);
         };
         let mut prefix = Vec::with_capacity(values.len());
-        let mut acc = Rational::zero();
-        for value in values {
-            acc = acc.add(&value);
-            prefix.push(clone_rational(&acc));
+        let mut acc = (Rational::zero(), Rational::zero());
+        for (re, im) in values {
+            acc = (acc.0.add(&re), acc.1.add(&im));
+            prefix.push((clone_rational(&acc.0), clone_rational(&acc.1)));
         }
-        Ok(self.matrix_from_vector_rationals(as_row, prefix))
+        Ok(self.matrix_from_vector_complex(as_row, prefix))
     }
 
     fn differences_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+        use crate::runtime::values::numeric_clone::clone_rational;
+        use athena_numeric::Rational;
+
         let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
         else {
             return Ok(None);
         };
-        let Some((as_row, values)) = self.vector_entries_rational(&matrix)
+        if let Some((as_row, values)) = self.vector_entries_rational(&matrix) {
+            if values.len() < 2 {
+                use crate::runtime::values::arena::push_list;
+                return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, Vec::new())))));
+            }
+            let mut diffs = Vec::with_capacity(values.len() - 1);
+            for window in values.windows(2) {
+                diffs.push(window[1].sub(&window[0]));
+            }
+            return Ok(self.matrix_from_vector_rationals(as_row, diffs));
+        }
+        let Some((as_row, values)) = self.vector_entries_complex(&matrix)
         else {
             return Ok(None);
         };
@@ -1303,9 +1385,15 @@ impl<'a> ExecutionHost<'a> {
         }
         let mut diffs = Vec::with_capacity(values.len() - 1);
         for window in values.windows(2) {
-            diffs.push(window[1].sub(&window[0]));
+            let (ar, ai) = &window[0];
+            let (br, bi) = &window[1];
+            diffs.push((br.sub(ar), bi.sub(ai)));
         }
-        Ok(self.matrix_from_vector_rationals(as_row, diffs))
+        let diffs = diffs
+            .into_iter()
+            .map(|(re, im)| (clone_rational(&re), clone_rational(&im)))
+            .collect();
+        Ok(self.matrix_from_vector_complex(as_row, diffs))
     }
 
     fn apply_free_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
