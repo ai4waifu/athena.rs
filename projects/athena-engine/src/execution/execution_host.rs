@@ -1358,7 +1358,6 @@ impl<'a> ExecutionHost<'a> {
 
     fn differences_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
         use crate::runtime::values::numeric_clone::clone_rational;
-        use athena_numeric::Rational;
 
         let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
         else {
@@ -2171,25 +2170,50 @@ impl<'a> ExecutionHost<'a> {
         else {
             return Ok(None);
         };
-        let mut diag: Vec<Rational> = Vec::with_capacity(entries.len());
-        for entry in entries {
-            match entry {
-                MatrixEntry::Integer(z) => diag.push(Rational::from_integer(z)),
-                MatrixEntry::Rational(r) => diag.push(r),
-                MatrixEntry::MachineF64(_) => return Ok(None),
-                MatrixEntry::ComplexExact { .. } => return Ok(None),
-            }
-        }
-        let n = diag.len() as u64;
+        let n = entries.len() as u64;
         if n == 0 || n > 4096 {
             return Ok(None);
         }
+
+        let mut complex_diag: Vec<(Rational, Rational)> = Vec::with_capacity(entries.len());
+        let mut any_imag = false;
+        for entry in entries {
+            match entry {
+                MatrixEntry::Integer(z) => complex_diag.push((Rational::from_integer(z), Rational::zero())),
+                MatrixEntry::Rational(r) => complex_diag.push((r, Rational::zero())),
+                MatrixEntry::ComplexExact { re, im } => {
+                    if !im.is_zero() {
+                        any_imag = true;
+                    }
+                    complex_diag.push((re, im));
+                }
+                MatrixEntry::MachineF64(_) => return Ok(None),
+            }
+        }
+
+        if any_imag {
+            let Ok(mut matrix) =
+                MatrixValue::zeros(MatrixParent::complex_exact(), MatrixShape::new(n, n), StorageOrder::RowMajor)
+            else {
+                return Ok(None);
+            };
+            for (i, (re, im)) in complex_diag.into_iter().enumerate() {
+                if matrix
+                    .set_owned(i as u64, i as u64, MatrixEntry::ComplexExact { re, im })
+                    .is_err()
+                {
+                    return Ok(None);
+                }
+            }
+            return Ok(Some(matrix));
+        }
+
         let Ok(mut matrix) = MatrixValue::zeros(MatrixParent::rationals(), MatrixShape::new(n, n), StorageOrder::RowMajor)
         else {
             return Ok(None);
         };
-        for (i, value) in diag.into_iter().enumerate() {
-            if matrix.set_owned(i as u64, i as u64, MatrixEntry::Rational(value)).is_err() {
+        for (i, (re, _)) in complex_diag.into_iter().enumerate() {
+            if matrix.set_owned(i as u64, i as u64, MatrixEntry::Rational(re)).is_err() {
                 return Ok(None);
             }
         }
