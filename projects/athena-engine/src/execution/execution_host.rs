@@ -156,6 +156,16 @@ impl<'a> ExecutionHost<'a> {
             return Ok(Some(matrix_ref));
         }
         let term = self.slot_as_term(slot)?;
+        if let Some(TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = self.session.arena.get(term) {
+            if let Some(matrix_ref) = self.session.matrix_binding(*symbol) {
+                return Ok(Some(matrix_ref));
+            }
+            let HostOutcome::Value(value) = self.read_binding(SlotValue::Symbol(*symbol))?
+            else {
+                return Ok(None);
+            };
+            return self.matrix_ref_or_intern_numeric(value);
+        }
         if !matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
             return Ok(None);
         }
@@ -233,6 +243,22 @@ impl<'a> ExecutionHost<'a> {
         })
     }
 
+    fn resolve_term_through_binding(&mut self, term: TermId) -> Result<TermId> {
+        if number_of(self.session, term).is_some() {
+            return Ok(term);
+        }
+        if let Some(TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = self.session.arena.get(term) {
+            let HostOutcome::Value(value) = self.read_binding(SlotValue::Symbol(*symbol))?
+            else {
+                return Ok(term);
+            };
+            if let SlotValue::Term(bound) = value {
+                return Ok(bound);
+            }
+        }
+        Ok(term)
+    }
+
     fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: `Multiply` on typed matrices is Hadamard (element-wise), never MatMul.
         // Dialects must lower MATLAB `A*B` / Mathematica `Dot` to explicit MatMul / Dot goals.
@@ -248,7 +274,8 @@ impl<'a> ExecutionHost<'a> {
         }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
-            terms.push(self.slot_as_term(*slot)?);
+            let term = self.slot_as_term(*slot)?;
+            terms.push(self.resolve_term_through_binding(term)?);
         }
         let term = evaluate_arithmetic_terms(self.session, op, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
@@ -257,7 +284,8 @@ impl<'a> ExecutionHost<'a> {
     fn apply_compare(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
-            terms.push(self.slot_as_term(*slot)?);
+            let term = self.slot_as_term(*slot)?;
+            terms.push(self.resolve_term_through_binding(term)?);
         }
         Ok(match evaluate_compare_terms(self.session, op, terms)? {
             CompareOutcome::Boolean(v) => HostOutcome::Value(SlotValue::Boolean(v)),
@@ -1507,6 +1535,45 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn resolve_exact_integer_index(&mut self, index_slot: SlotValue) -> Result<Option<i64>> {
+        use athena_ir::Atom;
+
+        let int_from_term = |session: &crate::runtime::session::Session, term: TermId| -> Option<i64> {
+            number_of(session, term).and_then(|v| v.as_exact_integer())
+        };
+        let int_from_symbol = |host: &mut Self, symbol: SymbolId| -> Result<Option<i64>> {
+            let HostOutcome::Value(value) = host.read_binding(SlotValue::Symbol(symbol))?
+            else {
+                return Ok(None);
+            };
+            match value {
+                SlotValue::Term(term) => Ok(int_from_term(host.session, term)),
+                _ => Ok(None),
+            }
+        };
+
+        if let SlotValue::Symbol(symbol) = index_slot {
+            return int_from_symbol(self, symbol);
+        }
+        if let SlotValue::Term(term) = index_slot {
+            if let Some(n) = int_from_term(self.session, term) {
+                return Ok(Some(n));
+            }
+            if let Some(TermNode::Atom(Atom::Symbol(symbol))) = self.session.arena.get(term) {
+                return int_from_symbol(self, *symbol);
+            }
+            return Ok(None);
+        }
+        let index_term = self.slot_as_term(index_slot)?;
+        if let Some(n) = int_from_term(self.session, index_term) {
+            return Ok(Some(n));
+        }
+        if let Some(TermNode::Atom(Atom::Symbol(symbol))) = self.session.arena.get(index_term) {
+            return int_from_symbol(self, *symbol);
+        }
+        Ok(None)
+    }
+
     fn host_matrix_extract(&mut self, list_slot: SlotValue, index_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{AxisRange, IndexSpec, MatrixEntry, slice_matrix};
 
@@ -1514,8 +1581,7 @@ impl<'a> ExecutionHost<'a> {
         else {
             return Ok(None);
         };
-        let index_term = self.slot_as_term(index_slot)?;
-        let Some(n) = number_of(self.session, index_term).and_then(|v| v.as_exact_integer())
+        let Some(n) = self.resolve_exact_integer_index(index_slot)?
         else {
             return Ok(None);
         };
