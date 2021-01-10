@@ -121,6 +121,11 @@ pub enum ControlPlan {
         /// 中性模式。
         pattern: crate::reasoning::trs::TermPattern,
     },
+    /// 显式早退（方言 `Return` / MATLAB `return` lowering 目标）。
+    EarlyReturn {
+        /// 退出值。
+        value: TermId,
+    },
 }
 
 impl ControlPlan {
@@ -192,6 +197,7 @@ impl ControlPlan {
                 source: *source,
                 pattern: pattern.owning_copy(),
             },
+            Self::EarlyReturn { value } => Self::EarlyReturn { value: *value },
         }
     }
 }

@@ -1,5 +1,7 @@
 //! [`super::ExecutionCompiler`] 的 module 构造辅助。
 
+use std::collections::HashSet;
+
 use athena_ir::TermStore;
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId, TermRef};
 
@@ -17,6 +19,8 @@ pub(super) struct ModuleBuilder {
     next_ssa: u32,
     next_block: u32,
     next_effect: u32,
+    /// `EarlyReturn` 产生的块：sequence 串联时不得改写为 continue。
+    early_return_blocks: HashSet<BlockId>,
 }
 
 impl ModuleBuilder {
@@ -63,6 +67,14 @@ impl ModuleBuilder {
             None => EffectEdge::entry(token, kind),
         });
         token
+    }
+
+    pub(super) fn mark_early_return_block(&mut self, block: BlockId) {
+        self.early_return_blocks.insert(block);
+    }
+
+    pub(super) fn is_early_return_block(&self, block: BlockId) -> bool {
+        self.early_return_blocks.contains(&block)
     }
 
     pub(super) fn push_provider_call(&mut self, descriptor: ProviderCallDescriptor) -> ProviderCallId {

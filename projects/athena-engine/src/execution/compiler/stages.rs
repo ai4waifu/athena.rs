@@ -245,6 +245,7 @@ fn control_plan_tag(control: &crate::api::request::ControlPlan) -> &'static str 
         ControlPlan::Match { .. } => "Match",
         ControlPlan::CollectMatches { .. } => "CollectMatches",
         ControlPlan::CollectRejects { .. } => "CollectRejects",
+        ControlPlan::EarlyReturn { .. } => "EarlyReturn",
     }
 }
 

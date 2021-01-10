@@ -47,7 +47,28 @@ impl ExecutionCompiler {
             ControlPlan::Match { target, pattern } => self.lower_match_pattern(session, builder, blocks, block_id, *target, pattern),
             ControlPlan::CollectMatches { source, pattern } => self.lower_collect_matches(session, builder, blocks, block_id, *source, pattern),
             ControlPlan::CollectRejects { source, pattern } => self.lower_collect_rejects(session, builder, blocks, block_id, *source, pattern),
+            ControlPlan::EarlyReturn { value } => self.lower_early_return(session, builder, blocks, block_id, *value),
         }
+    }
+
+    pub(crate) fn lower_early_return(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        value: TermId,
+    ) -> Result<SsaValueId> {
+        let mut operations = Vec::new();
+        let value_ssa = self.lower_pure_expr(session, builder, &mut operations, value)?;
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations,
+            terminator: Terminator::return_value(value_ssa),
+        });
+        builder.mark_early_return_block(entry);
+        Ok(value_ssa)
     }
 
     /// 对已物化目标的编译期匹配（· 无字符串头）。
@@ -294,12 +315,6 @@ impl ExecutionCompiler {
     ) -> Result<SsaValueId> {
         let symbol = self.require_symbol_atom(session, variable)?;
         let items = self.require_atom_list(session, iterator)?;
-        let AthenaRequest::Term(body_term) = body
-        else {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "ExecutionCompiler")
-                .detail("status", "counted_loop_body_must_be_term"));
-        };
 
         if items.is_empty() {
             let value = builder.ssa();
@@ -318,6 +333,23 @@ impl ExecutionCompiler {
             });
             return Ok(value);
         }
+
+        let AthenaRequest::Term(body_term) = body
+        else {
+            let mut steps = Vec::with_capacity(items.len().saturating_mul(2));
+            for item in items {
+                steps.push(AthenaRequest::Command(SessionCommand::Define {
+                    symbol,
+                    value: item,
+                    kind: BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }));
+                steps.push(body.owning_copy());
+            }
+            let budget_in = builder.push_effect(EffectKind::BudgetCheck, None);
+            let _budget_out = builder.push_effect(EffectKind::BudgetCheck, Some(budget_in));
+            return self.lower_sequence(session, builder, blocks, entry, &steps);
+        };
 
         // 引导：将常量原子列表展开为 Define + body Term 步骤。
         let mut steps = Vec::with_capacity(items.len().saturating_mul(2));
@@ -713,6 +745,9 @@ impl ExecutionCompiler {
             .map(|b| b.id)
             .collect();
         for block_id in return_block_ids {
+            if builder.is_early_return_block(block_id) {
+                continue;
+            }
             let forwarded = {
                 let block = blocks.iter().find(|b| b.id == block_id).expect("block");
                 match &block.terminator {
@@ -786,6 +821,9 @@ impl ExecutionCompiler {
         let return_block_ids: Vec<BlockId> =
             blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
         for block_id in return_block_ids {
+            if builder.is_early_return_block(block_id) {
+                continue;
+            }
             let forwarded = {
                 let block = blocks.iter().find(|b| b.id == block_id).expect("block");
                 match &block.terminator {
@@ -889,6 +927,9 @@ impl ExecutionCompiler {
             .map(|b| b.id)
             .collect();
         for block_id in return_block_ids {
+            if builder.is_early_return_block(block_id) {
+                continue;
+            }
             let cond = builder.ssa();
             let true_const = builder.push_constant(ConstantValue::boolean(true));
             let block = blocks.iter_mut().find(|b| b.id == block_id).expect("block");

@@ -84,6 +84,9 @@ pub enum ZeroPowerZeroConvention {
     One,
 }
 
+/// 顶层 VM 解释步数默认上限（嵌套入口共享同一计数）。
+pub const DEFAULT_VM_STEP_BUDGET: u64 = 1_000_000;
+
 /// 一次顶层请求共享的执行控制（嵌套 `re_eval` / host 子调用继承）。
 ///
 /// 取消令牌与步数预算均可克隆共享；步进在 VM 解释循环中实时扣减。
@@ -101,9 +104,12 @@ impl SharedExecutionControl {
         Self { cancellation: config.cancellation.clone(), step_budget: config.step_budget.clone() }
     }
 
-    /// 默认根控制（新取消令牌 · 无步数上限）。
+    /// 默认根控制（新取消令牌 · 有限解释步数，防止 `LoopWhile` 等 CFG 死循环挂死宿主）。
     pub fn new_root() -> Self {
-        Self { cancellation: athena_vm::CancellationToken::new(), step_budget: athena_vm::StepBudget::unlimited() }
+        Self {
+            cancellation: athena_vm::CancellationToken::new(),
+            step_budget: athena_vm::StepBudget::limited(DEFAULT_VM_STEP_BUDGET),
+        }
     }
 }
 

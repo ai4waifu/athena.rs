@@ -7,7 +7,7 @@ use athena_vm::{CancellationToken, Interpreter, ModuleFingerprint, VmConfig, VmE
 
 use crate::{
     execution::ir::{CapturedRoot, ConstantValue, ExecutionModule},
-    runtime::session::Session,
+    runtime::session::{Session, SharedExecutionControl},
 };
 
 pub use crate::execution::{
@@ -60,7 +60,7 @@ pub fn execute_verified_cfg_on_vm(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
 ) -> athena_types::Result<VerifiedVmOutcome> {
-    let config = vm_config_from_session(session);
+    let config = root_vm_config_from_session(session);
     execute_verified_cfg_on_vm_with_config(session, module, &config)
 }
 
@@ -225,6 +225,17 @@ pub fn vm_config_from_session(session: &Session) -> VmConfig {
         VmConfig { gc_mode, step_budget: ctrl.step_budget.clone(), cancellation: ctrl.cancellation.clone() }
     } else {
         VmConfig { gc_mode, step_budget: athena_vm::StepBudget::unlimited(), cancellation: CancellationToken::new() }
+    }
+}
+
+/// 顶层 CFG 执行安装根控制时的 VM 配置（有限步数，防止 `LoopWhile` 等 CFG 死循环挂死宿主）。
+fn root_vm_config_from_session(session: &Session) -> VmConfig {
+    let gc_mode = session.heap().borrow().effective_mode();
+    if let Some(ctrl) = session.shared_execution() {
+        VmConfig { gc_mode, step_budget: ctrl.step_budget.clone(), cancellation: ctrl.cancellation.clone() }
+    } else {
+        let root = SharedExecutionControl::new_root();
+        VmConfig { gc_mode, step_budget: root.step_budget, cancellation: root.cancellation }
     }
 }
 
