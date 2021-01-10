@@ -33,6 +33,7 @@ use crate::{
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session, term_to_exact_matrix_session,
+            term_scalar_complex_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -641,7 +642,7 @@ impl<'a> ExecutionHost<'a> {
     /// Living 16: Append/Prepend on MatrixRef (row join or row-vector scalar extend).
     fn host_matrix_append_prepend(&mut self, prepend: bool, list_slot: SlotValue, elem_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{
-            ElementParentKind, MatrixEntry, extend_row_vector_scalar, join_matrices,
+            ElementParentKind, MatrixEntry, MatrixValue, extend_row_vector_scalar, join_matrices,
         };
         use athena_numeric::{Integer, Rational};
         use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
@@ -676,8 +677,50 @@ impl<'a> ExecutionHost<'a> {
             return Ok(None);
         }
         let elem_term = self.slot_as_term(elem_slot)?;
+        if let Some((re, im)) = term_scalar_complex_session(self.session, elem_term) {
+            let needs_complex = !im.is_zero()
+                || matches!(base.parent().element, ElementParentKind::ComplexExact);
+            if needs_complex {
+                let entry = MatrixEntry::ComplexExact {
+                    re: clone_rational(&re),
+                    im: clone_rational(&im),
+                };
+                let base = match base.parent().element {
+                    ElementParentKind::ComplexExact => base,
+                    ElementParentKind::Integers | ElementParentKind::Rationals => {
+                        let cols = base.shape().cols;
+                        let mut data = Vec::with_capacity(cols as usize);
+                        for j in 0..cols {
+                            match base.get(0, j) {
+                                Ok(MatrixEntry::Integer(z)) => {
+                                    data.push((Rational::from_integer(z), Rational::zero()));
+                                }
+                                Ok(MatrixEntry::Rational(r)) => data.push((r, Rational::zero())),
+                                Ok(MatrixEntry::ComplexExact { re, im }) => data.push((re, im)),
+                                _ => return Ok(None),
+                            }
+                        }
+                        match MatrixValue::from_complex_exact_row_major(1, cols, data) {
+                            Ok(m) => m,
+                            Err(_) => return Ok(None),
+                        }
+                    }
+                    _ => return Ok(None),
+                };
+                return Ok(Some(match extend_row_vector_scalar(&base, entry, prepend) {
+                    Ok(extended) => {
+                        let matrix_ref = self.session.matrix_objects.intern(extended);
+                        let value_id = self.session.insert_matrix_value(matrix_ref);
+                        HostOutcome::Value(SlotValue::Value(value_id))
+                    }
+                    Err(diagnostic) => HostOutcome::Diagnostic(diagnostic),
+                }));
+            }
+            // Pure-real complex parse on an exact real parent falls through to Number path.
+        }
         let Some(n) = number_of(self.session, elem_term)
         else {
+            // `I` / `1+I` already handled above. Remaining non-Number terms stay residual.
             return Ok(None);
         };
         let entry = match base.parent().element {
@@ -1068,11 +1111,26 @@ impl<'a> ExecutionHost<'a> {
             return Ok(None);
         };
         let elem_term = self.slot_as_term(elem_slot)?;
+        let n = nelem as usize;
+        if let Some((re, im)) = term_scalar_complex_session(self.session, elem_term) {
+            if !im.is_zero() {
+                let mut data = Vec::with_capacity(n);
+                for _ in 0..n {
+                    data.push((clone_rational(&re), clone_rational(&im)));
+                }
+                if let Ok(matrix) = MatrixValue::from_complex_exact_row_major(rows, cols, data) {
+                    let matrix_ref = self.session.matrix_objects.intern(matrix);
+                    let value_id = self.session.insert_matrix_value(matrix_ref);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))));
+                }
+                return Ok(None);
+            }
+            // Pure-real complex parse continues through Number / rational constructors below.
+        }
         let Some(num) = number_of(self.session, elem_term)
         else {
             return Ok(None);
         };
-        let n = nelem as usize;
         let built = if let Some(i) = num.as_exact_integer() {
             let mut data = Vec::with_capacity(n);
             for _ in 0..n {
