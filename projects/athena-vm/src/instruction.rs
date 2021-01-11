@@ -14,7 +14,7 @@ pub type SlotIndex = u32;
 pub type ConstantIndex = u32;
 
 /// 每条 host 调用边最多携带的实参槽数（含集合构造）。
-pub const MAX_HOST_ARGS: usize = 16;
+pub const MAX_HOST_ARGS: usize = 256;
 
 /// VM 指令（最小闭集）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
