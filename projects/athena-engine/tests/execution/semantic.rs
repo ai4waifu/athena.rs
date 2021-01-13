@@ -74,6 +74,11 @@ fn arithmetic_normalization() {
     // 2^10 → 1024
     let e = sem(SemanticOperator::Power, vec![int(2, &mut s), int(10, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "1024");
+    // Max / Min 数值折叠
+    let e = sem(SemanticOperator::Max, vec![int(3, &mut s), int(7, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "7");
+    let e = sem(SemanticOperator::Min, vec![int(3, &mut s), int(7, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "3");
     // 未知算子惰性重建
     let e = ext("Foo", vec![int(1, &mut s), symbol("y", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "Foo[1, y]");

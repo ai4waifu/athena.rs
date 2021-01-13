@@ -19,7 +19,7 @@ use crate::{
         push_semantic,
         reference::{
             CompareOutcome, IndexOutcome, MatrixStoreOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
-            evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
+            evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_min_max_terms,
             evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
@@ -315,6 +315,16 @@ impl<'a> ExecutionHost<'a> {
             CompareOutcome::Boolean(v) => HostOutcome::Value(SlotValue::Boolean(v)),
             CompareOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
         })
+    }
+
+    fn apply_min_max(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            let term = self.slot_as_term(*slot)?;
+            terms.push(self.resolve_term_through_binding(term)?);
+        }
+        let term = evaluate_min_max_terms(self.session, op, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
     fn apply_unary(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -2761,6 +2771,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::GreaterEqual.discriminant() {
             return self.apply_compare(SemanticOperator::GreaterEqual, args);
+        }
+        if op.0 == SemanticOperator::Max.discriminant() {
+            return self.apply_min_max(SemanticOperator::Max, args);
+        }
+        if op.0 == SemanticOperator::Min.discriminant() {
+            return self.apply_min_max(SemanticOperator::Min, args);
         }
         if op.0 == SemanticOperator::Abs.discriminant() {
             return self.apply_unary(SemanticOperator::Abs, args);
