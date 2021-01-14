@@ -20,6 +20,7 @@ use crate::{
         reference::{
             CompareOutcome, IndexOutcome, MatrixStoreOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_min_max_terms,
+            evaluate_mod_quotient_terms,
             evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
@@ -30,7 +31,8 @@ use crate::{
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
-            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
+            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, collection_structural_equal,
+            store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session, term_to_exact_matrix_session,
             term_scalar_complex_session,
@@ -283,6 +285,7 @@ impl<'a> ExecutionHost<'a> {
         Ok(term)
     }
 
+
     fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: `Multiply` on typed matrices is Hadamard (element-wise), never MatMul.
         // Dialects must lower MATLAB `A*B` / Mathematica `Dot` to explicit MatMul / Dot goals.
@@ -327,6 +330,16 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_mod_quotient(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            let term = self.slot_as_term(*slot)?;
+            terms.push(self.resolve_term_through_binding(term)?);
+        }
+        let term = evaluate_mod_quotient_terms(self.session, op, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     fn apply_unary(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
@@ -356,6 +369,21 @@ impl<'a> ExecutionHost<'a> {
             }
         }
         let term = self.slot_as_term(args[0])?;
+        let term = if matches!(
+            op,
+            SemanticOperator::IntegerDigits
+                | SemanticOperator::Reverse
+                | SemanticOperator::First
+                | SemanticOperator::Rest
+                | SemanticOperator::Most
+                | SemanticOperator::Flatten
+                | SemanticOperator::Length
+        ) {
+            evaluate_compare_operand(self.session, term)?
+        }
+        else {
+            term
+        };
         let out = evaluate_unary_term(self.session, op, term)?;
         Ok(HostOutcome::Value(SlotValue::Term(out)))
     }
@@ -2593,13 +2621,19 @@ impl<'a> ExecutionHost<'a> {
             let same = match (left, right) {
                 (SlotValue::Boolean(a), SlotValue::Boolean(b)) => a == b,
                 (SlotValue::Symbol(a), SlotValue::Symbol(b)) => a == b,
-                (SlotValue::Term(a), SlotValue::Term(b)) => {
-                    let a = self.slot_as_term(SlotValue::Term(a))?;
-                    let b = self.slot_as_term(SlotValue::Term(b))?;
-                    self.session.arena.structural_eq(a, b)
-                }
                 (SlotValue::Unit, SlotValue::Unit) => true,
-                _ => false,
+                _ => {
+                    let a = self.slot_as_term(left)?;
+                    let b = self.slot_as_term(right)?;
+                    let a = evaluate_compare_operand(self.session, a)?;
+                    let b = evaluate_compare_operand(self.session, b)?;
+                    if let Some(same) = collection_structural_equal(self.session, a, b) {
+                        same
+                    }
+                    else {
+                        self.session.arena.structural_eq(a, b)
+                    }
+                }
             };
             return Ok(HostOutcome::Value(SlotValue::Boolean(same)));
         }
@@ -2612,10 +2646,17 @@ impl<'a> ExecutionHost<'a> {
             (SlotValue::Symbol(a), SlotValue::Symbol(b)) => Ok(bool_out(a == b)),
             (SlotValue::Unit, SlotValue::Unit) => Ok(bool_out(true)),
             (SlotValue::Term(a), SlotValue::Term(b)) => {
-                let a = self.slot_as_term(SlotValue::Term(a))?;
-                let b = self.slot_as_term(SlotValue::Term(b))?;
+                let a_raw = self.slot_as_term(SlotValue::Term(a))?;
+                let b_raw = self.slot_as_term(SlotValue::Term(b))?;
+                let a = evaluate_compare_operand(self.session, a_raw)?;
+                let b = evaluate_compare_operand(self.session, b_raw)?;
                 if self.session.arena.structural_eq(a, b) {
                     return Ok(bool_out(true));
+                }
+                if matches!(op, SemanticOperator::Equal | SemanticOperator::Unequal) {
+                    if let Some(same) = collection_structural_equal(self.session, a, b) {
+                        return Ok(bool_out(same));
+                    }
                 }
                 let pick = match op {
                     SemanticOperator::Equal => |o: core::cmp::Ordering| o == core::cmp::Ordering::Equal,
@@ -2778,6 +2819,12 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Min.discriminant() {
             return self.apply_min_max(SemanticOperator::Min, args);
         }
+        if op.0 == SemanticOperator::Mod.discriminant() {
+            return self.apply_mod_quotient(SemanticOperator::Mod, args);
+        }
+        if op.0 == SemanticOperator::Quotient.discriminant() {
+            return self.apply_mod_quotient(SemanticOperator::Quotient, args);
+        }
         if op.0 == SemanticOperator::Abs.discriminant() {
             return self.apply_unary(SemanticOperator::Abs, args);
         }
@@ -2786,6 +2833,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Sqrt.discriminant() {
             return self.apply_unary(SemanticOperator::Sqrt, args);
+        }
+        if op.0 == SemanticOperator::IntegerDigits.discriminant() {
+            return self.apply_unary(SemanticOperator::IntegerDigits, args);
         }
         if op.0 == SemanticOperator::Length.discriminant() {
             return self.apply_unary(SemanticOperator::Length, args);
@@ -3257,4 +3307,42 @@ impl VmHost for ExecutionHost<'_> {
     fn register_compiled_rule(&mut self, table: u32, rule: u32) -> Result<HostOutcome> {
         ExecutionHost::register_compiled_rule(self, athena_types::DispatchTableId(table), athena_types::CompiledRuleId(rule))
     }
+}
+
+/// `Equal` / `Unequal` / `Identical` 实参：已求值原子 / 集合直返，否则经 reference helper 逐层折叠（避免 VM 内嵌套 `execute_ir_request`）。
+fn evaluate_compare_operand(session: &mut Session, term: TermId) -> Result<TermId> {
+    let mut current = term;
+    for _ in 0..16 {
+        if number_of(session, current).is_some() {
+            return Ok(current);
+        }
+        let step = match session.arena.get(current) {
+            Some(TermNode::Atom(_) | TermNode::Collection { .. }) => return Ok(current),
+            Some(TermNode::Application { head: ApplicationHead::Semantic(op), arguments }) => {
+                Some((*op, arguments.clone()))
+            }
+            _ => None,
+        };
+        let Some((op, args)) = step else { break };
+        let materialized: Vec<TermId> = args
+            .into_iter()
+            .map(|arg| evaluate_compare_operand(session, arg).unwrap_or(arg))
+            .collect();
+        let next = match materialized.len() {
+            0 => break,
+            1 => evaluate_unary_term(session, op, materialized[0])?,
+            2 => match op {
+                SemanticOperator::Mod | SemanticOperator::Quotient => {
+                    evaluate_mod_quotient_terms(session, op, materialized)?
+                }
+                _ => break,
+            },
+            _ => break,
+        };
+        if next == current {
+            break;
+        }
+        current = next;
+    }
+    Ok(current)
 }
