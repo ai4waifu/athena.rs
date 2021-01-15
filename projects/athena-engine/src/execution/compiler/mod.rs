@@ -288,6 +288,9 @@ impl ExecutionCompiler {
                     return self.lower_define_capture(session, builder, blocks, block_id, *symbol, *value, *evaluation);
                 }
                 match session.arena.get(*value) {
+                    Some(TermNode::Atom(Atom::Symbol(_))) => {
+                        self.lower_define_evaluated(session, builder, blocks, block_id, *symbol, *value)
+                    }
                     Some(TermNode::Atom(_)) => self.lower_define_capture(
                         session,
                         builder,
