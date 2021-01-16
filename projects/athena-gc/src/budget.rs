@@ -27,8 +27,13 @@ impl HeapBudget {
     /// 微基准应开 `GcHeap::enable_bump_ephemeral(true)`，并在每批迭代后 `clear_numeric_to(mark)`。
     /// 仅抬预算而不 rewind 时，结果空洞仍会推进 bump。不得静默关掉预算。
     pub fn for_microbench() -> Self {
+        // wasm32 `usize` cannot hold 16 GiB at compile time.
+        #[cfg(target_pointer_width = "64")]
+        let max_arena_bytes = 16 * 1024 * 1024 * 1024;
+        #[cfg(not(target_pointer_width = "64"))]
+        let max_arena_bytes = 256 * 1024 * 1024;
         Self {
-            max_arena_bytes: 16 * 1024 * 1024 * 1024,
+            max_arena_bytes,
             max_segment_count: 1_048_576,
             max_limbs: usize::MAX / 16,
             max_scratch_bytes: 1024 * 1024 * 1024,
