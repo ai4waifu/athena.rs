@@ -21,6 +21,8 @@ pub(super) struct ModuleBuilder {
     next_effect: u32,
     /// `EarlyReturn` 产生的块：sequence 串联时不得改写为 continue。
     early_return_blocks: HashSet<BlockId>,
+    /// `LoopWhile` 出口块：外层 loop 的 join 改写须跳过，但 sequence continue 仍须改写。
+    loop_exit_blocks: HashSet<BlockId>,
 }
 
 impl ModuleBuilder {
@@ -75,6 +77,14 @@ impl ModuleBuilder {
 
     pub(super) fn is_early_return_block(&self, block: BlockId) -> bool {
         self.early_return_blocks.contains(&block)
+    }
+
+    pub(super) fn mark_loop_exit_block(&mut self, block: BlockId) {
+        self.loop_exit_blocks.insert(block);
+    }
+
+    pub(super) fn is_loop_exit_block(&self, block: BlockId) -> bool {
+        self.loop_exit_blocks.contains(&block)
     }
 
     pub(super) fn push_provider_call(&mut self, descriptor: ProviderCallDescriptor) -> ProviderCallId {

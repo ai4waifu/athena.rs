@@ -489,21 +489,7 @@ impl ExecutionCompiler {
 
         // Header 每次迭代重新求值谓词（`ReadBinding` / 比较）。
         let mut header_ops = Vec::new();
-        let loop_cond = match self.require_boolean_atom(session, condition) {
-            Ok(cond_bool) => {
-                let loop_cond = builder.ssa();
-                let loop_const = builder.push_constant(ConstantValue::boolean(cond_bool));
-                header_ops.push(Operation {
-                    result: Some(loop_cond),
-                    result_type: ExecutionValueType::Boolean,
-                    kind: OperationKind::Constant { constant: loop_const },
-                    effect_in: None,
-                    effect_out: None,
-                });
-                loop_cond
-            }
-            Err(_) => self.lower_pure_expr(session, builder, &mut header_ops, condition)?,
-        };
+        let loop_cond = self.lower_predicate_expr(session, builder, &mut header_ops, condition)?;
         blocks.push(BasicBlock {
             id: header,
             parameters: vec![crate::execution::ir::BlockParameter { value: acc_param, ty: ExecutionValueType::Term }],
@@ -526,6 +512,8 @@ impl ExecutionCompiler {
             operations: Vec::new(),
             terminator: Terminator::return_value(exit_param),
         });
+        // Parent `LoopWhile` must not rewrite this exit `Return` into a branch to its header.
+        builder.mark_loop_exit_block(exit);
         Ok(exit_param)
     }
 
@@ -659,21 +647,7 @@ impl ExecutionCompiler {
 
         for (index, (condition, arm)) in arms.iter().enumerate() {
             let mut operations = Vec::new();
-            let cond_value = match self.require_boolean_atom(session, *condition) {
-                Ok(cond_bool) => {
-                    let cond_value = builder.ssa();
-                    let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
-                    operations.push(Operation {
-                        result: Some(cond_value),
-                        result_type: ExecutionValueType::Boolean,
-                        kind: OperationKind::Constant { constant: cond_constant },
-                        effect_in: None,
-                        effect_out: None,
-                    });
-                    cond_value
-                }
-                Err(_) => self.lower_pure_expr(session, builder, &mut operations, *condition)?,
-            };
+            let cond_value = self.lower_predicate_expr(session, builder, &mut operations, *condition)?;
             let arm_block = builder.block_id();
             let else_target = if index + 1 < arms.len() { test_blocks[index + 1] } else { otherwise_block };
             blocks.push(BasicBlock {
@@ -745,7 +719,7 @@ impl ExecutionCompiler {
             .map(|b| b.id)
             .collect();
         for block_id in return_block_ids {
-            if builder.is_early_return_block(block_id) {
+            if builder.is_early_return_block(block_id) || builder.is_loop_exit_block(block_id) {
                 continue;
             }
             let forwarded = {
@@ -821,7 +795,7 @@ impl ExecutionCompiler {
         let return_block_ids: Vec<BlockId> =
             blocks.iter().filter(|b| matches!(b.terminator, Terminator::Return { .. })).map(|b| b.id).collect();
         for block_id in return_block_ids {
-            if builder.is_early_return_block(block_id) {
+            if builder.is_early_return_block(block_id) || builder.is_loop_exit_block(block_id) {
                 continue;
             }
             let forwarded = {
@@ -958,24 +932,7 @@ impl ExecutionCompiler {
         let then_block = builder.block_id();
         let else_block = builder.block_id();
         let mut operations = Vec::new();
-        let cond_value = match self.require_boolean_atom(session, condition) {
-            Ok(cond_bool) => {
-                let cond_value = builder.ssa();
-                let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
-                operations.push(Operation {
-                    result: Some(cond_value),
-                    result_type: ExecutionValueType::Boolean,
-                    kind: OperationKind::Constant { constant: cond_constant },
-                    effect_in: None,
-                    effect_out: None,
-                });
-                cond_value
-            }
-            Err(_) => {
-                // 运行时谓词：`Equal[...]`、`True`/`False` 符号、数值真值等。
-                self.lower_pure_expr(session, builder, &mut operations, condition)?
-            }
-        };
+        let cond_value = self.lower_predicate_expr(session, builder, &mut operations, condition)?;
 
         blocks.push(BasicBlock {
             id: entry,

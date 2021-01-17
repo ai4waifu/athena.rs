@@ -3784,3 +3784,563 @@ fn compile_and_execute_dynamic_do_return_dynamic_scope_n() {
         other => panic!("expected early-return list, got {other:?}"),
     }
 }
+
+#[test]
+fn compile_and_execute_loop_while_sequence_body_without_inner() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let i = push_symbol_name(&mut session, "i");
+    let j = push_symbol_name(&mut session, "j");
+    let n = push_symbol_name(&mut session, "n");
+    let n_sym = session.arena.symbols_mut().intern("n");
+    let i_sym = session.arena.symbols_mut().intern("i");
+    let j_sym = session.arena.symbols_mut().intern("j");
+    let five = push_int(&mut session, 5);
+    let one = push_int(&mut session, 1);
+    let zero = push_int(&mut session, 0);
+
+    let outer_cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![i, n],
+        Default::default(),
+    );
+    let j_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![j, one],
+        Default::default(),
+    );
+    let i_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![i, one],
+        Default::default(),
+    );
+
+    let outer_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: j_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: j_sym,
+                value: j_plus_1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: i_plus_1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+        ],
+    });
+    let outer_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: outer_cond,
+        body: Box::new(outer_body),
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: n_sym,
+                value: five,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            outer_loop,
+            AthenaRequest::Term(i),
+        ],
+    });
+
+    let result_id = execute_ir_request(&mut session, request).expect("sequence body without inner loop");
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(5)),
+        other => panic!("expected i=5, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_nested_loop_while_counting() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let i = push_symbol_name(&mut session, "i");
+    let j = push_symbol_name(&mut session, "j");
+    let n = push_symbol_name(&mut session, "n");
+    let n_sym = session.arena.symbols_mut().intern("n");
+    let five = push_int(&mut session, 5);
+    let two = push_int(&mut session, 2);
+    let one = push_int(&mut session, 1);
+    let zero = push_int(&mut session, 0);
+
+    let outer_cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![i, n],
+        Default::default(),
+    );
+    let inner_cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![j, two],
+        Default::default(),
+    );
+    let j_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![j, one],
+        Default::default(),
+    );
+    let i_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![i, one],
+        Default::default(),
+    );
+    let j_sym = session.arena.symbols_mut().intern("j");
+    let i_sym = session.arena.symbols_mut().intern("i");
+
+    let inner_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![AthenaRequest::Command(SessionCommand::Define {
+            symbol: j_sym,
+            value: j_plus_1,
+            kind: BindingKind::Session,
+            evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+        })],
+    });
+    let inner_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: inner_cond,
+        body: Box::new(inner_body),
+    });
+    let outer_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: j_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            inner_loop,
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: i_plus_1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+        ],
+    });
+    let outer_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: outer_cond,
+        body: Box::new(outer_body),
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: n_sym,
+                value: five,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            outer_loop,
+            AthenaRequest::Term(i),
+        ],
+    });
+
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("compile nested loops");
+    let result_id = match execute_ir_request(&mut session, request) {
+        Ok(id) => id,
+        Err(err) => panic!("execute nested loops failed: {err:?} (module blocks={})", module.regions[0].blocks.len()),
+    };
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(5)),
+        other => panic!("expected i=5, got {other:?}"),
+    }
+}
+
+#[test]
+fn extension_request_rule_nested_loop_while_with_early_return() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let i = push_symbol_name(&mut session, "i");
+    let j = push_symbol_name(&mut session, "j");
+    let y = push_symbol_name(&mut session, "y");
+    let n = push_symbol_name(&mut session, "n");
+    let n_sym = session.arena.symbols_mut().intern("n");
+    let i_sym = session.arena.symbols_mut().intern("i");
+    let j_sym = session.arena.symbols_mut().intern("j");
+    let y_sym = session.arena.symbols_mut().intern("y");
+    let two = push_int(&mut session, 2);
+    let one = push_int(&mut session, 1);
+    let zero = push_int(&mut session, 0);
+
+    let outer_cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![i, n],
+        Default::default(),
+    );
+    let inner_cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![j, two],
+        Default::default(),
+    );
+    let j_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![j, one],
+        Default::default(),
+    );
+    let i_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![i, one],
+        Default::default(),
+    );
+    let inner_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![AthenaRequest::Command(SessionCommand::Define {
+            symbol: j_sym,
+            value: j_plus_1,
+            kind: BindingKind::Session,
+            evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+        })],
+    });
+    let inner_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: inner_cond,
+        body: Box::new(inner_body),
+    });
+    let outer_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: j_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            inner_loop,
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: i_plus_1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+        ],
+    });
+    let outer_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: outer_cond,
+        body: Box::new(outer_body),
+    });
+    let function_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            outer_loop,
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: y_sym,
+                value: i,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Control(ControlPlan::EarlyReturn { value: y }),
+        ],
+    });
+
+    let f_op = session.extensions.intern("f");
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Extension(f_op),
+        arguments: vec![TermPattern::Bind {
+            name: n_sym,
+            inner: Box::new(TermPattern::Any),
+        }],
+    };
+    session.defs.register_extension_request_rule(f_op, pattern, function_body);
+
+    let five = push_int(&mut session, 5);
+    let call = session.builder().application(ApplicationHead::Extension(f_op), vec![five], Default::default());
+    let result_id = match execute_ir_request(&mut session, AthenaRequest::Term(call)) {
+        Ok(id) => id,
+        Err(err) => panic!("extension nested while failed: {err:?}"),
+    };
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(5)),
+        other => panic!("expected y=5, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_loop_while_greater_equal_countdown() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let a = push_symbol_name(&mut session, "a");
+    let a_sym = session.arena.symbols_mut().intern("a");
+    let three = push_int(&mut session, 3);
+    let ten = push_int(&mut session, 10);
+
+    let cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::GreaterEqual),
+        vec![a, three],
+        Default::default(),
+    );
+    let a_minus_3 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Subtract),
+        vec![a, three],
+        Default::default(),
+    );
+    let body = AthenaRequest::Command(SessionCommand::Define {
+        symbol: a_sym,
+        value: a_minus_3,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let loop_while = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: cond,
+        body: Box::new(body),
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: a_sym,
+                value: ten,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            loop_while,
+            AthenaRequest::Term(a),
+        ],
+    });
+
+    let result_id = execute_ir_request(&mut session, request).expect("greater-equal loop");
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(1)),
+        other => panic!("expected a=1 after countdown, got {other:?}"),
+    }
+}
+
+#[test]
+fn extension_request_rule_loop_while_greater_equal_lhs_update() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::reasoning::trs::TermPattern;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let a = push_symbol_name(&mut session, "a");
+    let b = push_symbol_name(&mut session, "b");
+    let y = push_symbol_name(&mut session, "y");
+    let a_sym = session.arena.symbols_mut().intern("a");
+    let b_sym = session.arena.symbols_mut().intern("b");
+    let y_sym = session.arena.symbols_mut().intern("y");
+    let three = push_int(&mut session, 3);
+    let one = push_int(&mut session, 1);
+    let zero = push_int(&mut session, 0);
+
+    let cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::GreaterEqual),
+        vec![a, b],
+        Default::default(),
+    );
+    let a_minus_b = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Subtract),
+        vec![a, b],
+        Default::default(),
+    );
+    let q_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![y, one],
+        Default::default(),
+    );
+    let body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: a_sym,
+                value: a_minus_b,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: y_sym,
+                value: q_plus_1,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+        ],
+    });
+    let loop_while = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: cond,
+        body: Box::new(body),
+    });
+    let function_body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: y_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            loop_while,
+            AthenaRequest::Term(y),
+        ],
+    });
+
+    let f_op = session.extensions.intern("f");
+    let pattern = TermPattern::Application {
+        operator: ApplicationHead::Extension(f_op),
+        arguments: vec![
+            TermPattern::Bind { name: a_sym, inner: Box::new(TermPattern::Any) },
+            TermPattern::Bind { name: b_sym, inner: Box::new(TermPattern::Any) },
+        ],
+    };
+    session.defs.register_extension_request_rule(f_op, pattern, function_body);
+
+    let ten = push_int(&mut session, 10);
+    let call = session.builder().application(
+        ApplicationHead::Extension(f_op),
+        vec![ten, three],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(call)).expect("extension ge loop");
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(3)),
+        other => panic!("expected q=3, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_branch_on_boolean_symbol_binding() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::runtime::values::arena::{push_bool, push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let flag = push_symbol_name(&mut session, "flag");
+    let q = push_symbol_name(&mut session, "q");
+    let flag_sym = session.arena.symbols_mut().intern("flag");
+    let q_sym = session.arena.symbols_mut().intern("q");
+    let three = push_int(&mut session, 3);
+    let neg_three = push_int(&mut session, -3);
+    let then_body = AthenaRequest::Command(SessionCommand::Define {
+        symbol: q_sym,
+        value: neg_three,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let branch = AthenaRequest::Control(ControlPlan::Branch {
+        condition: flag,
+        then_branch: Box::new(then_body),
+        else_branch: None,
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: flag_sym,
+                value: push_bool(&mut session, false),
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: q_sym,
+                value: three,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            branch,
+            AthenaRequest::Term(q),
+        ],
+    });
+
+    let result_id = execute_ir_request(&mut session, request).expect("branch on symbol");
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(3)),
+        other => panic!("expected q=3 when flag false, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_single_loop_while_less_readbinding_n() {
+    use athena_engine::execution::execute_ir_request;
+    use athena_engine::runtime::values::arena::{push_int, push_symbol_name};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let i = push_symbol_name(&mut session, "i");
+    let n = push_symbol_name(&mut session, "n");
+    let n_sym = session.arena.symbols_mut().intern("n");
+    let i_sym = session.arena.symbols_mut().intern("i");
+    let five = push_int(&mut session, 5);
+    let one = push_int(&mut session, 1);
+    let zero = push_int(&mut session, 0);
+    let cond = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Less),
+        vec![i, n],
+        Default::default(),
+    );
+    let i_plus_1 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![i, one],
+        Default::default(),
+    );
+    let body = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![AthenaRequest::Command(SessionCommand::Define {
+            symbol: i_sym,
+            value: i_plus_1,
+            kind: BindingKind::Session,
+            evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+        })],
+    });
+    let while_loop = AthenaRequest::Control(ControlPlan::LoopWhile {
+        condition: cond,
+        body: Box::new(body),
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: n_sym,
+                value: five,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: i_sym,
+                value: zero,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            }),
+            while_loop,
+            AthenaRequest::Term(i),
+        ],
+    });
+    let result_id = execute_ir_request(&mut session, request).expect("single less readbinding loop");
+    let term = session.results.require_symbolic_term(result_id).expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(num))) => assert_eq!(num.as_exact_integer(), Some(5)),
+        other => panic!("expected i=5, got {other:?}"),
+    }
+}
