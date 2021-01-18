@@ -1,6 +1,6 @@
 //! 线性代数强类型请求（输入为 [`MatrixRef`] / [`super::operand::MatrixOperand`]）。
 
-use super::{object_ref::MatrixRef, operand::MatrixOperand};
+use super::{object_ref::MatrixRef, operand::MatrixOperand, shape::StorageOrder};
 
 /// 线性代数域请求（禁止字符串算法名）。
 ///
@@ -158,7 +158,10 @@ pub enum LinearAlgebraRequest {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
-    /// 列优先 reshape（MATLAB `reshape`；Living 16 形状变换）。
+    /// Reshape（Living 16 形状变换）。
+    ///
+    /// - [`StorageOrder::ColumnMajor`]：MATLAB `reshape`
+    /// - [`StorageOrder::RowMajor`]：Mathematica `ArrayReshape`
     Reshape {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
@@ -166,6 +169,8 @@ pub enum LinearAlgebraRequest {
         rows: u64,
         /// 目标列数。
         cols: u64,
+        /// 元素线性化序（读入与写出约定）。
+        order: StorageOrder,
     },
     /// 元素个数（MATLAB `numel`；返回 `1×1` 整数矩阵）。
     NumElements {
@@ -203,7 +208,12 @@ impl LinearAlgebraRequest {
             Self::IsDiagonal { matrix } => Self::IsDiagonal { matrix: *matrix },
             Self::IsTriangular { matrix, lower } => Self::IsTriangular { matrix: *matrix, lower: *lower },
             Self::IsSymmetric { matrix } => Self::IsSymmetric { matrix: *matrix },
-            Self::Reshape { matrix, rows, cols } => Self::Reshape { matrix: *matrix, rows: *rows, cols: *cols },
+            Self::Reshape { matrix, rows, cols, order } => Self::Reshape {
+                matrix: *matrix,
+                rows: *rows,
+                cols: *cols,
+                order: *order,
+            },
             Self::NumElements { matrix } => Self::NumElements { matrix: *matrix },
         }
     }

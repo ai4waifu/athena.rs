@@ -38,8 +38,8 @@ pub use operand::MatrixOperand;
 pub use ops::{
     conjugate_transpose, cross, dot, elementwise_divide, elementwise_power, extend_row_vector_scalar, flag_matrix, flatten_row_major, hadamard,
     index_scalar, intersection_integer_row_vectors, is_diagonal, is_lower_triangular, is_symmetric, is_upper_triangular, join_matrices,
-    kronecker, matmul, num_elements_scalar, pad_left_row_vector, reshape_column_major, reverse_matrix, riffle_row_vectors, slice_matrix,
-    transpose, tril, triu, union_integer_row_vectors,
+    kronecker, matmul, num_elements_scalar, pad_left_row_vector, reshape_column_major, reshape_row_major, reverse_matrix,
+    riffle_row_vectors, slice_matrix, transpose, tril, triu, union_integer_row_vectors,
 };
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;

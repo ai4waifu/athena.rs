@@ -926,10 +926,14 @@ fn linear_algebra_request_residual_term(
             }
         }
         LinearAlgebraRequest::IsSymmetric { matrix } => ("IsSymmetricMatrix", vec![matrix_op_term(session, *matrix)?]),
-        LinearAlgebraRequest::Reshape { matrix, rows, cols } => {
+        LinearAlgebraRequest::Reshape { matrix, rows, cols, order } => {
             let rows_term = session.builder().int(*rows as i64, Default::default());
             let cols_term = session.builder().int(*cols as i64, Default::default());
-            ("Reshape", vec![matrix_op_term(session, *matrix)?, rows_term, cols_term])
+            let head = match order {
+                crate::domains::linear_algebra::StorageOrder::ColumnMajor => "ReshapeColumnMajor",
+                crate::domains::linear_algebra::StorageOrder::RowMajor => "ReshapeRowMajor",
+            };
+            (head, vec![matrix_op_term(session, *matrix)?, rows_term, cols_term])
         }
         LinearAlgebraRequest::NumElements { matrix } => ("NumElements", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Index { .. } => return None,

@@ -13,10 +13,11 @@ use super::{
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{
         conjugate_transpose, cross, dot, elementwise_divide, elementwise_power, flag_matrix, hadamard, index_scalar, is_diagonal,
-        is_lower_triangular, is_symmetric, is_upper_triangular, kronecker, matmul, num_elements_scalar, reshape_column_major, transpose,
-        tril, triu,
+        is_lower_triangular, is_symmetric, is_upper_triangular, kronecker, matmul, num_elements_scalar, reshape_column_major,
+        reshape_row_major, transpose, tril, triu,
     },
     request::LinearAlgebraRequest,
+    shape::StorageOrder,
     status::AlgorithmGuarantee,
     value::MatrixValue,
 };
@@ -360,9 +361,13 @@ fn run(
             let matrix = matrix.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::dot_outcome(flag_matrix(is_symmetric(&matrix)?)?))
         }
-        LinearAlgebraRequest::Reshape { matrix, rows, cols } => {
+        LinearAlgebraRequest::Reshape { matrix, rows, cols, order } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::matrix_outcome(reshape_column_major(&matrix, rows, cols)?))
+            let reshaped = match order {
+                StorageOrder::ColumnMajor => reshape_column_major(&matrix, rows, cols)?,
+                StorageOrder::RowMajor => reshape_row_major(&matrix, rows, cols)?,
+            };
+            Ok(LinearAlgebraValue::matrix_outcome(reshaped))
         }
         LinearAlgebraRequest::NumElements { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
