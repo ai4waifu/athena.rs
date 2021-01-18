@@ -22,7 +22,7 @@ use crate::{
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_min_max_terms,
             evaluate_mod_quotient_terms,
             evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
-            evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
+            evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_at_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
@@ -2497,6 +2497,18 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `MapAt[func, list, index]` — 1-based 下标处应用 `func`。
+    fn apply_map_at(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 3 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::MapAt.discriminant())));
+        }
+        let func = self.slot_as_term(args[0])?;
+        let list = self.slot_as_term(args[1])?;
+        let index = self.slot_as_term(args[2])?;
+        let term = evaluate_map_at_terms(self.session, func, list, index)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Apply[head, list]`。
     fn apply_apply(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -2964,6 +2976,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::MapThread.discriminant() {
             return self.apply_map_thread(args);
+        }
+        if op.0 == SemanticOperator::MapAt.discriminant() {
+            return self.apply_map_at(args);
         }
         if op.0 == SemanticOperator::Apply.discriminant() {
             return self.apply_apply(args);

@@ -771,6 +771,49 @@ fn compile_and_execute_map_indexed_second_slot() {
 }
 
 #[test]
+fn compile_and_execute_map_at_zeroary_head() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let list = session.builder().list(vec![one, two, three], Default::default());
+    let f = session.extensions.intern("f");
+    let func = session.builder().application_extension_id(f, vec![], Default::default());
+    let index = session.builder().int(2, Default::default());
+    let term = session
+        .builder()
+        .application_semantic(SemanticOperator::MapAt, vec![func, list, index], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("mapat");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
+            match session.arena.get(items[0]) {
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
+                other => panic!("expected 1 at index 0, got {other:?}"),
+            }
+            match session.arena.get(items[1]) {
+                Some(TermNode::Application { head: ApplicationHead::Extension(id), arguments })
+                    if arguments.len() == 1 =>
+                {
+                    assert_eq!(*id, f);
+                    match session.arena.get(arguments[0]) {
+                        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+                        other => panic!("expected f[2], got {other:?}"),
+                    }
+                }
+                other => panic!("expected f[2] at index 1, got {other:?}"),
+            }
+            match session.arena.get(items[2]) {
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3) => {}
+                other => panic!("expected 3 at index 2, got {other:?}"),
+            }
+        }
+        other => panic!("expected MapAt list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_map_thread_plus() {
     let mut session = Session::new();
     let one = session.builder().int(1, Default::default());

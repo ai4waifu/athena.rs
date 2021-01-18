@@ -251,6 +251,8 @@ pub enum SemanticOperator {
     MapIndexed,
     /// 多列表并行 map（方言 `MapThread`；`f[aᵢ, bᵢ, …]`）。
     MapThread,
+    /// 在指定下标应用函数（方言 `MapAt`；`f[list[[i]]]` 替换 `list[[i]]`）。
+    MapAt,
     /// 零矩阵 / 数组构造。
     Zeros,
     /// 全一阵 / 数组构造。
@@ -407,6 +409,7 @@ impl SemanticOperator {
             Self::Map => 35,
             Self::MapIndexed => 228,
             Self::MapThread => 229,
+            Self::MapAt => 258,
             Self::Zeros => 36,
             Self::Ones => 37,
             Self::Eye => 38,
@@ -521,6 +524,7 @@ impl SemanticOperator {
             35 => Some(Self::Map),
             228 => Some(Self::MapIndexed),
             229 => Some(Self::MapThread),
+            258 => Some(Self::MapAt),
             36 => Some(Self::Zeros),
             37 => Some(Self::Ones),
             38 => Some(Self::Eye),
@@ -639,6 +643,7 @@ impl SemanticOperator {
             Self::Map => "Map",
             Self::MapIndexed => "MapIndexed",
             Self::MapThread => "MapThread",
+            Self::MapAt => "MapAt",
             Self::Zeros => "Zeros",
             Self::Ones => "Ones",
             Self::Eye => "Eye",

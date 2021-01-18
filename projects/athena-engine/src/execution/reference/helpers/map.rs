@@ -1,11 +1,11 @@
-//! `Map` / `MapIndexed` 列表映射（零元算子头 / `Function` 绑定）。
+//! `Map` / `MapIndexed` / `MapAt` 列表映射（零元算子头 / `Function` 绑定）。
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_types::{Result, SymbolId, TermId};
 
 use super::{diag, re_eval_term};
 use crate::{
-    execution::push_semantic,
+    execution::{number_of, push_semantic},
     runtime::{session::Session, values::arena::push_list},
 };
 
@@ -189,5 +189,57 @@ pub(crate) fn evaluate_map_thread_terms(session: &mut Session, func: TermId, lis
         }
         return Ok(push_semantic(session, SemanticOperator::MapThread, vec![func, lists]));
     }
+    Ok(push_list(session, out))
+}
+
+/// `MapAt[func, list, index]` — 1-based 下标处应用 `func`，其余元素不变。
+pub(crate) fn evaluate_map_at_terms(
+    session: &mut Session,
+    func: TermId,
+    list: TermId,
+    index: TermId,
+) -> Result<TermId> {
+    let Some(n) = number_of(session, index).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::MapAt,
+            vec![func, list, index],
+        ));
+    };
+    if n <= 0 {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::MapAt,
+            vec![func, list, index],
+        ));
+    }
+    let Some(TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::MapAt,
+            vec![func, list, index],
+        ));
+    };
+    let items = items.clone();
+    let idx = (n as usize).checked_sub(1);
+    let Some(idx) = idx.filter(|&i| i < items.len()) else {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::MapAt,
+            vec![func, list, index],
+        ));
+    };
+    if !map_func_supported(session, func, 1) {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::MapAt,
+            vec![func, list, index],
+        ));
+    }
+    let mapped = map_apply_one(session, func, items[idx])?;
+    let mut out = items;
+    out[idx] = mapped;
     Ok(push_list(session, out))
 }
