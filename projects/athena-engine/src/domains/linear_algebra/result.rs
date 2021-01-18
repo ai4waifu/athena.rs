@@ -13,7 +13,8 @@ use super::{
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{
         conjugate_transpose, cross, dot, elementwise_divide, elementwise_power, flag_matrix, hadamard, index_scalar, is_diagonal,
-        is_lower_triangular, is_symmetric, is_upper_triangular, kronecker, matmul, transpose, tril, triu,
+        is_lower_triangular, is_symmetric, is_upper_triangular, kronecker, matmul, num_elements_scalar, reshape_column_major, transpose,
+        tril, triu,
     },
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
@@ -153,6 +154,8 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::IsDiagonal { .. } => "is_diagonal",
         LinearAlgebraRequest::IsTriangular { .. } => "is_triangular",
         LinearAlgebraRequest::IsSymmetric { .. } => "is_symmetric",
+        LinearAlgebraRequest::Reshape { .. } => "reshape",
+        LinearAlgebraRequest::NumElements { .. } => "num_elements",
     }
 }
 
@@ -356,6 +359,14 @@ fn run(
         LinearAlgebraRequest::IsSymmetric { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::dot_outcome(flag_matrix(is_symmetric(&matrix)?)?))
+        }
+        LinearAlgebraRequest::Reshape { matrix, rows, cols } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(reshape_column_major(&matrix, rows, cols)?))
+        }
+        LinearAlgebraRequest::NumElements { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(num_elements_scalar(&matrix)?))
         }
     }
 }
