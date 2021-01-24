@@ -966,6 +966,14 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
         use athena_numeric::Integer;
 
+        fn matrix_entry_exact_i64(entry: MatrixEntry) -> Option<i64> {
+            match entry {
+                MatrixEntry::Integer(z) => z.to_i64(),
+                MatrixEntry::Rational(r) if r.is_integer() => r.numerator().to_i64(),
+                _ => None,
+            }
+        }
+
         let pick_max = match op {
             SemanticOperator::Max => true,
             SemanticOperator::Min => false,
@@ -980,35 +988,35 @@ impl<'a> ExecutionHost<'a> {
             return Ok(None);
         };
         let shape = matrix.shape();
-        if shape.rows != 1 || shape.cols == 0 {
-            return Ok(None);
-        }
-        let mut values: Vec<i64> = Vec::with_capacity(shape.cols as usize);
-        for j in 0..shape.cols {
-            match matrix.get(0, j)? {
-                MatrixEntry::Integer(z) => {
-                    let Some(i) = z.to_i64()
-                    else {
-                        return Ok(None);
-                    };
-                    values.push(i);
-                }
-                _ => return Ok(None),
+        let values: Vec<i64> = if shape.rows == 1 && shape.cols > 0 {
+            let mut values = Vec::with_capacity(shape.cols as usize);
+            for j in 0..shape.cols {
+                let Some(v) = matrix_entry_exact_i64(matrix.get(0, j)?) else {
+                    return Ok(None);
+                };
+                values.push(v);
             }
-        }
+            values
+        } else if shape.cols == 1 && shape.rows > 0 {
+            let mut values = Vec::with_capacity(shape.rows as usize);
+            for i in 0..shape.rows {
+                let Some(v) = matrix_entry_exact_i64(matrix.get(i, 0)?) else {
+                    return Ok(None);
+                };
+                values.push(v);
+            }
+            values
+        } else {
+            return Ok(None);
+        };
         let selected = if pick_max {
             *values.iter().max().expect("non-empty")
         }
         else {
             *values.iter().min().expect("non-empty")
         };
-        let out = match MatrixValue::from_integers_row_major(1, 1, vec![Integer::from(selected)]) {
-            Ok(m) => m,
-            Err(_) => return Ok(None),
-        };
-        let matrix_ref = self.session.matrix_objects.intern(out);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+        let term = self.session.builder().int(selected, Default::default());
+        Ok(Some(HostOutcome::Value(SlotValue::Term(term))))
     }
 
     fn apply_delete_duplicates(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
