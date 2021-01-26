@@ -704,6 +704,9 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
 /// Own / 槽位投影：`1×n` 行向量 → 平坦 List（MATLAB 向量表面）；其它形状走嵌套。
 pub(crate) fn matrix_to_own_surface_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
     let (rows, cols) = (m.shape().rows, m.shape().cols);
+    if rows == 1 && cols == 1 {
+        return matrix_entry_to_term_session(session, m, 0, 0);
+    }
     if rows == 1 {
         let mut row = Vec::with_capacity(cols as usize);
         for j in 0..cols {
@@ -764,7 +767,10 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     };
 
     match value {
-        LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, &m.value).ok(),
+        LinearAlgebraValue::Matrix(m) => match session.matrix_list_surface {
+            crate::runtime::session::MatrixListSurface::MatlabOwn => matrix_to_own_surface_list_session(session, &m.value).ok(),
+            crate::runtime::session::MatrixListSurface::NestedRows => matrix_to_nested_list_session(session, &m.value).ok(),
+        },
         LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, &m.value).ok(),
         LinearAlgebraValue::ExactSolve(ExactSolveResult { particular, disposition, .. }) => match disposition {
             // Unique keeps the particular matrix surface. Affine / none / singular stay disposition residuals.

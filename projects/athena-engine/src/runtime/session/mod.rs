@@ -84,6 +84,19 @@ pub enum ZeroPowerZeroConvention {
     One,
 }
 
+/// How typed `MatrixValue` results project to nested `List` terms.
+///
+/// Neutral default keeps every row nested (Mathematica `{{…}, {…}}`). MATLAB selects
+/// [`Self::MatlabOwn`] so `1×n` row vectors flatten to `[a, b, …]` while `n×1` columns stay `[a; b]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum MatrixListSurface {
+    /// Nested row lists for every matrix shape (Mathematica default).
+    #[default]
+    NestedRows,
+    /// MATLAB Own surface: `1×n` flat, other shapes nested.
+    MatlabOwn,
+}
+
 /// 顶层 VM 解释步数默认上限（嵌套入口共享同一计数）。
 pub const DEFAULT_VM_STEP_BUDGET: u64 = 100_000_000;
 
@@ -157,6 +170,8 @@ pub struct Session {
     shared_execution: Option<SharedExecutionControl>,
     /// Exact-domain `0^0` convention (dialect-selected; default `Indeterminate`).
     pub zero_pow_zero: ZeroPowerZeroConvention,
+    /// Matrix→List projection convention (dialect-selected; default nested rows).
+    pub matrix_list_surface: MatrixListSurface,
     /// 可信微积分内核本轮精确结果（`request_identity` → 结果项），供准入免重算。
     trusted_calculus: HashMap<u64, TermId>,
 }
@@ -224,6 +239,7 @@ impl Session {
             heap,
             shared_execution: None,
             zero_pow_zero: ZeroPowerZeroConvention::Indeterminate,
+            matrix_list_surface: MatrixListSurface::NestedRows,
             trusted_calculus: HashMap::new(),
         }
     }
