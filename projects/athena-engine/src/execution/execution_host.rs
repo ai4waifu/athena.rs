@@ -2048,6 +2048,16 @@ impl<'a> ExecutionHost<'a> {
                     let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
                     return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
                 }
+                if cols == 1 {
+                    let mut acc = (Rational::zero(), Rational::zero());
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, 0) else { return Ok(None) };
+                        let Some((re, im)) = entry_c(entry) else { return Ok(None) };
+                        acc = (acc.0.add(&re), acc.1.add(&im));
+                    }
+                    let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
                 let mut out = Vec::with_capacity(cols as usize);
                 for j in 0..cols {
                     let mut acc = (Rational::zero(), Rational::zero());
@@ -2086,6 +2096,16 @@ impl<'a> ExecutionHost<'a> {
                     let mut acc = Rational::zero();
                     for j in 0..cols {
                         let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.add(&q);
+                    }
+                    let term = rational_to_term_session(self.session, &acc);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                if cols == 1 {
+                    let mut acc = Rational::zero();
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, 0) else { return Ok(None) };
                         let Some(q) = entry_q(entry) else { return Ok(None) };
                         acc = acc.add(&q);
                     }
@@ -2213,6 +2233,16 @@ impl<'a> ExecutionHost<'a> {
                     let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
                     return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
                 }
+                if cols == 1 {
+                    let mut acc = (Rational::one(), Rational::zero());
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, 0) else { return Ok(None) };
+                        let Some(c) = entry_c(entry) else { return Ok(None) };
+                        acc = mul(&acc, &c);
+                    }
+                    let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
                 let mut out = Vec::with_capacity(cols as usize);
                 for j in 0..cols {
                     let mut acc = (Rational::one(), Rational::zero());
@@ -2251,6 +2281,16 @@ impl<'a> ExecutionHost<'a> {
                     let mut acc = Rational::one();
                     for j in 0..cols {
                         let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.mul(&q);
+                    }
+                    let term = rational_to_term_session(self.session, &acc);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                if cols == 1 {
+                    let mut acc = Rational::one();
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, 0) else { return Ok(None) };
                         let Some(q) = entry_q(entry) else { return Ok(None) };
                         acc = acc.mul(&q);
                     }
