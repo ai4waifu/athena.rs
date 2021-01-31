@@ -30,6 +30,28 @@ mod collection_equal_tests {
         let b = push_list(&mut s, vec![i3, i2, i1]);
         assert_eq!(collection_structural_equal(&s, a, b), Some(false));
     }
+
+    #[test]
+    fn elementwise_unequal_broadcasts_per_pair() {
+        use super::compare_list_broadcast;
+        use athena_ir::SemanticOperator;
+
+        let mut s = Session::new();
+        let i1 = push_int(&mut s, 1);
+        let i2 = push_int(&mut s, 2);
+        let i3 = push_int(&mut s, 3);
+        let a = push_list(&mut s, vec![i1, i2]);
+        let b = push_list(&mut s, vec![i1, i3]);
+        let pick = |o: std::cmp::Ordering| o != std::cmp::Ordering::Equal;
+        let out = compare_list_broadcast(&mut s, SemanticOperator::Unequal, a, b, pick).expect("broadcast").expect("list");
+        let items = match s.arena.get(out) {
+            Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+            _ => panic!("expected boolean list"),
+        };
+        assert_eq!(items.len(), 2);
+        assert!(matches!(s.arena.get(items[0]), Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false)))));
+        assert!(matches!(s.arena.get(items[1]), Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true)))));
+    }
 }
 
 /// 两棵集合 term 是否逐元素结构相等（`===` 列表语义，非逐元素广播）。
