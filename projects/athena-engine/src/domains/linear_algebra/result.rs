@@ -165,6 +165,103 @@ pub fn execute_linear_algebra(request: LinearAlgebraRequest, store: &MatrixObjec
     execute_linear_algebra_with_bindings(request, store, &|_| None)
 }
 
+use super::operand::MatrixOperand;
+
+fn resolve_matrix_operand(session: &mut crate::runtime::Session, op: MatrixOperand) -> MatrixOperand {
+    match op {
+        MatrixOperand::Object(_) => op,
+        MatrixOperand::Binding(symbol) => {
+            if let Some(matrix_ref) = session.defs.matrix_binding(symbol) {
+                return MatrixOperand::Object(matrix_ref);
+            }
+            let Some(term) = session.defs.binding(symbol) else {
+                return MatrixOperand::Binding(symbol);
+            };
+            use crate::execution::reference::{term_to_exact_matrix_session, term_to_rational_matrix_session};
+            let Some(matrix) = term_to_exact_matrix_session(session, term).or_else(|| term_to_rational_matrix_session(session, term))
+            else {
+                return MatrixOperand::Binding(symbol);
+            };
+            MatrixOperand::Object(session.matrix_objects.intern(matrix))
+        }
+    }
+}
+
+/// Living 16: resolve `Define` numeric `Collection` Own values to ephemeral [`MatrixRef`] for LA goals.
+pub(crate) fn resolve_own_numeric_bindings(session: &mut crate::runtime::Session, request: LinearAlgebraRequest) -> LinearAlgebraRequest {
+    match request {
+        LinearAlgebraRequest::Transpose { matrix } => LinearAlgebraRequest::Transpose { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::ConjugateTranspose { matrix } => {
+            LinearAlgebraRequest::ConjugateTranspose { matrix: resolve_matrix_operand(session, matrix) }
+        }
+        LinearAlgebraRequest::Index { matrix, row, col } => LinearAlgebraRequest::Index { matrix, row, col },
+        LinearAlgebraRequest::MatMul { lhs, rhs } => LinearAlgebraRequest::MatMul {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::Hadamard { lhs, rhs } => LinearAlgebraRequest::Hadamard {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::ElementwiseDivide { lhs, rhs } => LinearAlgebraRequest::ElementwiseDivide {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::ElementwisePower { lhs, rhs } => LinearAlgebraRequest::ElementwisePower {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::Rank { matrix } => LinearAlgebraRequest::Rank { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Det { matrix } => LinearAlgebraRequest::Det { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Rref { matrix } => LinearAlgebraRequest::Rref { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Solve { a, b } => LinearAlgebraRequest::Solve {
+            a: resolve_matrix_operand(session, a),
+            b: resolve_matrix_operand(session, b),
+        },
+        LinearAlgebraRequest::RightSolve { a, b } => LinearAlgebraRequest::RightSolve {
+            a: resolve_matrix_operand(session, a),
+            b: resolve_matrix_operand(session, b),
+        },
+        LinearAlgebraRequest::Inverse { matrix } => LinearAlgebraRequest::Inverse { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Trace { matrix } => LinearAlgebraRequest::Trace { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Dot { lhs, rhs } => LinearAlgebraRequest::Dot {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::Cross { lhs, rhs } => LinearAlgebraRequest::Cross {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::NullSpace { matrix, column_basis } => LinearAlgebraRequest::NullSpace {
+            matrix: resolve_matrix_operand(session, matrix),
+            column_basis,
+        },
+        LinearAlgebraRequest::Norm { matrix } => LinearAlgebraRequest::Norm { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::ConditionNumber { matrix } => {
+            LinearAlgebraRequest::ConditionNumber { matrix: resolve_matrix_operand(session, matrix) }
+        }
+        LinearAlgebraRequest::Tril { matrix } => LinearAlgebraRequest::Tril { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Triu { matrix } => LinearAlgebraRequest::Triu { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Kronecker { lhs, rhs } => LinearAlgebraRequest::Kronecker {
+            lhs: resolve_matrix_operand(session, lhs),
+            rhs: resolve_matrix_operand(session, rhs),
+        },
+        LinearAlgebraRequest::IsDiagonal { matrix } => LinearAlgebraRequest::IsDiagonal { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::IsTriangular { matrix, lower } => LinearAlgebraRequest::IsTriangular {
+            matrix: resolve_matrix_operand(session, matrix),
+            lower,
+        },
+        LinearAlgebraRequest::IsSymmetric { matrix } => LinearAlgebraRequest::IsSymmetric { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Reshape { matrix, rows, cols, order } => LinearAlgebraRequest::Reshape {
+            matrix: resolve_matrix_operand(session, matrix),
+            rows,
+            cols,
+            order,
+        },
+        LinearAlgebraRequest::NumElements { matrix } => LinearAlgebraRequest::NumElements { matrix: resolve_matrix_operand(session, matrix) },
+    }
+}
+
 /// 执行线性代数请求，并允许 [`MatrixOperand::Binding`] 经定义层解析。
 pub fn execute_linear_algebra_with_bindings(
     request: LinearAlgebraRequest,

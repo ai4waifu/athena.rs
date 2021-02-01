@@ -47,6 +47,7 @@ pub use result::{
     DEFAULT_PIVOT_THRESHOLD, LinearAlgebraResult, LinearAlgebraValue, execute_linear_algebra, execute_linear_algebra_with_bindings,
     operation_name,
 };
+pub(crate) use result::resolve_own_numeric_bindings;
 pub use shape::{Layout, MatrixShape, StorageOrder};
 pub use status::{AlgorithmGuarantee, MachineSolveWitness, SolveDisposition};
 pub use value::{MatrixBuffer, MatrixEntry, MatrixValue};
