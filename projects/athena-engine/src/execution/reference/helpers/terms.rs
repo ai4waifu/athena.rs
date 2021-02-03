@@ -686,6 +686,22 @@ pub(crate) fn complex_exact_to_term_session(session: &mut Session, re: &Rational
     }
 }
 
+/// Mathematica `First` / `Flatten` / `Rest` 等结构运算：`1×n` → 平坦行向量，`m×n` → 嵌套行。
+pub(crate) fn matrix_to_mathematica_structure_term(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
+    let (rows, cols) = (m.shape().rows, m.shape().cols);
+    if rows == 1 && cols == 1 {
+        return matrix_entry_to_term_session(session, m, 0, 0);
+    }
+    if rows == 1 {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            row.push(matrix_entry_to_term_session(session, m, 0, j)?);
+        }
+        return Ok(push_list(session, row));
+    }
+    matrix_to_nested_list_session(session, m)
+}
+
 pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
     // Domain 矩阵结果（含 NullSpace 行基、Inverse、Rref）一律嵌套行 List。
     // 1×n 不得压成平坦 List，否则 `NullSpace` 单基向量会丢外层 `{{…}}`。
