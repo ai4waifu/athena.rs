@@ -168,6 +168,8 @@ pub enum SemanticOperator {
     Not,
     /// 真值查询。
     TrueQ,
+    /// 偶数谓词（方言 `EvenQ`；精确整数）。
+    EvenQ,
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
@@ -225,6 +227,10 @@ pub enum SemanticOperator {
     Position,
     /// 下标数组构造（方言 `Array`；`Array[f, n]` → `{f[1],…,f[n]}`）。
     Array,
+    /// 谓词过滤（方言 `Select`；当前支持 bare `EvenQ` head）。
+    Select,
+    /// 列表卷积（方言 `ListConvolve`；默认无 overhang）。
+    ListConvolve,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -253,6 +259,8 @@ pub enum SemanticOperator {
     MapThread,
     /// 在指定下标应用函数（方言 `MapAt`；`f[list[[i]]]` 替换 `list[[i]]`）。
     MapAt,
+    /// 全深度 map（方言 `MapAll`）。
+    MapAll,
     /// 零矩阵 / 数组构造。
     Zeros,
     /// 全一阵 / 数组构造。
@@ -369,6 +377,7 @@ impl SemanticOperator {
             Self::Or => 18,
             Self::Not => 19,
             Self::TrueQ => 20,
+            Self::EvenQ => 259,
             Self::Abs => 21,
             Self::Length => 22,
             Self::First => 23,
@@ -396,6 +405,8 @@ impl SemanticOperator {
             Self::Riffle => 250,
             Self::Position => 251,
             Self::Array => 252,
+            Self::Select => 260,
+            Self::ListConvolve => 261,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -410,6 +421,7 @@ impl SemanticOperator {
             Self::MapIndexed => 228,
             Self::MapThread => 229,
             Self::MapAt => 258,
+            Self::MapAll => 262,
             Self::Zeros => 36,
             Self::Ones => 37,
             Self::Eye => 38,
@@ -484,6 +496,7 @@ impl SemanticOperator {
             18 => Some(Self::Or),
             19 => Some(Self::Not),
             20 => Some(Self::TrueQ),
+            259 => Some(Self::EvenQ),
             21 => Some(Self::Abs),
             22 => Some(Self::Length),
             23 => Some(Self::First),
@@ -511,6 +524,8 @@ impl SemanticOperator {
             250 => Some(Self::Riffle),
             251 => Some(Self::Position),
             252 => Some(Self::Array),
+            260 => Some(Self::Select),
+            261 => Some(Self::ListConvolve),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -525,6 +540,7 @@ impl SemanticOperator {
             228 => Some(Self::MapIndexed),
             229 => Some(Self::MapThread),
             258 => Some(Self::MapAt),
+            262 => Some(Self::MapAll),
             36 => Some(Self::Zeros),
             37 => Some(Self::Ones),
             38 => Some(Self::Eye),
@@ -602,6 +618,7 @@ impl SemanticOperator {
             Self::Or => "Or",
             Self::Not => "Not",
             Self::TrueQ => "TrueQ",
+            Self::EvenQ => "EvenQ",
             Self::Abs => "Abs",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
@@ -630,6 +647,8 @@ impl SemanticOperator {
             Self::Riffle => "Riffle",
             Self::Position => "Position",
             Self::Array => "Array",
+            Self::Select => "Select",
+            Self::ListConvolve => "ListConvolve",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
@@ -644,6 +663,7 @@ impl SemanticOperator {
             Self::MapIndexed => "MapIndexed",
             Self::MapThread => "MapThread",
             Self::MapAt => "MapAt",
+            Self::MapAll => "MapAll",
             Self::Zeros => "Zeros",
             Self::Ones => "Ones",
             Self::Eye => "Eye",

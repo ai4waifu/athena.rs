@@ -56,14 +56,18 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
             || matches!(
                 operator,
                 SemanticOperator::Apply
-                    | SemanticOperator::Map
+                    |                 SemanticOperator::Map
                     | SemanticOperator::MapIndexed
                     | SemanticOperator::MapThread
                     | SemanticOperator::MapAt
+                    | SemanticOperator::MapAll
                     // `Array` first arg is an operator value (`f` / 0-ary head), same capture as `Map`.
                     | SemanticOperator::Array
             ))
     {
+        return ArgumentEvaluationKind::CaptureAsTerm;
+    }
+    if index == 1 && matches!(operator, SemanticOperator::Select) && arg_count >= 2 {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
     if index == 1 && matches!(operator, SemanticOperator::CollectMatches | SemanticOperator::Matches) && arg_count >= 2 {

@@ -337,6 +337,88 @@ pub(crate) fn evaluate_free_q_terms(session: &mut Session, list: TermId, elem: T
     }
 }
 
+fn bare_even_q_head(session: &Session, pred: TermId) -> bool {
+    matches!(
+        session.arena.get(pred),
+        Some(athena_ir::TermNode::Application {
+            head: athena_ir::ApplicationHead::Semantic(SemanticOperator::EvenQ),
+            arguments,
+        }) if arguments.is_empty()
+    )
+}
+
+/// `EvenQ[n]` — 精确整数偶性测试。
+pub(crate) fn evaluate_even_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    if let Some(n) = number_of(session, arg).and_then(|v| v.as_exact_integer()) {
+        return Ok(push_bool(session, n % 2 == 0));
+    }
+    Ok(push_semantic(session, SemanticOperator::EvenQ, vec![arg]))
+}
+
+/// `Select[list, EvenQ]` — bare `EvenQ` head filters exact-integer lists.
+pub(crate) fn evaluate_select_terms(session: &mut Session, list: TermId, pred: TermId) -> Result<TermId> {
+    if !bare_even_q_head(session, pred) {
+        return Ok(push_semantic(session, SemanticOperator::Select, vec![list, pred]));
+    }
+    let Some(items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Select, vec![list, pred]));
+    };
+    let mut out = Vec::new();
+    for item in items {
+        let Some(n) = number_of(session, item).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Select, vec![list, pred]));
+        };
+        if n % 2 == 0 {
+            out.push(item);
+        }
+    }
+    Ok(push_list(session, out))
+}
+
+/// `ListConvolve[ker, list]` — default no-overhang convolution on exact integers.
+pub(crate) fn evaluate_list_convolve_terms(session: &mut Session, ker: TermId, list: TermId) -> Result<TermId> {
+    let Some(ker_items) = collection_elements(session, ker)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::ListConvolve, vec![ker, list]));
+    };
+    let Some(list_items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::ListConvolve, vec![ker, list]));
+    };
+    if ker_items.is_empty() || list_items.is_empty() || ker_items.len() > list_items.len() {
+        return Ok(push_semantic(session, SemanticOperator::ListConvolve, vec![ker, list]));
+    }
+    let mut ker_vals = Vec::with_capacity(ker_items.len());
+    for item in &ker_items {
+        let Some(n) = number_of(session, *item).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(push_semantic(session, SemanticOperator::ListConvolve, vec![ker, list]));
+        };
+        ker_vals.push(n);
+    }
+    let mut list_vals = Vec::with_capacity(list_items.len());
+    for item in &list_items {
+        let Some(n) = number_of(session, *item).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(push_semantic(session, SemanticOperator::ListConvolve, vec![ker, list]));
+        };
+        list_vals.push(n);
+    }
+    let out_len = list_vals.len() - ker_vals.len() + 1;
+    let mut out = Vec::with_capacity(out_len);
+    for i in 0..out_len {
+        let mut sum = 0i64;
+        for (j, k) in ker_vals.iter().enumerate() {
+            sum += k * list_vals[i + j];
+        }
+        out.push(session.builder().int(sum, Default::default()));
+    }
+    Ok(push_list(session, out))
+}
+
 /// `Extract[list, n]` — 1-based 整数下标提取。
 pub(crate) fn evaluate_extract_terms(session: &mut Session, list: TermId, index: TermId) -> Result<TermId> {
     let Some(n) = number_of(session, index).and_then(|v| v.as_exact_integer())
