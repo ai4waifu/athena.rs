@@ -170,6 +170,12 @@ pub enum SemanticOperator {
     TrueQ,
     /// 偶数谓词（方言 `EvenQ`；精确整数）。
     EvenQ,
+    /// 整数谓词（方言 `IntegerQ`；精确整数 / 整数有理数）。
+    IntegerQ,
+    /// 原子谓词（方言 `AtomQ`；非复合项）。
+    AtomQ,
+    /// 列表谓词（方言 `ListQ`；有序 `Collection`）。
+    ListQ,
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
@@ -378,6 +384,9 @@ impl SemanticOperator {
             Self::Not => 19,
             Self::TrueQ => 20,
             Self::EvenQ => 259,
+            Self::IntegerQ => 263,
+            Self::AtomQ => 264,
+            Self::ListQ => 265,
             Self::Abs => 21,
             Self::Length => 22,
             Self::First => 23,
@@ -497,6 +506,9 @@ impl SemanticOperator {
             19 => Some(Self::Not),
             20 => Some(Self::TrueQ),
             259 => Some(Self::EvenQ),
+            263 => Some(Self::IntegerQ),
+            264 => Some(Self::AtomQ),
+            265 => Some(Self::ListQ),
             21 => Some(Self::Abs),
             22 => Some(Self::Length),
             23 => Some(Self::First),
@@ -619,6 +631,9 @@ impl SemanticOperator {
             Self::Not => "Not",
             Self::TrueQ => "TrueQ",
             Self::EvenQ => "EvenQ",
+            Self::IntegerQ => "IntegerQ",
+            Self::AtomQ => "AtomQ",
+            Self::ListQ => "ListQ",
             Self::Abs => "Abs",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",

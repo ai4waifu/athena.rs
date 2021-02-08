@@ -27,7 +27,7 @@ use crate::{
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
-            evaluate_even_q_terms, evaluate_select_terms, evaluate_list_convolve_terms,
+            evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_select_terms, evaluate_list_convolve_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
@@ -1631,6 +1631,33 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_integer_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::IntegerQ.discriminant())));
+        }
+        let arg = self.slot_as_term(args[0])?;
+        let term = evaluate_integer_q_terms(self.session, arg)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_atom_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::AtomQ.discriminant())));
+        }
+        let arg = self.slot_as_term(args[0])?;
+        let term = evaluate_atom_q_terms(self.session, arg)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_list_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ListQ.discriminant())));
+        }
+        let arg = self.slot_as_term(args[0])?;
+        let term = evaluate_list_q_terms(self.session, arg)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     fn apply_select(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Select.discriminant())));
@@ -2946,6 +2973,15 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::EvenQ.discriminant() {
             return self.apply_even_q(args);
+        }
+        if op.0 == SemanticOperator::IntegerQ.discriminant() {
+            return self.apply_integer_q(args);
+        }
+        if op.0 == SemanticOperator::AtomQ.discriminant() {
+            return self.apply_atom_q(args);
+        }
+        if op.0 == SemanticOperator::ListQ.discriminant() {
+            return self.apply_list_q(args);
         }
         if op.0 == SemanticOperator::And.discriminant() {
             return self.apply_logical(SemanticOperator::And, args);

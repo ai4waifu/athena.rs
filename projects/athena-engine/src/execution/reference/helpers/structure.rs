@@ -356,6 +356,36 @@ pub(crate) fn evaluate_even_q_terms(session: &mut Session, arg: TermId) -> Resul
     Ok(push_semantic(session, SemanticOperator::EvenQ, vec![arg]))
 }
 
+/// `IntegerQ[x]` — 精确整数或有理整数。
+pub(crate) fn evaluate_integer_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    if let Some(num) = number_of(session, arg) {
+        let is_int = num.as_exact_integer().is_some()
+            || num.as_integer().is_some()
+            || num.as_rational().is_some_and(|r| r.is_integer());
+        return Ok(push_bool(session, is_int));
+    }
+    Ok(push_semantic(session, SemanticOperator::IntegerQ, vec![arg]))
+}
+
+/// `AtomQ[expr]` — 非复合项（原子 / 符号 / 数 / Boolean）。
+pub(crate) fn evaluate_atom_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    let atom = matches!(session.arena.get(arg), Some(athena_ir::TermNode::Atom(_)));
+    Ok(push_bool(session, atom))
+}
+
+/// `ListQ[expr]` — 有序 `Collection`（方言 List）。
+pub(crate) fn evaluate_list_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_types::CollectionKind;
+    use crate::runtime::values::arena::push_bool;
+    let list = matches!(
+        session.arena.get(arg),
+        Some(athena_ir::TermNode::Collection { kind: CollectionKind::OrderedCollection, .. })
+    );
+    Ok(push_bool(session, list))
+}
+
 /// `Select[list, EvenQ]` — bare `EvenQ` head filters exact-integer lists.
 pub(crate) fn evaluate_select_terms(session: &mut Session, list: TermId, pred: TermId) -> Result<TermId> {
     if !bare_even_q_head(session, pred) {
