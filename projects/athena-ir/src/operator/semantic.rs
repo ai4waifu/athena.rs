@@ -176,6 +176,12 @@ pub enum SemanticOperator {
     AtomQ,
     /// 列表谓词（方言 `ListQ`；有序 `Collection`）。
     ListQ,
+    /// 数值谓词（方言 `NumericQ`；数字原子）。
+    NumericQ,
+    /// 数谓词（方言 `NumberQ`；数字原子）。
+    NumberQ,
+    /// 可能为零谓词（方言 `PossibleZeroQ`；数字零测试）。
+    PossibleZeroQ,
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
@@ -387,6 +393,9 @@ impl SemanticOperator {
             Self::IntegerQ => 263,
             Self::AtomQ => 264,
             Self::ListQ => 265,
+            Self::NumericQ => 266,
+            Self::NumberQ => 267,
+            Self::PossibleZeroQ => 268,
             Self::Abs => 21,
             Self::Length => 22,
             Self::First => 23,
@@ -509,6 +518,9 @@ impl SemanticOperator {
             263 => Some(Self::IntegerQ),
             264 => Some(Self::AtomQ),
             265 => Some(Self::ListQ),
+            266 => Some(Self::NumericQ),
+            267 => Some(Self::NumberQ),
+            268 => Some(Self::PossibleZeroQ),
             21 => Some(Self::Abs),
             22 => Some(Self::Length),
             23 => Some(Self::First),
@@ -634,6 +646,9 @@ impl SemanticOperator {
             Self::IntegerQ => "IntegerQ",
             Self::AtomQ => "AtomQ",
             Self::ListQ => "ListQ",
+            Self::NumericQ => "NumericQ",
+            Self::NumberQ => "NumberQ",
+            Self::PossibleZeroQ => "PossibleZeroQ",
             Self::Abs => "Abs",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
