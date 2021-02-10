@@ -182,6 +182,16 @@ pub enum SemanticOperator {
     NumberQ,
     /// 可能为零谓词（方言 `PossibleZeroQ`；数字零测试）。
     PossibleZeroQ,
+    /// 字符串谓词（方言 `StringQ`；`Atom::String`）。
+    StringQ,
+    /// 正数谓词（方言 `Positive`；数字 `> 0`）。
+    Positive,
+    /// 向量谓词（方言 `VectorQ`；平坦有序 `Collection`）。
+    VectorQ,
+    /// 矩阵谓词（方言 `MatrixQ`；矩形嵌套行 `Collection`）。
+    MatrixQ,
+    /// 布尔谓词（方言 `BooleanQ`；`Atom::Boolean`）。
+    BooleanQ,
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
@@ -396,6 +406,11 @@ impl SemanticOperator {
             Self::NumericQ => 266,
             Self::NumberQ => 267,
             Self::PossibleZeroQ => 268,
+            Self::StringQ => 269,
+            Self::Positive => 270,
+            Self::VectorQ => 271,
+            Self::MatrixQ => 272,
+            Self::BooleanQ => 273,
             Self::Abs => 21,
             Self::Length => 22,
             Self::First => 23,
@@ -521,6 +536,11 @@ impl SemanticOperator {
             266 => Some(Self::NumericQ),
             267 => Some(Self::NumberQ),
             268 => Some(Self::PossibleZeroQ),
+            269 => Some(Self::StringQ),
+            270 => Some(Self::Positive),
+            271 => Some(Self::VectorQ),
+            272 => Some(Self::MatrixQ),
+            273 => Some(Self::BooleanQ),
             21 => Some(Self::Abs),
             22 => Some(Self::Length),
             23 => Some(Self::First),
@@ -649,6 +669,11 @@ impl SemanticOperator {
             Self::NumericQ => "NumericQ",
             Self::NumberQ => "NumberQ",
             Self::PossibleZeroQ => "PossibleZeroQ",
+            Self::StringQ => "StringQ",
+            Self::Positive => "Positive",
+            Self::VectorQ => "VectorQ",
+            Self::MatrixQ => "MatrixQ",
+            Self::BooleanQ => "BooleanQ",
             Self::Abs => "Abs",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
