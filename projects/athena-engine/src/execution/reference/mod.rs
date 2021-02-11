@@ -18,7 +18,7 @@ pub(crate) use self::helpers::{
     evaluate_prepend_terms, evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
     evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
     evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
-    evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_select_terms, evaluate_list_convolve_terms,
+    evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_member_of_terms, evaluate_select_terms, evaluate_list_convolve_terms,
     evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
     evaluate_unary_term, slot_as_boolean_like, collection_structural_equal, compare_list_broadcast, store_index_axes, store_index_axes_matrix,
     domain_request_residual_term, linear_algebra_missing_binding, symbolic_term_from_value_id, parse_matrix_dims,
