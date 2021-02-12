@@ -139,6 +139,12 @@ fn comparisons_and_logic() {
     assert_eq!(d, r, "digits vs reverse");
     let e = sem(SemanticOperator::Identical, vec![digits, rev], &mut s);
     assert_eq!(eval(&mut s, e), "True");
+    let e = sem(SemanticOperator::Unidentical, vec![int(1, &mut s), int(2, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "True");
+    let e = sem(SemanticOperator::Unidentical, vec![int(1, &mut s), int(1, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "False");
+    let e = sem(SemanticOperator::LessEqual, vec![int(1, &mut s), int(2, &mut s), int(3, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "True");
     // 比较链：1 < 2 < 3（嵌套未求值形式）
     let nested = sem(SemanticOperator::Less, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let e = sem(SemanticOperator::Less, vec![nested, int(3, &mut s)], &mut s);

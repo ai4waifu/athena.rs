@@ -567,6 +567,7 @@ impl ExecutionCompiler {
                             | SemanticOperator::Or
                             | SemanticOperator::TrueQ
                             | SemanticOperator::Identical
+                            | SemanticOperator::Unidentical
                             | SemanticOperator::Equal
                             | SemanticOperator::Unequal
                             | SemanticOperator::Less
@@ -742,6 +743,7 @@ fn term_yields_boolean_ssa(session: &Session, term: TermId) -> bool {
                 | SemanticOperator::Or
                 | SemanticOperator::TrueQ
                 | SemanticOperator::Identical
+                | SemanticOperator::Unidentical
                 | SemanticOperator::Equal
                 | SemanticOperator::Unequal
                 | SemanticOperator::Less
