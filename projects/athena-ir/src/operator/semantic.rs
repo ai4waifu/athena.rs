@@ -249,6 +249,8 @@ pub enum SemanticOperator {
     Riffle,
     /// 位置收集（方言 `Position`；顶层 1-based）。
     Position,
+    /// 最近邻（方言 `Nearest`；精确整数列表上的最小距离元素，保留并列）。
+    Nearest,
     /// 下标数组构造（方言 `Array`；`Array[f, n]` → `{f[1],…,f[n]}`）。
     Array,
     /// 谓词过滤（方言 `Select`；当前支持 bare `EvenQ` head）。
@@ -440,6 +442,7 @@ impl SemanticOperator {
             Self::PadLeft => 249,
             Self::Riffle => 250,
             Self::Position => 251,
+            Self::Nearest => 275,
             Self::Array => 252,
             Self::Select => 260,
             Self::ListConvolve => 261,
@@ -571,6 +574,7 @@ impl SemanticOperator {
             249 => Some(Self::PadLeft),
             250 => Some(Self::Riffle),
             251 => Some(Self::Position),
+            275 => Some(Self::Nearest),
             252 => Some(Self::Array),
             260 => Some(Self::Select),
             261 => Some(Self::ListConvolve),
@@ -706,6 +710,7 @@ impl SemanticOperator {
             Self::PadLeft => "PadLeft",
             Self::Riffle => "Riffle",
             Self::Position => "Position",
+            Self::Nearest => "Nearest",
             Self::Array => "Array",
             Self::Select => "Select",
             Self::ListConvolve => "ListConvolve",

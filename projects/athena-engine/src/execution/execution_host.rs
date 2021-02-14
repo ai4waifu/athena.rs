@@ -25,7 +25,7 @@ use crate::{
             evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_at_terms, evaluate_map_all_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
-            evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
+            evaluate_count_terms, evaluate_nearest_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
             evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_member_of_terms, evaluate_select_terms, evaluate_list_convolve_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
@@ -1084,6 +1084,16 @@ impl<'a> ExecutionHost<'a> {
         let matrix_ref = self.session.matrix_objects.intern(deduped);
         let value_id = self.session.insert_matrix_value(matrix_ref);
         Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+    }
+
+    fn apply_nearest(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Nearest.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let target = self.slot_as_term(args[1])?;
+        let term = evaluate_nearest_terms(self.session, list, target)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
     fn apply_count(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -3219,6 +3229,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Count.discriminant() {
             return self.apply_count(args);
+        }
+        if op.0 == SemanticOperator::Nearest.discriminant() {
+            return self.apply_nearest(args);
         }
         if op.0 == SemanticOperator::Partition.discriminant() {
             return self.apply_partition(args);
