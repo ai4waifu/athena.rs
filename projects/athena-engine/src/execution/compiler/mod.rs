@@ -10,10 +10,13 @@ use athena_vm::MAX_HOST_ARGS;
 
 use crate::{
     api::request::{AthenaRequest, ControlPlan, SessionCommand},
-    execution::ir::{
-        BasicBlock, BlockEdge, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken,
-        ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind, ProviderCallDescriptor, ProviderCallId, Region,
-        RegionId, SsaValueId, Terminator, verify_module,
+    execution::{
+        ir::{
+            BasicBlock, BlockEdge, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind, EffectToken,
+            ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind, ProviderCallDescriptor, ProviderCallId, Region,
+            RegionId, SsaValueId, Terminator, verify_module,
+        },
+        push_semantic,
     },
     runtime::session::Session,
 };
@@ -42,7 +45,7 @@ pub use stages::{
 };
 
 use builder::ModuleBuilder;
-use helpers::{collect_compare_chain_args, flatten_compare_chain_args};
+use helpers::{flatten_compare_chain_args, flatten_mixed_compare_chain};
 
 impl ExecutionCompiler {
     /// 创建编译器实例。
@@ -551,6 +554,23 @@ impl ExecutionCompiler {
                 let arguments = arguments.clone();
                 match head {
                     ApplicationHead::Semantic(op) => {
+                        if matches!(
+                            op,
+                            SemanticOperator::Less
+                                | SemanticOperator::Greater
+                                | SemanticOperator::LessEqual
+                                | SemanticOperator::GreaterEqual
+                        ) {
+                            if let Some((values, ops)) = flatten_mixed_compare_chain(session, term) {
+                                let conjuncts: Vec<TermId> = ops
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(index, relop)| push_semantic(session, *relop, vec![values[index], values[index + 1]]))
+                                    .collect();
+                                let and_term = push_semantic(session, SemanticOperator::And, conjuncts);
+                                return self.lower_pure_expr(session, builder, operations, and_term);
+                            }
+                        }
                         let compare_args = if matches!(
                             op,
                             SemanticOperator::Less | SemanticOperator::Greater | SemanticOperator::LessEqual | SemanticOperator::GreaterEqual
