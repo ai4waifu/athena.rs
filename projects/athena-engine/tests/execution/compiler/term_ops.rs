@@ -110,8 +110,28 @@ fn compile_and_execute_abs_and_length() {
         Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(2) => {}
         other => panic!("expected Length[OrderedCollection[1,2]] == 2, got {other:?}"),
     }
+}
 
-    // Living 16: scalar atoms must not be interned as 1×1 matrices for Length.
+#[test]
+fn compile_and_execute_sign_exact() {
+    use athena_ir::UnaryFunction;
+    let mut session = Session::new();
+    for (input, expected) in [(-3i64, -1i64), (0, 0), (5, 1)] {
+        let n = session.builder().int(input, Default::default());
+        let sign = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::Sign));
+        let term = session.builder().application(sign, vec![n], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sign");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected Sign[{input}] == {expected}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn compile_and_execute_length_scalar_not_matrix() {
+    let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
     let length_atom = session
         .builder()

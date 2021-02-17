@@ -57,14 +57,30 @@ pub(crate) fn evaluate_special_unary_terms(session: &mut Session, op: SemanticOp
     Ok(push_semantic(session, op, terms))
 }
 
-/// Exact kernel specials: `Exp[0]→1`, `Log[1]→0` (and machine equivalents already covered below).
+/// Exact kernel specials: `Exp[0]→1`, `Log[1]→0`, `Sign` on exact numbers (and machine reals).
 fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg: TermId) -> Option<TermId> {
     let n = number_of(session, arg)?;
     match function {
         UnaryFunction::Exp if n.is_zero() => Some(session.builder().int(1, Default::default())),
         UnaryFunction::Log if n.is_one() => Some(session.builder().int(0, Default::default())),
+        UnaryFunction::Sign => exact_sign(session, &clone_number(n)),
         _ => None,
     }
+}
+
+fn exact_sign(session: &mut Session, n: &athena_numeric::Number) -> Option<TermId> {
+    use athena_numeric::compare as num_compare;
+    if n.is_zero() {
+        return Some(session.builder().int(0, Default::default()));
+    }
+    let zero = athena_numeric::Number::small_int(0);
+    let ord = num_compare(n, &zero)?;
+    let sign = match ord {
+        core::cmp::Ordering::Less => -1,
+        core::cmp::Ordering::Greater => 1,
+        core::cmp::Ordering::Equal => 0,
+    };
+    Some(session.builder().int(sign, Default::default()))
 }
 
 fn is_sem(head: ApplicationHead, op: SemanticOperator) -> bool {
