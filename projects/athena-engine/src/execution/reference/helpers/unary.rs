@@ -1,7 +1,7 @@
 //! 一元结构 / 数值算子求值（Reference 与 `ExecutionHost` 共用）。
 
 use athena_ir::SemanticOperator;
-use athena_numeric::{abs as num_abs, factorial as num_factorial, sqrt as num_sqrt};
+use athena_numeric::{abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, Integer, Number, Rational, Real};
 use athena_types::{Result, TermId};
 
 use super::diag;
@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-/// 一元 `Abs` / `Factorial` / `Sqrt` / `Length` / `First` / `Rest` / `Most` / `Reverse` / `Flatten` / `Head`。
+/// 一元 `Abs` / `Factorial` / `Sqrt` / `Floor` / `Length` / `First` / `Rest` / `Most` / `Reverse` / `Flatten` / `Head`。
 pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, term: TermId) -> Result<TermId> {
     match op {
         SemanticOperator::Abs => {
@@ -26,6 +26,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             else {
                 Ok(push_semantic(session, SemanticOperator::Abs, vec![term]))
             }
+        }
+        SemanticOperator::Floor => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(floored) = exact_floor(&clone_number(n)) {
+                    return Ok(push_number(session, floored));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Floor, vec![term]))
         }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
@@ -152,6 +160,39 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
         },
         _ => Err(diag("semantic_operator_not_implemented")),
     }
+}
+
+fn exact_floor(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) => n.clone_inline(),
+        Number::Rational(r) => Some(floor_rational(r)),
+        Number::Real(Real::Machine(x)) => {
+            let y = x.floor();
+            if !y.is_finite() {
+                return None;
+            }
+            if y.fract() == 0.0 && y.abs() <= i64::MAX as f64 {
+                Some(Number::small_int(y as i64))
+            }
+            else {
+                Some(Number::machine(y))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn floor_rational(r: &Rational) -> Number {
+    if r.is_integer() {
+        return Number::Integer(r.numerator());
+    }
+    let numer = r.numerator();
+    let denom = r.denominator();
+    let (mut q, rem) = numer.div_rem_trunc(&denom).expect("rational denom non-zero");
+    if !rem.is_zero() && q.is_negative() {
+        q = q.sub(&Integer::one());
+    }
+    Number::Integer(q)
 }
 
 /// 递归展平有序集合元素（叶子非集合保留原样）。
