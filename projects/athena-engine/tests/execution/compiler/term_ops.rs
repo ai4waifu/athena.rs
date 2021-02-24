@@ -154,6 +154,33 @@ fn compile_and_execute_floor_exact() {
 }
 
 #[test]
+fn compile_and_execute_ceiling_exact() {
+    let mut session = Session::new();
+    let cases: Vec<(TermId, i64)> = vec![
+        (session.builder().int(5, Default::default()), 5),
+        (session.builder().number(Number::machine(2.1), Default::default()), 3),
+        (
+            session.builder().number(Number::rational_i64(5, 2).expect("rational"), Default::default()),
+            3,
+        ),
+        (
+            session.builder().number(Number::rational_i64(-5, 2).expect("rational"), Default::default()),
+            -2,
+        ),
+    ];
+    for (arg, expected) in cases {
+        let ceiling = ApplicationHead::Semantic(SemanticOperator::Ceiling);
+        let term = session.builder().application(ceiling, vec![arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("ceiling");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected Ceiling == {expected}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());

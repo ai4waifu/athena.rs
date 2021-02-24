@@ -35,6 +35,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Ok(push_semantic(session, SemanticOperator::Floor, vec![term]))
         }
+        SemanticOperator::Ceiling => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(ceiled) = exact_ceiling(&clone_number(n)) {
+                    return Ok(push_number(session, ceiled));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Ceiling, vec![term]))
+        }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
                 match num_factorial(n) {
@@ -191,6 +199,39 @@ fn floor_rational(r: &Rational) -> Number {
     let (mut q, rem) = numer.div_rem_trunc(&denom).expect("rational denom non-zero");
     if !rem.is_zero() && q.is_negative() {
         q = q.sub(&Integer::one());
+    }
+    Number::Integer(q)
+}
+
+fn exact_ceiling(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) => n.clone_inline(),
+        Number::Rational(r) => Some(ceiling_rational(r)),
+        Number::Real(Real::Machine(x)) => {
+            let y = x.ceil();
+            if !y.is_finite() {
+                return None;
+            }
+            if y.fract() == 0.0 && y.abs() <= i64::MAX as f64 {
+                Some(Number::small_int(y as i64))
+            }
+            else {
+                Some(Number::machine(y))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn ceiling_rational(r: &Rational) -> Number {
+    if r.is_integer() {
+        return Number::Integer(r.numerator());
+    }
+    let numer = r.numerator();
+    let denom = r.denominator();
+    let (mut q, rem) = numer.div_rem_trunc(&denom).expect("rational denom non-zero");
+    if !rem.is_zero() && numer.is_non_negative() && q.is_non_negative() {
+        q = q.add(&Integer::one());
     }
     Number::Integer(q)
 }
