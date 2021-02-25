@@ -57,14 +57,26 @@ pub(crate) fn evaluate_special_unary_terms(session: &mut Session, op: SemanticOp
     Ok(push_semantic(session, op, terms))
 }
 
-/// Exact kernel specials: `Exp[0]→1`, `Log[1]→0`, `Sign` on exact numbers (and machine reals).
+/// Exact kernel specials: `Exp[0]→1`, `Log[1]→0`, `Log[E]→1`, hyperbolic and inverse trig at zero, `Sign` on exact numbers.
 fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg: TermId) -> Option<TermId> {
-    let n = number_of(session, arg)?;
-    match function {
-        UnaryFunction::Exp if n.is_zero() => Some(session.builder().int(1, Default::default())),
-        UnaryFunction::Log if n.is_one() => Some(session.builder().int(0, Default::default())),
-        UnaryFunction::Sign => exact_sign(session, &clone_number(n)),
-        _ => None,
+    if let Some(n) = number_of(session, arg) {
+        match function {
+            UnaryFunction::Exp if n.is_zero() => Some(session.builder().int(1, Default::default())),
+            UnaryFunction::Log if n.is_one() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::Sign => exact_sign(session, &clone_number(n)),
+            UnaryFunction::ArcSin if n.is_zero() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::Sinh if n.is_zero() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::Cosh if n.is_zero() => Some(session.builder().int(1, Default::default())),
+            _ => None,
+        }
+    }
+    else {
+        match function {
+            UnaryFunction::Log if is_math_constant(session, arg, MathematicalConstant::EulerNumber) => {
+                Some(session.builder().int(1, Default::default()))
+            }
+            _ => None,
+        }
     }
 }
 
