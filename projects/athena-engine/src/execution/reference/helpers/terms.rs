@@ -67,6 +67,7 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
             UnaryFunction::ArcSin if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::Sinh if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::Cosh if n.is_zero() => Some(session.builder().int(1, Default::default())),
+            UnaryFunction::ArcTan if n.is_one() => exact_pi_over(session, 4),
             _ => None,
         }
     }
@@ -78,6 +79,15 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
             _ => None,
         }
     }
+}
+
+fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
+    if denom == 0 {
+        return None;
+    }
+    let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
+    let d = session.builder().int(denom, Default::default());
+    Some(push_semantic(session, SemanticOperator::Divide, vec![pi, d]))
 }
 
 fn exact_sign(session: &mut Session, n: &athena_numeric::Number) -> Option<TermId> {
