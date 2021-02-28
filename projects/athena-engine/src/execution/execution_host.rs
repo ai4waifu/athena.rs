@@ -3188,6 +3188,12 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Round.discriminant() {
             return self.apply_unary(SemanticOperator::Round, args);
         }
+        if op.0 == SemanticOperator::Numerator.discriminant() {
+            return self.apply_unary(SemanticOperator::Numerator, args);
+        }
+        if op.0 == SemanticOperator::Denominator.discriminant() {
+            return self.apply_unary(SemanticOperator::Denominator, args);
+        }
         if op.0 == SemanticOperator::IntegerDigits.discriminant() {
             return self.apply_unary(SemanticOperator::IntegerDigits, args);
         }
