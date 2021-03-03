@@ -1,6 +1,6 @@
 //! Reference 执行器的项 / 矩阵 / 迭代器辅助。
 
-use athena_numeric::{Integer, Number, Rational, to_f64_lossy as num_to_f64_lossy};
+use athena_numeric::{Integer, Number, Rational, factorial as num_factorial, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Result, SymbolId, TermId};
 
 use super::diag;
@@ -77,6 +77,8 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
             UnaryFunction::Cosh if n.is_zero() => Some(session.builder().int(1, Default::default())),
             UnaryFunction::ArcTan if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::ArcTan if n.is_one() => exact_pi_over(session, 4),
+            UnaryFunction::Gamma => exact_gamma(session, &clone_number(n)),
+            UnaryFunction::Erf if n.is_zero() => Some(session.builder().int(0, Default::default())),
             _ => None,
         }
     }
@@ -103,6 +105,32 @@ fn exact_neg_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
     let pi_over = exact_pi_over(session, denom)?;
     let minus_one = session.builder().int(-1, Default::default());
     Some(push_semantic(session, SemanticOperator::Multiply, vec![minus_one, pi_over]))
+}
+
+fn is_exact_half(n: &Number) -> bool {
+    match n {
+        Number::Rational(r) => r.numerator().to_i64() == Some(1) && r.denominator().to_i64() == Some(2),
+        _ => false,
+    }
+}
+
+fn exact_sqrt_pi(session: &mut Session) -> Option<TermId> {
+    let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
+    Some(push_semantic(session, SemanticOperator::Sqrt, vec![pi]))
+}
+
+fn exact_gamma(session: &mut Session, n: &Number) -> Option<TermId> {
+    if is_exact_half(n) {
+        return exact_sqrt_pi(session);
+    }
+    if let Some(i) = n.as_exact_integer() {
+        if i >= 1 {
+            let prev = Number::small_int(i - 1);
+            let fact = num_factorial(&prev).ok()?;
+            return Some(push_number(session, fact));
+        }
+    }
+    None
 }
 
 fn exact_sign(session: &mut Session, n: &athena_numeric::Number) -> Option<TermId> {

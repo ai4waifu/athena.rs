@@ -378,6 +378,61 @@ fn compile_and_execute_numerator_denominator_exact() {
 }
 
 #[test]
+fn compile_and_execute_gamma_erf_unitstep_specials() {
+    use athena_ir::UnaryFunction;
+    let mut session = Session::new();
+
+    let gamma5 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::Gamma));
+    let five = session.builder().int(5, Default::default());
+    let term = session.builder().application(gamma5, vec![five], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("gamma5");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(24) => {}
+        other => panic!("expected Gamma[5] == 24, got {other:?}"),
+    }
+
+    let half = session.builder().number(Number::rational_i64(1, 2).expect("half"), Default::default());
+    let gamma_half = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::Gamma));
+    let term = session.builder().application(gamma_half, vec![half], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("gamma half");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Sqrt),
+            arguments,
+            ..
+        }) if arguments.len() == 1 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(TermNode::Atom(Atom::Constant(MathematicalConstant::Pi)))
+            ));
+        }
+        other => panic!("expected Gamma[1/2] == Sqrt[Pi], got {other:?}"),
+    }
+
+    let erf0 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::Erf));
+    let zero = session.builder().int(0, Default::default());
+    let term = session.builder().application(erf0, vec![zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("erf0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(0) => {}
+        other => panic!("expected Erf[0] == 0, got {other:?}"),
+    }
+
+    let unitstep = ApplicationHead::Semantic(SemanticOperator::UnitStep);
+    let one = session.builder().int(1, Default::default());
+    let term = session.builder().application(unitstep, vec![one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("unitstep");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(1) => {}
+        other => panic!("expected UnitStep[1] == 1, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());

@@ -67,6 +67,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Ok(push_semantic(session, SemanticOperator::Denominator, vec![term]))
         }
+        SemanticOperator::UnitStep => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(step) = exact_unit_step(&clone_number(n)) {
+                    return Ok(push_number(session, step));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::UnitStep, vec![term]))
+        }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
                 match num_factorial(n) {
@@ -311,6 +319,30 @@ fn exact_denominator(n: &Number) -> Option<Number> {
         Number::Rational(r) => Some(Number::Integer(r.denominator())),
         _ => None,
     }
+}
+
+fn exact_unit_step(n: &Number) -> Option<Number> {
+    if n.is_zero() {
+        return Some(Number::small_int(0));
+    }
+    if let Some(i) = n.as_exact_integer() {
+        if i > 0 {
+            return Some(Number::small_int(1));
+        }
+        if i < 0 {
+            return Some(Number::small_int(0));
+        }
+    }
+    if let Some(x) = n.as_machine_f64() {
+        if x > 0.0 {
+            return Some(Number::small_int(1));
+        }
+        if x < 0.0 {
+            return Some(Number::small_int(0));
+        }
+        return Some(Number::small_int(0));
+    }
+    None
 }
 
 fn round_rational(r: &Rational) -> Number {
