@@ -65,9 +65,16 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
             UnaryFunction::Log if n.is_one() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::Sign => exact_sign(session, &clone_number(n)),
             UnaryFunction::ArcSin if n.is_zero() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::ArcSin if n.is_one() => exact_pi_over(session, 2),
+            UnaryFunction::ArcSin if n.is_neg_one() => exact_neg_pi_over(session, 2),
             UnaryFunction::ArcCos if n.is_zero() => exact_pi_over(session, 2),
+            UnaryFunction::ArcCos if n.is_one() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::ArcCos if n.is_neg_one() => {
+                Some(session.builder().constant(MathematicalConstant::Pi, Default::default()))
+            }
             UnaryFunction::Sinh if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::Cosh if n.is_zero() => Some(session.builder().int(1, Default::default())),
+            UnaryFunction::ArcTan if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::ArcTan if n.is_one() => exact_pi_over(session, 4),
             _ => None,
         }
@@ -89,6 +96,12 @@ fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
     let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
     let d = session.builder().int(denom, Default::default());
     Some(push_semantic(session, SemanticOperator::Divide, vec![pi, d]))
+}
+
+fn exact_neg_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
+    let pi_over = exact_pi_over(session, denom)?;
+    let minus_one = session.builder().int(-1, Default::default());
+    Some(push_semantic(session, SemanticOperator::Multiply, vec![minus_one, pi_over]))
 }
 
 fn exact_sign(session: &mut Session, n: &athena_numeric::Number) -> Option<TermId> {
