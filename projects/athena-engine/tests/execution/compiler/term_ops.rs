@@ -433,6 +433,30 @@ fn compile_and_execute_gamma_erf_unitstep_specials() {
 }
 
 #[test]
+fn compile_and_execute_sinc_specials() {
+    let mut session = Session::new();
+
+    let sinc = ApplicationHead::Semantic(SemanticOperator::Sinc);
+    let zero = session.builder().int(0, Default::default());
+    let term = session.builder().application(sinc, vec![zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sinc0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(1) => {}
+        other => panic!("expected Sinc[0] == 1, got {other:?}"),
+    }
+
+    let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
+    let term = session.builder().application(sinc, vec![pi], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sinc pi");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(0) => {}
+        other => panic!("expected Sinc[Pi] == 0, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
