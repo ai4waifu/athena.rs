@@ -209,6 +209,8 @@ pub enum SemanticOperator {
     Denominator,
     /// 归一化 sinc（方言 `Sinc`；`Sin[x]/x` 在零与 Pi 倍数上的精确特化）。
     Sinc,
+    /// 表达式符号列表（方言 `Variables`；去重后按名字母序）。
+    Variables,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -435,6 +437,7 @@ impl SemanticOperator {
             Self::Numerator => 279,
             Self::Denominator => 280,
             Self::Sinc => 281,
+            Self::Variables => 282,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -573,6 +576,7 @@ impl SemanticOperator {
             279 => Some(Self::Numerator),
             280 => Some(Self::Denominator),
             281 => Some(Self::Sinc),
+            282 => Some(Self::Variables),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -714,6 +718,7 @@ impl SemanticOperator {
             Self::Numerator => "Numerator",
             Self::Denominator => "Denominator",
             Self::Sinc => "Sinc",
+            Self::Variables => "Variables",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",

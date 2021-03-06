@@ -1,8 +1,9 @@
 //! 一元结构 / 数值算子求值（Reference 与 `ExecutionHost` 共用）。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_numeric::{abs as num_abs, factorial as num_factorial, sqrt as num_sqrt, Integer, Number, Rational, Real};
 use athena_types::{Result, TermId};
+use std::collections::BTreeSet;
 
 use super::diag;
 use super::terms::exact_sinc;
@@ -81,6 +82,12 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 return Ok(out);
             }
             Ok(push_semantic(session, SemanticOperator::Sinc, vec![term]))
+        }
+        SemanticOperator::Variables => {
+            let mut names = BTreeSet::new();
+            collect_variables_from_term(session, term, &mut names);
+            let items: Vec<TermId> = names.into_iter().map(|name| push_symbol_name(session, &name)).collect();
+            Ok(push_list(session, items))
         }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
@@ -386,6 +393,32 @@ fn round_rational(r: &Rational) -> Number {
                 Number::Integer(q.add(&Integer::one()))
             }
         }
+    }
+}
+
+fn collect_variables_from_term(session: &Session, term: TermId, out: &mut BTreeSet<String>) {
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Symbol(symbol))) => {
+            if let Some(name) = session.arena.symbols().resolve(*symbol) {
+                out.insert(name.to_string());
+            }
+        }
+        Some(TermNode::Collection { elements, .. }) => {
+            for item in elements {
+                collect_variables_from_term(session, *item, out);
+            }
+        }
+        Some(TermNode::Application { head, arguments }) => {
+            if let ApplicationHead::Extension(id) = head {
+                if let Some(name) = session.extensions.display_name(*id) {
+                    out.insert(name.to_string());
+                }
+            }
+            for arg in arguments {
+                collect_variables_from_term(session, *arg, out);
+            }
+        }
+        _ => {}
     }
 }
 
