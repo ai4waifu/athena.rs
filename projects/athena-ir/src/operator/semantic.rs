@@ -211,6 +211,10 @@ pub enum SemanticOperator {
     Sinc,
     /// 表达式符号列表（方言 `Variables`；去重后按名字母序）。
     Variables,
+    /// 多项式系数（方言 `Coefficient`；默认 `var^1` 项系数之和）。
+    Coefficient,
+    /// 多项式次数（方言 `Exponent`；`var` 的最大指数）。
+    Exponent,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -438,6 +442,8 @@ impl SemanticOperator {
             Self::Denominator => 280,
             Self::Sinc => 281,
             Self::Variables => 282,
+            Self::Coefficient => 283,
+            Self::Exponent => 284,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -577,6 +583,8 @@ impl SemanticOperator {
             280 => Some(Self::Denominator),
             281 => Some(Self::Sinc),
             282 => Some(Self::Variables),
+            283 => Some(Self::Coefficient),
+            284 => Some(Self::Exponent),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -719,6 +727,8 @@ impl SemanticOperator {
             Self::Denominator => "Denominator",
             Self::Sinc => "Sinc",
             Self::Variables => "Variables",
+            Self::Coefficient => "Coefficient",
+            Self::Exponent => "Exponent",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",
