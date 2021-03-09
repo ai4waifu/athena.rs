@@ -29,6 +29,7 @@ use crate::{
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
             evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_member_of_terms, evaluate_select_terms, evaluate_list_convolve_terms,
             evaluate_coefficient_terms, evaluate_exponent_terms, evaluate_cancel_terms, evaluate_expand_terms, evaluate_factor_terms,
+            evaluate_collect_terms, evaluate_polynomial_gcd_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
@@ -1653,6 +1654,48 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_collect(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Collect.discriminant())));
+        }
+        let expr = self.slot_as_term(args[0])?;
+        let var = self.slot_as_term(args[1])?;
+        let term = evaluate_collect_terms(self.session, expr, var)?;
+        if matches!(
+            self.session.arena.get(term),
+            Some(athena_ir::TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Collect),
+                ..
+            })
+        ) {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        }
+        else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+    }
+
+    fn apply_polynomial_gcd(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::PolynomialGCD.discriminant())));
+        }
+        let left = self.slot_as_term(args[0])?;
+        let right = self.slot_as_term(args[1])?;
+        let term = evaluate_polynomial_gcd_terms(self.session, left, right)?;
+        if matches!(
+            self.session.arena.get(term),
+            Some(athena_ir::TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::PolynomialGCD),
+                ..
+            })
+        ) {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        }
+        else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+    }
+
     fn apply_even_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::EvenQ.discriminant())));
@@ -3271,6 +3314,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Exponent.discriminant() {
             return self.apply_exponent(args);
+        }
+        if op.0 == SemanticOperator::Collect.discriminant() {
+            return self.apply_collect(args);
+        }
+        if op.0 == SemanticOperator::PolynomialGCD.discriminant() {
+            return self.apply_polynomial_gcd(args);
         }
         if op.0 == SemanticOperator::IntegerDigits.discriminant() {
             return self.apply_unary(SemanticOperator::IntegerDigits, args);
