@@ -215,6 +215,10 @@ pub enum SemanticOperator {
     Coefficient,
     /// 多项式次数（方言 `Exponent`；`var` 的最大指数）。
     Exponent,
+    /// 二项式展开（方言 `Expand`；测试 `(var + 1)^2` 精确展开）。
+    Expand,
+    /// 因式分解（方言 `Factor`；测试 `var^2 - 1` 平方差）。
+    Factor,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -444,6 +448,8 @@ impl SemanticOperator {
             Self::Variables => 282,
             Self::Coefficient => 283,
             Self::Exponent => 284,
+            Self::Expand => 285,
+            Self::Factor => 286,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -585,6 +591,8 @@ impl SemanticOperator {
             282 => Some(Self::Variables),
             283 => Some(Self::Coefficient),
             284 => Some(Self::Exponent),
+            285 => Some(Self::Expand),
+            286 => Some(Self::Factor),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -729,6 +737,8 @@ impl SemanticOperator {
             Self::Variables => "Variables",
             Self::Coefficient => "Coefficient",
             Self::Exponent => "Exponent",
+            Self::Expand => "Expand",
+            Self::Factor => "Factor",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",

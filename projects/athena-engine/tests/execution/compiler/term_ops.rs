@@ -630,6 +630,84 @@ fn compile_and_execute_cancel_difference_of_squares() {
 }
 
 #[test]
+fn compile_and_execute_expand_and_factor_binomial() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let bin = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x, one],
+        Default::default(),
+    );
+    let square = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![bin, two],
+        Default::default(),
+    );
+    let expand = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Expand),
+        vec![square],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(expand)).expect("expand");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+            ..
+        }) if arguments.len() == 3 => {
+            assert!(arguments.iter().any(|term| {
+                matches!(
+                    session.arena.get(*term),
+                    Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(1)
+                )
+            }));
+            assert!(arguments.iter().any(|term| {
+                matches!(
+                    session.arena.get(*term),
+                    Some(TermNode::Application {
+                        head: ApplicationHead::Semantic(SemanticOperator::Power),
+                        arguments: args,
+                        ..
+                    }) if args.len() == 2 && session.arena.structural_eq(args[0], x)
+                )
+            }));
+        }
+        other => panic!("expected Expand[(x + 1)^2] expanded sum, got {other:?}"),
+    }
+
+    let x2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, two],
+        Default::default(),
+    );
+    let neg_one = session.builder().int(-1, Default::default());
+    let diff = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, neg_one],
+        Default::default(),
+    );
+    let factor = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Factor),
+        vec![diff],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(factor)).expect("factor");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Multiply),
+            arguments,
+            ..
+        }) if arguments.len() == 2 => {}
+        other => panic!("expected Factor[x^2 - 1] as product, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
