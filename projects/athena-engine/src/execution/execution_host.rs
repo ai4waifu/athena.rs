@@ -28,7 +28,7 @@ use crate::{
             evaluate_count_terms, evaluate_nearest_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
             evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_member_of_terms, evaluate_select_terms, evaluate_list_convolve_terms,
-            evaluate_coefficient_terms, evaluate_exponent_terms,
+            evaluate_coefficient_terms, evaluate_exponent_terms, evaluate_cancel_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
@@ -2910,6 +2910,26 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_cancel(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Cancel.discriminant())));
+        }
+        let expr = self.slot_as_term(args[0])?;
+        let term = evaluate_cancel_terms(self.session, expr)?;
+        if matches!(
+            self.session.arena.get(term),
+            Some(athena_ir::TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Cancel),
+                ..
+            })
+        ) {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        }
+        else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+    }
+
     fn apply_special_unary(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
@@ -3409,6 +3429,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Simplify.discriminant() {
             return self.apply_simplify(args);
+        }
+        if op.0 == SemanticOperator::Cancel.discriminant() {
+            return self.apply_cancel(args);
         }
         if (100..=116).contains(&op.0) {
             if let Some(uf) = athena_ir::UnaryFunction::from_discriminant(op.0 - 100) {

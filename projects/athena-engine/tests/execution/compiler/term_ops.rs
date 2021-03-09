@@ -554,6 +554,82 @@ fn compile_and_execute_coefficient_and_exponent_univariate() {
 }
 
 #[test]
+fn compile_and_execute_cancel_difference_of_squares() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let neg_one = session.builder().int(-1, Default::default());
+    let x2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, two],
+        Default::default(),
+    );
+    let num = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, neg_one],
+        Default::default(),
+    );
+    let den = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x, neg_one],
+        Default::default(),
+    );
+    let quot = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Divide),
+        vec![num, den],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(quot)).expect("quot");
+    let quot_result = ReferenceExecutor::new().execute(&mut session, &module).expect("execute quot");
+    let quot_id = session.results.get(quot_result).expect("result").symbolic_term.expect("term");
+    let cancel = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Cancel),
+        vec![quot_id],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(cancel)).expect("cancel");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+            ..
+        }) if arguments.len() == 2 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(1)
+            ));
+            assert!(session.arena.structural_eq(arguments[1], x));
+        }
+        other => panic!("expected Cancel[(x^2 - 1)/(x - 1)] == 1 + x, got {other:?}"),
+    }
+
+    let two_lit = session.builder().int(2, Default::default());
+    let echo = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Cancel),
+        vec![two_lit],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(echo)).expect("cancel echo");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Cancel),
+            arguments,
+            ..
+        }) if arguments.len() == 1 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(2)
+            ));
+        }
+        other => panic!("expected Cancel[2] residual, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
