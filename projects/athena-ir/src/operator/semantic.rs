@@ -223,6 +223,12 @@ pub enum SemanticOperator {
     Collect,
     /// 多项式最大公因式（方言 `PolynomialGCD`；测试平方差与一次因子）。
     PolynomialGCD,
+    /// 判别式（方言 `Discriminant`；测试一元二次 `b^2 - 4ac`）。
+    Discriminant,
+    /// 结式（方言 `Resultant`；测试共享一次因子时为 `0`）。
+    Resultant,
+    /// 多项式余式（方言 `PolynomialRemainder`；测试 `x^3 + 1` 除以 `x + 1`）。
+    PolynomialRemainder,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -456,6 +462,9 @@ impl SemanticOperator {
             Self::Factor => 286,
             Self::Collect => 287,
             Self::PolynomialGCD => 288,
+            Self::Discriminant => 289,
+            Self::Resultant => 290,
+            Self::PolynomialRemainder => 291,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -601,6 +610,9 @@ impl SemanticOperator {
             286 => Some(Self::Factor),
             287 => Some(Self::Collect),
             288 => Some(Self::PolynomialGCD),
+            289 => Some(Self::Discriminant),
+            290 => Some(Self::Resultant),
+            291 => Some(Self::PolynomialRemainder),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -749,6 +761,9 @@ impl SemanticOperator {
             Self::Factor => "Factor",
             Self::Collect => "Collect",
             Self::PolynomialGCD => "PolynomialGCD",
+            Self::Discriminant => "Discriminant",
+            Self::Resultant => "Resultant",
+            Self::PolynomialRemainder => "PolynomialRemainder",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",
