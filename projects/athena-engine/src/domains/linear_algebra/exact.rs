@@ -1,10 +1,11 @@
 //! 精确路径：`ℚ` Gaussian 消元 / RREF / 秩 / 求解，以及 `ℤ` Bareiss。
 
-use athena_numeric::{Integer, Number, Rational, sqrt as num_sqrt};
+use athena_numeric::{Integer, Number, Rational, compare as num_compare, sqrt as num_sqrt};
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     matrix_result::MatrixResult,
+    ops::is_diagonal,
     shape::{MatrixShape, StorageOrder},
     status::{AlgorithmGuarantee, SolveDisposition},
     value::{MatrixEntry, MatrixValue},
@@ -729,4 +730,58 @@ pub fn nullspace_exact(matrix: &MatrixValue) -> Result<ExactNullSpaceResult, Dia
         nullity,
         guarantee: AlgorithmGuarantee::Exact,
     })
+}
+
+fn diagonal_rationals_descending(matrix: &MatrixValue) -> Result<Vec<(u64, Rational)>, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_exact_rejects_machine"));
+    }
+    let n = matrix.shape().rows;
+    if n != matrix.shape().cols {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "eigen_requires_square"));
+    }
+    if !is_diagonal(matrix)? {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_diagonal_only"));
+    }
+    let mut diag = Vec::with_capacity(n as usize);
+    for i in 0..n {
+        let value = match matrix.get(i, i)? {
+            MatrixEntry::Integer(z) => Rational::from_integer(z),
+            MatrixEntry::Rational(r) => r,
+            MatrixEntry::MachineF64(_) => {
+                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_entry_machine"));
+            }
+            MatrixEntry::ComplexExact { .. } => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_entry_complex_pending"));
+            }
+        };
+        diag.push((i, value));
+    }
+    diag.sort_by(|left, right| {
+        let a = Number::from_rational_normalized(clone_rational(&left.1));
+        let b = Number::from_rational_normalized(clone_rational(&right.1));
+        num_compare(&b, &a).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    Ok(diag)
+}
+
+/// 精确对角阵特征值（`1×n` 行向量，降序）。
+pub fn eigenvalues_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let diag = diagonal_rationals_descending(matrix)?;
+    let n = matrix.shape().rows;
+    let values = diag.into_iter().map(|(_, value)| value).collect();
+    MatrixValue::from_rationals_row_major(1, n, values)
+}
+
+/// 精确对角阵特征向量（`n×n` 行基，与 [`eigenvalues_diagonal_exact`] 同序）。
+pub fn eigenvectors_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let diag = diagonal_rationals_descending(matrix)?;
+    let n = matrix.shape().rows;
+    let mut data = Vec::with_capacity((n * n) as usize);
+    for (index, _) in &diag {
+        for col in 0..n {
+            data.push(if col == *index { Rational::one() } else { Rational::zero() });
+        }
+    }
+    MatrixValue::from_rationals_row_major(n, n, data)
 }

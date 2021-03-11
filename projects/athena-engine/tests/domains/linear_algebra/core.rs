@@ -800,6 +800,57 @@ fn goal_inverse_singular_projects_residual() {
 }
 
 #[test]
+#[test]
+fn goal_eigenvalues_and_eigenvectors_diagonal() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        execution::execute_ir_request,
+    };
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(0), i(0), i(2)]).unwrap());
+
+    let eigenvalues = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::Eigenvalues { matrix: matrix.into() },
+    )));
+    let result_id = execute_ir_request(&mut session, eigenvalues).expect("eigenvalues goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: items, .. } = session.arena.get(term).expect("list")
+    else {
+        panic!("expected flat eigenvalue list");
+    };
+    assert_eq!(items.len(), 2);
+    assert!(matches!(session.arena.get(items[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
+    assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+
+    let eigenvectors = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into() },
+    )));
+    let result_id = execute_ir_request(&mut session, eigenvectors).expect("eigenvectors goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("matrix")
+    else {
+        panic!("expected nested eigenvector matrix");
+    };
+    assert_eq!(rows.len(), 2);
+    let TermNode::Collection { elements: r0, .. } = session.arena.get(rows[0]).expect("row0")
+    else {
+        panic!("expected row list");
+    };
+    assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+    assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    let TermNode::Collection { elements: r1, .. } = session.arena.get(rows[1]).expect("row1")
+    else {
+        panic!("expected row list");
+    };
+    assert!(matches!(session.arena.get(r1[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(r1[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+}
+
+#[test]
 fn goal_trace_projects_integer_via_execution() {
     use athena_engine::{
         api::{AthenaRequest, DomainGoal},

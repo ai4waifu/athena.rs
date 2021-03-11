@@ -93,6 +93,16 @@ pub enum LinearAlgebraRequest {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 特征值（精确对角阵；降序）。
+    Eigenvalues {
+        /// 输入方阵（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
+    /// 特征向量（精确对角阵；行向量为标准基）。
+    Eigenvectors {
+        /// 输入方阵（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
     /// 点积 / 矩阵乘收缩（Mathematica `Dot`）。
     Dot {
         /// 左（对象句柄或符号绑定）。
@@ -197,6 +207,8 @@ impl LinearAlgebraRequest {
             Self::RightSolve { a, b } => Self::RightSolve { a: *a, b: *b },
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
+            Self::Eigenvalues { matrix } => Self::Eigenvalues { matrix: *matrix },
+            Self::Eigenvectors { matrix } => Self::Eigenvectors { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
             Self::NullSpace { matrix, column_basis } => Self::NullSpace { matrix: *matrix, column_basis: *column_basis },
