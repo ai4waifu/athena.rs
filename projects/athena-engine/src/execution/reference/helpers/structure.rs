@@ -1,11 +1,15 @@
-//! 结构算子（`Join` / `Range` / `Size` / `Sum` / 矩阵构造）的纯 term 折叠。
+//! 结构算子（`Join` / `Range` / `Size` / `Sum` / `Mean` / 矩阵构造）的纯 term 折叠。
 
 use athena_ir::SemanticOperator;
+use athena_numeric::{Number, add as num_add, div as num_div};
 use athena_types::{Result, TermId};
 
 use crate::{
-    execution::{number_of, push_semantic},
-    runtime::{session::Session, values::arena::push_list},
+    execution::{number_of, push_number, push_semantic},
+    runtime::{
+        session::Session,
+        values::{arena::push_list, numeric_clone::clone_number},
+    },
 };
 
 use super::{
@@ -763,6 +767,41 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
         return Ok(push_semantic(session, SemanticOperator::Sum, vec![term]));
     }
     Ok(fold_plus_symbolic(session, items))
+}
+
+/// `Mean[list]` — 平坦数值集合算术平均，否则残差。
+pub(crate) fn evaluate_mean_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
+    if terms.len() != 1 {
+        return Ok(push_semantic(session, SemanticOperator::Mean, terms));
+    }
+    let term = terms[0];
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(term)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Mean, vec![term]));
+    };
+    let items = items.clone();
+    if items.is_empty() {
+        return Ok(push_semantic(session, SemanticOperator::Mean, vec![term]));
+    }
+    if matches!(session.arena.get(items[0]), Some(athena_ir::TermNode::Collection { .. })) {
+        return Ok(push_semantic(session, SemanticOperator::Mean, vec![term]));
+    }
+    let mut sum = Number::small_int(0);
+    for item in &items {
+        let n = match number_of(session, *item) {
+            Some(n) => n,
+            None => return Ok(push_semantic(session, SemanticOperator::Mean, vec![term])),
+        };
+        sum = match num_add(clone_number(&sum), clone_number(n)) {
+            Ok(v) => v,
+            Err(_) => return Ok(push_semantic(session, SemanticOperator::Mean, vec![term])),
+        };
+    }
+    let len = Number::small_int(items.len() as i64);
+    match num_div(sum, len) {
+        Ok(v) => Ok(push_number(session, v)),
+        Err(_) => Ok(push_semantic(session, SemanticOperator::Mean, vec![term])),
+    }
 }
 
 /// `Zeros` / `Ones` / `Eye` residual echo when the host cannot intern a typed `MatrixRef`.

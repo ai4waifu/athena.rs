@@ -14,7 +14,7 @@ pub(crate) use self::helpers::{
     evaluate_map_thread_terms, evaluate_matches_terms,
     evaluate_matrix_constructor_terms, evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
     evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
-    evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms,
+    evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_mean_terms, evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms,
     evaluate_prepend_terms, evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
     evaluate_count_terms, evaluate_nearest_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
     evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
