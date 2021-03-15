@@ -230,7 +230,10 @@ pub(crate) fn resolve_own_numeric_bindings(session: &mut crate::runtime::Session
             matrix: resolve_matrix_operand(session, matrix),
             column_vector,
         },
-        LinearAlgebraRequest::Eigenvectors { matrix } => LinearAlgebraRequest::Eigenvectors { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Eigenvectors { matrix, column_basis } => LinearAlgebraRequest::Eigenvectors {
+            matrix: resolve_matrix_operand(session, matrix),
+            column_basis,
+        },
         LinearAlgebraRequest::Dot { lhs, rhs } => LinearAlgebraRequest::Dot {
             lhs: resolve_matrix_operand(session, lhs),
             rhs: resolve_matrix_operand(session, rhs),
@@ -409,9 +412,15 @@ fn run(
                 Ok(LinearAlgebraValue::dot_outcome(values))
             }
         }
-        LinearAlgebraRequest::Eigenvectors { matrix } => {
+        LinearAlgebraRequest::Eigenvectors { matrix, column_basis } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::matrix_outcome(eigenvectors_exact(&matrix)?))
+            let vectors = eigenvectors_exact(&matrix)?;
+            if column_basis {
+                Ok(LinearAlgebraValue::matrix_outcome(transpose(&vectors)))
+            }
+            else {
+                Ok(LinearAlgebraValue::matrix_outcome(vectors))
+            }
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;

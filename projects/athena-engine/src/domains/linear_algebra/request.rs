@@ -100,10 +100,12 @@ pub enum LinearAlgebraRequest {
         /// `true` → `n×1` 列向量（MATLAB `eig`）；`false` → `1×n` 行向量（Mathematica `Eigenvalues`）。
         column_vector: bool,
     },
-    /// 特征向量（精确对角阵；行向量为标准基）。
+    /// 特征向量（精确对角阵或实对称 `2×2`）。
     Eigenvectors {
         /// 输入方阵（对象句柄或符号绑定）。
         matrix: MatrixOperand,
+        /// `true` → 列基（MATLAB `eig` / `Eigenvectors`）；`false` → 行基（Mathematica `Eigenvectors`）。
+        column_basis: bool,
     },
     /// 点积 / 矩阵乘收缩（Mathematica `Dot`）。
     Dot {
@@ -210,7 +212,7 @@ impl LinearAlgebraRequest {
             Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Eigenvalues { matrix, column_vector } => Self::Eigenvalues { matrix: *matrix, column_vector: *column_vector },
-            Self::Eigenvectors { matrix } => Self::Eigenvectors { matrix: *matrix },
+            Self::Eigenvectors { matrix, column_basis } => Self::Eigenvectors { matrix: *matrix, column_basis: *column_basis },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
             Self::NullSpace { matrix, column_basis } => Self::NullSpace { matrix: *matrix, column_basis: *column_basis },

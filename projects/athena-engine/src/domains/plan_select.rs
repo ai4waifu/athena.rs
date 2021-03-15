@@ -83,7 +83,7 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         | LinearAlgebraRequest::Inverse { matrix }
         | LinearAlgebraRequest::Trace { matrix }
         | LinearAlgebraRequest::Eigenvalues { matrix, .. }
-        | LinearAlgebraRequest::Eigenvectors { matrix }
+        | LinearAlgebraRequest::Eigenvectors { matrix, .. }
         | LinearAlgebraRequest::NullSpace { matrix, .. }
         | LinearAlgebraRequest::Norm { matrix }
         | LinearAlgebraRequest::ConditionNumber { matrix }
