@@ -3441,6 +3441,15 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Head.discriminant() {
             return self.apply_unary(SemanticOperator::Head, args);
         }
+        if op.0 == SemanticOperator::RealPart.discriminant() {
+            return self.apply_unary(SemanticOperator::RealPart, args);
+        }
+        if op.0 == SemanticOperator::ImaginaryPart.discriminant() {
+            return self.apply_unary(SemanticOperator::ImaginaryPart, args);
+        }
+        if op.0 == SemanticOperator::Conjugate.discriminant() {
+            return self.apply_unary(SemanticOperator::Conjugate, args);
+        }
         if op.0 == SemanticOperator::Join.discriminant() {
             return self.apply_join(args);
         }

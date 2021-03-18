@@ -131,6 +131,41 @@ fn compile_and_execute_sign_exact() {
 }
 
 #[test]
+fn compile_and_execute_complex_part_exact() {
+    use athena_numeric::{BranchPolicy, Complex, Real};
+    let mut session = Session::new();
+    let unit = Complex::try_new(Real::machine(0.0), Real::machine(1.0), BranchPolicy::Principal).expect("imaginary unit");
+    let i = session.builder().number(Number::complex(unit), Default::default());
+    for (op, expected) in [
+        (SemanticOperator::RealPart, 0i64),
+        (SemanticOperator::ImaginaryPart, 1i64),
+    ] {
+        let head = ApplicationHead::Semantic(op);
+        let term = session.builder().application(head, vec![i], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("complex part");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected {op:?} on I == {expected}, got {other:?}"),
+        }
+    }
+    let conj = ApplicationHead::Semantic(SemanticOperator::Conjugate);
+    let term = session.builder().application(conj, vec![i], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("conjugate");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) => match v.as_complex() {
+            Some(z) => {
+                assert_eq!(z.re.as_f64(), Some(0.0));
+                assert_eq!(z.im.as_f64(), Some(-1.0));
+            }
+            other => panic!("expected Conjugate[I] complex, got {other:?}"),
+        },
+        other => panic!("expected Conjugate[I] number, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_floor_exact() {
     let mut session = Session::new();
     let cases: Vec<(TermId, i64)> = vec![

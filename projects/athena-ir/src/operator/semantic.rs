@@ -404,6 +404,10 @@ pub enum SemanticOperator {
     Indeterminate,
     /// 实部投影（收敛域谓词等）。
     RealPart,
+    /// 虚部投影（方言 `Im` / `imag`）。
+    ImaginaryPart,
+    /// 复共轭（方言 `Conjugate` / `conj`）。
+    Conjugate,
 }
 
 impl SemanticOperator {
@@ -468,6 +472,8 @@ impl SemanticOperator {
             Self::Resultant => 290,
             Self::PolynomialRemainder => 291,
             Self::Mean => 292,
+            Self::ImaginaryPart => 293,
+            Self::Conjugate => 294,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -617,6 +623,8 @@ impl SemanticOperator {
             290 => Some(Self::Resultant),
             291 => Some(Self::PolynomialRemainder),
             292 => Some(Self::Mean),
+            293 => Some(Self::ImaginaryPart),
+            294 => Some(Self::Conjugate),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -855,6 +863,8 @@ impl SemanticOperator {
             Self::DiscreteDelta => "DiscreteDelta",
             Self::Indeterminate => "Indeterminate",
             Self::RealPart => "RealPart",
+            Self::ImaginaryPart => "ImaginaryPart",
+            Self::Conjugate => "Conjugate",
         }
     }
 
