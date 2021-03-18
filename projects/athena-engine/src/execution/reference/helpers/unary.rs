@@ -6,7 +6,7 @@ use athena_types::{Result, TermId};
 use std::collections::BTreeSet;
 
 use super::diag;
-use super::terms::exact_sinc;
+use super::terms::{exact_arg, exact_sinc};
 use crate::{
     execution::{number_of, push_extension, push_number, push_semantic},
     runtime::{
@@ -124,6 +124,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 }
             }
             Ok(push_semantic(session, op, vec![term]))
+        }
+        SemanticOperator::Arg => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(value) = exact_arg(session, &clone_number(n)) {
+                    return Ok(value);
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Arg, vec![term]))
         }
         SemanticOperator::IntegerDigits => {
             if let Some(n) = number_of(session, term) {
