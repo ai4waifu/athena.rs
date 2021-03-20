@@ -1045,6 +1045,7 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::Trace { matrix } => ("Tr", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Eigenvalues { matrix, .. } => ("Eigenvalues", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Eigenvectors { matrix, .. } => ("Eigenvectors", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::MatrixExp { matrix } => ("MatrixExp", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Rref { matrix } => ("RowReduce", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Norm { matrix } => ("Norm", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::ConditionNumber { matrix } => ("ConditionNumber", vec![matrix_op_term(session, *matrix)?]),
