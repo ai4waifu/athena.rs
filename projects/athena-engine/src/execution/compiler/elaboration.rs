@@ -22,9 +22,9 @@ pub enum ArgumentEvaluationKind {
 pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: usize, index: usize) -> ArgumentEvaluationKind {
     // Migration-default captures. Prefer dialect-injected policy long-term (Living `04`).
     // Hold / HoldComplete / Unevaluated / Function: true hold barriers.
-    // Timing / Trace / ParallelEvaluate: Mathematica HoldAll — capture is language-correct;
+    // Timing / Trace / ParallelEvaluate: dialect hold-all capture is language-correct;
     //   wall-clock / step-list / scheduler runtimes are still missing (residuals).
-    // InputForm: Mathematica HoldAllComplete — capture is language-correct until presentation runtime.
+    // InputForm: dialect hold-all-complete capture is language-correct until presentation runtime.
     // Cancel: **not** Hold — args evaluate; residual echo until algebra Cancel kernel exists.
     if matches!(
         operator,

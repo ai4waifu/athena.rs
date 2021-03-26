@@ -347,13 +347,13 @@ pub enum SemanticOperator {
     HoldComplete,
     /// 单次不求值包装（方言 `Unevaluated`）。
     Unevaluated,
-    /// 计时包装（方言 `Timing`；HoldAll 捕获实参，无计时 runtime 时保持残差）。
+    /// 计时包装（方言 `Timing`；hold-all 捕获实参，无计时 runtime 时保持残差）。
     Timing,
-    /// 求值轨迹包装（方言 `Trace`；HoldAll 捕获实参，无轨迹 runtime 时保持残差）。
+    /// 求值轨迹包装（方言 `Trace`；hold-all 捕获实参，无轨迹 runtime 时保持残差）。
     Trace,
-    /// 并行求值包装（方言 `ParallelEvaluate`；HoldAll 捕获，无并行 runtime 时保持残差）。
+    /// 并行求值包装（方言 `ParallelEvaluate`；hold-all 捕获，无并行 runtime 时保持残差）。
     ParallelEvaluate,
-    /// 输入形式包装（方言 `InputForm`；HoldAllComplete 捕获，无格式化 runtime 时保持残差）。
+    /// 输入形式包装（方言 `InputForm`；hold-all-complete 捕获，无格式化 runtime 时保持残差）。
     InputForm,
     /// 有理消去（方言 `Cancel`；实参求值；无 Cancel kernel 时残差回声）。
     Cancel,
