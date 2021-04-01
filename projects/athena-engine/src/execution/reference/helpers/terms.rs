@@ -236,13 +236,6 @@ fn is_math_constant(session: &Session, id: TermId, expected: MathematicalConstan
     )
 }
 
-fn head_label(session: &Session, head: ApplicationHead) -> Option<String> {
-    match head {
-        ApplicationHead::Semantic(op) => Some(op.debug_label().to_string()),
-        ApplicationHead::Extension(id) => session.extensions.display_name(id).map(str::to_string),
-    }
-}
-
 pub(crate) fn eval_trig_exact_session(session: &mut Session, function: UnaryFunction, arg: TermId) -> Option<TermId> {
     let angle = normalize_pi_angle_session(session, arg)?;
     match function {
@@ -286,16 +279,6 @@ pub(crate) fn normalize_pi_angle_session(session: &Session, arg: TermId) -> Opti
         }
     }
     None
-}
-
-/// 仅用于调试 / 诊断的头标签 — **不得**用于语义分派。
-pub(crate) fn debug_head_label_session(session: &Session, id: TermId) -> Option<String> {
-    match session.arena.get(id)? {
-        athena_ir::TermNode::Application { head, .. } => head_label(session, *head),
-        athena_ir::TermNode::Atom(Atom::Symbol(symbol)) => session.arena.symbols().resolve(*symbol).map(str::to_string),
-        athena_ir::TermNode::Atom(Atom::Constant(c)) => Some(c.debug_label().to_string()),
-        _ => None,
-    }
 }
 
 pub(crate) fn expand_span_2(a: i64, b: i64) -> Option<Vec<i64>> {
@@ -654,42 +637,6 @@ pub(crate) fn term_scalar_complex_session(session: &Session, term: TermId) -> Op
                         );
                     }
                     Some(acc)
-                }
-                ApplicationHead::Extension(_) => {
-                    let name = debug_head_label_session(session, term)?;
-                    match name.as_str() {
-                        "Plus" | "Add" => {
-                            let mut re = Rational::zero();
-                            let mut im = Rational::zero();
-                            for &a in arguments {
-                                let (r, i) = term_scalar_complex_session(session, a)?;
-                                re = re.add(&r);
-                                im = im.add(&i);
-                            }
-                            Some((re, im))
-                        }
-                        "Subtract" if arguments.len() == 2 => {
-                            let (ar, ai) = term_scalar_complex_session(session, arguments[0])?;
-                            let (br, bi) = term_scalar_complex_session(session, arguments[1])?;
-                            Some((ar.add(&br.neg()), ai.add(&bi.neg())))
-                        }
-                        "Minus" if arguments.len() == 1 => {
-                            let (re, im) = term_scalar_complex_session(session, arguments[0])?;
-                            Some((re.neg(), im.neg()))
-                        }
-                        "Times" | "Multiply" if arguments.len() >= 1 => {
-                            let mut acc = (Rational::one(), Rational::zero());
-                            for &a in arguments {
-                                let (br, bi) = term_scalar_complex_session(session, a)?;
-                                acc = (
-                                    acc.0.mul(&br).add(&acc.1.mul(&bi).neg()),
-                                    acc.0.mul(&bi).add(&acc.1.mul(&br)),
-                                );
-                            }
-                            Some(acc)
-                        }
-                        _ => None,
-                    }
                 }
                 _ => None,
             }
