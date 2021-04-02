@@ -3157,11 +3157,12 @@ impl<'a> ExecutionHost<'a> {
                     }
                 };
                 if matches!(op, SemanticOperator::Equal | SemanticOperator::Unequal) {
-                    if let Some(broadcast) = compare_list_broadcast(self.session, op, a, b, pick)? {
-                        return Ok(HostOutcome::Value(SlotValue::Term(broadcast)));
-                    }
+                    // 两个集合之间是结构相等（整体 Boolean），不做逐元素广播。
                     if let Some(same) = collection_structural_equal(self.session, a, b) {
                         return Ok(bool_out(same));
+                    }
+                    if let Some(broadcast) = compare_list_broadcast(self.session, op, a, b, pick)? {
+                        return Ok(HostOutcome::Value(SlotValue::Term(broadcast)));
                     }
                 }
                 let na = number_of(self.session, a).map(clone_number);
