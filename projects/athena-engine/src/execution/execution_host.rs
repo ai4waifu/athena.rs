@@ -419,15 +419,10 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn host_outcome_from_structure_matrix(&mut self, matrix: crate::domains::linear_algebra::MatrixValue) -> Result<HostOutcome> {
-        if self.session.matrix_list_surface == MatrixListSurface::NestedRows {
-            let term = matrix_to_mathematica_structure_term(self.session, &matrix)?;
-            Ok(HostOutcome::Value(SlotValue::Term(term)))
-        }
-        else {
-            let matrix_ref = self.session.matrix_objects.intern(matrix);
-            let value_id = self.session.insert_matrix_value(matrix_ref);
-            Ok(HostOutcome::Value(SlotValue::Value(value_id)))
-        }
+        // 结构运算结果保持类型化 Matrix 值；方言列表表面只在结果 envelope 的 symbolic_term 投影中生效。
+        let matrix_ref = self.session.matrix_objects.intern(matrix);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(HostOutcome::Value(SlotValue::Value(value_id)))
     }
 
     fn host_matrix_unary_structure(&mut self, op: SemanticOperator, slot: SlotValue) -> Result<Option<HostOutcome>> {

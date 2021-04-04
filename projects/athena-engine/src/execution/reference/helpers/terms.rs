@@ -1096,7 +1096,7 @@ pub(crate) fn symbolic_term_from_value_id(session: &mut Session, value_id: athen
             let matrix = session.matrix_objects.resolve_owning(matrix_ref).ok_or_else(|| diag("matrix_ref_missing"))?;
             match session.matrix_list_surface {
                 crate::runtime::session::MatrixListSurface::MatlabOwn => matrix_to_own_surface_list_session(session, &matrix),
-                crate::runtime::session::MatrixListSurface::NestedRows => matrix_to_nested_list_session(session, &matrix),
+                crate::runtime::session::MatrixListSurface::NestedRows => matrix_to_mathematica_structure_term(session, &matrix),
             }
         }
         Copied::Term(term) => Ok(term),
