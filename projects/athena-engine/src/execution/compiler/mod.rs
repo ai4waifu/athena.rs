@@ -653,7 +653,9 @@ impl ExecutionCompiler {
                         Some(TermNode::Atom(_)) | Some(TermNode::Collection { .. })
                     )
                 });
-                if materialized {
+                // 小物化集合仍按合同发射 ConstructCollection；超过单条 host 实参宽度时走
+                // LoadTerm 保平坦形状（分块 ConstructCollection 会改变嵌套层级）。
+                if materialized && items.len() > MAX_HOST_ARGS {
                     let root = builder.push_term_root_id(&session.arena, term)?;
                     let ssa = builder.ssa();
                     operations.push(Operation {
