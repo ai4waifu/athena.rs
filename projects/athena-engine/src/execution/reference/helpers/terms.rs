@@ -901,9 +901,10 @@ pub(crate) fn linear_algebra_value_symbolic_term(
             other => solve_disposition_residual_term(session, "LinearSolve", other),
         },
         LinearAlgebraValue::MachineSolve(MachineSolveResult { solution, disposition, .. }) => match disposition {
-            crate::domains::linear_algebra::SolveDisposition::Unique => {
-                solution.as_ref().and_then(|m| matrix_to_nested_list_session(session, &m.value).ok())
-            }
+            crate::domains::linear_algebra::SolveDisposition::Unique => solution
+                .as_ref()
+                .and_then(|m| matrix_to_nested_list_session(session, &m.value).ok())
+                .or_else(|| solve_disposition_residual_term(session, "LinearSolve", disposition)),
             other => solve_disposition_residual_term(session, "LinearSolve", other),
         },
         LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
