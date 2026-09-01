@@ -1,17 +1,8 @@
 //! 统一数值值。
 
 use crate::{
-    algebraic::AlgebraicNumber,
-    complex::Complex,
-    domain::NumericDomain,
-    finite_field::FiniteFieldValue,
-    integer::Integer,
-    interval::Interval,
-    modular::ModularValue,
-    p_adic::PAdicValue,
-    precision::PrecisionInfo,
-    rational::Rational,
-    real::Real,
+    algebraic::AlgebraicNumber, complex::Complex, domain::NumericDomain, finite_field::FiniteFieldValue, integer::Integer,
+    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
 };
 
 /// 数值来源 / 证明引用占位。

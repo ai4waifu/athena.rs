@@ -26,10 +26,6 @@ pub struct Complex {
 impl Complex {
     /// 由实部构造（虚部 0）。
     pub fn from_real(re: Real) -> Self {
-        Self {
-            re,
-            im: Real::machine(0.0),
-            branch: BranchPolicy::Principal,
-        }
+        Self { re, im: Real::machine(0.0), branch: BranchPolicy::Principal }
     }
 }
