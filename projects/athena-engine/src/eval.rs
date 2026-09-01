@@ -50,9 +50,7 @@ fn apply_builtin(head: &Term, args: Vec<Term>, depth: u32) -> Term {
         "Divide" if args.len() == 2 => eval_times(vec![args[0].clone(), eval_power(args[1].clone(), Term::int(-1))]),
         "List" => Term::List(args),
         "Simplify" if args.len() == 1 => eval_simplify(&args[0], depth),
-        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => {
-            Term::Application { head: Box::new(head.clone()), arguments: args }
-        }
+        "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => eval_machine_unary(name, &args[0]),
         "Sqrt" if args.len() == 1 => eval_sqrt(&args[0]),
         "Abs" if args.len() == 1 => eval_abs(&args[0]),
         "Factorial" if args.len() == 1 => eval_factorial(&args[0]),
@@ -379,6 +377,25 @@ fn eval_simplify(expr: &Term, depth: u32) -> Term {
         return one;
     }
     evaluate_depth(&e, depth + 1)
+}
+
+fn eval_machine_unary(name: &str, arg: &Term) -> Term {
+    let Some(x) = number_from_term(arg).and_then(Number::to_f64_lossy) else {
+        return Term::apply(name, vec![arg.clone()]);
+    };
+    let y = match name {
+        "Sin" => x.sin(),
+        "Cos" => x.cos(),
+        "Tan" => x.tan(),
+        "Exp" => x.exp(),
+        "Log" => x.ln(),
+        _ => return Term::apply(name, vec![arg.clone()]),
+    };
+    if y.is_finite() {
+        Term::real(y)
+    } else {
+        Term::apply(name, vec![arg.clone()])
+    }
 }
 
 fn eval_sqrt(arg: &Term) -> Term {

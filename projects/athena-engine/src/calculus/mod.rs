@@ -17,6 +17,8 @@ mod transform;
 mod value;
 mod vector;
 
+pub(crate) use term_util::replace_symbol;
+
 pub use derivative::{differentiate, differentiate_checked};
 pub use differential::{DifferentialSolution, VerificationStatus, solve_ode_checked};
 pub use integral::{definite_integrate_checked, integrate, integrate_checked};

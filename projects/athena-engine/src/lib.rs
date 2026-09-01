@@ -20,6 +20,7 @@ pub mod ir;
 pub mod mgraph;
 pub mod number_theory;
 pub mod object;
+pub mod plot;
 pub mod polynomial;
 pub mod rewriter;
 pub mod session;
@@ -72,6 +73,7 @@ pub use mgraph::{
     ExactnessLevel, HyperEdge, MGraphState, RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore,
     run_closure_step,
 };
+pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use session::Session;
 pub use solver::{
     DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation,
