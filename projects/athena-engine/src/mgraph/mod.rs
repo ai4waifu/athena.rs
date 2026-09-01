@@ -9,6 +9,6 @@ mod types;
 pub use closure::{ClosureLimits, ClosureResult, run_closure_step};
 pub use state::MGraphState;
 pub use types::{
-    DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge,
-    RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore,
+    DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge, RewriteWitness,
+    SolverCandidate, SolverFrontier, SolverId, SolverScore,
 };

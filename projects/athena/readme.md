@@ -26,7 +26,8 @@ API 面积。
 
 ## 外部调用边界
 
-Athena 不解析外部语言，也不提供 N-API、WebAssembly 或其他平台绑定。外部调用方应构造符合 `athena-types` 和 `athena-ir` 合同的请求，并通过 `athena` 使用公共 API。
+Athena 不解析外部语言，也不提供 N-API、WebAssembly 或其他平台绑定。外部调用方应构造符合 `athena-types` 和 `athena-ir`
+合同的请求，并通过 `athena` 使用公共 API。
 
 ```text
 外部调用方 → Athena IR/value → athena（门面）→ athena-engine → result/diagnostic

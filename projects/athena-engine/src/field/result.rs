@@ -30,8 +30,6 @@ pub fn execute_field(request: FieldRequest) -> FieldResult {
         FieldRequest::Lookup { .. } => "lookup",
     };
     FieldResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "field")
-            .detail("operation", op),
+        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "field").detail("operation", op),
     }
 }

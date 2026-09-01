@@ -38,8 +38,8 @@ pub use athena_rewriter::{RewriteOptions, RewriteResult, Rewriter};
 pub use athena_types::{
     AssumptionSet, AssumptionSetId, Condition, Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, DomainId,
     ExactNumber, ExtensionId, FieldId, GroupElementId, GroupId, ModularValue, Modulus, NodeId, Number, NumericDomain,
-    OperatorId, Precision, Predicate, RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan,
-    SymbolId, TermId,
+    OperatorId, Precision, Predicate, RealNumber, Result, RoundingMode, SerializationVersion, Severity, SourceSpan, SymbolId,
+    TermId,
 };
 pub use calculus::{
     CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution, Divergence,
@@ -56,27 +56,25 @@ pub use field::{Field, FieldDomainValue, FieldElement, FieldKind, FieldRequest, 
 pub use function::{BranchPolicy, FunctionDefinition, lookup_function, registered_function_names};
 pub use galois::{Automorphism, GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, execute_galois};
 pub use group::{
-    Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation,
-    execute_group,
+    Group, GroupDomainValue, GroupElement, GroupElementRepr, GroupKind, GroupRequest, GroupResult, Permutation, execute_group,
+};
+pub use mgraph::{
+    ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
+    HyperEdge, MGraphState, RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore, run_closure_step,
 };
 pub use number_theory::{
     ExtendedGcd, FactorLimits, Factorization, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult,
     NumberTheoryValue, Primality, PrimePower, execute_number_theory, extended_gcd, factor_integer, gcd, lcm, mod_inverse,
     mod_pow, primality_test,
 };
+pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use polynomial::{
     CoefficientRing, DivisionPolicy, MonomialTerm, Polynomial, PolynomialDomainValue, PolynomialRequest, PolynomialResult,
     PolynomialValue, execute_polynomial,
 };
-pub use mgraph::{
-    ClosureLimits, ClosureResult, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses,
-    ExactnessLevel, HyperEdge, MGraphState, RewriteWitness, SolverCandidate, SolverFrontier, SolverId, SolverScore,
-    run_closure_step,
-};
-pub use plot::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, sample_1d};
 pub use session::Session;
 pub use solver::{
-    DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation,
-    SolverRegistry, SolverRequest, score_candidate,
+    DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,
+    SolverRequest, score_candidate,
 };
 pub use term::{Atom, Term, number_from_term};

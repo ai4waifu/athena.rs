@@ -31,8 +31,6 @@ pub fn execute_polynomial(request: PolynomialRequest) -> PolynomialResult {
         PolynomialRequest::Groebner { .. } => "groebner",
     };
     PolynomialResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "polynomial")
-            .detail("operation", op),
+        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", op),
     }
 }

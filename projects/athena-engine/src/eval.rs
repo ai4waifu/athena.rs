@@ -380,7 +380,8 @@ fn eval_simplify(expr: &Term, depth: u32) -> Term {
 }
 
 fn eval_machine_unary(name: &str, arg: &Term) -> Term {
-    let Some(x) = number_from_term(arg).and_then(Number::to_f64_lossy) else {
+    let Some(x) = number_from_term(arg).and_then(Number::to_f64_lossy)
+    else {
         return Term::apply(name, vec![arg.clone()]);
     };
     let y = match name {
@@ -391,11 +392,7 @@ fn eval_machine_unary(name: &str, arg: &Term) -> Term {
         "Log" => x.ln(),
         _ => return Term::apply(name, vec![arg.clone()]),
     };
-    if y.is_finite() {
-        Term::real(y)
-    } else {
-        Term::apply(name, vec![arg.clone()])
-    }
+    if y.is_finite() { Term::real(y) } else { Term::apply(name, vec![arg.clone()]) }
 }
 
 fn eval_sqrt(arg: &Term) -> Term {

@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use athena_engine::{
-    ClosureLimits, Diagnostic, MGraphState, ReflectionResult, Reflector, SolverContext, SolverId, SolverOperation,
-    SolverRegistry, SolverRequest, DomainRef, SolverLimits, score_candidate, run_closure_step, SolverCandidate,
+    ClosureLimits, Diagnostic, DomainRef, MGraphState, ReflectionResult, Reflector, SolverCandidate, SolverContext, SolverId,
+    SolverLimits, SolverOperation, SolverRegistry, SolverRequest, run_closure_step, score_candidate,
 };
 use athena_types::{AssumptionSetId, TermId};
 
@@ -41,10 +41,7 @@ fn solver_registry_lookup() {
 
 #[test]
 fn score_candidate_is_finite() {
-    let score = score_candidate(&SolverCandidate {
-        solver: SolverId(0),
-        roots: vec![TermId(0)],
-    });
+    let score = score_candidate(&SolverCandidate { solver: SolverId(0), roots: vec![TermId(0)] });
     assert!(score.estimated_benefit.is_finite());
 }
 
@@ -53,9 +50,7 @@ fn solver_request_scaffold() {
     let req = SolverRequest {
         domain: DomainRef::Arithmetic,
         roots: vec![TermId(1)],
-        operation: SolverOperation {
-            name: "noop".into(),
-        },
+        operation: SolverOperation { name: "noop".into() },
         limits: SolverLimits::default(),
         assumptions: AssumptionSetId(0),
     };
