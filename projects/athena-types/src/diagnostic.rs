@@ -229,6 +229,8 @@ pub enum DiagnosticCode {
     SamplingDomainInvalid,
     /// 采样资源上限（样本数过小/过大）。
     SamplingResourceLimit,
+    /// 采样被取消。
+    SamplingCancelled,
 }
 
 impl DiagnosticCode {
@@ -300,6 +302,7 @@ impl DiagnosticCode {
             Self::NumericConversionForbidden => "ATHENA_NUMERIC_CONVERSION_FORBIDDEN",
             Self::SamplingDomainInvalid => "ATHENA_SAMPLING_DOMAIN_INVALID",
             Self::SamplingResourceLimit => "ATHENA_SAMPLING_RESOURCE_LIMIT",
+            Self::SamplingCancelled => "ATHENA_SAMPLING_CANCELLED",
         }
     }
 }
