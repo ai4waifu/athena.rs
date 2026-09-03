@@ -6,15 +6,19 @@ use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as
 use athena_numeric::{ExecutionBudget, NumericContext};
 
 use crate::{
+    eval::{DefinitionMap, EvalOutcome, evaluate_in, evaluate_with_definitions},
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
     linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
     semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable},
+    term::Term,
 };
 
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
+    /// Own `Set` 符号定义（跨 `evaluate` 持久；Living 25 `Term` 桥）。
+    pub definitions: DefinitionMap,
     /// 多项式环 intern 表。
     pub rings: RingTable,
     /// M-Graph 状态（多项式缓存 · witness）。
@@ -34,6 +38,7 @@ pub struct Session {
 impl core::fmt::Debug for Session {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Session")
+            .field("definitions", &self.definitions.keys().collect::<Vec<_>>())
             .field("rings", &self.rings)
             .field("mgraph", &self.mgraph)
             .field("exprs", &self.exprs)
@@ -60,6 +65,7 @@ impl Session {
         let heap = GcHeap::new_shared(HeapBudget::default());
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
+            definitions: DefinitionMap::new(),
             rings: RingTable::default(),
             mgraph: MGraphState::default(),
             exprs: ExprBindingTable::default(),
@@ -68,6 +74,21 @@ impl Session {
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
         }
+    }
+
+    /// 在本 Session 定义表上求值（顶层 `Set` 持久化）。
+    pub fn evaluate(&mut self, expr: &Term) -> Term {
+        evaluate_in(&mut self.definitions, expr)
+    }
+
+    /// 带状态 / 诊断的 Session 求值。
+    pub fn evaluate_outcome(&mut self, expr: &Term) -> EvalOutcome {
+        evaluate_with_definitions(&mut self.definitions, expr)
+    }
+
+    /// 清除 Own 符号定义（不触及 heap / rings）。
+    pub fn clear_definitions(&mut self) {
+        self.definitions.clear();
     }
 
     /// Session runtime heap。
