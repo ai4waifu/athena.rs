@@ -792,6 +792,13 @@ fn expand_span_args(args: &[Term]) -> Option<Term> {
 }
 
 fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcome {
+    // Pure function application: `Function[…][args…]` (head is not a bare symbol).
+    if let Term::Application { head: fh, arguments: fargs } = head {
+        if fh.is_symbol("Function") {
+            return apply_function(fargs, &args, depth);
+        }
+    }
+
     let name = match head {
         Term::Atom(Atom::Symbol(s)) => s.as_str(),
         _ => {
@@ -868,15 +875,25 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
             let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
             EvalOutcome::invalid(term, unsupported_operation(name))
         }
-        _ => {
-            if let Term::Application { head: fh, arguments: fargs } = head {
-                if fh.is_symbol("Function") && fargs.len() == 1 && args.len() == 1 {
-                    let body = substitute_slot(&fargs[0], &args[0]);
-                    return evaluate_depth_outcome(&body, depth + 1);
-                }
-            }
-            EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: args })
+        _ => EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: args }),
+    }
+}
+
+/// Apply `Function[body]` (Slot) or `Function[var, body]` (named) to arguments.
+fn apply_function(fargs: &[Term], args: &[Term], depth: u32) -> EvalOutcome {
+    match fargs {
+        [body] if args.len() == 1 => {
+            let substituted = substitute_slot(body, &args[0]);
+            evaluate_depth_outcome(&substituted, depth + 1)
         }
+        [Term::Atom(Atom::Symbol(var)), body] if args.len() == 1 => {
+            let substituted = substitute_symbol(body, var, &args[0]);
+            evaluate_depth_outcome(&substituted, depth + 1)
+        }
+        _ => EvalOutcome::unevaluated(Term::Application {
+            head: Box::new(Term::apply("Function", clone_terms(fargs))),
+            arguments: clone_terms(args),
+        }),
     }
 }
 
@@ -1287,6 +1304,16 @@ fn map_one(func: &Term, item: &Term) -> Term {
         Term::Application { head, arguments: args } if head.is_symbol("Function") && args.len() == 1 => {
             substitute_slot(&args[0], item)
         }
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Function") && args.len() == 2 && matches!(&args[0], Term::Atom(Atom::Symbol(_))) =>
+        {
+            if let Term::Atom(Atom::Symbol(var)) = &args[0] {
+                substitute_symbol(&args[1], var, item)
+            }
+            else {
+                Term::apply("Map", vec![clone_term(func), clone_term(item)])
+            }
+        }
         _ => Term::apply("Map", vec![clone_term(func), clone_term(item)]),
     }
 }
@@ -1521,6 +1548,11 @@ fn eval_part_outcome(expr: &Term, index: &Term) -> EvalOutcome {
 fn substitute_slot(body: &Term, value: &Term) -> Term {
     match body {
         Term::Atom(Atom::Symbol(s)) if s == "#" || s == "#1" => clone_term(value),
+        Term::Application { head, arguments: args }
+            if head.is_symbol("Slot") && (args.is_empty() || (args.len() == 1 && matches!(&args[0], Term::Atom(Atom::Number(n)) if n.as_exact_integer() == Some(1)))) =>
+        {
+            clone_term(value)
+        }
         Term::Atom(_) => clone_term(body),
         Term::List(items) => Term::List(items.iter().map(|i| substitute_slot(i, value)).collect()),
         Term::Application { head, arguments: args } => Term::Application {
