@@ -6,7 +6,7 @@ use crate::numeric_clone::{clone_term, clone_terms};
 use crate::term::Term;
 
 /// 求导阶数。
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DerivativeOrder {
     /// 一阶导数。
     First,
@@ -240,7 +240,7 @@ impl Clone for CalculusRequest {
             Self::Derivative { expression, variable, order, assumptions } => Self::Derivative {
                 expression: clone_term(expression),
                 variable: variable.clone(),
-                order: order.clone(),
+                order: *order,
                 assumptions: assumptions.clone(),
             },
             Self::Limit { expression, variable, approach, direction, assumptions } => Self::Limit {

@@ -34,6 +34,24 @@ pub enum Primality {
     Unknown,
 }
 
+impl Primality {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Prime { certificate } => Self::Prime { certificate: certificate.clone() },
+            Self::Composite { witness } => Self::Composite { witness: witness.clone() },
+            Self::ProbablePrime { evidence } => Self::ProbablePrime { evidence: evidence.clone() },
+            Self::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl Clone for Primality {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
 /// 单个分解因子（底 × 指数）及其素性状态。
 #[derive(Debug, PartialEq, Eq)]
 pub struct FactorComponent {

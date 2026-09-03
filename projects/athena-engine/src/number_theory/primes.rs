@@ -6,6 +6,7 @@ use super::{
     certificates::{CompositeWitness, PrimeCertificate, ProbablePrimeEvidence},
     value::Primality,
 };
+use crate::numeric_clone::{clone_integer};
 
 /// 默认 Miller–Rabin 固定基数量上限（大整数路径）。
 pub const DEFAULT_MR_ROUNDS: u32 = 16;
@@ -186,7 +187,7 @@ fn miller_rabin_integer_fixed(n: &Integer, requested_rounds: u32) -> MrFixedOutc
     let one = Integer::one();
     let two = Integer::from_i64(2);
     let n_minus_one = n.sub(&one);
-    let mut d = n_minus_one.clone();
+    let mut d = clone_integer(&n_minus_one);
     let mut s = 0u32;
     while d.rem(&two).expect("rem").is_zero() {
         d = d.div(&two).expect("div");
@@ -251,7 +252,7 @@ impl Iterator for PrimeIterator {
         }
         loop {
             if matches!(primality_test(&self.current, None), Primality::Prime { .. }) {
-                let p = self.current.clone();
+                let p = clone_integer(&self.current);
                 self.current = self.current.add(&Integer::from_i64(2));
                 return Some(p);
             }

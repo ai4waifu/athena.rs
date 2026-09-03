@@ -49,7 +49,7 @@ pub struct Subgroup {
 }
 
 /// 置换：像列表 `π(i) = images[i]`（0-based；度数由 presentation 解释）。
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Permutation {
     /// 像（长度须等于 presentation 的 degree）。
     pub images: Vec<u32>,

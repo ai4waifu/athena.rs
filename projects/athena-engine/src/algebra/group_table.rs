@@ -139,15 +139,18 @@ impl GroupTable {
                 .detail("domain", "group")
                 .detail("operation", "quotient"));
         }
-        let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?.clone();
-        let parent_spec = self.permutation_spec(r.parent).ok_or_else(|| unknown_group(r.parent))?;
-        let sub_spec = self.permutation_spec(r.subgroup).ok_or_else(|| unknown_group(r.subgroup))?;
+        let (parent, subgroup_gid) = {
+            let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
+            (r.parent, r.subgroup)
+        };
+        let parent_spec = self.permutation_spec(parent).ok_or_else(|| unknown_group(parent))?;
+        let sub_spec = self.permutation_spec(subgroup_gid).ok_or_else(|| unknown_group(subgroup_gid))?;
         let (gens, degree) = quotient_generators(&parent_spec.bsgs, &parent_spec.generators, &sub_spec.bsgs)?;
         let perm_gens: Vec<Permutation> = gens.iter().map(|g| Permutation { images: g.images().to_vec() }).collect();
         let quotient = self.permutation_group(degree, &perm_gens)?;
-        let parent_presentation = self.presentation_id(r.parent)?;
+        let parent_presentation = self.presentation_id(parent)?;
         let quotient_presentation = self.presentation_id(quotient)?;
-        self.map_table.register_quotient_projection(subgroup, r.parent, quotient, parent_presentation, quotient_presentation);
+        self.map_table.register_quotient_projection(subgroup, parent, quotient, parent_presentation, quotient_presentation);
         Ok(quotient)
     }
 

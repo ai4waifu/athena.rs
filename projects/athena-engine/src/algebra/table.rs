@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use athena_numeric::{Integer, Rational};
-use crate::numeric_clone::{clone_integer, clone_modulus, clone_rationals};
+use crate::numeric_clone::{clone_integer, clone_integers, clone_modulus, clone_rational, clone_rationals, resize_rationals};
 use athena_types::{
     AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result,
 };
@@ -147,7 +147,7 @@ impl FieldTable {
                 .detail("domain", "field")
                 .detail("operation", "polynomial_basis_modulus"));
         }
-        let key = FieldInternKey::PolynomialBasis { characteristic: clone_integer(&characteristic), modulus: clone_modulus(&modulus) };
+        let key = FieldInternKey::PolynomialBasis { characteristic: clone_integer(&characteristic), modulus: clone_integers(&modulus) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
@@ -227,13 +227,13 @@ impl FieldTable {
         }
         let absolute_degree = absolute_degree_product(base_degree, relative_degree)?;
         let absolute_modulus = if base_degree == 1 {
-            clone_integer(&monic)
+            clone_rationals(&monic)
         }
         else if base_degree == 2 && relative_degree == 2 && monic[1].is_zero() {
             biquadratic_absolute_modulus(&base_abs_mod, &monic[0].neg())?
         }
         else {
-            let mut placeholder = vec![Rational::zero(); absolute_degree as usize + 1];
+            let mut placeholder = { let mut __v = Vec::new(); resize_rationals(&mut __v, absolute_degree as usize + 1, &Rational::zero()); __v };
             placeholder[absolute_degree as usize] = Rational::one();
             placeholder
         };
@@ -259,12 +259,12 @@ impl FieldTable {
         }
         let mut powers = Vec::with_capacity(n + 1);
         let mut cur = {
-            let mut one = vec![Rational::zero(); n];
+            let mut one = { let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v };
             one[0] = Rational::one();
             one
         };
         for _ in 0..=n {
-            powers.push(clone_integer(&cur));
+            powers.push(clone_rationals(&cur));
             cur = self.mul_number_field_coords(field, &cur, coords)?;
         }
         crate::algebra::number_field::minimal_polynomial_from_powers(&powers)

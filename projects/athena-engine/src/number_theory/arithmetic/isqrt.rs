@@ -1,16 +1,17 @@
 //! 整数平方根（数学 floor `√n`）。
 
 use athena_numeric::Integer;
+use crate::numeric_clone::{clone_integer};
 
 /// `⌊√n⌋`（`n ≥ 0`；负输入返回 `0`）。
 pub fn isqrt(n: &Integer) -> Integer {
     if n.is_zero() || n.is_one() {
-        return n.clone();
+        return clone_integer(&n);
     }
     if n.is_negative() {
         return Integer::zero();
     }
-    let mut x = n.clone();
+    let mut x = clone_integer(&n);
     let two = Integer::from_i64(2);
     loop {
         let y = x.add(&n.div(&x).expect("div")).div(&two).expect("div");

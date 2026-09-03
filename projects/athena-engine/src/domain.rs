@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// 顶层域请求。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DomainRequest {
     /// 微积分 / 高等数学。
     Calculus(CalculusRequest),
@@ -40,7 +40,7 @@ pub enum DomainRequest {
 }
 
 /// 顶层域结果 — 按域区分，禁止压成无类型 map。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DomainResult {
     /// 微积分条件结果。
     Calculus(CalculusResult<CalculusValue>),

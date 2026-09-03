@@ -3,7 +3,7 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_integer};
+use crate::numeric_clone::{clone_integer, clone_modulus};
 use super::super::{
     gcd::{extended_gcd, lcm},
     result::NumberTheoryResult,
@@ -45,7 +45,7 @@ pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus
     let x = a_red.add(&mv.mul(&t));
     let l = lcm(&mv, &nv);
     let modulus_lcm = Modulus::new(l)?;
-    Ok(CrtResult::Consistent { solution: ModularValue::new(x, modulus_lcm.clone()), modulus_lcm })
+    Ok(CrtResult::Consistent { solution: ModularValue::new(x, clone_modulus(&modulus_lcm)), modulus_lcm })
 }
 
 /// 多方程广义 CRT：`residues[i] (mod moduli[i])`。长度须一致且 ≥ 1。
@@ -67,17 +67,17 @@ pub fn chinese_remainder(residues: &[Integer], moduli: &[Modulus]) -> NumberTheo
         };
     }
     if residues.len() == 1 {
-        let m = moduli[0].clone();
+        let m = clone_modulus(&moduli[0]);
         return NumberTheoryResult::Exact {
             value: NumberTheoryValue::Crt(CrtResult::Consistent {
-                solution: ModularValue::new(residues[0].clone(), m.clone()),
+                solution: ModularValue::new(clone_integer(&residues[0]), clone_modulus(&m)),
                 modulus_lcm: m,
             }),
         };
     }
 
-    let mut cur_res = residues[0].clone();
-    let mut cur_mod = moduli[0].clone();
+    let mut cur_res = clone_integer(&residues[0]);
+    let mut cur_mod = clone_modulus(&moduli[0]);
     for i in 1..residues.len() {
         match chinese_remainder_pair(&cur_res, &cur_mod, &residues[i], &moduli[i]) {
             Ok(CrtResult::Consistent { solution, modulus_lcm }) => {
@@ -100,7 +100,7 @@ pub fn chinese_remainder(residues: &[Integer], moduli: &[Modulus]) -> NumberTheo
 
     NumberTheoryResult::Exact {
         value: NumberTheoryValue::Crt(CrtResult::Consistent {
-            solution: ModularValue::new(cur_res, cur_mod.clone()),
+            solution: ModularValue::new(cur_res, clone_modulus(&cur_mod)),
             modulus_lcm: cur_mod,
         }),
     }

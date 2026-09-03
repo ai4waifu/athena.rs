@@ -150,7 +150,7 @@ pub enum FpKernelKind {
 
 fn extract_integer(coeff: &Number) -> Result<Integer> {
     match coeff {
-        NumericValue::Integer(i) => Ok(i.clone()),
+        NumericValue::Integer(i) => Ok(clone_integer(i)),
         _ => Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
             .detail("domain", "polynomial")
             .detail("operation", "coeff_integer_required")),

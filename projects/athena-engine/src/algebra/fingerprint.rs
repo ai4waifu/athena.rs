@@ -1,5 +1,6 @@
 //! 域 / 群稳定指纹（FNV-1a 64 · 不含 Session 句柄）。
 
+use crate::numeric_clone::clone_integer;
 use athena_numeric::{Integer, Number, serialization::NumericValueWire};
 use athena_types::NumericKind;
 
@@ -132,7 +133,7 @@ impl GroupFingerprint {
 }
 
 fn append_integer(out: &mut Vec<u8>, n: &Integer) {
-    if let Ok(wire) = NumericValueWire::encode(&Number::integer(n.clone())) {
+    if let Ok(wire) = NumericValueWire::encode(&Number::integer(clone_integer(n))) {
         out.push(match wire.kind {
             NumericKind::Integer => 0,
             NumericKind::Rational => 1,

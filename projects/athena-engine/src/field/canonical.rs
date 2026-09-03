@@ -3,7 +3,7 @@
 use athena_numeric::{Integer, Rational};
 use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, FieldId, Result};
 
-use crate::numeric_clone::{clone_integer};
+use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals};
 use crate::algebra::{
     AlgebraParentId, FieldTable, MapTable, add_coords, add_nf_coords, canonical_coords, canonical_nf_coords, embed_base_coords,
     inv_coords, inv_nf_coords, inv_relative_nf_coords, mul_coords, mul_nf_coords, mul_relative_nf_coords,
@@ -70,8 +70,8 @@ pub fn apply_prime_subfield_embedding(
     match &element.repr {
         FieldElementRepr::PrimeFieldResidue { value } => {
             let spec = table.finite_field_poly_spec(target).ok_or_else(|| field_element_invalid("expected_extension"))?;
-            let mut coords = vec![Integer::zero(); spec.degree as usize];
-            coords[0] = value.clone();
+            let mut coords = { let mut __v = Vec::new(); resize_integers(&mut __v, spec.degree as usize, &Integer::zero()); __v };
+            coords[0] = clone_integer(value);
             canonical_extension_element(table, target, coords)
         }
         _ => Err(field_element_invalid("embedding_source_not_prime_residue")),
@@ -97,8 +97,8 @@ pub fn apply_base_field_embedding(
     }
     match &element.repr {
         FieldElementRepr::Rational { value } => {
-            let mut coords = vec![Rational::zero(); target_spec.absolute_degree as usize];
-            coords[0] = value.clone();
+            let mut coords = { let mut __v = Vec::new(); resize_rationals(&mut __v, target_spec.absolute_degree as usize, &Rational::zero()); __v };
+            coords[0] = clone_rational(value);
             canonical_number_field_element(table, target, coords)
         }
         FieldElementRepr::NumberFieldCoords { coords } => {

@@ -1,6 +1,7 @@
 //! Pollard rho（`f(x)=x²+c`）。
 
 use athena_numeric::Integer;
+use crate::numeric_clone::{clone_integer, clone_modulus};
 
 /// 寻找 `n` 的非平凡因子；失败返回 `None`。
 pub fn pollard_rho(n: &Integer, seed: u64, c: i64, max_iters: u64) -> Option<Integer> {
@@ -21,7 +22,7 @@ pub fn pollard_rho(n: &Integer, seed: u64, c: i64, max_iters: u64) -> Option<Int
     };
 
     let mut x = Integer::from_u64(seed % 1_000_003 + 2);
-    let mut y = x.clone();
+    let mut y = clone_integer(&x);
     let mut d = Integer::one();
     let mut iters = 0u64;
 

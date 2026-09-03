@@ -16,6 +16,7 @@ use super::{
     order::MonomialOrder,
     ring_table::RingTable,
 };
+use crate::numeric_clone::{clone_number};
 
 /// Gröbner 计算资源合同。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -395,7 +396,7 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
 }
 
 fn leading_term(poly: &Polynomial) -> Option<super::expr::MonomialTerm> {
-    poly.terms().first().cloned()
+    poly.terms().first().map(|t| t.owning_copy())
 }
 
 fn s_polynomial(
@@ -410,8 +411,8 @@ fn s_polynomial(
     let lcm = layout.lcm_exponents(&lf.exponents, &lg.exponents)?;
     let mult_f_exp = layout.exponents_delta(&lcm, &lf.exponents)?;
     let mult_g_exp = layout.exponents_delta(&lcm, &lg.exponents)?;
-    let mf = multiply_by_monomial(f, coeff.inv(lf.coefficient.clone())?, &mult_f_exp, layout, rings, coeff)?;
-    let mg = multiply_by_monomial(g, coeff.inv(lg.coefficient.clone())?, &mult_g_exp, layout, rings, coeff)?;
+    let mf = multiply_by_monomial(f, coeff.inv(clone_number(&lf.coefficient))?, &mult_f_exp, layout, rings, coeff)?;
+    let mg = multiply_by_monomial(g, coeff.inv(clone_number(&lg.coefficient))?, &mult_g_exp, layout, rings, coeff)?;
     sub_polynomial(mf, mg, rings)
 }
 
@@ -429,7 +430,7 @@ fn multiply_by_monomial(
     let mut b = PolynomialBuilder::new(poly.ring());
     for term in poly.terms() {
         let exponents = layout.add_exponents(term.exponents(), exp_delta)?;
-        let c = coeff.mul(scalar.clone(), term.coefficient().clone())?;
+        let c = coeff.mul(clone_number(&scalar), clone_number(term.coefficient()))?;
         b.push_term(c, exponents)?;
     }
     b.build(rings)
@@ -442,7 +443,7 @@ fn reduce_polynomial(
     layout: &MonomialLayout,
     coeff: &CoeffRing<'_>,
 ) -> Result<Polynomial> {
-    let mut remainder = poly.clone();
+    let mut remainder = poly.owning_copy();
     loop {
         let lr = match leading_term(&remainder) {
             Some(t) => t,
@@ -460,7 +461,7 @@ fn reduce_polynomial(
                 continue;
             }
             let delta = layout.exponents_delta(&lr.exponents, &lg.exponents)?;
-            let factor = coeff.div(lr.coefficient.clone(), lg.coefficient.clone())?;
+            let factor = coeff.div(clone_number(&lr.coefficient), clone_number(&lg.coefficient))?;
             let term = multiply_by_monomial(g, factor, &delta, layout, rings, coeff)?;
             remainder = sub_polynomial(remainder, term, rings)?;
             reduced = true;
@@ -480,7 +481,7 @@ fn autoreduce_basis(
 ) -> Result<Vec<Polynomial>> {
     let mut out = Vec::new();
     for (i, g) in basis.iter().enumerate() {
-        let others: Vec<Polynomial> = basis.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, p)| p.clone()).collect();
+        let others: Vec<Polynomial> = basis.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, p)| p.owning_copy()).collect();
         let r = reduce_polynomial(g, &others, rings, layout, coeff)?;
         if r.terms.is_empty() {
             continue;
@@ -499,7 +500,7 @@ fn autoreduce_basis(
 }
 
 fn extract_elimination_polys(basis: &[Polynomial], eliminate: usize) -> Vec<Polynomial> {
-    basis.iter().filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0))).cloned().collect()
+    basis.iter().filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0))).map(|p| p.owning_copy()).collect()
 }
 
 fn zero_poly_err() -> Diagnostic {

@@ -7,10 +7,10 @@ use super::{
     status::{AlgorithmGuarantee, SolveDisposition},
     value::MatrixValue,
 };
-use crate::numeric_clone::{clone_rational};
+use crate::numeric_clone::{clone_integer, clone_rational, clone_rationals, resize_rationals};
 
 /// 精确秩结果。
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactRankResult {
     /// 秩。
     pub rank: u64,
@@ -50,6 +50,49 @@ pub struct ExactRrefResult {
     /// 保证级别。
     pub guarantee: AlgorithmGuarantee,
 }
+
+impl ExactDetResult {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self { det: clone_rational(&self.det), guarantee: self.guarantee }
+    }
+}
+
+impl Clone for ExactDetResult {
+    fn clone(&self) -> Self { self.owning_copy() }
+}
+
+impl ExactSolveResult {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            disposition: self.disposition.clone(),
+            particular: self.particular.as_ref().map(|m| m.owning_copy()),
+            guarantee: self.guarantee,
+        }
+    }
+}
+
+impl Clone for ExactSolveResult {
+    fn clone(&self) -> Self { self.owning_copy() }
+}
+
+impl ExactRrefResult {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            matrix: self.matrix.owning_copy(),
+            pivot_cols: self.pivot_cols.clone(),
+            rank: self.rank,
+            guarantee: self.guarantee,
+        }
+    }
+}
+
+impl Clone for ExactRrefResult {
+    fn clone(&self) -> Self { self.owning_copy() }
+}
+
 
 fn get_q(a: &[Rational], cols: u64, r: u64, c: u64) -> Rational {
     clone_rational(&a[(r * cols + c) as usize])
@@ -183,7 +226,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
                 a[(i * n + j) as usize] = num.div(&prev).expect("div");
             }
         }
-        prev = clone_rational(&a[(k * n + k) as usize]);
+        prev = clone_integer(&a[(k * n + k) as usize]);
     }
     let det_z = sign.mul(&a[((n - 1) * n + (n - 1)) as usize]);
     Ok(ExactDetResult { det: Rational::from_integer(det_z), guarantee: AlgorithmGuarantee::Exact })
@@ -307,7 +350,7 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
             free_vars.push(j);
         }
     }
-    let mut x = vec![Rational::zero(); n as usize];
+    let mut x = { let mut __v = Vec::new(); resize_rationals(&mut __v, n as usize, &Rational::zero()); __v };
     for (i, &pc) in pivot_cols.iter().enumerate() {
         x[pc as usize] = get_q(&aug, cols, i as u64, n);
     }

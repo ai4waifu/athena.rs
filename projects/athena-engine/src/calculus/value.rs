@@ -1,5 +1,6 @@
 //! 统一的微积分 / 域值（表达式、级数或向量微积分对象）。
 
+use crate::numeric_clone::clone_term;
 use crate::term::Term;
 
 use super::{
@@ -100,7 +101,7 @@ impl CalculusValue {
     /// 展平为桥接 [`Term`]，供仍需要单一表达式的宿主使用。
     pub fn to_bridge_term(&self) -> Term {
         match self {
-            Self::Expression(t) => t.clone(),
+            Self::Expression(t) => clone_term(t),
             Self::Series(s) => s.to_term(),
             Self::Gradient(g) => g.to_list_term(),
             Self::Jacobian(j) => j.to_list_term(),

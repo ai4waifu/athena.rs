@@ -1,6 +1,7 @@
 //! 域与域元素对象合同。
 
 use athena_numeric::{Integer, Rational};
+use crate::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals};
 use athena_types::{ExtensionId, FieldId, FieldPresentationId};
 
 use crate::algebra::PropertyState;
@@ -77,3 +78,78 @@ pub enum FieldDescriptor {
 
 /// 向后兼容别名（迁移期；新代码用 [`FieldDescriptor`]）。
 pub type FieldKind = FieldDescriptor;
+
+
+impl FieldDescriptor {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Rationals => Self::Rationals,
+            Self::Prime { characteristic } => Self::Prime { characteristic: clone_integer(characteristic) },
+            Self::Extension { base, extension, degree } => Self::Extension {
+                base: *base,
+                extension: *extension,
+                degree: degree.clone(),
+            },
+        }
+    }
+}
+
+impl Clone for FieldDescriptor {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl Field {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            id: self.id,
+            descriptor: self.descriptor.owning_copy(),
+            presentation: self.presentation,
+        }
+    }
+}
+
+impl Clone for Field {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl FieldElementRepr {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Rational { value } => Self::Rational { value: clone_rational(value) },
+            Self::PrimeFieldResidue { value } => Self::PrimeFieldResidue { value: clone_integer(value) },
+            Self::ExtensionCoords { coords } => Self::ExtensionCoords { coords: clone_integers(coords) },
+            Self::NumberFieldCoords { coords } => Self::NumberFieldCoords { coords: clone_rationals(coords) },
+            Self::Placeholder => Self::Placeholder,
+        }
+    }
+}
+
+impl Clone for FieldElementRepr {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}
+
+impl FieldElement {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            field: self.field,
+            presentation: self.presentation,
+            repr: self.repr.owning_copy(),
+        }
+    }
+}
+
+impl Clone for FieldElement {
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
+}

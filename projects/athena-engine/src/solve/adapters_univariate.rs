@@ -17,6 +17,7 @@ use super::{
     solution::{BranchStatus, MultiplicityInfo, SolutionBranch, SolutionSet},
     value_table::{BindingValue, BindingValueTable},
 };
+use crate::numeric_clone::{clone_number};
 
 /// 一元根适配结果。
 #[derive(Debug, PartialEq)]
@@ -107,8 +108,8 @@ fn linear_root_from_poly(poly: &Polynomial) -> Result<Option<Number>, Diagnostic
             return Err(diag("expected_univariate"));
         }
         match exps[0] {
-            1 => a = Some(term.coefficient().clone()),
-            0 => b = Some(term.coefficient().clone()),
+            1 => a = Some(clone_number(term.coefficient())),
+            0 => b = Some(clone_number(term.coefficient())),
             _ => return Ok(None),
         }
     }

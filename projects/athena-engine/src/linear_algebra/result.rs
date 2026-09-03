@@ -41,7 +41,7 @@ pub enum LinearAlgebraValue {
 }
 
 /// 线性代数结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum LinearAlgebraResult {
     /// 成功。
     Ok {

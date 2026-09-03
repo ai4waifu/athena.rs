@@ -76,7 +76,7 @@ impl TransformResult {
             Term::List(vec![Term::symbol(&self.time_variable), Term::symbol(&self.transform_variable)]),
         ];
         if let Some(roc) = &self.region_of_convergence.predicate {
-            args.push(roc.clone());
+            args.push(clone_term(roc));
         }
         else {
             args.push(Term::symbol("ROCUnknown"));
@@ -269,7 +269,7 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         vec![
                             Term::apply(
                                 "Plus",
-                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
+                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))])],
                             ),
                             Term::int(-1),
                         ],
@@ -355,7 +355,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                         let den = evaluate(&Term::apply(
                             "Plus",
                             vec![
-                                Term::apply("Power", vec![Term::number(clone_term(&a)), Term::int(2)]),
+                                Term::apply("Power", vec![Term::number(clone_number(&a)), Term::int(2)]),
                                 Term::apply("Power", vec![Term::symbol(omega), Term::int(2)]),
                             ],
                         ));
@@ -377,7 +377,7 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                             "Sqrt",
                             vec![Term::apply(
                                 "Times",
-                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(clone_term(&a)), Term::int(-1)])],
+                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(clone_number(&a)), Term::int(-1)])],
                             )],
                         );
                         let exp_arg = evaluate(&Term::apply(
@@ -616,13 +616,13 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                     }
                     // Z 变换：n·aⁿ → a·z/(z-a)²
                     if let Some(a) = match_n_times_power(args, n) {
-                        let radius = num_abs(clone_term(&a));
+                        let radius = num_abs(clone_number(&a));
                         let den = evaluate(&Term::apply(
                             "Power",
                             vec![
                                 Term::apply(
                                     "Plus",
-                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
+                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))])],
                                 ),
                                 Term::int(2),
                             ],
@@ -642,7 +642,7 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                 "Power" if args.len() == 2 && args[1].is_symbol(n) => {
                     let a = number_from_term(&args[0]).map(clone_number)?;
                     // Z 变换：aⁿ → z/(z-a)，|z|>|a|
-                    let radius = num_abs(clone_term(&a));
+                    let radius = num_abs(clone_number(&a));
                     Some((z_over_z_minus(z, &a), RegionOfConvergence::abs_z_greater(z, radius)))
                 }
                 _ => None,
@@ -662,7 +662,7 @@ fn z_over_z_minus(z: &str, a: &Number) -> Term {
                 vec![
                     Term::apply(
                         "Plus",
-                        vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_term(&a))])],
+                        vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))])],
                     ),
                     Term::int(-1),
                 ],

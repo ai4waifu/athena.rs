@@ -1,6 +1,6 @@
 //! 多项式表示族 — 算法可按场景选用，经 canonical [`Polynomial`] 保持数学相等。
 
-use athena_numeric::Number;
+use athena_numeric::{Integer, Number};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
@@ -8,6 +8,7 @@ use super::{
     expr::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
+use crate::numeric_clone::{clone_number, clone_numbers, resize_numbers};
 
 /// 目标表示（转换时指定）。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -65,7 +66,7 @@ impl PolynomialRepr {
         let desc = rings.get(poly.ring()).ok_or_else(|| ring_unknown(poly.ring()))?;
         let n = desc.variable_count();
         let body = match target {
-            ReprTarget::DistributedSparse => PolynomialReprBody::DistributedSparse { terms: poly.terms().to_vec() },
+            ReprTarget::DistributedSparse => PolynomialReprBody::DistributedSparse { terms: poly.terms().iter().map(|t| t.owning_copy()).collect() },
             ReprTarget::DenseUnivariate { var_index } | ReprTarget::SparseUnivariate { var_index } => {
                 if var_index >= n {
                     return Err(Diagnostic::new(DiagnosticCode::PolynomialVariableMismatch)
@@ -82,6 +83,27 @@ impl PolynomialRepr {
             }
         };
         Ok(Self { ring: poly.ring(), body })
+    }
+
+
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            ring: self.ring,
+            body: match &self.body {
+                PolynomialReprBody::DenseUnivariate { var_index, coefficients } => PolynomialReprBody::DenseUnivariate {
+                    var_index: *var_index,
+                    coefficients: clone_numbers(coefficients),
+                },
+                PolynomialReprBody::SparseUnivariate { var_index, terms } => PolynomialReprBody::SparseUnivariate {
+                    var_index: *var_index,
+                    terms: terms.iter().map(|(d, c)| (*d, clone_number(c))).collect(),
+                },
+                PolynomialReprBody::DistributedSparse { terms } => PolynomialReprBody::DistributedSparse {
+                    terms: terms.iter().map(|tm| tm.owning_copy()).collect(),
+                },
+            },
+        }
     }
 
     /// 转回 canonical [`Polynomial`]（merge · 去零 · 排序）。
@@ -122,7 +144,7 @@ pub fn reprs_mathematically_equal(a: &PolynomialRepr, b: &PolynomialRepr, rings:
     if a.ring != b.ring {
         return Ok(false);
     }
-    Ok(a.clone().to_polynomial(rings)? == b.clone().to_polynomial(rings)?)
+    Ok(a.owning_copy().to_polynomial(rings)? == b.owning_copy().to_polynomial(rings)?)
 }
 
 fn assert_univariate_in(terms: &[MonomialTerm], var_index: usize, n: usize) -> Result<()> {
@@ -148,17 +170,17 @@ fn terms_to_dense(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<Number
     for term in terms {
         max_deg = max_deg.max(term.exponents()[var_index] as usize);
     }
-    let mut coeffs = vec![Number::small_int(0); max_deg + 1];
+    let mut coeffs = { let mut __v = Vec::new(); resize_numbers(&mut __v, max_deg + 1, &Number::integer(Integer::zero())); __v };
     for term in terms {
         let d = term.exponents()[var_index] as usize;
-        coeffs[d] = term.coefficient().clone();
+        coeffs[d] = clone_number(term.coefficient());
     }
     strip_trailing_zeros(&mut coeffs);
     Ok(coeffs)
 }
 
 fn terms_to_sparse(var_index: usize, terms: &[MonomialTerm]) -> Result<Vec<(u32, Number)>> {
-    let mut out: Vec<(u32, Number)> = terms.iter().map(|t| (t.exponents()[var_index], t.coefficient().clone())).collect();
+    let mut out: Vec<(u32, Number)> = terms.iter().map(|t| (t.exponents()[var_index], clone_number(t.coefficient()))).collect();
     out.sort_by(|a, b| b.0.cmp(&a.0));
     Ok(out)
 }
@@ -171,7 +193,7 @@ fn dense_to_terms(var_index: usize, n: usize, coefficients: &[Number]) -> Result
         }
         let mut exponents = vec![0u32; n];
         exponents[var_index] = d as u32;
-        terms.push(MonomialTerm { coefficient: coeff.clone(), exponents });
+        terms.push(MonomialTerm { coefficient: clone_number(coeff), exponents });
     }
     Ok(terms)
 }
@@ -184,7 +206,7 @@ fn sparse_to_terms(var_index: usize, n: usize, terms: &[(u32, Number)]) -> Resul
         }
         let mut exponents = vec![0u32; n];
         exponents[var_index] = deg;
-        out.push(MonomialTerm { coefficient: coeff.clone(), exponents });
+        out.push(MonomialTerm { coefficient: clone_number(coeff), exponents });
     }
     Ok(out)
 }

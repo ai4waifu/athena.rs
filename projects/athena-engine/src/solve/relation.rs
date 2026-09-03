@@ -3,6 +3,7 @@
 use athena_types::TermId;
 
 use super::policy::SolvePolicy;
+use crate::numeric_clone::{clone_number};
 
 /// Solve 结果可产生的关系种类。
 #[derive(Debug, Clone, PartialEq, Eq)]

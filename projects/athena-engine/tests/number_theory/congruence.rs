@@ -1,6 +1,6 @@
 //! 同余、CRT 与有理重建测试。
 
-use athena_engine::{
+use athena_engine::{clone_modulus, 
     CongruenceSolution, CrtResult, Integer, Modulus, ModulusTable, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue,
     RationalReconstruction, chinese_remainder, chinese_remainder_pair, execute_number_theory, rational_reconstruction,
     solve_linear_congruence,
@@ -129,7 +129,7 @@ fn rational_recon_half() {
 fn modulus_table_intern_idempotent() {
     let mut table = ModulusTable::new();
     let m = Modulus::new(17).unwrap();
-    let id1 = table.intern(m.clone());
+    let id1 = table.intern(clone_modulus(&m));
     let id2 = table.intern(m);
     assert_eq!(id1, id2);
     let ctx = table.get(id1).unwrap();

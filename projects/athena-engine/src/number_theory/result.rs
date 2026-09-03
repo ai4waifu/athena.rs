@@ -14,6 +14,7 @@ use super::{
     value::{FactorizationCompleteness, NumberTheoryValue, Primality},
 };
 use athena_numeric::{Integer, ModulusTable};
+use crate::numeric_clone::{clone_integer};
 
 /// 数论域结果信封。
 ///

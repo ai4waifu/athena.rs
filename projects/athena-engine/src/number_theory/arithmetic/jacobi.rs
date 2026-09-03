@@ -1,13 +1,14 @@
 //! Jacobi 与 Kronecker 符号。
 
 use athena_numeric::Integer;
+use crate::numeric_clone::{clone_integer};
 
 /// Jacobi 符号 `(a/n)`，`n` 须为正奇数。
 pub fn jacobi_symbol(a: &Integer, n: &Integer) -> Option<i32> {
     if !n.is_positive() || n.rem(&Integer::from_i64(2)).expect("rem").is_zero() {
         return None;
     }
-    Some(jacobi_inner(a.rem(n).expect("rem"), n.clone()))
+    Some(jacobi_inner(a.rem(n).expect("rem"), clone_integer(&n)))
 }
 
 /// Kronecker 符号 `(a/n)`。
@@ -22,8 +23,8 @@ pub fn kronecker_symbol(a: &Integer, n: &Integer) -> i32 {
         return kronecker_two(a);
     }
     let mut acc = 1i32;
-    let mut aa = a.clone();
-    let mut nn = n.clone();
+    let mut aa = clone_integer(&a);
+    let mut nn = clone_integer(&n);
     if nn.is_negative() {
         if aa.is_negative() {
             acc = -acc;
