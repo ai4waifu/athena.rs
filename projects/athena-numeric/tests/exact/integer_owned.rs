@@ -44,3 +44,37 @@ fn try_mul_u64_owned_preserves_sign() {
     assert_eq!(prod.abs(), expected.abs());
     assert!(prod.is_negative());
 }
+
+#[test]
+fn try_sub_owned_matches_try_sub() {
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
+    let mag = Natural::from_limbs_with_capacity_in(&ctx, &[9, 8, 7], 8).expect("mag");
+    let a = Integer::from_natural_sign(mag, false);
+    let b = Integer::from_i64(-3);
+    let expected = a.try_sub(&b, &ctx).expect("ref");
+    let diff = a.try_sub_owned(&b, &ctx).expect("owned");
+    assert_eq!(diff, expected);
+}
+
+#[test]
+fn try_add_owned_opposite_sign_matches_try_add() {
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
+    let a = Integer::from_natural_sign(Natural::from_limbs_with_capacity_in(&ctx, &[5, 6, 7], 8).expect("a"), true);
+    let b = Integer::from_natural_sign(Natural::from_limbs_in(&ctx, vec![1, 2]).expect("b"), false);
+    let expected = a.try_add(&b, &ctx).expect("ref");
+    let sum = a.try_add_owned(&b, &ctx).expect("owned");
+    assert_eq!(sum, expected);
+}
+
+#[test]
+fn try_mul_owned_matches_try_mul() {
+    let heap = GcHeap::new_shared(HeapBudget::default());
+    let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
+    let a = Integer::from_natural_sign(Natural::from_limbs_with_capacity_in(&ctx, &[2, 3, 4], 8).expect("a"), true);
+    let b = Integer::from_natural_sign(Natural::from_limbs_in(&ctx, vec![5, 6]).expect("b"), true);
+    let expected = a.try_mul(&b, &ctx).expect("ref");
+    let prod = a.try_mul_owned(&b, &ctx).expect("owned");
+    assert_eq!(prod, expected);
+}

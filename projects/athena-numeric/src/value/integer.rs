@@ -375,6 +375,46 @@ impl Integer {
         Self::try_sub_view(self.magnitude_view(), rhs.magnitude_view(), ctx)
     }
 
+    /// 消费 `self` 的减法：与 [`Self::try_add_owned`] 同路径，仅将 `rhs` 符号取反。
+    ///
+    /// 不经 owning [`Self::neg`]；幅度 clone 仅在进入 `Natural` owned API 时发生。
+    pub fn try_sub_owned(self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        if rhs.is_zero() {
+            return Ok(self);
+        }
+        if self.is_zero() {
+            // 0 - b = -b（幅度 clear-sign clone；符号取反）。
+            return Ok(Self::from_mag_sign(
+                Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?),
+                !rhs.is_negative(),
+            ));
+        }
+
+        let lhs_neg = self.is_negative();
+        let rhs_neg = !rhs.is_negative(); // flipped relative to try_add_owned
+        if lhs_neg == rhs_neg {
+            let mag = Natural::from_pair(self.into_pair().with_negative(false));
+            let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
+            return Ok(Self::from_mag_sign(mag.try_add_owned(&rhs_mag, ctx)?, lhs_neg));
+        }
+
+        let cmp = limb_kernel::cmp_slice(self.as_limbs(), rhs.as_limbs());
+        match cmp {
+            Ordering::Equal => Ok(Self::zero()),
+            Ordering::Greater => {
+                let mag = Natural::from_pair(self.into_pair().with_negative(false));
+                let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
+                Ok(Self::from_mag_sign(mag.try_sub_owned(&rhs_mag, ctx)?, lhs_neg))
+            }
+            Ordering::Less => {
+                let rhs_mag = Natural::from_pair(rhs.inner.try_clone_clear_sign().map_err(gc_alloc_error)?);
+                let lhs_mag = Natural::from_pair(self.into_pair().with_negative(false));
+                Ok(Self::from_mag_sign(rhs_mag.try_sub_owned(&lhs_mag, ctx)?, rhs_neg))
+            }
+        }
+    }
+
     /// 借用视图减法；结果发布到 `ctx`。
     pub fn try_sub_view(lhs: MagnitudeView<'_>, rhs: MagnitudeView<'_>, ctx: &NumericContext) -> Result<Self> {
         let rhs_neg = MagnitudeView::from_parts(rhs.limbs(), !rhs.is_negative());
