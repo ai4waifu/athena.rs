@@ -3,7 +3,9 @@
 use std::{cell::RefCell, ptr::NonNull, rc::Rc};
 
 use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
+use athena_ir::{OperatorRegistry, TermArena, TermBuilder};
 use athena_numeric::{ExecutionBudget, NumericContext};
+use athena_types::{ExprId, TermId, ValueId};
 
 use crate::{
     eval::{DefinitionMap, EvalOutcome, evaluate_in, evaluate_with_definitions},
@@ -13,19 +15,26 @@ use crate::{
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
     semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable},
     term::Term,
+    value::ValueBindingTable,
 };
 
 /// 可变求值 Session（绑定、选项、环注册表、M-Graph、语义表、runtime heap roots）。
 pub struct Session {
-    /// Own / Delayed 符号定义（跨 `evaluate` 持久；Living 25 `Term` 桥）。
+    /// Core IR arena（表达式与求值结果存储）。
+    pub arena: TermArena,
+    /// 内建算子注册表。
+    pub operators: OperatorRegistry,
+    /// 表达式身份 ↔ 存储 `TermId`。
+    pub exprs: ExprBindingTable,
+    /// 值身份 ↔ 存储 `TermId`。
+    pub value_bindings: ValueBindingTable,
+    /// Own / Delayed 符号定义（跨 `evaluate` 持久）。
     pub definitions: DefinitionMap,
     /// 多项式环 intern 表。
     pub rings: RingTable,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
-    /// 表达式身份 ↔ 存储 `TermId`。
-    pub exprs: ExprBindingTable,
-    /// 值对象身份。
+    /// 值对象身份注册表。
     pub values: ValueIdTable,
     /// 结果容器身份。
     pub results: ResultIdTable,
@@ -38,10 +47,13 @@ pub struct Session {
 impl core::fmt::Debug for Session {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Session")
+            .field("arena_len", &self.arena.len())
+            .field("operators", &self.operators.len())
             .field("definitions", &self.definitions.keys().collect::<Vec<_>>())
             .field("rings", &self.rings)
             .field("mgraph", &self.mgraph)
             .field("exprs", &self.exprs)
+            .field("value_bindings", &self.value_bindings)
             .field("values", &self.values)
             .field("results", &self.results)
             .field("assumption_scopes", &self.assumption_scopes)
@@ -65,15 +77,43 @@ impl Session {
         let heap = GcHeap::new_shared(HeapBudget::default());
         heap.borrow().gc().set_base_mode(GcMode::Deferred);
         Self {
+            arena: TermArena::new(),
+            operators: OperatorRegistry::standard(),
+            exprs: ExprBindingTable::default(),
+            value_bindings: ValueBindingTable::default(),
             definitions: DefinitionMap::new(),
             rings: RingTable::default(),
             mgraph: MGraphState::default(),
-            exprs: ExprBindingTable::default(),
             values: ValueIdTable::default(),
             results: ResultIdTable::default(),
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
         }
+    }
+
+    /// 获取可变 [`TermBuilder`]。
+    pub fn builder(&mut self) -> TermBuilder<'_> {
+        TermBuilder::new(&mut self.arena)
+    }
+
+    /// 将存储项注册为表达式身份。
+    pub fn intern_expr(&mut self, term: TermId) -> ExprId {
+        self.exprs.intern_term(term)
+    }
+
+    /// 将存储项注册为值身份。
+    pub fn intern_value(&mut self, term: TermId) -> ValueId {
+        self.value_bindings.intern_term(term)
+    }
+
+    /// 表达式对应的存储项。
+    pub fn term_of_expr(&self, expr: ExprId) -> Option<TermId> {
+        self.exprs.term_of(expr)
+    }
+
+    /// 值对应的存储项。
+    pub fn term_of_value(&self, value: ValueId) -> Option<TermId> {
+        self.value_bindings.term_of(value)
     }
 
     /// 在本 Session 定义表上求值（顶层 `Set` 持久化）。
