@@ -91,6 +91,11 @@ pub fn push_number(session: &mut crate::session::Session, n: Number) -> TermId {
     session.arena.push(athena_ir::TermKind::Atom(athena_ir::AtomKind::Number(n)), span)
 }
 
+/// 会话级 App 构造（算子名 intern）。
+pub fn push_app(session: &mut crate::session::Session, head: &str, args: Vec<TermId>) -> TermId {
+    crate::arena_ops::push_app_named(session, head, args)
+}
+
 /// 会话级数字原子读取。
 pub fn number_of<'a>(session: &'a crate::session::Session, id: TermId) -> Option<&'a Number> {
     match session.arena.get(id) {
