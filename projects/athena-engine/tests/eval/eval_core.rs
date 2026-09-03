@@ -597,3 +597,48 @@ fn matrix_constructors_and_size() {
         Term::List(vec![Term::int(1), Term::int(3)])
     );
 }
+
+#[test]
+fn elementwise_dot_ops_on_lists() {
+    assert_eq!(
+        evaluate(&Term::apply(
+            "DotTimes",
+            vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]
+        )),
+        Term::List(vec![Term::int(3), Term::int(8)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("DotTimes", vec![Term::int(2), Term::List(vec![Term::int(1), Term::int(2)])])),
+        Term::List(vec![Term::int(2), Term::int(4)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "DotPower",
+            vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::int(0)]
+        )),
+        Term::List(vec![Term::int(1), Term::int(1), Term::int(1)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "DotPower",
+            vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(2), Term::int(3)])]
+        )),
+        Term::List(vec![Term::int(1), Term::int(8)])
+    );
+    // Nested matrices
+    let a = Term::List(vec![
+        Term::List(vec![Term::int(1), Term::int(2)]),
+        Term::List(vec![Term::int(3), Term::int(4)]),
+    ]);
+    let b = Term::List(vec![
+        Term::List(vec![Term::int(5), Term::int(6)]),
+        Term::List(vec![Term::int(7), Term::int(8)]),
+    ]);
+    assert_eq!(
+        evaluate(&Term::apply("DotTimes", vec![a, b])),
+        Term::List(vec![
+            Term::List(vec![Term::int(5), Term::int(12)]),
+            Term::List(vec![Term::int(21), Term::int(32)]),
+        ])
+    );
+}

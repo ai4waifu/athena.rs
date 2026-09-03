@@ -1015,7 +1015,7 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
 
     match name {
         "Plus" => EvalOutcome::value(eval_plus(args)),
-        "Times" => EvalOutcome::value(eval_times(args)),
+        "Times" => eval_times_outcome(args),
         "Power" if args.len() == 2 => EvalOutcome::value(eval_power(clone_term(&args[0]), clone_term(&args[1]))),
         "Subtract" if args.len() == 2 => {
             EvalOutcome::value(eval_plus(vec![clone_term(&args[0]), eval_times(vec![Term::int(-1), clone_term(&args[1])])]))
@@ -1290,6 +1290,30 @@ fn eval_times(args: Vec<Term>) -> Term {
     }
 }
 
+/// `Times`：标量 × nested List 按 MATLAB/数组语义广播；两矩阵保持 `Times`（矩阵乘留给后续）。
+fn eval_times_outcome(args: Vec<Term>) -> EvalOutcome {
+    let mut scalars = Vec::new();
+    let mut lists = Vec::new();
+    let mut other = false;
+    for a in &args {
+        if number_from_term(a).is_some() {
+            scalars.push(clone_term(a));
+        }
+        else if matches!(a, Term::List(_)) {
+            lists.push(clone_term(a));
+        }
+        else {
+            other = true;
+            break;
+        }
+    }
+    if !other && lists.len() == 1 && !scalars.is_empty() && scalars.len() + 1 == args.len() {
+        let scale = eval_times(scalars);
+        return eval_dot_binop("DotTimes", &scale, &lists[0], |a, b| eval_times(vec![a, b]));
+    }
+    EvalOutcome::value(eval_times(args))
+}
+
 /// 数值系数前置，保持与历史 Times 规范一致。
 fn canonicalize_times_factors(factors: Vec<Term>) -> Vec<Term> {
     let mut nums = Vec::new();
@@ -1367,6 +1391,10 @@ fn flatten_times(a: Term, flat: &mut Vec<Term>, prod: &mut Option<Number>) {
 fn eval_power(base: Term, exp: Term) -> Term {
     if let Some(e) = number_from_term(&exp).map(clone_number) {
         if e.is_zero() {
+            // Scalar `x^0 → 1`. Lists use `DotPower` for elementwise; matrix `A^0` is not this path.
+            if matches!(&base, Term::List(_)) {
+                return Term::apply("Power", vec![base, exp]);
+            }
             return Term::int(1);
         }
         if e.is_one() {
@@ -1854,20 +1882,87 @@ fn eval_part_n(args: &[Term]) -> EvalOutcome {
 
 fn eval_dot_binop<F>(head: &str, left: &Term, right: &Term, op: F) -> EvalOutcome
 where
-    F: Fn(Term, Term) -> Term,
+    F: Fn(Term, Term) -> Term + Copy,
 {
     match (left, right) {
         (Term::List(a), Term::List(b)) if a.len() == b.len() => {
-            let out: Vec<Term> = a.iter().zip(b.iter()).map(|(x, y)| op(clone_term(x), clone_term(y))).collect();
-            EvalOutcome::value(Term::List(out))
+            let mut out = Vec::with_capacity(a.len());
+            let mut diagnostics = Vec::new();
+            for (x, y) in a.iter().zip(b.iter()) {
+                let mut cell = if matches!(x, Term::List(_)) || matches!(y, Term::List(_)) {
+                    eval_dot_binop(head, x, y, op)
+                }
+                else {
+                    EvalOutcome::value(op(clone_term(x), clone_term(y)))
+                };
+                if cell.has_error() {
+                    diagnostics.append(&mut cell.diagnostics);
+                    return EvalOutcome {
+                        term: Term::apply(head, vec![clone_term(left), clone_term(right)]),
+                        kind: EvalKind::Unevaluated,
+                        status: ComputationStatus::Invalid,
+                        diagnostics,
+                    };
+                }
+                diagnostics.append(&mut cell.diagnostics);
+                out.push(cell.term);
+            }
+            EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
         }
+        (Term::List(a), Term::List(b)) => EvalOutcome::invalid(
+            Term::apply(head, vec![clone_term(left), clone_term(right)]),
+            Diagnostic::new(DiagnosticCode::ShapeMismatch)
+                .detail("reason", "elementwise_length_mismatch")
+                .detail("left", a.len().to_string())
+                .detail("right", b.len().to_string()),
+        ),
         (Term::List(a), b) => {
-            let out: Vec<Term> = a.iter().map(|x| op(clone_term(x), clone_term(b))).collect();
-            EvalOutcome::value(Term::List(out))
+            let mut out = Vec::with_capacity(a.len());
+            let mut diagnostics = Vec::new();
+            for x in a {
+                let mut cell = if matches!(x, Term::List(_)) {
+                    eval_dot_binop(head, x, b, op)
+                }
+                else {
+                    EvalOutcome::value(op(clone_term(x), clone_term(b)))
+                };
+                if cell.has_error() {
+                    diagnostics.append(&mut cell.diagnostics);
+                    return EvalOutcome {
+                        term: Term::apply(head, vec![clone_term(left), clone_term(right)]),
+                        kind: EvalKind::Unevaluated,
+                        status: ComputationStatus::Invalid,
+                        diagnostics,
+                    };
+                }
+                diagnostics.append(&mut cell.diagnostics);
+                out.push(cell.term);
+            }
+            EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
         }
         (a, Term::List(b)) => {
-            let out: Vec<Term> = b.iter().map(|y| op(clone_term(a), clone_term(y))).collect();
-            EvalOutcome::value(Term::List(out))
+            let mut out = Vec::with_capacity(b.len());
+            let mut diagnostics = Vec::new();
+            for y in b {
+                let mut cell = if matches!(y, Term::List(_)) {
+                    eval_dot_binop(head, a, y, op)
+                }
+                else {
+                    EvalOutcome::value(op(clone_term(a), clone_term(y)))
+                };
+                if cell.has_error() {
+                    diagnostics.append(&mut cell.diagnostics);
+                    return EvalOutcome {
+                        term: Term::apply(head, vec![clone_term(left), clone_term(right)]),
+                        kind: EvalKind::Unevaluated,
+                        status: ComputationStatus::Invalid,
+                        diagnostics,
+                    };
+                }
+                diagnostics.append(&mut cell.diagnostics);
+                out.push(cell.term);
+            }
+            EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
         }
         (a, b) if number_from_term(a).is_some() && number_from_term(b).is_some() => {
             EvalOutcome::value(op(clone_term(a), clone_term(b)))
