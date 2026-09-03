@@ -93,7 +93,7 @@ fn univariate_linear_root_complete() {
 }
 
 #[test]
-fn univariate_quadratic_partial_not_complete() {
+fn univariate_quadratic_irreducible_is_unsupported_solution() {
     let mut rings = RingTable::new();
     let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let mut b = PolynomialBuilder::new(ring);
@@ -102,9 +102,25 @@ fn univariate_quadratic_partial_not_complete() {
     let p = b.build(&rings).unwrap();
     let f = factor_univariate(p.clone(), &rings, PolynomialFactorLimits::default()).unwrap();
     let adapted = adapt_univariate_factorization(&f, BoundSymbol::free(SymbolId(0)), SolveDomain::Rationals).unwrap();
-    assert!(matches!(adapted.solution.coverage, CoverageStatus::CertifiedSubset));
+    assert!(matches!(adapted.solution.coverage, CoverageStatus::Unsupported));
     assert!(!adapted.solution.admits_exact_union_find());
     assert!(adapted.solution.branches.is_empty());
+}
+
+#[test]
+fn univariate_x2_minus_1_complete_two_roots() {
+    let mut rings = RingTable::new();
+    let ring = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
+    let mut b = PolynomialBuilder::new(ring);
+    b.push_term(Number::small_int(1), vec![2]).unwrap();
+    b.push_term(Number::small_int(-1), vec![0]).unwrap();
+    let p = b.build(&rings).unwrap();
+    let unknown = BoundSymbol::free(SymbolId(0));
+    let adapted =
+        solve_univariate_polynomial_roots(p, &rings, unknown, SolveDomain::Rationals, PolynomialFactorLimits::default())
+            .unwrap();
+    assert!(matches!(adapted.solution.coverage, CoverageStatus::Complete));
+    assert_eq!(adapted.solution.branches.len(), 2);
 }
 
 #[test]

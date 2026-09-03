@@ -42,14 +42,25 @@ fn linear_factors_proven_irreducible() {
 }
 
 #[test]
-fn higher_degree_returns_partial_cofactor() {
+fn quadratic_irreducible_over_rationals_is_complete() {
     let (rings, ring) = q_x();
     let p = uni(&rings, ring, &[(1, 2), (1, 0)]);
     let f = factor_univariate(p, &rings, PolynomialFactorLimits::default()).unwrap();
-    assert_eq!(f.completeness(), PolynomialFactorizationCompleteness::Partial);
-    assert!(f.factors.is_empty());
-    assert!(!f.cofactor.terms().is_empty());
-    assert!(!f.is_exact_witness());
+    assert_eq!(f.completeness(), PolynomialFactorizationCompleteness::Complete);
+    assert_eq!(f.factors.len(), 1);
+    assert_eq!(f.factors[0].status, PolynomialFactorStatus::ProvenIrreducible);
+    assert!(f.cofactor.terms().is_empty());
+    assert!(f.is_exact_witness());
+}
+
+#[test]
+fn quadratic_difference_of_squares_factors_complete() {
+    let (rings, ring) = q_x();
+    let p = uni(&rings, ring, &[(1, 2), (-1, 0)]);
+    let f = factor_univariate(p, &rings, PolynomialFactorLimits::default()).unwrap();
+    assert_eq!(f.completeness(), PolynomialFactorizationCompleteness::Complete);
+    assert_eq!(f.factors.len(), 2);
+    assert!(f.factors.iter().all(|c| c.status == PolynomialFactorStatus::ProvenIrreducible));
 }
 
 #[test]

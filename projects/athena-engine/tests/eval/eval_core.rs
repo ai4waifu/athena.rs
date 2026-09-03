@@ -686,3 +686,19 @@ fn matrix_det_sum_matmul_linear_solve() {
         Term::int(55)
     );
 }
+
+#[test]
+fn solve_x2_eq_1_returns_rule_list() {
+    let eq = Term::apply(
+        "Equal",
+        vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)],
+    );
+    let out = evaluate(&Term::apply("Solve", vec![eq, Term::symbol("x")]));
+    assert_eq!(
+        out,
+        Term::List(vec![
+            Term::List(vec![Term::apply("Rule", vec![Term::symbol("x"), Term::int(-1)])]),
+            Term::List(vec![Term::apply("Rule", vec![Term::symbol("x"), Term::int(1)])]),
+        ])
+    );
+}
