@@ -213,6 +213,36 @@ fn while_false_skips_body() {
 }
 
 #[test]
+fn compound_set_binds_for_later_stmts() {
+    let e = evaluate(&Term::apply(
+        "CompoundExpression",
+        vec![
+            Term::apply("Set", vec![Term::symbol("x"), Term::int(5)]),
+            Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]),
+        ],
+    ));
+    assert_eq!(e, Term::int(6));
+}
+
+#[test]
+fn part_end_is_last_element() {
+    let e = evaluate(&Term::apply(
+        "Part",
+        vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::symbol("End")],
+    ));
+    assert_eq!(e, Term::int(3));
+}
+
+#[test]
+fn part_all_returns_list() {
+    let e = evaluate(&Term::apply(
+        "Part",
+        vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::symbol("All")],
+    ));
+    assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
+}
+
+#[test]
 fn for_span_last_value() {
     let e = evaluate(&Term::apply(
         "For",

@@ -211,6 +211,7 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "Which" => Some(eval_which(args, depth)),
         "While" => Some(eval_while(args, depth)),
         "For" => Some(eval_for(args, depth)),
+        "CompoundExpression" => Some(eval_compound(args, depth)),
         _ => None,
     }
 }
@@ -420,6 +421,81 @@ fn substitute_symbol(expr: &Term, name: &str, value: &Term) -> Term {
     }
 }
 
+/// Sequential statements with temporary `Set` bindings (`x=5; x+1` → `6`).
+fn eval_compound(args: &[Term], depth: u32) -> EvalOutcome {
+    use std::collections::HashMap;
+
+    if args.is_empty() {
+        return EvalOutcome::value(Term::symbol("Null"));
+    }
+
+    let mut env: HashMap<String, Term> = HashMap::new();
+    let mut diagnostics = Vec::new();
+    let mut last = Term::symbol("Null");
+
+    for arg in args {
+        let rewritten = apply_bindings(arg, &env);
+        if let Some((name, rhs)) = match_set(&rewritten) {
+            let mut o = evaluate_depth_outcome(&rhs, depth + 1);
+            diagnostics.append(&mut o.diagnostics);
+            env.insert(name, clone_term(&o.term));
+            last = o.term;
+        }
+        else {
+            let mut o = evaluate_depth_outcome(&rewritten, depth + 1);
+            diagnostics.append(&mut o.diagnostics);
+            last = o.term;
+        }
+        if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+            return EvalOutcome { term: last, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics };
+        }
+    }
+
+    EvalOutcome { term: last, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+}
+
+fn match_set(term: &Term) -> Option<(String, Term)> {
+    match term {
+        Term::Application { head, arguments: args } if head.is_symbol("Set") && args.len() == 2 => {
+            match &args[0] {
+                Term::Atom(Atom::Symbol(s)) => Some((s.clone(), clone_term(&args[1]))),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn apply_bindings(expr: &Term, env: &std::collections::HashMap<String, Term>) -> Term {
+    match expr {
+        Term::Atom(Atom::Symbol(s)) => {
+            if let Some(v) = env.get(s) {
+                clone_term(v)
+            }
+            else {
+                clone_term(expr)
+            }
+        }
+        Term::Atom(_) => clone_term(expr),
+        Term::List(items) => Term::List(items.iter().map(|i| apply_bindings(i, env)).collect()),
+        Term::Application { head, arguments: args } => {
+            // Do not substitute into Set LHS.
+            if head.is_symbol("Set") && args.len() == 2 {
+                Term::Application {
+                    head: Box::new(clone_term(head)),
+                    arguments: vec![clone_term(&args[0]), apply_bindings(&args[1], env)],
+                }
+            }
+            else {
+                Term::Application {
+                    head: Box::new(apply_bindings(head, env)),
+                    arguments: args.iter().map(|a| apply_bindings(a, env)).collect(),
+                }
+            }
+        }
+    }
+}
+
 fn expand_span_args(args: &[Term]) -> Option<Term> {
     let ints: Option<Vec<i64>> = args.iter().map(|t| number_from_term(t).and_then(|n| n.as_exact_integer())).collect();
     let ints = ints?;
@@ -532,7 +608,6 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
             }
             EvalOutcome::unevaluated(term)
         }
-        "CompoundExpression" if !args.is_empty() => evaluate_depth_outcome(args.last().unwrap(), depth + 1),
         "Function" => EvalOutcome::unevaluated(Term::Application { head: Box::new(Term::symbol("Function")), arguments: args }),
         "ReplaceAll" if args.len() == 2 => EvalOutcome::value(eval_replace_all(&args[0], &args[1], depth)),
         "Part" if args.len() >= 2 => eval_part_n(&args),
@@ -1056,6 +1131,14 @@ fn eval_part(expr: &Term, index: &Term) -> Term {
     eval_part_outcome(expr, index).term
 }
 
+fn is_end_symbol(term: &Term) -> bool {
+    matches!(term, Term::Atom(Atom::Symbol(s)) if s == "End" || s == "end")
+}
+
+fn is_all_symbol(term: &Term) -> bool {
+    matches!(term, Term::Atom(Atom::Symbol(s)) if s == "All" || s == ":")
+}
+
 fn eval_part_n(args: &[Term]) -> EvalOutcome {
     let mut cur = clone_term(&args[0]);
     let mut diagnostics = Vec::new();
@@ -1111,6 +1194,16 @@ fn eval_part_outcome(expr: &Term, index: &Term) -> EvalOutcome {
             out.push(o.term);
         }
         return EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics };
+    }
+
+    // MATLAB `end` / `All` (`:`) relative to the current list.
+    if let Term::List(items) = expr {
+        if is_end_symbol(index) {
+            return eval_part_outcome(expr, &Term::int(items.len() as i64));
+        }
+        if is_all_symbol(index) {
+            return EvalOutcome::value(Term::List(items.iter().map(clone_term).collect()));
+        }
     }
 
     let idx = match number_from_term(index).and_then(|n| n.as_exact_integer()) {
