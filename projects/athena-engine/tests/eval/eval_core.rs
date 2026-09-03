@@ -560,3 +560,40 @@ fn sum_and_product_basic() {
         Term::int(120)
     );
 }
+
+#[test]
+fn matrix_constructors_and_size() {
+    assert_eq!(
+        evaluate(&Term::apply("Eye", vec![Term::int(2)])),
+        Term::List(vec![
+            Term::List(vec![Term::int(1), Term::int(0)]),
+            Term::List(vec![Term::int(0), Term::int(1)]),
+        ])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Zeros", vec![Term::int(2), Term::int(3)])),
+        Term::List(vec![
+            Term::List(vec![Term::int(0), Term::int(0), Term::int(0)]),
+            Term::List(vec![Term::int(0), Term::int(0), Term::int(0)]),
+        ])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Ones", vec![Term::int(2)])),
+        Term::List(vec![
+            Term::List(vec![Term::int(1), Term::int(1)]),
+            Term::List(vec![Term::int(1), Term::int(1)]),
+        ])
+    );
+    let m = Term::List(vec![
+        Term::List(vec![Term::int(1), Term::int(2)]),
+        Term::List(vec![Term::int(3), Term::int(4)]),
+    ]);
+    assert_eq!(
+        evaluate(&Term::apply("Size", vec![m])),
+        Term::List(vec![Term::int(2), Term::int(2)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Size", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])),
+        Term::List(vec![Term::int(1), Term::int(3)])
+    );
+}
