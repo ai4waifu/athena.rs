@@ -1,6 +1,6 @@
 //! 数值证据 arena 测试。
 
-use athena_numeric::{Integer, NumericBinding, NumericEvidenceArena, NumericEvidenceRecord, NumericValue};
+use athena_numeric::{NumericContext, Integer, NumericBinding, NumericEvidenceArena, NumericEvidenceRecord, NumericValue};
 
 #[test]
 fn arena_intern_tags_deduplicates() {
@@ -18,7 +18,7 @@ fn binding_equality_ignores_evidence_id() {
     let v = NumericValue::integer(Integer::from_i64(3));
     let e1 = arena.intern_tags(vec!["a".into()]);
     let e2 = arena.allocate(NumericEvidenceRecord { tags: vec!["b".into()], certificate: None });
-    let b1 = NumericBinding::with_evidence(v.clone(), e1);
+    let b1 = NumericBinding::with_evidence(v.try_clone_in(&NumericContext::portable_default()).unwrap(), e1);
     let b2 = NumericBinding::with_evidence(v, e2);
     assert_eq!(b1, b2);
     assert_ne!(b1.evidence(), b2.evidence());
@@ -29,7 +29,7 @@ fn value_clone_does_not_duplicate_arena_payload() {
     let mut arena = NumericEvidenceArena::new();
     let id = arena.intern_tags(vec!["witness".into()]);
     let binding = NumericBinding::with_evidence(NumericValue::small_int(1), id);
-    let cloned = binding.value().clone();
+    let cloned = binding.value().try_clone_in(&NumericContext::portable_default()).unwrap();
     assert_eq!(cloned, NumericValue::small_int(1));
     assert_eq!(arena.len(), 1);
 }

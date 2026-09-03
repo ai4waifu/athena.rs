@@ -19,7 +19,7 @@ pub(crate) struct OwnedLimbBuffer {
 }
 
 impl OwnedLimbBuffer {
-    /// 在指定 heap 上分配（[`NumericOwnership::RustOwned`]）。
+    /// 在指定 heap 上分配，由本 buffer 的 `Drop` 释放。
     pub(crate) fn alloc_uninit_in(heap: &Rc<RefCell<GcHeap>>, capacity: usize) -> athena_gc::Result<Self> {
         Self::alloc_uninit_in_with(heap, capacity, false)
     }

@@ -1,6 +1,6 @@
 //! 使用 crate 内参考算法的随机差分测试（无 `num-*` oracle）。
 
-use athena_numeric::{Integer, natural::Natural};
+use athena_numeric::{NumericContext, Integer, natural::Natural};
 use std::str::FromStr;
 
 fn lcg_next(state: &mut u64) -> u64 {
@@ -96,7 +96,7 @@ fn natural_gcd_matches_euclidean_reference() {
     for _ in 0..64 {
         let a = Natural::from_str(&random_decimal_digits(&mut seed, 64)).unwrap();
         let b = Natural::from_str(&random_decimal_digits(&mut seed, 64)).unwrap();
-        assert_eq!(a.gcd(&b), reference_gcd(a.clone(), b.clone()));
+        assert_eq!(a.gcd(&b), reference_gcd(a.try_clone_in(&NumericContext::portable_default()).unwrap(), b.try_clone_in(&NumericContext::portable_default()).unwrap()));
     }
 }
 

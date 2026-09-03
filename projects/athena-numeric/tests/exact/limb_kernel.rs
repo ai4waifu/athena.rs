@@ -2,7 +2,7 @@
 //!
 //! 直接的 `limb_kernel` 单元测试曾在 `src/`，现改写于此，使内核模块保持 crate 私有。
 
-use athena_numeric::{ExecutionBudget, NumericBackendLimits, natural::Natural};
+use athena_numeric::{NumericContext, ExecutionBudget, NumericBackendLimits, natural::Natural};
 use std::str::FromStr;
 
 fn lcg_next(state: &mut u64) -> u64 {
@@ -60,8 +60,8 @@ fn gcd_matches_euclidean_reference() {
         let a = random_natural(&mut seed, 24);
         let b = random_natural(&mut seed, 24);
         let g = a.gcd(&b);
-        let mut x = a.clone();
-        let mut y = b.clone();
+        let mut x = a.try_clone_in(&NumericContext::portable_default()).unwrap();
+        let mut y = b.try_clone_in(&NumericContext::portable_default()).unwrap();
         while !y.is_zero() {
             let (_, r) = x.div_rem(&y);
             x = y;

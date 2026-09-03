@@ -5,17 +5,20 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, ModulusId, Result};
 
-use crate::{integer::Integer, modulus_context::ModulusTable, storage::MagnitudePair};
+use crate::{
+    execution_budget::NumericContext, integer::Integer, modulus_context::ModulusTable, storage::{MagnitudePair, gc_alloc_error},
+};
 
 /// 正整数模数（`m > 1`）。
-#[derive(Clone)]
+///
+/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 pub struct Modulus {
     value: MagnitudePair,
 }
 
 impl core::fmt::Debug for Modulus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Modulus").field("value", &self.value()).finish()
+        f.debug_struct("Modulus").field("limbs", &self.value.as_limbs()).finish()
     }
 }
 
@@ -43,9 +46,30 @@ impl Modulus {
         Ok(Self { value: value.into_pair().with_negative(false) })
     }
 
-    /// 模数值（始终 `> 1`）。
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`。
+    pub fn clone_inline(&self) -> Option<Self> {
+        Some(Self { value: self.value.clone_inline()? })
+    }
+
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self { value: self.value.try_clone().map_err(gc_alloc_error)? })
+    }
+
+    /// 模数值（始终 `> 1`）。观察者路径优先 [`Self::as_limbs`]。
     pub fn value(&self) -> Integer {
-        Integer::from_pair(self.value.clone())
+        Integer::from_pair(
+            self.value
+                .clone_inline()
+                .or_else(|| self.value.try_clone().ok())
+                .expect("modulus magnitude clone"),
+        )
+    }
+
+    /// 只读 limb 视图（无分配）。
+    pub fn as_limbs(&self) -> &[u64] {
+        self.value.as_limbs()
     }
 
     /// 将整数规范到 `[0, m)`。
@@ -55,7 +79,9 @@ impl Modulus {
 }
 
 /// 模数绑定：嵌入完整 [`Modulus`] 或 session 内 [`ModulusId`]。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum ModulusBinding {
     /// 自包含模数（无 intern 表时）。
     Embedded(Modulus),
@@ -63,8 +89,19 @@ pub enum ModulusBinding {
     Interned(ModulusId),
 }
 
+impl ModulusBinding {
+    /// Owning 复制。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        Ok(match self {
+            Self::Embedded(m) => Self::Embedded(m.try_clone_in(ctx)?),
+            Self::Interned(id) => Self::Interned(*id),
+        })
+    }
+}
+
 /// 绑定模数的剩余类代表。
-#[derive(Clone)]
+///
+/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
 pub struct ModularValue {
     /// 规范剩余 `[0, modulus)`（unsigned Magnitude）。
     residue: MagnitudePair,
@@ -74,7 +111,7 @@ pub struct ModularValue {
 
 impl core::fmt::Debug for ModularValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("ModularValue").field("residue", &self.residue()).field("binding", &self.binding).finish()
+        f.debug_struct("ModularValue").field("residue", &self.residue.as_limbs()).field("binding", &self.binding).finish()
     }
 }
 
@@ -87,6 +124,15 @@ impl PartialEq for ModularValue {
 impl Eq for ModularValue {}
 
 impl ModularValue {
+    /// Owning 深复制。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self {
+            residue: self.residue.try_clone().map_err(gc_alloc_error)?,
+            binding: self.binding.try_clone_in(ctx)?,
+        })
+    }
+
     /// 在给定模数下构造（自动化约，嵌入模数）。
     pub fn new(residue: impl Into<Integer>, modulus: Modulus) -> Self {
         let residue = modulus.reduce(&residue.into());
@@ -100,7 +146,12 @@ impl ModularValue {
 
     /// 剩余。
     pub fn residue(&self) -> Integer {
-        Integer::from_pair(self.residue.clone())
+        Integer::from_pair(
+            self.residue
+                .clone_inline()
+                .or_else(|| self.residue.try_clone().ok())
+                .expect("residue magnitude clone"),
+        )
     }
 
     /// 嵌入模数（仅 `Embedded` 绑定）。
@@ -119,15 +170,16 @@ impl ModularValue {
         }
     }
 
-    /// 经 intern 表解析模数（嵌入绑定则克隆）。
+    /// 经 intern 表解析模数（嵌入绑定则深复制）。
     pub fn resolve_modulus(&self, table: &ModulusTable) -> Result<Modulus> {
-        match &self.binding {
-            ModulusBinding::Embedded(m) => Ok(m.clone()),
+        Ok(match &self.binding {
+            ModulusBinding::Embedded(m) => m.try_clone_in(&NumericContext::portable_default())?,
             ModulusBinding::Interned(id) => table
                 .get(*id)
-                .map(|ctx| ctx.modulus.clone())
-                .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId")),
-        }
+                .ok_or_else(|| Diagnostic::new(DiagnosticCode::DomainMismatch).detail("reason", "unknown ModulusId"))?
+                .modulus
+                .try_clone_in(&NumericContext::portable_default())?,
+        })
     }
 
     /// 同模运算前置检查（嵌入模数直接比；intern 需相同 id）。
@@ -150,7 +202,7 @@ impl ModularValue {
 /// 已证明为素数的模数（构造前须由 engine 完成确定性素性判定）。
 ///
 /// 仅 [`PrimeModulus`] 可构造 exact `F_p`。numeric 层不自证素性。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct PrimeModulus {
     inner: Modulus,
 }
@@ -173,7 +225,7 @@ impl PrimeModulus {
 }
 
 /// 概率素数模数（仅允许概率语义路径，不得构造 exact `F_p`）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ProbablePrimeModulus {
     inner: Modulus,
 }

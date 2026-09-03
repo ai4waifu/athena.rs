@@ -9,7 +9,10 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{dyadic::Dyadic, integer::Sign, natural::Natural, rounding::RoundingPolicy, storage::MagnitudePair};
+use crate::{
+    dyadic::Dyadic, execution_budget::NumericContext, integer::Sign, natural::Natural, rounding::RoundingPolicy,
+    storage::{MagnitudePair, gc_alloc_error},
+};
 
 /// 允许的最小工作精度（至少一个尾数位）。
 pub const MIN_PRECISION_BITS: u32 = 1;
@@ -31,7 +34,7 @@ pub enum RoundingStatus {
 }
 
 /// 有限精度二进制浮点（自有 significand Magnitude + 声明精度）。
-#[derive(Clone)]
+// Living 19: no Clone on Heap-capable significand
 #[repr(C)]
 pub struct Decimal {
     significand: MagnitudePair,
@@ -68,6 +71,22 @@ impl PartialEq for Decimal {
 impl Eq for Decimal {}
 
 impl Decimal {
+
+    /// Limb1 / Limb2 significand 栈拷贝；Heap 返回 `None`。
+    pub fn clone_inline(&self) -> Option<Self> {
+        Some(Self::from_parts(self.significand.clone_inline()?, self.exponent, self.precision_bits))
+    }
+
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self::from_parts(
+            self.significand.try_clone().map_err(gc_alloc_error)?,
+            self.exponent,
+            self.precision_bits,
+        ))
+    }
+
     fn from_parts(significand: MagnitudePair, exponent: i64, precision_bits: u32) -> Self {
         Self { significand, exponent, precision_bits }
     }
@@ -145,7 +164,7 @@ impl Decimal {
 
     /// 无符号尾数幅度。
     pub fn significand(&self) -> Natural {
-        Natural::from_pair(self.significand.clone_clear_sign())
+        Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"))
     }
 
     /// 二进制指数。
@@ -222,7 +241,7 @@ impl Decimal {
         }
         let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
-            return Ok((Self::from_parts(self.significand.clone(), self.exponent, precision_bits), RoundingStatus::Exact));
+            return Ok((Self::from_parts(self.significand.try_clone().expect("portable default unbounded"), self.exponent, precision_bits), RoundingStatus::Exact));
         }
 
         let discard = bits - u64::from(precision_bits);

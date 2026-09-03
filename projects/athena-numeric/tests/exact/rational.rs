@@ -2,12 +2,12 @@
 
 use std::cmp::Ordering;
 
-use athena_numeric::{Integer, Rational};
+use athena_numeric::{NumericContext, Integer, Rational};
 
 #[test]
 fn add_cross_cancels_common_denominator_factor() {
     let million = Integer::from_i64(1_000_000);
-    let a = Rational::new(Integer::from_i64(1), million.clone());
+    let a = Rational::new(Integer::from_i64(1), million.try_clone_in(&NumericContext::portable_default()).unwrap());
     let b = Rational::new(Integer::from_i64(1), million);
     assert_eq!(a.add(&b), Rational::new(Integer::from_i64(1), Integer::from_i64(500_000)));
 }

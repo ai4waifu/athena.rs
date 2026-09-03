@@ -1,9 +1,11 @@
 //! 实数：IEEE binary64 或二进制 [`Decimal`]。
 
-use crate::representation::decimal::Decimal;
+use crate::{execution_budget::NumericContext, representation::decimal::Decimal};
 
 /// 实数值表示。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `19`：不实现 [`Clone`]。深复制用 [`Self::try_clone_in`]。
+#[derive(Debug, PartialEq)]
 pub enum Real {
     /// IEEE binary64（含非有限值）。
     Machine(f64),
@@ -12,6 +14,22 @@ pub enum Real {
 }
 
 impl Real {
+    /// Limb / 机器实数可栈拷贝时返回副本。
+    pub fn clone_inline(&self) -> Option<Self> {
+        match self {
+            Self::Machine(x) => Some(Self::Machine(*x)),
+            Self::Decimal(d) => Some(Self::Decimal(d.clone_inline()?)),
+        }
+    }
+
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> athena_types::Result<Self> {
+        Ok(match self {
+            Self::Machine(x) => Self::Machine(*x),
+            Self::Decimal(d) => Self::Decimal(d.try_clone_in(ctx)?),
+        })
+    }
+
     /// 机器实数。
     pub fn machine(x: f64) -> Self {
         Self::Machine(x)

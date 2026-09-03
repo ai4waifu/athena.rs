@@ -1,6 +1,7 @@
 //! 复数（骨架；不依赖 `num-complex`）。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
+use crate::execution_budget::NumericContext;
 
 use crate::value::real::Real;
 
@@ -17,7 +18,7 @@ pub enum BranchPolicy {
 /// 复数。
 ///
 /// 不变量：实部与虚部不得为 NaN。机器实数路径提供加减乘与共轭。混合 [`Real::Decimal`] 返回 `UnsupportedOperation`。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Complex {
     /// 实部。
     pub re: Real,
@@ -28,6 +29,15 @@ pub struct Complex {
 }
 
 impl Complex {
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
+        Ok(Self {
+            re: self.re.try_clone_in(ctx)?,
+            im: self.im.try_clone_in(ctx)?,
+            branch: self.branch,
+        })
+    }
+
     /// 校验并构造。
     pub fn try_new(re: Real, im: Real, branch: BranchPolicy) -> Result<Self> {
         let v = Self { re, im, branch };
@@ -78,7 +88,7 @@ impl Complex {
 
     /// 共轭 `a-bi`（分支不变）。
     pub fn conjugate(&self) -> Result<Self> {
-        Self::try_new(self.re.clone(), neg_real(&self.im)?, self.branch)
+        Self::try_new(self.re.try_clone_in(&NumericContext::portable_default())?, neg_real(&self.im)?, self.branch)
     }
 }
 

@@ -21,6 +21,15 @@ impl Natural {
         Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
     }
 
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。
+    #[inline]
+    pub fn clone_inline(&self) -> Option<Self> {
+        Some(Self::from_pair(self.inner.clone_inline()?))
+    }
+
+
+
+
     /// 由小端 limb 构造（已规范化；经 [`NumericContext::portable_default`] 发布）。
     ///
     /// trim 后 ≤ 2 limb 不分配；更长幅度走 GC，失败返回 Diagnostic。

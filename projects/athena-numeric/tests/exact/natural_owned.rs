@@ -8,7 +8,7 @@ use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural}
 #[test]
 fn natural_sign_bit_is_semantic_dont_care() {
     let a = Natural::from_u64(42);
-    let b = a.clone().with_dont_care_sign_bit(true);
+    let b = a.try_clone_in(&NumericContext::portable_default()).unwrap().with_dont_care_sign_bit(true);
     assert_eq!(a, b);
     assert_eq!(a.cmp(&b), Ordering::Equal);
 
@@ -60,7 +60,7 @@ fn try_add_owned_self_add_aliases_safely() {
     let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
     let a = Natural::from_limbs_with_capacity_in(&ctx, &[9, 8, 7], 8).expect("a");
     let expected = a.try_add(&a, &ctx).expect("ref");
-    let sum = a.clone().try_add_owned(&a, &ctx).expect("owned self");
+    let sum = a.try_clone_in(&NumericContext::portable_default()).unwrap().try_add_owned(&a, &ctx).expect("owned self");
     assert_eq!(sum.as_limbs(), expected.as_limbs());
 }
 

@@ -16,14 +16,13 @@ use std::{
 /// 自然数（小端 `u64` limb，无尾随零）。
 ///
 /// 布局：`meta`（mode+heap_len；sign 位 don't-care）+ `union Magnitude`，LP64 上 24 bytes。
-/// 经私有 [`MagnitudePair`] 做 Drop/Clone；读取时不解释 sign，语义恒为非负。
+/// 经私有 [`MagnitudePair`] 做 Drop；读取时不解释 sign，语义恒为非负。
 ///
-/// # Clone
+/// # 复制合同（Living `19`）
 ///
-/// Limb1 / Limb2 栈拷贝。Heap `GcOwned`（Session 发布）经 `NumericRoot` 共享，不分配 limb。
-/// Heap `RustOwned` 会同堆再分配；失败时 **panic**（债）。算术热路径应借用 limb，
-/// owning 复制用 [`Self::try_clone_in`]。
-#[derive(Clone, Default)]
+/// **不**实现 [`Clone`]。Limb1/Limb2 用 [`Self::clone_inline`]；Heap owning 深复制用
+/// [`Self::try_clone_in`]。
+#[derive(Default)]
 pub struct Natural {
     inner: MagnitudePair,
 }

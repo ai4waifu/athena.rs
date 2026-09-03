@@ -132,7 +132,7 @@ pub struct NumericContext {
     capabilities: CapabilityBundle,
     /// Context 创建时绑定的 machine kernel 表。
     kernels: KernelTable,
-    /// Living `19`：Heap 发布是否使用 `GcOwned`（Session 默认真；e2e shared 默认假）。
+    /// Living `19`：Heap 发布是否使用 `GcOwned`（Session 默认真；共享默认 heap 路径默认假）。
     publish_gc_owned: bool,
 }
 
@@ -172,9 +172,9 @@ impl NumericContext {
         }
     }
 
-    /// Public e2e convenience：[`GcHeap::shared_default`] + Auto + portable 上限。
+    /// 宿主可见便利入口：[`GcHeap::shared_default`] + Auto + portable 上限。
     ///
-    /// Living 18：宿主可见长期值路径。复用 session 算术请用 [`Self::session_default`]。
+    /// Living 18：共享默认 heap 路径。Session 算术请用 [`Self::session_default`]。
     pub fn portable_default() -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource =
@@ -188,14 +188,14 @@ impl NumericContext {
 
     /// 由显式 backend 上限构造（线程默认 heap · Auto · portable kernel）。
     ///
-    /// 与 [`Self::portable_default`] 同属 e2e / shared heap 语义。
+    /// 与 [`Self::portable_default`] 同属共享默认 heap 语义。
     pub fn from_limits(limits: &NumericBackendLimits) -> Self {
         let mut caps = CapabilityBundle::portable_default();
         caps.resource = crate::dispatch::ResourceCapability::from_limits(*limits);
         Self::assemble(ExecutionBudget::from_limits(limits), GcHeap::shared_default(), caps)
     }
 
-    /// 无限制预算 + 线程默认 heap（Auto）。仅测试 / 公共 e2e convenience。
+    /// 无限制预算 + 线程默认 heap（Auto）。仅测试与无 Session 的便利入口。
     ///
     /// Session / numeric 层请用 [`Self::session_default`]。
     pub fn unlimited() -> Self {

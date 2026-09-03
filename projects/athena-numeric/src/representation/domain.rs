@@ -5,7 +5,9 @@ use athena_types::FieldId;
 use crate::{integer::Integer, modular::Modulus};
 
 /// 运算所处的数值域。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Living `19`：含 `Modulus` / `Integer` 时不 derive [`Clone`]。
+#[derive(Debug, PartialEq, Eq)]
 pub enum NumericDomain {
     /// ℤ。
     Integer,

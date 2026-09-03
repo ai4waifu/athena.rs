@@ -2,7 +2,9 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{integer::Integer, number::NumericValue, rational::Rational, real::Real};
+use crate::{
+    execution_budget::NumericContext,
+    integer::Integer, number::NumericValue, rational::Rational, real::Real};
 
 enum Lifted {
     Integer(Integer),
@@ -12,8 +14,8 @@ enum Lifted {
 
 fn lift(n: &NumericValue) -> Result<Lifted> {
     match n {
-        NumericValue::Integer(i) => Ok(Lifted::Integer(i.clone())),
-        NumericValue::Rational(r) => Ok(Lifted::Rational(r.clone())),
+        NumericValue::Integer(i) => Ok(Lifted::Integer(i.try_clone_in(&NumericContext::portable_default())?)),
+        NumericValue::Rational(r) => Ok(Lifted::Rational(r.try_clone_in(&NumericContext::portable_default())?)),
         NumericValue::Real(Real::Machine(x)) => Ok(Lifted::Real(*x)),
         NumericValue::Real(Real::Decimal(b)) => b.to_f64_approximate().map(Lifted::Real).ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "kernel_lift")
@@ -78,10 +80,10 @@ pub fn pow(base: &NumericValue, exp: &NumericValue) -> Result<NumericValue> {
         return Ok(NumericValue::small_int(1));
     }
     if exp.is_one() {
-        return Ok(base.clone());
+        return Ok(base.try_clone_in(&NumericContext::portable_default())?);
     }
     if exp.is_neg_one() {
-        return div(NumericValue::small_int(1), base.clone());
+        return div(NumericValue::small_int(1), base.try_clone_in(&NumericContext::portable_default())?);
     }
     match (lift(base)?, lift(exp)?) {
         (Lifted::Integer(n), Lifted::Integer(e)) if !e.is_negative() => {

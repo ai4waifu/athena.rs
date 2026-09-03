@@ -4,10 +4,12 @@ use std::collections::HashMap;
 
 use athena_types::ModulusId;
 
-use crate::{kernel::limb as limb_kernel, modular::Modulus, natural::Natural};
+use crate::{
+    execution_budget::NumericContext,
+    kernel::limb as limb_kernel, modular::Modulus, natural::Natural};
 
 /// Montgomery 约化常量（奇模数）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MontgomeryParams {
     /// `-m⁻¹ mod 2^64`。
     pub n_prime: u64,
@@ -16,7 +18,7 @@ pub struct MontgomeryParams {
 }
 
 /// Barrett 约化常量（任意 `m > 1`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BarrettParams {
     /// `⌊2^(2k) / m⌋`，`k = ⌈log₂ m⌉`。
     pub mu: Natural,
@@ -66,7 +68,7 @@ pub enum ModularTimingPolicy {
 }
 
 /// 共享模数上下文（Montgomery/Barrett 常量挂接 [`ModulusTable::intern`]）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ModulusContext {
     /// Session 内句柄（intern 后填入）。
     pub id: ModulusId,
@@ -115,7 +117,9 @@ impl ModulusTable {
         }
         let id = ModulusId(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        let mut ctx = ModulusContext::from_modulus(modulus.clone());
+        let mut ctx = ModulusContext::from_modulus(
+            modulus.try_clone_in(&NumericContext::portable_default()).expect("modulus clone for intern"),
+        );
         ctx.id = id;
         self.by_modulus.insert(modulus, id);
         self.contexts.insert(id, ctx);

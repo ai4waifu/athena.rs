@@ -15,7 +15,7 @@ pub enum CertificateMethod {
 }
 
 /// 数值证书。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct NumericCertificate {
     /// 绝对误差上界。
     pub absolute_error: Option<Real>,

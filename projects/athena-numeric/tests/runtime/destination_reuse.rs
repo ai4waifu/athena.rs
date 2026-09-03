@@ -16,7 +16,7 @@ fn can_reuse_destination_false_still_matches_add() {
     let a = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("a");
     let b = Natural::from_limbs_in(&ctx, vec![5, 6, 7]).expect("b");
     let via_reuse_off = a.try_add(&b, &ctx).expect("add");
-    let via_owned = a.clone().try_add_owned(&b, &ctx).expect("owned");
+    let via_owned = a.try_clone_in(&NumericContext::portable_default()).unwrap().try_add_owned(&b, &ctx).expect("owned");
     assert_eq!(via_reuse_off.as_limbs(), via_owned.as_limbs());
 }
 
@@ -38,7 +38,7 @@ fn natural_self_add_owned_aliases_safely() {
     let ctx = NumericContext::with_heap(ExecutionBudget::unlimited(), heap);
     let a = Natural::from_limbs_with_capacity_in(&ctx, &[9, 8, 7, 6], 10).expect("a");
     let expected = a.try_add(&a, &ctx).expect("ref");
-    let sum = a.clone().try_add_owned(&a, &ctx).expect("owned self");
+    let sum = a.try_clone_in(&NumericContext::portable_default()).unwrap().try_add_owned(&a, &ctx).expect("owned self");
     assert_eq!(sum.as_limbs(), expected.as_limbs());
 }
 

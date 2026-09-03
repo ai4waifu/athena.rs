@@ -76,20 +76,14 @@ pub enum Sign {
 /// 精确整数（稳定公共包装；亦称 [`ExactInteger`]）。
 ///
 /// 布局：`meta`（mode+sign+heap_len）+ `union Magnitude`，LP64 上 24 bytes。
-/// 经私有 [`MagnitudePair`] 做 Drop/Clone；无独立 `Sign` 字段、不嵌套 `Natural`。
+/// 经私有 [`MagnitudePair`] 做 Drop；无独立 `Sign` 字段、不嵌套 `Natural`。
 /// 排序必须是数学序：负数额值反序、正数额值正序。禁止 derive `Ord`。
 ///
-/// # Clone
+/// # 复制合同（Living `19`）
 ///
-/// Derived `Clone` is an **owning** clone. Heap magnitudes allocate on the owner
-/// GC heap. Arithmetic hot paths should use [`Self::magnitude_view`] /
-/// [`Self::try_add_view`] instead of cloning inputs.
-///
-/// # Clone
-///
-/// Owning clone：Heap 幅度会在 owner heap 上再分配。分配失败时 **panic**（已知债务；
-/// 算术热路径应经 [`MagnitudeView`] 借用，结果经 context 发布）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// **不**实现 [`Clone`]。Limb1/Limb2 用 [`Self::clone_inline`]；Heap owning 深复制用
+/// [`Self::try_clone_in`]。算术热路径经 [`MagnitudeView`] 借用，结果经 context 发布。
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Integer {
     inner: MagnitudePair,
 }
@@ -147,7 +141,11 @@ impl Integer {
     /// `Mode::Heap` 下会在 owner heap 上分配并复制。算术热路径请用
     /// [`Self::magnitude_view`] / [`Self::as_limbs`]。
     fn abs_natural(&self) -> Natural {
-        Natural::from_pair(self.inner.clone_clear_sign())
+        Natural::from_pair(
+            self.inner
+                .try_clone_clear_sign()
+                .unwrap_or_else(|e| panic!("portable default unbounded abs_natural: {e}")),
+        )
     }
 
     /// 借用小端幅度 limb（生命周期绑在 `&self`）。
@@ -168,6 +166,15 @@ impl Integer {
         Ok(Self::from_pair(self.inner.try_clone().map_err(gc_alloc_error)?))
     }
 
+    /// Limb1 / Limb2 栈拷贝；Heap 返回 `None`（Living `19`）。
+    #[inline]
+    pub fn clone_inline(&self) -> Option<Self> {
+        Some(Self::from_pair(self.inner.clone_inline()?))
+    }
+
+
+
+
     /// 将借用幅度按符号发布到 `ctx` heap（结果 owning）。
     fn publish_signed(ctx: &NumericContext, limbs: &[u64], negative: bool) -> Result<Self> {
         Ok(Self::from_mag_sign(Natural::from_limb_slice_in(ctx, limbs)?, negative))
@@ -175,7 +182,7 @@ impl Integer {
 
     /// 在 `ctx` heap 上由小端 limb 构造非负整数（session / numeric 发布）。
     ///
-    /// 与 [`Natural::from_limbs_in`] 对齐。公共 e2e 无 ctx 入口仍走 [`NumericContext::portable_default`]。
+    /// 与 [`Natural::from_limbs_in`] 对齐。无 `ctx` 的便利入口走 [`NumericContext::portable_default`]。
     pub fn from_limbs_in(ctx: &NumericContext, limbs: impl AsRef<[u64]>) -> Result<Self> {
         Self::publish_signed(ctx, limbs.as_ref(), false)
     }
@@ -256,18 +263,33 @@ impl Integer {
         }
     }
 
-    /// 绝对值。
+    /// 绝对值（无 `ctx` 便利入口；Heap 经同堆深复制，与 [`Self::add`] 同合同）。
     pub fn abs(&self) -> Self {
-        Self::from_pair(self.inner.clone_clear_sign())
+        self.try_abs(&NumericContext::portable_default()).expect("portable default max_limbs unbounded")
     }
 
-    /// 取负。
+    /// 绝对值（服从 `ctx` 预算）。
+    pub fn try_abs(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(Self::from_pair(self.inner.try_clone_clear_sign().map_err(gc_alloc_error)?))
+    }
+
+    /// 取负（无 `ctx` 便利入口）。
     pub fn neg(&self) -> Self {
-        match self.sign() {
+        self.try_neg(&NumericContext::portable_default()).expect("portable default max_limbs unbounded")
+    }
+
+    /// 取负（服从 `ctx` 预算；不经 owning `Clone`）。
+    pub fn try_neg(&self, ctx: &NumericContext) -> Result<Self> {
+        ctx.check_entry()?;
+        Ok(match self.sign() {
             Sign::Zero => Self::zero(),
-            Sign::Positive => Self::from_pair(self.inner.clone().with_negative(true)),
-            Sign::Negative => Self::from_pair(self.inner.clone_clear_sign()),
-        }
+            Sign::Positive => {
+                let mut p = self.inner.try_clone().map_err(gc_alloc_error)?;
+                Ok::<_, Diagnostic>(Self::from_pair(p.with_negative(true)))?
+            }
+            Sign::Negative => Self::from_pair(self.inner.try_clone_clear_sign().map_err(gc_alloc_error)?),
+        })
     }
 
     /// 非负最大公约数；`gcd(0,0) = 0`（默认上下文）。
@@ -685,7 +707,9 @@ impl Integer {
             return Ok(Self::zero());
         }
         let mut acc = Self::one();
-        let mut base = self.clone();
+        let mut base = self
+            .try_clone_in(&NumericContext::portable_default())
+            .map_err(|_| ())?;
         let mut e = exp;
         while e > 0 {
             if e & 1 == 1 {
@@ -720,8 +744,9 @@ impl Integer {
             return Err(());
         }
         let mut acc = Self::one();
-        let mut base = self.clone();
-        let mut e = exp.clone();
+        let ctx = NumericContext::portable_default();
+        let mut base = self.try_clone_in(&ctx).expect("portable default max_limbs unbounded");
+        let mut e = exp.try_clone_in(&ctx).expect("portable default max_limbs unbounded");
         let two = Integer::from_i64(2);
         while !e.is_zero() {
             if e.is_odd() {
@@ -745,7 +770,9 @@ impl Integer {
             return Ok(Self::zero());
         }
         let mut lo = Self::zero();
-        let mut hi = self.clone().add(&Self::one());
+        let mut hi = self
+            .try_clone_in(&NumericContext::portable_default())?
+            .add(&Self::one());
         let two = Integer::from_i64(2);
         while lo.add(&Integer::one()).cmp(&hi) == std::cmp::Ordering::Less {
             let mid = lo.add(&hi).div(&two).expect("divisor two");

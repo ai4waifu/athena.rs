@@ -2,10 +2,12 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{integer::Integer, rational::Rational};
+use crate::{
+    execution_budget::NumericContext,
+    integer::Integer, rational::Rational};
 
 /// p-adic 截断值：小端 `p`-进制 digits，长度 `≤ precision`。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct PAdicValue {
     /// 素数 `p`。
     pub prime: Integer,
@@ -16,6 +18,15 @@ pub struct PAdicValue {
 }
 
 impl PAdicValue {
+    /// Owning 深复制（Living `19`）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        Ok(Self {
+            prime: self.prime.try_clone_in(ctx)?,
+            precision: self.precision,
+            digits: self.digits.clone(),
+        })
+    }
+
     /// 校验并规范化构造。
     pub fn try_new(prime: Integer, precision: u32, digits: Vec<u32>) -> Result<Self> {
         let v = Self { prime, precision, digits };
@@ -83,7 +94,7 @@ impl PAdicValue {
         }
         let mut digits = self.digits.clone();
         digits.truncate(new_precision as usize);
-        Self::try_new(self.prime.clone(), new_precision, digits)
+        Self::try_new(self.prime.try_clone_in(&NumericContext::portable_default())?, new_precision, digits)
     }
 
     /// 零扩展到更大精度（同 `p`）。
@@ -93,7 +104,7 @@ impl PAdicValue {
                 .detail("domain", "numeric")
                 .detail("operation", "padic_lift"));
         }
-        Self::try_new(self.prime.clone(), new_precision, self.digits.clone())
+        Self::try_new(self.prime.try_clone_in(&NumericContext::portable_default())?, new_precision, self.digits.clone())
     }
 
     /// 加法（同 `p`、同精度）。
@@ -101,7 +112,7 @@ impl PAdicValue {
         same_domain(self, other)?;
         let m = pow_prime(&self.prime, self.precision)?;
         let r = self.residue().add(&other.residue()).rem_euclid(&m)?;
-        Ok(from_residue(normalize_mod(r, &m), self.prime.clone(), self.precision))
+        Ok(from_residue(normalize_mod(r, &m), self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
     /// 减法。
@@ -109,7 +120,7 @@ impl PAdicValue {
         same_domain(self, other)?;
         let m = pow_prime(&self.prime, self.precision)?;
         let r = self.residue().sub(&other.residue()).rem_euclid(&m)?;
-        Ok(from_residue(normalize_mod(r, &m), self.prime.clone(), self.precision))
+        Ok(from_residue(normalize_mod(r, &m), self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
     /// 乘法。
@@ -117,14 +128,14 @@ impl PAdicValue {
         same_domain(self, other)?;
         let m = pow_prime(&self.prime, self.precision)?;
         let r = self.residue().mul(&other.residue()).rem_euclid(&m)?;
-        Ok(from_residue(normalize_mod(r, &m), self.prime.clone(), self.precision))
+        Ok(from_residue(normalize_mod(r, &m), self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
     /// 取负。
     pub fn neg(&self) -> Result<Self> {
         let m = pow_prime(&self.prime, self.precision)?;
         let r = self.residue().neg().rem_euclid(&m)?;
-        Ok(from_residue(normalize_mod(r, &m), self.prime.clone(), self.precision))
+        Ok(from_residue(normalize_mod(r, &m), self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
     /// 逆元（须为 `p`-adic 单位）。
@@ -138,7 +149,7 @@ impl PAdicValue {
         let inv = inv_mod(&self.residue(), &m).ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "padic_inv")
         })?;
-        Ok(from_residue(inv, self.prime.clone(), self.precision))
+        Ok(from_residue(inv, self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
     /// 是否为 `p`-adic 单位（`vₚ = 0`）。
@@ -254,7 +265,7 @@ fn inv_mod(a: &Integer, m: &Integer) -> Option<Integer> {
     }
     let mut t = Integer::zero();
     let mut newt = Integer::one();
-    let mut r = m.clone();
+    let mut r = m.try_clone_in(&NumericContext::portable_default()).ok()?;
     let mut newr = a.rem_euclid(m).ok()?;
     while !newr.is_zero() {
         let q = r.div(&newr).ok()?;

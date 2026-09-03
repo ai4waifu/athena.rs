@@ -19,7 +19,8 @@ use crate::{
 /// 分母恒为 unsigned 非零；零有理规范为分子零且分母一。
 ///
 /// 不实现 [`Ord`]：域上字典序不是数值序。请用 [`Self::cmp_numeric`]。
-#[derive(Clone)]
+///
+/// **不**实现 [`Clone`]（Living `19`）：用 [`Self::clone_inline`] / [`Self::try_clone_in`]。
 pub struct Rational {
     numer: MagnitudePair,
     denom: MagnitudePair,
@@ -49,6 +50,26 @@ impl PartialEq for Rational {
 impl Eq for Rational {}
 
 impl Rational {
+    /// Limb1/Limb2 分子分母均可栈拷贝时返回副本；任一 Heap 则 `None`。
+    pub fn clone_inline(&self) -> Option<Self> {
+        Some(Self { numer: self.numer.clone_inline()?, denom: self.denom.clone_inline()? })
+    }
+
+    /// 可失败 owning 深复制（服从 `ctx`）。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
+        ctx.check_entry()?;
+        Ok(Self {
+            numer: self.numer.try_clone().map_err(crate::storage::gc_alloc_error)?,
+            denom: self.denom.try_clone().map_err(crate::storage::gc_alloc_error)?,
+        })
+    }
+
+
+
+    fn owning_copy_pair(p: &MagnitudePair) -> MagnitudePair {
+        p.try_clone().expect("portable default max_limbs unbounded")
+    }
+
     fn from_parts(numer: Integer, denom: Natural) -> Self {
         debug_assert!(!denom.is_zero());
         Self { numer: numer.into_pair(), denom: denom.into_pair() }
@@ -132,12 +153,17 @@ impl Rational {
 
     /// 分子。
     pub fn numerator(&self) -> Integer {
-        Integer::from_pair(self.numer.clone())
+        Integer::from_pair(Self::owning_copy_pair(&self.numer))
     }
 
     /// 分母（恒为正；整数 / 零时为 1）。
     pub fn denominator(&self) -> Integer {
-        if self.is_zero() { Integer::one() } else { Integer::from_positive_natural(Natural::from_pair(self.denom.clone())) }
+        if self.is_zero() {
+            Integer::one()
+        }
+        else {
+            Integer::from_positive_natural(Natural::from_pair(Self::owning_copy_pair(&self.denom)))
+        }
     }
 
     /// 是否为零。
@@ -157,7 +183,7 @@ impl Rational {
 
     /// 是否为整数（分母为 1）。
     pub fn is_integer(&self) -> bool {
-        Natural::from_pair(self.denom.clone()).is_one()
+        Natural::from_pair(Self::owning_copy_pair(&self.denom)).is_one()
     }
 
     /// 符号。
@@ -197,12 +223,12 @@ impl Rational {
 
     /// 绝对值。
     pub fn abs(&self) -> Self {
-        Self::from_parts(self.numerator().abs(), Natural::from_pair(self.denom.clone()))
+        Self::from_parts(self.numerator().abs(), Natural::from_pair(Self::owning_copy_pair(&self.denom)))
     }
 
     /// 取负。
     pub fn neg(&self) -> Self {
-        Self::from_parts(self.numerator().neg(), Natural::from_pair(self.denom.clone()))
+        Self::from_parts(self.numerator().neg(), Natural::from_pair(Self::owning_copy_pair(&self.denom)))
     }
 
     /// 加法（合并前交叉约去 `gcd(b,d)`；默认上下文）。
