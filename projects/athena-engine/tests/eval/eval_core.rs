@@ -381,12 +381,26 @@ fn module_local_does_not_clobber_session() {
 }
 
 #[test]
-fn mldivide_is_unsupported_not_divide() {
+fn mldivide_symbolic_stays_unevaluated() {
     use athena_engine::{EvalKind, evaluate_outcome};
-    use athena_types::DiagnosticCode;
 
     let o = evaluate_outcome(&Term::apply("Mldivide", vec![Term::symbol("A"), Term::symbol("b")]));
     assert_eq!(o.kind, EvalKind::Unevaluated);
-    assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
     assert!(o.term.head_name() == Some("Mldivide"));
+}
+
+#[test]
+fn mldivide_2x2_exact_unique() {
+    // [1,2;3,4] \ [5;6] → [-4; 9/2]
+    let a = Term::List(vec![
+        Term::List(vec![Term::int(1), Term::int(2)]),
+        Term::List(vec![Term::int(3), Term::int(4)]),
+    ]);
+    let b = Term::List(vec![Term::List(vec![Term::int(5)]), Term::List(vec![Term::int(6)])]);
+    let e = evaluate(&Term::apply("Mldivide", vec![a, b]));
+    let expected = Term::List(vec![
+        Term::List(vec![Term::int(-4)]),
+        Term::List(vec![Term::rational_i64(9, 2).unwrap()]),
+    ]);
+    assert_eq!(e, expected);
 }
