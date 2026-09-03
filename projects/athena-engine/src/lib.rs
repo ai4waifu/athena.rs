@@ -37,6 +37,12 @@ pub mod term;
 mod engine;
 mod numeric_clone;
 
+/// Living 19 owning 复制辅助（测试与适配层可用）。
+pub use numeric_clone::{
+    clone_atom, clone_integer, clone_integers, clone_modulus, clone_modular, clone_natural, clone_number,
+    clone_numbers, clone_rational, clone_rationals, clone_term, clone_terms,
+};
+
 /// 数值塔：[`NumericValue`] 为唯一执行真相源。
 pub use athena_numeric as numeric;
 
@@ -75,7 +81,7 @@ pub use calculus::{
 };
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use eval::evaluate;
+pub use eval::{EvalKind, EvalOutcome, as_boolean, evaluate, evaluate_checked, evaluate_outcome, invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation};
 pub use field::{
     Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
     add_field_elements, apply_base_field_embedding, apply_field_automorphism, apply_field_embedding,
