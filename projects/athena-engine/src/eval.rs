@@ -270,8 +270,8 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         })),
         "If" => Some(eval_if(args, depth)),
         "Which" => Some(eval_which(args, depth)),
-        "While" => Some(eval_while(args, depth)),
-        "For" => Some(eval_for(args, depth)),
+        "While" => Some(eval_while(args, depth, &mut DefinitionMap::new())),
+        "For" => Some(eval_for(args, depth, &mut DefinitionMap::new())),
         "CompoundExpression" => Some(eval_compound(args, depth)),
         "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth, &DefinitionMap::new())),
         "MatchQ" => Some(eval_match_q(args, depth)),
@@ -279,6 +279,9 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "Table" => Some(eval_table(args, depth)),
         "Sum" => Some(eval_sum_dispatch(args, depth)),
         "Product" => Some(eval_sum_product("Product", args, depth)),
+        // Chained comparisons must see unevaluated nested compare ops (`1 < 2 < 3`).
+        "Less" | "Greater" | "LessEqual" | "GreaterEqual" => Some(eval_compare_chain(name, args, depth)),
+        "Try" => Some(eval_try(args, depth)),
         "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => Some(EvalOutcome::unevaluated(
             Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) },
         )),
@@ -480,7 +483,9 @@ fn term_summary(term: &Term) -> String {
 }
 
 /// `While[cond, body]` — false condition skips body (`while 0` → `Null`).
-fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
+///
+/// Body `Set` writes into `env` so compound `s=0; while …` accumulators work.
+fn eval_while(args: &[Term], depth: u32, env: &mut DefinitionMap) -> EvalOutcome {
     if args.len() != 2 {
         return EvalOutcome::unevaluated(Term::apply("While", clone_terms(args)));
     }
@@ -488,7 +493,8 @@ fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
     let mut last = Term::null();
     let mut ran = false;
     for _ in 0..1024u32 {
-        let cond_o = evaluate_depth_outcome(&args[0], depth + 1);
+        let cond = apply_bindings(&args[0], env);
+        let cond_o = evaluate_depth_outcome(&cond, depth + 1);
         diagnostics.extend(cond_o.diagnostics);
         match as_boolean(&cond_o.term) {
             Some(false) => {
@@ -501,7 +507,7 @@ fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
             }
             Some(true) => {
                 ran = true;
-                let mut body_o = evaluate_depth_outcome(&args[1], depth + 1);
+                let mut body_o = eval_stmt_into(&args[1], env, depth + 1);
                 diagnostics.append(&mut body_o.diagnostics);
                 last = body_o.term;
                 if diagnostics.iter().any(|d| d.severity == Severity::Error) {
@@ -673,7 +679,9 @@ fn range_ints(a: i64, b: i64, step: i64) -> Option<Vec<Term>> {
 }
 
 /// `For[var, iterator, body]` — iterator is a list (often from `Span`).
-fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
+///
+/// Body `Set` writes into `env` so `s=0; for i=1:3, s=s+i; end; s` accumulates.
+fn eval_for(args: &[Term], depth: u32, env: &mut DefinitionMap) -> EvalOutcome {
     if args.len() != 3 {
         return EvalOutcome::unevaluated(Term::apply("For", clone_terms(args)));
     }
@@ -683,7 +691,8 @@ fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
             return EvalOutcome::unevaluated(Term::apply("For", clone_terms(args)));
         }
     };
-    let iter_o = evaluate_depth_outcome(&args[1], depth + 1);
+    let iter = apply_bindings(&args[1], env);
+    let iter_o = evaluate_depth_outcome(&iter, depth + 1);
     let mut diagnostics = iter_o.diagnostics;
     let values = match iter_o.term {
         Term::List(items) => items,
@@ -695,7 +704,7 @@ fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
     let mut last = Term::null();
     for value in values {
         let body = substitute_symbol(&args[2], var, &value);
-        let mut body_o = evaluate_depth_outcome(&body, depth + 1);
+        let mut body_o = eval_stmt_into(&body, env, depth + 1);
         diagnostics.append(&mut body_o.diagnostics);
         last = body_o.term;
         if diagnostics.iter().any(|d| d.severity == Severity::Error) {
@@ -703,6 +712,105 @@ fn eval_for(args: &[Term], depth: u32) -> EvalOutcome {
         }
     }
     EvalOutcome { term: last, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+}
+
+/// Evaluate one statement into `env` (`Set` / nested compound / For / While).
+fn eval_stmt_into(stmt: &Term, env: &mut DefinitionMap, depth: u32) -> EvalOutcome {
+    // Control forms must keep unevaluated bodies so loop accumulators see fresh bindings.
+    if let Term::Application { head, arguments: args } = stmt {
+        if head.is_symbol("CompoundExpression") {
+            return eval_compound_into(args, env, depth + 1);
+        }
+        if head.is_symbol("For") {
+            return eval_for(args, depth + 1, env);
+        }
+        if head.is_symbol("While") {
+            return eval_while(args, depth + 1, env);
+        }
+        if head.is_symbol("Try") {
+            return eval_try(args, depth + 1);
+        }
+    }
+    let rewritten = apply_bindings(stmt, env);
+    if let Some((name, rhs)) = match_set(&rewritten) {
+        let mut o = evaluate_depth_outcome(&rhs, depth + 1);
+        if !o.has_error() {
+            env.insert(name, Definition::Own(clone_term(&o.term)));
+        }
+        return o;
+    }
+    if let Some((name, rhs)) = match_set_delayed(&rewritten) {
+        env.insert(name, Definition::Delayed(clone_term(&rhs)));
+        return EvalOutcome::value(Term::null());
+    }
+    evaluate_depth_outcome(&rewritten, depth + 1)
+}
+
+/// Expand left-associative compare chains: `Less[Less[1,2],3]` → `And[1<2, 2<3]`.
+fn eval_compare_chain(op: &str, args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply(op, clone_terms(args)));
+    }
+    if let Term::Application { head, arguments: inner } = &args[0] {
+        if is_compare_head(head) && inner.len() == 2 {
+            let left_o = evaluate_depth_outcome(&args[0], depth + 1);
+            let mid = &inner[1];
+            let right_term = Term::apply(op, vec![clone_term(mid), clone_term(&args[1])]);
+            let right_o = evaluate_depth_outcome(&right_term, depth + 1);
+            let mut diagnostics = left_o.diagnostics;
+            diagnostics.extend(right_o.diagnostics);
+            match (as_boolean(&left_o.term), as_boolean(&right_o.term)) {
+                (Some(a), Some(b)) => {
+                    return EvalOutcome {
+                        term: Term::boolean(a && b),
+                        kind: EvalKind::Value,
+                        status: ComputationStatus::Exact,
+                        diagnostics,
+                    };
+                }
+                _ => {
+                    let term = Term::apply("And", vec![left_o.term, right_o.term]);
+                    return EvalOutcome { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Partial, diagnostics };
+                }
+            }
+        }
+    }
+    let left_o = evaluate_depth_outcome(&args[0], depth + 1);
+    let right_o = evaluate_depth_outcome(&args[1], depth + 1);
+    let mut diagnostics = left_o.diagnostics;
+    diagnostics.extend(right_o.diagnostics);
+    let term = match op {
+        "Less" => eval_compare("Less", &left_o.term, &right_o.term, |o| o == Ordering::Less),
+        "Greater" => eval_compare("Greater", &left_o.term, &right_o.term, |o| o == Ordering::Greater),
+        "LessEqual" => eval_compare("LessEqual", &left_o.term, &right_o.term, |o| o != Ordering::Greater),
+        "GreaterEqual" => eval_compare("GreaterEqual", &left_o.term, &right_o.term, |o| o != Ordering::Less),
+        _ => Term::apply(op, vec![left_o.term, right_o.term]),
+    };
+    let mut out = wrap_compare(term, op);
+    if !diagnostics.is_empty() {
+        diagnostics.append(&mut out.diagnostics);
+        out.diagnostics = diagnostics;
+    }
+    out
+}
+
+fn is_compare_head(head: &Term) -> bool {
+    matches!(
+        head.head_name(),
+        Some("Less") | Some("Greater") | Some("LessEqual") | Some("GreaterEqual") | Some("Equal") | Some("Unequal")
+    )
+}
+
+/// `Try[body, catch]` — on Error diagnostics evaluate catch, else body value.
+fn eval_try(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply("Try", clone_terms(args)));
+    }
+    let body_o = evaluate_depth_outcome(&args[0], depth + 1);
+    if body_o.has_error() {
+        return evaluate_depth_outcome(&args[1], depth + 1);
+    }
+    body_o
 }
 
 fn substitute_symbol(expr: &Term, name: &str, value: &Term) -> Term {
@@ -733,6 +841,28 @@ fn eval_compound_into(args: &[Term], env: &mut DefinitionMap, depth: u32) -> Eva
     let mut last = Term::null();
 
     for arg in args {
+        // Do not `apply_bindings` into For/While bodies before the loop runs.
+        if let Term::Application { head, .. } = arg {
+            if head.is_symbol("For")
+                || head.is_symbol("While")
+                || head.is_symbol("Try")
+                || head.is_symbol("CompoundExpression")
+            {
+                let mut o = eval_stmt_into(arg, env, depth + 1);
+                diagnostics.append(&mut o.diagnostics);
+                last = o.term;
+                if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                    return EvalOutcome {
+                        term: last,
+                        kind: EvalKind::Unevaluated,
+                        status: ComputationStatus::Invalid,
+                        diagnostics,
+                    };
+                }
+                continue;
+            }
+        }
+
         let rewritten = apply_bindings(arg, env);
         if let Some((name, rhs)) = match_set(&rewritten) {
             let mut o = evaluate_depth_outcome(&rhs, depth + 1);
@@ -1117,6 +1247,19 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
         "Import" | "Export" | "Clear" | "Timing" => {
             let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
             EvalOutcome::invalid(term, unsupported_operation(name))
+        }
+        "error" | "Error" => {
+            let msg = match args.first() {
+                Some(Term::Atom(Atom::String(s))) => s.clone(),
+                _ => "error".to_string(),
+            };
+            let term = Term::Application { head: Box::new(Term::symbol(name)), arguments: args };
+            EvalOutcome::invalid(
+                term,
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("operation", "error")
+                    .detail("message", msg),
+            )
         }
         _ => EvalOutcome::unevaluated(Term::Application { head: Box::new(clone_term(head)), arguments: args }),
     }
