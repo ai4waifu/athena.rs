@@ -19,6 +19,7 @@ pub mod function;
 pub mod galois;
 pub mod graph_theory;
 pub mod group;
+pub mod interp;
 pub mod ir;
 pub mod linear_algebra;
 pub mod mgraph;
@@ -172,7 +173,6 @@ pub use polynomial::{
 };
 pub use semantic::{AssumptionScopeTable, ExprBindingTable, ResultIdTable, ValueIdTable};
 pub use session::Session;
-pub use value::ValueBindingTable;
 pub use solve::{
     BindingId, BindingMap, BindingValue, BindingValueTable, BoundSymbol, BranchStatus, Constraint, ConstraintConnective,
     ConstraintSet, CoverageStatus, Equation, ExecutionLimits, Inequality, InequalityOp, LinearAdaptedSolution, LinearSolveMode,
@@ -189,3 +189,4 @@ pub use solver::{
     SolverRequest, score_candidate,
 };
 pub use term::{Atom, Term, number_from_term};
+pub use value::ValueBindingTable;

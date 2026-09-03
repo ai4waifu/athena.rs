@@ -10,6 +10,7 @@ use athena_types::{ExprId, TermId, ValueId};
 use crate::{
     eval::{DefinitionMap, EvalOutcome, evaluate_in, evaluate_with_definitions},
     graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
+    interp::{env::DefinitionLayer, vm::UnitCache},
     linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
     mgraph::MGraphState,
     polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
@@ -30,6 +31,12 @@ pub struct Session {
     pub value_bindings: ValueBindingTable,
     /// Own / Delayed 符号定义（跨 `evaluate` 持久）。
     pub definitions: DefinitionMap,
+    /// Interp 语句定义层（`SymbolId` 键 · Living `25` 终态）。
+    pub defs: DefinitionLayer,
+    /// KernelIR 编译缓存（canonical hash → `ExecUnit`）。
+    pub units: UnitCache,
+    /// `Module` 局部唯一化计数器。
+    pub module_counter: u64,
     /// 多项式环 intern 表。
     pub rings: RingTable,
     /// M-Graph 状态（多项式缓存 · witness）。
@@ -82,6 +89,9 @@ impl Session {
             exprs: ExprBindingTable::default(),
             value_bindings: ValueBindingTable::default(),
             definitions: DefinitionMap::new(),
+            defs: DefinitionLayer::new(),
+            units: UnitCache::new(),
+            module_counter: 0,
             rings: RingTable::default(),
             mgraph: MGraphState::default(),
             values: ValueIdTable::default(),
