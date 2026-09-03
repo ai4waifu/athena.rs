@@ -7,9 +7,10 @@ use super::{
     status::{AlgorithmGuarantee, SolveDisposition},
     value::MatrixValue,
 };
+use crate::numeric_clone::{clone_rational};
 
 /// 精确秩结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExactRankResult {
     /// 秩。
     pub rank: u64,
@@ -18,7 +19,7 @@ pub struct ExactRankResult {
 }
 
 /// 精确行列式结果。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExactDetResult {
     /// 行列式（有理；整数矩阵时分母为 1）。
     pub det: Rational,
@@ -27,7 +28,7 @@ pub struct ExactDetResult {
 }
 
 /// 精确线性求解结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ExactSolveResult {
     /// 分类。
     pub disposition: SolveDisposition,
@@ -38,7 +39,7 @@ pub struct ExactSolveResult {
 }
 
 /// RREF 结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ExactRrefResult {
     /// 行最简形。
     pub matrix: MatrixValue,
@@ -51,7 +52,7 @@ pub struct ExactRrefResult {
 }
 
 fn get_q(a: &[Rational], cols: u64, r: u64, c: u64) -> Rational {
-    a[(r * cols + c) as usize].clone()
+    clone_rational(&a[(r * cols + c) as usize])
 }
 
 fn set_q(a: &mut [Rational], cols: u64, r: u64, c: u64, v: Rational) {
@@ -182,7 +183,7 @@ pub fn det_bareiss(matrix: &MatrixValue) -> Result<ExactDetResult, Diagnostic> {
                 a[(i * n + j) as usize] = num.div(&prev).expect("div");
             }
         }
-        prev = a[(k * n + k) as usize].clone();
+        prev = clone_rational(&a[(k * n + k) as usize]);
     }
     let det_z = sign.mul(&a[((n - 1) * n + (n - 1)) as usize]);
     Ok(ExactDetResult { det: Rational::from_integer(det_z), guarantee: AlgorithmGuarantee::Exact })
@@ -236,9 +237,9 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
     let br = b.to_rationals_row_major()?;
     for i in 0..m {
         for j in 0..n {
-            aug.push(ar[(i * n + j) as usize].clone());
+            aug.push(clone_rational(&ar[(i * n + j) as usize]));
         }
-        aug.push(br[i as usize].clone());
+        aug.push(clone_rational(&br[i as usize]));
     }
     let cols = n + 1;
     let mut pivot_cols = Vec::new();

@@ -54,8 +54,8 @@ impl Default for Session {
 impl Session {
     /// 空 session（隔离登记 heap · 基准 [`GcMode::Deferred`]）。
     ///
-    /// Living 18：session 算术经 [`Self::numeric_context`] 发布。宿主可见 e2e 仍用
-    /// `NumericContext::portable_default`（shared Auto）。
+    /// Living 18：session 算术经 [`Self::numeric_context`] 发布。宿主可见便利入口仍用
+    /// [`NumericContext::portable_default`]（共享默认 heap · Auto）。
     pub fn new() -> Self {
         let heap = GcHeap::new_shared(HeapBudget::default());
         heap.borrow().gc().set_base_mode(GcMode::Deferred);

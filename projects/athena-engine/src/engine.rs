@@ -8,11 +8,11 @@ use crate::{
 };
 
 /// 求值选项（占位；随后随模式 / Session 扩展）。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EvalOptions {}
 
 /// 化简选项。
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct SimplifyOptions {}
 
 /// Athena 主引擎句柄（无状态规则；绑定请用 [`Session`]）。

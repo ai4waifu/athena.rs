@@ -5,7 +5,7 @@ use athena_types::{AssumptionSet, Condition, Diagnostic, Predicate};
 use crate::term::Term;
 
 /// 携带值及其适用条件的结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ConditionalResult<T> {
     /// 计算得到的值。
     pub value: T,
@@ -28,7 +28,7 @@ impl<T> ConditionalResult<T> {
 }
 
 /// 统一的微积分结果（非裸 [`Term`]）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum CalculusResult<T = Term> {
     /// 精确符号结果。
     Exact {

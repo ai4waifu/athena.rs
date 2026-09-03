@@ -6,7 +6,7 @@ use athena_types::{ExtensionId, FieldId, FieldPresentationId};
 use crate::algebra::PropertyState;
 
 /// 域对象。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Field {
     /// 稳定 id。
     pub id: FieldId,
@@ -17,7 +17,7 @@ pub struct Field {
 }
 
 /// 域元素表示（按 presentation kind 解释）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FieldElementRepr {
     /// ℚ：约分后、分母为正的有理数 payload。
     Rational {
@@ -44,7 +44,7 @@ pub enum FieldElementRepr {
 }
 
 /// 域元素。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FieldElement {
     /// 所属域。
     pub field: FieldId,
@@ -55,7 +55,7 @@ pub struct FieldElement {
 }
 
 /// 域数学描述（种类与表示分离）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum FieldDescriptor {
     /// 有理数域 ℚ。
     Rationals,

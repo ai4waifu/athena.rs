@@ -4,7 +4,7 @@ use athena_numeric::Integer;
 use athena_types::{ExtensionId, FieldId, FieldPresentationId, GroupPresentationId};
 
 /// 域的具体表示种类（算法可后补，边界现冻结）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FieldPresentationKind {
     /// 有理数域 ℚ。
     Rationals,
@@ -47,7 +47,7 @@ pub enum FieldPresentationKind {
 }
 
 /// 不可变域表示对象。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct FieldPresentation {
     /// 句柄。
     pub id: FieldPresentationId,
@@ -58,7 +58,7 @@ pub struct FieldPresentation {
 }
 
 /// 群的具体表示种类。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum GroupPresentationKind {
     /// 置换群：度数 n 上对称群子群。
     Permutation {
@@ -86,7 +86,7 @@ pub enum GroupPresentationKind {
 }
 
 /// 不可变群表示对象。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct GroupPresentation {
     /// 句柄。
     pub id: GroupPresentationId,

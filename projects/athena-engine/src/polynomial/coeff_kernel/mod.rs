@@ -15,7 +15,7 @@ use super::{coeff_ring_table::CoeffRingTable, ring::CoefficientDomain};
 use prime_field::{FpKernelKind, select_fp_kernel};
 
 /// 已解析的系数环内核（enum dispatch，无 trait object）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SpecializedCoeffKernel {
     /// ℤ。
     Integer(ZCoeffKernel),

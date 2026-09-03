@@ -10,7 +10,7 @@ use super::{
 };
 
 /// 目标表示（转换时指定）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ReprTarget {
     /// 单变量稠密系数向量 `coeffs[d] = coeff(x^d)`，无尾随零。
     DenseUnivariate {
@@ -27,7 +27,7 @@ pub enum ReprTarget {
 }
 
 /// 算法面向的多项式表示（环 id 与 [`Polynomial`] 一致）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PolynomialRepr {
     /// 所属环。
     pub ring: RingId,
@@ -36,7 +36,7 @@ pub struct PolynomialRepr {
 }
 
 /// 表示族变体（不含环 id）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum PolynomialReprBody {
     /// 单变量稠密。
     DenseUnivariate {

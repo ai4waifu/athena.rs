@@ -35,6 +35,7 @@ pub mod symbol;
 pub mod term;
 
 mod engine;
+mod numeric_clone;
 
 /// 数值塔：[`NumericValue`] 为唯一执行真相源。
 pub use athena_numeric as numeric;

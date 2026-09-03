@@ -7,6 +7,7 @@ use crate::{
     term::{Atom, Term, number_from_term},
 };
 
+use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 use super::{
     result::CalculusResult,
     term_util::{contains_symbol, replace_symbol},
@@ -15,12 +16,12 @@ use super::{
 /// 在 `Term` 上做符号积分（多项式 / 初等子集）。
 pub fn integrate(expr: &Term, var: &str) -> Term {
     match expr {
-        Term::Atom(Atom::Number(n)) => Term::apply("Times", vec![Term::number(n.clone()), Term::symbol(var)]),
-        Term::Atom(Atom::String(_)) => Term::apply("Integrate", vec![expr.clone(), Term::symbol(var)]),
+        Term::Atom(Atom::Number(n)) => Term::apply("Times", vec![Term::number(clone_number(n)), Term::symbol(var)]),
+        Term::Atom(Atom::String(_)) => Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]),
         Term::Atom(Atom::Symbol(s)) if s == var => {
             evaluate(&Term::apply("Divide", vec![Term::apply("Power", vec![Term::symbol(var), Term::int(2)]), Term::int(2)]))
         }
-        Term::Atom(Atom::Symbol(_)) => Term::apply("Times", vec![expr.clone(), Term::symbol(var)]),
+        Term::Atom(Atom::Symbol(_)) => Term::apply("Times", vec![clone_term(expr), Term::symbol(var)]),
         Term::List(items) => Term::List(items.iter().map(|i| integrate(i, var)).collect()),
         Term::Application { head, arguments: args } => {
             let h = head.head_name().unwrap_or("");
@@ -34,27 +35,27 @@ pub fn integrate(expr: &Term, var: &str) -> Term {
                         (&args[1], &args[0])
                     }
                     else {
-                        return Term::apply("Integrate", vec![expr.clone(), Term::symbol(var)]);
+                        return Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]);
                     };
-                    evaluate(&Term::apply("Times", vec![coeff.clone(), integrate(rest, var)]))
+                    evaluate(&Term::apply("Times", vec![clone_term(coeff), integrate(rest, var)]))
                 }
                 "Power" if args.len() == 2 && args[0].is_symbol(var) => {
                     if let Some(n) = number_from_term(&args[1]).and_then(|e| e.as_integer_exp()) {
                         if n != -1 {
                             return evaluate(&Term::apply(
                                 "Divide",
-                                vec![Term::apply("Power", vec![args[0].clone(), Term::integer(n + 1)]), Term::integer(n + 1)],
+                                vec![Term::apply("Power", vec![clone_term(&args[0]), Term::integer(n + 1)]), Term::integer(n + 1)],
                             ));
                         }
                     }
-                    Term::apply("Integrate", vec![expr.clone(), Term::symbol(var)])
+                    Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)])
                 }
                 "Sin" if args.len() == 1 && args[0].is_symbol(var) => {
-                    evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Cos", args.clone())]))
+                    evaluate(&Term::apply("Times", vec![Term::int(-1), Term::apply("Cos", clone_terms(args))]))
                 }
-                "Cos" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Sin", args.clone()),
-                "Exp" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Exp", args.clone()),
-                _ => Term::apply("Integrate", vec![expr.clone(), Term::symbol(var)]),
+                "Cos" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Sin", clone_terms(args)),
+                "Exp" if args.len() == 1 && args[0].is_symbol(var) => Term::apply("Exp", clone_terms(args)),
+                _ => Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]),
             }
         }
     }
@@ -81,7 +82,7 @@ pub fn definite_integrate_checked(expr: &Term, var: &str, lower: &Term, upper: &
                 return CalculusResult::Unevaluated {
                     expression: Term::apply(
                         "Integrate",
-                        vec![expr.clone(), Term::List(vec![Term::symbol(var), lower.clone(), upper.clone()])],
+                        vec![clone_term(expr), Term::List(vec![Term::symbol(var), clone_term(lower), clone_term(upper)])],
                     ),
                     reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid),
                 };
@@ -98,7 +99,7 @@ pub fn definite_integrate_checked(expr: &Term, var: &str, lower: &Term, upper: &
         CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated {
             expression: Term::apply(
                 "Integrate",
-                vec![expr.clone(), Term::List(vec![Term::symbol(var), lower.clone(), upper.clone()])],
+                vec![clone_term(expr), Term::List(vec![Term::symbol(var), clone_term(lower), clone_term(upper)])],
             ),
             reason,
         },

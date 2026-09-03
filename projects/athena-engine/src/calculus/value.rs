@@ -12,7 +12,7 @@ use super::{
 };
 
 /// 域 / 微积分响应所携带的值。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum CalculusValue {
     /// 普通表达式。
     Expression(Term),

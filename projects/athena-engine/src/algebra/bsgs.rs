@@ -7,7 +7,7 @@ use athena_numeric::Integer;
 use super::permutation::RawPerm;
 
 /// Schreier–Sims 缓存（presentation 附属数据，非 `Group` 本体）。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BsgsChain {
     /// 作用度数。
     pub degree: u32,

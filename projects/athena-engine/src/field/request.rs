@@ -6,7 +6,7 @@ use athena_types::FieldId;
 use super::types::FieldElement;
 
 /// 域论域请求（骨架）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FieldRequest {
     /// 素域 𝔽_p。
     PrimeField {

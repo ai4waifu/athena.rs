@@ -19,7 +19,7 @@ use super::{
 };
 
 /// 一元根适配结果。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct UnivariateAdaptedSolution {
     /// 统一解集。
     pub solution: SolutionSet,

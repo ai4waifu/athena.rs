@@ -4,7 +4,7 @@ use athena_numeric::{Number, add as num_add, div as num_div, mul as num_mul, neg
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 有理数域系数算术。
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct QCoeffKernel;
 
 impl QCoeffKernel {

@@ -8,6 +8,7 @@ use crate::{
     term::{Term, number_from_term},
 };
 
+use crate::numeric_clone::{clone_number, clone_term};
 use super::{
     request::{LimitApproach, LimitDirection},
     result::CalculusResult,
@@ -35,7 +36,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
 
     if is_indeterminate_form(&value) {
         return CalculusResult::Unevaluated {
-            expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
+            expression: limit_form(expression, variable, &LimitApproach::Finite(clone_term(point)), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
@@ -47,7 +48,7 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
             }
         }
         return CalculusResult::Unevaluated {
-            expression: limit_form(expression, variable, &LimitApproach::Finite(point.clone()), direction),
+            expression: limit_form(expression, variable, &LimitApproach::Finite(clone_term(point)), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
@@ -62,18 +63,18 @@ fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: Limi
         }
     }
 
-    unevaluated_limit(expression, variable, &LimitApproach::Finite(point.clone()), direction)
+    unevaluated_limit(expression, variable, &LimitApproach::Finite(clone_term(point)), direction)
 }
 
 /// 单侧简单极点 `c / (x - a)`（以及 `c / x`）。
 fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, direction: LimitDirection) -> Option<Term> {
     let (num, den) = match expression {
         Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            (args[0].clone(), args[1].clone())
+            (clone_term(&args[0]), clone_term(&args[1]))
         }
         Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
             if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1)) {
-                (Term::int(1), args[0].clone())
+                (Term::int(1), clone_term(&args[0]))
             }
             else {
                 return None;
@@ -90,9 +91,9 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
         // 在 point ± ε（ε = 1）探测 den，读取侧向符号。
         let eps = Term::int(1);
         let probe = match direction {
-            LimitDirection::FromAbove => evaluate(&Term::apply("Plus", vec![point.clone(), eps])),
+            LimitDirection::FromAbove => evaluate(&Term::apply("Plus", vec![clone_term(point), eps])),
             LimitDirection::FromBelow => {
-                evaluate(&Term::apply("Plus", vec![point.clone(), Term::apply("Times", vec![Term::int(-1), eps])]))
+                evaluate(&Term::apply("Plus", vec![clone_term(point), Term::apply("Times", vec![Term::int(-1), eps])]))
             }
             LimitDirection::TwoSided => return None,
         };
@@ -159,7 +160,7 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
 /// 受限多项式语言的次数与首项系数。
 fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
     match expr {
-        Term::Atom(_) if number_from_term(expr).is_some() => Some((0, number_from_term(expr)?.clone())),
+        Term::Atom(_) if number_from_term(expr).is_some() => Some((0, clone_number(number_from_term(expr)?))),
         Term::Atom(_) if expr.is_symbol(var) => Some((1, Number::small_int(1))),
         Term::Atom(_) => None,
         Term::Application { head, arguments: args } => {
@@ -193,7 +194,7 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                     Some((n, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => polynomial_degree_leading(
-                    &Term::apply("Plus", vec![args[0].clone(), Term::apply("Times", vec![Term::int(-1), args[1].clone()])]),
+                    &Term::apply("Plus", vec![clone_term(&args[0]), Term::apply("Times", vec![Term::int(-1), clone_term(&args[1])])]),
                     var,
                 ),
                 _ => None,
@@ -209,11 +210,11 @@ fn is_open_limit_head(expr: &Term) -> bool {
 
 fn limit_form(expression: &Term, variable: &str, approach: &LimitApproach, direction: LimitDirection) -> Term {
     let approach_term = match approach {
-        LimitApproach::Finite(t) => t.clone(),
+        LimitApproach::Finite(t) => clone_term(t),
         LimitApproach::PositiveInfinity => Term::symbol("Infinity"),
         LimitApproach::NegativeInfinity => Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")]),
     };
-    let mut args = vec![expression.clone(), Term::List(vec![Term::symbol(variable), approach_term])];
+    let mut args = vec![clone_term(expression), Term::List(vec![Term::symbol(variable), approach_term])];
     if direction != LimitDirection::TwoSided {
         args.push(Term::symbol(match direction {
             LimitDirection::FromBelow => "FromBelow",

@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
+use crate::numeric_clone::{clone_modulus};
 use super::super::{
     gcd::extended_gcd,
     result::NumberTheoryResult,
@@ -49,7 +50,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
     if g.is_one() {
         return NumberTheoryResult::Exact {
             value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass {
-                residue: ModularValue::new(x0, modulus.clone()),
+                residue: ModularValue::new(x0, clone_modulus(&modulus)),
             }),
         };
     }
@@ -61,7 +62,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
             if m_red.is_one() {
                 return NumberTheoryResult::Exact {
                     value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass {
-                        residue: ModularValue::new(x0, modulus.clone()),
+                        residue: ModularValue::new(x0, clone_modulus(&modulus)),
                     }),
                 };
             }
@@ -73,7 +74,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
         value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses {
             base_residue: x0,
             reduced_modulus: reduced,
-            ambient_modulus: modulus.clone(),
+            ambient_modulus: clone_modulus(&modulus),
             multiplicity: g,
         }),
     }

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use athena_numeric::{Integer, Rational};
+use crate::numeric_clone::{clone_integer, clone_modulus, clone_rationals};
 use athena_types::{
     AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result,
 };
@@ -28,7 +29,7 @@ use super::{
 };
 
 /// 域 intern 键（descriptor 级，不含可变算法状态）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum FieldInternKey {
     Rationals,
     Prime { characteristic: Integer },
@@ -67,7 +68,7 @@ impl FieldTable {
     pub fn prime_field(&mut self, characteristic: Integer) -> Result<FieldId> {
         validate_prime_modulus(&characteristic)?;
         Ok(self.intern(
-            FieldInternKey::Prime { characteristic: characteristic.clone() },
+            FieldInternKey::Prime { characteristic: clone_integer(&characteristic) },
             FieldPresentationKind::PrimeField { characteristic },
         ))
     }
@@ -89,7 +90,7 @@ impl FieldTable {
             FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. } => {
                 let spec = self.number_fields.get(&field)?;
                 let abs: Vec<_> =
-                    spec.absolute_modulus.iter().map(|c| (c.numerator().clone(), c.denominator().clone())).collect();
+                    spec.absolute_modulus.iter().map(|c| (clone_integer(&c.numerator()), clone_integer(&c.denominator()))).collect();
                 Some(FieldFingerprint::number_field(&abs))
             }
             other => Some(FieldFingerprint::from_presentation_kind_tag(other)),
@@ -99,9 +100,9 @@ impl FieldTable {
     /// 域特征（素域与 𝔽_{p^n} 均返回 p）。
     pub fn characteristic(&self, field: FieldId) -> Option<Integer> {
         match self.presentation(field).map(|p| &p.kind) {
-            Some(FieldPresentationKind::PrimeField { characteristic }) => Some(characteristic.clone()),
+            Some(FieldPresentationKind::PrimeField { characteristic }) => Some(clone_integer(&characteristic)),
             Some(FieldPresentationKind::FiniteFieldPolynomialBasis { .. }) => {
-                self.poly_extensions.get(&field).map(|s| s.characteristic.clone())
+                self.poly_extensions.get(&field).map(|s| clone_integer(&s.characteristic))
             }
             _ => None,
         }
@@ -138,7 +139,7 @@ impl FieldTable {
     /// 注册 𝔽_{p^n}（首一不可约模多项式 + 多项式基 presentation）。
     pub fn polynomial_basis_field(&mut self, characteristic: Integer, modulus: Vec<Integer>) -> Result<FieldId> {
         validate_prime_modulus(&characteristic)?;
-        let p = athena_numeric::Modulus::new(characteristic.clone())?;
+        let p = athena_numeric::Modulus::new(clone_integer(&characteristic))?;
         let modulus = canonicalize_modulus(modulus, &p)?;
         let degree = validate_modulus_shape(&modulus, &p)?;
         if !is_irreducible_monic(&modulus, &p)? {
@@ -146,11 +147,11 @@ impl FieldTable {
                 .detail("domain", "field")
                 .detail("operation", "polynomial_basis_modulus"));
         }
-        let key = FieldInternKey::PolynomialBasis { characteristic: characteristic.clone(), modulus: modulus.clone() };
+        let key = FieldInternKey::PolynomialBasis { characteristic: clone_integer(&characteristic), modulus: clone_modulus(&modulus) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
-        let base = self.prime_field(characteristic.clone())?;
+        let base = self.prime_field(clone_integer(&characteristic))?;
         let extension_id = ExtensionId(self.next_extension_id);
         self.next_extension_id = self.next_extension_id.wrapping_add(1);
         let field = FieldId(self.next_field_id);
@@ -209,7 +210,7 @@ impl FieldTable {
             }
             Some(FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. }) => {
                 let spec = self.number_fields.get(&base).ok_or_else(|| unknown_field(base))?;
-                (spec.absolute_base, spec.absolute_degree, spec.absolute_modulus.clone())
+                (spec.absolute_base, spec.absolute_degree, clone_rationals(&spec.absolute_modulus))
             }
             _ => {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
@@ -226,7 +227,7 @@ impl FieldTable {
         }
         let absolute_degree = absolute_degree_product(base_degree, relative_degree)?;
         let absolute_modulus = if base_degree == 1 {
-            monic.clone()
+            clone_integer(&monic)
         }
         else if base_degree == 2 && relative_degree == 2 && monic[1].is_zero() {
             biquadratic_absolute_modulus(&base_abs_mod, &monic[0].neg())?
@@ -263,7 +264,7 @@ impl FieldTable {
             one
         };
         for _ in 0..=n {
-            powers.push(cur.clone());
+            powers.push(clone_integer(&cur));
             cur = self.mul_number_field_coords(field, &cur, coords)?;
         }
         crate::algebra::number_field::minimal_polynomial_from_powers(&powers)
@@ -370,7 +371,7 @@ impl FieldTable {
         match &pres.kind {
             FieldPresentationKind::Rationals => Ok(FieldDescriptor::Rationals),
             FieldPresentationKind::PrimeField { characteristic } => {
-                Ok(FieldDescriptor::Prime { characteristic: characteristic.clone() })
+                Ok(FieldDescriptor::Prime { characteristic: clone_integer(&characteristic) })
             }
             FieldPresentationKind::FiniteFieldPolynomialBasis { degree, .. } => {
                 let spec = self.poly_extensions.get(&field).ok_or_else(|| unknown_field(field))?;

@@ -17,7 +17,7 @@ use super::{
 };
 
 /// 线性适配结果：解集 + 绑定值表 + 原始 disposition。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct LinearAdaptedSolution {
     /// 统一解集。
     pub solution: SolutionSet,

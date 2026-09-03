@@ -11,7 +11,7 @@ pub trait FactorProducer {
 }
 
 /// 纯 Rust / WASM 可移植 fallback（空操作，pipeline 内建算法负责实际分解）。
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct PureRustFactorProducer;
 
 impl FactorProducer for PureRustFactorProducer {

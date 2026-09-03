@@ -5,7 +5,7 @@ use athena_types::{DomainId, TermId};
 use super::ids::VariableId;
 
 /// 变量取值域类别（禁止静默把整数放松为连续）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum VariableDomain {
     /// 实数。
     Real,
@@ -23,7 +23,7 @@ pub enum VariableDomain {
 }
 
 /// 整数性声明（与 [`VariableDomain`] 正交校验）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Integrality {
     /// 连续。
     Continuous,
@@ -34,14 +34,14 @@ pub enum Integrality {
 }
 
 /// 非身份元数据（名称、注释等；不进 fingerprint 主体时可剥离）。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct VariableMetadata {
     /// 展示名（非稳定身份）。
     pub display_name: Option<String>,
 }
 
 /// 决策变量。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct DecisionVariable {
     /// Session-local id。
     pub id: VariableId,

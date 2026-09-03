@@ -2,6 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
+use crate::numeric_clone::{clone_term};
 use crate::{
     eval::evaluate,
     term::{Term, number_from_term},
@@ -14,7 +15,7 @@ use super::{
 };
 
 /// 截断级数的余项标注。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Remainder {
     /// 精确截断（多项式次数 ≤ order）。
     ExactTruncation,
@@ -27,7 +28,7 @@ pub enum Remainder {
 }
 
 /// 独立级数值（非裸多项式列表）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Series {
     /// 展开变量。
     pub variable: String,
@@ -61,7 +62,7 @@ impl Series {
         else {
             evaluate(&Term::apply(
                 "Plus",
-                vec![Term::symbol(&self.variable), Term::apply("Times", vec![Term::int(-1), self.center.clone()])],
+                vec![Term::symbol(&self.variable), Term::apply("Times", vec![Term::int(-1), clone_term(&self.center)])],
             ))
         };
         if power == 0 {
@@ -85,10 +86,10 @@ impl Series {
             .iter()
             .map(|(coeff, power)| {
                 if *power == 0 {
-                    coeff.clone()
+                    clone_term(&coeff)
                 }
                 else {
-                    evaluate(&Term::apply("Times", vec![coeff.clone(), self.delta_power(*power)]))
+                    evaluate(&Term::apply("Times", vec![clone_term(&coeff), self.delta_power(*power)]))
                 }
             })
             .collect();
@@ -99,10 +100,10 @@ impl Series {
 fn residual_series(expression: &Term, variable: &str, center: &Term, order: u32) -> Series {
     Series {
         variable: variable.to_string(),
-        center: center.clone(),
+        center: clone_term(&center),
         terms: Vec::new(),
         order,
-        remainder: Remainder::BigO(expression.clone()),
+        remainder: Remainder::BigO(clone_term(&expression)),
     }
 }
 
@@ -110,11 +111,11 @@ fn residual_series(expression: &Term, variable: &str, center: &Term, order: u32)
 pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> CalculusResult<Series> {
     const SHIFT: &str = "__athena_taylor_t";
     let working = if is_zero_term(center) {
-        expression.clone()
+        clone_term(&expression)
     }
     else {
         // f(x) 关于 c  ≡  f(t + c) 关于 t = 0。
-        let shifted_var = evaluate(&Term::apply("Plus", vec![Term::symbol(SHIFT), center.clone()]));
+        let shifted_var = evaluate(&Term::apply("Plus", vec![Term::symbol(SHIFT), clone_term(&center)]));
         replace_symbol(expression, variable, &shifted_var)
     };
     let expand_var = if is_zero_term(center) { variable } else { SHIFT };
@@ -157,14 +158,14 @@ pub fn taylor(expression: &Term, variable: &str, center: &Term, order: u32) -> C
         else {
             evaluate(&Term::apply(
                 "Plus",
-                vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), center.clone()])],
+                vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), clone_term(&center)])],
             ))
         };
         Remainder::BigO(Term::apply("Power", vec![delta, Term::int((order + 1) as i64)]))
     };
 
     CalculusResult::Exact {
-        value: Series { variable: variable.to_string(), center: center.clone(), terms, order, remainder },
+        value: Series { variable: variable.to_string(), center: clone_term(&center), terms, order, remainder },
         conditions: Vec::new(),
     }
 }
@@ -178,17 +179,17 @@ pub fn laurent(expression: &Term, variable: &str, center: &Term, order: u32) -> 
         Term::symbol(variable)
     }
     else {
-        evaluate(&Term::apply("Plus", vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), center.clone()])]))
+        evaluate(&Term::apply("Plus", vec![Term::symbol(variable), Term::apply("Times", vec![Term::int(-1), clone_term(&center)])]))
     };
 
     for m in 0..=MAX_POLE {
         let cleared = if m == 0 {
-            expression.clone()
+            clone_term(&expression)
         }
         else {
             evaluate(&Term::apply(
                 "Times",
-                vec![expression.clone(), Term::apply("Power", vec![delta.clone(), Term::int(m as i64)])],
+                vec![clone_term(&expression), Term::apply("Power", vec![clone_term(&delta), Term::int(m as i64)])],
             ))
         };
         match taylor(&cleared, variable, center, order.saturating_add(m)) {
@@ -225,11 +226,11 @@ fn remap_laurent_series(series: Series, variable: &str, center: &Term, order: u3
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
-            Remainder::BigO(Term::apply("Power", vec![delta.clone(), Term::int((order + 1) as i64)]))
+            Remainder::BigO(Term::apply("Power", vec![clone_term(&delta), Term::int((order + 1) as i64)]))
         }
         Remainder::Unknown => Remainder::Unknown,
     };
-    Series { variable: variable.to_string(), center: center.clone(), terms, order, remainder }
+    Series { variable: variable.to_string(), center: clone_term(&center), terms, order, remainder }
 }
 
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
@@ -263,7 +264,7 @@ fn clear_negative_powers_of_var(expr: &Term, var: &str) -> Term {
                 if let Some(k) = negative_valuation(&args[0], var) {
                     if k > 0 {
                         let scale = Term::apply("Power", vec![Term::symbol(var), Term::int(k as i64)]);
-                        let cleared_den = evaluate(&Term::apply("Times", vec![args[0].clone(), scale.clone()]));
+                        let cleared_den = evaluate(&Term::apply("Times", vec![clone_term(&args[0]), clone_term(&scale)]));
                         return evaluate(&Term::apply(
                             "Times",
                             vec![scale, Term::apply("Power", vec![cleared_den, Term::int(-1)])],
@@ -271,7 +272,7 @@ fn clear_negative_powers_of_var(expr: &Term, var: &str) -> Term {
                     }
                 }
             }
-            Term::apply("Power", vec![clear_negative_powers_of_var(&args[0], var), args[1].clone()])
+            Term::apply("Power", vec![clear_negative_powers_of_var(&args[0], var), clone_term(&args[1])])
         }
         Term::Application { head, arguments: args } if head.is_symbol("Plus") => {
             evaluate(&Term::apply("Plus", args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect()))
@@ -284,7 +285,7 @@ fn clear_negative_powers_of_var(expr: &Term, var: &str) -> Term {
             arguments: args.iter().map(|a| clear_negative_powers_of_var(a, var)).collect(),
         },
         Term::List(items) => Term::List(items.iter().map(|i| clear_negative_powers_of_var(i, var)).collect()),
-        Term::Atom(_) => expr.clone(),
+        Term::Atom(_) => clone_term(&expr),
     }
 }
 

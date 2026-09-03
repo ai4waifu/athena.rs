@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, Rational};
 use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, FieldId, Result};
 
+use crate::numeric_clone::{clone_integer};
 use crate::algebra::{
     AlgebraParentId, FieldTable, MapTable, add_coords, add_nf_coords, canonical_coords, canonical_nf_coords, embed_base_coords,
     inv_coords, inv_nf_coords, inv_relative_nf_coords, mul_coords, mul_nf_coords, mul_relative_nf_coords,
@@ -237,7 +238,7 @@ pub fn inv_field_element(table: &FieldTable, element: &FieldElement) -> Result<F
         FieldElementRepr::PrimeFieldResidue { value } => {
             let modulus = table.prime_modulus(element.field)?;
             let inv = crate::number_theory::mod_inverse(value, &modulus)?;
-            canonical_prime_residue(table, element.field, inv.residue().clone())
+            canonical_prime_residue(table, element.field, clone_integer(&inv.residue()))
         }
         FieldElementRepr::ExtensionCoords { coords } => {
             let spec = table.finite_field_poly_spec(element.field).ok_or_else(|| field_element_invalid("extension_inv"))?;

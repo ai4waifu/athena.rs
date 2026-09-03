@@ -6,7 +6,7 @@ use athena_types::RingId;
 /// 单项式项：系数 × 指数向量（与环变量表对齐）。
 ///
 /// 字段私有：禁止外部构造出零系数、错误宽度或未校验的项。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct MonomialTerm {
     pub(crate) coefficient: Number,
     pub(crate) exponents: Vec<u32>,
@@ -42,7 +42,7 @@ impl MonomialTerm {
 /// 规范多项式：同环、非零项、每单项式至多一项、按环序排序。
 ///
 /// 仅 [`super::PolynomialBuilder`]、[`super::canonicalize_polynomial`] 与 crate 内受信任路径可构造。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct CanonicalPolynomial {
     pub(crate) ring: RingId,
     pub(crate) terms: Vec<MonomialTerm>,

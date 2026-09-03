@@ -3,6 +3,7 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
+use crate::numeric_clone::{clone_integer};
 use super::super::{
     gcd::{extended_gcd, lcm},
     result::NumberTheoryResult,
@@ -80,7 +81,7 @@ pub fn chinese_remainder(residues: &[Integer], moduli: &[Modulus]) -> NumberTheo
     for i in 1..residues.len() {
         match chinese_remainder_pair(&cur_res, &cur_mod, &residues[i], &moduli[i]) {
             Ok(CrtResult::Consistent { solution, modulus_lcm }) => {
-                cur_res = solution.residue().clone();
+                cur_res = clone_integer(&solution.residue());
                 cur_mod = modulus_lcm;
             }
             Ok(CrtResult::Inconsistent { gcd, residue_difference, .. }) => {

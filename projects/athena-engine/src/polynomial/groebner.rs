@@ -18,7 +18,7 @@ use super::{
 };
 
 /// Gröbner 计算资源合同。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct GroebnerLimits {
     /// 最大 S-pair 约化步数。
     pub max_s_pairs: u32,
@@ -33,7 +33,7 @@ impl Default for GroebnerLimits {
 }
 
 /// 独立验证报告。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct GroebnerVerificationReport {
     /// 所属环。
     pub ring: RingId,
@@ -44,7 +44,7 @@ pub struct GroebnerVerificationReport {
 }
 
 /// 已验证的完整 Gröbner 基（唯一允许 membership / 规范余式 / 消元定理的证书对象）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct VerifiedGroebnerBasis {
     /// 所属环。
     pub ring: RingId,
@@ -64,7 +64,7 @@ impl VerifiedGroebnerBasis {
 }
 
 /// 未完成计算的候选前沿（不可作数学证书）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct GroebnerFrontier {
     /// 所属环。
     pub ring: RingId,
@@ -82,7 +82,7 @@ impl GroebnerFrontier {
 }
 
 /// Gröbner 计算结果的显式状态分型。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum GroebnerComputation {
     /// 完成且独立验证通过。
     Complete(VerifiedGroebnerBasis),

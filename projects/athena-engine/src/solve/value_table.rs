@@ -6,7 +6,7 @@ use athena_numeric::{Number, Rational};
 use athena_types::TermId;
 
 /// 解绑定标量（adapter 产出，非方言 AST）。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum BindingValue {
     /// 精确有理。
     Rational(Rational),
@@ -17,7 +17,7 @@ pub enum BindingValue {
 }
 
 /// [`TermId`] → 标量值的局部表（adapter 私有 arena 替身）。
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct BindingValueTable {
     /// 有序表。
     pub values: BTreeMap<TermId, BindingValue>,

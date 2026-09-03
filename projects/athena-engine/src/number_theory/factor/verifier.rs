@@ -5,7 +5,7 @@ use athena_numeric::Integer;
 use super::super::value::{CofactorStatus, FactorBaseStatus, Factorization, FactorizationCompleteness};
 
 /// 分解验证失败原因。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FactorizationVerifyError {
     /// 单位不是 `±1`。
     UnitInvalid,

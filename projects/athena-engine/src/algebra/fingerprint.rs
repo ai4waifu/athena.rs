@@ -12,11 +12,11 @@ const FIELD_WIRE_MAGIC: &[u8; 4] = b"AFF1";
 const GROUP_WIRE_MAGIC: &[u8; 4] = b"AGF1";
 
 /// 域数学身份的稳定摘要（内容寻址；不含 [`athena_types::FieldId`]）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FieldFingerprint(pub u64);
 
 /// 群数学身份的稳定摘要（内容寻址；不含 [`athena_types::GroupId`]）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GroupFingerprint(pub u64);
 
 /// 域 presentation 内容指纹别名。

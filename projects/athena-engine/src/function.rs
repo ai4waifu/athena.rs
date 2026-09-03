@@ -3,6 +3,7 @@
 //! 微积分算法经本表查询一元函数的形式导数，而不是在 `differentiate` 里无限堆 `match` 臂。
 //! 第一阶段覆盖：初等三角/双曲/反三角、`Exp`/`Log`/`Sqrt`/`Abs`/`Sign`、`Gamma`、`Erf`。
 
+use crate::numeric_clone::{clone_term};
 use crate::term::Term;
 
 /// 分支约定 — 复数主值与实数规则不得混用。
@@ -64,35 +65,35 @@ static REGISTRY: &[FunctionDefinition] = &[
 ];
 
 fn deriv_exp(arg: &Term) -> Term {
-    Term::apply("Exp", vec![arg.clone()])
+    Term::apply("Exp", vec![clone_term(arg)])
 }
 
 fn deriv_log(arg: &Term) -> Term {
-    Term::apply("Power", vec![arg.clone(), Term::int(-1)])
+    Term::apply("Power", vec![clone_term(arg), Term::int(-1)])
 }
 
 fn deriv_sin(arg: &Term) -> Term {
-    Term::apply("Cos", vec![arg.clone()])
+    Term::apply("Cos", vec![clone_term(arg)])
 }
 
 fn deriv_cos(arg: &Term) -> Term {
-    Term::apply("Times", vec![Term::int(-1), Term::apply("Sin", vec![arg.clone()])])
+    Term::apply("Times", vec![Term::int(-1), Term::apply("Sin", vec![clone_term(arg)])])
 }
 
 fn deriv_tan(arg: &Term) -> Term {
-    Term::apply("Power", vec![Term::apply("Cos", vec![arg.clone()]), Term::int(-2)])
+    Term::apply("Power", vec![Term::apply("Cos", vec![clone_term(arg)]), Term::int(-2)])
 }
 
 fn deriv_sinh(arg: &Term) -> Term {
-    Term::apply("Cosh", vec![arg.clone()])
+    Term::apply("Cosh", vec![clone_term(arg)])
 }
 
 fn deriv_cosh(arg: &Term) -> Term {
-    Term::apply("Sinh", vec![arg.clone()])
+    Term::apply("Sinh", vec![clone_term(arg)])
 }
 
 fn deriv_tanh(arg: &Term) -> Term {
-    Term::apply("Power", vec![Term::apply("Cosh", vec![arg.clone()]), Term::int(-2)])
+    Term::apply("Power", vec![Term::apply("Cosh", vec![clone_term(arg)]), Term::int(-2)])
 }
 
 fn deriv_arcsin(arg: &Term) -> Term {
@@ -106,7 +107,7 @@ fn deriv_arcsin(arg: &Term) -> Term {
                     "Plus",
                     vec![
                         Term::int(1),
-                        Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![arg.clone(), Term::int(2)])]),
+                        Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])]),
                     ],
                 )],
             ),
@@ -123,18 +124,18 @@ fn deriv_arctan(arg: &Term) -> Term {
     // 形式：1/(1+u^2)
     Term::apply(
         "Power",
-        vec![Term::apply("Plus", vec![Term::int(1), Term::apply("Power", vec![arg.clone(), Term::int(2)])]), Term::int(-1)],
+        vec![Term::apply("Plus", vec![Term::int(1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])]), Term::int(-1)],
     )
 }
 
 fn deriv_sqrt(arg: &Term) -> Term {
     // 形式：1/(2 Sqrt[u])
-    Term::apply("Power", vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![arg.clone()])]), Term::int(-1)])
+    Term::apply("Power", vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(arg)])]), Term::int(-1)])
 }
 
 fn deriv_abs(arg: &Term) -> Term {
     // 绝对值分支：Abs[u]/u（条件在 differentiate_checked）
-    Term::apply("Times", vec![Term::apply("Abs", vec![arg.clone()]), Term::apply("Power", vec![arg.clone(), Term::int(-1)])])
+    Term::apply("Times", vec![Term::apply("Abs", vec![clone_term(arg)]), Term::apply("Power", vec![clone_term(arg), Term::int(-1)])])
 }
 
 fn deriv_sign(_arg: &Term) -> Term {
@@ -146,7 +147,7 @@ fn deriv_gamma(arg: &Term) -> Term {
     // 形式：Γ'(z) = Γ(z) PolyGamma[0, z]
     Term::apply(
         "Times",
-        vec![Term::apply("Gamma", vec![arg.clone()]), Term::apply("PolyGamma", vec![Term::int(0), arg.clone()])],
+        vec![Term::apply("Gamma", vec![clone_term(arg)]), Term::apply("PolyGamma", vec![Term::int(0), clone_term(arg)])],
     )
 }
 
@@ -159,7 +160,7 @@ fn deriv_erf(arg: &Term) -> Term {
             Term::apply("Power", vec![Term::apply("Sqrt", vec![Term::symbol("Pi")]), Term::int(-1)]),
             Term::apply(
                 "Exp",
-                vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![arg.clone(), Term::int(2)])])],
+                vec![Term::apply("Times", vec![Term::int(-1), Term::apply("Power", vec![clone_term(arg), Term::int(2)])])],
             ),
         ],
     )

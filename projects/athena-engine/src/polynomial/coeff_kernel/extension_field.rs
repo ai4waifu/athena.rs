@@ -6,7 +6,7 @@ use athena_types::{Diagnostic, DiagnosticCode, FieldId, Result};
 use crate::algebra::{FiniteFieldPolySpec, add_coords, canonical_coords, inv_coords, mul_coords};
 
 /// 扩张有限域系数算术。
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FpExtCoeffKernel {
     field: FieldId,
     spec: FiniteFieldPolySpec,

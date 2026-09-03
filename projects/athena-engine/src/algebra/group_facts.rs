@@ -5,7 +5,7 @@ use athena_numeric::Integer;
 use super::property::PropertyState;
 
 /// 群的已知或待证性质集合。
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub struct GroupPropertyFacts {
     /// 是否有限。
     pub is_finite: PropertyState<bool>,

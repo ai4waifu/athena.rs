@@ -8,7 +8,7 @@ use crate::algebra::{CoefficientParent, FieldTable};
 use super::{fingerprint::RingFingerprint, monomial_layout::MonomialLayout, order::MonomialOrder};
 
 /// 精确 / 近似系数域（系数环 intern 键；多项式环身份见 [`CoefficientParent`]）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum CoefficientDomain {
     /// ℤ（特征 0）。
     Integer,
@@ -29,7 +29,7 @@ pub enum CoefficientDomain {
 }
 
 /// 环特征。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum RingCharacteristic {
     /// 特征 0（ℤ、ℚ 等）。
     Zero,
@@ -38,7 +38,7 @@ pub enum RingCharacteristic {
 }
 
 /// 多项式环完整描述符（`RingId` 的内容）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RingDescriptor {
     /// 稳定环 id。
     pub id: athena_types::RingId,
@@ -103,7 +103,7 @@ impl RingDescriptor {
 }
 
 /// 显式除法策略 — `ℤ[x]` 不得无条件域除。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum DivisionPolicy {
     /// 仅精确整除。
     #[default]

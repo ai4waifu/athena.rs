@@ -2,7 +2,8 @@
 
 use std::fmt;
 
-use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
+use athena_numeric::{Number, NumericContext, to_f64_lossy as num_to_f64_lossy};
+use athena_types::Result;
 
 /// 从项原子中提取内核数字。
 pub fn number_from_term(term: &Term) -> Option<&Number> {
@@ -13,7 +14,9 @@ pub fn number_from_term(term: &Term) -> Option<&Number> {
 }
 
 /// 引擎 IR 中的原子值。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `19`：不实现 [`Clone`]（[`Number`] 无 `Clone`）。深复制用 [`Self::try_clone_in`]。
+#[derive(Debug, PartialEq)]
 pub enum Atom {
     /// 统一内核数字（唯一数值真相源：[`Number`] = [`athena_numeric::NumericValue`]）。
     Number(Number),
@@ -23,8 +26,22 @@ pub enum Atom {
     Symbol(String),
 }
 
+impl Atom {
+    /// Owning 复制：数字经 [`Number::try_clone_in`]。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        Ok(match self {
+            Self::Number(n) => Self::Number(n.try_clone_in(ctx)?),
+            Self::String(s) => Self::String(s.clone()),
+            Self::Symbol(s) => Self::Symbol(s.clone()),
+        })
+    }
+
+}
+
 /// 过渡求值用的运行时表达式树（非方言 AST，非 arena IR）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Living `19`：不实现 [`Clone`]。结构深复制用 [`Self::try_clone_in`]。
+#[derive(Debug, PartialEq)]
 pub enum Term {
     /// 原子。
     Atom(Atom),
@@ -40,6 +57,28 @@ pub enum Term {
 }
 
 impl Term {
+    /// Owning 深复制：数字挂 `ctx`，字符串 / 符号普通拷贝。
+    pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
+        Ok(match self {
+            Self::Atom(a) => Self::Atom(a.try_clone_in(ctx)?),
+            Self::List(xs) => {
+                let mut out = Vec::with_capacity(xs.len());
+                for x in xs {
+                    out.push(x.try_clone_in(ctx)?);
+                }
+                Self::List(out)
+            }
+            Self::Application { head, arguments } => {
+                let mut args = Vec::with_capacity(arguments.len());
+                for a in arguments {
+                    args.push(a.try_clone_in(ctx)?);
+                }
+                Self::Application { head: Box::new(head.try_clone_in(ctx)?), arguments: args }
+            }
+        })
+    }
+
+
     /// 符号原子。
     pub fn symbol(name: impl Into<String>) -> Self {
         Self::Atom(Atom::Symbol(name.into()))
@@ -103,7 +142,7 @@ impl Term {
         matches!(self, Self::Atom(Atom::Symbol(s)) if s == name)
     }
 
-    /// 是否为数值 `-1`。
+    /// 是否为数字 `-1`。
     pub fn is_neg_one(&self) -> bool {
         self.as_number().is_some_and(Number::is_neg_one)
     }

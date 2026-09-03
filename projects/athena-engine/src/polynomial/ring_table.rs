@@ -7,6 +7,7 @@ use athena_types::{CoefficientRingId, Diagnostic, FieldId, RingId, SymbolId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
+use crate::numeric_clone::{clone_integer};
 use super::{
     coeff_kernel::CoeffRing,
     coeff_ring_table::CoeffRingTable,
@@ -17,7 +18,7 @@ use super::{
 };
 
 /// 环 intern 键（系数环 id + 变量 + 序）。
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 struct RingInternKey {
     coefficient_ring: CoefficientRingId,
     variables: Vec<SymbolId>,
@@ -114,7 +115,7 @@ impl RingTable {
             RingDescriptor::validate_content(coefficients, variables, order, &self.fields)?;
         let coefficient_ring = self.coeff_rings.intern(domain.clone(), &self.fields)?;
         let coefficients = self.coeff_rings.coefficient_parent(coefficient_ring);
-        let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: order.clone() };
+        let key = RingInternKey { coefficient_ring, variables: variables.clone(), order: clone_integer(&order) };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
