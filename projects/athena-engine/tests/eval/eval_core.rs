@@ -275,6 +275,28 @@ fn for_span_last_value() {
 }
 
 #[test]
+fn with_module_block_local_bindings() {
+    use athena_engine::clone_term;
+
+    let locals = Term::List(vec![Term::apply("Set", vec![Term::symbol("x"), Term::int(1)])]);
+    let body = Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]);
+    assert_eq!(evaluate(&Term::apply("With", vec![clone_term(&locals), clone_term(&body)])), Term::int(2));
+    assert_eq!(evaluate(&Term::apply("Module", vec![clone_term(&locals), clone_term(&body)])), Term::int(2));
+    assert_eq!(evaluate(&Term::apply("Block", vec![clone_term(&locals), clone_term(&body)])), Term::int(2));
+}
+
+#[test]
+fn part_column_all_then_index() {
+    // MATLAB A(:,2) as Part[matrix, All, 2]
+    let matrix = Term::List(vec![
+        Term::List(vec![Term::int(1), Term::int(2)]),
+        Term::List(vec![Term::int(3), Term::int(4)]),
+    ]);
+    let e = evaluate(&Term::apply("Part", vec![matrix, Term::symbol("All"), Term::int(2)]));
+    assert_eq!(e, Term::List(vec![Term::int(2), Term::int(4)]));
+}
+
+#[test]
 fn mldivide_is_unsupported_not_divide() {
     use athena_engine::{EvalKind, evaluate_outcome};
     use athena_types::DiagnosticCode;
