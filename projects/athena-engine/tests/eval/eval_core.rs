@@ -77,10 +77,7 @@ fn part_oob_is_invalid_index() {
     use athena_engine::{EvalKind, evaluate_outcome};
     use athena_types::{ComputationStatus, DiagnosticCode};
 
-    let o = evaluate_outcome(&Term::apply(
-        "Part",
-        vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::int(9)],
-    ));
+    let o = evaluate_outcome(&Term::apply("Part", vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::int(9)]));
     assert!(o.has_error());
     assert_eq!(o.kind, EvalKind::Unevaluated);
     assert_eq!(o.status, ComputationStatus::Invalid);
@@ -120,4 +117,67 @@ fn as_boolean_accepts_true_false_and_bits() {
     assert_eq!(as_boolean(&Term::int(0)), Some(false));
     assert_eq!(as_boolean(&Term::int(2)), None);
     assert_eq!(as_boolean(&Term::symbol("x")), None);
+}
+
+#[test]
+fn if_true_branch_and_short_circuit() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::DiagnosticCode;
+
+    let e = evaluate(&Term::apply(
+        "If",
+        vec![Term::apply("Equal", vec![Term::int(1), Term::int(1)]), Term::int(7), Term::int(8)],
+    ));
+    assert_eq!(e, Term::int(7));
+
+    // False branch must not evaluate Import (would be UnsupportedOperation).
+    let o = evaluate_outcome(&Term::apply(
+        "If",
+        vec![
+            Term::symbol("True"),
+            Term::int(7),
+            Term::apply("Import", vec![Term::Atom(athena_engine::Atom::String("x.csv".into()))]),
+        ],
+    ));
+    assert_eq!(o.term, Term::int(7));
+    assert_eq!(o.kind, EvalKind::Value);
+    assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
+}
+
+#[test]
+fn if_false_and_null_and_non_boolean() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::{ComputationStatus, DiagnosticCode};
+
+    assert_eq!(
+        evaluate(&Term::apply("If", vec![Term::symbol("False"), Term::int(7), Term::int(8)])),
+        Term::int(8)
+    );
+    assert_eq!(evaluate(&Term::apply("If", vec![Term::int(0), Term::int(7)])), Term::symbol("Null"));
+
+    let o = evaluate_outcome(&Term::apply("If", vec![Term::symbol("x"), Term::int(1), Term::int(2)]));
+    assert_eq!(o.kind, EvalKind::Unevaluated);
+    assert_eq!(o.status, ComputationStatus::Invalid);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::NonBooleanCondition);
+}
+
+#[test]
+fn hold_and_hold_form_do_not_eval_args() {
+    assert_eq!(
+        evaluate(&Term::apply("Hold", vec![Term::apply("Plus", vec![Term::int(1), Term::int(1)])])),
+        Term::apply("Hold", vec![Term::apply("Plus", vec![Term::int(1), Term::int(1)])])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("HoldForm", vec![Term::apply("Plus", vec![Term::int(2), Term::int(3)])])),
+        Term::apply("HoldForm", vec![Term::apply("Plus", vec![Term::int(2), Term::int(3)])])
+    );
+}
+
+#[test]
+fn which_picks_first_true_branch() {
+    let e = evaluate(&Term::apply(
+        "Which",
+        vec![Term::symbol("False"), Term::int(1), Term::symbol("True"), Term::int(2), Term::symbol("True"), Term::int(3)],
+    ));
+    assert_eq!(e, Term::int(2));
 }
