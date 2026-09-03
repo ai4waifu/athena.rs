@@ -3,8 +3,7 @@
 use athena_numeric::{Integer, Number, serialization::NumericValueWire};
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, Result, SymbolId};
 
-use crate::numeric_clone::{clone_integer};
-use crate::algebra::FieldTable;
+use crate::{algebra::FieldTable, numeric_clone::clone_integer};
 
 use super::{
     expr::Polynomial,

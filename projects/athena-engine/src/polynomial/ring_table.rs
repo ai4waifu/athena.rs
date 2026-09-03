@@ -7,7 +7,6 @@ use athena_types::{CoefficientRingId, Diagnostic, FieldId, RingId, SymbolId};
 
 use crate::algebra::{CoefficientParent, FieldTable};
 
-use crate::numeric_clone::{clone_integer};
 use super::{
     coeff_kernel::CoeffRing,
     coeff_ring_table::CoeffRingTable,
@@ -16,6 +15,7 @@ use super::{
     order::MonomialOrder,
     ring::{CoefficientDomain, RingDescriptor, validate_coefficient_domain_public},
 };
+use crate::numeric_clone::clone_integer;
 
 /// 环 intern 键（系数环 id + 变量 + 序）。
 #[derive(Debug, PartialEq, Eq, Hash)]

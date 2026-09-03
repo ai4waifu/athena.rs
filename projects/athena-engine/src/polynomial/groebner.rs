@@ -16,7 +16,7 @@ use super::{
     order::MonomialOrder,
     ring_table::RingTable,
 };
-use crate::numeric_clone::{clone_number};
+use crate::numeric_clone::clone_number;
 
 /// Gröbner 计算资源合同。
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -500,7 +500,11 @@ fn autoreduce_basis(
 }
 
 fn extract_elimination_polys(basis: &[Polynomial], eliminate: usize) -> Vec<Polynomial> {
-    basis.iter().filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0))).map(|p| p.owning_copy()).collect()
+    basis
+        .iter()
+        .filter(|p| p.terms().iter().all(|t| t.exponents().iter().take(eliminate).all(|&e| e == 0)))
+        .map(|p| p.owning_copy())
+        .collect()
 }
 
 fn zero_poly_err() -> Diagnostic {

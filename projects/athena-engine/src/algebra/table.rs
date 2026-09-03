@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use athena_numeric::{Integer, Rational};
 use crate::numeric_clone::{clone_integer, clone_integers, clone_modulus, clone_rational, clone_rationals, resize_rationals};
+use athena_numeric::{Integer, Rational};
 use athena_types::{
     AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, ExtensionId, FieldId, FieldPresentationId, Result,
 };
@@ -89,8 +89,11 @@ impl FieldTable {
             }
             FieldPresentationKind::NumberFieldPowerBasis { .. } | FieldPresentationKind::NumberFieldTower { .. } => {
                 let spec = self.number_fields.get(&field)?;
-                let abs: Vec<_> =
-                    spec.absolute_modulus.iter().map(|c| (clone_integer(&c.numerator()), clone_integer(&c.denominator()))).collect();
+                let abs: Vec<_> = spec
+                    .absolute_modulus
+                    .iter()
+                    .map(|c| (clone_integer(&c.numerator()), clone_integer(&c.denominator())))
+                    .collect();
                 Some(FieldFingerprint::number_field(&abs))
             }
             other => Some(FieldFingerprint::from_presentation_kind_tag(other)),
@@ -147,7 +150,10 @@ impl FieldTable {
                 .detail("domain", "field")
                 .detail("operation", "polynomial_basis_modulus"));
         }
-        let key = FieldInternKey::PolynomialBasis { characteristic: clone_integer(&characteristic), modulus: clone_integers(&modulus) };
+        let key = FieldInternKey::PolynomialBasis {
+            characteristic: clone_integer(&characteristic),
+            modulus: clone_integers(&modulus),
+        };
         if let Some(&id) = self.by_key.get(&key) {
             return Ok(id);
         }
@@ -233,7 +239,11 @@ impl FieldTable {
             biquadratic_absolute_modulus(&base_abs_mod, &monic[0].neg())?
         }
         else {
-            let mut placeholder = { let mut __v = Vec::new(); resize_rationals(&mut __v, absolute_degree as usize + 1, &Rational::zero()); __v };
+            let mut placeholder = {
+                let mut __v = Vec::new();
+                resize_rationals(&mut __v, absolute_degree as usize + 1, &Rational::zero());
+                __v
+            };
             placeholder[absolute_degree as usize] = Rational::one();
             placeholder
         };
@@ -259,7 +269,11 @@ impl FieldTable {
         }
         let mut powers = Vec::with_capacity(n + 1);
         let mut cur = {
-            let mut one = { let mut __v = Vec::new(); resize_rationals(&mut __v, n, &Rational::zero()); __v };
+            let mut one = {
+                let mut __v = Vec::new();
+                resize_rationals(&mut __v, n, &Rational::zero());
+                __v
+            };
             one[0] = Rational::one();
             one
         };

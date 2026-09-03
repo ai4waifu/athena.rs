@@ -64,10 +64,7 @@ fn truthy_via_and_or() {
     assert_eq!(evaluate(&Term::apply("And", vec![Term::int(1), Term::int(1)])), Term::boolean(true));
     assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(0)])), Term::boolean(false));
     assert_eq!(evaluate(&Term::apply("Or", vec![Term::int(0), Term::int(1)])), Term::boolean(true));
-    assert_eq!(
-        evaluate(&Term::apply("And", vec![Term::boolean(true), Term::boolean(false)])),
-        Term::boolean(false)
-    );
+    assert_eq!(evaluate(&Term::apply("And", vec![Term::boolean(true), Term::boolean(false)])), Term::boolean(false));
     assert_eq!(evaluate(&Term::apply("Not", vec![Term::boolean(true)])), Term::boolean(false));
 }
 
@@ -132,10 +129,8 @@ fn if_true_branch_and_short_circuit() {
     use athena_engine::{EvalKind, evaluate_outcome};
     use athena_types::DiagnosticCode;
 
-    let e = evaluate(&Term::apply(
-        "If",
-        vec![Term::apply("Equal", vec![Term::int(1), Term::int(1)]), Term::int(7), Term::int(8)],
-    ));
+    let e =
+        evaluate(&Term::apply("If", vec![Term::apply("Equal", vec![Term::int(1), Term::int(1)]), Term::int(7), Term::int(8)]));
     assert_eq!(e, Term::int(7));
 
     // False branch must not evaluate Import (would be UnsupportedOperation).
@@ -157,10 +152,7 @@ fn if_false_and_null_and_non_boolean() {
     use athena_engine::{EvalKind, evaluate_outcome};
     use athena_types::{ComputationStatus, DiagnosticCode};
 
-    assert_eq!(
-        evaluate(&Term::apply("If", vec![Term::symbol("False"), Term::int(7), Term::int(8)])),
-        Term::int(8)
-    );
+    assert_eq!(evaluate(&Term::apply("If", vec![Term::symbol("False"), Term::int(7), Term::int(8)])), Term::int(8));
     assert_eq!(evaluate(&Term::apply("If", vec![Term::int(0), Term::int(7)])), Term::null());
 
     let o = evaluate_outcome(&Term::apply("If", vec![Term::symbol("x"), Term::int(1), Term::int(2)]));
@@ -174,10 +166,7 @@ fn symbol_true_false_null_canonicalize_to_typed_atoms() {
     assert_eq!(evaluate(&Term::symbol("True")), Term::boolean(true));
     assert_eq!(evaluate(&Term::symbol("False")), Term::boolean(false));
     assert_eq!(evaluate(&Term::symbol("Null")), Term::null());
-    assert_eq!(
-        evaluate(&Term::apply("Equal", vec![Term::int(1), Term::int(1)])),
-        Term::boolean(true)
-    );
+    assert_eq!(evaluate(&Term::apply("Equal", vec![Term::int(1), Term::int(1)])), Term::boolean(true));
 }
 
 #[test]
@@ -217,10 +206,7 @@ fn span_expands_to_list() {
 fn part_span_slice() {
     let e = evaluate(&Term::apply(
         "Part",
-        vec![
-            Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]),
-            Term::apply("Span", vec![Term::int(1), Term::int(2)]),
-        ],
+        vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::apply("Span", vec![Term::int(1), Term::int(2)])],
     ));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
 }
@@ -245,19 +231,14 @@ fn compound_set_binds_for_later_stmts() {
 
 #[test]
 fn part_end_is_last_element() {
-    let e = evaluate(&Term::apply(
-        "Part",
-        vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::symbol("End")],
-    ));
+    let e =
+        evaluate(&Term::apply("Part", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::symbol("End")]));
     assert_eq!(e, Term::int(3));
 }
 
 #[test]
 fn part_all_returns_list() {
-    let e = evaluate(&Term::apply(
-        "Part",
-        vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::symbol("All")],
-    ));
+    let e = evaluate(&Term::apply("Part", vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::symbol("All")]));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
 }
 
@@ -265,11 +246,7 @@ fn part_all_returns_list() {
 fn for_span_last_value() {
     let e = evaluate(&Term::apply(
         "For",
-        vec![
-            Term::symbol("i"),
-            Term::apply("Span", vec![Term::int(1), Term::int(3)]),
-            Term::symbol("i"),
-        ],
+        vec![Term::symbol("i"), Term::apply("Span", vec![Term::int(1), Term::int(3)]), Term::symbol("i")],
     ));
     assert_eq!(e, Term::int(3));
 }
@@ -287,10 +264,7 @@ fn for_accumulator_shares_compound_bindings() {
                     Term::apply("Span", vec![Term::int(1), Term::int(3)]),
                     Term::apply(
                         "Set",
-                        vec![
-                            Term::symbol("s"),
-                            Term::apply("Plus", vec![Term::symbol("s"), Term::symbol("i")]),
-                        ],
+                        vec![Term::symbol("s"), Term::apply("Plus", vec![Term::symbol("s"), Term::symbol("i")])],
                     ),
                 ],
             ),
@@ -302,24 +276,16 @@ fn for_accumulator_shares_compound_bindings() {
 
 #[test]
 fn compare_chain_less_expands_to_and() {
-    let e = evaluate(&Term::apply(
-        "Less",
-        vec![Term::apply("Less", vec![Term::int(1), Term::int(2)]), Term::int(3)],
-    ));
+    let e = evaluate(&Term::apply("Less", vec![Term::apply("Less", vec![Term::int(1), Term::int(2)]), Term::int(3)]));
     assert_eq!(e, Term::boolean(true));
-    let e2 = evaluate(&Term::apply(
-        "Less",
-        vec![Term::apply("Less", vec![Term::int(1), Term::int(0)]), Term::int(3)],
-    ));
+    let e2 = evaluate(&Term::apply("Less", vec![Term::apply("Less", vec![Term::int(1), Term::int(0)]), Term::int(3)]));
     assert_eq!(e2, Term::boolean(false));
 }
 
 #[test]
 fn try_catch_on_error_and_success() {
-    let err = evaluate(&Term::apply(
-        "Try",
-        vec![Term::apply("error", vec![Term::Atom(Atom::String("e".into()))]), Term::int(1)],
-    ));
+    let err =
+        evaluate(&Term::apply("Try", vec![Term::apply("error", vec![Term::Atom(Atom::String("e".into()))]), Term::int(1)]));
     assert_eq!(err, Term::int(1));
     let ok = evaluate(&Term::apply("Try", vec![Term::int(2), Term::int(3)]));
     assert_eq!(ok, Term::int(2));
@@ -339,10 +305,7 @@ fn with_module_block_local_bindings() {
 #[test]
 fn part_column_all_then_index() {
     // MATLAB A(:,2) as Part[matrix, All, 2]
-    let matrix = Term::List(vec![
-        Term::List(vec![Term::int(1), Term::int(2)]),
-        Term::List(vec![Term::int(3), Term::int(4)]),
-    ]);
+    let matrix = Term::List(vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]);
     let e = evaluate(&Term::apply("Part", vec![matrix, Term::symbol("All"), Term::int(2)]));
     assert_eq!(e, Term::List(vec![Term::int(2), Term::int(4)]));
 }
@@ -352,14 +315,8 @@ fn session_set_persists_across_evaluate() {
     use athena_engine::Session;
 
     let mut session = Session::new();
-    assert_eq!(
-        session.evaluate(&Term::apply("Set", vec![Term::symbol("x"), Term::int(5)])),
-        Term::int(5)
-    );
-    assert_eq!(
-        session.evaluate(&Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)])),
-        Term::int(6)
-    );
+    assert_eq!(session.evaluate(&Term::apply("Set", vec![Term::symbol("x"), Term::int(5)])), Term::int(5));
+    assert_eq!(session.evaluate(&Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)])), Term::int(6));
     session.clear_definitions();
     let cleared = session.evaluate(&Term::apply("Plus", vec![Term::symbol("x"), Term::int(1)]));
     assert!(
@@ -390,12 +347,31 @@ fn session_setdelayed_evaluates_on_use() {
     use athena_engine::Session;
 
     let mut session = Session::new();
-    let delayed = Term::apply(
-        "SetDelayed",
-        vec![Term::symbol("a"), Term::apply("Plus", vec![Term::int(1), Term::int(1)])],
-    );
+    let delayed = Term::apply("SetDelayed", vec![Term::symbol("a"), Term::apply("Plus", vec![Term::int(1), Term::int(1)])]);
     assert_eq!(session.evaluate(&delayed), Term::null());
     assert_eq!(session.evaluate(&Term::symbol("a")), Term::int(2));
+}
+
+#[test]
+fn session_setdelayed_pattern_down_value() {
+    use athena_engine::Session;
+
+    let mut session = Session::new();
+    let lhs = Term::apply("f", vec![Term::apply("Pattern", vec![Term::symbol("x"), Term::apply("Blank", vec![])])]);
+    let rhs = Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]);
+    let define = Term::apply("SetDelayed", vec![lhs, rhs]);
+    assert_eq!(session.evaluate(&define), Term::null());
+    assert_eq!(session.evaluate(&Term::apply("f", vec![Term::int(3)])), Term::int(9));
+    assert_eq!(
+        session.evaluate(&Term::apply("CompoundExpression", vec![clone_term(&define), Term::apply("f", vec![Term::int(3)])],)),
+        Term::int(9)
+    );
+}
+
+#[test]
+fn compare_list_scalar_broadcasts() {
+    let e = evaluate(&Term::apply("Less", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::int(2)]));
+    assert_eq!(e, Term::List(vec![Term::boolean(true), Term::boolean(false), Term::boolean(false)]));
 }
 
 #[test]
@@ -443,26 +419,17 @@ fn mldivide_symbolic_stays_unevaluated() {
 #[test]
 fn mldivide_2x2_exact_unique() {
     // [1,2;3,4] \ [5;6] → [-4; 9/2]
-    let a = Term::List(vec![
-        Term::List(vec![Term::int(1), Term::int(2)]),
-        Term::List(vec![Term::int(3), Term::int(4)]),
-    ]);
+    let a = Term::List(vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]);
     let b = Term::List(vec![Term::List(vec![Term::int(5)]), Term::List(vec![Term::int(6)])]);
     let e = evaluate(&Term::apply("Mldivide", vec![a, b]));
-    let expected = Term::List(vec![
-        Term::List(vec![Term::int(-4)]),
-        Term::List(vec![Term::rational_i64(9, 2).unwrap()]),
-    ]);
+    let expected = Term::List(vec![Term::List(vec![Term::int(-4)]), Term::List(vec![Term::rational_i64(9, 2).unwrap()])]);
     assert_eq!(e, expected);
 }
 
 #[test]
 fn pure_function_slot_application() {
     // Function[Power[Slot[1], 2]][4] → 16
-    let f = Term::apply(
-        "Function",
-        vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])],
-    );
+    let f = Term::apply("Function", vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])]);
     let e = evaluate(&Term::Application { head: Box::new(f), arguments: vec![Term::int(4)] });
     assert_eq!(e, Term::int(16));
 }
@@ -470,45 +437,27 @@ fn pure_function_slot_application() {
 #[test]
 fn named_function_application() {
     // Function[x, x^2][3] → 9
-    let f = Term::apply(
-        "Function",
-        vec![Term::symbol("x"), Term::apply("Power", vec![Term::symbol("x"), Term::int(2)])],
-    );
+    let f = Term::apply("Function", vec![Term::symbol("x"), Term::apply("Power", vec![Term::symbol("x"), Term::int(2)])]);
     let e = evaluate(&Term::Application { head: Box::new(f), arguments: vec![Term::int(3)] });
     assert_eq!(e, Term::int(9));
 }
 
 #[test]
 fn map_pure_function_squares() {
-    let f = Term::apply(
-        "Function",
-        vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])],
-    );
-    let e = evaluate(&Term::apply(
-        "Map",
-        vec![f, Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])],
-    ));
+    let f = Term::apply("Function", vec![Term::apply("Power", vec![Term::apply("Slot", vec![Term::int(1)]), Term::int(2)])]);
+    let e = evaluate(&Term::apply("Map", vec![f, Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])]));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(4), Term::int(9)]));
 }
 
 #[test]
 fn match_q_blank_and_typed_blank() {
+    assert_eq!(evaluate(&Term::apply("MatchQ", vec![Term::int(1), Term::apply("Blank", vec![])])), Term::boolean(true));
     assert_eq!(
-        evaluate(&Term::apply("MatchQ", vec![Term::int(1), Term::apply("Blank", vec![])])),
+        evaluate(&Term::apply("MatchQ", vec![Term::int(1), Term::apply("Blank", vec![Term::symbol("Integer")])])),
         Term::boolean(true)
     );
     assert_eq!(
-        evaluate(&Term::apply(
-            "MatchQ",
-            vec![Term::int(1), Term::apply("Blank", vec![Term::symbol("Integer")])]
-        )),
-        Term::boolean(true)
-    );
-    assert_eq!(
-        evaluate(&Term::apply(
-            "MatchQ",
-            vec![Term::symbol("a"), Term::apply("Blank", vec![Term::symbol("Integer")])]
-        )),
+        evaluate(&Term::apply("MatchQ", vec![Term::symbol("a"), Term::apply("Blank", vec![Term::symbol("Integer")])])),
         Term::boolean(false)
     );
 }
@@ -541,10 +490,7 @@ fn range_basic() {
 
 #[test]
 fn table_basic_iterator() {
-    let e = evaluate(&Term::apply(
-        "Table",
-        vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(3)])],
-    ));
+    let e = evaluate(&Term::apply("Table", vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(3)])]));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]));
 }
 
@@ -568,10 +514,8 @@ fn table_does_not_leak_iterator_binding() {
 
 #[test]
 fn apply_plus_list() {
-    let e = evaluate(&Term::apply(
-        "Apply",
-        vec![Term::symbol("Plus"), Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])],
-    ));
+    let e =
+        evaluate(&Term::apply("Apply", vec![Term::symbol("Plus"), Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])]));
     assert_eq!(e, Term::int(6));
 }
 
@@ -582,10 +526,7 @@ fn length_join_first() {
         Term::int(3)
     );
     assert_eq!(
-        evaluate(&Term::apply(
-            "Join",
-            vec![Term::List(vec![Term::int(1)]), Term::List(vec![Term::int(2)])]
-        )),
+        evaluate(&Term::apply("Join", vec![Term::List(vec![Term::int(1)]), Term::List(vec![Term::int(2)])])),
         Term::List(vec![Term::int(1), Term::int(2)])
     );
     assert_eq!(
@@ -616,10 +557,7 @@ fn sum_and_product_basic() {
 fn matrix_constructors_and_size() {
     assert_eq!(
         evaluate(&Term::apply("Eye", vec![Term::int(2)])),
-        Term::List(vec![
-            Term::List(vec![Term::int(1), Term::int(0)]),
-            Term::List(vec![Term::int(0), Term::int(1)]),
-        ])
+        Term::List(vec![Term::List(vec![Term::int(1), Term::int(0)]), Term::List(vec![Term::int(0), Term::int(1)]),])
     );
     assert_eq!(
         evaluate(&Term::apply("Zeros", vec![Term::int(2), Term::int(3)])),
@@ -630,19 +568,10 @@ fn matrix_constructors_and_size() {
     );
     assert_eq!(
         evaluate(&Term::apply("Ones", vec![Term::int(2)])),
-        Term::List(vec![
-            Term::List(vec![Term::int(1), Term::int(1)]),
-            Term::List(vec![Term::int(1), Term::int(1)]),
-        ])
+        Term::List(vec![Term::List(vec![Term::int(1), Term::int(1)]), Term::List(vec![Term::int(1), Term::int(1)]),])
     );
-    let m = Term::List(vec![
-        Term::List(vec![Term::int(1), Term::int(2)]),
-        Term::List(vec![Term::int(3), Term::int(4)]),
-    ]);
-    assert_eq!(
-        evaluate(&Term::apply("Size", vec![m])),
-        Term::List(vec![Term::int(2), Term::int(2)])
-    );
+    let m = Term::List(vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]);
+    assert_eq!(evaluate(&Term::apply("Size", vec![m])), Term::List(vec![Term::int(2), Term::int(2)]));
     assert_eq!(
         evaluate(&Term::apply("Size", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])),
         Term::List(vec![Term::int(1), Term::int(3)])
@@ -663,10 +592,7 @@ fn elementwise_dot_ops_on_lists() {
         Term::List(vec![Term::int(2), Term::int(4)])
     );
     assert_eq!(
-        evaluate(&Term::apply(
-            "DotPower",
-            vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::int(0)]
-        )),
+        evaluate(&Term::apply("DotPower", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]), Term::int(0)])),
         Term::List(vec![Term::int(1), Term::int(1), Term::int(1)])
     );
     assert_eq!(
@@ -677,56 +603,29 @@ fn elementwise_dot_ops_on_lists() {
         Term::List(vec![Term::int(1), Term::int(8)])
     );
     // Nested matrices
-    let a = Term::List(vec![
-        Term::List(vec![Term::int(1), Term::int(2)]),
-        Term::List(vec![Term::int(3), Term::int(4)]),
-    ]);
-    let b = Term::List(vec![
-        Term::List(vec![Term::int(5), Term::int(6)]),
-        Term::List(vec![Term::int(7), Term::int(8)]),
-    ]);
+    let a = Term::List(vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]);
+    let b = Term::List(vec![Term::List(vec![Term::int(5), Term::int(6)]), Term::List(vec![Term::int(7), Term::int(8)])]);
     assert_eq!(
         evaluate(&Term::apply("DotTimes", vec![clone_term(&a), clone_term(&b)])),
-        Term::List(vec![
-            Term::List(vec![Term::int(5), Term::int(12)]),
-            Term::List(vec![Term::int(21), Term::int(32)]),
-        ])
+        Term::List(vec![Term::List(vec![Term::int(5), Term::int(12)]), Term::List(vec![Term::int(21), Term::int(32)]),])
     );
 }
 
 #[test]
 fn matrix_det_sum_matmul_linear_solve() {
-    let m = Term::List(vec![
-        Term::List(vec![Term::int(1), Term::int(2)]),
-        Term::List(vec![Term::int(3), Term::int(4)]),
-    ]);
+    let m = Term::List(vec![Term::List(vec![Term::int(1), Term::int(2)]), Term::List(vec![Term::int(3), Term::int(4)])]);
     assert_eq!(evaluate(&Term::apply("Det", vec![clone_term(&m)])), Term::int(-2));
-    assert_eq!(
-        evaluate(&Term::apply("Sum", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])),
-        Term::int(6)
-    );
-    assert_eq!(
-        evaluate(&Term::apply("Sum", vec![clone_term(&m)])),
-        Term::List(vec![Term::int(4), Term::int(6)])
-    );
-    let b = Term::List(vec![
-        Term::List(vec![Term::int(5), Term::int(6)]),
-        Term::List(vec![Term::int(7), Term::int(8)]),
-    ]);
+    assert_eq!(evaluate(&Term::apply("Sum", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])), Term::int(6));
+    assert_eq!(evaluate(&Term::apply("Sum", vec![clone_term(&m)])), Term::List(vec![Term::int(4), Term::int(6)]));
+    let b = Term::List(vec![Term::List(vec![Term::int(5), Term::int(6)]), Term::List(vec![Term::int(7), Term::int(8)])]);
     assert_eq!(
         evaluate(&Term::apply("Times", vec![clone_term(&m), clone_term(&b)])),
-        Term::List(vec![
-            Term::List(vec![Term::int(19), Term::int(22)]),
-            Term::List(vec![Term::int(43), Term::int(50)]),
-        ])
+        Term::List(vec![Term::List(vec![Term::int(19), Term::int(22)]), Term::List(vec![Term::int(43), Term::int(50)]),])
     );
     let rhs = Term::List(vec![Term::List(vec![Term::int(5)]), Term::List(vec![Term::int(6)])]);
     assert_eq!(
         evaluate(&Term::apply("LinearSolve", vec![clone_term(&m), rhs])),
-        Term::List(vec![
-            Term::List(vec![Term::int(-4)]),
-            Term::List(vec![Term::rational_i64(9, 2).unwrap()]),
-        ])
+        Term::List(vec![Term::List(vec![Term::int(-4)]), Term::List(vec![Term::rational_i64(9, 2).unwrap()]),])
     );
     // Symbolic Sum iterator still works
     assert_eq!(
@@ -740,10 +639,7 @@ fn matrix_det_sum_matmul_linear_solve() {
 
 #[test]
 fn solve_x2_eq_1_returns_rule_list() {
-    let eq = Term::apply(
-        "Equal",
-        vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)],
-    );
+    let eq = Term::apply("Equal", vec![Term::apply("Power", vec![Term::symbol("x"), Term::int(2)]), Term::int(1)]);
     let out = evaluate(&Term::apply("Solve", vec![eq, Term::symbol("x")]));
     assert_eq!(
         out,

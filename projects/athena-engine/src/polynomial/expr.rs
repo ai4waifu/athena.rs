@@ -42,10 +42,7 @@ impl MonomialTerm {
 
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            coefficient: clone_number(&self.coefficient),
-            exponents: self.exponents.clone(),
-        }
+        Self { coefficient: clone_number(&self.coefficient), exponents: self.exponents.clone() }
     }
 }
 
@@ -100,10 +97,7 @@ impl CanonicalPolynomial {
 
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            ring: self.ring,
-            terms: self.terms.iter().map(MonomialTerm::owning_copy).collect(),
-        }
+        Self { ring: self.ring, terms: self.terms.iter().map(MonomialTerm::owning_copy).collect() }
     }
 }
 

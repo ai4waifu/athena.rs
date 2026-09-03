@@ -94,7 +94,11 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
     let out_shape = lhs.shape().matmul(rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::Integers => {
-            let mut data = { let mut __v = Vec::new(); resize_integers(&mut __v, out_shape.element_count()?, &Integer::zero()); __v };
+            let mut data = {
+                let mut __v = Vec::new();
+                resize_integers(&mut __v, out_shape.element_count()?, &Integer::zero());
+                __v
+            };
             for i in 0..out_shape.rows {
                 for j in 0..out_shape.cols {
                     let mut acc = Integer::zero();
@@ -115,7 +119,11 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
             MatrixValue::from_integers_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Rationals => {
-            let mut data = { let mut __v = Vec::new(); resize_rationals(&mut __v, out_shape.element_count()?, &Rational::zero()); __v };
+            let mut data = {
+                let mut __v = Vec::new();
+                resize_rationals(&mut __v, out_shape.element_count()?, &Rational::zero());
+                __v
+            };
             for i in 0..out_shape.rows {
                 for j in 0..out_shape.cols {
                     let mut acc = Rational::zero();

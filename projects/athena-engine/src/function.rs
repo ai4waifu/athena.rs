@@ -3,8 +3,7 @@
 //! 微积分算法经本表查询一元函数的形式导数，而不是在 `differentiate` 里无限堆 `match` 臂。
 //! 第一阶段覆盖：初等三角/双曲/反三角、`Exp`/`Log`/`Sqrt`/`Abs`/`Sign`、`Gamma`、`Erf`。
 
-use crate::numeric_clone::{clone_term};
-use crate::term::Term;
+use crate::{numeric_clone::clone_term, term::Term};
 
 /// 分支约定 — 复数主值与实数规则不得混用。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,12 +129,18 @@ fn deriv_arctan(arg: &Term) -> Term {
 
 fn deriv_sqrt(arg: &Term) -> Term {
     // 形式：1/(2 Sqrt[u])
-    Term::apply("Power", vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(arg)])]), Term::int(-1)])
+    Term::apply(
+        "Power",
+        vec![Term::apply("Times", vec![Term::int(2), Term::apply("Sqrt", vec![clone_term(arg)])]), Term::int(-1)],
+    )
 }
 
 fn deriv_abs(arg: &Term) -> Term {
     // 绝对值分支：Abs[u]/u（条件在 differentiate_checked）
-    Term::apply("Times", vec![Term::apply("Abs", vec![clone_term(arg)]), Term::apply("Power", vec![clone_term(arg), Term::int(-1)])])
+    Term::apply(
+        "Times",
+        vec![Term::apply("Abs", vec![clone_term(arg)]), Term::apply("Power", vec![clone_term(arg), Term::int(-1)])],
+    )
 }
 
 fn deriv_sign(_arg: &Term) -> Term {

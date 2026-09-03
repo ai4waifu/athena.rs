@@ -1,7 +1,7 @@
 //! ECM stage 1（Montgomery 曲线，纯 Rust 引导实现）。
 
+use crate::numeric_clone::clone_integer;
 use athena_numeric::Integer;
-use crate::numeric_clone::{clone_integer};
 
 /// Stage 1：在若干条 Montgomery 曲线上计算 `[k]P`，用 `gcd(Z, n)` 探测因子。
 pub fn ecm_stage_one(n: &Integer, seed: u64, b1: u32, max_curves: u32) -> Option<Integer> {

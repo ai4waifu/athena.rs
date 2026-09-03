@@ -59,7 +59,9 @@ impl ExactDetResult {
 }
 
 impl Clone for ExactDetResult {
-    fn clone(&self) -> Self { self.owning_copy() }
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }
 
 impl ExactSolveResult {
@@ -74,7 +76,9 @@ impl ExactSolveResult {
 }
 
 impl Clone for ExactSolveResult {
-    fn clone(&self) -> Self { self.owning_copy() }
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }
 
 impl ExactRrefResult {
@@ -90,9 +94,10 @@ impl ExactRrefResult {
 }
 
 impl Clone for ExactRrefResult {
-    fn clone(&self) -> Self { self.owning_copy() }
+    fn clone(&self) -> Self {
+        self.owning_copy()
+    }
 }
-
 
 fn get_q(a: &[Rational], cols: u64, r: u64, c: u64) -> Rational {
     clone_rational(&a[(r * cols + c) as usize])
@@ -350,7 +355,11 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
             free_vars.push(j);
         }
     }
-    let mut x = { let mut __v = Vec::new(); resize_rationals(&mut __v, n as usize, &Rational::zero()); __v };
+    let mut x = {
+        let mut __v = Vec::new();
+        resize_rationals(&mut __v, n as usize, &Rational::zero());
+        __v
+    };
     for (i, &pc) in pivot_cols.iter().enumerate() {
         x[pc as usize] = get_q(&aug, cols, i as u64, n);
     }

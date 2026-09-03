@@ -3,9 +3,9 @@
 use athena_numeric::{Number, mul as num_mul};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_number, clone_term};
 use crate::{
     eval::evaluate,
+    numeric_clone::{clone_number, clone_term},
     term::{Atom, Term, number_from_term},
 };
 

@@ -3,7 +3,6 @@
 use athena_numeric::{Integer, Number, add as num_add, div as num_div, mul as num_mul, neg as num_neg};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use crate::numeric_clone::{clone_integer, clone_number, clone_numbers, clone_rational, resize_numbers};
 use super::{
     builder::PolynomialBuilder,
     coeff_kernel::CoeffRing,
@@ -11,6 +10,7 @@ use super::{
     ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
 };
+use crate::numeric_clone::{clone_integer, clone_number, clone_numbers, clone_rational, resize_numbers};
 
 /// 单变量除法结果。
 #[derive(Debug, PartialEq)]
@@ -92,7 +92,11 @@ fn div_dense_field(
     if degree(&rem) < degree(&b) {
         return Ok((Vec::new(), rem));
     }
-    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero())); __v };
+    let mut quot = {
+        let mut __v = Vec::new();
+        resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero()));
+        __v
+    };
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
         let q_coeff = coeff.div(lc(&rem)?, lc(&b)?)?;
@@ -145,7 +149,11 @@ fn div_dense_rational(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Nu
     if degree(&rem) < degree(&b) {
         return Ok((Vec::new(), rem));
     }
-    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero())); __v };
+    let mut quot = {
+        let mut __v = Vec::new();
+        resize_numbers(&mut __v, degree(&rem) - degree(&b) + 1, &Number::integer(Integer::zero()));
+        __v
+    };
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
         let q_coeff = num_div(lc(&rem)?, lc(&b)?)?;
@@ -166,7 +174,11 @@ fn pseudo_divide(a: &[Number], b: &[Number]) -> Result<(Vec<Number>, Vec<Number>
     }
     let delta = degree(&rem) - degree(&b) + 1;
     let scale = num_pow(lc(&b)?, delta)?;
-    let mut quot = { let mut __v = Vec::new(); resize_numbers(&mut __v, delta, &Number::integer(Integer::zero())); __v };
+    let mut quot = {
+        let mut __v = Vec::new();
+        resize_numbers(&mut __v, delta, &Number::integer(Integer::zero()));
+        __v
+    };
     let mut rem = scale_dense(&rem, clone_number(&scale))?;
     while degree(&rem) >= degree(&b) && !is_zero_dense(&rem) {
         let d = degree(&rem) - degree(&b);
@@ -285,7 +297,9 @@ fn det_matrix(mat: &[Vec<Number>], domain: &CoefficientDomain, ring: RingId, rin
         return Ok(Number::small_int(1));
     }
     match domain {
-        CoefficientDomain::Rational | CoefficientDomain::Integer => det_rational(mat.iter().map(|row| clone_numbers(row)).collect()),
+        CoefficientDomain::Rational | CoefficientDomain::Integer => {
+            det_rational(mat.iter().map(|row| clone_numbers(row)).collect())
+        }
         CoefficientDomain::FiniteField { .. } => {
             let coeff = rings.coeff_kernel(ring)?;
             det_field(mat.iter().map(|row| clone_numbers(row)).collect(), &coeff)
@@ -407,7 +421,11 @@ fn to_dense(poly: &Polynomial, var: usize, n: usize) -> Result<Vec<Number>> {
         }
         max = max.max(term.exponents()[var] as usize);
     }
-    let mut coeffs = { let mut __v = Vec::new(); resize_numbers(&mut __v, max + 1, &Number::integer(Integer::zero())); __v };
+    let mut coeffs = {
+        let mut __v = Vec::new();
+        resize_numbers(&mut __v, max + 1, &Number::integer(Integer::zero()));
+        __v
+    };
     for term in poly.terms() {
         let d = term.exponents()[var] as usize;
         coeffs[d] = clone_number(term.coefficient());

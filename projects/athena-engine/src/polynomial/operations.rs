@@ -2,13 +2,13 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use crate::numeric_clone::clone_number;
 use super::{
     canonical::canonicalize_terms,
     exponent::add_exponent_vectors,
     expr::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
+use crate::numeric_clone::clone_number;
 
 /// 同环多项式加法。
 pub fn add_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Result<Polynomial> {
@@ -62,7 +62,10 @@ pub fn mul_polynomial(lhs: Polynomial, rhs: Polynomial, rings: &RingTable) -> Re
     for lt in lhs.terms() {
         for rt in rhs.terms() {
             let exponents = add_exponent_vectors(lt.exponents(), rt.exponents())?;
-            raw.push(MonomialTerm::from_parts(coeff.mul(clone_number(lt.coefficient()), clone_number(rt.coefficient()))?, exponents));
+            raw.push(MonomialTerm::from_parts(
+                coeff.mul(clone_number(lt.coefficient()), clone_number(rt.coefficient()))?,
+                exponents,
+            ));
         }
     }
     canonicalize_terms(ring, desc, raw, rings)

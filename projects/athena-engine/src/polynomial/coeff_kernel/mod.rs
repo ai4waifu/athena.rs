@@ -11,8 +11,8 @@ pub use rational::QCoeffKernel;
 use athena_numeric::Modulus;
 use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, Result};
 
-use crate::numeric_clone::clone_modulus;
 use super::{coeff_ring_table::CoeffRingTable, ring::CoefficientDomain};
+use crate::numeric_clone::clone_modulus;
 use prime_field::{FpKernelKind, select_fp_kernel};
 
 /// 已解析的系数环内核（enum dispatch，无 trait object）。

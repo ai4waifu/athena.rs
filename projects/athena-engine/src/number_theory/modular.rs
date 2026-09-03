@@ -4,7 +4,7 @@ use athena_numeric::{Integer, ModularValue, Modulus, ModulusTable, batch_mod_inv
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use super::gcd::extended_gcd;
-use crate::numeric_clone::{clone_modulus};
+use crate::numeric_clone::clone_modulus;
 
 /// `a⁻¹ (mod m)`；不互素 → `ATHENA_MODULAR_INVERSE_MISSING`。
 pub fn mod_inverse(a: &Integer, modulus: &Modulus) -> Result<ModularValue> {

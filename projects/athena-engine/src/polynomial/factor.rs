@@ -6,8 +6,6 @@
 use athena_numeric::{Integer, Number, Rational, add as num_add, div as num_div, mul as num_mul, neg as num_neg};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
-use crate::number_theory::isqrt_if_exact;
-use crate::numeric_clone::{clone_integer, clone_number, clone_rational};
 use super::{
     builder::PolynomialBuilder,
     canonical::canonicalize_polynomial,
@@ -15,6 +13,10 @@ use super::{
     ring::{CoefficientDomain, DivisionPolicy},
     ring_table::RingTable,
     univariate::div_univariate,
+};
+use crate::{
+    number_theory::isqrt_if_exact,
+    numeric_clone::{clone_integer, clone_number, clone_rational},
 };
 
 /// 多项式因式分解资源合同。
@@ -100,11 +102,7 @@ pub struct PolynomialFactorization {
 impl PolynomialFactorComponent {
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
-        Self {
-            base: self.base.owning_copy(),
-            exponent: self.exponent,
-            status: self.status,
-        }
+        Self { base: self.base.owning_copy(), exponent: self.exponent, status: self.status }
     }
 }
 
@@ -238,11 +236,7 @@ pub fn factor_univariate(
 }
 
 /// ℚ/ℤ 有理根试除 + 二次判别式。
-fn factor_rational_roots(
-    mut poly: Polynomial,
-    rings: &RingTable,
-    max_steps: u32,
-) -> Result<PolynomialFactorization> {
+fn factor_rational_roots(mut poly: Polynomial, rings: &RingTable, max_steps: u32) -> Result<PolynomialFactorization> {
     let ring = poly.ring();
     let mut unit = Number::small_int(1);
     let mut factors = Vec::new();
@@ -377,7 +371,8 @@ fn split_quadratic_over_rationals(poly: &Polynomial, rings: &RingTable) -> Resul
     let b2 = num_mul(clone_number(&b), clone_number(&b))?;
     let four_ac = num_mul(num_mul(Number::small_int(4), clone_number(&a))?, clone_number(&c))?;
     let disc = num_add(b2, num_neg(four_ac))?;
-    let Some(disc_r) = number_as_rational(&disc) else {
+    let Some(disc_r) = number_as_rational(&disc)
+    else {
         return Ok(QuadraticSplit::Irreducible);
     };
     if disc_r.is_negative() {
@@ -385,10 +380,12 @@ fn split_quadratic_over_rationals(poly: &Polynomial, rings: &RingTable) -> Resul
     }
     let num = disc_r.numerator();
     let den = disc_r.denominator();
-    let Some(sn) = isqrt_if_exact(&num) else {
+    let Some(sn) = isqrt_if_exact(&num)
+    else {
         return Ok(QuadraticSplit::Irreducible);
     };
-    let Some(sd) = isqrt_if_exact(&den) else {
+    let Some(sd) = isqrt_if_exact(&den)
+    else {
         return Ok(QuadraticSplit::Irreducible);
     };
     let sqrt_disc = Number::from_rational_normalized(Rational::new(sn, sd));
@@ -436,10 +433,12 @@ fn find_rational_root(poly: &Polynomial) -> Result<Option<Number>> {
             leading = clone_number(term.coefficient());
         }
     }
-    let Some(c_r) = number_as_rational(&constant) else {
+    let Some(c_r) = number_as_rational(&constant)
+    else {
         return Ok(None);
     };
-    let Some(a_r) = number_as_rational(&leading) else {
+    let Some(a_r) = number_as_rational(&leading)
+    else {
         return Ok(None);
     };
     // Clear denominators: work with integer constant/leading of content-cleared poly.
@@ -475,17 +474,15 @@ fn eval_poly_at(poly: &Polynomial, x: &Number) -> Result<Number> {
 
 fn linear_factor_for_root(ring: RingId, rings: &RingTable, root: &Number) -> Result<Polynomial> {
     // q x - p for root p/q
-    let Some(r) = number_as_rational(root) else {
+    let Some(r) = number_as_rational(root)
+    else {
         return Err(diag_poly("root_not_rational"));
     };
     let p = r.numerator();
     let q = r.denominator();
     let mut b = PolynomialBuilder::new(ring);
     b.push_term(Number::from_rational_normalized(Rational::new(clone_integer(&q), Integer::one())), vec![1])?;
-    b.push_term(
-        Number::from_rational_normalized(Rational::new(p.neg(), Integer::one())),
-        vec![0],
-    )?;
+    b.push_term(Number::from_rational_normalized(Rational::new(p.neg(), Integer::one())), vec![0])?;
     b.build(rings)
 }
 

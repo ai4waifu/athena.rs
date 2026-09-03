@@ -4,11 +4,11 @@ use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode};
 
 use crate::{eval::evaluate, term::Term};
 
-use crate::numeric_clone::{clone_term, clone_terms};
 use super::{
     derivative::differentiate_checked,
     result::{CalculusResult, ConditionalResult},
 };
+use crate::numeric_clone::{clone_term, clone_terms};
 
 /// 标量场梯度：带有序分量的独立对象。
 #[derive(Debug, PartialEq)]
@@ -101,7 +101,11 @@ pub fn jacobian_checked(expressions: &[Term], variables: &[String], assumptions:
         }
         rows.push(row);
     }
-    finish_vector(Jacobian { expressions: clone_terms(expressions), variables: variables.to_vec(), rows }, conditions, unresolved)
+    finish_vector(
+        Jacobian { expressions: clone_terms(expressions), variables: variables.to_vec(), rows },
+        conditions,
+        unresolved,
+    )
 }
 
 /// 标量 Hessian：先 ∂/∂xᵢ 再对 (∂f/∂xⱼ)，保持变量顺序。
@@ -122,7 +126,11 @@ pub fn hessian_checked(expression: &Term, variables: &[String], assumptions: &As
         }
         entries.push(row);
     }
-    finish_vector(Hessian { expression: clone_term(&expression), variables: variables.to_vec(), entries }, conditions, unresolved)
+    finish_vector(
+        Hessian { expression: clone_term(&expression), variables: variables.to_vec(), entries },
+        conditions,
+        unresolved,
+    )
 }
 
 /// 向量场散度：带标量值的独立对象。
@@ -195,14 +203,22 @@ pub fn divergence_checked(
         parts.push(evaluate(&part.value));
     }
     let value = if parts.len() == 1 { parts.pop().unwrap() } else { evaluate(&Term::apply("Plus", parts)) };
-    finish_vector(Divergence { components: clone_terms(components), variables: variables.to_vec(), value }, conditions, unresolved)
+    finish_vector(
+        Divergence { components: clone_terms(components), variables: variables.to_vec(), value },
+        conditions,
+        unresolved,
+    )
 }
 
 /// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
 pub fn curl_checked(components: &[Term], variables: &[String], assumptions: &AssumptionSet) -> CalculusResult<Curl> {
     if components.len() != 3 || variables.len() != 3 {
         return CalculusResult::Unevaluated {
-            expression: Curl { components: clone_terms(components), variables: variables.to_vec(), curl_components: Vec::new() },
+            expression: Curl {
+                components: clone_terms(components),
+                variables: variables.to_vec(),
+                curl_components: Vec::new(),
+            },
             reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
         };
     }

@@ -2,8 +2,10 @@
 
 use athena_types::{AssumptionSet, Condition, Diagnostic, Predicate};
 
-use crate::term::Term;
-use crate::numeric_clone::{clone_term, clone_terms};
+use crate::{
+    numeric_clone::{clone_term, clone_terms},
+    term::Term,
+};
 
 /// 携带值及其适用条件的结果。
 #[derive(Debug, PartialEq)]

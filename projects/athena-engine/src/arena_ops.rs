@@ -74,7 +74,8 @@ pub fn get_kind<'a>(session: &'a Session, id: TermId) -> Option<&'a TermKind> {
 
 /// 应用节点的算子名。
 pub fn app_head_name(session: &Session, id: TermId) -> Option<String> {
-    let TermKind::App { op, .. } = session.arena.get(id)? else {
+    let TermKind::App { op, .. } = session.arena.get(id)?
+    else {
         return None;
     };
     session.operators.name(*op).map(str::to_string)
@@ -90,7 +91,8 @@ pub fn app_args(session: &Session, id: TermId) -> Option<Vec<TermId>> {
 
 /// 符号节点的名称。
 pub fn symbol_name(session: &Session, id: TermId) -> Option<String> {
-    let TermKind::Atom(AtomKind::Symbol(sym)) = session.arena.get(id)? else {
+    let TermKind::Atom(AtomKind::Symbol(sym)) = session.arena.get(id)?
+    else {
         return None;
     };
     session.arena.symbols().resolve(*sym).map(str::to_string)
@@ -112,18 +114,22 @@ pub fn as_boolean_id(session: &Session, id: TermId) -> Option<bool> {
             let name = session.arena.symbols().resolve(*sym)?;
             if name == "True" {
                 Some(true)
-            } else if name == "False" {
+            }
+            else if name == "False" {
                 Some(false)
-            } else {
+            }
+            else {
                 None
             }
         }
         _ => number_from_id(session, id).and_then(|n| {
             if n.is_zero() {
                 Some(false)
-            } else if *n == Number::small_int(1) {
+            }
+            else if *n == Number::small_int(1) {
                 Some(true)
-            } else {
+            }
+            else {
                 None
             }
         }),
@@ -141,10 +147,8 @@ fn copy_term_subtree_inner(
     id: TermId,
     ctx: &athena_numeric::NumericContext,
 ) -> athena_types::Result<TermId> {
-    let kind = session
-        .arena
-        .get(id)
-        .ok_or_else(|| athena_types::Diagnostic::new(athena_types::DiagnosticCode::InvalidIndex))?;
+    let kind =
+        session.arena.get(id).ok_or_else(|| athena_types::Diagnostic::new(athena_types::DiagnosticCode::InvalidIndex))?;
     let cloned = kind.try_clone_in(ctx)?;
     let span = session.arena.span(id).unwrap_or_default();
     Ok(session.arena.push(cloned, span))

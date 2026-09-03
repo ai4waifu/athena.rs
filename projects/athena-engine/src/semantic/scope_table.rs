@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use athena_types::{AssumptionScope, AssumptionScopeId, Diagnostic, DiagnosticCode, Predicate};
 use crate::numeric_clone::{clone_rational, clone_term, clone_terms};
+use athena_types::{AssumptionScope, AssumptionScopeId, Diagnostic, DiagnosticCode, Predicate};
 
 /// 假设作用域 intern 表。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

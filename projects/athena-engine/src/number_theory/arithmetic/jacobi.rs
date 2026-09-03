@@ -1,7 +1,7 @@
 //! Jacobi 与 Kronecker 符号。
 
+use crate::numeric_clone::clone_integer;
 use athena_numeric::Integer;
-use crate::numeric_clone::{clone_integer};
 
 /// Jacobi 符号 `(a/n)`，`n` 须为正奇数。
 pub fn jacobi_symbol(a: &Integer, n: &Integer) -> Option<i32> {

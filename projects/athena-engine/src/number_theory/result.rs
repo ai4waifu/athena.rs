@@ -13,8 +13,8 @@ use super::{
     request::NumberTheoryRequest,
     value::{FactorizationCompleteness, NumberTheoryValue, Primality},
 };
+use crate::numeric_clone::clone_integer;
 use athena_numeric::{Integer, ModulusTable};
-use crate::numeric_clone::{clone_integer};
 
 /// 数论域结果信封。
 ///

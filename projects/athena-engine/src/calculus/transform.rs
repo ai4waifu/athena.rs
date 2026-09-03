@@ -3,9 +3,9 @@
 use athena_numeric::{Number, abs as num_abs, compare as num_compare};
 use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_number, clone_term};
 use crate::{
     eval::evaluate,
+    numeric_clone::{clone_number, clone_term},
     term::{Atom, Term, number_from_term},
 };
 
@@ -269,7 +269,10 @@ fn laplace_one(expr: &Term, t: &str, s: &str) -> Option<(Term, RegionOfConvergen
                         vec![
                             Term::apply(
                                 "Plus",
-                                vec![Term::symbol(s), Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))])],
+                                vec![
+                                    Term::symbol(s),
+                                    Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))]),
+                                ],
                             ),
                             Term::int(-1),
                         ],
@@ -377,7 +380,10 @@ fn fourier_one(expr: &Term, t: &str, omega: &str) -> Option<(Term, RegionOfConve
                             "Sqrt",
                             vec![Term::apply(
                                 "Times",
-                                vec![Term::symbol("Pi"), Term::apply("Power", vec![Term::number(clone_number(&a)), Term::int(-1)])],
+                                vec![
+                                    Term::symbol("Pi"),
+                                    Term::apply("Power", vec![Term::number(clone_number(&a)), Term::int(-1)]),
+                                ],
                             )],
                         );
                         let exp_arg = evaluate(&Term::apply(
@@ -622,7 +628,10 @@ fn z_one(expr: &Term, n: &str, z: &str) -> Option<(Term, RegionOfConvergence)> {
                             vec![
                                 Term::apply(
                                     "Plus",
-                                    vec![Term::symbol(z), Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))])],
+                                    vec![
+                                        Term::symbol(z),
+                                        Term::apply("Times", vec![Term::int(-1), Term::number(clone_number(&a))]),
+                                    ],
                                 ),
                                 Term::int(2),
                             ],

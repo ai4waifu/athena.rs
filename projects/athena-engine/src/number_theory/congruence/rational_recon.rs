@@ -5,7 +5,7 @@ use athena_numeric::{Integer, Modulus, Rational};
 use super::super::arithmetic::isqrt;
 
 use super::super::value::{RationalReconstruction, RationalReconstructionFailure};
-use crate::numeric_clone::{clone_integer};
+use crate::numeric_clone::clone_integer;
 
 /// 在模 `m` 下从剩余 `r` 重构分数 `n/d`，要求 `|n| ≤ N`、`0 < d ≤ D` 且既约。
 ///
@@ -63,4 +63,3 @@ pub fn rational_reconstruction(
 
     RationalReconstruction::NotFound { reason: RationalReconstructionFailure::NoCandidate }
 }
-

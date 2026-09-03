@@ -1,9 +1,9 @@
 //! 同余、CRT 与有理重建测试。
 
-use athena_engine::{clone_modulus, 
+use athena_engine::{
     CongruenceSolution, CrtResult, Integer, Modulus, ModulusTable, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue,
-    RationalReconstruction, chinese_remainder, chinese_remainder_pair, execute_number_theory, rational_reconstruction,
-    solve_linear_congruence,
+    RationalReconstruction, chinese_remainder, chinese_remainder_pair, clone_modulus, execute_number_theory,
+    rational_reconstruction, solve_linear_congruence,
 };
 
 #[test]

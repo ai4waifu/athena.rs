@@ -3,12 +3,12 @@
 use athena_numeric::{Integer, ModularValue, Modulus};
 use athena_types::{Diagnostic, DiagnosticCode};
 
-use crate::numeric_clone::{clone_integer, clone_modulus};
 use super::super::{
     gcd::{extended_gcd, lcm},
     result::NumberTheoryResult,
     value::{CrtResult, NumberTheoryValue},
 };
+use crate::numeric_clone::{clone_integer, clone_modulus};
 
 /// 两两广义 CRT：`x ≡ a (mod m)` 与 `x ≡ b (mod n)`。
 pub fn chinese_remainder_pair(a: &Integer, m: &Modulus, b: &Integer, n: &Modulus) -> Result<CrtResult, Diagnostic> {
