@@ -473,3 +473,90 @@ fn cases_filters_integers() {
     ));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
 }
+
+#[test]
+fn range_basic() {
+    assert_eq!(evaluate(&Term::apply("Range", vec![Term::int(3)])), Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]));
+    assert_eq!(
+        evaluate(&Term::apply("Range", vec![Term::int(2), Term::int(5)])),
+        Term::List(vec![Term::int(2), Term::int(3), Term::int(4), Term::int(5)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Range", vec![Term::int(1), Term::int(7), Term::int(2)])),
+        Term::List(vec![Term::int(1), Term::int(3), Term::int(5), Term::int(7)])
+    );
+    assert_eq!(evaluate(&Term::apply("Range", vec![Term::int(0)])), Term::List(vec![]));
+}
+
+#[test]
+fn table_basic_iterator() {
+    let e = evaluate(&Term::apply(
+        "Table",
+        vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(3)])],
+    ));
+    assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]));
+}
+
+#[test]
+fn table_does_not_leak_iterator_binding() {
+    let e = evaluate(&Term::apply(
+        "CompoundExpression",
+        vec![
+            Term::apply(
+                "Table",
+                vec![
+                    Term::apply("Plus", vec![Term::symbol("i"), Term::int(1)]),
+                    Term::List(vec![Term::symbol("i"), Term::int(2)]),
+                ],
+            ),
+            Term::symbol("i"),
+        ],
+    ));
+    assert_eq!(e, Term::symbol("i"));
+}
+
+#[test]
+fn apply_plus_list() {
+    let e = evaluate(&Term::apply(
+        "Apply",
+        vec![Term::symbol("Plus"), Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])],
+    ));
+    assert_eq!(e, Term::int(6));
+}
+
+#[test]
+fn length_join_first() {
+    assert_eq!(
+        evaluate(&Term::apply("Length", vec![Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])])),
+        Term::int(3)
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "Join",
+            vec![Term::List(vec![Term::int(1)]), Term::List(vec![Term::int(2)])]
+        )),
+        Term::List(vec![Term::int(1), Term::int(2)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("First", vec![Term::List(vec![Term::symbol("a"), Term::symbol("b")])])),
+        Term::symbol("a")
+    );
+}
+
+#[test]
+fn sum_and_product_basic() {
+    assert_eq!(
+        evaluate(&Term::apply(
+            "Sum",
+            vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(1), Term::int(10)])]
+        )),
+        Term::int(55)
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "Product",
+            vec![Term::symbol("i"), Term::List(vec![Term::symbol("i"), Term::int(1), Term::int(5)])]
+        )),
+        Term::int(120)
+    );
+}

@@ -276,6 +276,9 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth, &DefinitionMap::new())),
         "MatchQ" => Some(eval_match_q(args, depth)),
         "Cases" => Some(eval_cases(args, depth)),
+        "Table" => Some(eval_table(args, depth)),
+        "Sum" => Some(eval_sum_product("Sum", args, depth)),
+        "Product" => Some(eval_sum_product("Product", args, depth)),
         "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => Some(EvalOutcome::unevaluated(
             Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) },
         )),
@@ -520,6 +523,129 @@ fn eval_while(args: &[Term], depth: u32) -> EvalOutcome {
     let term = Term::apply("While", clone_terms(args));
     diagnostics.push(unsupported_operation("While"));
     EvalOutcome { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics }
+}
+
+/// `Table[body, {i, n}]` / `{i, a, b}` / `{i, a, b, step}` / `{n}` — body HoldAll-ish.
+fn eval_table(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply("Table", clone_terms(args)));
+    }
+    let iter_o = evaluate_depth_outcome(&args[1], depth + 1);
+    let mut diagnostics = iter_o.diagnostics;
+    let Some((var, values)) = expand_iterator(&iter_o.term) else {
+        return EvalOutcome::unevaluated(Term::apply("Table", vec![clone_term(&args[0]), iter_o.term]));
+    };
+    let mut out = Vec::with_capacity(values.len());
+    for value in values {
+        let body = match &var {
+            Some(name) => substitute_symbol(&args[0], name, &value),
+            None => clone_term(&args[0]),
+        };
+        let mut body_o = evaluate_depth_outcome(&body, depth + 1);
+        diagnostics.append(&mut body_o.diagnostics);
+        out.push(body_o.term);
+        if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+            return EvalOutcome {
+                term: Term::List(out),
+                kind: EvalKind::Unevaluated,
+                status: ComputationStatus::Invalid,
+                diagnostics,
+            };
+        }
+    }
+    EvalOutcome { term: Term::List(out), kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics }
+}
+
+/// `Sum[body, iterator]` / `Product[body, iterator]` — fold evaluated Table values.
+fn eval_sum_product(head: &str, args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply(head, clone_terms(args)));
+    }
+    let mut table_o = eval_table(args, depth);
+    let Term::List(items) = table_o.term else {
+        return EvalOutcome::unevaluated(Term::apply(head, vec![clone_term(&args[0]), table_o.term]));
+    };
+    if table_o.kind != EvalKind::Value {
+        return EvalOutcome {
+            term: Term::apply(head, vec![clone_term(&args[0]), Term::List(items)]),
+            kind: table_o.kind,
+            status: table_o.status,
+            diagnostics: table_o.diagnostics,
+        };
+    }
+    let folded = match head {
+        "Sum" => {
+            if items.is_empty() {
+                Term::int(0)
+            }
+            else {
+                eval_plus(items)
+            }
+        }
+        "Product" => {
+            if items.is_empty() {
+                Term::int(1)
+            }
+            else {
+                eval_times(items)
+            }
+        }
+        _ => Term::apply(head, clone_terms(args)),
+    };
+    table_o.term = folded;
+    table_o.kind = EvalKind::Value;
+    table_o.status = ComputationStatus::Exact;
+    table_o
+}
+
+/// Expand `{i,n}` / `{i,a,b}` / `{i,a,b,step}` / `{n}` into optional binder + values.
+fn expand_iterator(spec: &Term) -> Option<(Option<String>, Vec<Term>)> {
+    let Term::List(items) = spec else {
+        return None;
+    };
+    match items.as_slice() {
+        [Term::Atom(Atom::Symbol(var)), n] => {
+            let n = number_from_term(n)?.as_exact_integer()?;
+            Some((Some(var.clone()), range_ints(1, n, 1)?))
+        }
+        [Term::Atom(Atom::Symbol(var)), a, b] => {
+            let a = number_from_term(a)?.as_exact_integer()?;
+            let b = number_from_term(b)?.as_exact_integer()?;
+            Some((Some(var.clone()), range_ints(a, b, 1)?))
+        }
+        [Term::Atom(Atom::Symbol(var)), a, b, step] => {
+            let a = number_from_term(a)?.as_exact_integer()?;
+            let b = number_from_term(b)?.as_exact_integer()?;
+            let step = number_from_term(step)?.as_exact_integer()?;
+            Some((Some(var.clone()), range_ints(a, b, step)?))
+        }
+        [n] => {
+            let n = number_from_term(n)?.as_exact_integer()?;
+            Some((None, range_ints(1, n, 1)?))
+        }
+        _ => None,
+    }
+}
+
+fn range_ints(a: i64, b: i64, step: i64) -> Option<Vec<Term>> {
+    if step == 0 {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut x = a;
+    if step > 0 {
+        while x <= b {
+            out.push(Term::int(x));
+            x += step;
+        }
+    }
+    else {
+        while x >= b {
+            out.push(Term::int(x));
+            x += step;
+        }
+    }
+    Some(out)
 }
 
 /// `For[var, iterator, body]` — iterator is a list (often from `Span`).
@@ -911,6 +1037,11 @@ fn apply_builtin_outcome(head: &Term, args: Vec<Term>, depth: u32) -> EvalOutcom
             Some(list) => EvalOutcome::value(list),
             None => EvalOutcome::unevaluated(Term::apply("Span", args)),
         },
+        "Range" => eval_range(args),
+        "Length" if args.len() == 1 => eval_length(&args[0]),
+        "First" if args.len() == 1 => eval_first(&args[0]),
+        "Join" => eval_join(args),
+        "Apply" if args.len() == 2 => eval_apply(&args[0], &args[1], depth),
         "List" => EvalOutcome::value(Term::List(args)),
         "Simplify" if args.len() == 1 => EvalOutcome::value(eval_simplify(&args[0], depth)),
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" if args.len() == 1 => EvalOutcome::value(eval_machine_unary(name, &args[0])),
@@ -1361,6 +1492,69 @@ fn eval_logic_not(arg: &Term) -> Term {
     match as_boolean(arg) {
         Some(v) => Term::boolean(!v),
         None => Term::apply("Not", vec![clone_term(arg)]),
+    }
+}
+
+fn eval_range(args: Vec<Term>) -> EvalOutcome {
+    let ints: Option<Vec<i64>> = args.iter().map(|t| number_from_term(t).and_then(|n| n.as_exact_integer())).collect();
+    let Some(ints) = ints else {
+        return EvalOutcome::unevaluated(Term::apply("Range", args));
+    };
+    let list = match ints.as_slice() {
+        [n] => range_ints(1, *n, 1),
+        [a, b] => range_ints(*a, *b, 1),
+        [a, b, step] => range_ints(*a, *b, *step),
+        _ => None,
+    };
+    match list {
+        Some(items) => EvalOutcome::value(Term::List(items)),
+        None => EvalOutcome::unevaluated(Term::apply("Range", args)),
+    }
+}
+
+fn eval_length(arg: &Term) -> EvalOutcome {
+    match arg {
+        Term::List(items) => EvalOutcome::value(Term::int(items.len() as i64)),
+        Term::Application { arguments, .. } => EvalOutcome::value(Term::int(arguments.len() as i64)),
+        _ => EvalOutcome::unevaluated(Term::apply("Length", vec![clone_term(arg)])),
+    }
+}
+
+fn eval_first(arg: &Term) -> EvalOutcome {
+    match arg {
+        Term::List(items) if !items.is_empty() => EvalOutcome::value(clone_term(&items[0])),
+        Term::Application { arguments, .. } if !arguments.is_empty() => EvalOutcome::value(clone_term(&arguments[0])),
+        Term::List(items) => {
+            EvalOutcome::invalid(Term::apply("First", vec![clone_term(arg)]), invalid_index_diagnostic(1, Some(items.len() as u64)))
+        }
+        Term::Application { arguments, .. } => {
+            EvalOutcome::invalid(
+                Term::apply("First", vec![clone_term(arg)]),
+                invalid_index_diagnostic(1, Some(arguments.len() as u64)),
+            )
+        }
+        _ => EvalOutcome::unevaluated(Term::apply("First", vec![clone_term(arg)])),
+    }
+}
+
+fn eval_join(args: Vec<Term>) -> EvalOutcome {
+    let mut out = Vec::new();
+    for arg in &args {
+        match arg {
+            Term::List(items) => out.extend(items.iter().map(clone_term)),
+            _ => return EvalOutcome::unevaluated(Term::apply("Join", args)),
+        }
+    }
+    EvalOutcome::value(Term::List(out))
+}
+
+fn eval_apply(func: &Term, target: &Term, depth: u32) -> EvalOutcome {
+    match target {
+        Term::List(items) => {
+            let app = Term::Application { head: Box::new(clone_term(func)), arguments: clone_terms(items) };
+            evaluate_depth_outcome(&app, depth + 1)
+        }
+        other => EvalOutcome::unevaluated(Term::apply("Apply", vec![clone_term(func), clone_term(other)])),
     }
 }
 
