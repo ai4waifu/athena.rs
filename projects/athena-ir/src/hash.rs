@@ -1,73 +1,120 @@
-//! IR term 规范结构 hash（wire / 缓存键）。
-
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
+//! IR term 规范结构 hash（缓存键 · wire · JIT kernel key）。
+//!
+//! FNV-1a 64 稳定实现：同结构同 hash，与插入顺序、进程无关。
+//! 算子默认按 [`OperatorId`](athena_types::OperatorId)（session 内稳定）；
+//! 跨注册表稳定键用 [`canonical_hash_named`]（按注册名）。
 
 use athena_types::TermId;
 
 use crate::{
     arena::TermArena,
     node::{AtomKind, TermKind},
+    operator::OperatorRegistry,
 };
 
-/// 对 term 子树求 hash（结构 + 载荷稳定）。
-pub fn canonical_hash(arena: &TermArena, root: TermId) -> u64 {
-    let mut h = DefaultHasher::new();
-    hash_term(arena, root, &mut h, &mut vec![]);
-    h.finish()
+/// FNV-1a 64 offset basis。
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+/// FNV-1a 64 prime。
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// FNV-1a 64 字节流 hash（IR 与领域指纹共用基元）。
+pub fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut h = FNV_OFFSET_BASIS;
+    for b in bytes {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(FNV_PRIME);
+    }
+    h
 }
 
-fn hash_term(arena: &TermArena, id: TermId, h: &mut DefaultHasher, seen: &mut Vec<TermId>) {
-    if seen.contains(&id) {
-        "cycle".hash(h);
+fn mix_tag(state: &mut u64, tag: &[u8]) {
+    *state ^= fnv1a64(tag);
+    *state = state.wrapping_mul(FNV_PRIME);
+}
+
+fn mix_u64(state: &mut u64, v: u64) {
+    *state ^= v;
+    *state = state.wrapping_mul(FNV_PRIME);
+}
+
+fn mix_len(state: &mut u64, len: usize) {
+    mix_u64(state, len as u64);
+}
+
+/// 对 term 子树求规范结构 hash（算子按 [`OperatorId`]）。
+pub fn canonical_hash(arena: &TermArena, root: TermId) -> u64 {
+    hash_walk(arena, None, root).state
+}
+
+/// 对 term 子树求跨注册表稳定 hash：算子按注册名（JIT kernel key / wire）。
+pub fn canonical_hash_named(arena: &TermArena, registry: &OperatorRegistry, root: TermId) -> u64 {
+    hash_walk(arena, Some(registry), root).state
+}
+
+struct HashWalk<'a> {
+    arena: &'a TermArena,
+    registry: Option<&'a OperatorRegistry>,
+    state: u64,
+    seen: Vec<TermId>,
+}
+
+fn hash_walk<'a>(arena: &'a TermArena, registry: Option<&'a OperatorRegistry>, root: TermId) -> HashWalk<'a> {
+    let mut s = HashWalk { arena, registry, state: FNV_OFFSET_BASIS, seen: Vec::new() };
+    hash_term(&mut s, root);
+    s
+}
+
+fn hash_term(s: &mut HashWalk<'_>, id: TermId) {
+    if s.seen.contains(&id) {
+        mix_tag(&mut s.state, b"cycle");
         return;
     }
-    seen.push(id);
-    let Some(kind) = arena.get(id)
+    let Some(kind) = s.arena.get(id)
     else {
-        "invalid".hash(h);
-        seen.pop();
+        mix_tag(&mut s.state, b"invalid");
         return;
     };
+    s.seen.push(id);
     match kind {
         TermKind::Atom(AtomKind::Number(n)) => {
-            "num".hash(h);
-            n.to_render_string().hash(h);
-            format!("{:?}", n.domain()).hash(h);
+            mix_tag(&mut s.state, b"num");
+            mix_u64(&mut s.state, fnv1a64(n.to_render_string().as_bytes()));
+            mix_u64(&mut s.state, fnv1a64(format!("{:?}", n.domain()).as_bytes()));
         }
-        TermKind::Atom(AtomKind::String(s)) => {
-            "str".hash(h);
-            s.hash(h);
+        TermKind::Atom(AtomKind::String(v)) => {
+            mix_tag(&mut s.state, b"str");
+            mix_u64(&mut s.state, fnv1a64(v.as_bytes()));
         }
         TermKind::Atom(AtomKind::Symbol(sym)) => {
-            "sym".hash(h);
-            sym.0.hash(h);
-            if let Some(name) = arena.symbols().resolve(*sym) {
-                name.hash(h);
+            mix_tag(&mut s.state, b"sym");
+            match s.arena.symbols().resolve(*sym) {
+                Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
+                None => mix_u64(&mut s.state, u64::from(sym.0)),
             }
         }
         TermKind::Atom(AtomKind::Boolean(b)) => {
-            "bool".hash(h);
-            b.hash(h);
+            mix_tag(&mut s.state, b"bool");
+            mix_u64(&mut s.state, u64::from(*b));
         }
-        TermKind::Atom(AtomKind::Null) => {
-            "null".hash(h);
-        }
+        TermKind::Atom(AtomKind::Null) => mix_tag(&mut s.state, b"null"),
         TermKind::List(items) => {
-            "list".hash(h);
+            mix_tag(&mut s.state, b"list");
+            mix_len(&mut s.state, items.len());
             for c in items {
-                hash_term(arena, *c, h, seen);
+                hash_term(s, *c);
             }
         }
         TermKind::App { op, args } => {
-            "app".hash(h);
-            op.0.hash(h);
+            mix_tag(&mut s.state, b"app");
+            match s.registry.and_then(|r| r.name(*op)) {
+                Some(name) => mix_u64(&mut s.state, fnv1a64(name.as_bytes())),
+                None => mix_u64(&mut s.state, u64::from(op.0)),
+            }
+            mix_len(&mut s.state, args.len());
             for c in args {
-                hash_term(arena, *c, h, seen);
+                hash_term(s, *c);
             }
         }
     }
-    seen.pop();
+    s.seen.pop();
 }
