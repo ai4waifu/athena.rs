@@ -274,7 +274,88 @@ fn eval_special_form(head: &Term, args: &[Term], depth: u32) -> Option<EvalOutco
         "For" => Some(eval_for(args, depth)),
         "CompoundExpression" => Some(eval_compound(args, depth)),
         "With" | "Module" | "Block" => Some(eval_local_scope(name, args, depth, &DefinitionMap::new())),
+        "MatchQ" => Some(eval_match_q(args, depth)),
+        "Cases" => Some(eval_cases(args, depth)),
+        "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => Some(EvalOutcome::unevaluated(
+            Term::Application { head: Box::new(clone_term(head)), arguments: clone_terms(args) },
+        )),
         _ => None,
+    }
+}
+
+fn eval_match_q(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply("MatchQ", clone_terms(args)));
+    }
+    let mut expr_o = evaluate_depth_outcome(&args[0], depth + 1);
+    // Pattern argument is Hold-ish: do not evaluate Blank/Pattern away.
+    let matched = pattern_matches(&expr_o.term, &args[1]);
+    expr_o.term = Term::boolean(matched);
+    expr_o.kind = EvalKind::Value;
+    expr_o.status = ComputationStatus::Exact;
+    expr_o
+}
+
+fn eval_cases(args: &[Term], depth: u32) -> EvalOutcome {
+    if args.len() != 2 {
+        return EvalOutcome::unevaluated(Term::apply("Cases", clone_terms(args)));
+    }
+    let mut list_o = evaluate_depth_outcome(&args[0], depth + 1);
+    let Term::List(items) = &list_o.term else {
+        return EvalOutcome::unevaluated(Term::apply("Cases", vec![list_o.term, clone_term(&args[1])]));
+    };
+    let pat = &args[1];
+    let out: Vec<Term> = items.iter().filter(|item| pattern_matches(item, pat)).map(clone_term).collect();
+    list_o.term = Term::List(out);
+    list_o.kind = EvalKind::Value;
+    list_o.status = ComputationStatus::Exact;
+    list_o
+}
+
+/// Minimal pattern matcher for Feature Gap: `Blank` / typed `Blank[h]` / `Pattern[name, p]` / literal.
+fn pattern_matches(expr: &Term, pattern: &Term) -> bool {
+    match pattern {
+        Term::Application { head, arguments: args } if head.is_symbol("Blank") => match args.as_slice() {
+            [] => true,
+            [head_pat] => expr_has_head(expr, head_pat),
+            _ => false,
+        },
+        Term::Application { head, arguments: args } if head.is_symbol("Pattern") && args.len() == 2 => {
+            pattern_matches(expr, &args[1])
+        }
+        other => terms_structurally_equal(expr, other),
+    }
+}
+
+fn expr_has_head(expr: &Term, head_pat: &Term) -> bool {
+    match head_pat {
+        Term::Atom(Atom::Symbol(name)) => match name.as_str() {
+            "Integer" => number_from_term(expr).is_some_and(|n| n.as_exact_integer().is_some() || n.as_integer().is_some()),
+            "Symbol" => matches!(expr, Term::Atom(Atom::Symbol(_))),
+            "List" => matches!(expr, Term::List(_)),
+            "String" => matches!(expr, Term::Atom(Atom::String(_))),
+            other => expr.head_name() == Some(other),
+        },
+        _ => false,
+    }
+}
+
+fn terms_structurally_equal(a: &Term, b: &Term) -> bool {
+    match (a, b) {
+        (Term::Atom(Atom::Symbol(x)), Term::Atom(Atom::Symbol(y))) => x == y,
+        (Term::Atom(Atom::Boolean(x)), Term::Atom(Atom::Boolean(y))) => x == y,
+        (Term::Atom(Atom::Null), Term::Atom(Atom::Null)) => true,
+        (Term::Atom(Atom::String(x)), Term::Atom(Atom::String(y))) => x == y,
+        (Term::Atom(Atom::Number(x)), Term::Atom(Atom::Number(y))) => x == y,
+        (Term::List(xs), Term::List(ys)) if xs.len() == ys.len() => {
+            xs.iter().zip(ys.iter()).all(|(l, r)| terms_structurally_equal(l, r))
+        }
+        (Term::Application { head: hx, arguments: ax }, Term::Application { head: hy, arguments: ay })
+            if ax.len() == ay.len() =>
+        {
+            terms_structurally_equal(hx, hy) && ax.iter().zip(ay.iter()).all(|(l, r)| terms_structurally_equal(l, r))
+        }
+        _ => false,
     }
 }
 

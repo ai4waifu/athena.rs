@@ -439,3 +439,37 @@ fn map_pure_function_squares() {
     ));
     assert_eq!(e, Term::List(vec![Term::int(1), Term::int(4), Term::int(9)]));
 }
+
+#[test]
+fn match_q_blank_and_typed_blank() {
+    assert_eq!(
+        evaluate(&Term::apply("MatchQ", vec![Term::int(1), Term::apply("Blank", vec![])])),
+        Term::boolean(true)
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "MatchQ",
+            vec![Term::int(1), Term::apply("Blank", vec![Term::symbol("Integer")])]
+        )),
+        Term::boolean(true)
+    );
+    assert_eq!(
+        evaluate(&Term::apply(
+            "MatchQ",
+            vec![Term::symbol("a"), Term::apply("Blank", vec![Term::symbol("Integer")])]
+        )),
+        Term::boolean(false)
+    );
+}
+
+#[test]
+fn cases_filters_integers() {
+    let e = evaluate(&Term::apply(
+        "Cases",
+        vec![
+            Term::List(vec![Term::int(1), Term::symbol("a"), Term::int(2)]),
+            Term::apply("Blank", vec![Term::symbol("Integer")]),
+        ],
+    ));
+    assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
+}
