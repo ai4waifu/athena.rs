@@ -181,3 +181,57 @@ fn which_picks_first_true_branch() {
     ));
     assert_eq!(e, Term::int(2));
 }
+
+#[test]
+fn span_expands_to_list() {
+    assert_eq!(
+        evaluate(&Term::apply("Span", vec![Term::int(1), Term::int(3)])),
+        Term::List(vec![Term::int(1), Term::int(2), Term::int(3)])
+    );
+    assert_eq!(
+        evaluate(&Term::apply("Span", vec![Term::int(1), Term::int(2), Term::int(10)])),
+        Term::List(vec![Term::int(1), Term::int(3), Term::int(5), Term::int(7), Term::int(9)])
+    );
+}
+
+#[test]
+fn part_span_slice() {
+    let e = evaluate(&Term::apply(
+        "Part",
+        vec![
+            Term::List(vec![Term::int(1), Term::int(2), Term::int(3)]),
+            Term::apply("Span", vec![Term::int(1), Term::int(2)]),
+        ],
+    ));
+    assert_eq!(e, Term::List(vec![Term::int(1), Term::int(2)]));
+}
+
+#[test]
+fn while_false_skips_body() {
+    let e = evaluate(&Term::apply("While", vec![Term::int(0), Term::int(1)]));
+    assert_eq!(e, Term::symbol("Null"));
+}
+
+#[test]
+fn for_span_last_value() {
+    let e = evaluate(&Term::apply(
+        "For",
+        vec![
+            Term::symbol("i"),
+            Term::apply("Span", vec![Term::int(1), Term::int(3)]),
+            Term::symbol("i"),
+        ],
+    ));
+    assert_eq!(e, Term::int(3));
+}
+
+#[test]
+fn mldivide_is_unsupported_not_divide() {
+    use athena_engine::{EvalKind, evaluate_outcome};
+    use athena_types::DiagnosticCode;
+
+    let o = evaluate_outcome(&Term::apply("Mldivide", vec![Term::symbol("A"), Term::symbol("b")]));
+    assert_eq!(o.kind, EvalKind::Unevaluated);
+    assert_eq!(o.diagnostics[0].code, DiagnosticCode::UnsupportedOperation);
+    assert!(o.term.head_name() == Some("Mldivide"));
+}
