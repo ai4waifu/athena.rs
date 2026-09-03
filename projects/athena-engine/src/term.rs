@@ -13,7 +13,7 @@ pub fn number_from_term(term: &Term) -> Option<&Number> {
     }
 }
 
-/// 引擎 IR 中的原子值。
+/// 引擎过渡树上的原子值（legacy `Term` 桥 · Living `25`）。
 ///
 /// Living `19`：不实现 [`Clone`]（[`Number`] 无 `Clone`）。深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
@@ -24,6 +24,10 @@ pub enum Atom {
     String(String),
     /// 符号名。
     Symbol(String),
+    /// Typed Boolean（不得长期用 [`Self::Symbol`] `"True"`/`"False"` 冒充）。
+    Boolean(bool),
+    /// Typed Null（不得长期用 [`Self::Symbol`] `"Null"` 或空串冒充）。
+    Null,
 }
 
 impl Atom {
@@ -33,12 +37,13 @@ impl Atom {
             Self::Number(n) => Self::Number(n.try_clone_in(ctx)?),
             Self::String(s) => Self::String(s.clone()),
             Self::Symbol(s) => Self::Symbol(s.clone()),
+            Self::Boolean(b) => Self::Boolean(*b),
+            Self::Null => Self::Null,
         })
     }
-
 }
 
-/// 过渡求值用的运行时表达式树（非方言 AST，非 arena IR）。
+/// 过渡求值用的运行时表达式树（非方言 AST，非 arena AthenaIR · Living `25`）。
 ///
 /// Living `19`：不实现 [`Clone`]。结构深复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
@@ -78,10 +83,19 @@ impl Term {
         })
     }
 
-
     /// 符号原子。
     pub fn symbol(name: impl Into<String>) -> Self {
         Self::Atom(Atom::Symbol(name.into()))
+    }
+
+    /// Typed Boolean 原子。
+    pub fn boolean(value: bool) -> Self {
+        Self::Atom(Atom::Boolean(value))
+    }
+
+    /// Typed `Null` 原子。
+    pub fn null() -> Self {
+        Self::Atom(Atom::Null)
     }
 
     /// 小型精确整数便捷构造。

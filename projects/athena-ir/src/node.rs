@@ -14,6 +14,10 @@ pub enum AtomKind {
     String(String),
     /// intern 符号。
     Symbol(SymbolId),
+    /// Typed Boolean。
+    Boolean(bool),
+    /// Typed Null。
+    Null,
 }
 
 impl AtomKind {
@@ -23,9 +27,10 @@ impl AtomKind {
             Self::Number(n) => Self::Number(n.try_clone_in(ctx)?),
             Self::String(s) => Self::String(s.clone()),
             Self::Symbol(id) => Self::Symbol(*id),
+            Self::Boolean(b) => Self::Boolean(*b),
+            Self::Null => Self::Null,
         })
     }
-
 }
 
 /// Core IR 中的 term 节点。
@@ -55,7 +60,6 @@ impl TermKind {
             Self::App { op, args } => Self::App { op: *op, args: args.clone() },
         })
     }
-
 
     /// 是否为原子 term。
     pub fn is_atom(&self) -> bool {

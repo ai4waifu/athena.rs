@@ -7,17 +7,19 @@ use crate::{
     term::{Atom, Term, number_from_term},
 };
 
-use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 use super::{
     result::CalculusResult,
     term_util::{contains_symbol, replace_symbol},
 };
+use crate::numeric_clone::{clone_number, clone_term, clone_terms};
 
 /// 在 `Term` 上做符号积分（多项式 / 初等子集）。
 pub fn integrate(expr: &Term, var: &str) -> Term {
     match expr {
         Term::Atom(Atom::Number(n)) => Term::apply("Times", vec![Term::number(clone_number(n)), Term::symbol(var)]),
-        Term::Atom(Atom::String(_)) => Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)]),
+        Term::Atom(Atom::String(_)) | Term::Atom(Atom::Boolean(_)) | Term::Atom(Atom::Null) => {
+            Term::apply("Integrate", vec![clone_term(expr), Term::symbol(var)])
+        }
         Term::Atom(Atom::Symbol(s)) if s == var => {
             evaluate(&Term::apply("Divide", vec![Term::apply("Power", vec![Term::symbol(var), Term::int(2)]), Term::int(2)]))
         }
@@ -44,7 +46,10 @@ pub fn integrate(expr: &Term, var: &str) -> Term {
                         if n != -1 {
                             return evaluate(&Term::apply(
                                 "Divide",
-                                vec![Term::apply("Power", vec![clone_term(&args[0]), Term::integer(n + 1)]), Term::integer(n + 1)],
+                                vec![
+                                    Term::apply("Power", vec![clone_term(&args[0]), Term::integer(n + 1)]),
+                                    Term::integer(n + 1),
+                                ],
                             ));
                         }
                     }
