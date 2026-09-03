@@ -48,29 +48,22 @@ impl Rewriter {
 }
 
 fn fold_constants(arena: &mut TermArena, id: TermId) -> Result<bool> {
-    let Some(kind) = arena.get(id).cloned()
-    else {
-        return Err(Diagnostic::new(DiagnosticCode::InvalidIndex));
+    // 只拷贝 `TermId` 子列表，避免复制含 `NumericValue` 的 `Atom`（Living `19`：无隐式 Clone）。
+    let children: Option<Vec<TermId>> = match arena.get(id) {
+        None => return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)),
+        Some(TermKind::List(items)) => Some(items.clone()),
+        Some(TermKind::App { args, .. }) => Some(args.clone()),
+        Some(TermKind::Atom(_)) => None,
     };
-    match kind {
-        TermKind::List(items) => {
-            let mut any = false;
-            for c in items {
-                if fold_constants(arena, c)? {
-                    any = true;
-                }
-            }
-            Ok(any)
+    let Some(children) = children
+    else {
+        return Ok(false);
+    };
+    let mut any = false;
+    for c in children {
+        if fold_constants(arena, c)? {
+            any = true;
         }
-        TermKind::App { args, .. } => {
-            let mut any = false;
-            for c in &args {
-                if fold_constants(arena, *c)? {
-                    any = true;
-                }
-            }
-            Ok(any)
-        }
-        TermKind::Atom(_) => Ok(false),
     }
+    Ok(any)
 }
