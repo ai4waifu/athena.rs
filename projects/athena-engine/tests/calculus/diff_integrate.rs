@@ -375,6 +375,52 @@ fn definite_integral_power() {
 }
 
 #[test]
+fn limit_sinc_at_zero() {
+    let engine = AthenaEngine::new();
+    let expr = Term::apply(
+        "Times",
+        vec![
+            Term::apply("Sin", vec![Term::symbol("x")]),
+            Term::apply("Power", vec![Term::symbol("x"), Term::int(-1)]),
+        ],
+    );
+    let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Limit {
+        expression: expr,
+        variable: "x".into(),
+        approach: LimitApproach::Finite(Term::int(0)),
+        direction: LimitDirection::TwoSided,
+        assumptions: AssumptionSet::empty(),
+    })));
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::int(1)),
+        other => panic!("expected Exact 1, got {other:?}"),
+    }
+}
+
+#[test]
+fn definite_integral_sin_zero_to_pi() {
+    let engine = AthenaEngine::new();
+    let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::DefiniteIntegral {
+        expression: Term::apply("Sin", vec![Term::symbol("x")]),
+        variable: "x".into(),
+        lower: Term::int(0),
+        upper: Term::symbol("Pi"),
+        assumptions: AssumptionSet::empty(),
+    })));
+    match out {
+        CalculusResult::Exact { value: CalculusValue::Expression(value), .. } => assert_eq!(value, Term::int(2)),
+        other => panic!("expected Exact 2, got {other:?}"),
+    }
+}
+
+#[test]
+fn cos_pi_is_exact_minus_one() {
+    use athena_engine::evaluate;
+    assert_eq!(evaluate(&Term::apply("Cos", vec![Term::symbol("Pi")])), Term::int(-1));
+    assert_eq!(evaluate(&Term::apply("Sin", vec![Term::symbol("Pi")])), Term::int(0));
+}
+
+#[test]
 fn taylor_nonzero_center() {
     let engine = AthenaEngine::new();
     let out = expect_calculus(engine.execute_domain(DomainRequest::Calculus(CalculusRequest::Series {
