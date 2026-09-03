@@ -55,6 +55,13 @@ impl DefinitionLayer {
         self.downs.get(&sym).map(Vec::as_slice)
     }
 
+    /// 清空层内全部定义。
+    pub fn clear(&mut self) {
+        self.owns.clear();
+        self.delayed.clear();
+        self.downs.clear();
+    }
+
     /// 层内是否存在该符号的任何定义。
     pub fn defines(&self, sym: SymbolId) -> bool {
         self.owns.contains_key(&sym) || self.delayed.contains_key(&sym) || self.downs.contains_key(&sym)
