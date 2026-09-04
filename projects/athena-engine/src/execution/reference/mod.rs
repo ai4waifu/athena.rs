@@ -46,7 +46,7 @@ impl ReferenceExecutor {
                 .detail("component", "ReferenceExecutor")
                 .detail("reason", "missing_entry_region")
         })?;
-        let returned = self.eval_region(session, module, region_id)?;
+        let (returned, unsupported) = self.eval_region(session, module, region_id)?;
         let term = match returned {
             Some(Slot::Term(term)) => term,
             Some(Slot::Boolean(value)) => session.builder().boolean(value, Default::default()),
@@ -54,14 +54,29 @@ impl ReferenceExecutor {
             Some(Slot::Scope(_)) | Some(Slot::Unit) | None => session.builder().null(Default::default()),
         };
         let value = session.insert_symbolic_value(term);
-        let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+        let mut result = if unsupported {
+            ComputationResult::with_status(ComputationStatus::Unknown, CoverageStatus::Unsupported)
+                .with_diagnostic(
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                        .detail("component", "CallProvider")
+                        .detail("status", "provider_bootstrap_unsupported"),
+                )
+        } else {
+            ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
+        };
+        result = result
             .with_value(value)
             .with_symbolic_term(term)
             .with_provenance(ResultProvenance { request_kind: "ExecutionIR" });
         Ok(session.insert_result(result))
     }
 
-    fn eval_region(&self, session: &mut Session, module: &ExecutionModule, region_id: RegionId) -> Result<Option<Slot>> {
+    fn eval_region(
+        &self,
+        session: &mut Session,
+        module: &ExecutionModule,
+        region_id: RegionId,
+    ) -> Result<(Option<Slot>, bool)> {
         let region = module
             .regions
             .iter()
@@ -70,15 +85,23 @@ impl ReferenceExecutor {
         let mut block_id = region.entry;
         let mut slots: HashMap<SsaValueId, Slot> = HashMap::new();
         let mut frames: Vec<ScopeFrame> = Vec::new();
-        // Bootstrap: linear / branched regions; budget scales with block count.
-        for _ in 0..region.blocks.len().saturating_mul(8).max(8) {
+        let mut unsupported = false;
+        let mut block_visits: HashMap<BlockId, u32> = HashMap::new();
+        // Bootstrap: allow limited loop back-edges; cap per-block visits.
+        for _ in 0..region.blocks.len().saturating_mul(64).max(64) {
+            let visits = block_visits.entry(block_id).or_insert(0);
+            *visits = visits.saturating_add(1);
+            if *visits > 32 {
+                // Budget exhausted on a hot block — exit with Unit residual.
+                return Ok((Some(Slot::Unit), unsupported));
+            }
             let block = region
                 .blocks
                 .iter()
                 .find(|b| b.id == block_id)
                 .ok_or_else(|| diag("missing_block"))?;
             for op in &block.operations {
-                let produced = self.eval_operation(session, module, &slots, &mut frames, &op.kind)?;
+                let produced = self.eval_operation(session, module, &slots, &mut frames, &mut unsupported, &op.kind)?;
                 if let Some(result) = op.result {
                     slots.insert(result, produced);
                 }
@@ -86,10 +109,10 @@ impl ReferenceExecutor {
             match &block.terminator {
                 Terminator::Return { values } => {
                     if values.is_empty() {
-                        return Ok(Some(Slot::Unit));
+                        return Ok((Some(Slot::Unit), unsupported));
                     }
                     let first = values[0];
-                    return Ok(Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?));
+                    return Ok((Some(*slots.get(&first).ok_or_else(|| diag("return_undefined"))?), unsupported));
                 }
                 Terminator::Branch { condition, then_edge, else_edge } => {
                     let pred = match slots.get(condition).ok_or_else(|| diag("branch_undefined"))? {
@@ -138,6 +161,7 @@ impl ReferenceExecutor {
         module: &ExecutionModule,
         slots: &HashMap<SsaValueId, Slot>,
         frames: &mut Vec<ScopeFrame>,
+        unsupported: &mut bool,
         kind: &OperationKind,
     ) -> Result<Slot> {
         match kind {
@@ -241,11 +265,19 @@ impl ReferenceExecutor {
                 }
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }
-            OperationKind::LoadInput { .. }
-            | OperationKind::CallProvider { .. }
-            | OperationKind::Guard { .. }
-            | OperationKind::MaterializeValue { .. }
-            | OperationKind::PublishResult { .. } => Err(diag("operation_not_implemented")),
+            OperationKind::CallProvider { call, .. } => {
+                let _ = module.provider_calls.get(call.0 as usize).ok_or_else(|| diag("missing_provider_call"))?;
+                // Bootstrap: domain payloads are not yet bound into ExecutionIR.
+                *unsupported = true;
+                Ok(Slot::Unit)
+            }
+            OperationKind::PublishResult { source } => {
+                let _ = slots.get(source).ok_or_else(|| diag("publish_source_undefined"))?;
+                Ok(Slot::Unit)
+            }
+            OperationKind::LoadInput { .. } | OperationKind::Guard { .. } | OperationKind::MaterializeValue { .. } => {
+                Err(diag("operation_not_implemented"))
+            }
         }
     }
 }

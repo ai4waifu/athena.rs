@@ -16,10 +16,21 @@ pub mod reference;
 pub mod vm;
 
 use athena_numeric::Number;
-use athena_types::{ComputationStatus, Diagnostic, Severity, SymbolId, TermId};
+use athena_types::{ComputationStatus, Diagnostic, Result as AthenaResult, ResultId, Severity, SymbolId, TermId};
+
+use crate::api::request::AthenaRequest;
+use crate::runtime::session::Session;
 
 pub use environment::{DefinitionLayer, LocalBinding, ScopeFrame};
 pub use kernel_ir::{ExecUnit, HandlerId, Instr};
+
+/// Compile and run one request on the `ExecutionIR` path only.
+///
+/// This is the cutover entry for backends. It must not call the stack VM.
+pub fn execute_ir_request(session: &mut Session, request: &AthenaRequest) -> AthenaResult<ResultId> {
+    let module = compiler::ExecutionCompiler::new().compile(session, request)?;
+    reference::ReferenceExecutor::new().execute(session, &module)
+}
 
 /// handler 统一签名：接收已求值或原始操作数（由指令决定），返回结果。
 pub(crate) type HandlerFn = fn(&mut vm::Vm<'_>, &[TermId]) -> TermEvaluation;
@@ -266,9 +277,19 @@ pub(crate) static HANDLERS: &[HandlerFn] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::request::AthenaRequest;
 
     #[test]
     fn handler_table_matches_ids() {
         assert_eq!(HANDLERS.len(), 72, "HANDLERS 与 ids 常量必须一一对应");
+    }
+
+    #[test]
+    fn execute_ir_request_atom_term() {
+        let mut session = Session::new();
+        let term = session.builder().int(4, Default::default());
+        let result_id = execute_ir_request(&mut session, &AthenaRequest::Term(term)).expect("ir");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(term));
     }
 }

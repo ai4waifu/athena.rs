@@ -10,8 +10,8 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 use crate::api::request::{AthenaRequest, ControlPlan, DefinitionEvaluationTiming, SessionCommand};
 use crate::execution::ir::{
     BasicBlock, BlockEdge, BlockId, CapturedRoot, CapturedRootId, ConstantId, ConstantValue, EffectEdge, EffectKind,
-    EffectToken, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind, Region, RegionId,
-    SsaValueId, Terminator, verify_module,
+    EffectToken, ExecutionModule, ExecutionValueType, ModuleFingerprint, Operation, OperationKind, ProviderCallDescriptor,
+    ProviderCallId, Region, RegionId, SsaValueId, Terminator, verify_module,
 };
 use crate::runtime::session::Session;
 
@@ -24,6 +24,7 @@ struct ModuleBuilder {
     constants: Vec<ConstantValue>,
     captured_roots: Vec<CapturedRoot>,
     effect_edges: Vec<EffectEdge>,
+    provider_calls: Vec<ProviderCallDescriptor>,
     next_ssa: u32,
     next_block: u32,
     next_effect: u32,
@@ -64,6 +65,14 @@ impl ModuleBuilder {
         token
     }
 
+    fn push_provider_call(&mut self, descriptor: ProviderCallDescriptor) -> ProviderCallId {
+        let id = ProviderCallId(self.provider_calls.len() as u32);
+        let mut descriptor = descriptor;
+        descriptor.id = id;
+        self.provider_calls.push(descriptor);
+        id
+    }
+
     fn finish(self, blocks: Vec<BasicBlock>, entry: BlockId) -> Result<ExecutionModule> {
         let region = Region {
             id: RegionId(0),
@@ -78,7 +87,7 @@ impl ModuleBuilder {
             regions: vec![region],
             effect_edges: self.effect_edges,
             exits: Vec::new(),
-            provider_calls: Vec::new(),
+            provider_calls: self.provider_calls,
             fingerprint: ModuleFingerprint(0),
         };
         module.fingerprint = ModuleFingerprint::of_module(&module);
@@ -126,11 +135,58 @@ impl ExecutionCompiler {
             AthenaRequest::Term(term) => self.lower_term_into_block(session, builder, blocks, block_id, *term),
             AthenaRequest::Control(plan) => self.lower_control(session, builder, blocks, block_id, plan),
             AthenaRequest::Command(command) => self.lower_command(session, builder, blocks, block_id, command),
-            AthenaRequest::Goal(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("component", "ExecutionCompiler")
-                .detail("status", "request_kind_not_lowered")
-                .detail("kind", request.kind_name())),
+            AthenaRequest::Goal(_) => self.lower_goal_provider(builder, blocks, block_id),
         }
+    }
+
+    /// Bootstrap domain goals as an explicit `CallProvider` + `PublishResult` edge.
+    ///
+    /// Full `DomainRequest` payload binding lands with provider ABI wiring; this
+    /// slice only freezes the IR shape and unsupported replay status.
+    fn lower_goal_provider(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+    ) -> Result<SsaValueId> {
+        use athena_types::OperatorId;
+
+        let call = builder.push_provider_call(ProviderCallDescriptor::new(
+            ProviderCallId(0),
+            OperatorId(0),
+            ExecutionValueType::Unit,
+        ));
+        let effect_call_in = builder.push_effect(EffectKind::CallProvider, None);
+        let effect_call_out = builder.push_effect(EffectKind::CallProvider, Some(effect_call_in));
+        let payload = builder.ssa();
+        let effect_pub_in = builder.push_effect(EffectKind::PublishResult, Some(effect_call_out));
+        let effect_pub_out = builder.push_effect(EffectKind::PublishResult, Some(effect_pub_in));
+        let published = builder.ssa();
+        blocks.push(BasicBlock {
+            id: block_id,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(payload),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::CallProvider {
+                        call,
+                        args: Vec::new(),
+                    },
+                    effect_in: Some(effect_call_in),
+                    effect_out: Some(effect_call_out),
+                },
+                Operation {
+                    result: Some(published),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::PublishResult { source: payload },
+                    effect_in: Some(effect_pub_in),
+                    effect_out: Some(effect_pub_out),
+                },
+            ],
+            terminator: Terminator::return_value(published),
+        });
+        Ok(published)
     }
 
     fn lower_command(
@@ -246,10 +302,438 @@ impl ExecutionCompiler {
             ControlPlan::LocalScope { body } | ControlPlan::LexicalScope { body } | ControlPlan::DynamicScope { body } => {
                 self.lower_scope(session, builder, blocks, block_id, body)
             }
+            ControlPlan::Cond { arms, otherwise } => {
+                self.lower_cond(session, builder, blocks, block_id, arms, otherwise.as_deref())
+            }
+            ControlPlan::Recover { body, handler } => {
+                self.lower_recover(session, builder, blocks, block_id, body, handler)
+            }
+            ControlPlan::LoopWhile { condition, body } => {
+                self.lower_loop_while(session, builder, blocks, block_id, *condition, body)
+            }
+            ControlPlan::CountedLoop {
+                variable,
+                iterator,
+                body,
+            } => self.lower_counted_loop(session, builder, blocks, block_id, *variable, *iterator, body),
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ExecutionCompiler")
                 .detail("status", "control_plan_not_lowered")),
         }
+    }
+
+    fn lower_counted_loop(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        variable: TermId,
+        iterator: TermId,
+        body: &AthenaRequest,
+    ) -> Result<SsaValueId> {
+        let symbol = self.require_symbol_atom(session, variable)?;
+        let items = self.require_atom_list(session, iterator)?;
+        let AthenaRequest::Term(body_term) = body
+        else {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "counted_loop_body_must_be_term"));
+        };
+        self.require_atom(session, *body_term)?;
+
+        if items.is_empty() {
+            let value = builder.ssa();
+            let constant = builder.push_constant(ConstantValue::Unit);
+            blocks.push(BasicBlock {
+                id: entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    result: Some(value),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::Constant { constant },
+                    effect_in: None,
+                    effect_out: None,
+                }],
+                terminator: Terminator::return_value(value),
+            });
+            return Ok(value);
+        }
+
+        // Bootstrap: unroll constant atom lists into Define + body Term steps.
+        let mut steps = Vec::with_capacity(items.len().saturating_mul(2));
+        for item in items {
+            steps.push(AthenaRequest::Command(SessionCommand::Define {
+                symbol,
+                value: item,
+                timing: DefinitionEvaluationTiming::Immediate,
+            }));
+            steps.push(AthenaRequest::Term(*body_term));
+        }
+        let budget_in = builder.push_effect(EffectKind::BudgetCheck, None);
+        let _budget_out = builder.push_effect(EffectKind::BudgetCheck, Some(budget_in));
+        self.lower_sequence(session, builder, blocks, entry, &steps)
+    }
+
+    fn require_symbol_atom(&self, session: &Session, term: TermId) -> Result<athena_types::SymbolId> {
+        match session.arena.get(term) {
+            Some(TermNode::Atom(Atom::Symbol(symbol))) => Ok(*symbol),
+            Some(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "counted_loop_variable_not_symbol")),
+            None => Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
+                .detail("component", "ExecutionCompiler")
+                .detail("reason", "missing_term")),
+        }
+    }
+
+    fn require_atom_list(&self, session: &Session, term: TermId) -> Result<Vec<TermId>> {
+        match session.arena.get(term) {
+            Some(TermNode::List(items)) => {
+                for item in items {
+                    self.require_atom(session, *item)?;
+                }
+                Ok(items.clone())
+            }
+            Some(_) => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("status", "counted_loop_iterator_not_atom_list")),
+            None => Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
+                .detail("component", "ExecutionCompiler")
+                .detail("reason", "missing_term")),
+        }
+    }
+
+    fn lower_loop_while(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        condition: TermId,
+        body: &AthenaRequest,
+    ) -> Result<SsaValueId> {
+        let cond_bool = self.require_boolean_atom(session, condition)?;
+        let header = builder.block_id();
+        let body_block = builder.block_id();
+        let exit = builder.block_id();
+        let acc_param = builder.ssa();
+        let exit_param = builder.ssa();
+        let init = builder.ssa();
+        let init_const = builder.push_constant(ConstantValue::Unit);
+        let entry_cond = builder.ssa();
+        let entry_true = builder.push_constant(ConstantValue::boolean(true));
+        let budget_in = builder.push_effect(EffectKind::BudgetCheck, None);
+        let budget_out = builder.push_effect(EffectKind::BudgetCheck, Some(budget_in));
+
+        // entry → header(Unit)
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(init),
+                    result_type: ExecutionValueType::Unit,
+                    kind: OperationKind::Constant { constant: init_const },
+                    effect_in: None,
+                    effect_out: None,
+                },
+                Operation {
+                    result: Some(entry_cond),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: entry_true },
+                    effect_in: Some(budget_in),
+                    effect_out: Some(budget_out),
+                },
+            ],
+            terminator: Terminator::Branch {
+                condition: entry_cond,
+                then_edge: BlockEdge {
+                    target: header,
+                    arguments: vec![init],
+                },
+                else_edge: BlockEdge {
+                    target: header,
+                    arguments: vec![init],
+                },
+            },
+        });
+
+        let loop_cond = builder.ssa();
+        let loop_const = builder.push_constant(ConstantValue::boolean(cond_bool));
+        blocks.push(BasicBlock {
+            id: header,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: acc_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: vec![Operation {
+                result: Some(loop_cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: loop_const },
+                effect_in: None,
+                effect_out: None,
+            }],
+            terminator: Terminator::Branch {
+                condition: loop_cond,
+                then_edge: BlockEdge::jump(body_block),
+                else_edge: BlockEdge {
+                    target: exit,
+                    arguments: vec![acc_param],
+                },
+            },
+        });
+
+        let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
+        // Body returns continue at header with the new accumulator.
+        self.rewrite_returns_to_join(builder, blocks, header, body_value)?;
+
+        blocks.push(BasicBlock {
+            id: exit,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: exit_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::return_value(exit_param),
+        });
+        Ok(exit_param)
+    }
+
+    fn lower_recover(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        body: &AthenaRequest,
+        handler: &AthenaRequest,
+    ) -> Result<SsaValueId> {
+        let body_block = builder.block_id();
+        let handler_block = builder.block_id();
+        let join = builder.block_id();
+        let result_param = builder.ssa();
+        let entry_cond = builder.ssa();
+        let entry_true = builder.push_constant(ConstantValue::boolean(true));
+
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                result: Some(entry_cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: entry_true },
+                effect_in: None,
+                effect_out: None,
+            }],
+            terminator: Terminator::Branch {
+                condition: entry_cond,
+                then_edge: BlockEdge::jump(body_block),
+                else_edge: BlockEdge::jump(body_block),
+            },
+        });
+
+        let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
+        self.rewrite_rejects_to_handler(builder, blocks, handler_block)?;
+        self.rewrite_returns_to_join(builder, blocks, join, body_value)?;
+
+        let handler_value = self.lower_request(session, builder, blocks, handler_block, handler)?;
+        self.rewrite_returns_to_join(builder, blocks, join, handler_value)?;
+
+        blocks.push(BasicBlock {
+            id: join,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: result_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::return_value(result_param),
+        });
+        Ok(result_param)
+    }
+
+    fn rewrite_rejects_to_handler(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        handler: BlockId,
+    ) -> Result<()> {
+        let reject_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| matches!(b.terminator, Terminator::Reject { .. }))
+            .map(|b| b.id)
+            .collect();
+        for block_id in reject_ids {
+            let cond = builder.ssa();
+            let true_const = builder.push_constant(ConstantValue::boolean(true));
+            let block = blocks.iter_mut().find(|b| b.id == block_id).expect("block");
+            block.operations.push(Operation {
+                result: Some(cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: true_const },
+                effect_in: None,
+                effect_out: None,
+            });
+            block.terminator = Terminator::Branch {
+                condition: cond,
+                then_edge: BlockEdge::jump(handler),
+                else_edge: BlockEdge::jump(handler),
+            };
+        }
+        Ok(())
+    }
+
+    fn lower_cond(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        arms: &[(TermId, Box<AthenaRequest>)],
+        otherwise: Option<&AthenaRequest>,
+    ) -> Result<SsaValueId> {
+        if arms.is_empty() {
+            return match otherwise {
+                Some(request) => self.lower_request(session, builder, blocks, entry, request),
+                None => {
+                    let value = builder.ssa();
+                    let constant = builder.push_constant(ConstantValue::Unit);
+                    blocks.push(BasicBlock {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            result: Some(value),
+                            result_type: ExecutionValueType::Unit,
+                            kind: OperationKind::Constant { constant },
+                            effect_in: None,
+                            effect_out: None,
+                        }],
+                        terminator: Terminator::return_value(value),
+                    });
+                    Ok(value)
+                }
+            };
+        }
+
+        let join = builder.block_id();
+        let result_param = builder.ssa();
+        let mut test_blocks = Vec::with_capacity(arms.len());
+        test_blocks.push(entry);
+        for _ in 1..arms.len() {
+            test_blocks.push(builder.block_id());
+        }
+        let otherwise_block = builder.block_id();
+
+        for (index, (condition, arm)) in arms.iter().enumerate() {
+            let cond_bool = self.require_boolean_atom(session, *condition)?;
+            let cond_value = builder.ssa();
+            let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
+            let arm_block = builder.block_id();
+            let else_target = if index + 1 < arms.len() {
+                test_blocks[index + 1]
+            } else {
+                otherwise_block
+            };
+            blocks.push(BasicBlock {
+                id: test_blocks[index],
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    result: Some(cond_value),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: cond_constant },
+                    effect_in: None,
+                    effect_out: None,
+                }],
+                terminator: Terminator::Branch {
+                    condition: cond_value,
+                    then_edge: BlockEdge::jump(arm_block),
+                    else_edge: BlockEdge::jump(else_target),
+                },
+            });
+            let arm_value = self.lower_request(session, builder, blocks, arm_block, arm)?;
+            self.rewrite_returns_to_join(builder, blocks, join, arm_value)?;
+        }
+
+        match otherwise {
+            Some(request) => {
+                let other_value = self.lower_request(session, builder, blocks, otherwise_block, request)?;
+                self.rewrite_returns_to_join(builder, blocks, join, other_value)?;
+            }
+            None => {
+                let value = builder.ssa();
+                let constant = builder.push_constant(ConstantValue::Unit);
+                blocks.push(BasicBlock {
+                    id: otherwise_block,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        result: Some(value),
+                        result_type: ExecutionValueType::Unit,
+                        kind: OperationKind::Constant { constant },
+                        effect_in: None,
+                        effect_out: None,
+                    }],
+                    terminator: Terminator::Return { values: vec![value] },
+                });
+                self.rewrite_returns_to_join(builder, blocks, join, value)?;
+            }
+        }
+
+        blocks.push(BasicBlock {
+            id: join,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: result_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: Vec::new(),
+            terminator: Terminator::return_value(result_param),
+        });
+        Ok(result_param)
+    }
+
+    /// Rewrite current `Return` terminators into jumps to `join` with a block argument.
+    fn rewrite_returns_to_join(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        join: BlockId,
+        fallback: SsaValueId,
+    ) -> Result<()> {
+        let return_block_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| matches!(b.terminator, Terminator::Return { .. }))
+            .map(|b| b.id)
+            .collect();
+        for block_id in return_block_ids {
+            let forwarded = {
+                let block = blocks.iter().find(|b| b.id == block_id).expect("block");
+                match &block.terminator {
+                    Terminator::Return { values } => values.first().copied().unwrap_or(fallback),
+                    _ => fallback,
+                }
+            };
+            let cond = builder.ssa();
+            let true_const = builder.push_constant(ConstantValue::boolean(true));
+            let block = blocks.iter_mut().find(|b| b.id == block_id).expect("block");
+            block.operations.push(Operation {
+                result: Some(cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: true_const },
+                effect_in: None,
+                effect_out: None,
+            });
+            block.terminator = Terminator::Branch {
+                condition: cond,
+                then_edge: BlockEdge {
+                    target: join,
+                    arguments: vec![forwarded],
+                },
+                else_edge: BlockEdge {
+                    target: join,
+                    arguments: vec![forwarded],
+                },
+            };
+        }
+        Ok(())
     }
 
     fn lower_scope(
@@ -752,6 +1236,107 @@ mod tests {
             other => panic!("expected Null after clear, got {other:?}"),
         }
         assert!(session.defs.own(symbol).is_none());
+    }
+
+    #[test]
+    fn compile_and_execute_counted_loop_unroll() {
+        let mut session = Session::new();
+        let var = session.builder().symbol("i", Default::default());
+        let a = session.builder().int(1, Default::default());
+        let b = session.builder().int(2, Default::default());
+        let c = session.builder().int(3, Default::default());
+        let iter = session.builder().list(vec![a, b, c], Default::default());
+        let request = AthenaRequest::Control(ControlPlan::CountedLoop {
+            variable: var,
+            iterator: iter,
+            body: Box::new(AthenaRequest::Term(var)),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("counted");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(c));
+        let symbol = match session.arena.get(var) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol, got {other:?}"),
+        };
+        assert_eq!(session.defs.own(symbol), Some(c));
+    }
+
+    #[test]
+    fn compile_and_execute_loop_while_false() {
+        let mut session = Session::new();
+        let cond = session.builder().boolean(false, Default::default());
+        let body = session.builder().int(1, Default::default());
+        let request = AthenaRequest::Control(ControlPlan::LoopWhile {
+            condition: cond,
+            body: Box::new(AthenaRequest::Term(body)),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("loop");
+        assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::BudgetCheck)));
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        match session.arena.get(loaded.symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Null)) => {}
+            other => panic!("expected Unit/Null after zero-trip loop, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn compile_and_execute_goal_call_provider_unsupported() {
+        use crate::api::request::DomainGoal;
+        use crate::domains::dispatch::DomainRequest;
+        use crate::domains::number_theory::NumberTheoryRequest;
+        use athena_numeric::Integer;
+
+        let mut session = Session::new();
+        let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::NumberTheory(NumberTheoryRequest::Gcd {
+            a: Integer::from_i64(12),
+            b: Integer::from_i64(8),
+        })));
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("goal");
+        assert_eq!(module.provider_calls.len(), 1);
+        assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::CallProvider)));
+        assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::PublishResult)));
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.coverage, crate::runtime::results::CoverageStatus::Unsupported);
+        assert!(!loaded.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn compile_and_execute_recover_success_body() {
+        let mut session = Session::new();
+        let body = session.builder().int(8, Default::default());
+        let handler = session.builder().int(9, Default::default());
+        let request = AthenaRequest::Control(ControlPlan::Recover {
+            body: Box::new(AthenaRequest::Term(body)),
+            handler: Box::new(AthenaRequest::Term(handler)),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("recover");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(body));
+    }
+
+    #[test]
+    fn compile_and_execute_cond_second_arm() {
+        let mut session = Session::new();
+        let c0 = session.builder().boolean(false, Default::default());
+        let c1 = session.builder().boolean(true, Default::default());
+        let a0 = session.builder().int(10, Default::default());
+        let a1 = session.builder().int(20, Default::default());
+        let otherwise = session.builder().int(30, Default::default());
+        let request = AthenaRequest::Control(ControlPlan::Cond {
+            arms: vec![
+                (c0, Box::new(AthenaRequest::Term(a0))),
+                (c1, Box::new(AthenaRequest::Term(a1))),
+            ],
+            otherwise: Some(Box::new(AthenaRequest::Term(otherwise))),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("cond");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(a1));
     }
 
     #[test]

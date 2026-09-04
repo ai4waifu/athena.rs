@@ -4,7 +4,7 @@ use athena_engine::{
     api::{AthenaEngine, AthenaRequest, ControlPlan, DefinitionEvaluationTiming, LoweringOutcome, SessionCommand},
     runtime::{CoverageStatus, Session},
 };
-use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
+use athena_types::{Diagnostic, DiagnosticCode};
 
 #[test]
 fn lowering_outcome_accepted_term_kind() {
@@ -62,29 +62,39 @@ fn execute_request_domain_goal_preserves_domain_payload() {
 }
 
 #[test]
-fn execute_request_command_is_explicit_unsupported() {
+fn execute_request_command_define_via_execution_ir() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
+    let sym = session.builder().symbol("x", Default::default());
+    let symbol = match session.arena.get(sym) {
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
     let value = session.builder().int(1, Default::default());
-    let request = AthenaRequest::Command(SessionCommand::Define { symbol: SymbolId(0), value, timing: DefinitionEvaluationTiming::Immediate });
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        timing: DefinitionEvaluationTiming::Immediate,
+    });
     assert_eq!(request.kind_name(), "Command");
-    let err = engine.execute_request(&mut session, request).expect_err("command unsupported");
-    assert_eq!(err.code, DiagnosticCode::UnsupportedOperation);
-    assert_eq!(session.results.count(), 1);
-    let stored = session.results.get(athena_types::ResultId(0)).expect("stored");
-    assert_eq!(stored.coverage, CoverageStatus::Unsupported);
+    let result_id = engine.execute_request(&mut session, request).expect("define");
+    let stored = session.results.get(result_id).expect("stored");
+    assert_eq!(stored.coverage, CoverageStatus::Full);
+    assert_eq!(session.defs.own(symbol), Some(value));
 }
 
 #[test]
-fn execute_request_control_is_explicit_unsupported() {
+fn execute_request_control_lexical_scope_via_execution_ir() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
-    let body = AthenaRequest::Term(session.builder().int(0, Default::default()));
+    let body_term = session.builder().int(0, Default::default());
+    let body = AthenaRequest::Term(body_term);
     let request = AthenaRequest::Control(ControlPlan::LexicalScope { body: Box::new(body) });
     assert_eq!(request.kind_name(), "Control");
-    let err = engine.execute_request(&mut session, request).expect_err("control unsupported");
-    assert_eq!(err.code, DiagnosticCode::UnsupportedOperation);
-    assert_eq!(session.results.count(), 1);
+    let result_id = engine.execute_request(&mut session, request).expect("scope");
+    let stored = session.results.get(result_id).expect("stored");
+    assert_eq!(stored.symbolic_term, Some(body_term));
+    assert_eq!(stored.coverage, CoverageStatus::Full);
 }
 
 #[test]
