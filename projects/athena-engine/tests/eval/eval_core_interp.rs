@@ -27,7 +27,7 @@ fn out(e: Tid, c: &mut C) -> interp::Outcome {
 /// 求值并渲染为调试串。
 fn t(e: Tid, c: &mut C) -> String {
     let o = evaluate_session(&mut c.s, e);
-    term_debug(&mut c.s, o.term)
+    term_debug(&c.s, o.term)
 }
 
 fn sym(name: &str, c: &mut C) -> Tid {
@@ -181,7 +181,7 @@ fn if_true_branch_and_short_circuit() {
     // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
     let e = ap("If", vec![sym("True", &mut c), i(7, &mut c), ap("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
     let o = out(e, &mut c);
-    assert_eq!(term_debug(&mut c.s, o.term), "7");
+    assert_eq!(term_debug(&c.s, o.term), "7");
     assert_eq!(o.kind, interp::EvalKind::Value);
     assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
 }
@@ -315,7 +315,6 @@ fn try_catch_on_error_and_success() {
 
 #[test]
 fn with_module_block_local_bindings() {
-    let mut c = C::new();
     let locals = |c: &mut C| {
         let l = lst(vec![ap("Set", vec![sym("x", c), i(1, c)], c)], c);
         let b = ap("Plus", vec![sym("x", c), i(1, c)], c);

@@ -3,7 +3,7 @@
 use athena_engine::{
     AlgorithmGuarantee, DialectArgs, DialectMatrixOp, DialectOrigin, DomainRequest, DomainResult, IndexSpec,
     LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind, MatrixParent, MatrixShape,
-    MatrixValue, SolveDisposition, StorageOrder, det_bareiss, execute_domain, execute_linear_algebra, hadamard,
+    MatrixValue, Session, SolveDisposition, StorageOrder, det_bareiss, execute_domain, execute_linear_algebra, hadamard,
     lower_1based_scalar, lower_dialect_op, matlab_star_kind, matmul, matrices_equal, rank_exact, solve_exact, solve_machine,
     transpose,
 };
@@ -177,8 +177,9 @@ fn l1_machine_solve_with_residual() {
 fn domain_request_dispatches_linear_algebra() {
     let a = MatrixValue::from_integers_row_major(1, 1, vec![i(7)]).unwrap();
     let req = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: a });
+    let mut session = Session::new();
     let DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value: LinearAlgebraValue::ExactDet(d) }) =
-        execute_domain(req).unwrap()
+        execute_domain(&mut session, req).unwrap()
     else {
         panic!("expected exact det");
     };

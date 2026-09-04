@@ -14,6 +14,7 @@ use crate::{
     number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
     optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
     polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial},
+    session::Session,
 };
 
 /// 顶层域请求。
@@ -63,9 +64,11 @@ pub enum DomainResult {
 }
 
 /// 分派顶层 [`DomainRequest`]。
-pub fn execute_domain(request: DomainRequest) -> Result<DomainResult, Diagnostic> {
+///
+/// 微积分分支读写 `session` arena；其余域暂不依赖 session。
+pub fn execute_domain(session: &mut Session, request: DomainRequest) -> Result<DomainResult, Diagnostic> {
     match request {
-        DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(req))),
+        DomainRequest::Calculus(req) => Ok(DomainResult::Calculus(execute_calculus(session, req))),
         DomainRequest::NumberTheory(req) => Ok(DomainResult::NumberTheory(execute_number_theory(req))),
         DomainRequest::Polynomial(req) => Ok(DomainResult::Polynomial(execute_polynomial(req))),
         DomainRequest::GroupTheory(req) => Ok(DomainResult::GroupTheory(execute_group(req))),

@@ -2,7 +2,7 @@
 
 use athena_engine::{
     BipartiteResult, ConnectedComponentsResult, DomainRequest, DomainResult, GraphCertificate, GraphDomainSemantics,
-    GraphHandle, GraphObject, GraphPropertyState, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue,
+    GraphHandle, GraphObject, GraphPropertyState, GraphTheoryRequest, GraphTheoryResult, GraphTheoryValue, Session,
     MinimumSpanningForestResult, ShortestPathResult, StronglyConnectedComponentsResult, WeightDomain, execute_domain,
     execute_graph_theory,
 };
@@ -21,7 +21,8 @@ fn sample_graph() -> GraphObject {
 #[test]
 fn connected_components_via_domain_request() {
     let req = DomainRequest::GraphTheory(GraphTheoryRequest::ConnectedComponents { graph: sample_graph() });
-    let DomainResult::GraphTheory(GraphTheoryResult::Exact { value }) = execute_domain(req).unwrap()
+    let mut session = Session::new();
+    let DomainResult::GraphTheory(GraphTheoryResult::Exact { value }) = execute_domain(&mut session, req).unwrap()
     else {
         panic!("expected exact graph_theory result");
     };

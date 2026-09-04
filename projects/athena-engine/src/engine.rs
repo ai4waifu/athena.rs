@@ -6,7 +6,6 @@ use crate::{
     domain::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     interp,
     session::Session,
-    term::Term,
 };
 
 /// 求值选项（占位；随后随模式 / Session 扩展）。
@@ -32,14 +31,15 @@ impl AthenaEngine {
         interp::vm::evaluate_session(session, expr).term
     }
 
-    /// 先求导再求值（遗留桥接，随微积分 `TermId` 化一并翻转；优先使用 [`Self::execute_domain`]）。
-    pub fn differentiate_term(&self, expr: &Term, var: &str) -> Term {
-        crate::eval::evaluate(&crate::calculus::differentiate(expr, var))
+    /// 先求导再求值（session arena · Living `25`）。
+    pub fn differentiate_term(&self, session: &mut Session, expr: TermId, var: &str) -> TermId {
+        let d = crate::calculus::differentiate(&mut crate::calculus::ctx::CalculusCtx::new(session), expr, var);
+        interp::vm::evaluate_session(session, d).term
     }
 
     /// 域分派 — 返回按域区分的 [`DomainResult`]。
-    pub fn execute_domain(&self, request: DomainRequest) -> Result<DomainResult> {
-        dispatch_domain(request)
+    pub fn execute_domain(&self, session: &mut Session, request: DomainRequest) -> Result<DomainResult> {
+        dispatch_domain(session, request)
     }
 
     /// 经 `Simplify` 头部化简（KernelIR + VM）。

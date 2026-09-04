@@ -1,155 +1,164 @@
-//! 极限求值 — 有限代入、单侧极点、多项式 ∞。
+//! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · Living `25`）。
 
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode};
-
-use crate::{
-    eval::evaluate,
-    term::{Term, number_from_term},
-};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
+    ctx::CalculusCtx,
     request::{LimitApproach, LimitDirection},
     result::CalculusResult,
     term_util::{contains_symbol, replace_symbol},
 };
-use crate::numeric_clone::{clone_number, clone_term};
+use crate::interp::vm::Shape;
 
 /// 在假设下尝试求极限。
 pub fn limit_checked(
-    expression: &Term,
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
     _assumptions: &AssumptionSet,
-) -> CalculusResult<Term> {
+) -> CalculusResult<TermId> {
     match approach {
-        LimitApproach::Finite(point) => limit_finite(expression, variable, point, direction),
-        LimitApproach::PositiveInfinity => limit_infinity(expression, variable, true),
-        LimitApproach::NegativeInfinity => limit_infinity(expression, variable, false),
+        LimitApproach::Finite(point) => limit_finite(cc, expression, variable, *point, direction),
+        LimitApproach::PositiveInfinity => limit_infinity(cc, expression, variable, true),
+        LimitApproach::NegativeInfinity => limit_infinity(cc, expression, variable, false),
     }
 }
 
-fn limit_finite(expression: &Term, variable: &str, point: &Term, direction: LimitDirection) -> CalculusResult<Term> {
-    if let Some(v) = try_known_finite_limit(expression, variable, point) {
+fn limit_finite(
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
+    variable: &str,
+    point: TermId,
+    direction: LimitDirection,
+) -> CalculusResult<TermId> {
+    if let Some(v) = try_known_finite_limit(cc, expression, variable, point) {
         return CalculusResult::Exact { value: v, conditions: Vec::new() };
     }
 
-    let substituted = replace_symbol(expression, variable, point);
-    let value = evaluate(&substituted);
+    let substituted = replace_symbol(cc, expression, variable, point);
+    let value = cc.eval(substituted);
 
-    // `Times` may short-circuit `0 * 0^-1 → 0`; recover true 0/0 via the unsimplified quotient.
-    let silent_zero_over_zero = number_from_term(&value).is_some_and(|n| n.is_zero())
-        && split_quotient(expression).is_some_and(|(num, den)| {
-            number_from_term(&evaluate(&replace_symbol(&num, variable, point))).is_some_and(|n| n.is_zero())
-                && number_from_term(&evaluate(&replace_symbol(&den, variable, point))).is_some_and(|n| n.is_zero())
+    let silent_zero_over_zero = cc.number_of(value).is_some_and(|n| n.is_zero())
+        && split_quotient(cc, expression).is_some_and(|(num, den)| {
+            let num_at = cc.eval(replace_symbol(cc, num, variable, point));
+            let den_at = cc.eval(replace_symbol(cc, den, variable, point));
+            cc.number_of(num_at).is_some_and(|n| n.is_zero()) && cc.number_of(den_at).is_some_and(|n| n.is_zero())
         });
 
-    if is_indeterminate_form(&value) || silent_zero_over_zero {
-        if let Some(v) = try_lhopital_once(expression, variable, point, direction) {
+    if is_indeterminate_form(cc, value) || silent_zero_over_zero {
+        if let Some(v) = try_lhopital_once(cc, expression, variable, point, direction) {
             return CalculusResult::Exact { value: v, conditions: Vec::new() };
         }
         return CalculusResult::Unevaluated {
-            expression: limit_form(expression, variable, &LimitApproach::Finite(clone_term(point)), direction),
+            expression: limit_form(cc, expression, variable, &LimitApproach::Finite(point), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
 
-    if is_singular_form(&value) {
+    if is_singular_form(cc, value) {
         if direction != LimitDirection::TwoSided {
-            if let Some(v) = try_onesided_simple_pole(expression, variable, point, direction) {
+            if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction) {
                 return CalculusResult::Exact { value: v, conditions: Vec::new() };
             }
         }
         return CalculusResult::Unevaluated {
-            expression: limit_form(expression, variable, &LimitApproach::Finite(clone_term(point)), direction),
+            expression: limit_form(cc, expression, variable, &LimitApproach::Finite(point), direction),
             reason: Diagnostic::new(DiagnosticCode::LimitDoesNotExist),
         };
     }
 
-    if !contains_symbol(&value, variable) && !is_open_limit_head(&value) {
+    if !contains_symbol(cc, value, variable) && !is_open_limit_head(cc, value) {
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
 
     if direction != LimitDirection::TwoSided {
-        if let Some(v) = try_onesided_simple_pole(expression, variable, point, direction) {
+        if let Some(v) = try_onesided_simple_pole(cc, expression, variable, point, direction) {
             return CalculusResult::Exact { value: v, conditions: Vec::new() };
         }
     }
 
-    unevaluated_limit(expression, variable, &LimitApproach::Finite(clone_term(point)), direction)
+    unevaluated_limit(cc, expression, variable, &LimitApproach::Finite(point), direction)
 }
 
-/// Known closed forms before substitution (avoids `0 * 0^-1 → 0` silent wrong).
-fn try_known_finite_limit(expression: &Term, variable: &str, point: &Term) -> Option<Term> {
-    if !number_from_term(point).is_some_and(|n| n.is_zero()) {
+fn try_known_finite_limit(cc: &CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> Option<TermId> {
+    if !cc.number_of(point).is_some_and(|n| n.is_zero()) {
         return None;
     }
-    if is_sinc_form(expression, variable) {
-        return Some(Term::int(1));
+    if is_sinc_form(cc, expression, variable) {
+        return Some(cc.in_(1));
     }
     None
 }
 
-fn is_sinc_form(expression: &Term, variable: &str) -> bool {
-    match expression {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            is_sin_of_var(&args[0], variable) && args[1].is_symbol(variable)
-        }
-        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
-            (is_sin_of_var(&args[0], variable) && is_reciprocal_var(&args[1], variable))
-                || (is_sin_of_var(&args[1], variable) && is_reciprocal_var(&args[0], variable))
+fn is_sinc_form(cc: &CalculusCtx<'_>, expression: TermId, variable: &str) -> bool {
+    let Some((h, args)) = cc.app(expression)
+    else {
+        return false;
+    };
+    match h.as_str() {
+        "Divide" if args.len() == 2 => is_sin_of_var(cc, args[0], variable) && is_sym_named(cc, args[1], variable),
+        "Times" if args.len() == 2 => {
+            (is_sin_of_var(cc, args[0], variable) && is_reciprocal_var(cc, args[1], variable))
+                || (is_sin_of_var(cc, args[1], variable) && is_reciprocal_var(cc, args[0], variable))
         }
         _ => false,
     }
 }
 
-fn is_sin_of_var(expr: &Term, variable: &str) -> bool {
-    matches!(expr, Term::Application { head, arguments: args } if head.is_symbol("Sin") && args.len() == 1 && args[0].is_symbol(variable))
+fn is_sin_of_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
+    matches!(cc.app(expr), Some((h, args)) if h == "Sin" && args.len() == 1 && is_sym_named(cc, args[0], variable))
 }
 
-fn is_reciprocal_var(expr: &Term, variable: &str) -> bool {
+fn is_reciprocal_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
     matches!(
-        expr,
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Power")
+        cc.app(expr),
+        Some((h, args))
+            if h == "Power"
                 && args.len() == 2
-                && args[0].is_symbol(variable)
-                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1))
+                && is_sym_named(cc, args[0], variable)
+                && cc.int_exp(args[1]) == Some(-1)
     )
 }
 
-/// One-step L'Hôpital for `0/0` quotient forms.
-fn try_lhopital_once(expression: &Term, variable: &str, point: &Term, _direction: LimitDirection) -> Option<Term> {
-    let (num, den) = split_quotient(expression)?;
-    let num_at = evaluate(&replace_symbol(&num, variable, point));
-    let den_at = evaluate(&replace_symbol(&den, variable, point));
-    let num_zero = number_from_term(&num_at).is_some_and(|n| n.is_zero());
-    let den_zero = number_from_term(&den_at).is_some_and(|n| n.is_zero());
+fn try_lhopital_once(
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
+    variable: &str,
+    point: TermId,
+    _direction: LimitDirection,
+) -> Option<TermId> {
+    let (num, den) = split_quotient(cc, expression)?;
+    let num_at = cc.eval(replace_symbol(cc, num, variable, point));
+    let den_at = cc.eval(replace_symbol(cc, den, variable, point));
+    let num_zero = cc.number_of(num_at).is_some_and(|n| n.is_zero());
+    let den_zero = cc.number_of(den_at).is_some_and(|n| n.is_zero());
     if !(num_zero && den_zero) {
         return None;
     }
-    let num_d = super::derivative::differentiate(&num, variable);
-    let den_d = super::derivative::differentiate(&den, variable);
-    let ratio = Term::apply("Times", vec![num_d, Term::apply("Power", vec![den_d, Term::int(-1)])]);
-    let value = evaluate(&replace_symbol(&ratio, variable, point));
-    if is_indeterminate_form(&value) || is_singular_form(&value) || contains_symbol(&value, variable) {
+    let num_d = super::derivative::differentiate(cc, num, variable);
+    let den_d = super::derivative::differentiate(cc, den, variable);
+    let inv = cc.ap("Power", vec![den_d, cc.in_(-1)]);
+    let ratio = cc.ap("Times", vec![num_d, inv]);
+    let value = cc.eval(replace_symbol(cc, ratio, variable, point));
+    if is_indeterminate_form(cc, value) || is_singular_form(cc, value) || contains_symbol(cc, value, variable) {
         return None;
     }
     Some(value)
 }
 
-fn split_quotient(expression: &Term) -> Option<(Term, Term)> {
-    match expression {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            Some((clone_term(&args[0]), clone_term(&args[1])))
-        }
-        Term::Application { head, arguments: args } if head.is_symbol("Times") && args.len() == 2 => {
-            if is_reciprocal_power(&args[1]) {
-                Some((clone_term(&args[0]), reciprocal_base(&args[1])?))
+fn split_quotient(cc: &CalculusCtx<'_>, expression: TermId) -> Option<(TermId, TermId)> {
+    let (h, args) = cc.app(expression)?;
+    match h.as_str() {
+        "Divide" if args.len() == 2 => Some((args[0], args[1])),
+        "Times" if args.len() == 2 => {
+            if is_reciprocal_power(cc, args[1]) {
+                Some((args[0], reciprocal_base(cc, args[1])?))
             }
-            else if is_reciprocal_power(&args[0]) {
-                Some((clone_term(&args[1]), reciprocal_base(&args[0])?))
+            else if is_reciprocal_power(cc, args[0]) {
+                Some((args[1], reciprocal_base(cc, args[0])?))
             }
             else {
                 None
@@ -159,38 +168,29 @@ fn split_quotient(expression: &Term) -> Option<(Term, Term)> {
     }
 }
 
-fn is_reciprocal_power(expr: &Term) -> bool {
-    matches!(
-        expr,
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Power")
-                && args.len() == 2
-                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1))
-    )
+fn is_reciprocal_power(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
+    matches!(cc.app(expr), Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1))
 }
 
-fn reciprocal_base(expr: &Term) -> Option<Term> {
-    match expr {
-        Term::Application { head, arguments: args }
-            if head.is_symbol("Power")
-                && args.len() == 2
-                && number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1)) =>
-        {
-            Some(clone_term(&args[0]))
-        }
+fn reciprocal_base(cc: &CalculusCtx<'_>, expr: TermId) -> Option<TermId> {
+    match cc.app(expr) {
+        Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1) => Some(args[0]),
         _ => None,
     }
 }
 
-/// 单侧简单极点 `c / (x - a)`（以及 `c / x`）。
-fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, direction: LimitDirection) -> Option<Term> {
-    let (num, den) = match expression {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            (clone_term(&args[0]), clone_term(&args[1]))
-        }
-        Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
-            if number_from_term(&args[1]).is_some_and(|n| n.as_integer_exp() == Some(-1)) {
-                (Term::int(1), clone_term(&args[0]))
+fn try_onesided_simple_pole(
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
+    variable: &str,
+    point: TermId,
+    direction: LimitDirection,
+) -> Option<TermId> {
+    let (num, den) = match cc.app(expression) {
+        Some((h, args)) if h == "Divide" && args.len() == 2 => (args[0], args[1]),
+        Some((h, args)) if h == "Power" && args.len() == 2 => {
+            if cc.int_exp(args[1]) == Some(-1) {
+                (cc.in_(1), args[0])
             }
             else {
                 return None;
@@ -199,22 +199,22 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
         _ => return None,
     };
 
-    let num_at = evaluate(&replace_symbol(&num, variable, point));
-    let den_at = evaluate(&replace_symbol(&den, variable, point));
-    let num_n = number_from_term(&num_at)?;
-    let den_n = number_from_term(&den_at)?;
+    let num_at = cc.eval(replace_symbol(cc, num, variable, point));
+    let den_at = cc.eval(replace_symbol(cc, den, variable, point));
+    let num_n = cc.number_of(num_at).map(|n| cc.copy(n))?;
+    let den_n = cc.number_of(den_at).map(|n| cc.copy(n))?;
     if den_n.is_zero() && !num_n.is_zero() {
-        // 在 point ± ε（ε = 1）探测 den，读取侧向符号。
-        let eps = Term::int(1);
+        let eps = cc.in_(1);
         let probe = match direction {
-            LimitDirection::FromAbove => evaluate(&Term::apply("Plus", vec![clone_term(point), eps])),
+            LimitDirection::FromAbove => cc.eval(cc.ap("Plus", vec![point, eps])),
             LimitDirection::FromBelow => {
-                evaluate(&Term::apply("Plus", vec![clone_term(point), Term::apply("Times", vec![Term::int(-1), eps])]))
+                let neg = cc.ap("Times", vec![cc.in_(-1), eps]);
+                cc.eval(cc.ap("Plus", vec![point, neg]))
             }
             LimitDirection::TwoSided => return None,
         };
-        let den_side = evaluate(&replace_symbol(&den, variable, &probe));
-        let den_side_n = number_from_term(&den_side)?;
+        let den_side = cc.eval(replace_symbol(cc, den, variable, probe));
+        let den_side_n = cc.number_of(den_side).map(|n| cc.copy(n))?;
         let sign_den = num_compare(&den_side_n, &Number::small_int(0))?;
         let sign_num = num_compare(&num_n, &Number::small_int(0))?;
         use std::cmp::Ordering::*;
@@ -223,28 +223,23 @@ fn try_onesided_simple_pole(expression: &Term, variable: &str, point: &Term, dir
             (Greater, Less) | (Less, Greater) => false,
             _ => return None,
         };
-        return Some(if positive {
-            Term::symbol("Infinity")
-        }
-        else {
-            Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")])
-        });
+        return Some(if positive { cc.sym("Infinity") } else { cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]) });
     }
     None
 }
 
-fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> CalculusResult<Term> {
-    if let Some((degree, leading)) = polynomial_degree_leading(expression, variable) {
+fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, positive: bool) -> CalculusResult<TermId> {
+    if let Some((degree, leading)) = polynomial_degree_leading(cc, expression, variable) {
         if degree == 0 {
-            return CalculusResult::Exact { value: Term::number(leading), conditions: Vec::new() };
+            return CalculusResult::Exact { value: cc.num(leading), conditions: Vec::new() };
         }
         if degree < 0 {
-            return CalculusResult::Exact { value: Term::int(0), conditions: Vec::new() };
+            return CalculusResult::Exact { value: cc.in_(0), conditions: Vec::new() };
         }
-        // 正次数：∞ → ∞·leading；负向趋近时用 (−∞)^degree。
         let mut sign_positive = num_compare(&leading, &Number::small_int(0)) == Some(std::cmp::Ordering::Greater);
         if leading.is_zero() {
             return unevaluated_limit(
+                cc,
                 expression,
                 variable,
                 if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
@@ -257,15 +252,11 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
         if !positive && degree % 2 == 1 {
             sign_positive = !sign_positive;
         }
-        let value = if sign_positive {
-            Term::symbol("Infinity")
-        }
-        else {
-            Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")])
-        };
+        let value = if sign_positive { cc.sym("Infinity") } else { cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]) };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
     unevaluated_limit(
+        cc,
         expression,
         variable,
         if positive { &LimitApproach::PositiveInfinity } else { &LimitApproach::NegativeInfinity },
@@ -273,19 +264,18 @@ fn limit_infinity(expression: &Term, variable: &str, positive: bool) -> Calculus
     )
 }
 
-/// 受限多项式语言的次数与首项系数。
-fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
-    match expr {
-        Term::Atom(_) if number_from_term(expr).is_some() => Some((0, clone_number(number_from_term(expr)?))),
-        Term::Atom(_) if expr.is_symbol(var) => Some((1, Number::small_int(1))),
-        Term::Atom(_) => None,
-        Term::Application { head, arguments: args } => {
-            let h = head.head_name()?;
-            match h {
+fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> Option<(i64, Number)> {
+    match cc.shape(expr)? {
+        Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
+        Shape::Sym(s) if cc.sym_is(s, var) => Some((1, Number::small_int(1))),
+        Shape::Sym(_) | Shape::Str(_) | Shape::Bool(_) | Shape::Null | Shape::List(_) => None,
+        Shape::App(_, _) => {
+            let (h, args) = cc.app(expr)?;
+            match h.as_str() {
                 "Plus" => {
                     let mut best: Option<(i64, Number)> = None;
                     for a in args {
-                        let (d, c) = polynomial_degree_leading(a, var)?;
+                        let (d, c) = polynomial_degree_leading(cc, a, var)?;
                         best = match best {
                             None => Some((d, c)),
                             Some((bd, _bc)) if d > bd => Some((d, c)),
@@ -299,97 +289,112 @@ fn polynomial_degree_leading(expr: &Term, var: &str) -> Option<(i64, Number)> {
                     let mut deg = 0i64;
                     let mut coeff = Number::small_int(1);
                     for a in args {
-                        let (d, c) = polynomial_degree_leading(a, var)?;
+                        let (d, c) = polynomial_degree_leading(cc, a, var)?;
                         deg += d;
                         coeff = num_mul(coeff, c).ok()?;
                     }
                     Some((deg, coeff))
                 }
-                "Power" if args.len() == 2 && args[0].is_symbol(var) => {
-                    let n = number_from_term(&args[1])?.as_integer_exp()?;
+                "Power" if args.len() == 2 && is_sym_named(cc, args[0], var) => {
+                    let n = cc.int_exp(args[1])?;
                     Some((n, Number::small_int(1)))
                 }
-                "Subtract" if args.len() == 2 => polynomial_degree_leading(
-                    &Term::apply(
-                        "Plus",
-                        vec![clone_term(&args[0]), Term::apply("Times", vec![Term::int(-1), clone_term(&args[1])])],
-                    ),
-                    var,
-                ),
+                "Subtract" if args.len() == 2 => {
+                    let neg = cc.ap("Times", vec![cc.in_(-1), args[1]]);
+                    let rewritten = cc.ap("Plus", vec![args[0], neg]);
+                    polynomial_degree_leading(cc, rewritten, var)
+                }
                 _ => None,
             }
         }
-        Term::List(_) => None,
     }
 }
 
-fn is_open_limit_head(expr: &Term) -> bool {
-    matches!(expr, Term::Application { head, .. } if head.is_symbol("Limit") || head.is_symbol("Indeterminate"))
+fn is_open_limit_head(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
+    matches!(cc.head_name(expr).as_deref(), Some("Limit") | Some("Indeterminate"))
 }
 
-fn limit_form(expression: &Term, variable: &str, approach: &LimitApproach, direction: LimitDirection) -> Term {
+fn limit_form(
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
+    variable: &str,
+    approach: &LimitApproach,
+    direction: LimitDirection,
+) -> TermId {
     let approach_term = match approach {
-        LimitApproach::Finite(t) => clone_term(t),
-        LimitApproach::PositiveInfinity => Term::symbol("Infinity"),
-        LimitApproach::NegativeInfinity => Term::apply("Times", vec![Term::int(-1), Term::symbol("Infinity")]),
+        LimitApproach::Finite(t) => *t,
+        LimitApproach::PositiveInfinity => cc.sym("Infinity"),
+        LimitApproach::NegativeInfinity => cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]),
     };
-    let mut args = vec![clone_term(expression), Term::List(vec![Term::symbol(variable), approach_term])];
+    let spec = cc.list(vec![cc.sym(variable), approach_term]);
+    let mut args = vec![expression, spec];
     if direction != LimitDirection::TwoSided {
-        args.push(Term::symbol(match direction {
+        args.push(cc.sym(match direction {
             LimitDirection::FromBelow => "FromBelow",
             LimitDirection::FromAbove => "FromAbove",
             LimitDirection::TwoSided => unreachable!(),
         }));
     }
-    Term::apply("Limit", args)
+    cc.ap("Limit", args)
 }
 
 fn unevaluated_limit(
-    expression: &Term,
+    cc: &mut CalculusCtx<'_>,
+    expression: TermId,
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
-) -> CalculusResult<Term> {
+) -> CalculusResult<TermId> {
     CalculusResult::Unevaluated {
-        expression: limit_form(expression, variable, approach, direction),
+        expression: limit_form(cc, expression, variable, approach, direction),
         reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
     }
 }
 
-fn is_indeterminate_form(expr: &Term) -> bool {
-    match expr {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            number_from_term(&args[0]).is_some_and(|n| n.is_zero()) && number_from_term(&args[1]).is_some_and(|n| n.is_zero())
+fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
+    let Some((h, args)) = cc.app(expr)
+    else {
+        return false;
+    };
+    match h.as_str() {
+        "Divide" if args.len() == 2 => {
+            cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.number_of(args[1]).is_some_and(|n| n.is_zero())
         }
-        Term::Application { head, arguments: args } if head.is_symbol("Times") => {
-            let has_zero = args.iter().any(|a| number_from_term(a).is_some_and(|n| n.is_zero()));
+        "Times" => {
+            let has_zero = args.iter().any(|a| cc.number_of(*a).is_some_and(|n| n.is_zero()));
             let has_singular_pow = args.iter().any(|a| {
                 matches!(
-                    a,
-                    Term::Application { head, arguments: p }
-                        if head.is_symbol("Power")
+                    cc.app(*a),
+                    Some((ph, p))
+                        if ph == "Power"
                             && p.len() == 2
-                            && number_from_term(&p[0]).is_some_and(|n| n.is_zero())
-                            && number_from_term(&p[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0)
+                            && cc.number_of(p[0]).is_some_and(|n| n.is_zero())
+                            && cc.int_exp(p[1]).is_some_and(|e| e < 0)
                 )
             });
             has_zero && has_singular_pow
         }
-        Term::Application { head, .. } if head.is_symbol("Indeterminate") => true,
+        "Indeterminate" => true,
         _ => false,
     }
 }
 
-/// 非不定式奇异，如 `c/0` 或 `0^negative`。
-fn is_singular_form(expr: &Term) -> bool {
-    match expr {
-        Term::Application { head, arguments: args } if head.is_symbol("Divide") && args.len() == 2 => {
-            number_from_term(&args[1]).is_some_and(|n| n.is_zero()) && number_from_term(&args[0]).is_some_and(|n| !n.is_zero())
+fn is_singular_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
+    let Some((h, args)) = cc.app(expr)
+    else {
+        return false;
+    };
+    match h.as_str() {
+        "Divide" if args.len() == 2 => {
+            cc.number_of(args[1]).is_some_and(|n| n.is_zero()) && cc.number_of(args[0]).is_some_and(|n| !n.is_zero())
         }
-        Term::Application { head, arguments: args } if head.is_symbol("Power") && args.len() == 2 => {
-            number_from_term(&args[0]).is_some_and(|n| n.is_zero())
-                && number_from_term(&args[1]).and_then(|e| e.as_integer_exp()).is_some_and(|e| e < 0)
+        "Power" if args.len() == 2 => {
+            cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.int_exp(args[1]).is_some_and(|e| e < 0)
         }
         _ => false,
     }
+}
+
+fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
 }

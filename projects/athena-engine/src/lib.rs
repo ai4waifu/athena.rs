@@ -12,8 +12,8 @@
 pub mod algebra;
 pub mod arena_ops;
 pub mod calculus;
+pub mod diagnostics;
 pub mod domain;
-mod eval;
 pub mod field;
 pub mod function;
 pub mod galois;
@@ -35,7 +35,6 @@ pub mod session;
 pub mod solve;
 pub mod solver;
 pub mod symbol;
-pub mod term;
 pub mod value;
 
 mod engine;
@@ -43,8 +42,8 @@ mod numeric_clone;
 
 /// Living 19 owning 复制辅助（测试与适配层可用）。
 pub use numeric_clone::{
-    clone_atom, clone_integer, clone_integers, clone_modular, clone_modulus, clone_natural, clone_number, clone_numbers,
-    clone_rational, clone_rationals, clone_term, clone_terms,
+    clone_integer, clone_integers, clone_modular, clone_modulus, clone_natural, clone_number, clone_numbers, clone_rational,
+    clone_rationals,
 };
 
 /// 数值塔：[`NumericValue`] 为唯一执行真相源。
@@ -76,16 +75,16 @@ pub use athena_types::{
     wire::{ExactNumber, RealNumber, WireNumber},
 };
 pub use calculus::{
-    CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution, Divergence,
-    Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, RegionOfConvergence, Remainder, Residue, Series, TransformKind,
-    TransformResult, VerificationStatus, asymptotic, calculus_result_bridge_term, curl_checked, definite_integrate_checked,
-    differentiate, differentiate as differentiate_term, differentiate_checked, divergence_checked, execute_calculus,
-    fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked, laplace_checked,
-    laurent, limit_checked, residue_checked, solve_ode_checked, taylor, try_calculus_request, z_checked,
+    CalculusCtx, CalculusRequest, CalculusResult, CalculusValue, ConditionalResult, Curl, DerivativeOrder, DifferentialSolution,
+    Divergence, Gradient, Hessian, Jacobian, LimitApproach, LimitDirection, RegionOfConvergence, Remainder, Residue, Series,
+    TransformKind, TransformResult, VerificationStatus, asymptotic, calculus_result_bridge_term, curl_checked,
+    definite_integrate_checked, differentiate, differentiate as differentiate_term, differentiate_checked, divergence_checked,
+    execute_calculus, fourier_checked, gradient_checked, hessian_checked, integrate, integrate_checked, jacobian_checked,
+    laplace_checked, laurent, limit_checked, residue_checked, solve_ode_checked, taylor, try_calculus_request, z_checked,
 };
+pub use diagnostics::{invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation};
 pub use domain::{DomainRequest, DomainResult, execute_domain};
 pub use engine::{AthenaEngine, EvalOptions, SimplifyOptions};
-pub use eval::{invalid_index_diagnostic, non_boolean_condition_diagnostic, unsupported_operation};
 pub use field::{
     Field, FieldDescriptor, FieldDomainValue, FieldElement, FieldElementRepr, FieldKind, FieldRequest, FieldResult,
     add_field_elements, apply_base_field_embedding, apply_field_automorphism, apply_field_embedding,
@@ -185,5 +184,4 @@ pub use solver::{
     DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverMetadata, SolverOperation, SolverRegistry,
     SolverRequest, score_candidate,
 };
-pub use term::{Atom, Term, number_from_term};
 pub use value::ValueBindingTable;

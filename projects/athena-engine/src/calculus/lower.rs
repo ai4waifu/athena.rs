@@ -1,57 +1,55 @@
-//! 将已解码微积分 [`Term`] 头部识别为 [`CalculusRequest`]。
+//! 将已解码微积分应用（arena `TermId`）识别为 [`CalculusRequest`]。
 
-use athena_types::AssumptionSet;
+use athena_types::{AssumptionSet, TermId};
 
-use crate::term::{Atom, Term, number_from_term};
+use super::{
+    ctx::CalculusCtx,
+    request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection},
+};
+use crate::interp::vm::Shape;
 
-use super::request::{CalculusRequest, DerivativeOrder, LimitApproach, LimitDirection};
-use crate::numeric_clone::{clone_term, clone_terms};
-
-/// 若可识别，将桥接 [`Term`] 应用映射为微积分域请求。
+/// 若可识别，将微积分应用映射为域请求。
 ///
-/// 仅语言中立的 Term 形态 — 方言文本解析留在宿主（SXO）。
-pub fn try_calculus_request(term: &Term) -> Option<CalculusRequest> {
-    let Term::Application { head, arguments: args } = term
-    else {
-        return None;
-    };
-    let name = head.head_name()?;
-    match name {
-        "D" => lower_d(args),
-        "Integrate" => lower_integrate(args),
-        "Limit" => lower_limit(args),
-        "Series" => lower_series(args),
-        "LaurentSeries" => lower_laurent(args),
-        "Asymptotic" => lower_asymptotic(args),
-        "Residue" => lower_residue(args),
-        "DSolve" => lower_dsolve(args),
-        "LaplaceTransform" => lower_laplace(args),
-        "FourierTransform" => lower_fourier(args),
-        "ZTransform" => lower_z(args),
-        "Divergence" => lower_divergence(args),
-        "Curl" => lower_curl(args),
+/// 仅语言中立的 AthenaIR 形态 — 方言文本解析留在宿主（SXO）。
+pub fn try_calculus_request(cc: &mut CalculusCtx<'_>, root: TermId) -> Option<CalculusRequest> {
+    let (name, args) = cc.app(root)?;
+    let args = args.as_slice();
+    match name.as_str() {
+        "D" => lower_d(cc, args),
+        "Integrate" => lower_integrate(cc, args),
+        "Limit" => lower_limit(cc, args),
+        "Series" => lower_series(cc, args),
+        "LaurentSeries" => lower_laurent(cc, args),
+        "Asymptotic" => lower_asymptotic(cc, args),
+        "Residue" => lower_residue(cc, args),
+        "DSolve" => lower_dsolve(cc, args),
+        "LaplaceTransform" => lower_laplace(cc, args),
+        "FourierTransform" => lower_fourier(cc, args),
+        "ZTransform" => lower_z(cc, args),
+        "Divergence" => lower_divergence(cc, args),
+        "Curl" => lower_curl(cc, args),
         _ => None,
     }
 }
 
-fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
+fn lower_d(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, var] => {
-            if let Some(v) = symbol_name(var) {
+            if let Some(v) = symbol_name(cc, *var) {
                 return Some(CalculusRequest::Derivative {
-                    expression: clone_term(expr),
+                    expression: *expr,
                     variable: v,
                     order: DerivativeOrder::First,
                     assumptions: AssumptionSet::empty(),
                 });
             }
-            if let Term::List(items) = var {
+            if let Some(Shape::List(items)) = cc.shape(*var) {
                 if items.len() == 2 {
-                    let v = symbol_name(&items[0])?;
-                    let n = number_from_term(&items[1]).and_then(|e| e.as_integer_exp())?;
+                    let v = symbol_name(cc, items[0])?;
+                    let n = cc.int_exp(items[1])?;
                     let n_u = u32::try_from(n).ok()?;
                     return Some(CalculusRequest::Derivative {
-                        expression: clone_term(expr),
+                        expression: *expr,
                         variable: v,
                         order: if n_u <= 1 { DerivativeOrder::First } else { DerivativeOrder::Repeated(n_u) },
                         assumptions: AssumptionSet::empty(),
@@ -64,24 +62,20 @@ fn lower_d(args: &[Term]) -> Option<CalculusRequest> {
     }
 }
 
-fn lower_integrate(args: &[Term]) -> Option<CalculusRequest> {
+fn lower_integrate(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, var] => {
-            if let Some(v) = symbol_name(var) {
-                return Some(CalculusRequest::Integral {
-                    expression: clone_term(expr),
-                    variable: v,
-                    assumptions: AssumptionSet::empty(),
-                });
+            if let Some(v) = symbol_name(cc, *var) {
+                return Some(CalculusRequest::Integral { expression: *expr, variable: v, assumptions: AssumptionSet::empty() });
             }
-            if let Term::List(items) = var {
+            if let Some(Shape::List(items)) = cc.shape(*var) {
                 if items.len() == 3 {
-                    let v = symbol_name(&items[0])?;
+                    let v = symbol_name(cc, items[0])?;
                     return Some(CalculusRequest::DefiniteIntegral {
-                        expression: clone_term(expr),
+                        expression: *expr,
                         variable: v,
-                        lower: clone_term(&items[1]),
-                        upper: clone_term(&items[2]),
+                        lower: items[1],
+                        upper: items[2],
                         assumptions: AssumptionSet::empty(),
                     });
                 }
@@ -92,196 +86,165 @@ fn lower_integrate(args: &[Term]) -> Option<CalculusRequest> {
     }
 }
 
-fn lower_limit(args: &[Term]) -> Option<CalculusRequest> {
+fn lower_limit(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let (expr, variable, approach, direction) = match args {
         [expr, spec] => {
-            let (v, approach) = parse_limit_spec(spec)?;
-            (clone_term(expr), v, approach, LimitDirection::TwoSided)
+            let (v, approach) = parse_limit_spec(cc, *spec)?;
+            (*expr, v, approach, LimitDirection::TwoSided)
         }
         [expr, spec, dir] => {
-            let (v, approach) = parse_limit_spec(spec)?;
-            let direction = match symbol_name(dir).as_deref() {
+            let (v, approach) = parse_limit_spec(cc, *spec)?;
+            let direction = match symbol_name(cc, *dir).as_deref() {
                 Some("FromBelow") | Some("Left") => LimitDirection::FromBelow,
                 Some("FromAbove") | Some("Right") => LimitDirection::FromAbove,
                 _ => LimitDirection::TwoSided,
             };
-            (clone_term(expr), v, approach, direction)
+            (*expr, v, approach, direction)
         }
         _ => return None,
     };
     Some(CalculusRequest::Limit { expression: expr, variable, approach, direction, assumptions: AssumptionSet::empty() })
 }
 
-fn parse_limit_spec(spec: &Term) -> Option<(String, LimitApproach)> {
-    match spec {
-        Term::Application { head, arguments: args } if head.is_symbol("Rule") && args.len() == 2 => {
-            let v = symbol_name(&args[0])?;
-            Some((v, approach_from_term(&args[1])))
+fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: TermId) -> Option<(String, LimitApproach)> {
+    if let Some((h, args)) = cc.app(spec) {
+        if h == "Rule" && args.len() == 2 {
+            let v = symbol_name(cc, args[0])?;
+            return Some((v, approach_from_term(cc, args[1])));
         }
-        Term::List(items) if items.len() == 2 => {
-            let v = symbol_name(&items[0])?;
-            Some((v, approach_from_term(&items[1])))
-        }
-        _ => None,
     }
+    if let Some(Shape::List(items)) = cc.shape(spec) {
+        if items.len() == 2 {
+            let v = symbol_name(cc, items[0])?;
+            return Some((v, approach_from_term(cc, items[1])));
+        }
+    }
+    None
 }
 
-fn approach_from_term(term: &Term) -> LimitApproach {
-    if term.is_symbol("Infinity") {
+fn approach_from_term(cc: &CalculusCtx<'_>, term: TermId) -> LimitApproach {
+    if is_sym_infinity(cc, term) {
         return LimitApproach::PositiveInfinity;
     }
-    if let Term::Application { head, arguments: args } = term {
-        if head.is_symbol("Times")
-            && args.len() == 2
-            && number_from_term(&args[0]).is_some_and(|n| n.as_integer_exp() == Some(-1))
-            && args[1].is_symbol("Infinity")
-        {
+    if let Some((h, args)) = cc.app(term) {
+        if h == "Times" && args.len() == 2 && cc.int_exp(args[0]) == Some(-1) && is_sym_infinity(cc, args[1]) {
             return LimitApproach::NegativeInfinity;
         }
     }
-    LimitApproach::Finite(clone_term(term))
+    LimitApproach::Finite(term)
 }
 
-fn lower_series(args: &[Term]) -> Option<CalculusRequest> {
+fn lower_series(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expr, spec] = args
     else {
         return None;
     };
-    let Term::List(items) = spec
+    let Some(Shape::List(items)) = cc.shape(*spec)
     else {
         return None;
     };
     if items.len() < 2 {
         return None;
     }
-    let variable = symbol_name(&items[0])?;
-    let center = clone_term(&items[1]);
+    let variable = symbol_name(cc, items[0])?;
+    let center = items[1];
     let order = if items.len() >= 3 {
-        let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
+        let n = cc.int_exp(items[2])?;
         u32::try_from(n).ok()?
     }
     else {
         3
     };
-    Some(CalculusRequest::Series { expression: clone_term(expr), variable, center, order, assumptions: AssumptionSet::empty() })
+    Some(CalculusRequest::Series { expression: *expr, variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
-fn lower_laurent(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：LaurentSeries[expr, {x, c, n}]
+fn lower_laurent(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expr, spec] = args
     else {
         return None;
     };
-    let Term::List(items) = spec
+    let Some(Shape::List(items)) = cc.shape(*spec)
     else {
         return None;
     };
     if items.len() < 2 {
         return None;
     }
-    let variable = symbol_name(&items[0])?;
-    let center = clone_term(&items[1]);
+    let variable = symbol_name(cc, items[0])?;
+    let center = items[1];
     let order = if items.len() >= 3 {
-        let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
+        let n = cc.int_exp(items[2])?;
         u32::try_from(n).ok()?
     }
     else {
         3
     };
-    Some(CalculusRequest::Laurent {
-        expression: clone_term(expr),
-        variable,
-        center,
-        order,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::Laurent { expression: *expr, variable, center, order, assumptions: AssumptionSet::empty() })
 }
 
-fn lower_asymptotic(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：Asymptotic[expr, {x, Infinity, n}] 或 Asymptotic[expr, x, n]
+fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
-            let Term::List(items) = spec
+            let Some(Shape::List(items)) = cc.shape(*spec)
             else {
                 return None;
             };
             if items.len() < 2 {
                 return None;
             }
-            let variable = symbol_name(&items[0])?;
-            if !items[1].is_symbol("Infinity") {
+            let variable = symbol_name(cc, items[0])?;
+            if !is_sym_infinity(cc, items[1]) {
                 return None;
             }
             let order = if items.len() >= 3 {
-                let n = number_from_term(&items[2]).and_then(|e| e.as_integer_exp())?;
+                let n = cc.int_exp(items[2])?;
                 u32::try_from(n).ok()?
             }
             else {
                 3
             };
-            Some(CalculusRequest::Asymptotic {
-                expression: clone_term(expr),
-                variable,
-                order,
-                assumptions: AssumptionSet::empty(),
-            })
+            Some(CalculusRequest::Asymptotic { expression: *expr, variable, order, assumptions: AssumptionSet::empty() })
         }
         [expr, var, order_term] => {
-            let variable = symbol_name(var)?;
-            let n = number_from_term(order_term).and_then(|e| e.as_integer_exp())?;
+            let variable = symbol_name(cc, *var)?;
+            let n = cc.int_exp(*order_term)?;
             let order = u32::try_from(n).ok()?;
-            Some(CalculusRequest::Asymptotic {
-                expression: clone_term(expr),
-                variable,
-                order,
-                assumptions: AssumptionSet::empty(),
-            })
+            Some(CalculusRequest::Asymptotic { expression: *expr, variable, order, assumptions: AssumptionSet::empty() })
         }
         _ => None,
     }
 }
 
-fn lower_residue(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：Residue[expr, {z, a}] 或 Residue[expr, z, a]
+fn lower_residue(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     match args {
         [expr, spec] => {
-            let Term::List(items) = spec
+            let Some(Shape::List(items)) = cc.shape(*spec)
             else {
                 return None;
             };
             if items.len() < 2 {
                 return None;
             }
-            let variable = symbol_name(&items[0])?;
-            Some(CalculusRequest::Residue {
-                expression: clone_term(expr),
-                variable,
-                point: clone_term(&items[1]),
-                assumptions: AssumptionSet::empty(),
-            })
+            let variable = symbol_name(cc, items[0])?;
+            Some(CalculusRequest::Residue { expression: *expr, variable, point: items[1], assumptions: AssumptionSet::empty() })
         }
         [expr, var, point] => {
-            let variable = symbol_name(var)?;
-            Some(CalculusRequest::Residue {
-                expression: clone_term(expr),
-                variable,
-                point: clone_term(point),
-                assumptions: AssumptionSet::empty(),
-            })
+            let variable = symbol_name(cc, *var)?;
+            Some(CalculusRequest::Residue { expression: *expr, variable, point: *point, assumptions: AssumptionSet::empty() })
         }
         _ => None,
     }
 }
 
-fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
+fn lower_dsolve(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [equation, dep, indep] = args
     else {
         return None;
     };
-    let dependent = symbol_name(dep)?;
-    let independent = symbol_name(indep)?;
+    let dependent = symbol_name(cc, *dep)?;
+    let independent = symbol_name(cc, *indep)?;
     Some(CalculusRequest::SolveOde {
-        equation: clone_term(equation),
+        equation: *equation,
         dependent,
         independent,
         initial: None,
@@ -289,98 +252,93 @@ fn lower_dsolve(args: &[Term]) -> Option<CalculusRequest> {
     })
 }
 
-fn lower_laplace(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：LaplaceTransform[expr, t, s]
+fn lower_laplace(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Laplace,
-        expression: clone_term(expression),
-        time_variable: symbol_name(time)?,
-        transform_variable: symbol_name(transform)?,
+        expression: *expression,
+        time_variable: symbol_name(cc, *time)?,
+        transform_variable: symbol_name(cc, *transform)?,
         assumptions: AssumptionSet::empty(),
     })
 }
 
-fn lower_fourier(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：FourierTransform[expr, t, ω]
+fn lower_fourier(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Fourier,
-        expression: clone_term(expression),
-        time_variable: symbol_name(time)?,
-        transform_variable: symbol_name(transform)?,
+        expression: *expression,
+        time_variable: symbol_name(cc, *time)?,
+        transform_variable: symbol_name(cc, *transform)?,
         assumptions: AssumptionSet::empty(),
     })
 }
 
-fn lower_z(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：ZTransform[expr, n, z]
+fn lower_z(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [expression, time, transform] = args
     else {
         return None;
     };
     Some(CalculusRequest::Transform {
         kind: super::request::TransformKind::Z,
-        expression: clone_term(expression),
-        time_variable: symbol_name(time)?,
-        transform_variable: symbol_name(transform)?,
+        expression: *expression,
+        time_variable: symbol_name(cc, *time)?,
+        transform_variable: symbol_name(cc, *transform)?,
         assumptions: AssumptionSet::empty(),
     })
 }
 
-fn lower_divergence(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：Divergence[{F1,…}, {x1,…}]
+fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [comps, vars] = args
     else {
         return None;
     };
-    let Term::List(components) = comps
+    let Some(Shape::List(components)) = cc.shape(*comps)
     else {
         return None;
     };
-    let Term::List(var_terms) = vars
+    let Some(Shape::List(var_terms)) = cc.shape(*vars)
     else {
         return None;
     };
-    let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
+    let variables: Option<Vec<String>> = var_terms.iter().map(|v| symbol_name(cc, *v)).collect();
     Some(CalculusRequest::Divergence {
-        components: clone_terms(components),
+        components: components.to_vec(),
         variables: variables?,
         assumptions: AssumptionSet::empty(),
     })
 }
 
-fn lower_curl(args: &[Term]) -> Option<CalculusRequest> {
-    // 形态：Curl[{Fx,Fy,Fz}, {x,y,z}]
+fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
     let [comps, vars] = args
     else {
         return None;
     };
-    let Term::List(components) = comps
+    let Some(Shape::List(components)) = cc.shape(*comps)
     else {
         return None;
     };
-    let Term::List(var_terms) = vars
+    let Some(Shape::List(var_terms)) = cc.shape(*vars)
     else {
         return None;
     };
-    let variables: Option<Vec<String>> = var_terms.iter().map(symbol_name).collect();
-    Some(CalculusRequest::Curl {
-        components: clone_terms(components),
-        variables: variables?,
-        assumptions: AssumptionSet::empty(),
-    })
+    let variables: Option<Vec<String>> = var_terms.iter().map(|v| symbol_name(cc, *v)).collect();
+    Some(CalculusRequest::Curl { components: components.to_vec(), variables: variables?, assumptions: AssumptionSet::empty() })
 }
 
-fn symbol_name(term: &Term) -> Option<String> {
-    match term {
-        Term::Atom(Atom::Symbol(s)) => Some(s.clone()),
+fn is_sym_infinity(cc: &CalculusCtx<'_>, term: TermId) -> bool {
+    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, "Infinity"))
+}
+
+fn symbol_name(cc: &CalculusCtx<'_>, term: TermId) -> Option<String> {
+    match cc.shape(term)? {
+        Shape::Sym(s) => Some(cc.sym_name(s).to_string()),
         _ => None,
     }
 }
