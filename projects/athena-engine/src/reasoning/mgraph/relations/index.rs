@@ -4,9 +4,11 @@
 use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
-    core::refs::{RelationRef, RelationStatus, ScopeRef, WitnessRef, scope_to_ref},
+    core::refs::{
+        PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, WitnessRef, predicates, scope_to_ref,
+    },
     facts::{
-        claim::{Claim, Guarantee, VerifiedClaim},
+        claim::{Guarantee, Proposition, VerifiedClaim},
         log::FactId,
     },
 };
@@ -14,6 +16,10 @@ use crate::reasoning::mgraph::{
 /// 单条已接纳关系记录（M-Graph **拥有索引元数据**，**不**复制领域对象本体）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelationRecord {
+    /// 稳定语义谓词（禁止 `String` 标签）。
+    pub predicate: PredicateId,
+    /// 关系主体引用（不拥有 payload）。
+    pub subjects: Vec<SemanticRef>,
     /// 所属 scope。
     pub scope: ScopeRef,
     /// 接纳状态。
@@ -29,12 +35,19 @@ impl RelationRecord {
     pub fn from_verified(claim: VerifiedClaim) -> Self {
         let scope = scope_to_ref(claim.claim.scope);
         let status = relation_status_from_guarantee(claim.claim.guarantee);
-        Self { scope, status, witness: None, verified: claim }
+        let (predicate, subjects) = predicate_and_subjects(&claim.claim.proposition);
+        Self { predicate, subjects, scope, status, witness: None, verified: claim }
     }
 }
 
-fn relation_status_from_guarantee(g: crate::reasoning::mgraph::facts::claim::Guarantee) -> RelationStatus {
-    use crate::reasoning::mgraph::facts::claim::Guarantee;
+fn predicate_and_subjects(proposition: &Proposition) -> (PredicateId, Vec<SemanticRef>) {
+    match proposition {
+        Proposition::PolynomialResult { .. } => (predicates::POLYNOMIAL_RESULT, Vec::new()),
+        Proposition::Congruence { .. } => (predicates::CONGRUENCE, Vec::new()),
+    }
+}
+
+fn relation_status_from_guarantee(g: Guarantee) -> RelationStatus {
     match g {
         Guarantee::ProvenExact => RelationStatus::Accepted,
         Guarantee::ConditionalExact | Guarantee::CertifiedApproximation => RelationStatus::Conditional,
@@ -83,8 +96,8 @@ impl RelationIndex {
         self.records.get(id.0 as usize)
     }
 
-    /// 条目数。
-    pub fn len(&self) -> usize {
+    /// 已接纳关系条数。
+    pub fn count(&self) -> usize {
         self.records.len()
     }
 

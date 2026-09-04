@@ -1,7 +1,7 @@
 //! 理论层：`ScopeRef` 实现 `𝓦` 索引；**非** `struct World`。
 //! 完整公理与对照表见 [`crate::reasoning::mgraph::relations::theory`]。
 
-use athena_types::AssumptionSetId;
+use athena_types::{AssumptionSetId, ResultId, TermId, ValueId};
 
 use crate::reasoning::mgraph::facts::claim::Scope;
 
@@ -23,6 +23,35 @@ pub type PropositionRef = RelationRef;
 /// 外部可验证证据引用（详细载荷在 `WitnessStore` 或 claim 内联）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WitnessRef(pub u64);
+
+/// 稳定语义谓词身份（禁止用任意 `String` 当关系标签）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PredicateId(pub u32);
+
+/// 预置谓词 id（Athena 语义标识，非方言表面名）。
+pub mod predicates {
+    use super::PredicateId;
+
+    /// 多项式域已接纳求值结果。
+    pub const POLYNOMIAL_RESULT: PredicateId = PredicateId(1);
+    /// 模同余关系。
+    pub const CONGRUENCE: PredicateId = PredicateId(2);
+    /// 项等价（E-Graph / rewrite 候选经 admission 后）。
+    pub const REWRITE_EQUIVALENT: PredicateId = PredicateId(3);
+    /// 求值结果关系。
+    pub const EVALUATION_RESULT: PredicateId = PredicateId(4);
+}
+
+/// 关系主体的非拥有语义引用（M-Graph 不持有对象 payload）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SemanticRef {
+    /// 符号项。
+    Term(TermId),
+    /// 运行时值。
+    Value(ValueId),
+    /// 可观察计算结果。
+    Result(ResultId),
+}
 
 /// 关系在 scope 内的接纳状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
