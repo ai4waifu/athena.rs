@@ -3,7 +3,7 @@
 use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
 use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
 
-use crate::{execution, runtime::session::Session};
+use crate::{api::request::AthenaRequest, execution, runtime::session::Session};
 
 use super::types::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy};
 
@@ -45,7 +45,10 @@ pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleD
         let point = execution::push_number(session, Number::machine(x));
         let vs = var_symbol(session, var);
         let substituted = execution::substitute_symbol(session, expr, vs, point);
-        let value = execution::vm::evaluate_session(session, substituted).term;
+        let value = match execution::execute_ir_request(session, AthenaRequest::Term(substituted)) {
+            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(substituted),
+            Err(_) => substituted,
+        };
         let (y, valid) = match execution::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
