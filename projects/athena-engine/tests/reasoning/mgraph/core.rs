@@ -44,7 +44,12 @@ fn relation_index_groups_by_scope() {
     assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::POLYNOMIAL_RESULT);
     assert_eq!(rec.theory, athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL);
     assert_eq!(rec.provider, Some(POLYNOMIAL_PROVIDER_ID));
-    assert!(rec.subjects.is_empty());
+    assert_eq!(
+        rec.subjects,
+        vec![athena_engine::reasoning::mgraph::SemanticRef::Object(
+            athena_engine::reasoning::mgraph::ObjectRef::new(athena_engine::reasoning::mgraph::TheoryContextId::POLYNOMIAL, 10)
+        )]
+    );
 }
 
 #[test]
@@ -62,6 +67,14 @@ fn admit_maps_congruence_predicate() {
     let view = semantic.view();
     let rec = view.relation(id).unwrap();
     assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::CONGRUENCE);
+    assert_eq!(rec.subjects.len(), 3);
+    assert_eq!(
+        rec.subjects[0],
+        athena_engine::reasoning::mgraph::SemanticRef::Object(athena_engine::reasoning::mgraph::ObjectRef::new(
+            athena_engine::reasoning::mgraph::TheoryContextId::CONGRUENCE,
+            1
+        ))
+    );
 }
 
 #[test]

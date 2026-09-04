@@ -9,7 +9,7 @@ pub mod state;
 pub mod types;
 
 pub use refs::{
-    PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, TheoryContextId, WitnessRef, predicates,
+    ObjectRef, PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, TheoryContextId, WitnessRef, predicates,
     scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use state::MGraphState;
