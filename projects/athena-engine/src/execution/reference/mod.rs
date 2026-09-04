@@ -187,13 +187,14 @@ impl ReferenceExecutor {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("read_key_not_symbol")),
                 };
-                match session.defs.own(symbol) {
-                    Some(term) => Ok(Slot::Term(term)),
-                    None => match session.defs.delayed(symbol) {
-                        Some(term) => Ok(Slot::Term(term)),
-                        None => Err(diag("binding_missing")),
-                    },
+                if let Some(term) = session.defs.own(symbol) {
+                    return Ok(Slot::Term(term));
                 }
+                if let Some(term) = session.defs.delayed(symbol) {
+                    return Ok(Slot::Term(term));
+                }
+                // Unbound symbol evaluates to itself (residual Term).
+                Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }
             OperationKind::LoadInput { .. }
             | OperationKind::EnterScope { .. }
