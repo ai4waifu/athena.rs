@@ -96,7 +96,7 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
     }
 }
 
-/// 会话级符号替换（`Table` / `For` / `Function` 具化）。
+/// 会话级符号替换（`Table` / `CountedLoop` / `Function` 具化）。
 pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
     let mut machine = vm::Vm::new(session);
     builtins::patterns::substitute_symbol(&mut machine, expr, symbol, value)
@@ -113,7 +113,8 @@ pub(crate) mod ids {
     pub const DOT_TIMES: HandlerId = HandlerId(5);
     pub const DOT_DIVIDE: HandlerId = HandlerId(6);
     pub const DOT_POWER: HandlerId = HandlerId(7);
-    pub const MLDIVIDE: HandlerId = HandlerId(8);
+    /// 预留下标（原 MATLAB `\` 表面槽）。求解走 [`LINEAR_SOLVE`]。
+    pub const RESERVED_08: HandlerId = HandlerId(8);
     pub const EQUAL: HandlerId = HandlerId(9);
     pub const UNEQUAL: HandlerId = HandlerId(10);
     pub const LESS_CHAIN: HandlerId = HandlerId(11);
@@ -135,7 +136,7 @@ pub(crate) mod ids {
     pub const JOIN: HandlerId = HandlerId(27);
     pub const UNSUPPORTED: HandlerId = HandlerId(28);
     pub const ERROR: HandlerId = HandlerId(29);
-    pub const SET_EVAL_RHS: HandlerId = HandlerId(30);
+    pub const DEFINE_EVAL_RHS: HandlerId = HandlerId(30);
     pub const SPAN: HandlerId = HandlerId(31);
     pub const PART: HandlerId = HandlerId(32);
     pub const APPLY: HandlerId = HandlerId(33);
@@ -191,7 +192,7 @@ pub(crate) static HANDLERS: &[HandlerFn] = &[
     arithmetic::h_dot_times,
     arithmetic::h_dot_divide,
     arithmetic::h_dot_power,
-    arithmetic::h_mldivide,
+    catalog::h_reserved,
     catalog::h_equal,
     catalog::h_unequal,
     catalog::h_less_chain,
@@ -213,7 +214,7 @@ pub(crate) static HANDLERS: &[HandlerFn] = &[
     catalog::h_join,
     catalog::h_unsupported,
     catalog::h_error,
-    catalog::h_set_eval_rhs,
+    catalog::h_define_eval_rhs,
     indexing::h_span,
     indexing::h_part,
     indexing::h_apply,

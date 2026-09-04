@@ -71,6 +71,136 @@
       "expiry": "2026-09-04",
       "baseline_max_matches": 0,
       "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "execution_outcome",
+      "pattern": "execution::Outcome|pub struct Outcome\\b",
+      "replacement": "TermEvaluation (internal) / ComputationResult (public)",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "mldivide_surface",
+      "pattern": "\\bMldivide\\b|\\bDotLeftDivide\\b",
+      "replacement": "LinearSolve semantic operator",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "matrix_dialect_aliases",
+      "pattern": "\\bIdentityMatrix\\b|\"Dimensions\"",
+      "replacement": "Eye / Size semantic operators",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "hold_form_surface",
+      "pattern": "\\bHoldForm\\b",
+      "replacement": "Hold semantic operator",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "blank_sequence_surface",
+      "pattern": "\\bBlankSequence\\b|\\bBlankNullSequence\\b",
+      "replacement": "TermPattern sequence variants via SXO lowering",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
+    },
+    {
+      "id": "set_setdelayed_surface",
+      "pattern": "\\bSetDelayed\\b|apply\\(\"Set\"",
+      "replacement": "Define / DefineDeferred semantic operators",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "rule_delayed_surface",
+      "pattern": "\\bRuleDelayed\\b",
+      "replacement": "RuleDeferred semantic operator",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "blank_pattern_surface",
+      "pattern": "\\\"Blank\\\"|\\\"Pattern\\\"|apply\\(\\\"Blank\\\"|apply\\(\\\"Pattern\\\"",
+      "replacement": "Any / Bind semantic operators → TermPattern",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "matchq_cases_surface",
+      "pattern": "\\\"MatchQ\\\"|\\\"Cases\\\"|apply\\(\\\"MatchQ\\\"|apply\\(\\\"Cases\\\"",
+      "replacement": "Matches / CollectMatches semantic operators",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "module_with_block_surface",
+      "pattern": "apply\\(\\\"With\\\"|apply\\(\\\"Module\\\"|apply\\(\\\"Block\\\"",
+      "replacement": "LocalScope / LexicalScope / DynamicScope",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "compound_expression_surface",
+      "pattern": "\\bCompoundExpression\\b",
+      "replacement": "Sequence semantic operator",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "if_surface",
+      "pattern": "apply\\(\\\"If\\\"|\\\"If\\\" =>",
+      "replacement": "Branch semantic operator",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "control_flow_surface",
+      "pattern": "\\\"Which\\\"|\\\"While\\\" =>|apply\\(\\\"While\\\"|\\\"For\\\" =>|apply\\(\\\"For\\\"|\\\"Try\\\" =>|apply\\(\\\"Try\\\"",
+      "replacement": "Cond / LoopWhile / CountedLoop / Recover",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/athena-engine/**/*.rs"]
     }
   ]
 }

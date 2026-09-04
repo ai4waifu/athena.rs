@@ -32,7 +32,7 @@ pub struct Session {
     pub defs: DefinitionLayer,
     /// KernelIR 编译缓存（canonical hash → `ExecUnit`）。
     pub units: UnitCache,
-    /// `Module` 局部唯一化计数器。
+    /// `LexicalScope` 局部唯一化计数器。
     pub module_counter: u64,
     /// 多项式环 intern 表。
     pub rings: RingTable,
@@ -119,8 +119,11 @@ impl Session {
     }
 
     /// 在本 Session 定义表上求值（顶层 `Set` 持久化 · KernelIR + VM · Living `25`）。
-    pub fn evaluate(&mut self, expr: TermId) -> execution::TermEvaluation {
-        execution::vm::evaluate_session(self, expr)
+    ///
+    /// 返回归约后的 [`TermId`]。完整内部报告见 [`crate::execution::vm::evaluate_session`]，
+    /// 正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
+    pub fn evaluate(&mut self, expr: TermId) -> TermId {
+        execution::vm::evaluate_session(self, expr).term
     }
 
     /// 清除符号定义（不触及 heap / rings）。

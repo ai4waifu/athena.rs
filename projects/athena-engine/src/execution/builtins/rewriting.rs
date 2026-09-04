@@ -50,8 +50,8 @@ fn rewrite_symbol(vm: &mut Vm<'_>, expr: TermId, symbol: SymbolId) -> TermId {
 fn rewrite_application(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>) -> TermId {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
 
-    // `Set` / `SetDelayed`：LHS 不改写，仅 RHS。
-    if (name == "Set" || name == "SetDelayed") && args.len() == 2 {
+    // `Define` / `DefineDeferred`：LHS 不改写，仅 RHS。
+    if (name == "Define" || name == "DefineDeferred") && args.len() == 2 {
         let rhs = rewrite_bindings(vm, args[1]);
         return if rhs == args[1] { expr } else { vm.rebuild_application_operator(op, vec![args[0], rhs]) };
     }

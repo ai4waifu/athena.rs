@@ -1,7 +1,7 @@
 //! 模式匹配与替换 — 数据面 `TermId` 结构操作。
 //!
-//! 匹配本体为 [`crate::reasoning::trs::TermPattern`]。方言 `Blank` / `Pattern`
-//! 仅经 [`lower_from_dialect_term`] 进入，不再作为匹配器分支本体。
+//! 匹配本体为 [`crate::reasoning::trs::TermPattern`]。表面模式项
+//! 仅经 [`lower_pattern_term`] 进入，不再作为匹配器分支本体。
 
 use std::collections::HashMap;
 
@@ -12,19 +12,19 @@ use crate::{
     reasoning::trs::TermPattern,
 };
 
-/// MatchQ 式匹配（无绑定）。
+/// 结构匹配（无绑定）。
 pub(crate) fn pattern_matches(vm: &mut Vm<'_>, expr: TermId, pat: TermId) -> bool {
     pattern_bind(vm, expr, pat, &mut HashMap::new())
 }
 
-/// 结构匹配并收集绑定（方言模式项先降为中性 [`TermPattern`]）。
+/// 结构匹配并收集绑定（模式项先降为中性 [`TermPattern`]）。
 pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
-    let pattern = lower_from_dialect_term(vm, pat);
+    let pattern = lower_pattern_term(vm, pat);
     match_term_pattern(vm, expr, &pattern, binds)
 }
 
-/// 将方言表面模式项降为中性 [`TermPattern`]。
-pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPattern {
+/// 将模式项降为中性 [`TermPattern`]。
+pub(crate) fn lower_pattern_term(vm: &mut Vm<'_>, pat: TermId) -> TermPattern {
     let Some(shape) = vm.shape(pat)
     else {
         return TermPattern::Exact(pat);
@@ -33,7 +33,7 @@ pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPatte
         Shape::Application(op, args) => {
             let name = vm.session.operators.name(op).unwrap_or("").to_string();
             match name.as_str() {
-                "Blank" => match args.as_slice() {
+                "Any" => match args.as_slice() {
                     [] => TermPattern::Any,
                     [head_pat] => match vm.head_name(*head_pat) {
                         Some(head_name) => TermPattern::HeadConstraint { head_name },
@@ -41,17 +41,17 @@ pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPatte
                     },
                     _ => TermPattern::Exact(pat),
                 },
-                "Pattern" if args.len() == 2 => {
+                "Bind" if args.len() == 2 => {
                     let Some(Shape::Symbol(name_sym)) = vm.shape(args[0])
                     else {
                         return TermPattern::Exact(pat);
                     };
-                    TermPattern::Bind { name: name_sym, inner: Box::new(lower_from_dialect_term(vm, args[1])) }
+                    TermPattern::Bind { name: name_sym, inner: Box::new(lower_pattern_term(vm, args[1])) }
                 }
-                _ => TermPattern::StructuralApplication(args.into_iter().map(|a| lower_from_dialect_term(vm, a)).collect()),
+                _ => TermPattern::StructuralApplication(args.into_iter().map(|a| lower_pattern_term(vm, a)).collect()),
             }
         }
-        Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_from_dialect_term(vm, i)).collect()),
+        Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_pattern_term(vm, i)).collect()),
         _ => TermPattern::Exact(pat),
     }
 }

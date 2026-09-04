@@ -59,27 +59,27 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
 
     // ---- 原始操作数形式（legacy `eval_special_form` 拦截位）----
     match name.as_str() {
-        "Hold" | "HoldForm" => {
+        "Hold" => {
             code.push(raw(ids::HOLD, vec![root]));
             return;
         }
-        "Blank" | "BlankSequence" | "BlankNullSequence" | "Pattern" => {
+        "Any" | "Bind" => {
             code.push(raw(ids::PATTERN_HOLD, vec![root]));
             return;
         }
-        "If" => {
+        "Branch" => {
             code.push(raw(ids::IF, args));
             return;
         }
-        "Which" => {
+        "Cond" => {
             code.push(raw(ids::WHICH, args));
             return;
         }
-        "MatchQ" => {
+        "Matches" => {
             code.push(raw(ids::MATCH_Q, args));
             return;
         }
-        "Cases" => {
+        "CollectMatches" => {
             code.push(raw(ids::CASES, args));
             return;
         }
@@ -95,7 +95,7 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
             code.push(raw(ids::PRODUCT, args));
             return;
         }
-        "Try" => {
+        "Recover" => {
             code.push(raw(ids::TRY, args));
             return;
         }
@@ -115,32 +115,32 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
             code.push(raw(ids::GREATER_EQUAL_CHAIN, args));
             return;
         }
-        "CompoundExpression" => {
+        "Sequence" => {
             let h = if mode == CompileMode::Value { ids::COMPOUND_FRESH } else { ids::COMPOUND };
             code.push(raw(h, args));
             return;
         }
-        "While" => {
+        "LoopWhile" => {
             let h = if mode == CompileMode::Value { ids::WHILE_FRESH } else { ids::WHILE };
             code.push(raw(h, args));
             return;
         }
-        "For" => {
+        "CountedLoop" => {
             let h = if mode == CompileMode::Value { ids::FOR_FRESH } else { ids::FOR };
             code.push(raw(h, args));
             return;
         }
-        "With" => {
+        "LocalScope" => {
             let h = if mode == CompileMode::Top { ids::WITH_TOP } else { ids::WITH };
             code.push(raw(h, args));
             return;
         }
-        "Module" => {
+        "LexicalScope" => {
             let h = if mode == CompileMode::Top { ids::MODULE_TOP } else { ids::MODULE };
             code.push(raw(h, args));
             return;
         }
-        "Block" => {
+        "DynamicScope" => {
             let h = if mode == CompileMode::Top { ids::BLOCK_TOP } else { ids::BLOCK };
             code.push(raw(h, args));
             return;
@@ -148,9 +148,9 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
         _ => {}
     }
 
-    // ---- `Set` / `SetDelayed` 语句位降为定义指令 ----
-    if (name == "Set" || name == "SetDelayed") && argc == 2 && mode != CompileMode::Value {
-        lower_set_stmt(vm, &name, args, code);
+    // ---- `Define` / `DefineDeferred` 语句位降为定义指令 ----
+    if (name == "Define" || name == "DefineDeferred") && argc == 2 && mode != CompileMode::Value {
+        lower_define_stmt(vm, &name, args, code);
         return;
     }
 
@@ -165,7 +165,7 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
     }
 
     // ---- `Function` / `Rule`：已求值参数的惰性重建（Unevaluated）----
-    if name == "Function" || name == "Rule" || name == "RuleDelayed" {
+    if name == "Function" || name == "Rule" || name == "RuleDeferred" {
         for a in &args {
             lower_into(vm, *a, CompileMode::Value, code);
         }
@@ -173,12 +173,12 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
         return;
     }
 
-    // ---- `Set` / `SetDelayed` 值位 quirk（求值 rhs 两次 · legacy 一致）----
-    if (name == "Set" || name == "SetDelayed") && argc == 2 {
+    // ---- `Define` / `DefineDeferred` 值位 quirk（求值 rhs 两次 · legacy 一致）----
+    if (name == "Define" || name == "DefineDeferred") && argc == 2 {
         for a in &args {
             lower_into(vm, *a, CompileMode::Value, code);
         }
-        code.push(Instr::EvalOp { handler: ids::SET_EVAL_RHS, argc: 2 });
+        code.push(Instr::EvalOp { handler: ids::DEFINE_EVAL_RHS, argc: 2 });
         return;
     }
 
@@ -186,10 +186,6 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
     match name.as_str() {
         "Sin" | "Cos" | "Tan" | "Exp" | "Log" => {
             code.push(raw(ids::UNARY_TRIG, vec![root]));
-            return;
-        }
-        "Mldivide" | "DotLeftDivide" => {
-            code.push(raw(ids::MLDIVIDE, vec![root]));
             return;
         }
         "D" => {
@@ -243,15 +239,15 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
     code.push(Instr::MakeApplication { op, argc: argc.min(u16::MAX as usize) as u16 });
 }
 
-/// `Set` / `SetDelayed` 语句位：lhs 形态决定定义指令，否则回退值位 quirk。
-fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec<Instr>) {
+/// `Define` / `DefineDeferred` 语句位：lhs 形态决定定义指令，否则回退值位 quirk。
+fn lower_define_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec<Instr>) {
     let lhs = args[0];
     let rhs = args[1];
     let lhs_symbol = match vm.session.arena.get(lhs) {
         Some(TermNode::Atom(Atom::Symbol(sym))) => Some(*sym),
         _ => None,
     };
-    if name == "Set" {
+    if name == "Define" {
         if let Some(sym) = lhs_symbol {
             lower_into(vm, rhs, CompileMode::Value, code);
             code.push(Instr::DefineOwn { symbol: sym });
@@ -259,13 +255,13 @@ fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec
         }
     }
     else if let Some(sym) = lhs_symbol {
-        // `x := rhs`
+        // 延迟符号定义
         lower_into(vm, rhs, CompileMode::Value, code);
         code.push(Instr::DefineDelayed { symbol: sym });
         return;
     }
     else if let Some(TermNode::Application { head: op, .. }) = vm.session.arena.get(lhs) {
-        // `f[x_] := rhs`
+        // 延迟 DownValue 定义
         let head_name = vm.session.operators.name(*op).unwrap_or("").to_string();
         if !head_name.is_empty() && head_name != "Application" {
             let sym = vm.session.arena.symbols_mut().intern(head_name);
@@ -274,11 +270,11 @@ fn lower_set_stmt(vm: &mut Vm<'_>, name: &str, args: Vec<TermId>, code: &mut Vec
             return;
         }
     }
-    // 非 Symbol / 非 App lhs（legacy `match_set*` 不识别）→ 值位 quirk。
+    // 非 Symbol / 非 App lhs（legacy define-stmt matcher 不识别）→ 值位 quirk。
     for a in &args {
         lower_into(vm, *a, CompileMode::Value, code);
     }
-    code.push(Instr::EvalOp { handler: ids::SET_EVAL_RHS, argc: 2 });
+    code.push(Instr::EvalOp { handler: ids::DEFINE_EVAL_RHS, argc: 2 });
 }
 
 /// 已求值参数 builtin 的 arity 检查分派。
@@ -314,8 +310,8 @@ fn builtin_handler(_vm: &mut Vm<'_>, name: &str, argc: usize) -> Option<HandlerI
         ("Map", 2) => ids::MAP,
         ("Zeros", _) => ids::ZEROS,
         ("Ones", _) => ids::ONES,
-        ("Eye" | "IdentityMatrix", _) => ids::EYE,
-        ("Size" | "Dimensions", 1) => ids::SIZE,
+        ("Eye", _) => ids::EYE,
+        ("Size", 1) => ids::SIZE,
         ("Det", 1) => ids::DET,
         ("LinearSolve", 2) => ids::LINEAR_SOLVE,
         ("Solve", 2) => ids::SOLVE,

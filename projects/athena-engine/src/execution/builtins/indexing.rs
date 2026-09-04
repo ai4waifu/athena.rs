@@ -223,7 +223,7 @@ fn rule_pair(vm: &Vm<'_>, expr: TermId) -> Option<(TermId, TermId)> {
     else {
         return None;
     };
-    if args.len() == 2 && matches!(vm.head_name(expr).as_deref(), Some("Rule") | Some("RuleDelayed")) { Some((args[0], args[1])) } else { None }
+    if args.len() == 2 && matches!(vm.head_name(expr).as_deref(), Some("Rule") | Some("RuleDeferred")) { Some((args[0], args[1])) } else { None }
 }
 
 pub(crate) fn h_map(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {

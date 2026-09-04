@@ -1,4 +1,4 @@
-//! Table / Sum / Product / MatchQ / Cases / Function handler（legacy 对应语义）。
+//! Table / Sum / Product / Matches / CollectMatches / Function handler。
 
 use athena_ir::{Atom, TermNode};
 use athena_types::TermId;
@@ -158,10 +158,10 @@ pub(crate) fn sum_product(vm: &mut Vm<'_>, head: &str, args: &[TermId]) -> TermE
 
 pub(crate) fn h_match_q(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     if args.len() != 2 {
-        return TermEvaluation::unevaluated(vm.push_application("MatchQ", args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application("Matches", args.to_vec()));
     }
     let expr_o = vm.eval_value(args[0]);
-    // 模式参数保持 Hold-ish：不求值 Blank/Pattern。
+    // 模式参数保持未求值（Any / Bind 等）。
     let matched = crate::execution::builtins::patterns::pattern_matches(vm, expr_o.term, args[1]);
     let term = vm.push_bool(matched);
     TermEvaluation { term, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: expr_o.diagnostics }
@@ -169,7 +169,7 @@ pub(crate) fn h_match_q(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
 
 pub(crate) fn h_cases(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     if args.len() != 2 {
-        return TermEvaluation::unevaluated(vm.push_application("Cases", args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application("CollectMatches", args.to_vec()));
     }
     let list_o = vm.eval_value(args[0]);
     let Some(items) = (match vm.session.arena.get(list_o.term) {
@@ -177,7 +177,7 @@ pub(crate) fn h_cases(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
         _ => None,
     })
     else {
-        let term = vm.push_application("Cases", vec![list_o.term, args[1]]);
+        let term = vm.push_application("CollectMatches", vec![list_o.term, args[1]]);
         return TermEvaluation::unevaluated(term).with_diagnostics(list_o.diagnostics);
     };
     let out: Vec<TermId> = items.into_iter().filter(|item| crate::execution::builtins::patterns::pattern_matches(vm, *item, args[1])).collect();

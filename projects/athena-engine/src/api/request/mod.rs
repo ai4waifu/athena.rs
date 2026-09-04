@@ -1,7 +1,7 @@
 //! 方言 lowering → Athena 后端的中性请求合同（Living `26`）。
 //!
 //! 只建立边界枚举，不在本切片实现全部领域能力或方言抽离。
-//! 禁止把 `Set` / `Module` / `Blank` 等表面名写进这些类型。
+//! 禁止把方言表面赋值 / 作用域 / 模式名写进这些类型。
 
 mod control_plan;
 mod domain_goal;

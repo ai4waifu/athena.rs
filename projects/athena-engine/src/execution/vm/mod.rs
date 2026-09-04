@@ -29,7 +29,7 @@ pub(crate) enum CompileMode {
     Value,
     /// 语句位（继承当前 env）。
     Stmt,
-    /// 顶层单语句（`With` / `Module` / `Block` 可见 Session 定义表）。
+    /// 顶层单语句（`LocalScope` / `LexicalScope` / `DynamicScope` 可见 Session 定义表）。
     Top,
 }
 
@@ -108,7 +108,7 @@ impl<'a> Vm<'a> {
         self.envs.push(Env { base_global: false, local: Some(DefinitionLayer::new()), frames: Vec::new() });
     }
 
-    /// 作用域 env（`With` / `Module` / `Block` · `top` 决定是否可见 Session 定义表）。
+    /// 作用域 env（`LocalScope` / `LexicalScope` / `DynamicScope` · `top` 决定是否可见 Session 定义表）。
     pub(crate) fn push_env_scoped(&mut self, frame: ScopeFrame, top: bool) {
         self.envs.push(Env { base_global: top, local: Some(DefinitionLayer::new()), frames: vec![frame] });
     }
@@ -313,7 +313,7 @@ impl<'a> Vm<'a> {
     }
 
     /// 语句位控制形式与顶层作用域形式在 legacy 于改写预处理之前被拦截：
-    /// 循环体保持原始让每次迭代看到新绑定；顶层 `With` / `Module` / `Block`
+    /// 循环体保持原始让每次迭代看到新绑定；顶层 `LocalScope` / `LexicalScope` / `DynamicScope`
     /// 体不得被 Session 定义穿透。
     fn skips_rewrite(&self, expr: TermId, mode: CompileMode) -> bool {
         let Some(TermNode::Application { head: op, .. }) = self.session.arena.get(expr)
@@ -321,8 +321,8 @@ impl<'a> Vm<'a> {
             return false;
         };
         match self.session.operators.name(*op) {
-            Some("While" | "For" | "Try" | "CompoundExpression") => mode == CompileMode::Stmt,
-            Some("With" | "Module" | "Block") => mode == CompileMode::Top,
+            Some("LoopWhile" | "CountedLoop" | "Recover" | "Sequence") => mode == CompileMode::Stmt,
+            Some("LocalScope" | "LexicalScope" | "DynamicScope") => mode == CompileMode::Top,
             _ => false,
         }
     }
