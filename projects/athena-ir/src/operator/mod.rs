@@ -1,4 +1,7 @@
-//! 内建算子注册表（禁止 engine 层字符串 head 匹配）。
+//! 算子注册表（结构身份 · 不含方言表面 catalog）。
+//!
+//! Living `26`：`athena-ir` 只提供 [`OperatorId`] 分配与反查。
+//! Mathematica / MATLAB 等表面名由方言 lowering 注入，禁止在此预置 `Plus` / `SetDelayed` / `Blank` 类目录。
 
 use std::collections::HashMap;
 
@@ -15,15 +18,6 @@ impl OperatorRegistry {
     /// 空注册表。
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// 预注册常用内建算子。
-    pub fn standard() -> Self {
-        let mut reg = Self::new();
-        for name in STANDARD_OPERATORS {
-            reg.intern(name);
-        }
-        reg
     }
 
     /// 分配或查找算子 id。
@@ -57,76 +51,3 @@ impl OperatorRegistry {
         self.names.is_empty()
     }
 }
-
-/// 求值 / 方言 lowering 常用 head（顺序决定 id，勿改已有顺序）。
-const STANDARD_OPERATORS: &[&str] = &[
-    "Equal",
-    "Less",
-    "LessEqual",
-    "Greater",
-    "GreaterEqual",
-    "Unequal",
-    "Plus",
-    "Times",
-    "Power",
-    "Subtract",
-    "Divide",
-    "DotTimes",
-    "DotDivide",
-    "DotPower",
-    "Mldivide",
-    "DotLeftDivide",
-    "Set",
-    "SetDelayed",
-    "If",
-    "Which",
-    "While",
-    "For",
-    "CompoundExpression",
-    "With",
-    "Module",
-    "Block",
-    "Hold",
-    "HoldForm",
-    "MatchQ",
-    "Cases",
-    "Table",
-    "Sum",
-    "Product",
-    "Try",
-    "Blank",
-    "BlankSequence",
-    "BlankNullSequence",
-    "Pattern",
-    "And",
-    "Or",
-    "Not",
-    "Function",
-    "Simplify",
-    "Sin",
-    "Cos",
-    "Tan",
-    "Sqrt",
-    "Abs",
-    "Factorial",
-    "Log",
-    "Exp",
-    "Integrate",
-    "D",
-    "Limit",
-    "Map",
-    "Part",
-    "Span",
-    "Det",
-    "Transpose",
-    "List",
-    "Array",
-    "Integer",
-    "Symbol",
-    "String",
-    "True",
-    "False",
-    "Null",
-    "Pi",
-    "E",
-];
