@@ -1,6 +1,6 @@
 //! KernelIR 编译器 — `TermStore` 子树 → [`ExecUnit`]（Living `25` L2）。
 //!
-//! 编译期一次性遍历：`OperatorId` 分派预解析、`Set` 语句位降为定义指令、
+//! 编译期一次性遍历：语义算子名预解析到 [`HandlerId`]、`Define` 语句位降为定义指令、
 //! 控制形式降为 raw handler 调用。未知算子降为惰性重建。
 
 use athena_ir::{Atom, TermNode};
@@ -12,7 +12,7 @@ use crate::execution::{
     vm::{CompileMode, Shape, Vm},
 };
 
-/// 编译一个子树。`mode` 决定 `Set` / 控制形式的 env 语义变体。
+/// 编译一个子树。`mode` 决定 `Define` / 控制形式的 env 语义变体。
 pub(crate) fn lower(vm: &mut Vm<'_>, root: TermId, mode: CompileMode) -> ExecUnit {
     let mut code = Vec::new();
     lower_into(vm, root, mode, &mut code);
@@ -68,19 +68,19 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
             return;
         }
         "Branch" => {
-            code.push(raw(ids::IF, args));
+            code.push(raw(ids::BRANCH, args));
             return;
         }
         "Cond" => {
-            code.push(raw(ids::WHICH, args));
+            code.push(raw(ids::COND, args));
             return;
         }
         "Matches" => {
-            code.push(raw(ids::MATCH_Q, args));
+            code.push(raw(ids::MATCHES, args));
             return;
         }
         "CollectMatches" => {
-            code.push(raw(ids::CASES, args));
+            code.push(raw(ids::COLLECT_MATCHES, args));
             return;
         }
         "Table" => {
@@ -96,7 +96,7 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
             return;
         }
         "Recover" => {
-            code.push(raw(ids::TRY, args));
+            code.push(raw(ids::RECOVER, args));
             return;
         }
         "Less" => {
@@ -116,32 +116,32 @@ fn lower_application(vm: &mut Vm<'_>, root: TermId, op: OperatorId, args: Vec<Te
             return;
         }
         "Sequence" => {
-            let h = if mode == CompileMode::Value { ids::COMPOUND_FRESH } else { ids::COMPOUND };
+            let h = if mode == CompileMode::Value { ids::SEQUENCE_FRESH } else { ids::SEQUENCE };
             code.push(raw(h, args));
             return;
         }
         "LoopWhile" => {
-            let h = if mode == CompileMode::Value { ids::WHILE_FRESH } else { ids::WHILE };
+            let h = if mode == CompileMode::Value { ids::LOOP_WHILE_FRESH } else { ids::LOOP_WHILE };
             code.push(raw(h, args));
             return;
         }
         "CountedLoop" => {
-            let h = if mode == CompileMode::Value { ids::FOR_FRESH } else { ids::FOR };
+            let h = if mode == CompileMode::Value { ids::COUNTED_LOOP_FRESH } else { ids::COUNTED_LOOP };
             code.push(raw(h, args));
             return;
         }
         "LocalScope" => {
-            let h = if mode == CompileMode::Top { ids::WITH_TOP } else { ids::WITH };
+            let h = if mode == CompileMode::Top { ids::LOCAL_SCOPE_TOP } else { ids::LOCAL_SCOPE };
             code.push(raw(h, args));
             return;
         }
         "LexicalScope" => {
-            let h = if mode == CompileMode::Top { ids::MODULE_TOP } else { ids::MODULE };
+            let h = if mode == CompileMode::Top { ids::LEXICAL_SCOPE_TOP } else { ids::LEXICAL_SCOPE };
             code.push(raw(h, args));
             return;
         }
         "DynamicScope" => {
-            let h = if mode == CompileMode::Top { ids::BLOCK_TOP } else { ids::BLOCK };
+            let h = if mode == CompileMode::Top { ids::DYNAMIC_SCOPE_TOP } else { ids::DYNAMIC_SCOPE };
             code.push(raw(h, args));
             return;
         }
