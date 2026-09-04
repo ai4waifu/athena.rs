@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode, Result, ResultId, SymbolId, TermId};
 
+use crate::execution::environment::{LocalBinding, ScopeFrame};
 use crate::execution::ir::{
     BlockId, CapturedRoot, ConstantValue, ExecutionModule, OperationKind, RegionId, SsaValueId, Terminator, verify_module,
 };
@@ -25,6 +26,8 @@ enum Slot {
     Symbol(SymbolId),
     /// Typed Boolean.
     Boolean(bool),
+    /// Scope frame depth handle from `EnterScope`.
+    Scope(u32),
     /// Unit.
     Unit,
 }
@@ -48,7 +51,7 @@ impl ReferenceExecutor {
             Some(Slot::Term(term)) => term,
             Some(Slot::Boolean(value)) => session.builder().boolean(value, Default::default()),
             Some(Slot::Symbol(symbol)) => session.builder().symbol_id(symbol, Default::default()),
-            Some(Slot::Unit) | None => session.builder().null(Default::default()),
+            Some(Slot::Scope(_)) | Some(Slot::Unit) | None => session.builder().null(Default::default()),
         };
         let value = session.insert_symbolic_value(term);
         let result = ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full)
@@ -66,15 +69,16 @@ impl ReferenceExecutor {
             .ok_or_else(|| diag("missing_region"))?;
         let mut block_id = region.entry;
         let mut slots: HashMap<SsaValueId, Slot> = HashMap::new();
-        // Bootstrap: linear / single-block regions and simple branches only.
-        for _ in 0..region.blocks.len().saturating_mul(4).max(4) {
+        let mut frames: Vec<ScopeFrame> = Vec::new();
+        // Bootstrap: linear / branched regions; budget scales with block count.
+        for _ in 0..region.blocks.len().saturating_mul(8).max(8) {
             let block = region
                 .blocks
                 .iter()
                 .find(|b| b.id == block_id)
                 .ok_or_else(|| diag("missing_block"))?;
             for op in &block.operations {
-                let produced = self.eval_operation(session, module, &slots, &op.kind)?;
+                let produced = self.eval_operation(session, module, &slots, &mut frames, &op.kind)?;
                 if let Some(result) = op.result {
                     slots.insert(result, produced);
                 }
@@ -133,6 +137,7 @@ impl ReferenceExecutor {
         session: &mut Session,
         module: &ExecutionModule,
         slots: &HashMap<SsaValueId, Slot>,
+        frames: &mut Vec<ScopeFrame>,
         kind: &OperationKind,
     ) -> Result<Slot> {
         match kind {
@@ -169,6 +174,23 @@ impl ReferenceExecutor {
                 };
                 Ok(Slot::Boolean(result))
             }
+            OperationKind::EnterScope { .. } => {
+                let depth = frames.len() as u32;
+                frames.push(ScopeFrame::new());
+                Ok(Slot::Scope(depth))
+            }
+            OperationKind::ExitScope { scope } => {
+                let expected = match slots.get(scope) {
+                    Some(Slot::Scope(depth)) => *depth,
+                    _ => return Err(diag("exit_scope_bad_handle")),
+                };
+                let top = frames.len().saturating_sub(1) as u32;
+                if expected != top {
+                    return Err(diag("exit_scope_mismatch"));
+                }
+                frames.pop();
+                Ok(Slot::Unit)
+            }
             OperationKind::WriteBinding { key, value } => {
                 let symbol = match slots.get(key) {
                     Some(Slot::Symbol(symbol)) => *symbol,
@@ -176,14 +198,26 @@ impl ReferenceExecutor {
                 };
                 match slots.get(value) {
                     Some(Slot::Unit) => {
-                        session.defs.clear_symbol(symbol);
+                        if let Some(frame) = frames.last_mut() {
+                            frame.unbind(symbol);
+                        } else {
+                            session.defs.clear_symbol(symbol);
+                        }
                     }
                     Some(Slot::Term(term)) => {
-                        session.defs.define_own(symbol, *term);
+                        if let Some(frame) = frames.last_mut() {
+                            frame.bind(symbol, LocalBinding::Own(*term));
+                        } else {
+                            session.defs.define_own(symbol, *term);
+                        }
                     }
                     Some(Slot::Boolean(v)) => {
                         let term = session.builder().boolean(*v, Default::default());
-                        session.defs.define_own(symbol, term);
+                        if let Some(frame) = frames.last_mut() {
+                            frame.bind(symbol, LocalBinding::Own(term));
+                        } else {
+                            session.defs.define_own(symbol, term);
+                        }
                     }
                     _ => return Err(diag("write_value_unsupported")),
                 }
@@ -194,18 +228,20 @@ impl ReferenceExecutor {
                     Some(Slot::Symbol(symbol)) => *symbol,
                     _ => return Err(diag("read_key_not_symbol")),
                 };
+                for frame in frames.iter().rev() {
+                    if let Some(LocalBinding::Own(term) | LocalBinding::Unique(term)) = frame.lookup(symbol) {
+                        return Ok(Slot::Term(term));
+                    }
+                }
                 if let Some(term) = session.defs.own(symbol) {
                     return Ok(Slot::Term(term));
                 }
                 if let Some(term) = session.defs.delayed(symbol) {
                     return Ok(Slot::Term(term));
                 }
-                // Unbound symbol evaluates to itself (residual Term).
                 Ok(Slot::Term(session.builder().symbol_id(symbol, Default::default())))
             }
             OperationKind::LoadInput { .. }
-            | OperationKind::EnterScope { .. }
-            | OperationKind::ExitScope { .. }
             | OperationKind::CallProvider { .. }
             | OperationKind::Guard { .. }
             | OperationKind::MaterializeValue { .. }

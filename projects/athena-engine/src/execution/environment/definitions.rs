@@ -105,4 +105,9 @@ impl ScopeFrame {
     pub fn lookup(&self, symbol: SymbolId) -> Option<LocalBinding> {
         self.locals.get(&symbol).copied()
     }
+
+    /// 移除局部绑定。
+    pub fn unbind(&mut self, symbol: SymbolId) {
+        self.locals.remove(&symbol);
+    }
 }

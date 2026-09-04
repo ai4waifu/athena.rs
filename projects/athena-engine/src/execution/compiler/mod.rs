@@ -243,10 +243,114 @@ impl ExecutionCompiler {
                 then_branch,
                 else_branch,
             } => self.lower_branch(session, builder, blocks, block_id, *condition, then_branch, else_branch.as_deref()),
+            ControlPlan::LocalScope { body } | ControlPlan::LexicalScope { body } | ControlPlan::DynamicScope { body } => {
+                self.lower_scope(session, builder, blocks, block_id, body)
+            }
             _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ExecutionCompiler")
                 .detail("status", "control_plan_not_lowered")),
         }
+    }
+
+    fn lower_scope(
+        &self,
+        session: &Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        body: &AthenaRequest,
+    ) -> Result<SsaValueId> {
+        let body_block = builder.block_id();
+        let exit_block = builder.block_id();
+        let scope = builder.ssa();
+        let enter_in = builder.push_effect(EffectKind::EnterScope, None);
+        let enter_out = builder.push_effect(EffectKind::EnterScope, Some(enter_in));
+        let entry_cond = builder.ssa();
+        let entry_true = builder.push_constant(ConstantValue::boolean(true));
+
+        blocks.push(BasicBlock {
+            id: entry,
+            parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    result: Some(scope),
+                    result_type: ExecutionValueType::Scope,
+                    kind: OperationKind::EnterScope { parent: None },
+                    effect_in: Some(enter_in),
+                    effect_out: Some(enter_out),
+                },
+                Operation {
+                    result: Some(entry_cond),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: entry_true },
+                    effect_in: None,
+                    effect_out: None,
+                },
+            ],
+            terminator: Terminator::Branch {
+                condition: entry_cond,
+                then_edge: BlockEdge::jump(body_block),
+                else_edge: BlockEdge::jump(body_block),
+            },
+        });
+
+        let body_value = self.lower_request(session, builder, blocks, body_block, body)?;
+        // Any body Return (including Sequence tails) continues to ExitScope.
+        let return_block_ids: Vec<BlockId> = blocks
+            .iter()
+            .filter(|b| matches!(b.terminator, Terminator::Return { .. }))
+            .map(|b| b.id)
+            .collect();
+        for block_id in return_block_ids {
+            let forwarded = {
+                let block = blocks.iter().find(|b| b.id == block_id).expect("block");
+                match &block.terminator {
+                    Terminator::Return { values } => values.first().copied().unwrap_or(body_value),
+                    _ => body_value,
+                }
+            };
+            let cond = builder.ssa();
+            let true_const = builder.push_constant(ConstantValue::boolean(true));
+            let block = blocks.iter_mut().find(|b| b.id == block_id).expect("block");
+            block.operations.push(Operation {
+                result: Some(cond),
+                result_type: ExecutionValueType::Boolean,
+                kind: OperationKind::Constant { constant: true_const },
+                effect_in: None,
+                effect_out: None,
+            });
+            block.terminator = Terminator::Branch {
+                condition: cond,
+                then_edge: BlockEdge {
+                    target: exit_block,
+                    arguments: vec![forwarded],
+                },
+                else_edge: BlockEdge {
+                    target: exit_block,
+                    arguments: vec![forwarded],
+                },
+            };
+        }
+
+        let result_param = builder.ssa();
+        let exit_in = builder.push_effect(EffectKind::ExitScope, Some(enter_out));
+        let exit_out = builder.push_effect(EffectKind::ExitScope, Some(exit_in));
+        blocks.push(BasicBlock {
+            id: exit_block,
+            parameters: vec![crate::execution::ir::BlockParameter {
+                value: result_param,
+                ty: ExecutionValueType::Term,
+            }],
+            operations: vec![Operation {
+                result: None,
+                result_type: ExecutionValueType::Unit,
+                kind: OperationKind::ExitScope { scope },
+                effect_in: Some(exit_in),
+                effect_out: Some(exit_out),
+            }],
+            terminator: Terminator::return_value(result_param),
+        });
+        Ok(result_param)
     }
 
     fn lower_sequence(
@@ -648,6 +752,55 @@ mod tests {
             other => panic!("expected Null after clear, got {other:?}"),
         }
         assert!(session.defs.own(symbol).is_none());
+    }
+
+    #[test]
+    fn compile_and_execute_local_scope_body() {
+        let mut session = Session::new();
+        let term = session.builder().int(11, Default::default());
+        let request = AthenaRequest::Control(ControlPlan::LocalScope {
+            body: Box::new(AthenaRequest::Term(term)),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("scope");
+        assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::EnterScope)));
+        assert!(module.effect_edges.iter().any(|e| matches!(e.kind, EffectKind::ExitScope)));
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(term));
+    }
+
+    #[test]
+    fn compile_and_execute_local_scope_shadows_session() {
+        use crate::api::request::{DefinitionEvaluationTiming, SessionCommand};
+
+        let mut session = Session::new();
+        let sym_term = session.builder().symbol("s", Default::default());
+        let symbol = match session.arena.get(sym_term) {
+            Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+            other => panic!("expected symbol, got {other:?}"),
+        };
+        let global = session.builder().int(1, Default::default());
+        let local = session.builder().int(2, Default::default());
+        session.defs.define_own(symbol, global);
+
+        let request = AthenaRequest::Control(ControlPlan::LocalScope {
+            body: Box::new(AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::Define {
+                        symbol,
+                        value: local,
+                        timing: DefinitionEvaluationTiming::Immediate,
+                    }),
+                    AthenaRequest::Term(sym_term),
+                ],
+            })),
+        });
+        let module = ExecutionCompiler::new().compile(&session, &request).expect("scope");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let loaded = session.results.get(result_id).expect("result");
+        assert_eq!(loaded.symbolic_term, Some(local));
+        // Session Own unchanged after local scope exits.
+        assert_eq!(session.defs.own(symbol), Some(global));
     }
 
     #[test]
