@@ -52,19 +52,17 @@ impl Clone for MonomialTerm {
     }
 }
 
-/// 规范多项式：同环、非零项、每单项式至多一项、按环序排序。
+/// 规范多项式对象：同环、非零项、每单项式至多一项、按环序排序。
 ///
 /// 仅 [`super::PolynomialBuilder`]、[`super::canonicalize_polynomial`] 与 crate 内受信任路径可构造。
+/// 这是多项式域实体名，不是 Athena `Term`，也不是方言 Expression。
 #[derive(Debug, PartialEq)]
-pub struct CanonicalPolynomial {
+pub struct Polynomial {
     pub(crate) ring: RingId,
     pub(crate) terms: Vec<MonomialTerm>,
 }
 
-/// 迁移别名：公共合同与算法层均指 [`CanonicalPolynomial`]。
-pub type Polynomial = CanonicalPolynomial;
-
-impl CanonicalPolynomial {
+impl Polynomial {
     /// 零多项式。
     pub fn zero(ring: RingId) -> Self {
         Self { ring, terms: Vec::new() }
@@ -101,7 +99,7 @@ impl CanonicalPolynomial {
     }
 }
 
-impl Clone for CanonicalPolynomial {
+impl Clone for Polynomial {
     fn clone(&self) -> Self {
         self.owning_copy()
     }

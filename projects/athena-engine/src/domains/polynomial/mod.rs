@@ -39,7 +39,7 @@ pub use coefficient_kernel::{
     CoefficientRing, FpBigKernel, FpWordKernel, QCoefficientKernel, SpecializedCoefficientKernel, ZCoefficientKernel,
 };
 pub use coefficient_ring_table::{CoefficientRingDescriptor, CoefficientRingTable};
-pub use expr::{CanonicalPolynomial, MonomialTerm, Polynomial};
+pub use expr::{MonomialTerm, Polynomial};
 pub use factor::{
     PolynomialCofactorStatus, PolynomialFactorComponent, PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization,
     PolynomialFactorizationCompleteness, factor_univariate,

@@ -1,11 +1,11 @@
-//! 可变多项式构造器 — 唯一公开入口，产出 [`CanonicalPolynomial`]。
+//! 可变多项式构造器 — 唯一公开入口，产出规范 [`Polynomial`]。
 
 use athena_numeric::Number;
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     canonical::canonicalize_terms,
-    expr::{CanonicalPolynomial, MonomialTerm},
+    expr::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
 
@@ -28,8 +28,8 @@ impl PolynomialBuilder {
         Ok(())
     }
 
-    /// 校验、合并同类项、按环单项式序排序，产出 [`CanonicalPolynomial`]。
-    pub fn build(self, rings: &RingTable) -> Result<CanonicalPolynomial> {
+    /// 校验、合并同类项、按环单项式序排序，产出规范 [`Polynomial`]。
+    pub fn build(self, rings: &RingTable) -> Result<Polynomial> {
         let desc = rings.get(self.ring).ok_or_else(|| {
             Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("domain", "polynomial")
