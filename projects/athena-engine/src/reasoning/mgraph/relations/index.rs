@@ -4,12 +4,15 @@
 use std::collections::HashMap;
 
 use crate::reasoning::mgraph::{
-    core::refs::{
-        PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates,
-        scope_to_ref,
+    core::{
+        refs::{
+            PredicateId, RelationRef, RelationStatus, ScopeRef, SemanticRef, TheoryContextId, WitnessRef, predicates,
+            scope_to_ref,
+        },
+        types::CapabilityProviderId,
     },
     facts::{
-        claim::{Guarantee, Proposition, VerifiedClaim},
+        claim::{Evidence, Guarantee, Proposition, VerifiedClaim},
         log::FactId,
     },
 };
@@ -25,6 +28,8 @@ pub struct RelationRecord {
     pub scope: ScopeRef,
     /// 理论上下文。
     pub theory: TheoryContextId,
+    /// 产出该关系的 capability provider。
+    pub provider: Option<CapabilityProviderId>,
     /// 接纳状态。
     pub status: RelationStatus,
     /// 证据引用（可为 `None`，证据仍在 claim 内）。
@@ -39,7 +44,14 @@ impl RelationRecord {
         let scope = scope_to_ref(claim.claim.scope);
         let status = relation_status_from_guarantee(claim.claim.guarantee);
         let (predicate, subjects, theory) = predicate_subjects_theory(&claim.claim.proposition);
-        Self { predicate, subjects, scope, theory, status, witness: None, verified: claim }
+        let provider = provider_from_evidence(&claim.claim.evidence);
+        Self { predicate, subjects, scope, theory, provider, status, witness: None, verified: claim }
+    }
+}
+
+fn provider_from_evidence(evidence: &Evidence) -> Option<CapabilityProviderId> {
+    match evidence {
+        Evidence::TrustedKernel { provider, .. } => Some(*provider),
     }
 }
 
