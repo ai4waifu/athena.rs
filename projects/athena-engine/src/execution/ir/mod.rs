@@ -14,6 +14,7 @@ pub mod operation;
 pub mod region;
 pub mod terminator;
 pub mod types;
+pub mod verify;
 
 pub use block::{BasicBlock, BlockParameter};
 pub use effect::{EffectEdge, EffectKind};
@@ -27,6 +28,7 @@ pub use operation::{GuardFailure, Operation, OperationKind};
 pub use region::Region;
 pub use terminator::{BlockEdge, Terminator};
 pub use types::{CapturedRoot, ConstantValue, ExecutionValueType, ModuleInput, ProviderCallDescriptor};
+pub use verify::verify_module;
 
 #[cfg(test)]
 mod tests {
