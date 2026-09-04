@@ -64,8 +64,7 @@ impl AthenaEngine {
             }
             AthenaRequest::Goal(DomainGoal::Dispatch(domain_request)) => {
                 let _domain_result = self.execute_domain(session, domain_request)?;
-                let result =
-                    ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Unknown);
+                let result = ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Unknown);
                 Ok(session.insert_result(result))
             }
             AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
@@ -73,8 +72,9 @@ impl AthenaEngine {
                 let diagnostic = Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("phase", "request_boundary")
                     .detail("operation", operation);
-                let result = ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
-                    .with_diagnostic(diagnostic.clone());
+                let result =
+                    ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
+                        .with_diagnostic(diagnostic.clone());
                 let _ = session.insert_result(result);
                 Err(diagnostic)
             }

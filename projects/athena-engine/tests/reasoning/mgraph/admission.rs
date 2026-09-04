@@ -1,7 +1,7 @@
 ﻿//! Semantic core 合同：FactLog 单调性 · 派生索引可重建。
 
 use athena_engine::reasoning::mgraph::{
-    AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_SOLVER_ID, Proposition, Scope, SemanticCore,
+    AdmissionGate, Claim, Evidence, FactId, Guarantee, MGraphState, POLYNOMIAL_PROVIDER_ID, Proposition, Scope, SemanticCore,
     VerificationPolicy,
 };
 
@@ -47,6 +47,6 @@ fn sample_claim(guarantee: Guarantee, fingerprint: u64) -> Claim {
         },
         scope: Scope::Unconditional,
         guarantee,
-        evidence: Evidence::TrustedKernel { solver: POLYNOMIAL_SOLVER_ID, summary: "test".into() },
+        evidence: Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: "test".into() },
     }
 }

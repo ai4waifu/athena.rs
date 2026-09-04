@@ -120,7 +120,7 @@ fn probable_claim_blocked_by_verifier() {
         scope: Scope::Unconditional,
         guarantee: Guarantee::Probable,
         evidence: Evidence::TrustedKernel {
-            solver: athena_engine::reasoning::mgraph::POLYNOMIAL_SOLVER_ID,
+            provider: athena_engine::reasoning::mgraph::POLYNOMIAL_PROVIDER_ID,
             summary: "probable".into(),
         },
     };

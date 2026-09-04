@@ -140,7 +140,8 @@ pub fn taylor(
                 reason: Diagnostic::new(DiagnosticCode::SeriesRemainderUnknown),
             };
         }
-        let coeff = if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.apply("Divide", vec![at_zero, cc.in_(factorial)])) };
+        let coeff =
+            if n == 0 || factorial == 1 { at_zero } else { cc.eval(cc.apply("Divide", vec![at_zero, cc.in_(factorial)])) };
         if !is_zero_term(cc, coeff) {
             terms.push((coeff, n as i64));
         }

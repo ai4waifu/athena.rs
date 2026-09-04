@@ -650,7 +650,8 @@ fn jacobian_linear_map() {
 fn hessian_quadratic() {
     let engine = AthenaEngine::new();
     let h = H::new();
-    let expr = h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.ap("Times", vec![h.symbol("x"), h.symbol("y")])]);
+    let expr =
+        h.ap("Plus", vec![h.ap("Power", vec![h.symbol("x"), h.i(2)]), h.ap("Times", vec![h.symbol("x"), h.symbol("y")])]);
     let out = run(
         &engine,
         &h,
@@ -722,7 +723,10 @@ fn divergence_via_term_lowering() {
     let h = H::new();
     let term = h.ap(
         "Divergence",
-        vec![h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")]), h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")])],
+        vec![
+            h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")]),
+            h.lst(vec![h.symbol("x"), h.symbol("y"), h.symbol("z")]),
+        ],
     );
     let req = lower(&h, term);
     let out = run(&engine, &h, req);
@@ -873,7 +877,10 @@ fn ode_bernoulli_const_and_separable_xy2() {
     // ODE：y' = x·y² ⇒ y = -1/(x²/2) = -2/x²
     let eq2 = h.ap(
         "Equal",
-        vec![h.ap("D", vec![h.symbol("y"), h.symbol("x")]), h.ap("Times", vec![h.symbol("x"), h.ap("Power", vec![h.symbol("y"), h.i(2)])])],
+        vec![
+            h.ap("D", vec![h.symbol("y"), h.symbol("x")]),
+            h.ap("Times", vec![h.symbol("x"), h.ap("Power", vec![h.symbol("y"), h.i(2)])]),
+        ],
     );
     let out2 = run(
         &engine,
@@ -981,8 +988,10 @@ fn fourier_gaussian_and_lowering() {
         other => panic!("expected Fourier Transform, got {other:?}"),
     }
 
-    let causal =
-        h.ap("Times", vec![h.ap("UnitStep", vec![h.symbol("t")]), h.ap("Exp", vec![h.ap("Times", vec![h.i(-2), h.symbol("t")])])]);
+    let causal = h.ap(
+        "Times",
+        vec![h.ap("UnitStep", vec![h.symbol("t")]), h.ap("Exp", vec![h.ap("Times", vec![h.i(-2), h.symbol("t")])])],
+    );
     let causal_out = run(
         &engine,
         &h,

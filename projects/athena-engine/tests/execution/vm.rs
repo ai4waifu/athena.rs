@@ -108,7 +108,8 @@ fn compound_expression_returns_last() {
 #[test]
 fn integrate_power() {
     let mut c = C::new();
-    let e = apply("Integrate", vec![apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
+    let e =
+        apply("Integrate", vec![apply("Power", vec![symbol("x", &mut c), i(2, &mut c)], &mut c), symbol("x", &mut c)], &mut c);
     let r = t(e, &mut c);
     assert!(r.contains("x"), "got {r}");
 }
@@ -181,7 +182,8 @@ fn if_true_branch_and_short_circuit() {
     let e = apply("If", vec![cond, i(7, &mut c), i(8, &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "7");
     // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
-    let e = apply("If", vec![symbol("True", &mut c), i(7, &mut c), apply("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
+    let e =
+        apply("If", vec![symbol("True", &mut c), i(7, &mut c), apply("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
     let o = out(e, &mut c);
     assert_eq!(term_debug(&c.s, o.term), "7");
     assert_eq!(o.kind, execution::EvalKind::Value);
@@ -213,7 +215,10 @@ fn symbol_true_false_null_canonicalize_to_typed_atoms() {
 #[test]
 fn hold_and_hold_form_do_not_eval_args() {
     let mut c = C::new();
-    assert_eq!(t(apply("Hold", vec![apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c), "Hold[Plus[1, 1]]");
+    assert_eq!(
+        t(apply("Hold", vec![apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c), &mut c),
+        "Hold[Plus[1, 1]]"
+    );
     assert_eq!(
         t(apply("HoldForm", vec![apply("Plus", vec![i(2, &mut c), i(3, &mut c)], &mut c)], &mut c), &mut c),
         "HoldForm[Plus[2, 3]]"
@@ -243,7 +248,10 @@ fn part_span_slice() {
     let mut c = C::new();
     let e = apply(
         "Part",
-        vec![lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c), apply("Span", vec![i(1, &mut c), i(2, &mut c)], &mut c)],
+        vec![
+            lst(vec![i(1, &mut c), i(2, &mut c), i(3, &mut c)], &mut c),
+            apply("Span", vec![i(1, &mut c), i(2, &mut c)], &mut c),
+        ],
         &mut c,
     );
     assert_eq!(t(e, &mut c), "List[1, 2]");
@@ -281,7 +289,11 @@ fn part_all_returns_list() {
 #[test]
 fn for_span_last_value() {
     let mut c = C::new();
-    let e = apply("For", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)], &mut c);
+    let e = apply(
+        "For",
+        vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), symbol("i", &mut c)],
+        &mut c,
+    );
     assert_eq!(t(e, &mut c), "3");
 }
 
@@ -289,7 +301,8 @@ fn for_span_last_value() {
 fn for_accumulator_shares_compound_bindings() {
     let mut c = C::new();
     let set0 = apply("Set", vec![symbol("s", &mut c), i(0, &mut c)], &mut c);
-    let body = apply("Set", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
+    let body =
+        apply("Set", vec![symbol("s", &mut c), apply("Plus", vec![symbol("s", &mut c), symbol("i", &mut c)], &mut c)], &mut c);
     let f = apply("For", vec![symbol("i", &mut c), apply("Span", vec![i(1, &mut c), i(3, &mut c)], &mut c), body], &mut c);
     let e = apply("CompoundExpression", vec![set0, f, symbol("s", &mut c)], &mut c);
     assert_eq!(t(e, &mut c), "6");
@@ -370,7 +383,8 @@ fn session_compound_set_writes_definitions() {
 #[test]
 fn session_setdelayed_evaluates_on_use() {
     let mut c = C::new();
-    let delayed = apply("SetDelayed", vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c);
+    let delayed =
+        apply("SetDelayed", vec![symbol("a", &mut c), apply("Plus", vec![i(1, &mut c), i(1, &mut c)], &mut c)], &mut c);
     assert_eq!(t(delayed, &mut c), "Null");
     assert_eq!(t(symbol("a", &mut c), &mut c), "2");
 }

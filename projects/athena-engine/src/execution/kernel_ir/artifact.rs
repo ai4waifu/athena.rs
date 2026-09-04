@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     domains::polynomial::PolynomialCacheOp,
-    reasoning::mgraph::{FactLog, POLYNOMIAL_SOLVER_ID, Proposition},
+    reasoning::mgraph::{FactLog, POLYNOMIAL_PROVIDER_ID, Proposition},
 };
 
 /// 单条 kernel 操作（当前覆盖多项式域）。
@@ -29,14 +29,14 @@ pub struct KernelIR {
     pub fingerprint: u64,
     /// 有序操作列表。
     pub operations: Vec<KernelOperation>,
-    /// 产出 solver id（当前仅多项式）。
-    pub solver: crate::reasoning::mgraph::SolverId,
+    /// 产出 capability provider（当前仅多项式）。
+    pub provider: crate::reasoning::mgraph::CapabilityProviderId,
 }
 
 impl KernelIR {
     /// 空计划。
     pub fn empty() -> Self {
-        Self { fingerprint: 0, operations: Vec::new(), solver: POLYNOMIAL_SOLVER_ID }
+        Self { fingerprint: 0, operations: Vec::new(), provider: POLYNOMIAL_PROVIDER_ID }
     }
 
     /// 由 fact log 抽取已验证多项式 claim 构造 KernelIR。
@@ -49,7 +49,7 @@ impl KernelIR {
             }
         }
         let fingerprint = hash_operations(&operations);
-        Self { fingerprint, operations, solver: POLYNOMIAL_SOLVER_ID }
+        Self { fingerprint, operations, provider: POLYNOMIAL_PROVIDER_ID }
     }
 }
 

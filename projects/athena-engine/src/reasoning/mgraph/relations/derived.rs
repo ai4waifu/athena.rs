@@ -1,13 +1,13 @@
 //! 由 [`FactLog`] 派生、可重建的索引。
 
 use crate::reasoning::mgraph::{
-    core::types::{RewriteWitness, SolverId},
+    core::types::{CapabilityProviderId, RewriteWitness},
     equivalence::union_find::ExactUnionFind,
     facts::{
         claim::{Proposition, VerifiedClaim},
         log::FactLog,
     },
-    polynomial::POLYNOMIAL_SOLVER_ID,
+    polynomial::POLYNOMIAL_PROVIDER_ID,
 };
 
 /// 派生索引（非真相源；可从 fact log 全量重建）。
@@ -37,7 +37,7 @@ impl DerivedIndexes {
         match &claim.claim.proposition {
             Proposition::PolynomialResult { .. } => {
                 self.rewrite_witnesses.push(RewriteWitness {
-                    solver: POLYNOMIAL_SOLVER_ID,
+                    provider: POLYNOMIAL_PROVIDER_ID,
                     inputs: Vec::new(),
                     outputs: Vec::new(),
                 });

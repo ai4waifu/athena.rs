@@ -6,7 +6,7 @@ use athena_types::AssumptionSetId;
 
 use crate::{
     domains::polynomial::{PolynomialCacheKey, PolynomialCacheOp},
-    reasoning::mgraph::core::types::SolverId,
+    reasoning::mgraph::core::types::CapabilityProviderId,
 };
 
 /// 结论成立范围。
@@ -46,8 +46,8 @@ pub enum Guarantee {
 pub enum Evidence {
     /// 来自已验证纯 Rust 内核的可重放摘要。
     TrustedKernel {
-        /// 产出求解器。
-        solver: SolverId,
+        /// 产出 capability provider。
+        provider: CapabilityProviderId,
         /// 人类可读审计摘要。
         summary: String,
     },

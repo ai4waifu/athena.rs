@@ -9,13 +9,13 @@ pub mod state;
 pub mod types;
 
 pub use refs::{
-    PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, WitnessRef, predicates,
-    scope_from_ref, scope_ref_from_assumption_set, scope_to_ref,
+    PredicateId, RelationRef, RelationStatus, ScopeRef, ScopeRelationKind, SemanticRef, WitnessRef, predicates, scope_from_ref,
+    scope_ref_from_assumption_set, scope_to_ref,
 };
 pub use state::MGraphState;
 pub use types::{
-    DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel, HyperEdge, RewriteWitness,
-    SolverCandidate, SolverFrontier, SolverId, SolverScore,
+    CapabilityProviderId, DeterminacyGuarantee, DeterminacyState, EqualityWitness, EquivalenceClasses, ExactnessLevel,
+    HyperEdge, RewriteWitness, SolverCandidate, SolverFrontier, SolverScore,
 };
 
 use crate::reasoning::mgraph::{

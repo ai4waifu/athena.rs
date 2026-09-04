@@ -83,7 +83,8 @@ fn eval_compare(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, cmp: f
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
-            let (xs, ys) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
+            let (xs, ys) =
+                (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if xs.len() != ys.len() {
                 return vm.push_application(head, vec![left, right]);
             }

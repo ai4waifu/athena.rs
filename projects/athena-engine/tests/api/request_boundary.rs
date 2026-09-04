@@ -1,9 +1,9 @@
 //! 中性请求边界合同测试（Living `26`）。
 
-use athena_engine::api::{
-    AthenaEngine, AthenaRequest, ControlPlan, DefinitionEvaluationTiming, LoweringOutcome, SessionCommand,
+use athena_engine::{
+    api::{AthenaEngine, AthenaRequest, ControlPlan, DefinitionEvaluationTiming, LoweringOutcome, SessionCommand},
+    runtime::{CoverageStatus, Session},
 };
-use athena_engine::runtime::{CoverageStatus, Session};
 use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 
 #[test]
@@ -66,9 +66,7 @@ fn rejected_lowering_does_not_execute() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
     let diagnostic = Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "dialect_gap");
-    let err = engine
-        .execute_lowering_outcome(&mut session, LoweringOutcome::rejected(diagnostic))
-        .expect_err("rejected");
+    let err = engine.execute_lowering_outcome(&mut session, LoweringOutcome::rejected(diagnostic)).expect_err("rejected");
     assert_eq!(err.code, DiagnosticCode::UnsupportedOperation);
     assert_eq!(session.results.count(), 0);
 }

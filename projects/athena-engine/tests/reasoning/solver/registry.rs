@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use athena_engine::reasoning::{
-    mgraph::{ClosureLimits, MGraphState, SolverCandidate, SolverId, run_closure_step},
+    mgraph::{CapabilityProviderId, ClosureLimits, MGraphState, SolverCandidate, run_closure_step},
     solver::{
         DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverOperation, SolverRegistry, SolverRequest,
         score_candidate,
@@ -36,15 +36,15 @@ fn mgraph_state_defaults() {
 #[test]
 fn solver_registry_lookup() {
     let mut registry = SolverRegistry::new();
-    let id = SolverId(1);
+    let id = CapabilityProviderId(1);
     registry.register(id, Arc::new(StubReflector));
     assert!(registry.get(id).is_ok());
-    assert!(registry.get(SolverId(99)).is_err());
+    assert!(registry.get(CapabilityProviderId(99)).is_err());
 }
 
 #[test]
 fn score_candidate_is_stable_integer() {
-    let candidate = SolverCandidate { solver: SolverId(0), roots: vec![TermId(0)] };
+    let candidate = SolverCandidate { provider: CapabilityProviderId(0), roots: vec![TermId(0)] };
     let a = score_candidate(&candidate);
     let b = score_candidate(&candidate);
     assert_eq!(a, b);

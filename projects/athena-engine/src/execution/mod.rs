@@ -97,7 +97,12 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
 }
 
 /// 会话级符号替换（`Table` / `For` / `Function` 具化）。
-pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
+pub fn substitute_symbol(
+    session: &mut crate::runtime::session::Session,
+    expr: TermId,
+    symbol: SymbolId,
+    value: TermId,
+) -> TermId {
     let mut machine = vm::Vm::new(session);
     builtins::patterns::substitute_symbol(&mut machine, expr, symbol, value)
 }
