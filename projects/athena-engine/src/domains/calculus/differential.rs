@@ -43,9 +43,9 @@ pub struct DifferentialSolution {
 impl DifferentialSolution {
     /// 桥接项 `Equal[y[x], explicit]`。
     pub fn to_equal_term(&self, cc: &mut CalculusCtx<'_>) -> TermId {
-        let y = cc.sym(&self.dependent);
-        let lhs = cc.ap(&self.dependent, vec![y]);
-        cc.ap("Equal", vec![lhs, self.explicit])
+        let y = cc.symbol(&self.dependent);
+        let lhs = cc.apply(&self.dependent, vec![y]);
+        cc.apply("Equal", vec![lhs, self.explicit])
     }
 }
 
@@ -79,12 +79,12 @@ pub fn solve_ode_checked(
     };
 
     let mut explicit = if let Some(a) = cc.number_of(rhs.f).map(|n| cc.copy(n)) {
-        let times = cc.ap("Times", vec![cc.num(a), cc.sym(independent)]);
+        let times = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
         cc.eval(times)
     }
     else if let Some(a) = match_times_const_y(cc, rhs.f, dependent) {
-        let times = cc.ap("Times", vec![cc.num(a), cc.sym(independent)]);
-        let exp = cc.ap("Exp", vec![cc.eval(times)]);
+        let times = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
+        let exp = cc.apply("Exp", vec![cc.eval(times)]);
         exp
     }
     else if let Some((p, q)) = match_as_linear_forced(cc, rhs.f, dependent) {
@@ -94,7 +94,7 @@ pub fn solve_ode_checked(
                 reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),
             };
         }
-        cc.eval(cc.ap("Divide", vec![cc.num(q), cc.num(p)]))
+        cc.eval(cc.apply("Divide", vec![cc.num(q), cc.num(p)]))
     }
     else if let Some(sol) = try_rhs_independent_of_y(cc, rhs.f, dependent, independent) {
         sol
@@ -120,8 +120,8 @@ pub fn solve_ode_checked(
     let ivp_ok = match initial {
         Some((x0, y0)) => {
             let at = cc.eval(replace_symbol(cc, explicit, independent, x0));
-            let neg = cc.ap("Times", vec![cc.in_(-1), y0]);
-            let sum = cc.ap("Plus", vec![at, neg]);
+            let neg = cc.apply("Times", vec![cc.in_(-1), y0]);
+            let sum = cc.apply("Plus", vec![at, neg]);
             is_zero_term(cc, cc.eval(sum))
         }
         None => true,
@@ -162,23 +162,23 @@ fn apply_ivp(
 ) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
-        let ax0 = cc.eval(cc.ap("Times", vec![cc.num(cc.copy(&a)), x0]));
-        let c = cc.eval(cc.ap("Plus", vec![y0, cc.ap("Times", vec![cc.in_(-1), ax0])]));
-        let ax = cc.ap("Times", vec![cc.num(a), cc.sym(independent)]);
-        return cc.eval(cc.ap("Plus", vec![ax, c]));
+        let ax0 = cc.eval(cc.apply("Times", vec![cc.num(cc.copy(&a)), x0]));
+        let c = cc.eval(cc.apply("Plus", vec![y0, cc.apply("Times", vec![cc.in_(-1), ax0])]));
+        let ax = cc.apply("Times", vec![cc.num(a), cc.symbol(independent)]);
+        return cc.eval(cc.apply("Plus", vec![ax, c]));
     }
     // 解：y' = a y → y = y0 Exp[a (x - x0)]
     if let Some(a) = match_times_const_y(cc, f, dependent) {
-        let neg = cc.ap("Times", vec![cc.in_(-1), x0]);
-        let delta = cc.eval(cc.ap("Plus", vec![cc.sym(independent), neg]));
-        let exp = cc.ap("Exp", vec![cc.ap("Times", vec![cc.num(a), delta])]);
-        return cc.eval(cc.ap("Times", vec![y0, exp]));
+        let neg = cc.apply("Times", vec![cc.in_(-1), x0]);
+        let delta = cc.eval(cc.apply("Plus", vec![cc.symbol(independent), neg]));
+        let exp = cc.apply("Exp", vec![cc.apply("Times", vec![cc.num(a), delta])]);
+        return cc.eval(cc.apply("Times", vec![y0, exp]));
     }
     // 仅含自变量：y' = g(x) → y = ∫g + C，C = y0 − F(x0)
     if !contains_symbol(cc, f, dependent) {
         let fx0 = cc.eval(replace_symbol(cc, particular, independent, x0));
-        let c = cc.eval(cc.ap("Plus", vec![y0, cc.ap("Times", vec![cc.in_(-1), fx0])]));
-        return cc.eval(cc.ap("Plus", vec![particular, c]));
+        let c = cc.eval(cc.apply("Plus", vec![y0, cc.apply("Times", vec![cc.in_(-1), fx0])]));
+        return cc.eval(cc.apply("Plus", vec![particular, c]));
     }
     // 常数特解：必要时平移
     if cc.number_of(particular).is_some() {
@@ -191,8 +191,8 @@ fn residual_of(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: 
     let d = differentiate(cc, explicit, independent);
     let yp = cc.eval(d);
     let f_sub = cc.eval(replace_symbol(cc, f, dependent, explicit));
-    let neg = cc.ap("Times", vec![cc.in_(-1), f_sub]);
-    cc.eval(cc.ap("Plus", vec![yp, neg]))
+    let neg = cc.apply("Times", vec![cc.in_(-1), f_sub]);
+    cc.eval(cc.apply("Plus", vec![yp, neg]))
 }
 
 /// `y' = g(x)`：右端不含因变量。
@@ -215,21 +215,21 @@ fn try_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, independ
     }
     if n == 2 {
         // 分离变量解：y = -1/(c·x)
-        let den = cc.eval(cc.ap("Times", vec![cc.num(c), cc.sym(independent)]));
-        let inv = cc.ap("Power", vec![den, cc.in_(-1)]);
-        return Some(cc.eval(cc.ap("Times", vec![cc.in_(-1), inv])));
+        let den = cc.eval(cc.apply("Times", vec![cc.num(c), cc.symbol(independent)]));
+        let inv = cc.apply("Power", vec![den, cc.in_(-1)]);
+        return Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), inv])));
     }
     // 幂次分离：y = ((1−n)·c·x)^{1/(1−n)} — 仅当指数为 ±1 时构造，便于求值验证
     let one_minus_n = 1i64 - n;
     if one_minus_n == 0 {
         return None;
     }
-    let inner = cc.eval(cc.ap("Times", vec![cc.in_(one_minus_n), cc.num(c), cc.sym(independent)]));
+    let inner = cc.eval(cc.apply("Times", vec![cc.in_(one_minus_n), cc.num(c), cc.symbol(independent)]));
     if one_minus_n == 1 {
         Some(inner)
     }
     else if one_minus_n == -1 {
-        Some(cc.eval(cc.ap("Power", vec![inner, cc.in_(-1)])))
+        Some(cc.eval(cc.apply("Power", vec![inner, cc.in_(-1)])))
     }
     else {
         None
@@ -245,7 +245,7 @@ fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, ind
     }
     if a.is_zero() {
         // 退化为 c y^n
-        let rhs = cc.ap("Times", vec![cc.num(b), cc.ap("Power", vec![cc.sym(dependent), cc.in_(n)])]);
+        let rhs = cc.apply("Times", vec![cc.num(b), cc.apply("Power", vec![cc.symbol(dependent), cc.in_(n)])]);
         let rhs = cc.eval(rhs);
         return try_power_of_y(cc, rhs, dependent, independent);
     }
@@ -254,8 +254,8 @@ fn try_bernoulli_const(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str, ind
     }
     if n == 2 {
         // 平衡解：y = -a/b
-        let div = cc.ap("Divide", vec![cc.num(a), cc.num(b)]);
-        return Some(cc.eval(cc.ap("Times", vec![cc.in_(-1), div])));
+        let div = cc.apply("Divide", vec![cc.num(a), cc.num(b)]);
+        return Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), div])));
     }
     None
 }
@@ -277,16 +277,16 @@ fn try_separable_g_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str,
     if cc.head_name(anti).is_some_and(|h| h == "Integrate") {
         return None;
     }
-    let inv = cc.ap("Power", vec![anti, cc.in_(-1)]);
-    Some(cc.eval(cc.ap("Times", vec![cc.in_(-1), inv])))
+    let inv = cc.apply("Power", vec![anti, cc.in_(-1)]);
+    Some(cc.eval(cc.apply("Times", vec![cc.in_(-1), inv])))
 }
 
 fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, i64)> {
-    let Some((h, args)) = cc.app(f)
+    let Some((h, args)) = cc.application(f)
     else {
         return None;
     };
-    if h == "Power" && args.len() == 2 && is_sym_named(cc, args[0], dependent) {
+    if h == "Power" && args.len() == 2 && is_symbol_named(cc, args[0], dependent) {
         let n = cc.int_exp(args[1])?;
         return Some((Number::small_int(1), n));
     }
@@ -311,7 +311,7 @@ fn match_scaled_power_of_y(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str)
 
 fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number, i64)> {
     // 伯努利两项：Plus[Times[a,y], Times[b, Power[y,n]]]（顺序任意）
-    let (h, args) = cc.app(f)?;
+    let (h, args) = cc.application(f)?;
     if h != "Plus" || args.len() != 2 {
         return None;
     }
@@ -343,7 +343,7 @@ fn match_bernoulli_const_rhs(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &st
 }
 
 fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(TermId, i64)> {
-    let (h, args) = cc.app(f)?;
+    let (h, args) = cc.application(f)?;
     if h != "Times" || args.len() != 2 {
         return None;
     }
@@ -367,7 +367,7 @@ fn recognize_y_prime_equals(
     independent: &str,
 ) -> Option<FirstOrderRhs> {
     // 形态：Equal[D[y,x], rhs]
-    let (h, args) = cc.app(equation)?;
+    let (h, args) = cc.application(equation)?;
     if h == "Equal" && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
         return Some(FirstOrderRhs { f: args[1] });
     }
@@ -378,9 +378,9 @@ fn recognize_y_prime_equals(
     if h == "Equal" && args.len() == 2 {
         if let Some(p) = match_d_plus_p_y(cc, args[0], dependent, independent) {
             let q = cc.number_of(args[1]).map(|n| cc.copy(n)).unwrap_or_else(|| Number::small_int(0));
-            let py = cc.ap("Times", vec![cc.num(cc.copy(&p)), cc.sym(dependent)]);
-            let neg = cc.ap("Times", vec![cc.in_(-1), py]);
-            let f = cc.eval(cc.ap("Plus", vec![cc.num(q), neg]));
+            let py = cc.apply("Times", vec![cc.num(cc.copy(&p)), cc.symbol(dependent)]);
+            let neg = cc.apply("Times", vec![cc.in_(-1), py]);
+            let f = cc.eval(cc.apply("Plus", vec![cc.num(q), neg]));
             return Some(FirstOrderRhs { f });
         }
     }
@@ -388,7 +388,7 @@ fn recognize_y_prime_equals(
 }
 
 fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> Option<Number> {
-    let (h, args) = cc.app(term)?;
+    let (h, args) = cc.application(term)?;
     if h != "Plus" || args.len() != 2 {
         return None;
     }
@@ -403,7 +403,7 @@ fn match_d_plus_p_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str, ind
 
 fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -> Option<(Number, Number)> {
     // 形态：f = q + Times[-1, p, y] 或 Plus[q, Times[-p, y]]
-    let (h, args) = cc.app(f)?;
+    let (h, args) = cc.application(f)?;
     if h != "Plus" || args.len() != 2 {
         return None;
     }
@@ -417,14 +417,14 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) 
         return None;
     };
     let q = cc.copy(cc.number_of(q_term)?);
-    let (th, targs) = cc.app(py_term)?;
+    let (th, targs) = cc.application(py_term)?;
     if th != "Times" {
         return None;
     }
     let mut coef = Number::small_int(1);
     let mut saw_y = false;
     for t in targs {
-        if is_sym_named(cc, t, dependent) {
+        if is_symbol_named(cc, t, dependent) {
             saw_y = true;
         }
         else if let Some(n) = cc.number_of(t) {
@@ -442,27 +442,27 @@ fn match_as_linear_forced(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) 
 }
 
 fn is_d_of(cc: &CalculusCtx<'_>, term: TermId, dependent: &str, independent: &str) -> bool {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return false;
     };
-    h == "D" && args.len() == 2 && is_sym_named(cc, args[0], dependent) && is_sym_named(cc, args[1], independent)
+    h == "D" && args.len() == 2 && is_symbol_named(cc, args[0], dependent) && is_symbol_named(cc, args[1], independent)
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
+fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, name))
 }
 
 fn match_times_const_y(cc: &mut CalculusCtx<'_>, term: TermId, dependent: &str) -> Option<Number> {
-    let Some((h, args)) = cc.app(term)
+    let Some((h, args)) = cc.application(term)
     else {
         return None;
     };
     if h == "Times" && args.len() == 2 {
-        if is_sym_named(cc, args[1], dependent) {
+        if is_symbol_named(cc, args[1], dependent) {
             return cc.number_of(args[0]).map(|n| cc.copy(n));
         }
-        if is_sym_named(cc, args[0], dependent) {
+        if is_symbol_named(cc, args[0], dependent) {
             return cc.number_of(args[1]).map(|n| cc.copy(n));
         }
         return None;
@@ -479,7 +479,7 @@ fn placeholder(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, equ
         dependent: dependent.to_string(),
         independent: independent.to_string(),
         explicit: equation,
-        verified: VerificationStatus::Failed { residual: cc.sym("Unevaluated") },
+        verified: VerificationStatus::Failed { residual: cc.symbol("Unevaluated") },
     }
 }
 

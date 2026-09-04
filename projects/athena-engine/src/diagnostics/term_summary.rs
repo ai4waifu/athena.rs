@@ -1,20 +1,25 @@
-//! 值呈现（供方言 render 与调试；非 legacy `Term` 桥）。
+//! 值呈现（供方言 render 与调试；非 owning AST 桥）。
 
 use athena_ir::{Atom, TermNode};
 use athena_types::ValueId;
 
 use crate::runtime::{
     session::Session,
-    values::arena::{app_args, app_head_name, term_of_value},
+    values::{
+        RuntimeValue,
+        arena::{application_arguments, application_head_name},
+    },
 };
 
 /// 将 [`ValueId`] 呈现为调试字符串。
 pub fn value_debug(session: &Session, value: ValueId) -> String {
-    let Some(id) = term_of_value(session, value)
-    else {
-        return format!("ValueId({})", value.0);
-    };
-    term_debug(session, id)
+    match session.values.get(value) {
+        None => format!("ValueId({})", value.0),
+        Some(RuntimeValue::SymbolicTerm(id)) => term_debug(session, *id),
+        Some(RuntimeValue::Boolean(true)) => "True".into(),
+        Some(RuntimeValue::Boolean(false)) => "False".into(),
+        Some(RuntimeValue::Null) => "Null".into(),
+    }
 }
 
 /// 将 arena 节点呈现为调试字符串。
@@ -26,9 +31,9 @@ pub fn term_debug(session: &Session, id: athena_types::TermId) -> String {
             let inner: Vec<_> = items.iter().map(|c| term_debug(session, *c)).collect();
             format!("List[{}]", inner.join(", "))
         }
-        Some(TermNode::App { .. }) => {
-            let head = app_head_name(session, id).unwrap_or_else(|| "?".into());
-            let args = app_args(session, id).unwrap_or_default();
+        Some(TermNode::Application { .. }) => {
+            let head = application_head_name(session, id).unwrap_or_else(|| "?".into());
+            let args = application_arguments(session, id).unwrap_or_default();
             let inner: Vec<_> = args.iter().map(|c| term_debug(session, *c)).collect();
             format!("{head}[{}]", inner.join(", "))
         }

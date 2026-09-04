@@ -37,9 +37,9 @@ impl RelationalOperators {
 }
 
 /// 将二元关系 App 归一化为 [`Constraint`]，**不**压成 `lhs - rhs = 0`。
-pub fn normalize_relational_app(arena: &TermStore, root: TermId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
+pub fn normalize_relational_application(arena: &TermStore, root: TermId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
     let (kind, span) = arena_node(arena, root)?;
-    let TermNode::App { op, args } = kind
+    let TermNode::Application { head: op, arguments: args } = kind
     else {
         return Err(diag("expected_app"));
     };
@@ -81,7 +81,7 @@ pub fn normalize_constraint_conjunction(
 ) -> Result<ConstraintSet, Diagnostic> {
     let mut members = Vec::with_capacity(roots.len());
     for root in roots {
-        members.push(normalize_relational_app(arena, *root, ops)?);
+        members.push(normalize_relational_application(arena, *root, ops)?);
     }
     Ok(ConstraintSet::and(members))
 }

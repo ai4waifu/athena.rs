@@ -23,8 +23,8 @@ pub(crate) fn rewrite_bindings(vm: &mut Vm<'_>, expr: TermId) -> TermId {
         return expr;
     };
     match shape {
-        Shape::Sym(sym) => rewrite_symbol(vm, expr, sym),
-        Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(symbol) => rewrite_symbol(vm, expr, symbol),
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -35,25 +35,25 @@ pub(crate) fn rewrite_bindings(vm: &mut Vm<'_>, expr: TermId) -> TermId {
             }
             if !changed { expr } else { vm.push_list(out) }
         }
-        Shape::App(op, args) => rewrite_app(vm, expr, op, args),
+        Shape::Application(op, args) => rewrite_application(vm, expr, op, args),
     }
 }
 
-fn rewrite_symbol(vm: &mut Vm<'_>, expr: TermId, sym: SymbolId) -> TermId {
-    match vm.lookup_symbol(sym) {
+fn rewrite_symbol(vm: &mut Vm<'_>, expr: TermId, symbol: SymbolId) -> TermId {
+    match vm.lookup_symbol(symbol) {
         Some(LocalBinding::Own(v)) => v,
         Some(LocalBinding::Unique(v)) => v,
         None => expr,
     }
 }
 
-fn rewrite_app(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>) -> TermId {
+fn rewrite_application(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>) -> TermId {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
 
     // `Set` / `SetDelayed`：LHS 不改写，仅 RHS。
     if (name == "Set" || name == "SetDelayed") && args.len() == 2 {
         let rhs = rewrite_bindings(vm, args[1]);
-        return if rhs == args[1] { expr } else { vm.rebuild_app_op(op, vec![args[0], rhs]) };
+        return if rhs == args[1] { expr } else { vm.rebuild_application_operator(op, vec![args[0], rhs]) };
     }
 
     // 非符号 head 包装：改写 head 值与参数。
@@ -63,7 +63,7 @@ fn rewrite_app(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>)
         for a in &args[1..] {
             new_args.push(rewrite_bindings(vm, *a));
         }
-        return if new_args == args { expr } else { vm.rebuild_app_wrapped(new_args) };
+        return if new_args == args { expr } else { vm.rebuild_application_wrapped(new_args) };
     }
 
     // 符号 head：参数先改写，再查 head 的 Own / Delayed（替换为值 → Application 包装），
@@ -77,11 +77,11 @@ fn rewrite_app(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>)
     if let Some(value) = lookup_head_own(vm, op) {
         let mut wrapped = vec![value];
         wrapped.extend(new_args);
-        let wrapped_id = vm.rebuild_app_wrapped(wrapped);
+        let wrapped_id = vm.rebuild_application_wrapped(wrapped);
         return rewrite_bindings(vm, wrapped_id);
     }
 
-    let app = if unchanged { expr } else { vm.rebuild_app_op(op, new_args) };
+    let app = if unchanged { expr } else { vm.rebuild_application_operator(op, new_args) };
     apply_down_values(vm, app)
 }
 
@@ -89,8 +89,8 @@ fn rewrite_app(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>)
 fn lookup_head_own(vm: &mut Vm<'_>, op: OperatorId) -> Option<TermId> {
     let name = vm.session.operators.name(op)?;
     let name = name.to_string();
-    let sym = vm.session.arena.symbols_mut().intern(&name);
-    match vm.lookup_symbol(sym) {
+    let symbol = vm.session.arena.symbols_mut().intern(&name);
+    match vm.lookup_symbol(symbol) {
         Some(LocalBinding::Own(v)) => Some(v),
         Some(LocalBinding::Unique(v)) => Some(v),
         None => None,
@@ -99,7 +99,7 @@ fn lookup_head_own(vm: &mut Vm<'_>, op: OperatorId) -> Option<TermId> {
 
 /// 对已改写的 App 尝试 DownValues（首条匹配规则获胜，结果递归改写）。
 fn apply_down_values(vm: &mut Vm<'_>, app: TermId) -> TermId {
-    let Some(Shape::App(op, args)) = vm.shape(app)
+    let Some(Shape::Application(op, args)) = vm.shape(app)
     else {
         return app;
     };
@@ -110,13 +110,13 @@ fn apply_down_values(vm: &mut Vm<'_>, app: TermId) -> TermId {
     if name == "Application" {
         return app;
     }
-    let sym = vm.session.arena.symbols_mut().intern(&name);
-    let Some(rules) = vm.down_values(sym)
+    let symbol = vm.session.arena.symbols_mut().intern(&name);
+    let Some(rules) = vm.down_values(symbol)
     else {
         return app;
     };
     for (lhs, rhs) in rules {
-        let Some(Shape::App(_, pat_args)) = vm.shape(lhs)
+        let Some(Shape::Application(_, pat_args)) = vm.shape(lhs)
         else {
             continue;
         };

@@ -84,8 +84,8 @@ pub fn push_number(session: &mut crate::runtime::session::Session, n: Number) ->
 }
 
 /// 会话级 App 构造（算子名 intern）。
-pub fn push_app(session: &mut crate::runtime::session::Session, head: &str, args: Vec<TermId>) -> TermId {
-    crate::runtime::values::arena::push_app_named(session, head, args)
+pub fn push_application(session: &mut crate::runtime::session::Session, head: &str, args: Vec<TermId>) -> TermId {
+    crate::runtime::values::arena::push_application_named(session, head, args)
 }
 
 /// 会话级数字原子读取。
@@ -97,9 +97,9 @@ pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) 
 }
 
 /// 会话级符号替换（`Table` / `For` / `Function` 具化）。
-pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, sym: SymbolId, value: TermId) -> TermId {
+pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
     let mut machine = vm::Vm::new(session);
-    builtins::patterns::substitute_symbol(&mut machine, expr, sym, value)
+    builtins::patterns::substitute_symbol(&mut machine, expr, symbol, value)
 }
 
 /// handler 表下标（与 [`HANDLERS`] 顺序一一对应）。

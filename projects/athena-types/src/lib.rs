@@ -17,7 +17,7 @@ pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
     AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId,
-    FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId, PolynomialId,
+    FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, OperatorId, PolynomialId,
     PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId,
     TheoryContextId, ValueId,
 };

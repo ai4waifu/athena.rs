@@ -12,15 +12,15 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
         return expr;
     };
     match shape {
-        Shape::Sym(s) => {
-            if cc.sym_is(s, var) {
+        Shape::Symbol(s) => {
+            if cc.symbol_is(s, var) {
                 with
             }
             else {
                 expr
             }
         }
-        Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -31,7 +31,7 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
             }
             if changed { cc.list(out) } else { expr }
         }
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let head = cc.op_name(op).to_string();
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
@@ -40,7 +40,7 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { cc.ap(&head, out) } else { expr }
+            if changed { cc.apply(&head, out) } else { expr }
         }
     }
 }
@@ -52,9 +52,9 @@ pub(crate) fn contains_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> 
         return false;
     };
     match shape {
-        Shape::Sym(s) => cc.sym_is(s, var),
-        Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => false,
+        Shape::Symbol(s) => cc.symbol_is(s, var),
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => false,
         Shape::List(items) => items.iter().any(|i| contains_symbol(cc, *i, var)),
-        Shape::App(_, args) => args.iter().any(|a| contains_symbol(cc, *a, var)),
+        Shape::Application(_, args) => args.iter().any(|a| contains_symbol(cc, *a, var)),
     }
 }

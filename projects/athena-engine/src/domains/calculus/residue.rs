@@ -82,8 +82,8 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &
 }
 
 fn residue_echo(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> TermId {
-    let spec = cc.list(vec![cc.sym(variable), point]);
-    cc.ap("Residue", vec![expression, spec])
+    let spec = cc.list(vec![cc.symbol(variable), point]);
+    cc.apply("Residue", vec![expression, spec])
 }
 
 fn is_zero_like(cc: &CalculusCtx<'_>, term: TermId) -> bool {

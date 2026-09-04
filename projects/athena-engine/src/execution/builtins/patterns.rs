@@ -20,7 +20,7 @@ pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &m
         return false;
     };
     match ps {
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let name = vm.session.operators.name(op).unwrap_or("").to_string();
             match name.as_str() {
                 "Blank" => match args.as_slice() {
@@ -29,7 +29,7 @@ pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &m
                     _ => false,
                 },
                 "Pattern" if args.len() == 2 => {
-                    let Some(Shape::Sym(name_sym)) = vm.shape(args[0])
+                    let Some(Shape::Symbol(name_sym)) = vm.shape(args[0])
                     else {
                         return false;
                     };
@@ -58,7 +58,7 @@ fn structural_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashM
     };
     let (pat_app, pat_items) = match p {
         Shape::List(v) => (false, v),
-        Shape::App(op, v) => (true, v),
+        Shape::Application(op, v) => (true, v),
         _ => return vm.session.arena.structural_eq(expr, pat),
     };
     let Some(e) = vm.shape(expr)
@@ -67,7 +67,7 @@ fn structural_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashM
     };
     let (expr_app, expr_items) = match e {
         Shape::List(v) => (false, v),
-        Shape::App(_, v) => (true, v),
+        Shape::Application(_, v) => (true, v),
         _ => return false,
     };
     if pat_app != expr_app {
@@ -79,7 +79,7 @@ fn structural_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashM
 
 /// `Blank[h]` 的 head 判定（legacy `expr_has_head`）。
 pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> bool {
-    let Some(Shape::Sym(_)) = vm.shape(head_pat)
+    let Some(Shape::Symbol(_)) = vm.shape(head_pat)
     else {
         return false;
     };
@@ -97,9 +97,9 @@ pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> 
             },
             _ => false,
         },
-        "Symbol" => matches!(vm.shape(expr), Some(Shape::Sym(_))),
+        "Symbol" => matches!(vm.shape(expr), Some(Shape::Symbol(_))),
         "List" => matches!(vm.shape(expr), Some(Shape::List(_))),
-        "String" => matches!(vm.shape(expr), Some(Shape::Str(_))),
+        "String" => matches!(vm.shape(expr), Some(Shape::String(_))),
         other => vm.head_name(expr).is_some_and(|h| h == other),
     }
 }
@@ -114,8 +114,8 @@ pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: TermId, binds: &HashMap<Sy
         return expr;
     };
     match s {
-        Shape::Sym(sym) => binds.get(&sym).copied().unwrap_or(expr),
-        Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(symbol) => binds.get(&symbol).copied().unwrap_or(expr),
+        Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -126,7 +126,7 @@ pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: TermId, binds: &HashMap<Sy
             }
             if changed { vm.push_list(out) } else { expr }
         }
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
             for a in args {
@@ -134,39 +134,39 @@ pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: TermId, binds: &HashMap<Sy
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { vm.rebuild_app_op(op, out) } else { expr }
+            if changed { vm.rebuild_application_operator(op, out) } else { expr }
         }
     }
 }
 
 /// 符号替换（legacy `substitute_symbol`）：Table / For / Function 具化。
-pub(crate) fn substitute_symbol(vm: &mut Vm<'_>, expr: TermId, sym: SymbolId, value: TermId) -> TermId {
+pub(crate) fn substitute_symbol(vm: &mut Vm<'_>, expr: TermId, symbol: SymbolId, value: TermId) -> TermId {
     let Some(s) = vm.shape(expr)
     else {
         return expr;
     };
     match s {
-        Shape::Sym(x) if x == sym => value,
-        Shape::Sym(_) | Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(x) if x == symbol => value,
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
             for i in items {
-                let r = substitute_symbol(vm, i, sym, value);
+                let r = substitute_symbol(vm, i, symbol, value);
                 changed |= r != i;
                 out.push(r);
             }
             if changed { vm.push_list(out) } else { expr }
         }
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
             for a in args {
-                let r = substitute_symbol(vm, a, sym, value);
+                let r = substitute_symbol(vm, a, symbol, value);
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { vm.rebuild_app_op(op, out) } else { expr }
+            if changed { vm.rebuild_application_operator(op, out) } else { expr }
         }
     }
 }
@@ -178,8 +178,8 @@ pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: TermId, value: TermId) -> T
         return expr;
     };
     match s {
-        Shape::Sym(sym) if is_slot(vm, sym) => value,
-        Shape::App(op, args)
+        Shape::Symbol(symbol) if is_slot(vm, symbol) => value,
+        Shape::Application(op, args)
             if vm.session.operators.name(op) == Some("Slot")
                 && (args.is_empty()
                     || (args.len() == 1
@@ -188,7 +188,7 @@ pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: TermId, value: TermId) -> T
             let _ = args;
             value
         }
-        Shape::Sym(_) | Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -199,7 +199,7 @@ pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: TermId, value: TermId) -> T
             }
             if changed { vm.push_list(out) } else { expr }
         }
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
             for a in args {
@@ -207,7 +207,7 @@ pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: TermId, value: TermId) -> T
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { vm.rebuild_app_op(op, out) } else { expr }
+            if changed { vm.rebuild_application_operator(op, out) } else { expr }
         }
     }
 }
@@ -226,7 +226,7 @@ pub(crate) fn replace_literal(vm: &mut Vm<'_>, expr: TermId, lhs: TermId, rhs: T
         return expr;
     };
     match s {
-        Shape::Sym(_) | Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => expr,
+        Shape::Symbol(_) | Shape::Number | Shape::String(_) | Shape::Bool(_) | Shape::Null => expr,
         Shape::List(items) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(items.len());
@@ -237,7 +237,7 @@ pub(crate) fn replace_literal(vm: &mut Vm<'_>, expr: TermId, lhs: TermId, rhs: T
             }
             if changed { vm.push_list(out) } else { expr }
         }
-        Shape::App(op, args) => {
+        Shape::Application(op, args) => {
             let mut changed = false;
             let mut out = Vec::with_capacity(args.len());
             for a in args {
@@ -245,7 +245,7 @@ pub(crate) fn replace_literal(vm: &mut Vm<'_>, expr: TermId, lhs: TermId, rhs: T
                 changed |= r != a;
                 out.push(r);
             }
-            if changed { vm.rebuild_app_op(op, out) } else { expr }
+            if changed { vm.rebuild_application_operator(op, out) } else { expr }
         }
     }
 }

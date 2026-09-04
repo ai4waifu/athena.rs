@@ -6,7 +6,7 @@ use athena_engine::domains::{
     solve::{
         BindingValue, BoundSymbol, ConstraintSet, CoverageStatus, ExecutionLimits, LinearSolveMode, RelationalOperators,
         SolveDomain, SolveGoal, SolvePolicy, SolveProblem, adapt_univariate_factorization, assemble_solve_problem,
-        execute_linear_system_goal, normalize_relational_app, solve_linear_system_exact, solve_linear_system_machine,
+        execute_linear_system_goal, normalize_relational_application, solve_linear_system_exact, solve_linear_system_machine,
         solve_univariate_polynomial_roots,
     },
 };
@@ -136,9 +136,9 @@ fn normalize_equal_keeps_lhs_rhs() {
     let mut builder = TermBuilder::new(&mut arena);
     let lhs = builder.symbol_id(SymbolId(1), SourceSpan::default());
     let rhs = builder.number(Number::small_int(0), SourceSpan::default());
-    let eq = builder.app(OperatorId(0), vec![lhs, rhs], SourceSpan::default());
+    let eq = builder.application(OperatorId(0), vec![lhs, rhs], SourceSpan::default());
     let ops = RelationalOperators::placeholder();
-    let c = normalize_relational_app(&arena, eq, &ops).unwrap();
+    let c = normalize_relational_application(&arena, eq, &ops).unwrap();
     match c {
         athena_engine::domains::solve::Constraint::Equation(e) => {
             assert_eq!(e.lhs, lhs);
@@ -147,7 +147,7 @@ fn normalize_equal_keeps_lhs_rhs() {
         }
         other => panic!("expected equation, got {other:?}"),
     }
-    assert!(matches!(arena.get(eq), Some(TermNode::App { args, .. }) if args.len() == 2));
+    assert!(matches!(arena.get(eq), Some(TermNode::Application { arguments, .. }) if arguments.len() == 2));
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn assemble_problem_from_ir_and_dispatch_linear_goal() {
     let mut builder = TermBuilder::new(&mut arena);
     let x = builder.symbol_id(SymbolId(0), SourceSpan::default());
     let zero = builder.number(Number::small_int(0), SourceSpan::default());
-    let eq = builder.app(OperatorId(0), vec![x, zero], SourceSpan::default());
+    let eq = builder.application(OperatorId(0), vec![x, zero], SourceSpan::default());
     let ops = RelationalOperators::placeholder();
     let unknowns = vec![BoundSymbol::free(SymbolId(0)), BoundSymbol::free(SymbolId(1))];
     let problem = assemble_solve_problem(

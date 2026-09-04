@@ -94,12 +94,12 @@ fn try_known_finite_limit(cc: &CalculusCtx<'_>, expression: TermId, variable: &s
 }
 
 fn is_sinc_form(cc: &CalculusCtx<'_>, expression: TermId, variable: &str) -> bool {
-    let Some((h, args)) = cc.app(expression)
+    let Some((h, args)) = cc.application(expression)
     else {
         return false;
     };
     match h.as_str() {
-        "Divide" if args.len() == 2 => is_sin_of_var(cc, args[0], variable) && is_sym_named(cc, args[1], variable),
+        "Divide" if args.len() == 2 => is_sin_of_var(cc, args[0], variable) && is_symbol_named(cc, args[1], variable),
         "Times" if args.len() == 2 => {
             (is_sin_of_var(cc, args[0], variable) && is_reciprocal_var(cc, args[1], variable))
                 || (is_sin_of_var(cc, args[1], variable) && is_reciprocal_var(cc, args[0], variable))
@@ -109,16 +109,16 @@ fn is_sinc_form(cc: &CalculusCtx<'_>, expression: TermId, variable: &str) -> boo
 }
 
 fn is_sin_of_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
-    matches!(cc.app(expr), Some((h, args)) if h == "Sin" && args.len() == 1 && is_sym_named(cc, args[0], variable))
+    matches!(cc.application(expr), Some((h, args)) if h == "Sin" && args.len() == 1 && is_symbol_named(cc, args[0], variable))
 }
 
 fn is_reciprocal_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
     matches!(
-        cc.app(expr),
+        cc.application(expr),
         Some((h, args))
             if h == "Power"
                 && args.len() == 2
-                && is_sym_named(cc, args[0], variable)
+                && is_symbol_named(cc, args[0], variable)
                 && cc.int_exp(args[1]) == Some(-1)
     )
 }
@@ -140,8 +140,8 @@ fn try_lhopital_once(
     }
     let num_d = super::derivative::differentiate(cc, num, variable);
     let den_d = super::derivative::differentiate(cc, den, variable);
-    let inv = cc.ap("Power", vec![den_d, cc.in_(-1)]);
-    let ratio = cc.ap("Times", vec![num_d, inv]);
+    let inv = cc.apply("Power", vec![den_d, cc.in_(-1)]);
+    let ratio = cc.apply("Times", vec![num_d, inv]);
     let value = cc.eval(replace_symbol(cc, ratio, variable, point));
     if is_indeterminate_form(cc, value) || is_singular_form(cc, value) || contains_symbol(cc, value, variable) {
         return None;
@@ -150,7 +150,7 @@ fn try_lhopital_once(
 }
 
 fn split_quotient(cc: &CalculusCtx<'_>, expression: TermId) -> Option<(TermId, TermId)> {
-    let (h, args) = cc.app(expression)?;
+    let (h, args) = cc.application(expression)?;
     match h.as_str() {
         "Divide" if args.len() == 2 => Some((args[0], args[1])),
         "Times" if args.len() == 2 => {
@@ -169,11 +169,11 @@ fn split_quotient(cc: &CalculusCtx<'_>, expression: TermId) -> Option<(TermId, T
 }
 
 fn is_reciprocal_power(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
-    matches!(cc.app(expr), Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1))
+    matches!(cc.application(expr), Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1))
 }
 
 fn reciprocal_base(cc: &CalculusCtx<'_>, expr: TermId) -> Option<TermId> {
-    match cc.app(expr) {
+    match cc.application(expr) {
         Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1) => Some(args[0]),
         _ => None,
     }
@@ -186,7 +186,7 @@ fn try_onesided_simple_pole(
     point: TermId,
     direction: LimitDirection,
 ) -> Option<TermId> {
-    let (num, den) = match cc.app(expression) {
+    let (num, den) = match cc.application(expression) {
         Some((h, args)) if h == "Divide" && args.len() == 2 => (args[0], args[1]),
         Some((h, args)) if h == "Power" && args.len() == 2 => {
             if cc.int_exp(args[1]) == Some(-1) {
@@ -206,10 +206,10 @@ fn try_onesided_simple_pole(
     if den_n.is_zero() && !num_n.is_zero() {
         let eps = cc.in_(1);
         let probe = match direction {
-            LimitDirection::FromAbove => cc.eval(cc.ap("Plus", vec![point, eps])),
+            LimitDirection::FromAbove => cc.eval(cc.apply("Plus", vec![point, eps])),
             LimitDirection::FromBelow => {
-                let neg = cc.ap("Times", vec![cc.in_(-1), eps]);
-                cc.eval(cc.ap("Plus", vec![point, neg]))
+                let neg = cc.apply("Times", vec![cc.in_(-1), eps]);
+                cc.eval(cc.apply("Plus", vec![point, neg]))
             }
             LimitDirection::TwoSided => return None,
         };
@@ -223,7 +223,7 @@ fn try_onesided_simple_pole(
             (Greater, Less) | (Less, Greater) => false,
             _ => return None,
         };
-        return Some(if positive { cc.sym("Infinity") } else { cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]) });
+        return Some(if positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) });
     }
     None
 }
@@ -252,7 +252,7 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
         if !positive && degree % 2 == 1 {
             sign_positive = !sign_positive;
         }
-        let value = if sign_positive { cc.sym("Infinity") } else { cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]) };
+        let value = if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
     unevaluated_limit(
@@ -267,10 +267,10 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
 fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> Option<(i64, Number)> {
     match cc.shape(expr)? {
         Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
-        Shape::Sym(s) if cc.sym_is(s, var) => Some((1, Number::small_int(1))),
-        Shape::Sym(_) | Shape::Str(_) | Shape::Bool(_) | Shape::Null | Shape::List(_) => None,
-        Shape::App(_, _) => {
-            let (h, args) = cc.app(expr)?;
+        Shape::Symbol(s) if cc.symbol_is(s, var) => Some((1, Number::small_int(1))),
+        Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::List(_) => None,
+        Shape::Application(_, _) => {
+            let (h, args) = cc.application(expr)?;
             match h.as_str() {
                 "Plus" => {
                     let mut best: Option<(i64, Number)> = None;
@@ -295,13 +295,13 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) 
                     }
                     Some((deg, coeff))
                 }
-                "Power" if args.len() == 2 && is_sym_named(cc, args[0], var) => {
+                "Power" if args.len() == 2 && is_symbol_named(cc, args[0], var) => {
                     let n = cc.int_exp(args[1])?;
                     Some((n, Number::small_int(1)))
                 }
                 "Subtract" if args.len() == 2 => {
-                    let neg = cc.ap("Times", vec![cc.in_(-1), args[1]]);
-                    let rewritten = cc.ap("Plus", vec![args[0], neg]);
+                    let neg = cc.apply("Times", vec![cc.in_(-1), args[1]]);
+                    let rewritten = cc.apply("Plus", vec![args[0], neg]);
                     polynomial_degree_leading(cc, rewritten, var)
                 }
                 _ => None,
@@ -323,19 +323,19 @@ fn limit_form(
 ) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
-        LimitApproach::PositiveInfinity => cc.sym("Infinity"),
-        LimitApproach::NegativeInfinity => cc.ap("Times", vec![cc.in_(-1), cc.sym("Infinity")]),
+        LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
+        LimitApproach::NegativeInfinity => cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]),
     };
-    let spec = cc.list(vec![cc.sym(variable), approach_term]);
+    let spec = cc.list(vec![cc.symbol(variable), approach_term]);
     let mut args = vec![expression, spec];
     if direction != LimitDirection::TwoSided {
-        args.push(cc.sym(match direction {
+        args.push(cc.symbol(match direction {
             LimitDirection::FromBelow => "FromBelow",
             LimitDirection::FromAbove => "FromAbove",
             LimitDirection::TwoSided => unreachable!(),
         }));
     }
-    cc.ap("Limit", args)
+    cc.apply("Limit", args)
 }
 
 fn unevaluated_limit(
@@ -352,7 +352,7 @@ fn unevaluated_limit(
 }
 
 fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
-    let Some((h, args)) = cc.app(expr)
+    let Some((h, args)) = cc.application(expr)
     else {
         return false;
     };
@@ -364,7 +364,7 @@ fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
             let has_zero = args.iter().any(|a| cc.number_of(*a).is_some_and(|n| n.is_zero()));
             let has_singular_pow = args.iter().any(|a| {
                 matches!(
-                    cc.app(*a),
+                    cc.application(*a),
                     Some((ph, p))
                         if ph == "Power"
                             && p.len() == 2
@@ -380,7 +380,7 @@ fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
 }
 
 fn is_singular_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
-    let Some((h, args)) = cc.app(expr)
+    let Some((h, args)) = cc.application(expr)
     else {
         return false;
     };
@@ -395,6 +395,6 @@ fn is_singular_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     }
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
-    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
+fn is_symbol_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, name))
 }

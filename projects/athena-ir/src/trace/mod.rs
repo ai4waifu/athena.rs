@@ -8,7 +8,7 @@ use crate::node::TermNode;
 pub fn trace_term_node(kind: &TermNode, mark: &mut dyn FnMut(TermId)) {
     match kind {
         TermNode::Atom(_) => {}
-        TermNode::List(items) | TermNode::App { args: items, .. } => {
+        TermNode::List(items) | TermNode::Application { arguments: items, .. } => {
             for child in items {
                 mark(*child);
             }

@@ -17,33 +17,33 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
     match shape {
         crate::execution::vm::Shape::Number => {
             let n = cc.number_of(expr).map(|n| cc.copy(n)).expect("number");
-            cc.ap("Times", vec![cc.num(n), cc.sym(var)])
+            cc.apply("Times", vec![cc.num(n), cc.symbol(var)])
         }
-        crate::execution::vm::Shape::Str(_) | crate::execution::vm::Shape::Bool(_) | crate::execution::vm::Shape::Null => {
-            cc.ap("Integrate", vec![expr, cc.sym(var)])
+        crate::execution::vm::Shape::String(_) | crate::execution::vm::Shape::Bool(_) | crate::execution::vm::Shape::Null => {
+            cc.apply("Integrate", vec![expr, cc.symbol(var)])
         }
-        crate::execution::vm::Shape::Sym(s) => {
-            if cc.sym_is(s, var) {
-                let x2 = cc.ap("Power", vec![cc.sym(var), cc.in_(2)]);
-                cc.eval(cc.ap("Divide", vec![x2, cc.in_(2)]))
+        crate::execution::vm::Shape::Symbol(s) => {
+            if cc.symbol_is(s, var) {
+                let x2 = cc.apply("Power", vec![cc.symbol(var), cc.in_(2)]);
+                cc.eval(cc.apply("Divide", vec![x2, cc.in_(2)]))
             }
             else {
-                cc.ap("Times", vec![expr, cc.sym(var)])
+                cc.apply("Times", vec![expr, cc.symbol(var)])
             }
         }
         crate::execution::vm::Shape::List(items) => {
             let iss = items.iter().map(|i| integrate(cc, *i, var)).collect();
             cc.list(iss)
         }
-        crate::execution::vm::Shape::App(_, _) => {
-            let Some((h, args)) = cc.app(expr)
+        crate::execution::vm::Shape::Application(_, _) => {
+            let Some((h, args)) = cc.application(expr)
             else {
                 return expr;
             };
             match h.as_str() {
                 "Plus" => {
                     let iss = args.iter().map(|a| integrate(cc, *a, var)).collect();
-                    cc.eval(cc.ap("Plus", iss))
+                    cc.eval(cc.apply("Plus", iss))
                 }
                 "Times" if args.len() == 2 => {
                     let (coeff, rest) = if cc.number_of(args[0]).is_some() {
@@ -53,27 +53,27 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
                         (args[1], args[0])
                     }
                     else {
-                        return cc.ap("Integrate", vec![expr, cc.sym(var)]);
+                        return cc.apply("Integrate", vec![expr, cc.symbol(var)]);
                     };
                     let ir = integrate(cc, rest, var);
-                    cc.eval(cc.ap("Times", vec![coeff, ir]))
+                    cc.eval(cc.apply("Times", vec![coeff, ir]))
                 }
                 "Power" if args.len() == 2 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
                     if let Some(n) = cc.int_exp(args[1]) {
                         if n != -1 {
-                            let p = cc.ap("Power", vec![args[0], cc.in_(n + 1)]);
-                            return cc.eval(cc.ap("Divide", vec![p, cc.in_(n + 1)]));
+                            let p = cc.apply("Power", vec![args[0], cc.in_(n + 1)]);
+                            return cc.eval(cc.apply("Divide", vec![p, cc.in_(n + 1)]));
                         }
                     }
-                    cc.ap("Integrate", vec![expr, cc.sym(var)])
+                    cc.apply("Integrate", vec![expr, cc.symbol(var)])
                 }
                 "Sin" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => {
-                    let c = cc.ap("Cos", args.clone());
-                    cc.eval(cc.ap("Times", vec![cc.in_(-1), c]))
+                    let c = cc.apply("Cos", args.clone());
+                    cc.eval(cc.apply("Times", vec![cc.in_(-1), c]))
                 }
-                "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.ap("Sin", args.clone()),
-                "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.ap("Exp", args.clone()),
-                _ => cc.ap("Integrate", vec![expr, cc.sym(var)]),
+                "Cos" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Sin", args.clone()),
+                "Exp" if args.len() == 1 && cc.head_name(args[0]).is_some_and(|n| n == var) => cc.apply("Exp", args.clone()),
+                _ => cc.apply("Integrate", vec![expr, cc.symbol(var)]),
             }
         }
     }
@@ -99,8 +99,8 @@ pub fn definite_integrate_checked(
     upper: TermId,
 ) -> CalculusResult<TermId> {
     let echo = |cc: &mut CalculusCtx<'_>| {
-        let iter = cc.list(vec![cc.sym(var), lower, upper]);
-        cc.ap("Integrate", vec![expr, iter])
+        let iter = cc.list(vec![cc.symbol(var), lower, upper]);
+        cc.apply("Integrate", vec![expr, iter])
     };
     match integrate_checked(cc, expr, var) {
         CalculusResult::Exact { value: antideriv, conditions } => {
@@ -112,15 +112,15 @@ pub fn definite_integrate_checked(
                     reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid),
                 };
             }
-            let neg = cc.ap("Times", vec![cc.in_(-1), at_lower]);
-            let value = cc.eval(cc.ap("Plus", vec![at_upper, neg]));
+            let neg = cc.apply("Times", vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.apply("Plus", vec![at_upper, neg]));
             CalculusResult::Exact { value, conditions }
         }
         CalculusResult::Conditional { value: antideriv, conditions } => {
             let at_upper = cc.eval(replace_symbol(cc, antideriv, var, upper));
             let at_lower = cc.eval(replace_symbol(cc, antideriv, var, lower));
-            let neg = cc.ap("Times", vec![cc.in_(-1), at_lower]);
-            let value = cc.eval(cc.ap("Plus", vec![at_upper, neg]));
+            let neg = cc.apply("Times", vec![cc.in_(-1), at_lower]);
+            let value = cc.eval(cc.apply("Plus", vec![at_upper, neg]));
             CalculusResult::Conditional { value, conditions }
         }
         CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated { expression: echo(cc), reason },

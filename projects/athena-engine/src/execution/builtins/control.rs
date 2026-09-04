@@ -13,9 +13,9 @@ use crate::execution::{
 /// `Function[…][args…]` 动态分派（`EvalDynamic`）。
 pub(crate) fn eval_dynamic(vm: &mut Vm<'_>, head: TermId, args: Vec<TermId>) -> Outcome {
     if vm.head_name(head).is_some_and(|h| h == "Function") {
-        return apply_function(vm, &vm.app_args(head).unwrap_or_default(), &args);
+        return apply_function(vm, &vm.application_arguments(head).unwrap_or_default(), &args);
     }
-    Outcome::unevaluated(vm.rebuild_app(head, args))
+    Outcome::unevaluated(vm.rebuild_application(head, args))
 }
 
 /// `CompoundExpression` 语句位：顺序求值，写当前 env。
@@ -60,7 +60,7 @@ fn compound_into(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 
 pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() < 2 || args.len() > 4 {
-        return Outcome::unevaluated(vm.push_app("If", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("If", args.to_vec()));
     }
     let cond_o = vm.eval_value(args[0]);
     let mut diags = cond_o.diagnostics.clone();
@@ -87,7 +87,7 @@ pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
                 let summary = term_summary(vm, cond_o.term);
                 let mut held = vec![cond_o.term];
                 held.extend_from_slice(&args[1..]);
-                let term = vm.push_app("If", held);
+                let term = vm.push_application("If", held);
                 diags.push(non_boolean_condition_diagnostic(&summary));
                 Outcome {
                     term,
@@ -102,7 +102,7 @@ pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 
 pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.is_empty() || args.len() % 2 != 0 {
-        return Outcome::unevaluated(vm.push_app("Which", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("Which", args.to_vec()));
     }
     let mut diags = Vec::new();
     let mut uneval_pairs: Vec<TermId> = Vec::new();
@@ -134,7 +134,7 @@ pub(crate) fn h_which(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
         let summary = term_summary(vm, uneval_pairs[0]);
         diags.push(non_boolean_condition_diagnostic(&summary));
         Outcome {
-            term: vm.push_app("Which", uneval_pairs),
+            term: vm.push_application("Which", uneval_pairs),
             kind: crate::execution::EvalKind::Unevaluated,
             status: athena_types::ComputationStatus::Invalid,
             diagnostics: diags,
@@ -157,7 +157,7 @@ pub(crate) fn h_while_fresh(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 
 fn while_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 2 {
-        return Outcome::unevaluated(vm.push_app("While", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("While", args.to_vec()));
     }
     let mut diags = Vec::new();
     let mut last = vm.push_null();
@@ -191,7 +191,7 @@ fn while_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             }
             None => {
                 diags.push(non_boolean_condition_diagnostic(&term_summary(vm, cond_o.term)));
-                let term = vm.push_app("While", vec![cond_o.term, args[1]]);
+                let term = vm.push_application("While", vec![cond_o.term, args[1]]);
                 return Outcome {
                     term,
                     kind: crate::execution::EvalKind::Unevaluated,
@@ -201,7 +201,7 @@ fn while_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             }
         }
     }
-    let term = vm.push_app("While", args.to_vec());
+    let term = vm.push_application("While", args.to_vec());
     diags.push(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation).detail("operation", "While"));
     Outcome {
         term,
@@ -226,20 +226,20 @@ pub(crate) fn h_for_fresh(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 
 fn for_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 3 {
-        return Outcome::unevaluated(vm.push_app("For", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("For", args.to_vec()));
     }
     let var_sym = match vm.session.arena.get(args[0]) {
         Some(TermNode::Atom(Atom::Symbol(s))) => *s,
-        _ => return Outcome::unevaluated(vm.push_app("For", args.to_vec())),
+        _ => return Outcome::unevaluated(vm.push_application("For", args.to_vec())),
     };
     let iter_o = vm.eval_value(args[1]);
     let mut diags = iter_o.diagnostics.clone();
     let Some(values) = (match vm.session.arena.get(iter_o.term) {
-        Some(TermNode::List(_)) => vm.app_args(iter_o.term),
+        Some(TermNode::List(_)) => vm.application_arguments(iter_o.term),
         _ => None,
     })
     else {
-        let term = vm.push_app("For", vec![args[0], iter_o.term, args[2]]);
+        let term = vm.push_application("For", vec![args[0], iter_o.term, args[2]]);
         return Outcome::unevaluated(term);
     };
     let mut last = vm.push_null();
@@ -268,7 +268,7 @@ fn for_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 /// `Try[body, catch]`：body Error 时求值 catch。
 pub(crate) fn h_try(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     if args.len() != 2 {
-        return Outcome::unevaluated(vm.push_app("Try", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("Try", args.to_vec()));
     }
     let body_o = vm.eval_value(args[0]);
     if body_o.has_error() {
@@ -310,14 +310,14 @@ pub(crate) fn h_block_top(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 /// `With` / `Block`：局部 `{x=1,…}` 后求值体（legacy `eval_local_scope` 非路径）。
 fn with_block(vm: &mut Vm<'_>, args: &[TermId], top: bool, head: &str) -> Outcome {
     if args.len() != 2 {
-        return Outcome::unevaluated(vm.push_app(head, args.to_vec()));
+        return Outcome::unevaluated(vm.push_application(head, args.to_vec()));
     }
     let Some(locals) = (match vm.session.arena.get(args[0]) {
-        Some(TermNode::List(_)) => vm.app_args(args[0]),
+        Some(TermNode::List(_)) => vm.application_arguments(args[0]),
         _ => None,
     })
     else {
-        let term = vm.push_app(head, vec![args[0], args[1]]);
+        let term = vm.push_application(head, vec![args[0], args[1]]);
         return Outcome::unevaluated(term);
     };
     let mut frame = ScopeFrame::new();
@@ -325,12 +325,12 @@ fn with_block(vm: &mut Vm<'_>, args: &[TermId], top: bool, head: &str) -> Outcom
     for item in locals {
         let Some((name, rhs)) = match_set(vm, item)
         else {
-            return Outcome::unevaluated(vm.push_app(head, args.to_vec()));
+            return Outcome::unevaluated(vm.push_application(head, args.to_vec()));
         };
         let o = vm.eval_value(rhs);
         diags.extend(o.diagnostics);
         if diags.iter().any(|d| d.severity == athena_types::Severity::Error) {
-            let term = vm.push_app(head, args.to_vec());
+            let term = vm.push_application(head, args.to_vec());
             return Outcome {
                 term,
                 kind: crate::execution::EvalKind::Unevaluated,
@@ -348,7 +348,7 @@ fn with_block(vm: &mut Vm<'_>, args: &[TermId], top: bool, head: &str) -> Outcom
 
 /// `x = rhs` 语句形态识别 → `(SymbolId, rhs)`。
 fn match_set(vm: &Vm<'_>, term: TermId) -> Option<(athena_types::SymbolId, TermId)> {
-    let TermNode::App { args, .. } = vm.session.arena.get(term)?
+    let TermNode::Application { arguments: args, .. } = vm.session.arena.get(term)?
     else {
         return None;
     };
@@ -373,14 +373,14 @@ pub(crate) fn h_module_top(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
 /// `Module[{x=1, y}, body]`：局部符号帧（未初始化逃逸物化为 `name$N`）。
 fn module(vm: &mut Vm<'_>, args: &[TermId], top: bool) -> Outcome {
     if args.len() != 2 {
-        return Outcome::unevaluated(vm.push_app("Module", args.to_vec()));
+        return Outcome::unevaluated(vm.push_application("Module", args.to_vec()));
     }
     let Some(locals) = (match vm.session.arena.get(args[0]) {
-        Some(TermNode::List(_)) => vm.app_args(args[0]),
+        Some(TermNode::List(_)) => vm.application_arguments(args[0]),
         _ => None,
     })
     else {
-        let term = vm.push_app("Module", vec![args[0], args[1]]);
+        let term = vm.push_application("Module", vec![args[0], args[1]]);
         return Outcome::unevaluated(term);
     };
 
@@ -393,7 +393,7 @@ fn module(vm: &mut Vm<'_>, args: &[TermId], top: bool) -> Outcome {
         let local = match module_local(vm, item) {
             Some(l) => l,
             None => {
-                let term = vm.push_app("Module", vec![args[0], args[1]]);
+                let term = vm.push_application("Module", vec![args[0], args[1]]);
                 return Outcome::unevaluated(term);
             }
         };
@@ -404,7 +404,7 @@ fn module(vm: &mut Vm<'_>, args: &[TermId], top: bool) -> Outcome {
                 vm.pop_env();
                 diags.extend(o.diagnostics);
                 if diags.iter().any(|d| d.severity == athena_types::Severity::Error) {
-                    let term = vm.push_app("Module", vec![args[0], args[1]]);
+                    let term = vm.push_application("Module", vec![args[0], args[1]]);
                     return Outcome {
                         term,
                         kind: crate::execution::EvalKind::Unevaluated,
@@ -462,13 +462,13 @@ pub(crate) fn apply_function(vm: &mut Vm<'_>, fargs: &[TermId], args: &[TermId])
                 vm.eval_value(substituted)
             }
             else {
-                let head = vm.push_app("Function", fargs.to_vec());
-                Outcome::unevaluated(vm.rebuild_app(head, args.to_vec()))
+                let head = vm.push_application("Function", fargs.to_vec());
+                Outcome::unevaluated(vm.rebuild_application(head, args.to_vec()))
             }
         }
         _ => {
-            let head = vm.push_app("Function", fargs.to_vec());
-            Outcome::unevaluated(vm.rebuild_app(head, args.to_vec()))
+            let head = vm.push_application("Function", fargs.to_vec());
+            Outcome::unevaluated(vm.rebuild_application(head, args.to_vec()))
         }
     }
 }

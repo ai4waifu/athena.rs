@@ -1,11 +1,10 @@
 //! Session 语义表冒烟测试。
 
 use athena_engine::runtime::{
-    Session,
-    semantic::{AssumptionScopeTable, ResultIdTable, ValueIdTable},
+    ComputationResult, CoverageStatus, ResultStore, RuntimeValue, Session, ValueStore, semantic::AssumptionScopeTable,
 };
 use athena_gc::{EmptyObjectGraph, GcMode, RootKind};
-use athena_types::{AssumptionScope, Predicate, SymbolId, TermId};
+use athena_types::{AssumptionScope, ComputationStatus, Predicate, SymbolId, TermId};
 
 #[test]
 fn session_owns_sem0_sem1_tables() {
@@ -49,16 +48,34 @@ fn term_id_is_native_storage_identity() {
 }
 
 #[test]
-fn value_and_result_ids_allocate_independently() {
-    let mut values = ValueIdTable::new();
-    let mut results = ResultIdTable::new();
-    let v0 = values.alloc();
-    let r0 = results.alloc();
-    assert_eq!(v0.0, 0);
-    assert_eq!(r0.0, 0);
-    assert!(values.contains(v0));
+fn value_store_owns_runtime_payload_not_term_bijection() {
+    let mut session = Session::new();
+    let term = session.builder().int(7, Default::default());
+    let v0 = session.insert_symbolic_value(term);
+    let v1 = session.insert_value(RuntimeValue::Boolean(true));
+    assert_eq!(session.symbolic_term_of_value(v0), Some(term));
+    assert_eq!(session.symbolic_term_of_value(v1), None);
+    // Same term inserted twice yields distinct ValueIds (no term↔value bijection).
+    let v2 = session.insert_symbolic_value(term);
+    assert_ne!(v0, v2);
+    assert_eq!(session.values.len(), 3);
+}
+
+#[test]
+fn result_store_owns_computation_result_payload() {
+    let mut values = ValueStore::new();
+    let mut results = ResultStore::new();
+    let value = values.insert(RuntimeValue::Null);
+    let result = ComputationResult::with_status(ComputationStatus::Invalid, CoverageStatus::Unsupported)
+        .with_value(value)
+        .with_diagnostic(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation));
+    let r0 = results.insert(result);
     assert!(results.contains(r0));
-    assert!(!values.contains(athena_types::ValueId(99)));
+    let loaded = results.get(r0).expect("payload");
+    assert_eq!(loaded.status, ComputationStatus::Invalid);
+    assert_eq!(loaded.coverage, CoverageStatus::Unsupported);
+    assert_eq!(loaded.value, Some(value));
+    assert_eq!(loaded.diagnostics.len(), 1);
 }
 
 #[test]

@@ -12,7 +12,7 @@ use crate::execution::vm::Shape;
 ///
 /// 仅语言中立的 AthenaIR 形态 — 方言文本解析留在宿主（SXO）。
 pub fn try_calculus_request(cc: &mut CalculusCtx<'_>, root: TermId) -> Option<CalculusRequest> {
-    let (name, args) = cc.app(root)?;
+    let (name, args) = cc.application(root)?;
     let args = args.as_slice();
     match name.as_str() {
         "D" => lower_d(cc, args),
@@ -107,7 +107,7 @@ fn lower_limit(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequ
 }
 
 fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: TermId) -> Option<(String, LimitApproach)> {
-    if let Some((h, args)) = cc.app(spec) {
+    if let Some((h, args)) = cc.application(spec) {
         if h == "Rule" && args.len() == 2 {
             let v = symbol_name(cc, args[0])?;
             return Some((v, approach_from_term(cc, args[1])));
@@ -123,11 +123,11 @@ fn parse_limit_spec(cc: &mut CalculusCtx<'_>, spec: TermId) -> Option<(String, L
 }
 
 fn approach_from_term(cc: &CalculusCtx<'_>, term: TermId) -> LimitApproach {
-    if is_sym_infinity(cc, term) {
+    if is_symbol_infinity(cc, term) {
         return LimitApproach::PositiveInfinity;
     }
-    if let Some((h, args)) = cc.app(term) {
-        if h == "Times" && args.len() == 2 && cc.int_exp(args[0]) == Some(-1) && is_sym_infinity(cc, args[1]) {
+    if let Some((h, args)) = cc.application(term) {
+        if h == "Times" && args.len() == 2 && cc.int_exp(args[0]) == Some(-1) && is_symbol_infinity(cc, args[1]) {
             return LimitApproach::NegativeInfinity;
         }
     }
@@ -193,7 +193,7 @@ fn lower_asymptotic(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<Calculu
                 return None;
             }
             let variable = symbol_name(cc, items[0])?;
-            if !is_sym_infinity(cc, items[1]) {
+            if !is_symbol_infinity(cc, items[1]) {
                 return None;
             }
             let order = if items.len() >= 3 {
@@ -332,13 +332,13 @@ fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusReque
     Some(CalculusRequest::Curl { components: components.to_vec(), variables: variables?, assumptions: AssumptionSet::empty() })
 }
 
-fn is_sym_infinity(cc: &CalculusCtx<'_>, term: TermId) -> bool {
-    matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, "Infinity"))
+fn is_symbol_infinity(cc: &CalculusCtx<'_>, term: TermId) -> bool {
+    matches!(cc.shape(term), Some(Shape::Symbol(s)) if cc.symbol_is(s, "Infinity"))
 }
 
 fn symbol_name(cc: &CalculusCtx<'_>, term: TermId) -> Option<String> {
     match cc.shape(term)? {
-        Shape::Sym(s) => Some(cc.sym_name(s).to_string()),
+        Shape::Symbol(s) => Some(cc.symbol_name(s).to_string()),
         _ => None,
     }
 }

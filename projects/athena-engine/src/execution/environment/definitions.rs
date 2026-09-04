@@ -22,37 +22,37 @@ impl DefinitionLayer {
     }
 
     /// 写 Own 定义（替换同符号的 Delayed / DownValues，与 legacy 单一定义槽一致）。
-    pub fn define_own(&mut self, sym: SymbolId, value: TermId) {
-        self.owns.insert(sym, value);
-        self.delayed.remove(&sym);
-        self.downs.remove(&sym);
+    pub fn define_own(&mut self, symbol: SymbolId, value: TermId) {
+        self.owns.insert(symbol, value);
+        self.delayed.remove(&symbol);
+        self.downs.remove(&symbol);
     }
 
     /// 写 Delayed 定义。
-    pub fn define_delayed(&mut self, sym: SymbolId, value: TermId) {
-        self.delayed.insert(sym, value);
-        self.owns.remove(&sym);
+    pub fn define_delayed(&mut self, symbol: SymbolId, value: TermId) {
+        self.delayed.insert(symbol, value);
+        self.owns.remove(&symbol);
     }
 
     /// 追加 DownValue 规则（`f[x_] := rhs`）。
-    pub fn define_down_value(&mut self, sym: SymbolId, lhs: TermId, rhs: TermId) {
-        self.downs.entry(sym).or_default().push((lhs, rhs));
-        self.owns.remove(&sym);
+    pub fn define_down_value(&mut self, symbol: SymbolId, lhs: TermId, rhs: TermId) {
+        self.downs.entry(symbol).or_default().push((lhs, rhs));
+        self.owns.remove(&symbol);
     }
 
     /// 查 Own 值（沿层链由调用方自顶向下查）。
-    pub fn own(&self, sym: SymbolId) -> Option<TermId> {
-        self.owns.get(&sym).copied()
+    pub fn own(&self, symbol: SymbolId) -> Option<TermId> {
+        self.owns.get(&symbol).copied()
     }
 
     /// 查 Delayed 值。
-    pub fn delayed(&self, sym: SymbolId) -> Option<TermId> {
-        self.delayed.get(&sym).copied()
+    pub fn delayed(&self, symbol: SymbolId) -> Option<TermId> {
+        self.delayed.get(&symbol).copied()
     }
 
     /// 查 DownValues 规则表。
-    pub fn down_values(&self, sym: SymbolId) -> Option<&[(TermId, TermId)]> {
-        self.downs.get(&sym).map(Vec::as_slice)
+    pub fn down_values(&self, symbol: SymbolId) -> Option<&[(TermId, TermId)]> {
+        self.downs.get(&symbol).map(Vec::as_slice)
     }
 
     /// 清空层内全部定义。
@@ -63,8 +63,8 @@ impl DefinitionLayer {
     }
 
     /// 层内是否存在该符号的任何定义。
-    pub fn defines(&self, sym: SymbolId) -> bool {
-        self.owns.contains_key(&sym) || self.delayed.contains_key(&sym) || self.downs.contains_key(&sym)
+    pub fn defines(&self, symbol: SymbolId) -> bool {
+        self.owns.contains_key(&symbol) || self.delayed.contains_key(&symbol) || self.downs.contains_key(&symbol)
     }
 }
 
@@ -90,12 +90,12 @@ impl ScopeFrame {
     }
 
     /// 绑定局部。
-    pub fn bind(&mut self, sym: SymbolId, binding: LocalBinding) {
-        self.locals.insert(sym, binding);
+    pub fn bind(&mut self, symbol: SymbolId, binding: LocalBinding) {
+        self.locals.insert(symbol, binding);
     }
 
     /// 查局部绑定。
-    pub fn lookup(&self, sym: SymbolId) -> Option<LocalBinding> {
-        self.locals.get(&sym).copied()
+    pub fn lookup(&self, symbol: SymbolId) -> Option<LocalBinding> {
+        self.locals.get(&symbol).copied()
     }
 }

@@ -8,7 +8,7 @@ fn build_plus_x_plus_y(x_first: bool) -> (TermStore, athena_types::TermId) {
     let mut b = TermBuilder::new(&mut arena);
     let x = b.symbol("x", SPAN);
     let y = b.symbol("y", SPAN);
-    let plus = b.app_named(&mut OperatorRegistry::standard(), "Plus", vec![x, y], SPAN);
+    let plus = b.application_named(&mut OperatorRegistry::standard(), "Plus", vec![x, y], SPAN);
     let _ = x_first;
     (arena, plus)
 }
@@ -41,13 +41,13 @@ fn canonical_hash_named_registry_order_independent() {
     let mut b_a = TermBuilder::new(&mut arena_a);
     let one_a = b_a.int(1, SPAN);
     let two_a = b_a.int(2, SPAN);
-    let t_a = b_a.app(plus_a, vec![one_a, two_a], SPAN);
+    let t_a = b_a.application(plus_a, vec![one_a, two_a], SPAN);
 
     let mut arena_b = TermStore::new();
     let mut b_b = TermBuilder::new(&mut arena_b);
     let one_b = b_b.int(1, SPAN);
     let two_b = b_b.int(2, SPAN);
-    let t_b = b_b.app(plus_b, vec![one_b, two_b], SPAN);
+    let t_b = b_b.application(plus_b, vec![one_b, two_b], SPAN);
 
     assert_eq!(canonical_hash_named(&arena_a, &reg_a, t_a), canonical_hash_named(&arena_b, &reg_b, t_b));
     // 未提供注册表时退化为 op id，两注册表 id 不同则 hash 不同。
@@ -63,7 +63,7 @@ fn structural_eq_value_and_structure() {
     let mut arena3 = TermStore::new();
     let mut b = TermBuilder::new(&mut arena3);
     let x = b.symbol("x", SPAN);
-    let plus = b.app_named(&mut OperatorRegistry::standard(), "Plus", vec![x, x], SPAN);
+    let plus = b.application_named(&mut OperatorRegistry::standard(), "Plus", vec![x, x], SPAN);
     assert!(!arena3.structural_eq(plus, r1));
     assert!(arena3.structural_eq(plus, plus));
 }
