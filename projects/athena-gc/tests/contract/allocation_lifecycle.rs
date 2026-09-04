@@ -1,4 +1,4 @@
-//! Living `24`：reclaim authority / root / explicit release 合同（非 ownership 实体）。
+//! Living `24`：reclaim authority / typed handles / explicit release 合同（非 ownership 实体）。
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -11,26 +11,27 @@ fn with_heap<R>(f: impl FnOnce(Rc<RefCell<GcHeap>>, &mut GcHeap) -> R) -> R {
 }
 
 #[test]
-fn explicit_release_block_rejects_root_and_accepts_release() {
+fn temporary_block_rejects_root_and_accepts_release() {
     with_heap(|_rc, heap| {
         let block = heap.allocate_numeric_block(4).expect("temp");
         assert!(heap.may_explicit_release_numeric(block.ptr).expect("temp"));
         assert!(!heap.may_root_numeric(block.ptr).expect("not published"));
         assert_eq!(heap.header_for_limbs(block.ptr).expect("hdr").reclaim_authority, ReclaimAuthority::ExplicitRelease);
-        assert!(matches!(heap.register_numeric_root(block.ptr, RootKind::Session), Err(GcError::LifecycleMismatch)));
+        assert!(matches!(heap.register_numeric_root_ptr(block.ptr, RootKind::Session), Err(GcError::LifecycleMismatch)));
         heap.release_numeric_block(block).expect("release");
     });
 }
 
 #[test]
-fn tracing_sweep_block_accepts_root_and_rejects_explicit_release() {
+fn published_block_accepts_root_and_is_not_explicit_release() {
     with_heap(|_rc, heap| {
         let block = heap.allocate_traced_numeric(4).expect("published");
         assert!(heap.may_root_numeric(block.ptr).expect("rootable"));
         assert!(!heap.may_explicit_release_numeric(block.ptr).expect("not temp"));
         assert_eq!(heap.header_for_limbs(block.ptr).expect("hdr").reclaim_authority, ReclaimAuthority::TracingSweep);
-        let _token = heap.register_numeric_root(block.ptr, RootKind::Session).expect("root");
-        assert!(matches!(heap.release_numeric_block(block), Err(GcError::LifecycleMismatch)));
+        let _token = heap.register_numeric_root(&block, RootKind::Session).expect("root");
+        // Living `24`：`release_numeric_block` 只接受 `TemporaryNumericBlock`，类型上无法对 published 调用。
+        let _ = block;
     });
 }
 

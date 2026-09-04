@@ -354,7 +354,7 @@ impl MagnitudePair {
     ///
     /// Living `24`：这是 unique mutable capability 判断，不是 ownership transfer。
     /// TracingSweep / 未知 reclaim 禁止 reuse（可能被 root 别名）。
-    pub(crate) fn steal_heap(&mut self) -> Option<OwnedLimbBuffer> {
+    pub(crate) fn try_reuse_unique_buffer(&mut self) -> Option<OwnedLimbBuffer> {
         if !matches!(self.mode(), Mode::Heap) {
             return None;
         }

@@ -6,7 +6,7 @@ use super::Natural;
 use crate::{kernel::limb as limb_kernel, policy::execution_budget::NumericContext, storage::Mode};
 
 impl Natural {
-    /// 消费 `self` 的加法：Heap 且 `capacity >= max(len)+1` 时经 [`MagnitudePair::steal_heap`] 就地复用。
+    /// 消费 `self` 的加法：Heap 且 `capacity >= max(len)+1` 时经 [`MagnitudePair::try_reuse_unique_buffer`] 就地复用。
     ///
     /// 容量不足或非 Heap 时回退 [`Self::try_add`]。`rhs` 与 `self` 同缓冲（含自加）时先拷贝右操作数 limb。
     pub fn try_add_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
@@ -47,7 +47,7 @@ impl Natural {
         let need = n + 1;
         debug_assert!(self.inner.heap_capacity().is_some_and(|c| c >= need));
 
-        let mut buf = self.inner.steal_heap().expect("Heap capacity checked");
+        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
         {
             let storage = buf.as_mut_slice(need);
             // 超出原有效长度的槽位可能未初始化，就地 adc 前必须置零。
@@ -88,7 +88,7 @@ impl Natural {
             return self.try_mul_u64(rhs, ctx);
         }
 
-        let mut buf = self.inner.steal_heap().expect("Heap capacity checked");
+        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
         {
             let storage = buf.as_mut_slice(need);
             storage[la] = 0;
@@ -142,7 +142,7 @@ impl Natural {
         let lb = limb_kernel::effective_len(rb);
         let n = la.max(lb);
 
-        let mut buf = self.inner.steal_heap().expect("Heap capacity checked");
+        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
         {
             let storage = buf.as_mut_slice(n.max(1));
             let mut borrow = 0u64;
@@ -156,7 +156,7 @@ impl Natural {
         let el = limb_kernel::effective_len(buf.as_slice(n.max(1))).max(1);
         Ok(Self::finish_owned_limbs(buf, el))
     }
-    /// 消费 `self` 的乘法：仅在 planner 选 Schoolbook 且 Heap 容量 ≥ `la+lb` 时 `steal_heap`。
+    /// 消费 `self` 的乘法：仅在 planner 选 Schoolbook 且 Heap 容量 ≥ `la+lb` 时 `try_reuse_unique_buffer`。
     ///
     /// 更宽路径（Karatsuba/Toom）回退 [`Self::try_mul`]，避免就地清零破坏输入。
     pub fn try_mul_owned(mut self, rhs: &Self, ctx: &NumericContext) -> Result<Self> {
@@ -201,7 +201,7 @@ impl Natural {
         };
         let lb = limb_kernel::effective_len(rb);
 
-        let mut buf = self.inner.steal_heap().expect("Heap capacity checked");
+        let mut buf = self.inner.try_reuse_unique_buffer().expect("Heap capacity checked");
         {
             let storage = buf.as_mut_slice(need);
             limb_kernel::mul_schoolbook_into(&lhs_snap, &rb[..lb], storage);

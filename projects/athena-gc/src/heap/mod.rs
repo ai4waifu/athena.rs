@@ -15,6 +15,6 @@ mod state;
 
 pub use collection::CollectReport;
 pub use graph_domain::GraphDomainBlock;
-pub use numeric::{NumericBlock, NumericBumpMark};
+pub use numeric::{NumericBumpMark, PublishedNumericBlock, TemporaryNumericBlock};
 pub use shared::heap_id_for_limbs;
 pub use state::GcHeap;

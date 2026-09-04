@@ -5,7 +5,7 @@
 
 use crate::{
     error::{GcError, Result},
-    heap::{GcHeap, NumericBlock, NumericBumpMark},
+    heap::{GcHeap, NumericBumpMark, TemporaryNumericBlock},
 };
 
 /// 分配记账策略（绑定在 heap / batch lease 上，非进程全局开关）。
@@ -41,7 +41,7 @@ impl<'a> NumericBatch<'a> {
 
     /// 批内分配 numeric limb block（走当前 heap 的 `Batched`/`Off` 记账）。
     #[inline]
-    pub fn allocate_limbs(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
+    pub fn allocate_limbs(&mut self, capacity_limbs: usize) -> Result<TemporaryNumericBlock> {
         self.heap.allocate_numeric_block(capacity_limbs)
     }
 

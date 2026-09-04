@@ -20,9 +20,11 @@ pub struct NumericBumpMark {
     pub(super) segments: Vec<(usize, usize, u32)>,
 }
 
-/// 数值 limb 块。
+/// 临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]）。
+///
+/// Living `24`：仅本句柄可交给 [`GcHeap::release_numeric_block`]。禁止与已发布块共用类型。
 #[derive(Debug, Clone, Copy)]
-pub struct NumericBlock {
+pub struct TemporaryNumericBlock {
     /// Limb 起点。
     pub ptr: NonNull<u64>,
     /// Limb 容量。
@@ -33,15 +35,31 @@ pub struct NumericBlock {
     pub heap_id: HeapId,
 }
 
-unsafe impl Send for NumericBlock {}
+/// 已发布数值 limb 块（[`ReclaimAuthority::TracingSweep`]）。
+///
+/// 仅经 root / Trace 保活；最终回收由 tracing sweep 完成。不得显式 `release_numeric_block`。
+#[derive(Debug, Clone, Copy)]
+pub struct PublishedNumericBlock {
+    /// Limb 起点。
+    pub ptr: NonNull<u64>,
+    /// Limb 容量。
+    pub capacity: usize,
+    /// 所属段。
+    pub segment_id: SegmentId,
+    /// 所属堆。
+    pub heap_id: HeapId,
+}
+
+unsafe impl Send for TemporaryNumericBlock {}
+unsafe impl Send for PublishedNumericBlock {}
 
 impl GcHeap {
     fn reclaim_authority(&self, limbs: NonNull<u64>) -> Result<ReclaimAuthority> {
         Ok(self.header_for_limbs(limbs)?.reclaim_authority)
     }
 
-    /// 分配临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]：`Drop` / `release_numeric_block`）。
-    pub fn allocate_numeric_block(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
+    /// 分配临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]）。
+    pub fn allocate_numeric_block(&mut self, capacity_limbs: usize) -> Result<TemporaryNumericBlock> {
         if capacity_limbs == 0 {
             return Err(GcError::InvalidCapacity);
         }
@@ -49,13 +67,13 @@ impl GcHeap {
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
         let (seg_id, limbs) =
             self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, ReclaimAuthority::ExplicitRelease)?;
-        Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
+        Ok(TemporaryNumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
     /// 分配已发布数值块（[`ReclaimAuthority::TracingSweep`]：须经根 / `Trace` 保活）。
     ///
-    /// 与 [`Self::allocate_numeric_block`] 互斥：本路径禁止 `release_numeric_block` / Rust `Drop` free。
-    pub fn allocate_traced_numeric(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
+    /// 与 [`Self::allocate_numeric_block`] 互斥：本路径禁止 [`Self::release_numeric_block`]。
+    pub fn allocate_traced_numeric(&mut self, capacity_limbs: usize) -> Result<PublishedNumericBlock> {
         if capacity_limbs == 0 {
             return Err(GcError::InvalidCapacity);
         }
@@ -64,7 +82,7 @@ impl GcHeap {
         let (seg_id, limbs) =
             self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, ReclaimAuthority::TracingSweep)?;
         self.traced_numeric.insert(limbs.as_ptr() as usize);
-        Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
+        Ok(PublishedNumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
     /// 该 numeric block 是否允许显式 release / unique buffer reuse（临时 allocation）。
@@ -89,10 +107,15 @@ impl GcHeap {
         registry::with_heap(heap_id, |heap| heap.may_root_numeric(limbs))?
     }
 
-    /// 为可 root 的 limbs 登记一条 [`NumericRoot`]。
+    /// 为可 root 的已发布块登记一条 [`NumericRoot`]。
+    pub fn register_numeric_root(&mut self, block: &PublishedNumericBlock, kind: RootKind) -> Result<RootToken> {
+        self.register_numeric_root_ptr(block.ptr, kind)
+    }
+
+    /// 为可 root 的 limbs 登记一条 [`NumericRoot`]（内部 / Drop 路径）。
     ///
     /// Living `24`：校验 block kind + reclaim authority（可 root 能力），不查询 ownership 实体。
-    pub fn register_numeric_root(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
+    pub fn register_numeric_root_ptr(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
         if !self.may_root_numeric(limbs)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
             return Err(GcError::LifecycleMismatch);
@@ -113,9 +136,9 @@ impl GcHeap {
         Ok(())
     }
 
-    /// 经注册表登记数值根。
+    /// 经注册表登记数值根（裸指针路径；优先 [`Self::register_numeric_root`]）。
     pub fn register_numeric_root_registered(heap_id: HeapId, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
-        registry::with_heap(heap_id, |heap| heap.register_numeric_root(limbs, kind))?
+        registry::with_heap(heap_id, |heap| heap.register_numeric_root_ptr(limbs, kind))?
     }
 
     /// 经注册表撤一条数值根。
@@ -123,8 +146,8 @@ impl GcHeap {
         registry::with_heap(heap_id, |heap| heap.unregister_one_numeric_root(limbs))?
     }
 
-    /// 将已初始化 limb 提升到长期数值段（暂存区 → 堆）。
-    pub fn promote_limbs(&mut self, limbs: &[u64]) -> Result<NumericBlock> {
+    /// 将已初始化 limb 提升到长期数值段（暂存区 → 已发布堆）。
+    pub fn promote_limbs(&mut self, limbs: &[u64]) -> Result<PublishedNumericBlock> {
         let capacity = limbs.len().max(1);
         let block = self.allocate_traced_numeric(capacity)?;
         // SAFETY: 新 block 可写 capacity 个 limb。
@@ -139,8 +162,8 @@ impl GcHeap {
         Ok(block)
     }
 
-    /// 从暂存区已初始化字节区提升为 limb 块（`byte_len` 须为 8 的倍数）。
-    pub fn promote_scratch_bytes(&mut self, start: usize, byte_len: usize) -> Result<NumericBlock> {
+    /// 从暂存区已初始化字节区提升为已发布 limb 块（`byte_len` 须为 8 的倍数）。
+    pub fn promote_scratch_bytes(&mut self, start: usize, byte_len: usize) -> Result<PublishedNumericBlock> {
         if !byte_len.is_multiple_of(8) {
             return Err(GcError::InvalidCapacity);
         }
@@ -156,20 +179,49 @@ impl GcHeap {
         self.promote_limbs(&tmp)
     }
 
-    /// Limb 可写视图。
-    pub fn numeric_limbs_mut(&mut self, block: &NumericBlock) -> Result<&mut [u64]> {
-        let _ = self.header_for_limbs(block.ptr)?;
-        Ok(unsafe { core::slice::from_raw_parts_mut(block.ptr.as_ptr(), block.capacity) })
+    /// 临时块可写 limb 视图。
+    pub fn temporary_limbs_mut(&mut self, block: &TemporaryNumericBlock) -> Result<&mut [u64]> {
+        self.limbs_mut(block.ptr, block.capacity)
     }
 
-    /// Limb 只读视图。
-    pub fn numeric_limbs(&self, block: &NumericBlock) -> Result<&[u64]> {
-        let _ = self.header_for_limbs(block.ptr)?;
-        Ok(unsafe { core::slice::from_raw_parts(block.ptr.as_ptr(), block.capacity) })
+    /// 临时块只读 limb 视图。
+    pub fn temporary_limbs(&self, block: &TemporaryNumericBlock) -> Result<&[u64]> {
+        self.limbs(block.ptr, block.capacity)
     }
 
-    /// 显式释放数值块（仅 [`ReclaimAuthority::ExplicitRelease`]）。
-    pub fn release_numeric_block(&mut self, block: NumericBlock) -> Result<()> {
+    /// 已发布块可写 limb 视图（须已持有唯一可变 capability）。
+    pub fn published_limbs_mut(&mut self, block: &PublishedNumericBlock) -> Result<&mut [u64]> {
+        self.limbs_mut(block.ptr, block.capacity)
+    }
+
+    /// 已发布块只读 limb 视图。
+    pub fn published_limbs(&self, block: &PublishedNumericBlock) -> Result<&[u64]> {
+        self.limbs(block.ptr, block.capacity)
+    }
+
+    /// Limb 可写视图（兼容临时句柄；Living `24` 请优先 [`Self::temporary_limbs_mut`]）。
+    pub fn numeric_limbs_mut(&mut self, block: &TemporaryNumericBlock) -> Result<&mut [u64]> {
+        self.temporary_limbs_mut(block)
+    }
+
+    /// Limb 只读视图（兼容临时句柄；Living `24` 请优先 [`Self::temporary_limbs`]）。
+    pub fn numeric_limbs(&self, block: &TemporaryNumericBlock) -> Result<&[u64]> {
+        self.temporary_limbs(block)
+    }
+
+    fn limbs_mut(&mut self, ptr: NonNull<u64>, capacity: usize) -> Result<&mut [u64]> {
+        let _ = self.header_for_limbs(ptr)?;
+        Ok(unsafe { core::slice::from_raw_parts_mut(ptr.as_ptr(), capacity) })
+    }
+
+    fn limbs(&self, ptr: NonNull<u64>, capacity: usize) -> Result<&[u64]> {
+        let _ = self.header_for_limbs(ptr)?;
+        Ok(unsafe { core::slice::from_raw_parts(ptr.as_ptr(), capacity) })
+    }
+
+    /// 显式释放临时数值块（仅接受 [`TemporaryNumericBlock`]）。
+    pub fn release_numeric_block(&mut self, block: TemporaryNumericBlock) -> Result<()> {
+        // 防御：句柄类型已约束，仍校验 header reclaim authority。
         if !self.may_explicit_release_numeric(block.ptr)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
             return Err(GcError::LifecycleMismatch);
@@ -177,10 +229,12 @@ impl GcHeap {
         self.release_or_pool_numeric(block.ptr.cast())
     }
 
-    /// 经注册表释放（`OwnedLimbBuffer::Drop`）。
+    /// 经注册表释放（`OwnedLimbBuffer::Drop` 过渡路径）。
     ///
     /// - [`ReclaimAuthority::ExplicitRelease`]：走 `release_or_pool_numeric`
     /// - [`ReclaimAuthority::TracingSweep`]：撤一条 [`NumericRoot`]（不释放块）
+    ///
+    /// Living `24`：终局应拆成不同 RAII 句柄的 `Drop`，不再对裸 pointer 猜类别。
     pub fn release_numeric_limbs_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
         registry::with_heap(heap_id, |heap| match heap.reclaim_authority(limbs) {
             Ok(ReclaimAuthority::ExplicitRelease) => heap.release_or_pool_numeric(limbs.cast()),
