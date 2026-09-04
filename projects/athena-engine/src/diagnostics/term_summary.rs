@@ -19,6 +19,7 @@ pub fn value_debug(session: &Session, value: ValueId) -> String {
         Some(RuntimeValue::Boolean(true)) => "True".into(),
         Some(RuntimeValue::Boolean(false)) => "False".into(),
         Some(RuntimeValue::Null) => "Null".into(),
+        Some(RuntimeValue::Domain(_)) => "DomainResult".into(),
     }
 }
 

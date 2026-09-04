@@ -1,10 +1,12 @@
 //! 结果覆盖状态与 [`ResultStore`]。
 
+mod from_domain;
 mod store;
 
-pub use store::{ComputationResult, ResultStore};
+pub use from_domain::computation_from_domain;
+pub use store::{ComputationResult, ResultEvidence, ResultProvenance, ResultProviderId, ResultStore};
 
-/// 结果覆盖范围（Living `01` / `26`：禁止用 `complete: bool` 冒充）。
+/// 结果覆盖范围：禁止用 `complete: bool` 冒充。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CoverageStatus {
     /// 声明的能力范围内完整。

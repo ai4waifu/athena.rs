@@ -1,13 +1,15 @@
-//! [`ValueId`] → [`RuntimeValue`] 存储（Living `26`：值不是 `TermId` 的第二个名字）。
+//! [`ValueId`] → [`RuntimeValue`] 存储（值不是 `TermId` 的第二个名字）。
 
 use std::collections::BTreeMap;
 
 use athena_types::{TermId, ValueId};
 
+use crate::domains::dispatch::DomainResult;
+
 /// 运行时值载荷。
 ///
 /// `SymbolicTerm` 只是值的一种情况。禁止用本枚举冒充全部 `TermId` 的别名表。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum RuntimeValue {
     /// 尚未求值为非符号载荷的符号项引用。
     SymbolicTerm(TermId),
@@ -15,6 +17,8 @@ pub enum RuntimeValue {
     Boolean(bool),
     /// 空值。
     Null,
+    /// 领域分派结果（`DomainGoal` 路径必须保留，禁止丢弃后返回空 Exact）。
+    Domain(DomainResult),
 }
 
 impl RuntimeValue {
@@ -25,10 +29,18 @@ impl RuntimeValue {
             _ => None,
         }
     }
+
+    /// 若载荷是领域结果，返回引用。
+    pub fn as_domain(&self) -> Option<&DomainResult> {
+        match self {
+            Self::Domain(domain) => Some(domain),
+            _ => None,
+        }
+    }
 }
 
 /// [`ValueId`] 所有者：持有真实 [`RuntimeValue`] 载荷。
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ValueStore {
     next: u32,
     values: BTreeMap<ValueId, RuntimeValue>,

@@ -7,7 +7,7 @@ use crate::{
     domains::dispatch::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     execution,
     runtime::{
-        results::{ComputationResult, CoverageStatus},
+        results::{ComputationResult, CoverageStatus, ResultProvenance},
         session::Session,
     },
 };
@@ -30,14 +30,14 @@ impl AthenaEngine {
         Self {}
     }
 
-    /// 在内建定义下求值（KernelIR + VM · Living `25` L4）。
-    pub fn evaluate_expression(&self, session: &mut Session, expr: TermId) -> TermId {
-        execution::vm::evaluate_session(session, expr).term
+    /// 在内建定义下求值（KernelIR + VM）。返回归约后的 [`TermId`]（内部投影，非正式公共结果）。
+    pub fn evaluate(&self, session: &mut Session, term: TermId) -> TermId {
+        execution::vm::evaluate_session(session, term).term
     }
 
-    /// 先求导再求值（session arena · Living `25`）。
-    pub fn differentiate_expression(&self, session: &mut Session, expr: TermId, var: &str) -> TermId {
-        let d = crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), expr, var);
+    /// 先求导再求值（session arena）。
+    pub fn differentiate(&self, session: &mut Session, term: TermId, var: &str) -> TermId {
+        let d = crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), term, var);
         execution::vm::evaluate_session(session, d).term
     }
 
@@ -54,16 +54,24 @@ impl AthenaEngine {
     pub fn execute_request(&self, session: &mut Session, request: AthenaRequest) -> Result<ResultId> {
         match request {
             AthenaRequest::Term(term) => {
-                let value_term = self.evaluate_expression(session, term);
-                let value = session.insert_symbolic_value(value_term);
-                let result = ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Full)
+                let outcome = execution::vm::evaluate_session(session, term);
+                let value = session.insert_symbolic_value(outcome.term);
+                let coverage = match outcome.kind {
+                    execution::EvalKind::Value => CoverageStatus::Full,
+                    execution::EvalKind::Unevaluated => CoverageStatus::Unknown,
+                };
+                let mut result = ComputationResult::with_status(outcome.status, coverage)
                     .with_value(value)
-                    .with_symbolic_term(value_term);
+                    .with_symbolic_term(outcome.term)
+                    .with_provenance(ResultProvenance { request_kind: "Term" });
+                for diagnostic in outcome.diagnostics {
+                    result = result.with_diagnostic(diagnostic);
+                }
                 Ok(session.insert_result(result))
             }
             AthenaRequest::Goal(DomainGoal::Dispatch(domain_request)) => {
-                let _domain_result = self.execute_domain(session, domain_request)?;
-                let result = ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Unknown);
+                let domain_result = self.execute_domain(session, domain_request)?;
+                let result = crate::runtime::results::computation_from_domain(session, domain_result);
                 Ok(session.insert_result(result))
             }
             AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
@@ -71,7 +79,8 @@ impl AthenaEngine {
                 let diagnostic =
                     Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("phase", "request_boundary").detail("operation", operation);
                 let result = ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
-                    .with_diagnostic(diagnostic.clone());
+                    .with_diagnostic(diagnostic.clone())
+                    .with_provenance(ResultProvenance { request_kind: operation });
                 let _ = session.insert_result(result);
                 Err(diagnostic)
             }
@@ -87,13 +96,13 @@ impl AthenaEngine {
     }
 
     /// 经 `Simplify` 头部化简（KernelIR + VM）。
-    pub fn simplify_expression(&self, session: &mut Session, expr: TermId) -> TermId {
-        let wrapped = execution::push_application(session, "Simplify", vec![expr]);
+    pub fn simplify(&self, session: &mut Session, term: TermId) -> TermId {
+        let wrapped = execution::push_application(session, "Simplify", vec![term]);
         execution::vm::evaluate_session(session, wrapped).term
     }
 
-    /// Arena/`()` 桩求值 — 保留至 IR 路径落地。
-    pub fn evaluate(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
+    /// 占位：无 arena 的桩求值（正式路径请用 [`Self::evaluate`] / [`Self::execute_request`]）。
+    pub fn evaluate_unit(&self, _term: &(), _opts: &EvalOptions) -> Result<()> {
         Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation))
     }
 }

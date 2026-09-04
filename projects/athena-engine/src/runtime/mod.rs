@@ -7,6 +7,6 @@ pub mod session;
 pub mod symbols;
 pub mod values;
 
-pub use results::{ComputationResult, CoverageStatus, ResultStore};
+pub use results::{ComputationResult, CoverageStatus, ResultEvidence, ResultProvenance, ResultProviderId, ResultStore};
 pub use session::Session;
 pub use values::{RuntimeValue, ValueStore};
