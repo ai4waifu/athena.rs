@@ -201,6 +201,36 @@
       "expiry": "2026-09-04",
       "baseline_max_matches": 0,
       "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "kernel_ir_path",
+      "pattern": "\\bKernelIR\\b|execution::kernel_ir|mod kernel_ir",
+      "replacement": "execution::ir::ExecutionModule",
+      "owner": "Athena execution",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 24,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "exec_unit_stack_vm",
+      "pattern": "\\bExecUnit\\b|\\bevaluate_session\\b|execution::vm::",
+      "replacement": "ExecutionCompiler + ReferenceExecutor",
+      "owner": "Athena execution",
+      "status": "expiring",
+      "expiry": "2026-09-18",
+      "baseline_max_matches": 75,
+      "globs": ["projects/athena-engine/**/*.rs"]
+    },
+    {
+      "id": "execution_plan_demand",
+      "pattern": "\\bExecutionPlan\\b|\\bDemandScheduler\\b",
+      "replacement": "ExecutionModule regions and explicit control edges",
+      "owner": "Athena execution",
+      "status": "expired",
+      "expiry": "2026-09-04",
+      "baseline_max_matches": 0,
+      "globs": ["projects/**/*.rs"]
     }
   ]
 }
