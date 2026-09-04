@@ -117,7 +117,7 @@ fn registered_release_via_heap_id() {
         heap.gc().set_base_mode(GcMode::Deferred);
         heap.allocate_numeric_block(4).expect("alloc")
     };
-    GcHeap::release_numeric_limbs_registered(block.heap_id, block.ptr).expect("release");
+    GcHeap::release_temporary_numeric_registered(block.heap_id, block.ptr).expect("release");
     let mut heap = rc.borrow_mut();
     let report = heap.collect().expect("collect");
     assert!(report.segments_reclaimed >= 1 || heap.resident_bytes() == 0);
