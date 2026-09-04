@@ -2,7 +2,7 @@
 
 use super::{
     certificate::{GroebnerCertificate, GroebnerStatus},
-    expr::Polynomial,
+    object::Polynomial,
     factor::PolynomialFactorization,
     groebner::GroebnerComputation,
 };

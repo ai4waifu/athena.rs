@@ -1,4 +1,4 @@
-//! 显式 `IndexSpec` — 内核 0-based；方言 1-based 只在 lowering 层转换。
+//! 显式 `IndexSpec` — 内核 0-based；1-based 转换是中性 helper，不携带方言身份。
 
 use athena_types::{Diagnostic, DiagnosticCode};
 
@@ -86,40 +86,28 @@ impl IndexSpec {
     }
 }
 
-/// 方言来源（仅用于 lowering 审计，不进入算法语义）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DialectOrigin {
-    /// Mathematica 方言。
-    Mathematica,
-    /// MATLAB 方言。
-    Matlab,
-}
-
-/// 将方言 1-based 标量下标转为内核 [`IndexSpec::Scalar`]。
+/// 将 1-based 标量下标转为内核 [`IndexSpec::Scalar`]。
 ///
-/// Mathematica 与 MATLAB 均使用 1-based 表面索引；canonical 结果必须一致。
-pub fn lower_1based_scalar(origin: DialectOrigin, row_1: u64, col_1: u64) -> Result<IndexSpec, Diagnostic> {
-    let _ = origin;
+/// 方言表面 lowering 属于 SXO；Athena 只接收已转换或经此中性 helper 的规格。
+pub fn scalar_index_from_one_based(row_1: u64, col_1: u64) -> Result<IndexSpec, Diagnostic> {
     if row_1 == 0 || col_1 == 0 {
         return Err(Diagnostic::new(DiagnosticCode::InvalidIndex)
-            .detail("reason", "dialect_1based_requires_positive")
+            .detail("reason", "one_based_requires_positive")
             .detail("row", row_1.to_string())
             .detail("col", col_1.to_string()));
     }
     Ok(IndexSpec::Scalar { row: row_1 - 1, col: col_1 - 1 })
 }
 
-/// 将方言 1-based 半开切片 `[r1,r2]×[c1,c2]`（含端点）转为内核半开 [`AxisRange`]。
-pub fn lower_1based_inclusive_slice(
-    origin: DialectOrigin,
+/// 将 1-based 闭区间切片转为内核半开 [`AxisRange`]。
+pub fn slice_index_from_one_based_inclusive(
     row_start_1: u64,
     row_end_1: u64,
     col_start_1: u64,
     col_end_1: u64,
 ) -> Result<IndexSpec, Diagnostic> {
-    let _ = origin;
     if row_start_1 == 0 || col_start_1 == 0 || row_end_1 < row_start_1 || col_end_1 < col_start_1 {
-        return Err(Diagnostic::new(DiagnosticCode::InvalidIndex).detail("reason", "bad_1based_slice"));
+        return Err(Diagnostic::new(DiagnosticCode::InvalidIndex).detail("reason", "bad_one_based_slice"));
     }
     Ok(IndexSpec::Slice {
         rows: AxisRange::Range { start: row_start_1 - 1, end: row_end_1 },

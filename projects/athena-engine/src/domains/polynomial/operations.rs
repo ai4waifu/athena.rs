@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 use super::{
     canonical::canonicalize_terms,
     exponent::add_exponent_vectors,
-    expr::{MonomialTerm, Polynomial},
+    object::{MonomialTerm, Polynomial},
     ring_table::RingTable,
 };
 use crate::runtime::values::numeric_clone::clone_number;

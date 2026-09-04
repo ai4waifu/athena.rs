@@ -1,16 +1,16 @@
-//! 由 [`FactLog`] 派生、可重建的索引。
+//! 由 [`AdmissionJournal`] 派生、可重建的索引。
 
 use crate::reasoning::mgraph::{
     core::types::{CapabilityProviderId, RewriteWitness},
     equivalence::union_find::ExactUnionFind,
     facts::{
         claim::{Proposition, VerifiedClaim},
-        log::FactLog,
+        journal::AdmissionJournal,
     },
     polynomial::POLYNOMIAL_PROVIDER_ID,
 };
 
-/// 派生索引（非真相源；可从 fact log 全量重建）。
+/// 派生索引（非真相源；可从 [`AdmissionJournal`] 全量重建）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DerivedIndexes {
     /// 无条件 exact 等式 union-find。
@@ -20,10 +20,10 @@ pub struct DerivedIndexes {
 }
 
 impl DerivedIndexes {
-    /// 从 fact log 全量重建派生索引。
-    pub fn rebuild_from(fact_log: &FactLog) -> Self {
+    /// 从 [`AdmissionJournal`] 全量重建派生索引。
+    pub fn rebuild_from(admission_journal: &AdmissionJournal) -> Self {
         let mut derived = Self::default();
-        for claim in fact_log.claims() {
+        for claim in admission_journal.claims() {
             derived.apply_verified_claim(claim);
         }
         derived

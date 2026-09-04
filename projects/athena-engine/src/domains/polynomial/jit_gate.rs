@@ -2,7 +2,7 @@
 
 use athena_types::{Diagnostic, Result};
 
-use super::{expr::Polynomial, operations::mul_polynomial, ring_table::RingTable};
+use super::{object::Polynomial, operations::mul_polynomial, ring_table::RingTable};
 
 /// Parity 检查结果。
 #[derive(Debug, Clone, PartialEq, Eq)]

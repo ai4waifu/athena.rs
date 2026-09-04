@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
-    expr::Polynomial,
+    object::Polynomial,
     fingerprint::{PolynomialFingerprint, RingFingerprint},
     groebner::GroebnerLimits,
     hash::canonical_hash as polynomial_canonical_hash,

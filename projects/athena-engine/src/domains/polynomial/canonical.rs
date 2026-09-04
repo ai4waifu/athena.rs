@@ -7,7 +7,7 @@ use athena_types::{Diagnostic, DiagnosticCode, Result, RingId};
 
 use super::{
     coefficient_kernel::CoefficientRing,
-    expr::{MonomialTerm, Polynomial},
+    object::{MonomialTerm, Polynomial},
     ring::{CoefficientDomain, RingDescriptor},
     ring_table::RingTable,
 };

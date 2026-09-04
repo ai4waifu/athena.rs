@@ -77,10 +77,10 @@ fn scope_index_refines_edge() {
 }
 
 #[test]
-fn semantic_core_commit_syncs_core_and_fact_log() {
+fn semantic_core_commit_syncs_core_and_admission_journal() {
     let mut semantic = SemanticCore::new();
     let id = admit_ok(&mut semantic, sample_claim(42));
-    assert_eq!(semantic.fact_log.count(), 1);
+    assert_eq!(semantic.admission_journal.count(), 1);
     assert_eq!(semantic.relation_count(), 1);
     assert!(semantic.relation(id).is_some());
     assert!(semantic.view().relation(id).is_some());
