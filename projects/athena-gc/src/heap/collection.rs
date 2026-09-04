@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use crate::{
     error::Result,
-    header::{AllocationHeader, BlockKind, MarkState, NumericOwnership},
+    header::{AllocationHeader, BlockKind, MarkState, ReclaimAuthority},
     ids::{GcObjectId, SegmentId},
     mode::GcMode,
     object::ObjectSlot,
@@ -146,8 +146,8 @@ impl GcHeap {
             if kind != BlockKind::Numeric || mark != MarkState::White || pin > 0 {
                 continue;
             }
-            let ownership = unsafe { (*header).numeric_ownership };
-            if ownership != NumericOwnership::GcOwned {
+            let authority = unsafe { (*header).reclaim_authority };
+            if authority != ReclaimAuthority::TracingSweep {
                 continue;
             }
             if !self.traced_numeric.remove(&addr) {

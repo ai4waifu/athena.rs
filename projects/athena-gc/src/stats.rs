@@ -21,6 +21,6 @@ pub struct HeapStats {
     pub gc_time_ns: u64,
     /// `Drop` 遇 `HeapBusy` 而泄漏的次数。
     pub drop_busy_leaks: u64,
-    /// Rust Drop / `release_numeric_block` 作用在 `GcOwned`（或反向）的次数。
+    /// ExplicitRelease 路径作用在 TracingSweep block（或反向）的次数。
     pub lifecycle_mismatch: u64,
 }

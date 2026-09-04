@@ -1,10 +1,10 @@
-//! 数值域：分配、根、提升、释放与所有权查询。
+//! 数值域：分配、根、提升、释放与 reclaim 权限查询。
 
 use core::ptr::NonNull;
 
 use crate::{
     error::{GcError, Result},
-    header::{BlockKind, NumericOwnership},
+    header::{BlockKind, ReclaimAuthority},
     ids::{HeapId, RootToken, SegmentId},
     registry,
     root::RootKind,
@@ -36,7 +36,11 @@ pub struct NumericBlock {
 unsafe impl Send for NumericBlock {}
 
 impl GcHeap {
-    /// 分配数值 limb 块（由 Rust `Drop` / `release_numeric_block` 负责释放）。
+    fn reclaim_authority(&self, limbs: NonNull<u64>) -> Result<ReclaimAuthority> {
+        Ok(self.header_for_limbs(limbs)?.reclaim_authority)
+    }
+
+    /// 分配临时数值 limb 块（[`ReclaimAuthority::ExplicitRelease`]：`Drop` / `release_numeric_block`）。
     pub fn allocate_numeric_block(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
         if capacity_limbs == 0 {
             return Err(GcError::InvalidCapacity);
@@ -44,14 +48,13 @@ impl GcHeap {
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
         let (seg_id, limbs) =
-            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::RustOwned)?;
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, ReclaimAuthority::ExplicitRelease)?;
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
-    /// 分配 GC 持有的数值块（须经根 / `Trace` 保活；由追踪清扫回收）。
+    /// 分配已发布数值块（[`ReclaimAuthority::TracingSweep`]：须经根 / `Trace` 保活）。
     ///
-    /// 与 [`Self::allocate_numeric_block`] 互斥：本路径写入 [`NumericOwnership::GcOwned`]，
-    /// Rust `Drop` / [`Self::release_numeric_block`] 不得释放。
+    /// 与 [`Self::allocate_numeric_block`] 互斥：本路径禁止 `release_numeric_block` / Rust `Drop` free。
     pub fn allocate_traced_numeric(&mut self, capacity_limbs: usize) -> Result<NumericBlock> {
         if capacity_limbs == 0 {
             return Err(GcError::InvalidCapacity);
@@ -59,15 +62,38 @@ impl GcHeap {
         self.budget.check_limbs(capacity_limbs)?;
         let payload_bytes = capacity_limbs.checked_mul(core::mem::size_of::<u64>()).ok_or(GcError::InvalidCapacity)?;
         let (seg_id, limbs) =
-            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, NumericOwnership::GcOwned)?;
+            self.allocate_payload(SegmentKind::Numeric, BlockKind::Numeric, payload_bytes, u32::MAX, ReclaimAuthority::TracingSweep)?;
         self.traced_numeric.insert(limbs.as_ptr() as usize);
         Ok(NumericBlock { ptr: limbs.cast(), capacity: capacity_limbs, segment_id: seg_id, heap_id: self.id })
     }
 
-    /// 为 GC 持有的 limbs 登记一条 [`NumericRoot`]（值对象持有 / 共享 `Clone`）。
+    /// 该 numeric block 是否允许显式 release / unique buffer reuse（临时 allocation）。
+    pub fn may_explicit_release_numeric(&self, limbs: NonNull<u64>) -> Result<bool> {
+        let header = self.header_for_limbs(limbs)?;
+        Ok(header.block_kind == BlockKind::Numeric && header.reclaim_authority == ReclaimAuthority::ExplicitRelease)
+    }
+
+    /// 该 numeric block 是否可登记 root（已发布、tracing reclaim）。
+    pub fn may_root_numeric(&self, limbs: NonNull<u64>) -> Result<bool> {
+        let header = self.header_for_limbs(limbs)?;
+        Ok(header.block_kind == BlockKind::Numeric && header.reclaim_authority == ReclaimAuthority::TracingSweep)
+    }
+
+    /// 经注册表查询 [`Self::may_explicit_release_numeric`]。
+    pub fn may_explicit_release_numeric_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<bool> {
+        registry::with_heap(heap_id, |heap| heap.may_explicit_release_numeric(limbs))?
+    }
+
+    /// 经注册表查询 [`Self::may_root_numeric`]。
+    pub fn may_root_numeric_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<bool> {
+        registry::with_heap(heap_id, |heap| heap.may_root_numeric(limbs))?
+    }
+
+    /// 为可 root 的 limbs 登记一条 [`NumericRoot`]。
+    ///
+    /// Living `24`：校验 block kind + reclaim authority（可 root 能力），不查询 ownership 实体。
     pub fn register_numeric_root(&mut self, limbs: NonNull<u64>, kind: RootKind) -> Result<RootToken> {
-        let ownership = self.numeric_ownership(limbs)?;
-        if ownership != NumericOwnership::GcOwned {
+        if !self.may_root_numeric(limbs)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
             return Err(GcError::LifecycleMismatch);
         }
@@ -76,8 +102,7 @@ impl GcHeap {
 
     /// 撤掉一条指向该载荷的 [`NumericRoot`]（Living `19`：`Drop` 只撤根，不释放）。
     pub fn unregister_one_numeric_root(&mut self, limbs: NonNull<u64>) -> Result<()> {
-        let ownership = self.numeric_ownership(limbs)?;
-        if ownership != NumericOwnership::GcOwned {
+        if !self.may_root_numeric(limbs)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
             return Err(GcError::LifecycleMismatch);
         }
@@ -143,10 +168,9 @@ impl GcHeap {
         Ok(unsafe { core::slice::from_raw_parts(block.ptr.as_ptr(), block.capacity) })
     }
 
-    /// 显式释放数值块（仅 [`NumericOwnership::RustOwned`]）。
+    /// 显式释放数值块（仅 [`ReclaimAuthority::ExplicitRelease`]）。
     pub fn release_numeric_block(&mut self, block: NumericBlock) -> Result<()> {
-        let ownership = self.numeric_ownership(block.ptr)?;
-        if ownership != NumericOwnership::RustOwned {
+        if !self.may_explicit_release_numeric(block.ptr)? {
             self.stats.lifecycle_mismatch = self.stats.lifecycle_mismatch.saturating_add(1);
             return Err(GcError::LifecycleMismatch);
         }
@@ -155,28 +179,18 @@ impl GcHeap {
 
     /// 经注册表释放（`OwnedLimbBuffer::Drop`）。
     ///
-    /// - [`NumericOwnership::RustOwned`]：走 `release_or_pool_numeric`
-    /// - [`NumericOwnership::GcOwned`]：撤一条 [`NumericRoot`]（不释放块）
+    /// - [`ReclaimAuthority::ExplicitRelease`]：走 `release_or_pool_numeric`
+    /// - [`ReclaimAuthority::TracingSweep`]：撤一条 [`NumericRoot`]（不释放块）
     pub fn release_numeric_limbs_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<()> {
-        registry::with_heap(heap_id, |heap| match heap.numeric_ownership(limbs) {
-            Ok(NumericOwnership::RustOwned) => heap.release_or_pool_numeric(limbs.cast()),
-            Ok(NumericOwnership::GcOwned) => heap.unregister_one_numeric_root(limbs),
-            Ok(NumericOwnership::Unspecified) => {
+        registry::with_heap(heap_id, |heap| match heap.reclaim_authority(limbs) {
+            Ok(ReclaimAuthority::ExplicitRelease) => heap.release_or_pool_numeric(limbs.cast()),
+            Ok(ReclaimAuthority::TracingSweep) => heap.unregister_one_numeric_root(limbs),
+            Ok(ReclaimAuthority::Unspecified) => {
                 heap.stats.lifecycle_mismatch = heap.stats.lifecycle_mismatch.saturating_add(1);
                 Err(GcError::LifecycleMismatch)
             }
             Err(e) => Err(e),
         })?
-    }
-
-    /// 读取数值块头的生命周期标记。
-    pub fn numeric_ownership(&self, limbs: NonNull<u64>) -> Result<NumericOwnership> {
-        Ok(self.header_for_limbs(limbs)?.numeric_ownership)
-    }
-
-    /// 经注册表读取生命周期标记。
-    pub fn numeric_ownership_registered(heap_id: HeapId, limbs: NonNull<u64>) -> Result<NumericOwnership> {
-        registry::with_heap(heap_id, |heap| heap.numeric_ownership(limbs))?
     }
 
     /// GC 持有者计数（`pin_state`；`0` / 哨兵表示不可用）。

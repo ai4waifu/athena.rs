@@ -131,8 +131,7 @@ fn session_default_try_add_publishes_on_session_heap() {
 }
 
 #[test]
-fn session_default_publishes_gc_owned_heap() {
-    use athena_gc::NumericOwnership;
+fn session_default_publishes_tracing_sweep_heap() {
     use athena_numeric::natural::Natural;
 
     let ctx = NumericContext::session_default();
@@ -140,14 +139,13 @@ fn session_default_publishes_gc_owned_heap() {
     let n = Natural::from_limbs_in(&ctx, vec![1, 2, 3, 4]).expect("heap natural");
     let ptr = n.as_limbs().as_ptr();
     let nn = core::ptr::NonNull::new(ptr as *mut u64).expect("non-null limbs");
-    let ownership = ctx.heap().borrow().numeric_ownership(nn).expect("ownership");
-    assert_eq!(ownership, NumericOwnership::GcOwned);
+    assert!(ctx.heap().borrow().may_root_numeric(nn).expect("rootable"));
+    assert!(!ctx.heap().borrow().may_explicit_release_numeric(nn).expect("not temp"));
     assert_eq!(ctx.heap().borrow().roots().numeric_len(), 1);
 }
 
 #[test]
-fn session_gc_owned_try_clone_in_is_deep_copy() {
-    use athena_gc::NumericOwnership;
+fn session_tracing_try_clone_in_is_deep_copy() {
     use athena_numeric::natural::Natural;
     use core::ptr::NonNull;
 
@@ -157,10 +155,11 @@ fn session_gc_owned_try_clone_in_is_deep_copy() {
     let cloned = n.try_clone_in(&ctx).expect("deep copy");
     assert_eq!(n.as_limbs(), cloned.as_limbs());
     assert_ne!(n.as_limbs().as_ptr(), cloned.as_limbs().as_ptr(), "Living 19: try_clone_in must deep-copy Heap");
-    // 深复制经 alloc_copy → RustOwned，不额外登记 root。
+    // 深复制经 alloc_copy → ExplicitRelease，不额外登记 root。
     assert_eq!(ctx.heap().borrow().roots().numeric_len(), roots_before);
     let cptr = NonNull::new(cloned.as_limbs().as_ptr() as *mut u64).expect("ptr");
-    assert_eq!(ctx.heap().borrow().numeric_ownership(cptr).expect("own"), NumericOwnership::RustOwned);
+    assert!(ctx.heap().borrow().may_explicit_release_numeric(cptr).expect("temp copy"));
+    assert!(!ctx.heap().borrow().may_root_numeric(cptr).expect("not published"));
 }
 
 #[test]

@@ -132,7 +132,7 @@ pub struct NumericContext {
     capabilities: CapabilityBundle,
     /// Context 创建时绑定的 machine kernel 表。
     kernels: KernelTable,
-    /// Living `19`：Heap 发布是否使用 `GcOwned`（Session 默认真；共享默认 heap 路径默认假）。
+    /// Living `19`/`24`：Heap 发布是否使用 TracingSweep reclaim（Session 默认真；共享默认 heap 路径默认假）。
     publish_gc_owned: bool,
 }
 
@@ -340,7 +340,7 @@ impl NumericContext {
         self.capabilities.resource.can_reuse_destination
     }
 
-    /// Living `19`：Heap 幅度是否以 `GcOwned` 发布（Session 默认真）。
+    /// Living `19`/`24`：Heap 幅度是否以 TracingSweep reclaim 发布（Session 默认真）。
     #[inline]
     pub fn publishes_gc_owned(&self) -> bool {
         self.publish_gc_owned

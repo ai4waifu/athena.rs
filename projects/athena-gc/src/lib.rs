@@ -23,10 +23,7 @@ mod trace;
 pub use batch::{AllocationAccounting, NumericBatch};
 pub use budget::HeapBudget;
 pub use error::{GcError, Result};
-pub use header::{AllocationHeader, BlockKind, MarkState};
-/// Living `24`：过渡期 allocation-class 防错标签，非公共 ownership 模型。
-#[doc(hidden)]
-pub use header::NumericOwnership;
+pub use header::{AllocationHeader, BlockKind, MarkState, ReclaimAuthority};
 pub use heap::{CollectReport, GcHeap, GraphDomainBlock, NumericBlock, NumericBumpMark};
 pub use ids::{GcObjectId, HeapId, RootToken, SegmentId};
 pub use mode::{GcController, GcDeferGuard, GcMode, GcPinGuard, GcPressure, GcSuspendGuard};

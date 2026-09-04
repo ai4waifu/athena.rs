@@ -18,22 +18,19 @@ pub enum BlockKind {
     GraphProperty = 5,
 }
 
-/// Numeric block 生命周期标签（**过渡债** · Living `24`）。
+/// 单一 reclaim 权限（Living `24`：正交属性中的 reclaim authority，不是 ownership 实体）。
 ///
-/// 不是公共 ownership 模型，也不描述数学值语义。仅作 reclaim 防错标签：
-/// `RustOwned` 与 tracing sweep 互斥。新代码不得扩展此枚举的公共用法。
+/// 构造时写入，禁止同一 pointer 原地翻转。`ExplicitRelease` 与 `TracingSweep` 互斥。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
-#[doc(hidden)]
-pub enum NumericOwnership {
+pub enum ReclaimAuthority {
     /// 非 numeric，或尚未标记。
     #[default]
     Unspecified = 0,
-    /// 仅 Rust `Drop` / `release_numeric_block` 释放。sweep 必须跳过。
-    RustOwned = 1,
-    /// Session / 长期值：仅 [`crate::NumericRoot`] / Trace 保活。
-    /// `Drop` / `release_numeric_block` 不得 free；无 root 且未标记时由 sweep 回收。
-    GcOwned = 2,
+    /// 仅显式 `release_numeric_block` / Rust `Drop` 释放。sweep 必须跳过。
+    ExplicitRelease = 1,
+    /// 已发布：仅 root / Trace 保活；无 root 且未标记时由 tracing sweep 回收。
+    TracingSweep = 2,
 }
 
 /// Mark 位。
@@ -48,6 +45,9 @@ pub enum MarkState {
 }
 
 /// 统一 allocation 前缀（不进入 `Magnitude` union）。
+///
+/// 只记录物理事实：block kind、segment、大小、mark、pin、reclaim authority。
+/// 不表达“谁拥有对象”。
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(8))]
 pub struct AllocationHeader {
@@ -67,8 +67,8 @@ pub struct AllocationHeader {
     pub pin_state: u16,
     /// 关联 `GcObjectId.index`（Object block；Numeric 为 `u32::MAX`）。
     pub object_index: u32,
-    /// Numeric 生命周期。Object 为 [`NumericOwnership::Unspecified`]。
-    pub numeric_ownership: NumericOwnership,
+    /// Reclaim authority。Object 等非 numeric 为 [`ReclaimAuthority::Unspecified`]。
+    pub reclaim_authority: ReclaimAuthority,
 }
 
 impl AllocationHeader {
