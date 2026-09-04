@@ -3,7 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result, ResultId, TermId};
 
 use crate::{
-    api::request::{AthenaRequest, DomainGoal, LoweringOutcome},
+    api::request::{AthenaRequest, LoweringOutcome},
     domains::dispatch::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     execution,
     runtime::session::Session,
@@ -45,19 +45,9 @@ impl AthenaEngine {
 
     /// 经中性 [`AthenaRequest`] 边界执行（Living `26`）。
     ///
-    /// - `Term` / `Command` / `Control`：唯一 `ExecutionIR` 路径（[`execution::execute_ir_request`]）
-    /// - `Goal::Dispatch`：域分派写入 ResultStore（provider ABI 接线前仍走此口）
+    /// 唯一路径：[`execution::execute_ir_request`]（含 `Goal::Dispatch` → `CallProvider`）。
     pub fn execute_request(&self, session: &mut Session, request: AthenaRequest) -> Result<ResultId> {
-        match request {
-            AthenaRequest::Term(_) | AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
-                execution::execute_ir_request(session, &request)
-            }
-            AthenaRequest::Goal(DomainGoal::Dispatch(domain_request)) => {
-                let domain_result = self.execute_domain(session, domain_request)?;
-                let result = crate::runtime::results::computation_from_domain(session, domain_result);
-                Ok(session.insert_result(result))
-            }
-        }
+        execution::execute_ir_request(session, request)
     }
 
     /// 将方言 [`LoweringOutcome`] 送入后端（Rejected 直接返回诊断）。
