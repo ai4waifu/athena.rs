@@ -7,7 +7,7 @@
 use athena_types::TermId;
 
 use crate::{
-    arena::TermStore,
+    store::TermStore,
     node::{Atom, TermNode},
     operator::OperatorRegistry,
 };

@@ -1,10 +1,10 @@
-//! Term arena — Core IR 唯一存储。
+//! `TermStore` — Core IR 唯一符号项存储。
 
 use athena_types::{Diagnostic, DiagnosticCode, Result, SourceSpan, TermId};
 
 use crate::{node::TermNode, symbol::SymbolTable};
 
-/// 基于 arena 的 Core CAS IR。
+/// Core CAS IR 符号项存储。
 #[derive(Debug, Default)]
 pub struct TermStore {
     nodes: Vec<TermNode>,
@@ -13,7 +13,7 @@ pub struct TermStore {
 }
 
 impl TermStore {
-    /// 空 arena。
+    /// 空存储。
     pub fn new() -> Self {
         Self::default()
     }
