@@ -13,7 +13,7 @@ use athena_engine::{
 use athena_numeric::Number;
 use athena_types::SymbolId;
 
-fn square_of_x(session: &mut Session) -> athena_types::ExprId {
+fn square_of_x(session: &mut Session) -> athena_types::TermId {
     let x = push_symbol_name(session, "x");
     let two = push_int(session, 2);
     push_app_named(session, "Power", vec![x, two])

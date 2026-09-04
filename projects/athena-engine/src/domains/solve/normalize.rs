@@ -1,7 +1,7 @@
 //! AthenaIR 方程 → [`Constraint`] 归一化（保留关系方向与 span）。
 
-use athena_ir::{ExprArena, ExprNode};
-use athena_types::{Diagnostic, DiagnosticCode, ExprId, OperatorId, SourceSpan};
+use athena_ir::{TermNode, TermStore};
+use athena_types::{Diagnostic, DiagnosticCode, OperatorId, SourceSpan, TermId};
 
 use super::constraint::{Constraint, ConstraintSet, Equation, Inequality, InequalityOp};
 
@@ -37,9 +37,9 @@ impl RelationalOperators {
 }
 
 /// 将二元关系 App 归一化为 [`Constraint`]，**不**压成 `lhs - rhs = 0`。
-pub fn normalize_relational_app(arena: &ExprArena, root: ExprId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
+pub fn normalize_relational_app(arena: &TermStore, root: TermId, ops: &RelationalOperators) -> Result<Constraint, Diagnostic> {
     let (kind, span) = arena_node(arena, root)?;
-    let ExprNode::App { op, args } = kind
+    let TermNode::App { op, args } = kind
     else {
         return Err(diag("expected_app"));
     };
@@ -75,8 +75,8 @@ pub fn normalize_relational_app(arena: &ExprArena, root: ExprId, ops: &Relationa
 
 /// 将若干根项归一化为合取 [`ConstraintSet`]。
 pub fn normalize_constraint_conjunction(
-    arena: &ExprArena,
-    roots: &[ExprId],
+    arena: &TermStore,
+    roots: &[TermId],
     ops: &RelationalOperators,
 ) -> Result<ConstraintSet, Diagnostic> {
     let mut members = Vec::with_capacity(roots.len());
@@ -86,7 +86,7 @@ pub fn normalize_constraint_conjunction(
     Ok(ConstraintSet::and(members))
 }
 
-fn arena_node(arena: &ExprArena, id: ExprId) -> Result<(&ExprNode, SourceSpan), Diagnostic> {
+fn arena_node(arena: &TermStore, id: TermId) -> Result<(&TermNode, SourceSpan), Diagnostic> {
     let kind = arena.get(id).ok_or_else(|| diag("missing_term"))?;
     let span = arena.span(id).unwrap_or_default();
     Ok((kind, span))

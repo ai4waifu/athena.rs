@@ -1,7 +1,7 @@
-//! Core CAS IR term 种类（arena 持有，由 [`ExprId`](athena_types::ExprId) 引用）。
+//! Core CAS IR term 种类（arena 持有，由 [`TermId`](athena_types::TermId) 引用）。
 
 use athena_numeric::{NumericContext, NumericValue};
-use athena_types::{ExprId, OperatorId, Result, SourceSpan, SymbolId};
+use athena_types::{OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 /// 原子 term 载荷。
 ///
@@ -35,23 +35,23 @@ impl Atom {
 
 /// Core IR 中的 term 节点。
 ///
-/// Living `19`：不实现 [`Clone`]。节点经 arena `ExprId` 引用；载荷复制用 [`Self::try_clone_in`]。
+/// Living `19`：不实现 [`Clone`]。节点经 arena `TermId` 引用；载荷复制用 [`Self::try_clone_in`]。
 #[derive(Debug, PartialEq)]
-pub enum ExprNode {
+pub enum TermNode {
     /// 原子值。
     Atom(Atom),
     /// 有序序列（列表 / 向量表面）。
-    List(Vec<ExprId>),
+    List(Vec<TermId>),
     /// 算子应用。
     App {
         /// 注册算子。
         op: OperatorId,
         /// 参数 term。
-        args: Vec<ExprId>,
+        args: Vec<TermId>,
     },
 }
 
-impl ExprNode {
+impl TermNode {
     /// Owning 复制。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         Ok(match self {

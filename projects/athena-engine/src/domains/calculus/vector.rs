@@ -1,6 +1,6 @@
 //! 向量微积分对象 — Gradient、Jacobian、Hessian、Divergence、Curl（arena 版 · Living `25`）。
 
-use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{AssumptionSet, Condition, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
@@ -12,16 +12,16 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub struct Gradient {
     /// 源标量表达式。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 求导变量顺序。
     pub variables: Vec<String>,
     /// ∂f/∂xᵢ 分量（与 `variables` 同序）。
-    pub components: Vec<ExprId>,
+    pub components: Vec<TermId>,
 }
 
 impl Gradient {
     /// 桥接列表形态，供仍需要列表的宿主。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         cc.list(self.components.clone())
     }
 }
@@ -30,16 +30,16 @@ impl Gradient {
 #[derive(Debug, PartialEq)]
 pub struct Jacobian {
     /// 分量表达式 f₁…fₘ。
-    pub expressions: Vec<ExprId>,
+    pub expressions: Vec<TermId>,
     /// 自变量 x₁…xₙ。
     pub variables: Vec<String>,
     /// 行：`rows[i][j] = ∂fᵢ/∂xⱼ`。
-    pub rows: Vec<Vec<ExprId>>,
+    pub rows: Vec<Vec<TermId>>,
 }
 
 impl Jacobian {
     /// 嵌套列表项 `{{…},…}` 桥接。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         let rows = self.rows.iter().map(|r| cc.list(r.clone())).collect();
         cc.list(rows)
     }
@@ -49,16 +49,16 @@ impl Jacobian {
 #[derive(Debug, PartialEq)]
 pub struct Hessian {
     /// 源标量表达式。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 按序变量。
     pub variables: Vec<String>,
     /// `entries[i][j] = ∂²f / ∂xᵢ∂xⱼ`（保持变量顺序；不静默交换）。
-    pub entries: Vec<Vec<ExprId>>,
+    pub entries: Vec<Vec<TermId>>,
 }
 
 impl Hessian {
     /// 嵌套列表项桥接。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         let rows = self.entries.iter().map(|r| cc.list(r.clone())).collect();
         cc.list(rows)
     }
@@ -67,7 +67,7 @@ impl Hessian {
 /// 关于 `variables` 的 ∇f。
 pub fn gradient_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Gradient> {
@@ -91,7 +91,7 @@ pub fn gradient_checked(
 /// `expressions` 关于 `variables` 的 Jacobian。
 pub fn jacobian_checked(
     cc: &mut CalculusCtx<'_>,
-    expressions: &[ExprId],
+    expressions: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Jacobian> {
@@ -113,7 +113,7 @@ pub fn jacobian_checked(
 /// 标量 Hessian：先 ∂/∂xᵢ 再对 (∂f/∂xⱼ)，保持变量顺序。
 pub fn hessian_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Hessian> {
@@ -140,16 +140,16 @@ pub fn hessian_checked(
 #[derive(Debug, PartialEq)]
 pub struct Divergence {
     /// 向量场分量 F₁…Fₙ。
-    pub components: Vec<ExprId>,
+    pub components: Vec<TermId>,
     /// 坐标变量（与分量同序，`div = Σ ∂Fᵢ/∂xᵢ`）。
     pub variables: Vec<String>,
     /// 已求值的散度标量。
-    pub value: ExprId,
+    pub value: TermId,
 }
 
 impl Divergence {
     /// 桥接为标量项。
-    pub fn materialize_expression(&self) -> ExprId {
+    pub fn materialize_expression(&self) -> TermId {
         self.value
     }
 }
@@ -158,16 +158,16 @@ impl Divergence {
 #[derive(Debug, PartialEq)]
 pub struct Curl {
     /// 输入分量 (Fₓ, Fᵧ, F_z)。
-    pub components: Vec<ExprId>,
+    pub components: Vec<TermId>,
     /// 坐标 (x, y, z)。
     pub variables: Vec<String>,
     /// 旋度分量（与 `variables` 同序）。
-    pub curl_components: Vec<ExprId>,
+    pub curl_components: Vec<TermId>,
 }
 
 impl Curl {
     /// 桥接列表形态。
-    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_list_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         cc.list(self.curl_components.clone())
     }
 }
@@ -175,7 +175,7 @@ impl Curl {
 /// `div F = Σᵢ ∂Fᵢ/∂xᵢ`。分量个数必须等于变量个数。
 pub fn divergence_checked(
     cc: &mut CalculusCtx<'_>,
-    components: &[ExprId],
+    components: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Divergence> {
@@ -212,7 +212,7 @@ pub fn divergence_checked(
 /// ℝ³ 旋度：`∇×F = (∂F_z/∂y−∂F_y/∂z, ∂F_x/∂z−∂F_z/∂x, ∂F_y/∂x−∂F_x/∂y)`。
 pub fn curl_checked(
     cc: &mut CalculusCtx<'_>,
-    components: &[ExprId],
+    components: &[TermId],
     variables: &[String],
     assumptions: &AssumptionSet,
 ) -> CalculusResult<Curl> {
@@ -253,7 +253,7 @@ pub fn curl_checked(
     )
 }
 
-fn sub_terms(cc: &mut CalculusCtx<'_>, a: ExprId, b: ExprId) -> ExprId {
+fn sub_terms(cc: &mut CalculusCtx<'_>, a: TermId, b: TermId) -> TermId {
     let neg = cc.ap("Times", vec![cc.in_(-1), b]);
     cc.eval(cc.ap("Plus", vec![a, neg]))
 }

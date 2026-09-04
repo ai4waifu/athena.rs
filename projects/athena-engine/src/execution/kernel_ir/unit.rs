@@ -1,9 +1,9 @@
 //! KernelIR 执行单元 — 线性指令合同（Living `25` L2）。
 //!
 //! 符号树只在编译期遍历一次；运行期唯一执行形态是 [`ExecUnit`]。
-//! 指令为后缀式：操作数走值栈，原始操作数（lower 期已知）内嵌 [`ExprId`]。
+//! 指令为后缀式：操作数走值栈，原始操作数（lower 期已知）内嵌 [`TermId`]。
 
-use athena_types::{ExprId, OperatorId};
+use athena_types::{OperatorId, TermId};
 
 /// 内建 handler 表下标（分派预解析产物）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub enum Instr {
     /// 压入编译期已确定的子树引用（arena 共享，不复制）。
     Const {
         /// 常量子树根。
-        term: ExprId,
+        term: TermId,
     },
     /// 弹出 `argc` 个元素构造 `List`。
     MakeList {
@@ -41,7 +41,7 @@ pub enum Instr {
         /// 预解析 handler。
         handler: HandlerId,
         /// 原始操作数。
-        operands: Vec<ExprId>,
+        operands: Vec<TermId>,
     },
     /// 弹出 `argc` 个已求值参数与已求值 head 值（`Function` 应用 / 惰性重建）。
     EvalDynamic {
@@ -73,7 +73,7 @@ pub enum Instr {
         /// 定义符号。
         sym: athena_types::SymbolId,
         /// lhs 模式子树。
-        lhs: ExprId,
+        lhs: TermId,
     },
     /// 结束单元，栈顶为单元值。
     Ret,
@@ -83,14 +83,14 @@ pub enum Instr {
 #[derive(Debug, Clone)]
 pub struct ExecUnit {
     /// 编译源子树（缓存命中时作 `structural_eq` 复核基准）。
-    pub source: ExprId,
+    pub source: TermId,
     /// 线性指令。
     pub code: Vec<Instr>,
 }
 
 impl ExecUnit {
     /// 常量单元（仅返回原子子树）。
-    pub fn constant(source: ExprId) -> Self {
+    pub fn constant(source: TermId) -> Self {
         Self { source, code: vec![Instr::Const { term: source }, Instr::Ret] }
     }
 }

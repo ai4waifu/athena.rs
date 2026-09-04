@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use athena_types::{ExprId, OperatorId, SymbolId};
+use athena_types::{OperatorId, SymbolId, TermId};
 
 use crate::execution::{
     Outcome,
@@ -17,7 +17,7 @@ use crate::execution::{
 };
 
 /// 对子树做一轮规则改写（含 DownValues 递归应用）。
-pub(crate) fn rewrite_bindings(vm: &mut Vm<'_>, expr: ExprId) -> ExprId {
+pub(crate) fn rewrite_bindings(vm: &mut Vm<'_>, expr: TermId) -> TermId {
     let Some(shape) = vm.shape(expr)
     else {
         return expr;
@@ -39,7 +39,7 @@ pub(crate) fn rewrite_bindings(vm: &mut Vm<'_>, expr: ExprId) -> ExprId {
     }
 }
 
-fn rewrite_symbol(vm: &mut Vm<'_>, expr: ExprId, sym: SymbolId) -> ExprId {
+fn rewrite_symbol(vm: &mut Vm<'_>, expr: TermId, sym: SymbolId) -> TermId {
     match vm.lookup_symbol(sym) {
         Some(LocalBinding::Own(v)) => v,
         Some(LocalBinding::Unique(v)) => v,
@@ -47,7 +47,7 @@ fn rewrite_symbol(vm: &mut Vm<'_>, expr: ExprId, sym: SymbolId) -> ExprId {
     }
 }
 
-fn rewrite_app(vm: &mut Vm<'_>, expr: ExprId, op: OperatorId, args: Vec<ExprId>) -> ExprId {
+fn rewrite_app(vm: &mut Vm<'_>, expr: TermId, op: OperatorId, args: Vec<TermId>) -> TermId {
     let name = vm.session.operators.name(op).unwrap_or("").to_string();
 
     // `Set` / `SetDelayed`：LHS 不改写，仅 RHS。
@@ -86,7 +86,7 @@ fn rewrite_app(vm: &mut Vm<'_>, expr: ExprId, op: OperatorId, args: Vec<ExprId>)
 }
 
 /// head 符号的 Own / Delayed 值（按注册表名反查符号表）。
-fn lookup_head_own(vm: &mut Vm<'_>, op: OperatorId) -> Option<ExprId> {
+fn lookup_head_own(vm: &mut Vm<'_>, op: OperatorId) -> Option<TermId> {
     let name = vm.session.operators.name(op)?;
     let name = name.to_string();
     let sym = vm.session.arena.symbols_mut().intern(&name);
@@ -98,7 +98,7 @@ fn lookup_head_own(vm: &mut Vm<'_>, op: OperatorId) -> Option<ExprId> {
 }
 
 /// 对已改写的 App 尝试 DownValues（首条匹配规则获胜，结果递归改写）。
-fn apply_down_values(vm: &mut Vm<'_>, app: ExprId) -> ExprId {
+fn apply_down_values(vm: &mut Vm<'_>, app: TermId) -> TermId {
     let Some(Shape::App(op, args)) = vm.shape(app)
     else {
         return app;
@@ -123,7 +123,7 @@ fn apply_down_values(vm: &mut Vm<'_>, app: ExprId) -> ExprId {
         if pat_args.len() != args.len() {
             continue;
         }
-        let mut binds: HashMap<SymbolId, ExprId> = HashMap::new();
+        let mut binds: HashMap<SymbolId, TermId> = HashMap::new();
         if pat_args
             .iter()
             .zip(args.iter())

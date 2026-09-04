@@ -1,6 +1,6 @@
-//! 会话 arena 上的符号求导（Living `25` L3 · `ExprId` 进出）。
+//! 会话 arena 上的符号求导（Living `25` L3 · `TermId` 进出）。
 
-use athena_types::{ExprId, Predicate};
+use athena_types::{Predicate, TermId};
 
 use crate::execution::builtins::registry::lookup_function;
 
@@ -10,7 +10,7 @@ use super::{
 };
 
 /// 在 arena 上做符号求导。
-pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> ExprId {
+pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
     let Some(shape) = cc.shape(expr)
     else {
         return expr;
@@ -101,10 +101,10 @@ pub fn differentiate(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> ExprI
 /// 在假设下求导，返回条件而非裸项。
 pub fn differentiate_checked(
     cc: &mut CalculusCtx<'_>,
-    expr: ExprId,
+    expr: TermId,
     var: &str,
     assumptions: &athena_types::AssumptionSet,
-) -> ConditionalResult<ExprId> {
+) -> ConditionalResult<TermId> {
     if let Some((h, args)) = cc.app(expr) {
         if h == "Abs" && args.len() == 1 {
             let inner = args[0];
@@ -115,10 +115,10 @@ pub fn differentiate_checked(
             let needs_nonzero =
                 !assumptions.predicates.iter().any(|p| matches!(p, Predicate::NonZero(_) | Predicate::SymbolNonZero(_)));
             if needs_nonzero {
-                // `ExprId(0)` 为桥接占位，直至 Abs 参数绑定落地。
+                // `TermId(0)` 为桥接占位，直至 Abs 参数绑定落地。
                 return ConditionalResult::with_unresolved(
                     candidate,
-                    vec![unresolved(Predicate::NonZero(athena_types::ExprId(0)))],
+                    vec![unresolved(Predicate::NonZero(athena_types::TermId(0)))],
                 );
             }
             return ConditionalResult::exact(candidate);
@@ -135,7 +135,7 @@ pub fn differentiate_checked(
             if needs_nonneg {
                 return ConditionalResult::with_unresolved(
                     candidate,
-                    vec![unresolved(Predicate::NonNegative(athena_types::ExprId(0)))],
+                    vec![unresolved(Predicate::NonNegative(athena_types::TermId(0)))],
                 );
             }
             return ConditionalResult::exact(candidate);

@@ -1,4 +1,4 @@
-//! 值与结果容器身份注册表（Living `25`：`ExprId` 已是 arena 原生身份，不再维护二级映射）。
+//! 值与结果容器身份注册表（Living `25`：`TermId` 已是 arena 原生身份，不再维护二级映射）。
 
 use std::collections::BTreeMap;
 

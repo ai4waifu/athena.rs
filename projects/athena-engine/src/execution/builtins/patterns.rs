@@ -1,20 +1,20 @@
-//! 模式匹配与替换 — 数据面 `ExprId` 结构操作（legacy `pattern_*` / `substitute_*` 语义）。
+//! 模式匹配与替换 — 数据面 `TermId` 结构操作（legacy `pattern_*` / `substitute_*` 语义）。
 //!
 //! 只重建被改动的路径，未改动子树按 arena 地址共享。
 
 use std::collections::HashMap;
 
-use athena_types::{ExprId, SymbolId};
+use athena_types::{SymbolId, TermId};
 
 use crate::execution::vm::{Shape, Vm};
 
 /// MatchQ 式匹配（无绑定）。
-pub(crate) fn pattern_matches(vm: &mut Vm<'_>, expr: ExprId, pat: ExprId) -> bool {
+pub(crate) fn pattern_matches(vm: &mut Vm<'_>, expr: TermId, pat: TermId) -> bool {
     pattern_bind(vm, expr, pat, &mut HashMap::new())
 }
 
 /// 结构匹配并收集 `Pattern[name, p]` 绑定。
-pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: ExprId, pat: ExprId, binds: &mut HashMap<SymbolId, ExprId>) -> bool {
+pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     let Some(ps) = vm.shape(pat)
     else {
         return false;
@@ -51,7 +51,7 @@ pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: ExprId, pat: ExprId, binds: &m
 
 /// List↔List / App↔App 结构匹配；App 的 head 按算子名一致判定
 /// （legacy head term 匹配对符号 head 等价于名相等）。
-fn structural_bind(vm: &mut Vm<'_>, expr: ExprId, pat: ExprId, binds: &mut HashMap<SymbolId, ExprId>) -> bool {
+fn structural_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
     let Some(p) = vm.shape(pat)
     else {
         return vm.session.arena.structural_eq(expr, pat);
@@ -78,7 +78,7 @@ fn structural_bind(vm: &mut Vm<'_>, expr: ExprId, pat: ExprId, binds: &mut HashM
 }
 
 /// `Blank[h]` 的 head 判定（legacy `expr_has_head`）。
-pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: ExprId, head_pat: ExprId) -> bool {
+pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> bool {
     let Some(Shape::Sym(_)) = vm.shape(head_pat)
     else {
         return false;
@@ -90,7 +90,7 @@ pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: ExprId, head_pat: ExprId) -> 
     match name.as_str() {
         "Integer" => match vm.shape(expr) {
             Some(Shape::Number) => match vm.session.arena.get(expr) {
-                Some(athena_ir::ExprNode::Atom(athena_ir::Atom::Number(n))) => {
+                Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
                     n.as_exact_integer().is_some() || n.as_integer().is_some()
                 }
                 _ => false,
@@ -105,7 +105,7 @@ pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: ExprId, head_pat: ExprId) -> 
 }
 
 /// `Pattern` 名下的绑定替换（legacy `substitute_pattern_binds`）：符号原子替换，未命中共享。
-pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: ExprId, binds: &HashMap<SymbolId, ExprId>) -> ExprId {
+pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: TermId, binds: &HashMap<SymbolId, TermId>) -> TermId {
     if binds.is_empty() {
         return expr;
     }
@@ -140,7 +140,7 @@ pub(crate) fn substitute_binds(vm: &mut Vm<'_>, expr: ExprId, binds: &HashMap<Sy
 }
 
 /// 符号替换（legacy `substitute_symbol`）：Table / For / Function 具化。
-pub(crate) fn substitute_symbol(vm: &mut Vm<'_>, expr: ExprId, sym: SymbolId, value: ExprId) -> ExprId {
+pub(crate) fn substitute_symbol(vm: &mut Vm<'_>, expr: TermId, sym: SymbolId, value: TermId) -> TermId {
     let Some(s) = vm.shape(expr)
     else {
         return expr;
@@ -172,7 +172,7 @@ pub(crate) fn substitute_symbol(vm: &mut Vm<'_>, expr: ExprId, sym: SymbolId, va
 }
 
 /// `Slot` / `#` / `#1` 替换（legacy `substitute_slot`）。
-pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: ExprId, value: ExprId) -> ExprId {
+pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: TermId, value: TermId) -> TermId {
     let Some(s) = vm.shape(expr)
     else {
         return expr;
@@ -183,7 +183,7 @@ pub(crate) fn substitute_slot(vm: &mut Vm<'_>, expr: ExprId, value: ExprId) -> E
             if vm.session.operators.name(op) == Some("Slot")
                 && (args.is_empty()
                     || (args.len() == 1
-                        && matches!(vm.session.arena.get(args[0]), Some(athena_ir::ExprNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer() == Some(1)))) =>
+                        && matches!(vm.session.arena.get(args[0]), Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer() == Some(1)))) =>
         {
             let _ = args;
             value
@@ -217,7 +217,7 @@ fn is_slot(vm: &Vm<'_>, s: SymbolId) -> bool {
 }
 
 /// 字面替换（legacy `replace_literal`，`ReplaceAll` 用）：结构相等处整体替换。
-pub(crate) fn replace_literal(vm: &mut Vm<'_>, expr: ExprId, lhs: ExprId, rhs: ExprId) -> ExprId {
+pub(crate) fn replace_literal(vm: &mut Vm<'_>, expr: TermId, lhs: TermId, rhs: TermId) -> TermId {
     if vm.session.arena.structural_eq(expr, lhs) {
         return rhs;
     }

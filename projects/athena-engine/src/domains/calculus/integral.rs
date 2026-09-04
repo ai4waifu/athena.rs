@@ -1,15 +1,15 @@
-//! 会话 arena 上的不定 / 定积分（初等子集 · `ExprId` 进出）。
+//! 会话 arena 上的不定 / 定积分（初等子集 · `TermId` 进出）。
 
-use athena_types::{Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
-    expression_util::{contains_symbol, replace_symbol},
     result::CalculusResult,
+    symbol_rewrite::{contains_symbol, replace_symbol},
 };
 
 /// 在 arena 上做符号积分（多项式 / 初等子集）。
-pub fn integrate(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> ExprId {
+pub fn integrate(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
     let Some(shape) = cc.shape(expr)
     else {
         return expr;
@@ -80,7 +80,7 @@ pub fn integrate(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> ExprId {
 }
 
 /// 积分并包装为 [`CalculusResult`]（初等 vs 未求值）。
-pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> CalculusResult<ExprId> {
+pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> CalculusResult<TermId> {
     let value = integrate(cc, expr, var);
     if cc.head_name(value).is_some_and(|h| h == "Integrate") {
         CalculusResult::Unevaluated { expression: value, reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary) }
@@ -93,11 +93,11 @@ pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> C
 /// 经原函数求值 `F(upper) - F(lower)` 的定积分。
 pub fn definite_integrate_checked(
     cc: &mut CalculusCtx<'_>,
-    expr: ExprId,
+    expr: TermId,
     var: &str,
-    lower: ExprId,
-    upper: ExprId,
-) -> CalculusResult<ExprId> {
+    lower: TermId,
+    upper: TermId,
+) -> CalculusResult<TermId> {
     let echo = |cc: &mut CalculusCtx<'_>| {
         let iter = cc.list(vec![cc.sym(var), lower, upper]);
         cc.ap("Integrate", vec![expr, iter])

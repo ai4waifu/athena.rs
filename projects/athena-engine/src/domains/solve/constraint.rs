@@ -1,6 +1,6 @@
 //! 方程与约束对象。
 
-use athena_types::{ExprId, SourceSpan};
+use athena_types::{SourceSpan, TermId};
 
 use super::{binding::BoundSymbol, domain::SolveDomain};
 
@@ -8,9 +8,9 @@ use super::{binding::BoundSymbol, domain::SolveDomain};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Equation {
     /// 左端。
-    pub lhs: ExprId,
+    pub lhs: TermId,
     /// 右端。
-    pub rhs: ExprId,
+    pub rhs: TermId,
     /// 源位置（可选）。
     pub span: Option<SourceSpan>,
 }
@@ -34,11 +34,11 @@ pub enum InequalityOp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inequality {
     /// 左端。
-    pub lhs: ExprId,
+    pub lhs: TermId,
     /// 比较。
     pub op: InequalityOp,
     /// 右端。
-    pub rhs: ExprId,
+    pub rhs: TermId,
     /// 源位置（可选）。
     pub span: Option<SourceSpan>,
 }
@@ -47,7 +47,7 @@ pub struct Inequality {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolvePredicate {
     /// 谓词项（已是布尔语义的 AthenaIR）。
-    pub formula: ExprId,
+    pub formula: TermId,
     /// 源位置（可选）。
     pub span: Option<SourceSpan>,
 }
@@ -139,17 +139,17 @@ pub enum Constraint {
 
 impl Constraint {
     /// 方程便捷构造。
-    pub fn equation(lhs: ExprId, rhs: ExprId) -> Self {
+    pub fn equation(lhs: TermId, rhs: TermId) -> Self {
         Self::Equation(Equation { lhs, rhs, span: None })
     }
 
     /// 不等式便捷构造。
-    pub fn inequality(lhs: ExprId, op: InequalityOp, rhs: ExprId) -> Self {
+    pub fn inequality(lhs: TermId, op: InequalityOp, rhs: TermId) -> Self {
         Self::Inequality(Inequality { lhs, op, rhs, span: None })
     }
 
     /// 谓词便捷构造。
-    pub fn predicate(formula: ExprId) -> Self {
+    pub fn predicate(formula: TermId) -> Self {
         Self::Predicate(SolvePredicate { formula, span: None })
     }
 }

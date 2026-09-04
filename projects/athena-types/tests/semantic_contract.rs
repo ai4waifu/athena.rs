@@ -1,13 +1,13 @@
 //! 身份分离与 `AssumptionScope` 合同。
 
 use athena_types::{
-    AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, ExprId, Predicate, ProofRef, ResultId,
-    ScopeApplicability, ScopeConflictKind, ScopeMergeOutcome, SymbolId, TheoryContext, TheoryContextId, ValueId,
+    AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, Predicate, ProofRef, ResultId,
+    ScopeApplicability, ScopeConflictKind, ScopeMergeOutcome, SymbolId, TermId, TheoryContext, TheoryContextId, ValueId,
 };
 
 #[test]
 fn sem0_ids_are_distinct_newtypes() {
-    let e = ExprId(1);
+    let e = TermId(1);
     let v = ValueId(1);
     let r = ResultId(1);
     let p = ProofRef(1);
@@ -21,8 +21,8 @@ fn sem0_ids_are_distinct_newtypes() {
 
 #[test]
 fn assumption_scope_merge_detects_equal_vs_not_equal() {
-    let a = AssumptionScope::from_predicates(vec![Predicate::Equal(ExprId(1), ExprId(2))]);
-    let b = AssumptionScope::from_predicates(vec![Predicate::NotEqual(ExprId(1), ExprId(2))]);
+    let a = AssumptionScope::from_predicates(vec![Predicate::Equal(TermId(1), TermId(2))]);
+    let b = AssumptionScope::from_predicates(vec![Predicate::NotEqual(TermId(1), TermId(2))]);
     match a.merge(&b) {
         ScopeMergeOutcome::Conflict(c) => assert_eq!(c.kind, ScopeConflictKind::PredicateContradiction),
         ScopeMergeOutcome::Ok(_) => panic!("expected conflict"),
@@ -62,7 +62,7 @@ fn assumption_scope_project_keeps_symbol_predicates() {
     let scope = AssumptionScope::from_predicates(vec![
         Predicate::SymbolReal(SymbolId(0)),
         Predicate::SymbolNonZero(SymbolId(1)),
-        Predicate::Equal(ExprId(3), ExprId(4)),
+        Predicate::Equal(TermId(3), TermId(4)),
     ]);
     let projected = scope.project_to_symbols(&[SymbolId(0)]);
     assert_eq!(projected.predicates, vec![Predicate::SymbolReal(SymbolId(0))]);

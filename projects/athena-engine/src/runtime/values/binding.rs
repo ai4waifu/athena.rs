@@ -1,14 +1,14 @@
-//! [`ValueId`] ↔ arena [`ExprId`] 绑定。
+//! [`ValueId`] ↔ arena [`TermId`] 绑定。
 
 use std::collections::BTreeMap;
 
-use athena_types::{ExprId, ValueId};
+use athena_types::{TermId, ValueId};
 
-/// [`ValueId`] ↔ 存储 [`ExprId`] 绑定表。
+/// [`ValueId`] ↔ 存储 [`TermId`] 绑定表。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ValueBindingTable {
-    value_to_term: BTreeMap<ValueId, ExprId>,
-    term_to_value: BTreeMap<ExprId, ValueId>,
+    value_to_term: BTreeMap<ValueId, TermId>,
+    term_to_value: BTreeMap<TermId, ValueId>,
     next: u32,
 }
 
@@ -19,7 +19,7 @@ impl ValueBindingTable {
     }
 
     /// 为存储项分配值身份。
-    pub fn intern_term(&mut self, term: ExprId) -> ValueId {
+    pub fn intern_term(&mut self, term: TermId) -> ValueId {
         if let Some(existing) = self.term_to_value.get(&term).copied() {
             return existing;
         }
@@ -31,12 +31,12 @@ impl ValueBindingTable {
     }
 
     /// 查询值对应的存储项。
-    pub fn term_of(&self, value: ValueId) -> Option<ExprId> {
+    pub fn term_of(&self, value: ValueId) -> Option<TermId> {
         self.value_to_term.get(&value).copied()
     }
 
     /// 查询存储项是否已有值身份。
-    pub fn value_of(&self, term: ExprId) -> Option<ValueId> {
+    pub fn value_of(&self, term: TermId) -> Option<ValueId> {
         self.term_to_value.get(&term).copied()
     }
 

@@ -1,12 +1,12 @@
 //! 级数对象 — Taylor / Laurent / 渐近（`x→∞`）引导实现（arena 版 · Living `25`）。
 
-use athena_types::{Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
     derivative::differentiate,
-    expression_util::{contains_symbol, replace_symbol},
     result::CalculusResult,
+    symbol_rewrite::{contains_symbol, replace_symbol},
 };
 use crate::execution::vm::Shape;
 
@@ -16,9 +16,9 @@ pub enum Remainder {
     /// 精确截断（多项式次数 ≤ order）。
     ExactTruncation,
     /// Big-O 余项（表达式）。
-    BigO(ExprId),
+    BigO(TermId),
     /// Little-o 余项（表达式）。
-    LittleO(ExprId),
+    LittleO(TermId),
     /// 余项未知。
     Unknown,
 }
@@ -29,11 +29,11 @@ pub struct Series {
     /// 展开变量。
     pub variable: String,
     /// 展开中心（已解码；渐近于 ∞ 时为符号 `Infinity`）。
-    pub center: ExprId,
+    pub center: TermId,
     /// 幂次项 `(coefficient, power)`：
     /// - 有限中心：`coeff * (variable - center)^power`
     /// - `Infinity`：系数形式 `coeff * variable^power`
-    pub terms: Vec<(ExprId, i64)>,
+    pub terms: Vec<(TermId, i64)>,
     /// 截断阶（有限中心：最高幂次；渐近：保留的 `t=1/x` 最高幂次）。
     pub order: u32,
     /// 余项。
@@ -42,7 +42,7 @@ pub struct Series {
 
 impl Series {
     /// 展开基幂：有限中心用 `(x-c)^p`，无穷用 `x^p`。
-    fn delta_power(&self, cc: &mut CalculusCtx<'_>, power: i64) -> ExprId {
+    fn delta_power(&self, cc: &mut CalculusCtx<'_>, power: i64) -> TermId {
         if self.center_is_infinity(cc) {
             if power == 0 {
                 return cc.in_(1);
@@ -76,11 +76,11 @@ impl Series {
     }
 
     /// 精确时转为 Plus/Times/Power 多项式项。
-    pub fn to_term(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn to_term(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         if self.terms.is_empty() {
             return cc.in_(0);
         }
-        let parts: Vec<ExprId> = self
+        let parts: Vec<TermId> = self
             .terms
             .iter()
             .map(|(coeff, power)| {
@@ -97,16 +97,16 @@ impl Series {
     }
 }
 
-fn residual_series(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, center: ExprId, order: u32) -> Series {
+fn residual_series(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, center: TermId, order: u32) -> Series {
     Series { variable: variable.to_string(), center, terms: Vec::new(), order, remainder: Remainder::BigO(expression) }
 }
 
 /// 关于 `center` 展开到 `order`（含该幂次）的 Taylor 展开。
 pub fn taylor(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
-    center: ExprId,
+    center: TermId,
     order: u32,
 ) -> CalculusResult<Series> {
     const SHIFT: &str = "__athena_taylor_t";
@@ -177,9 +177,9 @@ pub fn taylor(
 /// `order` 为正则部分（非负幂）截断的最高幂次。主部在可清除时完整保留。
 pub fn laurent(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
-    center: ExprId,
+    center: TermId,
     order: u32,
 ) -> CalculusResult<Series> {
     const MAX_POLE: u32 = 8;
@@ -234,12 +234,12 @@ fn remap_laurent_series(
     cc: &mut CalculusCtx<'_>,
     series: Series,
     variable: &str,
-    center: ExprId,
+    center: TermId,
     order: u32,
     m: u32,
-    delta: ExprId,
+    delta: TermId,
 ) -> Series {
-    let terms: Vec<(ExprId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
+    let terms: Vec<(TermId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, power - m as i64)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
@@ -254,7 +254,7 @@ fn remap_laurent_series(
 /// 当 `variable → +∞` 的渐近展开（经 `t = 1/x` 代换后做 Laurent，再映回 `x` 幂）。
 ///
 /// `order`：保留的 `t` 最高幂次（即 `O(x^{-order})` 项）。结果 `center = Infinity`，项为 `coeff · x^power`。
-pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, order: u32) -> CalculusResult<Series> {
+pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, order: u32) -> CalculusResult<Series> {
     const T: &str = "__athena_asymp_t";
     let infinity = cc.sym("Infinity");
     let t_sym = cc.sym(T);
@@ -278,7 +278,7 @@ pub fn asymptotic(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, 
 }
 
 /// 清除表达式中 `var` 的负幂（如 `1/(1/t+a) → t/(1+a t)`），便于在 `t=0` 展开。
-fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> ExprId {
+fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> TermId {
     let Some((h, args)) = cc.app(expr)
     else {
         return expr;
@@ -311,12 +311,12 @@ fn clear_negative_powers_of_var(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &st
 }
 
 /// `var` 在表达式中的最低整数幂次；若无负幂则 `None`。
-fn negative_valuation(cc: &CalculusCtx<'_>, expr: ExprId, var: &str) -> Option<u32> {
+fn negative_valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<u32> {
     let v = valuation(cc, expr, var)?;
     if v < 0 { Some((-v) as u32) } else { None }
 }
 
-fn valuation(cc: &CalculusCtx<'_>, expr: ExprId, var: &str) -> Option<i64> {
+fn valuation(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> Option<i64> {
     match cc.shape(expr)? {
         Shape::Sym(s) if cc.sym_is(s, var) => Some(1),
         Shape::Sym(_) | Shape::Number | Shape::Str(_) | Shape::Bool(_) | Shape::Null => Some(0),
@@ -363,7 +363,7 @@ fn valuation(cc: &CalculusCtx<'_>, expr: ExprId, var: &str) -> Option<i64> {
 
 fn remap_asymptotic_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &str, order: u32) -> Series {
     // 无穷远处换元：g(t)=f(1/t) ~ Σ a_k tᵏ  ⇒  f(x) ~ Σ a_k x⁻ᵏ
-    let terms: Vec<(ExprId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, -power)).collect();
+    let terms: Vec<(TermId, i64)> = series.terms.into_iter().map(|(coeff, power)| (coeff, -power)).collect();
     let remainder = match series.remainder {
         Remainder::ExactTruncation => Remainder::ExactTruncation,
         Remainder::BigO(_) | Remainder::LittleO(_) => {
@@ -377,7 +377,7 @@ fn remap_asymptotic_series(cc: &mut CalculusCtx<'_>, series: Series, variable: &
 }
 
 /// 系数中出现 `0^k`（k≠0）视为奇点求值失败，不得当作 Laurent 系数。
-fn term_has_singular_zero_power(cc: &CalculusCtx<'_>, term: ExprId) -> bool {
+fn term_has_singular_zero_power(cc: &CalculusCtx<'_>, term: TermId) -> bool {
     let Some((h, args)) = cc.app(term)
     else {
         return false;
@@ -391,6 +391,6 @@ fn term_has_singular_zero_power(cc: &CalculusCtx<'_>, term: ExprId) -> bool {
     args.iter().any(|t| term_has_singular_zero_power(cc, *t))
 }
 
-fn is_zero_term(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_zero_term(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     cc.number_of(expr).is_some_and(|n| n.is_zero())
 }

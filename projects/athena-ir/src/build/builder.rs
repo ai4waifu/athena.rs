@@ -1,86 +1,86 @@
 //! 受控 IR 构造 API。
 
 use athena_numeric::NumericValue;
-use athena_types::{ExprId, OperatorId, Result, SourceSpan, SymbolId};
+use athena_types::{OperatorId, Result, SourceSpan, SymbolId, TermId};
 
 use crate::{
-    arena::ExprArena,
-    node::{Atom, ExprNode},
+    arena::TermStore,
+    node::{Atom, TermNode},
     operator::OperatorRegistry,
     symbol::SymbolTable,
 };
 
-/// [`ExprArena`] 构造器。
+/// [`TermStore`] 构造器。
 #[derive(Debug)]
-pub struct ExprBuilder<'a> {
-    arena: &'a mut ExprArena,
+pub struct TermBuilder<'a> {
+    arena: &'a mut TermStore,
 }
 
-impl<'a> ExprBuilder<'a> {
+impl<'a> TermBuilder<'a> {
     /// 绑定 arena。
-    pub fn new(arena: &'a mut ExprArena) -> Self {
+    pub fn new(arena: &'a mut TermStore) -> Self {
         Self { arena }
     }
 
     /// 数字原子 term。
-    pub fn number(&mut self, n: NumericValue, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::Atom(Atom::Number(n)), span)
+    pub fn number(&mut self, n: NumericValue, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Number(n)), span)
     }
 
     /// 字符串原子 term。
-    pub fn string(&mut self, s: impl Into<String>, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::Atom(Atom::String(s.into())), span)
+    pub fn string(&mut self, s: impl Into<String>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::String(s.into())), span)
     }
 
     /// 符号原子 term（intern 名称）。
-    pub fn symbol(&mut self, name: impl Into<String>, span: SourceSpan) -> ExprId {
+    pub fn symbol(&mut self, name: impl Into<String>, span: SourceSpan) -> TermId {
         let id = self.arena.symbols_mut().intern(name);
         self.symbol_id(id, span)
     }
 
     /// 已有符号 id 的原子 term。
-    pub fn symbol_id(&mut self, sym: SymbolId, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::Atom(Atom::Symbol(sym)), span)
+    pub fn symbol_id(&mut self, sym: SymbolId, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Symbol(sym)), span)
     }
 
     /// 列表 term。
-    pub fn list(&mut self, items: Vec<ExprId>, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::List(items), span)
+    pub fn list(&mut self, items: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::List(items), span)
     }
 
     /// 算子应用 term。
-    pub fn app(&mut self, op: OperatorId, args: Vec<ExprId>, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::App { op, args }, span)
+    pub fn app(&mut self, op: OperatorId, args: Vec<TermId>, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::App { op, args }, span)
     }
 
     /// 经注册表解析 head 名的应用 term。
-    pub fn app_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<ExprId>, span: SourceSpan) -> ExprId {
+    pub fn app_named(&mut self, registry: &mut OperatorRegistry, head: &str, args: Vec<TermId>, span: SourceSpan) -> TermId {
         let op = registry.intern(head);
         self.app(op, args, span)
     }
 
     /// Typed Boolean 原子 term。
-    pub fn boolean(&mut self, value: bool, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::Atom(Atom::Boolean(value)), span)
+    pub fn boolean(&mut self, value: bool, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Boolean(value)), span)
     }
 
     /// Typed Null 原子 term。
-    pub fn null(&mut self, span: SourceSpan) -> ExprId {
-        self.arena.push(ExprNode::Atom(Atom::Null), span)
+    pub fn null(&mut self, span: SourceSpan) -> TermId {
+        self.arena.push(TermNode::Atom(Atom::Null), span)
     }
 
     /// 小型精确整数。
-    pub fn int(&mut self, n: i64, span: SourceSpan) -> ExprId {
+    pub fn int(&mut self, n: i64, span: SourceSpan) -> TermId {
         self.number(NumericValue::small_int(n), span)
     }
 
     /// 精确有理数原子 term（`i64` 分子分母）。
-    pub fn rational_i64(&mut self, num: i64, den: i64, span: SourceSpan) -> Result<ExprId> {
+    pub fn rational_i64(&mut self, num: i64, den: i64, span: SourceSpan) -> Result<TermId> {
         Ok(self.number(NumericValue::rational_i64(num, den)?, span))
     }
 
     /// 机器实数原子 term（由已解码 `f64`）。
-    pub fn real(&mut self, x: f64, span: SourceSpan) -> ExprId {
+    pub fn real(&mut self, x: f64, span: SourceSpan) -> TermId {
         self.number(NumericValue::machine(x), span)
     }
 

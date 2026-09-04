@@ -1,12 +1,11 @@
 //! 高等数学 — 求导、积分、极限、级数、向量微积分、ODE、变换、留数。
 //!
 //! 结果为 [`CalculusResult`] / [`ConditionalResult`]，而非无条件裸项。
-//! 此处禁止源码文本解析；宿主须传入已解码的 arena [`ExprId`]。
+//! 此处禁止源码文本解析；宿主须传入已解码的 arena [`TermId`]。
 
 pub mod ctx;
 mod derivative;
 mod differential;
-mod expression_util;
 mod integral;
 mod limit;
 mod lower;
@@ -14,6 +13,7 @@ mod request;
 mod residue;
 mod result;
 mod series;
+mod symbol_rewrite;
 mod transform;
 mod value;
 mod vector;
@@ -32,7 +32,7 @@ pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, lapla
 pub use value::{
     CalculusValue, map_curl_result, map_divergence_result, map_gradient_result, map_hessian_result, map_jacobian_result,
     map_ode_result, map_residue_result, map_series_result, map_term_result, map_transform_result,
-    materialize_calculus_result_expression,
+    materialize_calculus_result_term,
 };
 pub use vector::{
     Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked,

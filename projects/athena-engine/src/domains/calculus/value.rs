@@ -1,6 +1,6 @@
 //! 统一的微积分 / 域值（表达式、级数或向量微积分对象）。
 
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use super::ctx::CalculusCtx;
 
@@ -17,7 +17,7 @@ use super::{
 #[derive(Debug, PartialEq)]
 pub enum CalculusValue {
     /// 普通表达式。
-    Expression(ExprId),
+    Expression(TermId),
     /// 独立级数对象（保留余项）。
     Series(Series),
     /// 梯度对象（非裸列表）。
@@ -38,8 +38,8 @@ pub enum CalculusValue {
     Transform(TransformResult),
 }
 
-impl From<ExprId> for CalculusValue {
-    fn from(value: ExprId) -> Self {
+impl From<TermId> for CalculusValue {
+    fn from(value: TermId) -> Self {
         Self::Expression(value)
     }
 }
@@ -100,7 +100,7 @@ impl From<TransformResult> for CalculusValue {
 
 impl CalculusValue {
     /// 展平为单一表达式桥接项（Living `25`：仅余微积分内桥接用）。
-    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> ExprId {
+    pub fn materialize_expression(&self, cc: &mut CalculusCtx<'_>) -> TermId {
         match self {
             Self::Expression(t) => *t,
             Self::Series(s) => s.to_term(cc),
@@ -117,7 +117,7 @@ impl CalculusValue {
 }
 
 /// 将仅含项的微积分结果映射为值结果。
-pub fn map_term_result(r: CalculusResult<ExprId>) -> CalculusResult<CalculusValue> {
+pub fn map_term_result(r: CalculusResult<TermId>) -> CalculusResult<CalculusValue> {
     match r {
         CalculusResult::Exact { value, conditions } => {
             CalculusResult::Exact { value: CalculusValue::Expression(value), conditions }
@@ -265,7 +265,7 @@ pub fn map_transform_result(r: CalculusResult<TransformResult>) -> CalculusResul
 }
 
 /// 抽取 evaluate 风格 API 的主载荷（写回 session arena）。
-pub fn materialize_calculus_result_expression(cc: &mut CalculusCtx<'_>, r: &CalculusResult<CalculusValue>) -> ExprId {
+pub fn materialize_calculus_result_term(cc: &mut CalculusCtx<'_>, r: &CalculusResult<CalculusValue>) -> TermId {
     match r {
         CalculusResult::Exact { value, .. }
         | CalculusResult::Conditional { value, .. }

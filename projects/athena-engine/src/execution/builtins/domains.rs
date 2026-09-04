@@ -1,40 +1,40 @@
 //! 域分派 — `D` / `Integrate` / `Limit` / `Series` / `DSolve` / `LaplaceTransform` / `Solve`。
 //!
-//! 微积分与 `Solve` 均经 session arena + [`ExprId`]（Living `25`）。
+//! 微积分与 `Solve` 均经 session arena + [`TermId`]（Living `25`）。
 
-use athena_ir::{Atom, ExprNode};
+use athena_ir::{Atom, TermNode};
 use athena_numeric::{Number, add as num_add, mul as num_mul};
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use crate::runtime::values::numeric_clone::clone_number;
 
 use crate::execution::{Outcome, vm::Vm};
 
-pub(crate) fn h_calc_d(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_d(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "D", operands[0])
 }
 
-pub(crate) fn h_calc_integrate(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_integrate(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "Integrate", operands[0])
 }
 
-pub(crate) fn h_calc_limit(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_limit(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "Limit", operands[0])
 }
 
-pub(crate) fn h_calc_series(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_series(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "Series", operands[0])
 }
 
-pub(crate) fn h_calc_dsolve(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_dsolve(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "DSolve", operands[0])
 }
 
-pub(crate) fn h_calc_laplace(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_calc_laplace(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     calculus_bridge(vm, "LaplaceTransform", operands[0])
 }
 
-fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: ExprId) -> Outcome {
+fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: TermId) -> Outcome {
     let args = vm.app_args(root).unwrap_or_default();
     let mut evaluated = Vec::with_capacity(args.len());
     let mut diags = Vec::new();
@@ -61,7 +61,7 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: ExprId) -> Outcome {
         let result = crate::domains::calculus::execute_calculus(vm.session, req);
         let term = {
             let mut cc = crate::domains::calculus::ctx::CalculusCtx::new(vm.session);
-            crate::domains::calculus::materialize_calculus_result_expression(&mut cc, &result)
+            crate::domains::calculus::materialize_calculus_result_term(&mut cc, &result)
         };
         return Outcome::value(term).with_diagnostics(diags);
     }
@@ -69,10 +69,10 @@ fn calculus_bridge(vm: &mut Vm<'_>, name: &str, root: ExprId) -> Outcome {
 }
 
 /// 单变量多项式 `Solve` → `{{x->r},…}`（typed `SolutionSet` 仍为正式合同）。
-pub(crate) fn solve(vm: &mut Vm<'_>, equation: ExprId, unknown: ExprId) -> Outcome {
+pub(crate) fn solve(vm: &mut Vm<'_>, equation: TermId, unknown: TermId) -> Outcome {
     let echo = vm.push_app("Solve", vec![equation, unknown]);
     let Some(var_name) = (match vm.session.arena.get(unknown) {
-        Some(ExprNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).map(str::to_string),
+        Some(TermNode::Atom(Atom::Symbol(s))) => vm.session.arena.symbols().resolve(*s).map(str::to_string),
         _ => None,
     })
     else {
@@ -134,7 +134,7 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: ExprId, unknown: ExprId) -> Outco
         return Outcome::unevaluated(echo);
     }
 
-    let mut roots: Vec<ExprId> = Vec::new();
+    let mut roots: Vec<TermId> = Vec::new();
     for branch in &adapted.solution.branches {
         let Some(tid) = branch.bindings.get(&unknown_sym)
         else {
@@ -172,7 +172,7 @@ pub(crate) fn solve(vm: &mut Vm<'_>, equation: ExprId, unknown: ExprId) -> Outco
     Outcome::value(vm.push_list(out))
 }
 
-fn push_number_for_solve(vm: &mut Vm<'_>, n: &Number) -> ExprId {
+fn push_number_for_solve(vm: &mut Vm<'_>, n: &Number) -> TermId {
     if let Some(i) = n.as_exact_integer() {
         return vm.push_int(i);
     }
@@ -188,7 +188,7 @@ fn push_number_for_solve(vm: &mut Vm<'_>, n: &Number) -> ExprId {
 }
 
 /// 将 `Plus`/`Times`/`Power` 展开为单变量 `(coeff, degree)` 项（仅有理系数 · arena 版）。
-fn collect_univariate_monomials(vm: &Vm<'_>, expr: ExprId, var: &str) -> Option<Vec<(Number, u32)>> {
+fn collect_univariate_monomials(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<Vec<(Number, u32)>> {
     fn merge(dst: &mut Vec<(Number, u32)>, src: Vec<(Number, u32)>) -> Option<()> {
         for (c, d) in src {
             if let Some((existing, _)) = dst.iter_mut().find(|(_, ed)| *ed == d) {
@@ -214,14 +214,14 @@ fn collect_univariate_monomials(vm: &Vm<'_>, expr: ExprId, var: &str) -> Option<
         Some(out)
     }
 
-    fn is_sym(vm: &Vm<'_>, id: ExprId, var: &str) -> bool {
+    fn is_sym(vm: &Vm<'_>, id: TermId, var: &str) -> bool {
         matches!(
             vm.session.arena.get(id),
-            Some(ExprNode::Atom(Atom::Symbol(s))) if vm.session.arena.symbols().resolve(*s) == Some(var)
+            Some(TermNode::Atom(Atom::Symbol(s))) if vm.session.arena.symbols().resolve(*s) == Some(var)
         )
     }
 
-    fn go(vm: &Vm<'_>, expr: ExprId, var: &str) -> Option<Vec<(Number, u32)>> {
+    fn go(vm: &Vm<'_>, expr: TermId, var: &str) -> Option<Vec<(Number, u32)>> {
         if is_sym(vm, expr, var) {
             return Some(vec![(Number::small_int(1), 1)]);
         }

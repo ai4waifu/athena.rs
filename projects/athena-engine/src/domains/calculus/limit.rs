@@ -1,25 +1,25 @@
-//! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `ExprId` · Living `25`）。
+//! 极限求值 — 有限代入、单侧极点、多项式 ∞（arena `TermId` · Living `25`）。
 
 use athena_numeric::{Number, add as num_add, compare as num_compare, mul as num_mul};
-use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, ExprId};
+use athena_types::{AssumptionSet, Diagnostic, DiagnosticCode, TermId};
 
 use super::{
     ctx::CalculusCtx,
-    expression_util::{contains_symbol, replace_symbol},
     request::{LimitApproach, LimitDirection},
     result::CalculusResult,
+    symbol_rewrite::{contains_symbol, replace_symbol},
 };
 use crate::execution::vm::Shape;
 
 /// 在假设下尝试求极限。
 pub fn limit_checked(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
     _assumptions: &AssumptionSet,
-) -> CalculusResult<ExprId> {
+) -> CalculusResult<TermId> {
     match approach {
         LimitApproach::Finite(point) => limit_finite(cc, expression, variable, *point, direction),
         LimitApproach::PositiveInfinity => limit_infinity(cc, expression, variable, true),
@@ -29,11 +29,11 @@ pub fn limit_checked(
 
 fn limit_finite(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
-    point: ExprId,
+    point: TermId,
     direction: LimitDirection,
-) -> CalculusResult<ExprId> {
+) -> CalculusResult<TermId> {
     if let Some(v) = try_known_finite_limit(cc, expression, variable, point) {
         return CalculusResult::Exact { value: v, conditions: Vec::new() };
     }
@@ -83,7 +83,7 @@ fn limit_finite(
     unevaluated_limit(cc, expression, variable, &LimitApproach::Finite(point), direction)
 }
 
-fn try_known_finite_limit(cc: &CalculusCtx<'_>, expression: ExprId, variable: &str, point: ExprId) -> Option<ExprId> {
+fn try_known_finite_limit(cc: &CalculusCtx<'_>, expression: TermId, variable: &str, point: TermId) -> Option<TermId> {
     if !cc.number_of(point).is_some_and(|n| n.is_zero()) {
         return None;
     }
@@ -93,7 +93,7 @@ fn try_known_finite_limit(cc: &CalculusCtx<'_>, expression: ExprId, variable: &s
     None
 }
 
-fn is_sinc_form(cc: &CalculusCtx<'_>, expression: ExprId, variable: &str) -> bool {
+fn is_sinc_form(cc: &CalculusCtx<'_>, expression: TermId, variable: &str) -> bool {
     let Some((h, args)) = cc.app(expression)
     else {
         return false;
@@ -108,11 +108,11 @@ fn is_sinc_form(cc: &CalculusCtx<'_>, expression: ExprId, variable: &str) -> boo
     }
 }
 
-fn is_sin_of_var(cc: &CalculusCtx<'_>, expr: ExprId, variable: &str) -> bool {
+fn is_sin_of_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
     matches!(cc.app(expr), Some((h, args)) if h == "Sin" && args.len() == 1 && is_sym_named(cc, args[0], variable))
 }
 
-fn is_reciprocal_var(cc: &CalculusCtx<'_>, expr: ExprId, variable: &str) -> bool {
+fn is_reciprocal_var(cc: &CalculusCtx<'_>, expr: TermId, variable: &str) -> bool {
     matches!(
         cc.app(expr),
         Some((h, args))
@@ -125,11 +125,11 @@ fn is_reciprocal_var(cc: &CalculusCtx<'_>, expr: ExprId, variable: &str) -> bool
 
 fn try_lhopital_once(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
-    point: ExprId,
+    point: TermId,
     _direction: LimitDirection,
-) -> Option<ExprId> {
+) -> Option<TermId> {
     let (num, den) = split_quotient(cc, expression)?;
     let num_at = cc.eval(replace_symbol(cc, num, variable, point));
     let den_at = cc.eval(replace_symbol(cc, den, variable, point));
@@ -149,7 +149,7 @@ fn try_lhopital_once(
     Some(value)
 }
 
-fn split_quotient(cc: &CalculusCtx<'_>, expression: ExprId) -> Option<(ExprId, ExprId)> {
+fn split_quotient(cc: &CalculusCtx<'_>, expression: TermId) -> Option<(TermId, TermId)> {
     let (h, args) = cc.app(expression)?;
     match h.as_str() {
         "Divide" if args.len() == 2 => Some((args[0], args[1])),
@@ -168,11 +168,11 @@ fn split_quotient(cc: &CalculusCtx<'_>, expression: ExprId) -> Option<(ExprId, E
     }
 }
 
-fn is_reciprocal_power(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_reciprocal_power(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     matches!(cc.app(expr), Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1))
 }
 
-fn reciprocal_base(cc: &CalculusCtx<'_>, expr: ExprId) -> Option<ExprId> {
+fn reciprocal_base(cc: &CalculusCtx<'_>, expr: TermId) -> Option<TermId> {
     match cc.app(expr) {
         Some((h, args)) if h == "Power" && args.len() == 2 && cc.int_exp(args[1]) == Some(-1) => Some(args[0]),
         _ => None,
@@ -181,11 +181,11 @@ fn reciprocal_base(cc: &CalculusCtx<'_>, expr: ExprId) -> Option<ExprId> {
 
 fn try_onesided_simple_pole(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
-    point: ExprId,
+    point: TermId,
     direction: LimitDirection,
-) -> Option<ExprId> {
+) -> Option<TermId> {
     let (num, den) = match cc.app(expression) {
         Some((h, args)) if h == "Divide" && args.len() == 2 => (args[0], args[1]),
         Some((h, args)) if h == "Power" && args.len() == 2 => {
@@ -228,7 +228,7 @@ fn try_onesided_simple_pole(
     None
 }
 
-fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, positive: bool) -> CalculusResult<ExprId> {
+fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, positive: bool) -> CalculusResult<TermId> {
     if let Some((degree, leading)) = polynomial_degree_leading(cc, expression, variable) {
         if degree == 0 {
             return CalculusResult::Exact { value: cc.num(leading), conditions: Vec::new() };
@@ -264,7 +264,7 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: ExprId, variable: &str, 
     )
 }
 
-fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) -> Option<(i64, Number)> {
+fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> Option<(i64, Number)> {
     match cc.shape(expr)? {
         Shape::Number => Some((0, cc.number_of(expr).map(|n| cc.copy(n))?)),
         Shape::Sym(s) if cc.sym_is(s, var) => Some((1, Number::small_int(1))),
@@ -310,17 +310,17 @@ fn polynomial_degree_leading(cc: &mut CalculusCtx<'_>, expr: ExprId, var: &str) 
     }
 }
 
-fn is_open_limit_head(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_open_limit_head(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     matches!(cc.head_name(expr).as_deref(), Some("Limit") | Some("Indeterminate"))
 }
 
 fn limit_form(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
-) -> ExprId {
+) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
         LimitApproach::PositiveInfinity => cc.sym("Infinity"),
@@ -340,18 +340,18 @@ fn limit_form(
 
 fn unevaluated_limit(
     cc: &mut CalculusCtx<'_>,
-    expression: ExprId,
+    expression: TermId,
     variable: &str,
     approach: &LimitApproach,
     direction: LimitDirection,
-) -> CalculusResult<ExprId> {
+) -> CalculusResult<TermId> {
     CalculusResult::Unevaluated {
         expression: limit_form(cc, expression, variable, approach, direction),
         reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation),
     }
 }
 
-fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     let Some((h, args)) = cc.app(expr)
     else {
         return false;
@@ -379,7 +379,7 @@ fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
     }
 }
 
-fn is_singular_form(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
+fn is_singular_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     let Some((h, args)) = cc.app(expr)
     else {
         return false;
@@ -395,6 +395,6 @@ fn is_singular_form(cc: &CalculusCtx<'_>, expr: ExprId) -> bool {
     }
 }
 
-fn is_sym_named(cc: &CalculusCtx<'_>, term: ExprId, name: &str) -> bool {
+fn is_sym_named(cc: &CalculusCtx<'_>, term: TermId, name: &str) -> bool {
     matches!(cc.shape(term), Some(Shape::Sym(s)) if cc.sym_is(s, name))
 }

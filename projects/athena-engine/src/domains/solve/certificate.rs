@@ -2,7 +2,7 @@
 //!
 //! 证明身份统一为 [`athena_types::ProofRef`]。
 
-use athena_types::{ExprId, ProofRef};
+use athena_types::{ProofRef, TermId};
 
 use crate::reasoning::mgraph::WitnessRef;
 
@@ -15,7 +15,7 @@ pub fn proof_ref_from_witness(witness: WitnessRef) -> ProofRef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResidualCertificate {
     /// 残差项（可为向量残差的编码根）。
-    pub residual: ExprId,
+    pub residual: TermId,
     /// 是否数值/符号上判定为可接受零。
     pub residual_is_zero: bool,
     /// 可选条件估计标签。

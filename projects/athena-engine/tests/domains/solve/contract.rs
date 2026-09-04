@@ -7,13 +7,13 @@ use athena_engine::{
     },
     reasoning::solver::{DomainRef, SolverOperation, SolverRequest},
 };
-use athena_types::{AssumptionSetId, ExprId, SymbolId};
+use athena_types::{AssumptionSetId, SymbolId, TermId};
 
 #[test]
 fn solve_problem_rejects_unknown_parameter_overlap() {
     let x = BoundSymbol::free(SymbolId(1));
     let err = SolveProblem::try_new(
-        ConstraintSet::and(vec![Constraint::equation(ExprId(10), ExprId(11))]),
+        ConstraintSet::and(vec![Constraint::equation(TermId(10), TermId(11))]),
         vec![x],
         vec![x],
         SolveDomain::Reals,
@@ -57,7 +57,7 @@ fn coverage_gates_exact_union_find() {
 fn find_instance_and_find_root_are_not_complete_sets() {
     let x = BoundSymbol::free(SymbolId(0));
     let mut bindings = BindingMap::empty();
-    bindings.insert(x, ExprId(42));
+    bindings.insert(x, TermId(42));
     let branch = SolutionBranch::candidate(bindings);
 
     let instance = SolutionSet::certified_subset(vec![x], SolveDomain::Integers, vec![branch.clone()]);
@@ -73,17 +73,17 @@ fn find_instance_and_find_root_are_not_complete_sets() {
 
 #[test]
 fn solve_relation_kinds_are_not_equality() {
-    assert_eq!(SolveRelationKind::Satisfies { solution: ExprId(1), problem: ExprId(2) }.name(), "Satisfies");
-    assert!(!SolveRelationKind::Satisfies { solution: ExprId(1), problem: ExprId(2) }.drives_exact_rewrite());
-    assert!(SolveRelationKind::CompleteFor { solution_set: ExprId(3), problem: ExprId(2) }.drives_exact_rewrite());
-    assert!(!SolveRelationKind::LocalConvergence { root: ExprId(4), policy_tag: "newton".into() }.drives_exact_rewrite());
+    assert_eq!(SolveRelationKind::Satisfies { solution: TermId(1), problem: TermId(2) }.name(), "Satisfies");
+    assert!(!SolveRelationKind::Satisfies { solution: TermId(1), problem: TermId(2) }.drives_exact_rewrite());
+    assert!(SolveRelationKind::CompleteFor { solution_set: TermId(3), problem: TermId(2) }.drives_exact_rewrite());
+    assert!(!SolveRelationKind::LocalConvergence { root: TermId(4), policy_tag: "newton".into() }.drives_exact_rewrite());
 }
 
 #[test]
 fn solver_request_remains_dispatch_only() {
     let req = SolverRequest {
         domain: DomainRef::Solve,
-        roots: vec![ExprId(1)],
+        roots: vec![TermId(1)],
         operation: SolverOperation { name: "candidate".into() },
         limits: Default::default(),
         assumptions: AssumptionSetId(0),

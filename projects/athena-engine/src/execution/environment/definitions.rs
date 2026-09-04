@@ -5,14 +5,14 @@
 
 use std::collections::HashMap;
 
-use athena_types::{ExprId, SymbolId};
+use athena_types::{SymbolId, TermId};
 
 /// 语句层定义（`Set` / `SetDelayed` / DownValues）。
 #[derive(Debug, Default)]
 pub struct DefinitionLayer {
-    owns: HashMap<SymbolId, ExprId>,
-    delayed: HashMap<SymbolId, ExprId>,
-    downs: HashMap<SymbolId, Vec<(ExprId, ExprId)>>,
+    owns: HashMap<SymbolId, TermId>,
+    delayed: HashMap<SymbolId, TermId>,
+    downs: HashMap<SymbolId, Vec<(TermId, TermId)>>,
 }
 
 impl DefinitionLayer {
@@ -22,36 +22,36 @@ impl DefinitionLayer {
     }
 
     /// 写 Own 定义（替换同符号的 Delayed / DownValues，与 legacy 单一定义槽一致）。
-    pub fn define_own(&mut self, sym: SymbolId, value: ExprId) {
+    pub fn define_own(&mut self, sym: SymbolId, value: TermId) {
         self.owns.insert(sym, value);
         self.delayed.remove(&sym);
         self.downs.remove(&sym);
     }
 
     /// 写 Delayed 定义。
-    pub fn define_delayed(&mut self, sym: SymbolId, value: ExprId) {
+    pub fn define_delayed(&mut self, sym: SymbolId, value: TermId) {
         self.delayed.insert(sym, value);
         self.owns.remove(&sym);
     }
 
     /// 追加 DownValue 规则（`f[x_] := rhs`）。
-    pub fn define_down_value(&mut self, sym: SymbolId, lhs: ExprId, rhs: ExprId) {
+    pub fn define_down_value(&mut self, sym: SymbolId, lhs: TermId, rhs: TermId) {
         self.downs.entry(sym).or_default().push((lhs, rhs));
         self.owns.remove(&sym);
     }
 
     /// 查 Own 值（沿层链由调用方自顶向下查）。
-    pub fn own(&self, sym: SymbolId) -> Option<ExprId> {
+    pub fn own(&self, sym: SymbolId) -> Option<TermId> {
         self.owns.get(&sym).copied()
     }
 
     /// 查 Delayed 值。
-    pub fn delayed(&self, sym: SymbolId) -> Option<ExprId> {
+    pub fn delayed(&self, sym: SymbolId) -> Option<TermId> {
         self.delayed.get(&sym).copied()
     }
 
     /// 查 DownValues 规则表。
-    pub fn down_values(&self, sym: SymbolId) -> Option<&[(ExprId, ExprId)]> {
+    pub fn down_values(&self, sym: SymbolId) -> Option<&[(TermId, TermId)]> {
         self.downs.get(&sym).map(Vec::as_slice)
     }
 
@@ -72,9 +72,9 @@ impl DefinitionLayer {
 #[derive(Debug, Clone, Copy)]
 pub enum LocalBinding {
     /// 已初始化值。
-    Own(ExprId),
+    Own(TermId),
     /// 未初始化局部的唯一化符号（`name$N`）。
-    Unique(ExprId),
+    Unique(TermId),
 }
 
 /// 作用域帧：`With` / `Module` / `Block` 局部符号 → 绑定。

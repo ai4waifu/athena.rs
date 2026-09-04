@@ -1,16 +1,16 @@
 //! M-Graph 核心类型（骨架）。
 
-use athena_types::{AssumptionSetId, ExprId};
+use athena_types::{AssumptionSetId, TermId};
 
 /// 求解器 id（M-Graph / solver 共享）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SolverId(pub u32);
 
-/// 等价类划分（`ExprId` → 代表元）。
+/// 等价类划分（`TermId` → 代表元）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EquivalenceClasses {
     /// 父子指针（骨架：空表）。
-    pub parent: Vec<(ExprId, ExprId)>,
+    pub parent: Vec<(TermId, TermId)>,
 }
 
 /// 精确性层级。
@@ -42,7 +42,7 @@ pub struct DeterminacyState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeterminacyGuarantee {
     /// 作用的项。
-    pub term: ExprId,
+    pub term: TermId,
     /// 精确性。
     pub exactness: ExactnessLevel,
 }
@@ -51,7 +51,7 @@ pub struct DeterminacyGuarantee {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HyperEdge {
     /// 参与项。
-    pub nodes: Vec<ExprId>,
+    pub nodes: Vec<TermId>,
     /// 标签。
     pub label: String,
 }
@@ -62,18 +62,18 @@ pub struct RewriteWitness {
     /// 求解器。
     pub solver: SolverId,
     /// 输入。
-    pub inputs: Vec<ExprId>,
+    pub inputs: Vec<TermId>,
     /// 输出。
-    pub outputs: Vec<ExprId>,
+    pub outputs: Vec<TermId>,
 }
 
 /// 等式 witness。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EqualityWitness {
     /// 左。
-    pub left: ExprId,
+    pub left: TermId,
     /// 右。
-    pub right: ExprId,
+    pub right: TermId,
     /// 支撑 witness。
     pub witness: RewriteWitness,
 }
@@ -84,7 +84,7 @@ pub struct SolverCandidate {
     /// 求解器。
     pub solver: SolverId,
     /// 根项。
-    pub roots: Vec<ExprId>,
+    pub roots: Vec<TermId>,
 }
 
 /// 调度评分（量化整数 + 稳定 tie-breaker；占位策略仍可用浮点估计推导）。

@@ -1,6 +1,6 @@
 //! 目标函数。
 
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use super::ids::ObjectiveId;
 
@@ -21,7 +21,7 @@ pub struct Objective {
     /// 方向。
     pub sense: ObjectiveSense,
     /// 目标表达式。
-    pub expression: ExprId,
+    pub expression: TermId,
     /// 多目标优先级（越小越优先；单目标为 0）。
     pub priority: u32,
 }

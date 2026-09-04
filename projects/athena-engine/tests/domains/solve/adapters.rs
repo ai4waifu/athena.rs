@@ -10,7 +10,7 @@ use athena_engine::domains::{
         solve_univariate_polynomial_roots,
     },
 };
-use athena_ir::{ExprArena, ExprBuilder, ExprNode};
+use athena_ir::{TermBuilder, TermNode, TermStore};
 use athena_numeric::{Integer, Number, Rational};
 use athena_types::{AssumptionSetId, OperatorId, SourceSpan, SymbolId};
 
@@ -132,8 +132,8 @@ fn univariate_x2_minus_1_complete_two_roots() {
 
 #[test]
 fn normalize_equal_keeps_lhs_rhs() {
-    let mut arena = ExprArena::new();
-    let mut builder = ExprBuilder::new(&mut arena);
+    let mut arena = TermStore::new();
+    let mut builder = TermBuilder::new(&mut arena);
     let lhs = builder.symbol_id(SymbolId(1), SourceSpan::default());
     let rhs = builder.number(Number::small_int(0), SourceSpan::default());
     let eq = builder.app(OperatorId(0), vec![lhs, rhs], SourceSpan::default());
@@ -147,13 +147,13 @@ fn normalize_equal_keeps_lhs_rhs() {
         }
         other => panic!("expected equation, got {other:?}"),
     }
-    assert!(matches!(arena.get(eq), Some(ExprNode::App { args, .. }) if args.len() == 2));
+    assert!(matches!(arena.get(eq), Some(TermNode::App { args, .. }) if args.len() == 2));
 }
 
 #[test]
 fn assemble_problem_from_ir_and_dispatch_linear_goal() {
-    let mut arena = ExprArena::new();
-    let mut builder = ExprBuilder::new(&mut arena);
+    let mut arena = TermStore::new();
+    let mut builder = TermBuilder::new(&mut arena);
     let x = builder.symbol_id(SymbolId(0), SourceSpan::default());
     let zero = builder.number(Number::small_int(0), SourceSpan::default());
     let eq = builder.app(OperatorId(0), vec![x, zero], SourceSpan::default());

@@ -13,7 +13,7 @@ use athena_engine::{
     },
 };
 
-type Tid = athena_types::ExprId;
+type Tid = athena_types::TermId;
 
 fn sym(name: &str, s: &mut Session) -> Tid {
     push_symbol_name(s, name)

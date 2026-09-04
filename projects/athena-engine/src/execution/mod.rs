@@ -11,19 +11,19 @@ pub mod kernel_ir;
 pub mod vm;
 
 use athena_numeric::Number;
-use athena_types::{ComputationStatus, Diagnostic, ExprId, Severity, SymbolId};
+use athena_types::{ComputationStatus, Diagnostic, Severity, SymbolId, TermId};
 
 pub use environment::{DefinitionLayer, LocalBinding, ScopeFrame};
 pub use kernel_ir::{ExecUnit, HandlerId, Instr};
 
 /// handler 统一签名：接收已求值或原始操作数（由指令决定），返回结果。
-pub(crate) type HandlerFn = fn(&mut vm::Vm<'_>, &[ExprId]) -> Outcome;
+pub(crate) type HandlerFn = fn(&mut vm::Vm<'_>, &[TermId]) -> Outcome;
 
-/// `ExprId` 版求值出口。
+/// `TermId` 版求值出口。
 #[derive(Debug)]
 pub struct Outcome {
     /// 结果项（失败时可为原式或保守回显）。
-    pub term: ExprId,
+    pub term: TermId,
     /// 值 / 未求值区分。
     pub kind: EvalKind,
     /// 统一计算状态。
@@ -43,17 +43,17 @@ pub enum EvalKind {
 
 impl Outcome {
     /// 精确值出口。
-    pub fn value(term: ExprId) -> Self {
+    pub fn value(term: TermId) -> Self {
         Self { term, kind: EvalKind::Value, status: ComputationStatus::Exact, diagnostics: Vec::new() }
     }
 
     /// 未求值保留。
-    pub fn unevaluated(term: ExprId) -> Self {
+    pub fn unevaluated(term: TermId) -> Self {
         Self { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Unknown, diagnostics: Vec::new() }
     }
 
     /// 硬失败：带 Error 诊断，状态 [`ComputationStatus::Invalid`]。
-    pub fn invalid(term: ExprId, diagnostic: Diagnostic) -> Self {
+    pub fn invalid(term: TermId, diagnostic: Diagnostic) -> Self {
         Self { term, kind: EvalKind::Unevaluated, status: ComputationStatus::Invalid, diagnostics: vec![diagnostic] }
     }
 
@@ -78,26 +78,26 @@ impl Outcome {
 }
 
 /// 会话级数字原子构造。
-pub fn push_number(session: &mut crate::runtime::session::Session, n: Number) -> ExprId {
-    let span = athena_ir::ExprNode::default_span();
-    session.arena.push(athena_ir::ExprNode::Atom(athena_ir::Atom::Number(n)), span)
+pub fn push_number(session: &mut crate::runtime::session::Session, n: Number) -> TermId {
+    let span = athena_ir::TermNode::default_span();
+    session.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n)), span)
 }
 
 /// 会话级 App 构造（算子名 intern）。
-pub fn push_app(session: &mut crate::runtime::session::Session, head: &str, args: Vec<ExprId>) -> ExprId {
+pub fn push_app(session: &mut crate::runtime::session::Session, head: &str, args: Vec<TermId>) -> TermId {
     crate::runtime::values::arena::push_app_named(session, head, args)
 }
 
 /// 会话级数字原子读取。
-pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: ExprId) -> Option<&'a Number> {
+pub fn number_of<'a>(session: &'a crate::runtime::session::Session, id: TermId) -> Option<&'a Number> {
     match session.arena.get(id) {
-        Some(athena_ir::ExprNode::Atom(athena_ir::Atom::Number(n))) => Some(n),
+        Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => Some(n),
         _ => None,
     }
 }
 
 /// 会话级符号替换（`Table` / `For` / `Function` 具化）。
-pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: ExprId, sym: SymbolId, value: ExprId) -> ExprId {
+pub fn substitute_symbol(session: &mut crate::runtime::session::Session, expr: TermId, sym: SymbolId, value: TermId) -> TermId {
     let mut machine = vm::Vm::new(session);
     builtins::patterns::substitute_symbol(&mut machine, expr, sym, value)
 }

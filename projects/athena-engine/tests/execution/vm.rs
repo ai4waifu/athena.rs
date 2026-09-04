@@ -1,7 +1,7 @@
 //! Interp 执行层 `evaluate_session` 覆盖（Living `25` L2 · 原 legacy `evaluate` 桥合同）。
 
 use athena_engine::{
-    diagnostics::expression_summary::expression_debug,
+    diagnostics::term_summary::term_debug,
     execution,
     execution::vm::evaluate_session,
     runtime::{
@@ -10,7 +10,7 @@ use athena_engine::{
     },
 };
 
-type Tid = athena_types::ExprId;
+type Tid = athena_types::TermId;
 
 struct C {
     s: Session,
@@ -29,7 +29,7 @@ fn out(e: Tid, c: &mut C) -> execution::Outcome {
 /// 求值并渲染为调试串。
 fn t(e: Tid, c: &mut C) -> String {
     let o = evaluate_session(&mut c.s, e);
-    expression_debug(&c.s, o.term)
+    term_debug(&c.s, o.term)
 }
 
 fn sym(name: &str, c: &mut C) -> Tid {
@@ -41,13 +41,13 @@ fn i(n: i64, c: &mut C) -> Tid {
 }
 
 fn str_(v: &str, c: &mut C) -> Tid {
-    let span = athena_ir::ExprNode::default_span();
-    c.s.arena.push(athena_ir::ExprNode::Atom(athena_ir::Atom::String(v.into())), span)
+    let span = athena_ir::TermNode::default_span();
+    c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::String(v.into())), span)
 }
 
 fn boolean(v: bool, c: &mut C) -> Tid {
-    let span = athena_ir::ExprNode::default_span();
-    c.s.arena.push(athena_ir::ExprNode::Atom(athena_ir::Atom::Boolean(v)), span)
+    let span = athena_ir::TermNode::default_span();
+    c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(v)), span)
 }
 
 fn lst(items: Vec<Tid>, c: &mut C) -> Tid {
@@ -183,7 +183,7 @@ fn if_true_branch_and_short_circuit() {
     // False 分支不得求值 Import（不应产生 UnsupportedOperation）。
     let e = ap("If", vec![sym("True", &mut c), i(7, &mut c), ap("Import", vec![str_("x.csv", &mut c)], &mut c)], &mut c);
     let o = out(e, &mut c);
-    assert_eq!(expression_debug(&c.s, o.term), "7");
+    assert_eq!(term_debug(&c.s, o.term), "7");
     assert_eq!(o.kind, execution::EvalKind::Value);
     assert!(!o.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedOperation));
 }
@@ -510,8 +510,8 @@ fn machine_trig_at_real_points() {
     let mut c = C::new();
     // Sin[0.0] → 精确 0；Cos[Pi] → -1。
     let zero = {
-        let span = athena_ir::ExprNode::default_span();
-        c.s.arena.push(athena_ir::ExprNode::Atom(athena_ir::Atom::Number(athena_numeric::NumericValue::machine(0.0))), span)
+        let span = athena_ir::TermNode::default_span();
+        c.s.arena.push(athena_ir::TermNode::Atom(athena_ir::Atom::Number(athena_numeric::NumericValue::machine(0.0))), span)
     };
     let e = ap("Sin", vec![zero], &mut c);
     assert_eq!(t(e, &mut c), "0");

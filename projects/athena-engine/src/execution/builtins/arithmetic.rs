@@ -1,8 +1,8 @@
 //! Plus / Times / Power 算术规范化 handler（legacy `eval_plus` / `eval_times` / `eval_power` 语义）。
 
-use athena_ir::{Atom, ExprNode};
+use athena_ir::{Atom, TermNode};
 use athena_numeric::{Number, add as num_add, compare as num_compare, div as num_div, mul as num_mul, pow as num_pow};
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use crate::execution::{
     Outcome,
@@ -10,29 +10,29 @@ use crate::execution::{
 };
 
 /// 向 arena 压入数字原子。
-pub(crate) fn push_number(vm: &mut Vm<'_>, n: Number) -> ExprId {
-    let span = ExprNode::default_span();
-    vm.session.arena.push(ExprNode::Atom(Atom::Number(n)), span)
+pub(crate) fn push_number(vm: &mut Vm<'_>, n: Number) -> TermId {
+    let span = TermNode::default_span();
+    vm.session.arena.push(TermNode::Atom(Atom::Number(n)), span)
 }
 
 /// 读 arena 数字引用。
-pub(crate) fn number_of<'a>(vm: &'a Vm<'_>, id: ExprId) -> Option<&'a Number> {
+pub(crate) fn number_of<'a>(vm: &'a Vm<'_>, id: TermId) -> Option<&'a Number> {
     match vm.session.arena.get(id) {
-        Some(ExprNode::Atom(Atom::Number(n))) => Some(n),
+        Some(TermNode::Atom(Atom::Number(n))) => Some(n),
         _ => None,
     }
 }
 
-fn is_app_named(vm: &Vm<'_>, id: ExprId, name: &str) -> bool {
+fn is_app_named(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     vm.head_name(id).is_some_and(|h| h == name)
 }
 
-pub(crate) fn h_plus(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_plus(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     Outcome::value(plus(vm, args))
 }
 
-pub(crate) fn plus(vm: &mut Vm<'_>, args: &[ExprId]) -> ExprId {
-    let mut flat: Vec<ExprId> = Vec::new();
+pub(crate) fn plus(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
+    let mut flat: Vec<TermId> = Vec::new();
     let mut sum: Option<Number> = None;
     for a in args {
         flatten_plus(vm, *a, &mut flat, &mut sum);
@@ -54,8 +54,8 @@ pub(crate) fn plus(vm: &mut Vm<'_>, args: &[ExprId]) -> ExprId {
 }
 
 /// 合并 `c1·k + c2·k`（裸 `k` 视为系数 1）。
-fn combine_like_plus_terms(vm: &mut Vm<'_>, terms: Vec<ExprId>) -> Vec<ExprId> {
-    let mut groups: Vec<(ExprId, Number)> = Vec::new();
+fn combine_like_plus_terms(vm: &mut Vm<'_>, terms: Vec<TermId>) -> Vec<TermId> {
+    let mut groups: Vec<(TermId, Number)> = Vec::new();
     for t in terms {
         let (coef, kernel) = split_numeric_coeff(vm, t);
         let mut matched = false;
@@ -76,7 +76,7 @@ fn combine_like_plus_terms(vm: &mut Vm<'_>, terms: Vec<ExprId>) -> Vec<ExprId> {
     groups_to_plus_terms(vm, groups)
 }
 
-fn groups_to_plus_terms(vm: &mut Vm<'_>, groups: Vec<(ExprId, Number)>) -> Vec<ExprId> {
+fn groups_to_plus_terms(vm: &mut Vm<'_>, groups: Vec<(TermId, Number)>) -> Vec<TermId> {
     let mut out = Vec::new();
     for (kernel, coef) in groups {
         if coef.is_zero() {
@@ -97,7 +97,7 @@ fn groups_to_plus_terms(vm: &mut Vm<'_>, groups: Vec<(ExprId, Number)>) -> Vec<E
 }
 
 /// 拆出数值系数：`Times[c, rest…]` / 纯数 / 其它。
-fn split_numeric_coeff(vm: &mut Vm<'_>, term: ExprId) -> (Number, ExprId) {
+fn split_numeric_coeff(vm: &mut Vm<'_>, term: TermId) -> (Number, TermId) {
     if let Some(Shape::App(op, args)) = vm.shape(term) {
         if vm.session.operators.name(op) == Some("Times") && !args.is_empty() {
             let mut coef = Number::small_int(1);
@@ -126,7 +126,7 @@ fn split_numeric_coeff(vm: &mut Vm<'_>, term: ExprId) -> (Number, ExprId) {
     (Number::small_int(1), term)
 }
 
-fn flatten_plus(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, sum: &mut Option<Number>) {
+fn flatten_plus(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, sum: &mut Option<Number>) {
     if is_app_named(vm, a, "Plus") {
         let args = vm.app_args(a).unwrap_or_default();
         for x in args {
@@ -137,7 +137,7 @@ fn flatten_plus(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, sum: &mut Op
     push_plus_term(vm, a, flat, sum);
 }
 
-fn push_plus_term(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, sum: &mut Option<Number>) {
+fn push_plus_term(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, sum: &mut Option<Number>) {
     if let Some(n) = number_of(vm, a) {
         let n = vm.copy_number(n).expect("summand copy");
         *sum = Some(match sum.take() {
@@ -150,12 +150,12 @@ fn push_plus_term(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, sum: &mut 
     }
 }
 
-pub(crate) fn h_times(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_times(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     times_outcome(vm, args)
 }
 
 /// `Times`：标量 × nested List 按 MATLAB/数组语义广播；两矩阵走 `matmul`；其它保持符号 `Times`。
-fn times_outcome(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+fn times_outcome(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let mut scalars = Vec::new();
     let mut lists = Vec::new();
     let mut other = false;
@@ -163,7 +163,7 @@ fn times_outcome(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
         if number_of(vm, *a).is_some() {
             scalars.push(*a);
         }
-        else if matches!(vm.session.arena.get(*a), Some(ExprNode::List(_))) {
+        else if matches!(vm.session.arena.get(*a), Some(TermNode::List(_))) {
             lists.push(*a);
         }
         else {
@@ -192,8 +192,8 @@ fn times_outcome(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
     Outcome::value(times(vm, args))
 }
 
-pub(crate) fn times(vm: &mut Vm<'_>, args: &[ExprId]) -> ExprId {
-    let mut flat: Vec<ExprId> = Vec::new();
+pub(crate) fn times(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
+    let mut flat: Vec<TermId> = Vec::new();
     let mut prod: Option<Number> = None;
     for a in args {
         flatten_times(vm, *a, &mut flat, &mut prod);
@@ -232,7 +232,7 @@ pub(crate) fn times(vm: &mut Vm<'_>, args: &[ExprId]) -> ExprId {
 }
 
 /// 数值系数前置，保持与历史 Times 规范一致。
-fn canonicalize_times_factors(vm: &mut Vm<'_>, factors: Vec<ExprId>) -> Vec<ExprId> {
+fn canonicalize_times_factors(vm: &mut Vm<'_>, factors: Vec<TermId>) -> Vec<TermId> {
     let mut nums = Vec::new();
     let mut rest = Vec::new();
     for f in factors {
@@ -248,8 +248,8 @@ fn canonicalize_times_factors(vm: &mut Vm<'_>, factors: Vec<ExprId>) -> Vec<Expr
 }
 
 /// 合并 `Power[b,e1] * Power[b,e2]`（裸符号视为 `Power[b,1]`）。
-fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<ExprId>) -> Vec<ExprId> {
-    let mut out: Vec<(ExprId, ExprId)> = Vec::new(); // (base, exp)
+fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<TermId>) -> Vec<TermId> {
+    let mut out: Vec<(TermId, TermId)> = Vec::new(); // (base, exp)
     let mut rest = Vec::new();
     for f in factors {
         let base_exp = match vm.shape(f) {
@@ -280,7 +280,7 @@ fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<ExprId>) -> Vec<ExprId> {
             None => rest.push(f),
         }
     }
-    let mut merged: Vec<ExprId> = Vec::new();
+    let mut merged: Vec<TermId> = Vec::new();
     for (base, exp) in out {
         let p = power(vm, base, exp);
         if number_of(vm, p).is_some_and(Number::is_one) {
@@ -292,7 +292,7 @@ fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<ExprId>) -> Vec<ExprId> {
     merged
 }
 
-fn flatten_times(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, prod: &mut Option<Number>) {
+fn flatten_times(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, prod: &mut Option<Number>) {
     if is_app_named(vm, a, "Times") {
         let args = vm.app_args(a).unwrap_or_default();
         for x in args {
@@ -316,11 +316,11 @@ fn flatten_times(vm: &mut Vm<'_>, a: ExprId, flat: &mut Vec<ExprId>, prod: &mut 
     }
 }
 
-pub(crate) fn h_power(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_power(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     Outcome::value(power(vm, args[0], args[1]))
 }
 
-pub(crate) fn power(vm: &mut Vm<'_>, base: ExprId, exp: ExprId) -> ExprId {
+pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
     if let Some(e) = number_of(vm, exp).map(|n| vm.copy_number(n).expect("exp copy")) {
         if e.is_zero() {
             // 标量 `x^0 → 1`；List 用 `DotPower` 逐元素，此路不处理。
@@ -374,31 +374,31 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: ExprId, exp: ExprId) -> ExprId {
     vm.push_app("Power", vec![base, exp])
 }
 
-pub(crate) fn h_subtract(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_subtract(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let one = vm.push_int(-1);
     let neg = times(vm, &[one, args[1]]);
     Outcome::value(plus(vm, &[args[0], neg]))
 }
 
-pub(crate) fn h_divide(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_divide(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let one = vm.push_int(-1);
     let inv = power(vm, args[1], one);
     Outcome::value(times(vm, &[args[0], inv]))
 }
 
-pub(crate) fn h_dot_times(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_dot_times(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     super::matrix::dot_binop(vm, "DotTimes", args[0], args[1], super::matrix::DotOpKind::Times)
 }
 
-pub(crate) fn h_dot_divide(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_dot_divide(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     super::matrix::dot_binop(vm, "DotDivide", args[0], args[1], super::matrix::DotOpKind::Divide)
 }
 
-pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[ExprId]) -> Outcome {
+pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     super::matrix::dot_binop(vm, "DotPower", args[0], args[1], super::matrix::DotOpKind::Power)
 }
 
-pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
+pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.app_args(root).unwrap_or_default();
@@ -432,7 +432,7 @@ pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[ExprId]) -> Outcome {
 }
 
 /// 数值比较（供 builtin / lin 使用）。
-pub(crate) fn num_compare_ids(vm: &Vm<'_>, a: ExprId, b: ExprId) -> Option<std::cmp::Ordering> {
+pub(crate) fn num_compare_ids(vm: &Vm<'_>, a: TermId, b: TermId) -> Option<std::cmp::Ordering> {
     let (na, nb) = (number_of(vm, a)?, number_of(vm, b)?);
     num_compare(na, nb)
 }

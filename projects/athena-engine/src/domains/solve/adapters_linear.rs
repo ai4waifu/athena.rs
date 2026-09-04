@@ -21,7 +21,7 @@ use super::{
 pub struct LinearAdaptedSolution {
     /// 统一解集。
     pub solution: SolutionSet,
-    /// [`ExprId`] 句柄对应的标量。
+    /// [`TermId`] 句柄对应的标量。
     pub values: BindingValueTable,
     /// 原始分类。
     pub disposition: SolveDisposition,

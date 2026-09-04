@@ -1,12 +1,12 @@
 //! 微积分模块共享的项改写（arena 版 · 符号名键）。
 
-use athena_types::ExprId;
+use athena_types::TermId;
 
 use super::ctx::CalculusCtx;
 use crate::execution::vm::Shape;
 
 /// 将 `var`（符号名）的每次出现替换为 `with`；未命中路径按 arena 共享。
-pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: ExprId, var: &str, with: ExprId) -> ExprId {
+pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str, with: TermId) -> TermId {
     let Some(shape) = cc.shape(expr)
     else {
         return expr;
@@ -46,7 +46,7 @@ pub(crate) fn replace_symbol(cc: &CalculusCtx<'_>, expr: ExprId, var: &str, with
 }
 
 /// `var` 是否在 `expr` 中自由出现。
-pub(crate) fn contains_symbol(cc: &CalculusCtx<'_>, expr: ExprId, var: &str) -> bool {
+pub(crate) fn contains_symbol(cc: &CalculusCtx<'_>, expr: TermId, var: &str) -> bool {
     let Some(shape) = cc.shape(expr)
     else {
         return false;

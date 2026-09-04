@@ -5,7 +5,7 @@ use athena_engine::runtime::{
     semantic::{AssumptionScopeTable, ResultIdTable, ValueIdTable},
 };
 use athena_gc::{EmptyObjectGraph, GcMode, RootKind};
-use athena_types::{AssumptionScope, ExprId, Predicate, SymbolId};
+use athena_types::{AssumptionScope, Predicate, SymbolId, TermId};
 
 #[test]
 fn session_owns_sem0_sem1_tables() {
@@ -39,7 +39,7 @@ fn session_heap_roots_keep_object_across_collect() {
 }
 
 #[test]
-fn arena_expr_id_is_native_storage_identity() {
+fn term_id_is_native_storage_identity() {
     let mut session = Session::new();
     let a = session.builder().int(1, Default::default());
     let b = session.builder().int(2, Default::default());
@@ -79,8 +79,8 @@ fn assumption_scope_table_intern_inherit_and_merge() {
 fn assumption_scope_table_rejects_local_conflict() {
     let mut table = AssumptionScopeTable::new();
     let bad = AssumptionScope::from_predicates(vec![
-        Predicate::Equal(ExprId(1), ExprId(2)),
-        Predicate::NotEqual(ExprId(1), ExprId(2)),
+        Predicate::Equal(TermId(1), TermId(2)),
+        Predicate::NotEqual(TermId(1), TermId(2)),
     ]);
     let err = table.intern(bad).expect_err("conflict");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("local_conflict"));

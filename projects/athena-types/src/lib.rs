@@ -16,9 +16,9 @@ pub mod wire;
 pub use assumption::{AssumptionSet, Condition, Predicate};
 pub use diagnostic::{Diagnostic, DiagnosticCode, DiagnosticPath, DiagnosticValue, Result, Severity};
 pub use ids::{
-    AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExprId, ExtensionId,
-    FieldId, FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId,
-    PolynomialId, PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId,
+    AlgebraMapId, AssumptionScopeId, AssumptionSetId, AutomorphismId, CoefficientRingId, DomainId, ExtensionId, FieldId,
+    FieldPresentationId, FormId, GroupElementId, GroupId, GroupPresentationId, MatrixId, NodeId, OperatorId, PolynomialId,
+    PresentationId, ProofRef, ResultId, RingId, SerializationVersion, SourceSpan, SubgroupId, SymbolId, TermId,
     TheoryContextId, ValueId,
 };
 pub use numeric_kind::{ModulusId, NumericKind, NumericTypeId, PrecisionPolicyId};
