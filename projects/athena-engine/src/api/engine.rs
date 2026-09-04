@@ -1,11 +1,15 @@
 //! 执行引擎句柄 — 宿主组合请求；数学逻辑在子模块中。
 
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, Result, ResultId, TermId};
 
 use crate::{
+    api::request::{AthenaRequest, DomainGoal, LoweringOutcome},
     domains::dispatch::{DomainRequest, DomainResult, execute_domain as dispatch_domain},
     execution,
-    runtime::session::Session,
+    runtime::{
+        results::{ComputationResult, CoverageStatus},
+        session::Session,
+    },
 };
 
 /// 求值选项（占位；随后随模式 / Session 扩展）。
@@ -21,7 +25,7 @@ pub struct SimplifyOptions {}
 pub struct AthenaEngine {}
 
 impl AthenaEngine {
-    /// 以默认算子注册表创建引擎（桩）。
+    /// 创建引擎句柄。
     pub fn new() -> Self {
         Self {}
     }
@@ -41,6 +45,48 @@ impl AthenaEngine {
     /// 域分派 — 返回按域区分的 [`DomainResult`]。
     pub fn execute_domain(&self, session: &mut Session, request: DomainRequest) -> Result<DomainResult> {
         dispatch_domain(session, request)
+    }
+
+    /// 经中性 [`AthenaRequest`] 边界执行（Living `26`）。
+    ///
+    /// - `Term`：现有 VM 求值，结果写入 [`crate::runtime::results::ResultStore`]
+    /// - `Goal::Dispatch`：现有域分派，结果写入 ResultStore
+    /// - `Command` / `Control`：本切片尚未接入，写入显式 unsupported 结果（禁止静默成功）
+    pub fn execute_request(&self, session: &mut Session, request: AthenaRequest) -> Result<ResultId> {
+        match request {
+            AthenaRequest::Term(term) => {
+                let value_term = self.evaluate_expression(session, term);
+                let value = session.insert_symbolic_value(value_term);
+                let result = ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Full)
+                    .with_value(value)
+                    .with_symbolic_term(value_term);
+                Ok(session.insert_result(result))
+            }
+            AthenaRequest::Goal(DomainGoal::Dispatch(domain_request)) => {
+                let _domain_result = self.execute_domain(session, domain_request)?;
+                let result =
+                    ComputationResult::with_status(athena_types::ComputationStatus::Exact, CoverageStatus::Unknown);
+                Ok(session.insert_result(result))
+            }
+            AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
+                let operation = request.kind_name();
+                let diagnostic = Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("phase", "request_boundary")
+                    .detail("operation", operation);
+                let result = ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
+                    .with_diagnostic(diagnostic.clone());
+                let _ = session.insert_result(result);
+                Err(diagnostic)
+            }
+        }
+    }
+
+    /// 将方言 [`LoweringOutcome`] 送入后端（Rejected 直接返回诊断）。
+    pub fn execute_lowering_outcome(&self, session: &mut Session, outcome: LoweringOutcome) -> Result<ResultId> {
+        match outcome {
+            LoweringOutcome::Accepted(request) => self.execute_request(session, request),
+            LoweringOutcome::Rejected(diagnostic) => Err(diagnostic),
+        }
     }
 
     /// 经 `Simplify` 头部化简（KernelIR + VM）。
