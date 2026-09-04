@@ -24,6 +24,21 @@ pub type PropositionRef = RelationRef;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct WitnessRef(pub u64);
 
+/// 理论上下文身份（等式理论、多项式环理论等；非方言名）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TheoryContextId(pub u32);
+
+impl TheoryContextId {
+    /// 未细分的默认理论上下文。
+    pub const DEFAULT: Self = Self(0);
+    /// 多项式环 / 精确代数运算上下文。
+    pub const POLYNOMIAL: Self = Self(1);
+    /// 模同余上下文。
+    pub const CONGRUENCE: Self = Self(2);
+    /// 重写 / 等价类上下文。
+    pub const REWRITE: Self = Self(3);
+}
+
 /// 稳定语义谓词身份（禁止用任意 `String` 当关系标签）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PredicateId(pub u32);
