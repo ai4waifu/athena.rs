@@ -58,7 +58,7 @@ fn value_store_owns_runtime_payload_not_term_bijection() {
     // Same term inserted twice yields distinct ValueIds (no term↔value bijection).
     let v2 = session.insert_symbolic_value(term);
     assert_ne!(v0, v2);
-    assert_eq!(session.values.len(), 3);
+    assert_eq!(session.values.count(), 3);
 }
 
 #[test]
