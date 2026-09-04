@@ -65,11 +65,26 @@ fn clone_drop_heap() {
     let b = a.try_clone_in(&NumericContext::portable_default()).unwrap();
     assert_eq!(a, b);
     assert_eq!(a.as_limbs(), &[1, 2, 3, 4]);
-    assert_ne!(a.as_limbs().as_ptr(), b.as_limbs().as_ptr(), "Heap Clone is deep copy");
+    assert_ne!(a.as_limbs().as_ptr(), b.as_limbs().as_ptr(), "Heap try_clone_in is deep copy");
     drop(a);
     assert_eq!(b.as_limbs(), &[1, 2, 3, 4]);
     let s = b.to_decimal_string();
     assert!(!s.is_empty() && s.chars().all(|c| c.is_ascii_digit()));
+}
+
+#[test]
+fn clone_inline_limb_only_rejects_heap() {
+    let limb1 = Natural::from_u64(7);
+    let limb2 = Natural::from_limbs(vec![1, 2]).unwrap();
+    let heap = Natural::from_limbs(vec![1, 2, 3, 4]).unwrap();
+    assert_eq!(limb1.clone_inline().expect("Limb1").as_limbs(), &[7]);
+    assert_eq!(limb2.clone_inline().expect("Limb2").as_limbs(), &[1, 2]);
+    assert!(heap.clone_inline().is_none(), "Living 19: Heap has no clone_inline");
+
+    let i_limb = Integer::from_i64(-3);
+    let i_heap = Integer::from_limbs_in(&NumericContext::portable_default(), vec![1, 2, 3, 4]).unwrap();
+    assert_eq!(i_limb.clone_inline().expect("signed Limb1").to_i64(), Some(-3));
+    assert!(i_heap.clone_inline().is_none());
 }
 
 #[test]

@@ -111,9 +111,14 @@ impl Dyadic {
         }
     }
 
-    /// 无符号尾数幅度（克隆；不解释 `meta` sign）。
+    /// 无符号尾数幅度（可失败 owning 复制）。
+    pub fn try_significand(&self) -> athena_gc::Result<Natural> {
+        Ok(Natural::from_pair(self.significand.try_clone_clear_sign()?))
+    }
+
+    /// 无符号尾数幅度（与 [`crate::Integer::abs`] 同合同的便利入口）。
     pub fn significand(&self) -> Natural {
-        Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"))
+        self.try_significand().expect("portable default max_limbs unbounded")
     }
 
     /// 二进制指数。
@@ -131,9 +136,9 @@ impl Dyadic {
         self.sign() == Sign::Positive && self.significand.as_limbs() == [1] && self.exponent == 0
     }
 
-    /// 尾数位宽（零 → 0）。
+    /// 尾数位宽（零 → 0；只读 limb，不分配）。
     pub fn significand_bits(&self) -> u64 {
-        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits() }
+        Natural::bits_from_limbs(self.significand.as_limbs())
     }
 
     /// 去掉末尾二进制零并规范零的符号。
@@ -147,7 +152,10 @@ impl Dyadic {
             return;
         }
         let negative = self.significand.is_negative();
-        let mut mag = Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"));
+        // Living `24`：就地 reuse unique buffer，禁止 owning Clone 再写回。
+        let mut pair = core::mem::replace(&mut self.significand, MagnitudePair::zero());
+        pair.set_sign_bit(false);
+        let mut mag = Natural::from_pair(pair);
         while !mag.is_odd() {
             mag.div2();
             self.exponent += 1;
@@ -168,8 +176,8 @@ impl Dyadic {
         if self.sign() != Sign::Positive && self.sign() != Sign::Negative {
             return Err(invalid("nonzero_sign"));
         }
-        let mag = Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"));
-        if !mag.is_odd() {
+        let limbs = self.significand.as_limbs();
+        if limbs.is_empty() || (limbs[0] & 1) == 0 {
             return Err(invalid("not_normalized"));
         }
         Ok(())

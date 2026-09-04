@@ -48,12 +48,21 @@ impl Natural {
     ///
     /// 零编码为 `count=1` 且 limb `0`。解码拒绝 `count=0` 与尾随零 limb。
     pub(crate) fn wire_encode_magnitude(&self) -> Vec<u8> {
-        let limbs = self.as_limbs();
-        let el = limbs.len();
+        Self::wire_encode_limbs(self.as_limbs())
+    }
+
+    /// 由已借用 limb 编码 wire 幅度（观察者路径；无 owning 数值复制）。
+    pub(crate) fn wire_encode_limbs(limbs: &[u64]) -> Vec<u8> {
+        let el = if limbs.is_empty() || limb_kernel::is_zero(limbs) { 1 } else { limbs.len() };
         let mut out = Vec::with_capacity(4 + el * 8);
         out.extend_from_slice(&(el as u32).to_le_bytes());
-        for &limb in limbs {
-            out.extend_from_slice(&limb.to_le_bytes());
+        if limbs.is_empty() || limb_kernel::is_zero(limbs) {
+            out.extend_from_slice(&0u64.to_le_bytes());
+        }
+        else {
+            for &limb in limbs {
+                out.extend_from_slice(&limb.to_le_bytes());
+            }
         }
         out
     }

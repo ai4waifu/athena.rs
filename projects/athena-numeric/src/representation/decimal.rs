@@ -161,9 +161,14 @@ impl Decimal {
         }
     }
 
-    /// 无符号尾数幅度。
+    /// 无符号尾数幅度（可失败 owning 复制）。
+    pub fn try_significand(&self) -> athena_gc::Result<Natural> {
+        Ok(Natural::from_pair(self.significand.try_clone_clear_sign()?))
+    }
+
+    /// 无符号尾数幅度（与 [`crate::Integer::abs`] 同合同的便利入口）。
     pub fn significand(&self) -> Natural {
-        Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded"))
+        self.try_significand().expect("portable default max_limbs unbounded")
     }
 
     /// 二进制指数。
@@ -207,7 +212,7 @@ impl Decimal {
     }
 
     fn significand_bits(&self) -> u64 {
-        if self.is_zero() { 0 } else { self.significand().bits() }
+        Natural::bits_from_limbs(self.significand.as_limbs())
     }
 
     /// 载荷可精确表示时导出为 `f64`。
@@ -241,7 +246,7 @@ impl Decimal {
         let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
             return Ok((
-                Self::from_parts(self.significand.try_clone().expect("portable default unbounded"), self.exponent, precision_bits),
+                Self::from_parts(self.significand.try_clone().map_err(gc_alloc_error)?, self.exponent, precision_bits),
                 RoundingStatus::Exact,
             ));
         }

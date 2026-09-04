@@ -20,8 +20,9 @@ limb 的算法在跨越内核边界前必须恢复该规范形。
 ns；而在 `GcHeap::shared_default()` 上带自动回收的 `Integer` 克隆约 4,035 ns。公开的 `Integer::try_add` / `add` 路径约
 4,503 / 4,669 ns。因此端到端基准里的 256 位平台期是共享堆与克隆/发布效应，不是四 limb 加法算法。基准须分层报告：内核、复用上下文的数值层、端到端。
 
-`Integer::abs_natural` 当前拥有一份清符号后的 magnitude。对堆上 magnitude，这一步会克隆分配。任何优化须先提供借用 magnitude
-视图或会话持有/推迟结果策略；改乘法公式消不掉这笔成本。
+`Integer` 热路径应走 `as_limbs` / `magnitude_view`，不要经 owning 清符号复制。`try_abs_natural` /
+`magnitude` 仅供确需 `Natural` 所有权的路径。对堆上 magnitude，owning 复制会分配。任何优化须先提供借用视图或会话
+持有/推迟结果策略；改乘法公式消不掉这笔成本。
 
 ## 加法与减法
 

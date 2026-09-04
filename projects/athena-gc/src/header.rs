@@ -18,11 +18,13 @@ pub enum BlockKind {
     GraphProperty = 5,
 }
 
-/// Numeric block 生命周期（与 [`BlockKind::Numeric`] 一起解释。Object 为 [`Self::Unspecified`]）。
+/// Numeric block 生命周期标签（**过渡债** · Living `24`）。
 ///
-/// `RustOwned` 与 `GcOwned` 互斥：同一 pointer 不得既由 Rust `Drop` 释放又被 tracing sweep。
+/// 不是公共 ownership 模型，也不描述数学值语义。仅作 reclaim 防错标签：
+/// `RustOwned` 与 tracing sweep 互斥。新代码不得扩展此枚举的公共用法。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
+#[doc(hidden)]
 pub enum NumericOwnership {
     /// 非 numeric，或尚未标记。
     #[default]
