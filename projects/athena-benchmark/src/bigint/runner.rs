@@ -2,7 +2,7 @@
 
 use std::hint::black_box;
 
-use athena_engine::{clone_integer, clone_natural};
+use athena_engine::runtime::values::numeric_clone::{clone_integer, clone_natural};
 use athena_gc::HeapBudget;
 use athena_numeric::{EphemeralInteger, EphemeralNatural, Integer, NumericContext, natural::Natural, number_from_wire};
 use athena_types::wire::WireNumber;

@@ -1,7 +1,7 @@
 //! 复数（骨架；不依赖 `num-complex`）。
 
-use athena_types::{Diagnostic, DiagnosticCode, Result};
 use crate::execution_budget::NumericContext;
+use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::value::real::Real;
 
@@ -31,11 +31,7 @@ pub struct Complex {
 impl Complex {
     /// Owning 深复制（Living `19`）。
     pub fn try_clone_in(&self, ctx: &crate::execution_budget::NumericContext) -> Result<Self> {
-        Ok(Self {
-            re: self.re.try_clone_in(ctx)?,
-            im: self.im.try_clone_in(ctx)?,
-            branch: self.branch,
-        })
+        Ok(Self { re: self.re.try_clone_in(ctx)?, im: self.im.try_clone_in(ctx)?, branch: self.branch })
     }
 
     /// 校验并构造。

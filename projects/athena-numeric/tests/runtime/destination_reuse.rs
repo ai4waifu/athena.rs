@@ -1,9 +1,7 @@
 //! Living 17 步骤 6：destination reuse / `steal_heap` / `can_reuse_destination` 合同。
 
 use athena_gc::{GcHeap, HeapBudget};
-use athena_numeric::{
-    CapabilityBundle, ExecutionBudget, Integer, NumericContext, ResourceCapability, natural::Natural,
-};
+use athena_numeric::{CapabilityBundle, ExecutionBudget, Integer, NumericContext, ResourceCapability, natural::Natural};
 
 #[test]
 fn can_reuse_destination_false_still_matches_add() {

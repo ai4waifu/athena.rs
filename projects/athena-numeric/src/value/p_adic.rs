@@ -2,9 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{
-    execution_budget::NumericContext,
-    integer::Integer, rational::Rational};
+use crate::{execution_budget::NumericContext, integer::Integer, rational::Rational};
 
 /// p-adic 截断值：小端 `p`-进制 digits，长度 `≤ precision`。
 #[derive(Debug, PartialEq, Eq)]
@@ -20,11 +18,7 @@ pub struct PAdicValue {
 impl PAdicValue {
     /// Owning 深复制（Living `19`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
-        Ok(Self {
-            prime: self.prime.try_clone_in(ctx)?,
-            precision: self.precision,
-            digits: self.digits.clone(),
-        })
+        Ok(Self { prime: self.prime.try_clone_in(ctx)?, precision: self.precision, digits: self.digits.clone() })
     }
 
     /// 校验并规范化构造。

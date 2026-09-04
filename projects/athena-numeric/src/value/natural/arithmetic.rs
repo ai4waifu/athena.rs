@@ -30,7 +30,9 @@ impl Natural {
     /// 右移 `n` 位（丢弃低位）。
     pub(crate) fn shr_bits(&self, n: u64) -> Self {
         if n == 0 || self.is_zero() {
-            return self.try_clone_in(&crate::policy::execution_budget::NumericContext::portable_default()).expect("portable default unbounded");
+            return self
+                .try_clone_in(&crate::policy::execution_budget::NumericContext::portable_default())
+                .expect("portable default unbounded");
         }
         let bits = self.bits();
         if n >= bits {

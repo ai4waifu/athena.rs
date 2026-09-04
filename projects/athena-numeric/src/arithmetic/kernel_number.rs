@@ -2,9 +2,7 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{
-    execution_budget::NumericContext,
-    integer::Integer, number::NumericValue, rational::Rational, real::Real};
+use crate::{execution_budget::NumericContext, integer::Integer, number::NumericValue, rational::Rational, real::Real};
 
 enum Lifted {
     Integer(Integer),

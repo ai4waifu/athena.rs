@@ -1,6 +1,6 @@
 //! 数值证据 arena 测试。
 
-use athena_numeric::{NumericContext, Integer, NumericBinding, NumericEvidenceArena, NumericEvidenceRecord, NumericValue};
+use athena_numeric::{Integer, NumericBinding, NumericContext, NumericEvidenceArena, NumericEvidenceRecord, NumericValue};
 
 #[test]
 fn arena_intern_tags_deduplicates() {

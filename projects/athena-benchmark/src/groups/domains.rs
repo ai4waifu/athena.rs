@@ -1,13 +1,19 @@
 //! `domains` 分组：域算法与多项式 parity fixture。
 
 use athena_engine::{
-    CoefficientDomain, JitParityOutcome, MonomialOrder, Number, PolynomialBuilder, RingTable, SampleDomain, SamplingPolicy,
-    Session, SymbolId,
-    arena_ops::{push_app_named, push_int, push_symbol_name},
-    mul_with_jit_parity, sample_1d,
+    domains::polynomial::{
+        CoefficientDomain, JitParityOutcome, MonomialOrder, PolynomialBuilder, RingTable, mul_with_jit_parity,
+    },
+    plot::{SampleDomain, SamplingPolicy, sample_1d},
+    runtime::{
+        Session,
+        values::arena::{push_app_named, push_int, push_symbol_name},
+    },
 };
+use athena_numeric::Number;
+use athena_types::SymbolId;
 
-fn square_of_x(session: &mut Session) -> athena_types::TermId {
+fn square_of_x(session: &mut Session) -> athena_types::ExprId {
     let x = push_symbol_name(session, "x");
     let two = push_int(session, 2);
     push_app_named(session, "Power", vec![x, two])

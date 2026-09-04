@@ -8,7 +8,7 @@
 
 use std::{hint::black_box, str::FromStr};
 
-use athena_engine::{clone_integer, clone_natural};
+use athena_engine::runtime::values::numeric_clone::{clone_integer, clone_natural};
 use athena_gc::{GcHeap, GcMode, HeapBudget};
 use athena_numeric::{ExecutionBudget, Integer, NumericContext, natural::Natural};
 

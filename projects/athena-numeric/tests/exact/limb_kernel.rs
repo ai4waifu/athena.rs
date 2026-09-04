@@ -2,7 +2,7 @@
 //!
 //! 直接的 `limb_kernel` 单元测试曾在 `src/`，现改写于此，使内核模块保持 crate 私有。
 
-use athena_numeric::{NumericContext, ExecutionBudget, NumericBackendLimits, natural::Natural};
+use athena_numeric::{ExecutionBudget, NumericBackendLimits, NumericContext, natural::Natural};
 use std::str::FromStr;
 
 fn lcg_next(state: &mut u64) -> u64 {

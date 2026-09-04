@@ -1,13 +1,12 @@
 //! 稳定标识符 newtype（IR 与注册表）。
 
-/// Core term id（arena **存储**索引，不是语义表达式身份）。
+/// AthenaIR arena 表达式身份（Living `25`：原生 arena 引用，不是二级映射句柄）。
 ///
-/// 语义表达式用 [ExprId]；已计算值用 [ValueId]；结果容器用 [ResultId]。
-/// 禁止把 [TermId] 当作上述三者的替身。
+/// 已计算值用 [`ValueId`]；结果容器用 [`ResultId`]。禁止与二者互换。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TermId(pub u32);
+pub struct ExprId(pub u32);
 
-/// IR 节点 id（预留，与 term 区分 stmt 等扩展）。
+/// IR 节点 id（预留，与表达式区分 stmt 等扩展）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(pub u32);
 
@@ -88,12 +87,6 @@ pub struct TheoryContextId(pub u32);
 /// 表面语法身份（产品层 / 方言 Form；非 Athena 语义表达式）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct FormId(pub u32);
-
-/// 语义表达式身份。
-///
-/// 不等于 [TermId]（存储）、[ValueId]（已计算值）、[ResultId]（结果容器）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ExprId(pub u32);
 
 /// 已计算或已验证的值身份。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

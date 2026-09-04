@@ -6,7 +6,6 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
     execution_budget::NumericContext,
-    
     precision::PrecisionKind,
     real::Real,
     rounding::{f64_add_down, f64_add_up, f64_div_down, f64_div_up, f64_mul_down, f64_mul_up, f64_sub_down, f64_sub_up},
@@ -58,11 +57,9 @@ impl Interval {
         Ok(match self {
             Self::Empty => Self::Empty,
             Self::Entire { decoration } => Self::Entire { decoration: *decoration },
-            Self::Bounded { lower, upper, decoration } => Self::Bounded {
-                lower: lower.try_clone_in(ctx)?,
-                upper: upper.try_clone_in(ctx)?,
-                decoration: *decoration,
-            },
+            Self::Bounded { lower, upper, decoration } => {
+                Self::Bounded { lower: lower.try_clone_in(ctx)?, upper: upper.try_clone_in(ctx)?, decoration: *decoration }
+            }
         })
     }
 

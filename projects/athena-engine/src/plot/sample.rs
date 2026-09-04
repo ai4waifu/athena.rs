@@ -1,9 +1,9 @@
 //! 均匀网格 1D 采样。
 
 use athena_numeric::{Number, to_f64_lossy as num_to_f64_lossy};
-use athena_types::{Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{Diagnostic, DiagnosticCode, ExprId, Result};
 
-use crate::{interp, session::Session};
+use crate::{execution, runtime::session::Session};
 
 use super::types::{SampleDomain, SamplePoint, SampledCurve, SamplingPolicy};
 
@@ -16,7 +16,7 @@ const MAX_SAMPLES_HARD: u32 = 1_000_000;
 /// 相邻有效点若相对跳跃超过 [`SamplingPolicy::discontinuity_rel`]，在后一点插入 gap（断点/奇点邻域）。
 pub fn sample_1d(
     session: &mut Session,
-    expr: TermId,
+    expr: ExprId,
     var: &str,
     domain: SampleDomain,
     policy: SamplingPolicy,
@@ -48,11 +48,11 @@ pub fn sample_1d(
         }
         let t = i as f64 / (n - 1) as f64;
         let x = domain.start + span * t;
-        let point = interp::push_number(session, Number::machine(x));
+        let point = execution::push_number(session, Number::machine(x));
         let vs = var_sym(session, var);
-        let substituted = interp::substitute_symbol(session, expr, vs, point);
-        let value = interp::vm::evaluate_session(session, substituted).term;
-        let (y, valid) = match interp::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
+        let substituted = execution::substitute_symbol(session, expr, vs, point);
+        let value = execution::vm::evaluate_session(session, substituted).term;
+        let (y, valid) = match execution::number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
         };

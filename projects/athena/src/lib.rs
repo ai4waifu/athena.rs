@@ -1,103 +1,39 @@
-//! Athena 公共 Rust 门面 — 对 [`athena_engine`] 的薄且稳定入口。
+//! Athena 公共 Rust 门面 — 对执行引擎与底层合同 crate 的稳定入口。
 //!
 //! ```text
 //! athena-types → athena-numeric → athena-ir → athena-rewriter → athena-engine → athena
 //! ```
 //!
-//! 本 crate **不**自行实现求值或 Session。它为普通 Rust 消费者再导出执行引擎与
-//! 选定的 IR/类型合同。宿主（如 SXO）应依赖本 crate，而非直接依赖 `athena-engine`。
+//! 本 crate **不**自行实现求值或 Session。每个公开模块只从**拥有方**再导出一次：
+//! - 引擎能力 → [`athena_engine`] 对应模块
+//! - IR / types / numeric / rewriter → 各自真相源 crate（禁止经 engine 别名转手）
+//!
+//! 根级只保留 [`AthenaEngine`] / [`Session`]。
 
 #![deny(missing_docs)]
 
-pub use athena_engine::{
-    AlgebraMapId, AlgebraParentId, AlgorithmGuarantee, AlgorithmPolicy, AssumptionBranchPolicy, AssumptionScope,
-    AssumptionScopeId, AssumptionScopeTable, AssumptionSet, AssumptionSetId, AthenaEngine, AtomKind, AutomorphismId,
-    AxisRange, BindingId, BindingMap, BindingValue, BindingValueTable, BipartiteResult, BoundCertificate, BoundSymbol,
-    BranchPolicy, BranchStatus, CalculusCtx, CalculusRequest, CalculusResult, CalculusValue, CanonicalPolynomial, CertificateKind,
-    CertificateStrength, ClosureLimits, ClosureResult, ClosureStatus, CoefficientDomain, CoefficientParent, CofactorStatus,
-    CompositeWitness, ComputationStatus, Condition, ConditionalResult, CongruenceSolution, ConnectedComponentsResult,
-    Constraint, ConstraintConnective, ConstraintId, ConstraintRelation, ConstraintSet, CoverageStatus, CrtResult, Curl,
-    DEFAULT_PIVOT_THRESHOLD, DecisionVariable, DerivativeOrder, DeterminacyGuarantee, DeterminacyState, Diagnostic,
-    DiagnosticCode, DiagnosticPath, DiagnosticValue, DialectArgs, DialectMatrixOp, DialectOrigin, DifferentialSolution,
-    Divergence, DivisionPolicy, DomainId, DomainRef, DomainRequest, DomainResult, ElementParentKind, EqualityWitness, Equation,
-    EquivalenceClasses, EvalOptions, ExactDetResult, ExactNumber, ExactRankResult, ExactRrefResult, ExactSolveResult,
-    ExactnessLevel, ExecutionLimits, ExprBindingTable, ExprId, ExtendedGcd, ExtensionId, FactorAlgorithms, FactorBaseStatus,
-    FactorComponent, FactorExecutionBudget, FactorFrontier, FactorLimits, FactorPolicy, Factorization,
-    FactorizationCompleteness, FactorizationVerifyError, FeasibleSet, Field, FieldAutomorphism, FieldDescriptor,
-    FieldDomainValue, FieldElement, FieldElementRepr, FieldExtension, FieldFingerprint, FieldId, FieldKind,
-    FieldPresentationId, FieldRequest, FieldResult, FieldTable, FormId, FunctionDefinition, GaloisComputation,
-    GaloisDomainValue, GaloisGroup, GaloisRequest, GaloisResult, Gradient, GraphAssumptions, GraphCertificate,
-    GraphDomainSemantics, GraphHandle, GraphId, GraphNodeId, GraphObject, GraphPresentation, GraphPropertyKind,
-    GraphPropertyResult, GraphPropertyState, GraphProvenance, GraphRevision, GraphSnapshot, GraphTheoryRequest,
-    GraphTheoryResult, GraphTheoryValue, GroebnerAlgorithm, GroebnerBasis, GroebnerBasisValue, GroebnerCertificate,
-    GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerStatus, GroebnerVerificationReport, Group, GroupDescriptor,
-    GroupDomainValue, GroupElement, GroupElementId, GroupElementRepr, GroupFingerprint, GroupId, GroupKind,
-    GroupPresentationId, GroupPropertyFacts, GroupRequest, GroupResult, GroupTable, Hessian, HyperEdge, Ideal, IndexSpec,
-    Inequality, InequalityOp, Integrality, Jacobian, JitParityOutcome, Layout, LimitApproach, LimitDirection,
-    LinearAdaptedSolution, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, LinearSolveMode, MGraphState,
-    MachineLuFactorization, MachineSolveResult, MachineSolveWitness, MatrixBuffer, MatrixEntry, MatrixEqualityKind, MatrixId,
-    MatrixParent, MatrixShape, MatrixValue, MemoryGraph, MillerRabinBaseSelection, MinimumSpanningForestResult,
-    ModularTimingPolicy, ModularValue, Modulus, ModulusContext, ModulusTable, MonomialOrder, MonomialTerm, MultiplicityInfo,
-    NodeId, Number, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, NumericBackend, NumericBackendContract,
-    NumericBackendLimits, NumericCapability, NumericDomain, NumericOperation, NumericResultMode, NumericValue,
-    OPTIMIZATION_FINGERPRINT_ALGORITHM, Objective, ObjectiveId, ObjectiveSense, OperatorId, OptimalityKind,
-    OptimizationConstraint, OptimizationFingerprint, OptimizationFrontier, OptimizationLimits, OptimizationProblem,
-    OptimizationRequest, OptimizationResult, POLYNOMIAL_SOLVER_ID, Permutation, Polynomial, PolynomialBuilder,
-    PolynomialCacheKey, PolynomialCacheOp, PolynomialCofactorStatus, PolynomialDomainValue, PolynomialFactorComponent,
-    PolynomialFactorLimits, PolynomialFactorStatus, PolynomialFactorization, PolynomialFactorizationCompleteness,
-    PolynomialFingerprint, PolynomialId, PolynomialMGraphStore, PolynomialRepr, PolynomialReprBody, PolynomialRequest,
-    PolynomialResult, PolynomialValue, PolynomialWitness, PortableBackend, Precision, Predicate, PresentationId, Primality,
-    PrimeCertificate, PrimeIterator, PrimeModulus, ProbablePrimeEvidence, ProbablePrimeModulus, ProblemClass, ProblemId,
-    ProofRef, ProofRequirement, PropertyState, QuantifiedConstraint, Quantifier, RationalReconstruction,
-    RationalReconstructionFailure, RealNumber, ReflectionResult, Reflector, RegionOfConvergence, RelationalOperators,
-    Remainder, ReprTarget, RepresentationId, ResidualCertificate, Residue, Result, ResultId, ResultIdTable, ResumeToken,
-    RewriteOptions, RewriteResult, RewriteWitness, Rewriter, RingCharacteristic, RingDescriptor, RingId, RingTable,
-    RoundingMode, RoundingPolicy, SampleDomain, SamplePoint, SampledCurve, SamplingPolicy, ScopeApplicability, ScopeConflict,
-    ScopeConflictKind, ScopeMergeOutcome, SerializationVersion, Series, Session, Severity, ShapePolicy, ShortestPathResult,
-    SimplifyOptions, SolutionBranch, SolutionSet, SolveDisposition, SolveDomain, SolveGoal, SolvePolicy, SolvePredicate,
-    SolveProblem, SolveRelationKind, SolverCandidate, SolverContext, SolverFrontier, SolverId, SolverLimits, SolverMetadata,
-    SolverOperation, SolverRegistry, SolverRequest, SolverScore, SourceSpan, SpanningEdge, SparseStrategy, StorageOrder,
-    StronglyConnectedComponentsResult, SubgroupId, SymbolId, SymbolTable, TermArena, TermBuilder, TermId, TermKind,
-    TheoryContext, TheoryContextId, TransformKind, TransformResult, UnivariateAdaptedSolution, ValueId, ValueIdTable,
-    VariableDomain, VariableId, VariableMetadata, VerificationStatus, VerifiedGroebnerBasis, WeightDomain, WireNumber,
-    adapt_exact_linear_solve, adapt_machine_linear_solve, adapt_univariate_factorization, add_polynomial,
-    apply_field_automorphism, apply_prime_subfield_embedding, assemble_solve_problem, asymptotic, batch_mod_inverse,
-    cache_key_for_request, calculus_result_bridge_term, canonical_extension_element, canonical_hash, canonical_prime_residue,
-    canonicalize_polynomial, chinese_remainder, chinese_remainder_pair, clone_number,
-    compute_elimination_basis, compute_groebner_basis, coverage_from_exact_disposition, coverage_from_factorization,
-    coverage_from_machine_disposition, curl_checked, definite_integrate_checked, det_bareiss, differentiate,
-    differentiate_checked, differentiate_term, divergence_checked, dixon_split, execute_calculus, execute_domain,
-    execute_field, execute_galois, execute_galois_with_tables, execute_graph_theory, execute_group, execute_linear_algebra,
-    execute_linear_system_goal, execute_number_theory, execute_optimization, execute_polynomial, execute_polynomial_mgraph,
-    execute_polynomial_root_goal, execute_polynomial_with_rings, extended_gcd, factor_component_from_primality,
-    factor_continue, factor_integer, factor_univariate, factorization_to_frontier, fermat_split, field_automorphism,
-    fourier_checked, frobenius_coords, gcd, gradient_checked, hadamard, hessian_checked, ideal_membership, index_scalar,
-    integrate, integrate_checked, invalid_index_diagnostic, is_galois_extension, is_perfect_power, isqrt, isqrt_if_exact,
-    jacobi_symbol, jacobian_checked, kronecker_symbol, laplace_checked, laurent, lcm, limit_checked,
-    linear_algebra_operation_name, lookup_function, lower_1based_inclusive_slice, lower_1based_scalar, lower_dialect_op,
-    lu_partial_pivot, matlab_star_kind, matmul, matrices_equal, mod_inverse, mod_pow, mul_polynomial, mul_with_jit_parity,
-    next_prime_after, non_boolean_condition_diagnostic, normalize_constraint_conjunction, normalize_relational_app,
-    number_from_wire, optimization_fingerprint_placeholder, optimization_operation_name, parity_diagnostic,
-    perfect_power_decomposition, polynomial_canonical_hash, primality_test, primes_up_to, proof_ref_from_witness, qs_split,
-    rank_exact, rank_machine, rational_reconstruction, record_polynomial_result, reduce_by_verified, reduce_ideal,
-    registered_function_names, reprs_mathematically_equal, require_goal, residue_checked, rref_rational, run_closure_step,
-    sample_1d, score_candidate, slice_matrix, solve_exact, solve_linear_congruence, solve_linear_system_exact,
-    solve_linear_system_machine, solve_lu, solve_machine, solve_ode_checked, solve_univariate_polynomial_roots, sub_polynomial,
-    taylor, transpose, try_calculus_request, unsupported_operation, verify_factorization, verify_groebner_basis,
-    witness_from_exact, z_checked,
-};
+/// 引擎句柄与选项。
+pub use athena_engine::api;
+/// 诊断构造与表达式摘要。
+pub use athena_engine::diagnostics;
+/// 数学领域 providers 与顶层域分派。
+pub use athena_engine::domains;
+/// KernelIR 编译、VM 与 builtins。
+pub use athena_engine::execution;
+/// 采样合同（非方言 render）。
+pub use athena_engine::plot;
+/// 改写编排、M-Graph 与 solver 调度。
+pub use athena_engine::reasoning;
+/// Session、语义表、值与对象。
+pub use athena_engine::runtime;
 
-/// Arena 构造 / 读取（方言 Form → AthenaIR lowering）。
-pub use athena_engine::arena_ops::{
-    app_args, app_head_name, as_boolean_id, copy_term_subtree, get_kind, number_from_id, push_app_named, push_bool, push_int,
-    push_list, push_null, push_symbol_name, symbol_name,
-};
+/// AthenaIR（真相源：`athena-ir`）。
+pub use athena_ir as ir;
+/// 数值塔（真相源：`athena-numeric`）。
+pub use athena_numeric as numeric;
+/// 改写器（真相源：`athena-rewriter`）。
+pub use athena_rewriter as rewriter;
+/// 共享身份 / 诊断 / wire 合同（真相源：`athena-types`）。
+pub use athena_types as types;
 
-/// 调试呈现（非方言 render）。
-pub use athena_engine::present::term_debug;
-
-/// Interp 求值结果。
-pub use athena_engine::interp::{EvalKind, Outcome as EvalOutcome};
-
-/// 数值塔：[`NumericValue`] / [`Number`] 为唯一执行真相源。
-pub use athena_engine::numeric;
+pub use athena_engine::{AthenaEngine, EvalOptions, Session, SimplifyOptions};

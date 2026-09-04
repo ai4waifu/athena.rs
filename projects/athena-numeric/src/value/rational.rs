@@ -64,8 +64,6 @@ impl Rational {
         })
     }
 
-
-
     fn owning_copy_pair(p: &MagnitudePair) -> MagnitudePair {
         p.try_clone().expect("portable default max_limbs unbounded")
     }

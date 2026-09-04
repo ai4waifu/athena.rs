@@ -10,7 +10,11 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    dyadic::Dyadic, execution_budget::NumericContext, integer::Sign, natural::Natural, rounding::RoundingPolicy,
+    dyadic::Dyadic,
+    execution_budget::NumericContext,
+    integer::Sign,
+    natural::Natural,
+    rounding::RoundingPolicy,
     storage::{MagnitudePair, gc_alloc_error},
 };
 
@@ -71,7 +75,6 @@ impl PartialEq for Decimal {
 impl Eq for Decimal {}
 
 impl Decimal {
-
     /// Limb1 / Limb2 significand 栈拷贝；Heap 返回 `None`。
     pub fn clone_inline(&self) -> Option<Self> {
         Some(Self::from_parts(self.significand.clone_inline()?, self.exponent, self.precision_bits))
@@ -80,11 +83,7 @@ impl Decimal {
     /// Owning 深复制（Living `19`）。
     pub fn try_clone_in(&self, ctx: &NumericContext) -> Result<Self> {
         ctx.check_entry()?;
-        Ok(Self::from_parts(
-            self.significand.try_clone().map_err(gc_alloc_error)?,
-            self.exponent,
-            self.precision_bits,
-        ))
+        Ok(Self::from_parts(self.significand.try_clone().map_err(gc_alloc_error)?, self.exponent, self.precision_bits))
     }
 
     fn from_parts(significand: MagnitudePair, exponent: i64, precision_bits: u32) -> Self {
@@ -241,7 +240,14 @@ impl Decimal {
         }
         let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
-            return Ok((Self::from_parts(self.significand.try_clone().expect("portable default unbounded"), self.exponent, precision_bits), RoundingStatus::Exact));
+            return Ok((
+                Self::from_parts(
+                    self.significand.try_clone().expect("portable default unbounded"),
+                    self.exponent,
+                    precision_bits,
+                ),
+                RoundingStatus::Exact,
+            ));
         }
 
         let discard = bits - u64::from(precision_bits);

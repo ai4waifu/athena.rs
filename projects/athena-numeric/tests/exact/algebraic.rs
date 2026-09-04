@@ -1,6 +1,6 @@
 //! 代数数骨架不变量。
 
-use athena_numeric::{NumericContext, AlgebraicNumber, AlgebraicRepresentation, Interval, PolynomialFingerprint, Real};
+use athena_numeric::{AlgebraicNumber, AlgebraicRepresentation, Interval, NumericContext, PolynomialFingerprint, Real};
 
 #[test]
 fn placeholder_requires_zero_fingerprint() {

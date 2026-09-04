@@ -3,12 +3,11 @@
 use athena_types::{Diagnostic, DiagnosticCode, NumericKind, SerializationVersion};
 
 use crate::{
-    execution_budget::NumericContext,
-    
     algebraic::{AlgebraicNumber, AlgebraicRepresentation},
     complex::{BranchPolicy, Complex},
     decimal::Decimal,
     dyadic::Dyadic,
+    execution_budget::NumericContext,
     finite_field::FiniteFieldValue,
     integer::{Integer, Sign},
     interval::{Interval, IntervalDecoration},
@@ -379,7 +378,8 @@ pub(crate) fn decode_modular_payload(sign: u8, payload: &[u8]) -> Result<Modular
         return Err(reject_non_canonical(WireReject::ModularBadModulus));
     }
     let mod_int = Integer::from_wire_parts(1, mod_mag)?;
-    let modulus = Modulus::new(mod_int.try_clone_in(&NumericContext::portable_default())?).map_err(|_| reject_non_canonical(WireReject::ModularBadModulus))?;
+    let modulus = Modulus::new(mod_int.try_clone_in(&NumericContext::portable_default())?)
+        .map_err(|_| reject_non_canonical(WireReject::ModularBadModulus))?;
     if residue.is_negative() || residue >= mod_int {
         return Err(reject_non_canonical(WireReject::ModularResidueUnreduced));
     }

@@ -2,7 +2,7 @@
 
 use athena_types::{
     AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, ExprId, Predicate, ProofRef, ResultId,
-    ScopeApplicability, ScopeConflictKind, ScopeMergeOutcome, SymbolId, TermId, TheoryContext, TheoryContextId, ValueId,
+    ScopeApplicability, ScopeConflictKind, ScopeMergeOutcome, SymbolId, TheoryContext, TheoryContextId, ValueId,
 };
 
 #[test]
@@ -11,10 +11,9 @@ fn sem0_ids_are_distinct_newtypes() {
     let v = ValueId(1);
     let r = ResultId(1);
     let p = ProofRef(1);
-    let t = TermId(1);
     // 同数值载荷不代表同一语义身份；类型系统禁止直接互转。
     assert_eq!(e.0, v.0);
-    assert_eq!(r.0, t.0);
+    assert_eq!(r.0, e.0);
     assert_eq!(p.0, 1);
     let _applicability = ScopeApplicability::Conditional { scope: AssumptionScopeId(0) };
     assert!(matches!(_applicability, ScopeApplicability::Conditional { .. }));
@@ -22,8 +21,8 @@ fn sem0_ids_are_distinct_newtypes() {
 
 #[test]
 fn assumption_scope_merge_detects_equal_vs_not_equal() {
-    let a = AssumptionScope::from_predicates(vec![Predicate::Equal(TermId(1), TermId(2))]);
-    let b = AssumptionScope::from_predicates(vec![Predicate::NotEqual(TermId(1), TermId(2))]);
+    let a = AssumptionScope::from_predicates(vec![Predicate::Equal(ExprId(1), ExprId(2))]);
+    let b = AssumptionScope::from_predicates(vec![Predicate::NotEqual(ExprId(1), ExprId(2))]);
     match a.merge(&b) {
         ScopeMergeOutcome::Conflict(c) => assert_eq!(c.kind, ScopeConflictKind::PredicateContradiction),
         ScopeMergeOutcome::Ok(_) => panic!("expected conflict"),
@@ -63,7 +62,7 @@ fn assumption_scope_project_keeps_symbol_predicates() {
     let scope = AssumptionScope::from_predicates(vec![
         Predicate::SymbolReal(SymbolId(0)),
         Predicate::SymbolNonZero(SymbolId(1)),
-        Predicate::Equal(TermId(3), TermId(4)),
+        Predicate::Equal(ExprId(3), ExprId(4)),
     ]);
     let projected = scope.project_to_symbols(&[SymbolId(0)]);
     assert_eq!(projected.predicates, vec![Predicate::SymbolReal(SymbolId(0))]);

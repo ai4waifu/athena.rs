@@ -173,7 +173,8 @@ pub fn div_rem(u: &[u64], v: &[u64]) -> (Vec<u64>, Vec<u64>) {
         let uj_lo = un[j + lv - 1];
         let mut qhat = if uj_hi == vn[lv - 1] {
             u64::MAX
-        } else {
+        }
+        else {
             ((((uj_hi as u128) << 64) | (uj_lo as u128)) / (vn[lv - 1] as u128)) as u64
         };
 

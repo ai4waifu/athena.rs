@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use athena_numeric::{NumericContext, Integer, Rational};
+use athena_numeric::{Integer, NumericContext, Rational};
 
 #[test]
 fn add_cross_cancels_common_denominator_factor() {

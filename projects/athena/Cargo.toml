@@ -13,6 +13,10 @@ portable = ["athena-engine/portable"]
 
 [dependencies]
 athena-engine = { workspace = true }
+athena-types = { workspace = true }
+athena-numeric = { workspace = true }
+athena-ir = { workspace = true }
+athena-rewriter = { workspace = true }
 
 [lints.rust]
 missing_docs = "warn"

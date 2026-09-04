@@ -378,4 +378,3 @@ impl NumericValue {
         })
     }
 }
-

@@ -1,16 +1,16 @@
 //! `engine` 分组种子 fixture。
 
-use athena_engine::{Session, interp::vm::evaluate_session};
+use athena_engine::{execution::vm::evaluate_session, runtime::Session};
 
-fn push_int(n: i64, session: &mut Session) -> athena_types::TermId {
-    athena_engine::arena_ops::push_int(session, n)
+fn push_int(n: i64, session: &mut Session) -> athena_types::ExprId {
+    athena_engine::runtime::values::arena::push_int(session, n)
 }
 
-fn push_app_named(head: &str, args: Vec<athena_types::TermId>, session: &mut Session) -> athena_types::TermId {
-    athena_engine::arena_ops::push_app_named(session, head, args)
+fn push_app_named(head: &str, args: Vec<athena_types::ExprId>, session: &mut Session) -> athena_types::ExprId {
+    athena_engine::runtime::values::arena::push_app_named(session, head, args)
 }
 
-use athena_engine::interp;
+use athena_engine::execution;
 
 use crate::{
     fixture::{BenchGroup, Fixture, FixtureMeta, Suite},
@@ -28,7 +28,7 @@ impl Fixture for EvalPowerFixture {
         let mut session = Session::new();
         let expr = push_app_named("Power", vec![push_int(2, &mut session), push_int(10, &mut session)], &mut session);
         let v = evaluate_session(&mut session, expr).term;
-        let Some(x) = interp::number_of(&session, v).and_then(athena_engine::numeric::to_f64_lossy)
+        let Some(x) = execution::number_of(&session, v).and_then(athena_numeric::to_f64_lossy)
         else {
             return Err("eval did not yield f64".into());
         };

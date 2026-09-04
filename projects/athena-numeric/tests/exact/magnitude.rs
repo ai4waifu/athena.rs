@@ -1,6 +1,7 @@
 //! Magnitude / Nat·Int（`meta + Magnitude`）布局与 canonical 表示测试。
 
-use athena_numeric::{NumericContext, 
+use athena_numeric::{
+    NumericContext,
     integer::{Integer, Sign},
     natural::Natural,
 };
