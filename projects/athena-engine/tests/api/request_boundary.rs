@@ -88,6 +88,24 @@ fn execute_request_control_is_explicit_unsupported() {
 }
 
 #[test]
+fn control_plan_covers_neutral_loop_and_recover_shapes() {
+    let mut session = Session::new();
+    let zero = session.builder().int(0, Default::default());
+    let one = session.builder().int(1, Default::default());
+    let _ = ControlPlan::LoopWhile { condition: zero, body: Box::new(AthenaRequest::Term(zero)) };
+    let _ = ControlPlan::CountedLoop { variable: zero, iterator: one, body: Box::new(AthenaRequest::Term(one)) };
+    let _ = ControlPlan::Recover {
+        body: Box::new(AthenaRequest::Term(zero)),
+        handler: Box::new(AthenaRequest::Term(one)),
+    };
+    let _ = ControlPlan::Cond {
+        arms: vec![(zero, Box::new(AthenaRequest::Term(one)))],
+        otherwise: Some(Box::new(AthenaRequest::Term(zero))),
+    };
+    let _ = ControlPlan::LocalScope { body: Box::new(AthenaRequest::Term(zero)) };
+}
+
+#[test]
 fn rejected_lowering_does_not_execute() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();

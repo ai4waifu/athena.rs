@@ -12,7 +12,7 @@ pub enum ControlPlan {
         /// 子请求。
         steps: Vec<AthenaRequest>,
     },
-    /// 条件分支。
+    /// 条件分支（对齐语义算子 `Branch`）。
     Branch {
         /// 条件 term（求值后须为布尔语义）。
         condition: TermId,
@@ -21,12 +21,47 @@ pub enum ControlPlan {
         /// 假分支（可缺省）。
         else_branch: Option<Box<AthenaRequest>>,
     },
-    /// 词法作用域执行（中性名，不叫 Module）。
+    /// 多条件链（对齐语义算子 `Cond`）。
+    Cond {
+        /// `(条件, 分支)` 对，按序取首个真条件。
+        arms: Vec<(TermId, Box<AthenaRequest>)>,
+        /// 可选默认分支。
+        otherwise: Option<Box<AthenaRequest>>,
+    },
+    /// 条件循环（对齐语义算子 `LoopWhile`）。
+    LoopWhile {
+        /// 循环条件。
+        condition: TermId,
+        /// 循环体。
+        body: Box<AthenaRequest>,
+    },
+    /// 计数 / 区间循环（对齐语义算子 `CountedLoop`）。
+    CountedLoop {
+        /// 循环变量（符号项）。
+        variable: TermId,
+        /// 迭代器项。
+        iterator: TermId,
+        /// 循环体。
+        body: Box<AthenaRequest>,
+    },
+    /// 错误恢复（对齐语义算子 `Recover`）。
+    Recover {
+        /// 受保护主体。
+        body: Box<AthenaRequest>,
+        /// 失败时执行的恢复分支。
+        handler: Box<AthenaRequest>,
+    },
+    /// 代换式局部作用域（对齐语义算子 `LocalScope`）。
+    LocalScope {
+        /// 主体。
+        body: Box<AthenaRequest>,
+    },
+    /// 词法作用域执行（对齐语义算子 `LexicalScope`）。
     LexicalScope {
         /// 局部符号绑定（符号名由 lowering 已解析为 `TermId` 侧定义命令或预绑定表）。
         body: Box<AthenaRequest>,
     },
-    /// 动态作用域执行（中性名，不叫 Block）。
+    /// 动态作用域执行（对齐语义算子 `DynamicScope`）。
     DynamicScope {
         /// 主体。
         body: Box<AthenaRequest>,
