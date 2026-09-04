@@ -7,7 +7,7 @@ use athena_types::{Diagnostic, DiagnosticCode, TermId};
 use crate::domains::linear_algebra::{MatrixEntry, MatrixValue, SolveDisposition, det_bareiss, solve_exact};
 
 use crate::execution::{
-    Outcome,
+    TermEvaluation,
     builtins::arithmetic::{number_of, power, push_number, times},
     vm::Vm,
 };
@@ -36,7 +36,7 @@ fn dot_apply(vm: &mut Vm<'_>, kind: DotOpKind, a: TermId, b: TermId) -> TermId {
 }
 
 /// nested List 广播二元运算（legacy `eval_dot_binop`）。
-pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, kind: DotOpKind) -> Outcome {
+pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, kind: DotOpKind) -> TermEvaluation {
     let op = vm.session.operators.intern(head);
     let l_list = matches!(vm.session.arena.get(left), Some(TermNode::List(_)));
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
@@ -45,7 +45,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
             let (a, b) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if a.len() != b.len() {
                 let echo = vm.rebuild_application_operator(op, vec![left, right]);
-                return Outcome::invalid(
+                return TermEvaluation::invalid(
                     echo,
                     Diagnostic::new(DiagnosticCode::ShapeMismatch)
                         .detail("reason", "elementwise_length_mismatch")
@@ -62,12 +62,12 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     dot_binop(vm, head, *x, *y, kind)
                 }
                 else {
-                    Outcome::value(dot_apply(vm, kind, *x, *y))
+                    TermEvaluation::value(dot_apply(vm, kind, *x, *y))
                 };
                 if cell.has_error() {
                     let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
-                    return Outcome {
+                    return TermEvaluation {
                         term: echo,
                         kind: crate::execution::EvalKind::Unevaluated,
                         status: athena_types::ComputationStatus::Invalid,
@@ -77,7 +77,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                 diags.extend(cell.diagnostics);
                 out.push(cell.term);
             }
-            Outcome {
+            TermEvaluation {
                 term: vm.push_list(out),
                 kind: crate::execution::EvalKind::Value,
                 status: athena_types::ComputationStatus::Exact,
@@ -93,12 +93,12 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     dot_binop(vm, head, x, right, kind)
                 }
                 else {
-                    Outcome::value(dot_apply(vm, kind, x, right))
+                    TermEvaluation::value(dot_apply(vm, kind, x, right))
                 };
                 if cell.has_error() {
                     let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
-                    return Outcome {
+                    return TermEvaluation {
                         term: echo,
                         kind: crate::execution::EvalKind::Unevaluated,
                         status: athena_types::ComputationStatus::Invalid,
@@ -108,7 +108,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                 diags.extend(cell.diagnostics);
                 out.push(cell.term);
             }
-            Outcome {
+            TermEvaluation {
                 term: vm.push_list(out),
                 kind: crate::execution::EvalKind::Value,
                 status: athena_types::ComputationStatus::Exact,
@@ -124,12 +124,12 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                     dot_binop(vm, head, left, y, kind)
                 }
                 else {
-                    Outcome::value(dot_apply(vm, kind, left, y))
+                    TermEvaluation::value(dot_apply(vm, kind, left, y))
                 };
                 if cell.has_error() {
                     let echo = vm.rebuild_application_operator(op, vec![left, right]);
                     diags.extend(cell.diagnostics);
-                    return Outcome {
+                    return TermEvaluation {
                         term: echo,
                         kind: crate::execution::EvalKind::Unevaluated,
                         status: athena_types::ComputationStatus::Invalid,
@@ -139,7 +139,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
                 diags.extend(cell.diagnostics);
                 out.push(cell.term);
             }
-            Outcome {
+            TermEvaluation {
                 term: vm.push_list(out),
                 kind: crate::execution::EvalKind::Value,
                 status: athena_types::ComputationStatus::Exact,
@@ -148,30 +148,30 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
         }
         (false, false) => {
             if number_of(vm, left).is_some() && number_of(vm, right).is_some() {
-                return Outcome::value(dot_apply(vm, kind, left, right));
+                return TermEvaluation::value(dot_apply(vm, kind, left, right));
             }
-            Outcome::unevaluated(vm.rebuild_application_operator(op, vec![left, right]))
+            TermEvaluation::unevaluated(vm.rebuild_application_operator(op, vec![left, right]))
         }
     }
 }
 
-pub(crate) fn h_zeros(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_zeros(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     matrix_fill(vm, "Zeros", args, 0)
 }
 
-pub(crate) fn h_ones(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_ones(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     matrix_fill(vm, "Ones", args, 1)
 }
 
-fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> Outcome {
+fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> TermEvaluation {
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
-        return Outcome::unevaluated(vm.push_application(head, args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application(head, args.to_vec()));
     };
     let n = match rows.checked_mul(cols) {
         Some(v) => v as usize,
         None => {
-            return Outcome::invalid(vm.push_list(vec![]), Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"));
+            return TermEvaluation::invalid(vm.push_list(vec![]), Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"));
         }
     };
     let fill_r = Rational::new(Integer::from_i64(fill), Integer::one());
@@ -181,23 +181,23 @@ fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> Outco
     }
     match MatrixValue::from_rationals_row_major(rows, cols, data) {
         Ok(m) => match matrix_to_nested_list(vm, &m) {
-            Ok(term) => Outcome::value(term),
-            Err(d) => Outcome::invalid(vm.push_list(vec![]), d),
+            Ok(term) => TermEvaluation::value(term),
+            Err(d) => TermEvaluation::invalid(vm.push_list(vec![]), d),
         },
-        Err(d) => Outcome::invalid(vm.push_list(vec![]), d),
+        Err(d) => TermEvaluation::invalid(vm.push_list(vec![]), d),
     }
 }
 
-pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     // `EvalOp` 传入已求值维度参数（与 `Zeros` / `Ones` 同形），不是 EvalRaw root。
     let Some((rows, cols)) = parse_matrix_dims(vm, args)
     else {
-        return Outcome::unevaluated(vm.push_application("Eye", args.to_vec()));
+        return TermEvaluation::unevaluated(vm.push_application("Eye", args.to_vec()));
     };
     let n = match rows.checked_mul(cols) {
         Some(v) => v as usize,
         None => {
-            return Outcome::invalid(
+            return TermEvaluation::invalid(
                 vm.push_application("Eye", args.to_vec()),
                 Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"),
             );
@@ -216,62 +216,62 @@ pub(crate) fn h_eye(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     let echo = vm.push_application("Eye", args.to_vec());
     match MatrixValue::from_rationals_row_major(rows, cols, data) {
         Ok(m) => match matrix_to_nested_list(vm, &m) {
-            Ok(term) => Outcome::value(term),
-            Err(d) => Outcome::invalid(echo, d),
+            Ok(term) => TermEvaluation::value(term),
+            Err(d) => TermEvaluation::invalid(echo, d),
         },
-        Err(d) => Outcome::invalid(echo, d),
+        Err(d) => TermEvaluation::invalid(echo, d),
     }
 }
 
-pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_size(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     match nested_list_shape(vm, args[0]) {
         Some((rows, cols)) => {
             let r = vm.push_int(rows as i64);
             let c = vm.push_int(cols as i64);
-            Outcome::value(vm.push_list(vec![r, c]))
+            TermEvaluation::value(vm.push_list(vec![r, c]))
         }
-        None => Outcome::unevaluated(vm.push_application("Size", vec![args[0]])),
+        None => TermEvaluation::unevaluated(vm.push_application("Size", vec![args[0]])),
     }
 }
 
-pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_det(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let echo = vm.push_application("Det", vec![args[0]]);
     let Some(m) = term_to_rational_matrix(vm, args[0])
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     match det_bareiss(&m) {
-        Ok(r) => Outcome::value(rational_to_term(vm, &r.det)),
-        Err(d) => Outcome::invalid(echo, d),
+        Ok(r) => TermEvaluation::value(rational_to_term(vm, &r.det)),
+        Err(d) => TermEvaluation::invalid(echo, d),
     }
 }
 
-pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_linear_solve(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let echo = vm.push_application("LinearSolve", vec![args[0], args[1]]);
     mldivide(vm, "LinearSolve", args[0], args[1], echo)
 }
 
-pub(crate) fn h_solve(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_solve(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::domains::solve(vm, args[0], args[1])
 }
 
 /// exact `A\b`（legacy `eval_mldivide`）。echo 由调用方构造（保持 head 名）。
-pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: TermId) -> Outcome {
+pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: TermId) -> TermEvaluation {
     let Some(am) = term_to_rational_matrix(vm, a)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     let Some(bm) = term_to_rational_matrix(vm, b)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     match solve_exact(&am, &bm) {
         Ok(sol) if sol.disposition == SolveDisposition::Unique => match sol.particular {
             Some(x) => match matrix_to_nested_list(vm, &x) {
-                Ok(term) => Outcome::value(term),
-                Err(d) => Outcome::invalid(echo, d),
+                Ok(term) => TermEvaluation::value(term),
+                Err(d) => TermEvaluation::invalid(echo, d),
             },
-            None => Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head)),
+            None => TermEvaluation::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head)),
         },
         Ok(sol) => {
             let detail = match sol.disposition {
@@ -281,18 +281,18 @@ pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: 
                 crate::domains::linear_algebra::SolveDisposition::Singular => "singular",
                 crate::domains::linear_algebra::SolveDisposition::ResourceLimited => "resource_limited",
             };
-            Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail))
+            TermEvaluation::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail))
         }
-        Err(d) => Outcome::invalid(echo, d),
+        Err(d) => TermEvaluation::invalid(echo, d),
     }
 }
 
 /// MATLAB-style `sum`：向量 → 标量和；矩阵 → 各列之和（行向量）。
-pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
+pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> TermEvaluation {
     let echo = vm.push_application("Sum", vec![arg]);
     let Some(m) = term_to_rational_matrix(vm, arg)
     else {
-        return Outcome::unevaluated(echo);
+        return TermEvaluation::unevaluated(echo);
     };
     let (rows, cols) = (m.shape().rows, m.shape().cols);
     let mut entry_q = |i: u64, j: u64| -> std::result::Result<Rational, Diagnostic> {
@@ -308,11 +308,11 @@ pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
             for j in 0..cols {
                 match entry_q(i, j) {
                     Ok(r) => acc = acc.add(&r),
-                    Err(d) => return Outcome::invalid(echo, d),
+                    Err(d) => return TermEvaluation::invalid(echo, d),
                 }
             }
         }
-        return Outcome::value(rational_to_term(vm, &acc));
+        return TermEvaluation::value(rational_to_term(vm, &acc));
     }
     let mut out = Vec::with_capacity(cols as usize);
     for j in 0..cols {
@@ -320,12 +320,12 @@ pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
         for i in 0..rows {
             match entry_q(i, j) {
                 Ok(r) => acc = acc.add(&r),
-                Err(d) => return Outcome::invalid(echo, d),
+                Err(d) => return TermEvaluation::invalid(echo, d),
             }
         }
         out.push(rational_to_term(vm, &acc));
     }
-    Outcome::value(vm.push_list(out))
+    TermEvaluation::value(vm.push_list(out))
 }
 
 // ---- 矩阵 ↔ arena 辅助 ----

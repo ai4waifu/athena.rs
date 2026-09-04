@@ -5,7 +5,7 @@ use athena_numeric::{Number, add as num_add, compare as num_compare, div as num_
 use athena_types::TermId;
 
 use crate::execution::{
-    Outcome,
+    TermEvaluation,
     vm::{Shape, Vm},
 };
 
@@ -27,8 +27,8 @@ fn is_application_named(vm: &Vm<'_>, id: TermId, name: &str) -> bool {
     vm.head_name(id).is_some_and(|h| h == name)
 }
 
-pub(crate) fn h_plus(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
-    Outcome::value(plus(vm, args))
+pub(crate) fn h_plus(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
+    TermEvaluation::value(plus(vm, args))
 }
 
 pub(crate) fn plus(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
@@ -150,12 +150,12 @@ fn push_plus_term(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, sum: &mut 
     }
 }
 
-pub(crate) fn h_times(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_times(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     times_outcome(vm, args)
 }
 
 /// `Times`：标量 × nested List 按 MATLAB/数组语义广播；两矩阵走 `matmul`；其它保持符号 `Times`。
-fn times_outcome(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+fn times_outcome(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let mut scalars = Vec::new();
     let mut lists = Vec::new();
     let mut other = false;
@@ -182,14 +182,14 @@ fn times_outcome(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             let echo = vm.push_application("Times", args.to_vec());
             return match crate::domains::linear_algebra::matmul(&am, &bm) {
                 Ok(m) => match super::matrix::matrix_to_nested_list(vm, &m) {
-                    Ok(term) => Outcome::value(term),
-                    Err(d) => Outcome::invalid(echo, d),
+                    Ok(term) => TermEvaluation::value(term),
+                    Err(d) => TermEvaluation::invalid(echo, d),
                 },
-                Err(d) => Outcome::invalid(echo, d),
+                Err(d) => TermEvaluation::invalid(echo, d),
             };
         }
     }
-    Outcome::value(times(vm, args))
+    TermEvaluation::value(times(vm, args))
 }
 
 pub(crate) fn times(vm: &mut Vm<'_>, args: &[TermId]) -> TermId {
@@ -314,8 +314,8 @@ fn flatten_times(vm: &mut Vm<'_>, a: TermId, flat: &mut Vec<TermId>, prod: &mut 
     }
 }
 
-pub(crate) fn h_power(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
-    Outcome::value(power(vm, args[0], args[1]))
+pub(crate) fn h_power(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
+    TermEvaluation::value(power(vm, args[0], args[1]))
 }
 
 pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
@@ -371,36 +371,36 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
     vm.push_application("Power", vec![base, exp])
 }
 
-pub(crate) fn h_subtract(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_subtract(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let one = vm.push_int(-1);
     let neg = times(vm, &[one, args[1]]);
-    Outcome::value(plus(vm, &[args[0], neg]))
+    TermEvaluation::value(plus(vm, &[args[0], neg]))
 }
 
-pub(crate) fn h_divide(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_divide(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     let one = vm.push_int(-1);
     let inv = power(vm, args[1], one);
-    Outcome::value(times(vm, &[args[0], inv]))
+    TermEvaluation::value(times(vm, &[args[0], inv]))
 }
 
-pub(crate) fn h_dot_times(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_dot_times(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::matrix::dot_binop(vm, "DotTimes", args[0], args[1], super::matrix::DotOpKind::Times)
 }
 
-pub(crate) fn h_dot_divide(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_dot_divide(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::matrix::dot_binop(vm, "DotDivide", args[0], args[1], super::matrix::DotOpKind::Divide)
 }
 
-pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
+pub(crate) fn h_dot_power(vm: &mut Vm<'_>, args: &[TermId]) -> TermEvaluation {
     super::matrix::dot_binop(vm, "DotPower", args[0], args[1], super::matrix::DotOpKind::Power)
 }
 
-pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
+pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> TermEvaluation {
     let root = operands[0];
     let name = vm.head_name(root).unwrap_or_default();
     let args = vm.application_arguments(root).unwrap_or_default();
     if args.len() != 2 {
-        return Outcome::invalid(
+        return TermEvaluation::invalid(
             root,
             athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation).detail("operation", name),
         );
@@ -418,7 +418,7 @@ pub(crate) fn h_mldivide(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
     if a.has_error() || b.has_error() {
         let mut d = a.diagnostics.clone();
         d.extend(b.diagnostics.clone());
-        return Outcome {
+        return TermEvaluation {
             term: echo,
             kind: crate::execution::EvalKind::Unevaluated,
             status: athena_types::ComputationStatus::Invalid,

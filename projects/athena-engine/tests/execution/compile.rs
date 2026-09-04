@@ -244,7 +244,7 @@ fn linear_algebra_paths() {
 fn interp_outcome_exposed() {
     let mut s = Session::new();
     let e = apply("Plus", vec![int(1, &mut s), int(2, &mut s)], &mut s);
-    let out: execution::Outcome = evaluate_session(&mut s, e);
+    let out: execution::TermEvaluation = evaluate_session(&mut s, e);
     assert!(matches!(out.kind, execution::EvalKind::Value));
     assert!(out.diagnostics.is_empty());
 }
