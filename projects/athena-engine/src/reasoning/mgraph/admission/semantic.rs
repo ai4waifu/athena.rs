@@ -31,8 +31,8 @@ impl SemanticCore {
         Self::default()
     }
 
-    /// 经 admission gate 接纳后写入 semantic core（唯一写入路径；双写 fact log）。
-    pub fn commit(&mut self, claim: VerifiedClaim) -> FactId {
+    /// 仅由 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`] 调用（双写 fact log）。
+    pub(crate) fn commit(&mut self, claim: VerifiedClaim) -> FactId {
         let id = self.core.admit(claim.clone());
         self.fact_log.append(claim.clone());
         self.derived.apply_verified_claim(&claim);

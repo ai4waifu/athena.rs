@@ -75,7 +75,7 @@ impl EvidenceVerifier {
                 guarantee: claim.guarantee,
             };
         }
-        AdmissionOutcome::Admitted(VerifiedClaim::new(claim.clone()))
+        AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim.clone()))
     }
 
     /// 验证多项式 solver 产出（Claim 合同判据，非 `PolynomialResult::Exact` 名称）。
@@ -102,10 +102,22 @@ impl EvidenceVerifier {
     }
 }
 
-/// Admission 唯一写入入口：`verify` → semantic core + operational cache。
+/// Admission 唯一公开写入入口：`verify` → semantic core（及可选 operational cache）。
 pub struct AdmissionGate;
 
 impl AdmissionGate {
+    /// 经 [`EvidenceVerifier`] 后写入 semantic core（通用 claim 唯一公开路径）。
+    pub fn admit_claim(
+        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        claim: Claim,
+        policy: &VerificationPolicy,
+    ) -> Result<crate::reasoning::mgraph::facts::log::FactId, AdmissionRejectReason> {
+        match EvidenceVerifier::verify(&claim, policy) {
+            AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
+            AdmissionOutcome::Rejected { reason, .. } => Err(reason),
+        }
+    }
+
     /// 接纳多项式结果：operational cache 始终写入，semantic core 仅 verified claim。
     pub fn commit_polynomial(
         state: &mut MGraphState,
@@ -121,12 +133,12 @@ impl AdmissionGate {
     }
 }
 
-/// 对多项式 Exact 值构造 admission 结果（兼容旧 API）。
+/// 对多项式 Exact 值执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_exact(key: &PolynomialCacheKey, value: &PolynomialDomainValue) -> AdmissionOutcome {
     EvidenceVerifier::verify_polynomial(key, &PolynomialResult::Exact { value: value.clone() }, &VerificationPolicy::default())
 }
 
-/// 对 [`PolynomialResult`] 执行 admission（兼容旧 API）。
+/// 对 [`PolynomialResult`] 执行 verifier（不写入 semantic core）。
 pub fn admit_polynomial_result(key: &PolynomialCacheKey, result: &PolynomialResult) -> AdmissionOutcome {
     EvidenceVerifier::verify_polynomial(key, result, &VerificationPolicy::default())
 }

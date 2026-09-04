@@ -65,8 +65,10 @@ impl MGraphCore {
         &mut self.relation_index
     }
 
-    /// 唯一语义写入路径：接纳已验证关系。
-    pub fn admit(&mut self, claim: VerifiedClaim) -> RelationRef {
+    /// 仅由 [`crate::reasoning::mgraph::admission::semantic::SemanticCore`] 调用。
+    ///
+    /// 公开写入必须经 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`]。
+    pub(crate) fn admit(&mut self, claim: VerifiedClaim) -> RelationRef {
         let record = RelationRecord::from_verified(claim);
         self.relation_index.append(record)
     }

@@ -95,8 +95,10 @@ pub struct VerifiedClaim {
 }
 
 impl VerifiedClaim {
-    /// 构造已验证 claim。
-    pub fn new(claim: Claim) -> Self {
+    /// 仅由 [`crate::reasoning::mgraph::admission::gate::EvidenceVerifier`] 构造。
+    ///
+    /// 禁止任意代码伪造已验证事实（Living `26`）。
+    pub(crate) fn from_admission(claim: Claim) -> Self {
         Self { claim }
     }
 
