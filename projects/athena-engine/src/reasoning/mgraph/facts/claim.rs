@@ -41,14 +41,39 @@ pub enum Guarantee {
     Unknown,
 }
 
-/// 可验证证据（最小合同；完整 verifier 后续扩展）。
+/// 可验证证据证书（机器可读字段；`summary` 仅展示）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceCertificate {
+    /// 多项式精确运算证书。
+    PolynomialExact {
+        /// 缓存操作。
+        operation: PolynomialCacheOp,
+        /// 请求指纹。
+        request_fingerprint: u64,
+        /// 输入哈希序列。
+        input_hashes: Vec<u64>,
+        /// Gröbner S-pair 步数（若适用）。
+        groebner_steps: Option<u32>,
+    },
+    /// 拒绝接纳时的审计占位（不得冒充证明）。
+    Rejected {
+        /// 当时的保证层级。
+        guarantee: Guarantee,
+    },
+    /// 仅测试夹具（禁止生产路径）。
+    TestHarness,
+}
+
+/// 可验证证据（最小合同；完整 EvidenceStore 后续扩展）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Evidence {
-    /// 来自已验证纯 Rust 内核的可重放摘要。
+    /// 来自已验证纯 Rust 内核。
     TrustedKernel {
         /// 产出 capability provider。
         provider: CapabilityProviderId,
-        /// 人类可读审计摘要。
+        /// 机器可读证书。
+        certificate: EvidenceCertificate,
+        /// 人类可读审计摘要（仅展示，不得单独充当证明本体）。
         summary: String,
     },
 }

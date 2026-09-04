@@ -172,10 +172,14 @@ fn classify_polynomial_guarantee(value: &PolynomialDomainValue) -> Guarantee {
 
 fn build_polynomial_evidence(key: &PolynomialCacheKey, value: &PolynomialDomainValue, guarantee: Guarantee) -> Evidence {
     if guarantee != Guarantee::ProvenExact {
-        return Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: format!("rejected:{guarantee:?}") };
+        return Evidence::TrustedKernel {
+            provider: POLYNOMIAL_PROVIDER_ID,
+            certificate: crate::reasoning::mgraph::facts::claim::EvidenceCertificate::Rejected { guarantee },
+            summary: format!("rejected:{guarantee:?}"),
+        };
     }
     let witness = witness_from_exact(key, value);
-    evidence_from_witness(&witness)
+    evidence_from_witness(key, &witness)
 }
 
 fn reject_reason_for_guarantee(guarantee: Guarantee) -> AdmissionRejectReason {
@@ -200,6 +204,15 @@ fn guarantee_rank(g: Guarantee) -> u8 {
     }
 }
 
-fn evidence_from_witness(witness: &PolynomialWitness) -> Evidence {
-    Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary) }
+fn evidence_from_witness(key: &PolynomialCacheKey, witness: &PolynomialWitness) -> Evidence {
+    Evidence::TrustedKernel {
+        provider: POLYNOMIAL_PROVIDER_ID,
+        certificate: crate::reasoning::mgraph::facts::claim::EvidenceCertificate::PolynomialExact {
+            operation: witness.operation,
+            request_fingerprint: key.fingerprint(),
+            input_hashes: witness.input_hashes.clone(),
+            groebner_steps: witness.groebner_steps,
+        },
+        summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary),
+    }
 }
