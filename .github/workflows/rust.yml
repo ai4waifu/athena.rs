@@ -16,6 +16,11 @@ jobs:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Migration expiry gate
+        run: node scripts/migration/check-expiry.mjs
       - name: Check
         run: cargo check --workspace --all-targets
       - name: Tests
