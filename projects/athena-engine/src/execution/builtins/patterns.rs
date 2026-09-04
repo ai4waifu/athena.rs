@@ -1,93 +1,117 @@
-//! 模式匹配与替换 — 数据面 `TermId` 结构操作（legacy `pattern_*` / `substitute_*` 语义）。
+//! 模式匹配与替换 — 数据面 `TermId` 结构操作。
 //!
-//! 只重建被改动的路径，未改动子树按 arena 地址共享。
+//! 匹配本体为 [`crate::reasoning::trs::TermPattern`]。方言 `Blank` / `Pattern`
+//! 仅经 [`lower_from_dialect_term`] 进入，不再作为匹配器分支本体。
 
 use std::collections::HashMap;
 
 use athena_types::{SymbolId, TermId};
 
-use crate::execution::vm::{Shape, Vm};
+use crate::{
+    execution::vm::{Shape, Vm},
+    reasoning::trs::TermPattern,
+};
 
 /// MatchQ 式匹配（无绑定）。
 pub(crate) fn pattern_matches(vm: &mut Vm<'_>, expr: TermId, pat: TermId) -> bool {
     pattern_bind(vm, expr, pat, &mut HashMap::new())
 }
 
-/// 结构匹配并收集 `Pattern[name, p]` 绑定。
+/// 结构匹配并收集绑定（方言模式项先降为中性 [`TermPattern`]）。
 pub(crate) fn pattern_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
-    let Some(ps) = vm.shape(pat)
+    let pattern = lower_from_dialect_term(vm, pat);
+    match_term_pattern(vm, expr, &pattern, binds)
+}
+
+/// 将方言表面模式项降为中性 [`TermPattern`]。
+pub(crate) fn lower_from_dialect_term(vm: &mut Vm<'_>, pat: TermId) -> TermPattern {
+    let Some(shape) = vm.shape(pat)
     else {
-        return false;
+        return TermPattern::Exact(pat);
     };
-    match ps {
+    match shape {
         Shape::Application(op, args) => {
             let name = vm.session.operators.name(op).unwrap_or("").to_string();
             match name.as_str() {
                 "Blank" => match args.as_slice() {
-                    [] => true,
-                    [head_pat] => expr_has_head(vm, expr, *head_pat),
-                    _ => false,
+                    [] => TermPattern::Any,
+                    [head_pat] => match vm.head_name(*head_pat) {
+                        Some(head_name) => TermPattern::HeadConstraint { head_name },
+                        None => TermPattern::Exact(pat),
+                    },
+                    _ => TermPattern::Exact(pat),
                 },
                 "Pattern" if args.len() == 2 => {
                     let Some(Shape::Symbol(name_sym)) = vm.shape(args[0])
                     else {
-                        return false;
+                        return TermPattern::Exact(pat);
                     };
-                    if pattern_bind(vm, expr, args[1], binds) {
-                        binds.insert(name_sym, expr);
-                        true
-                    }
-                    else {
-                        false
+                    TermPattern::Bind {
+                        name: name_sym,
+                        inner: Box::new(lower_from_dialect_term(vm, args[1])),
                     }
                 }
-                _ => structural_bind(vm, expr, pat, binds),
+                _ => TermPattern::StructuralApplication(
+                    args.into_iter().map(|a| lower_from_dialect_term(vm, a)).collect(),
+                ),
             }
         }
-        Shape::List(_) => structural_bind(vm, expr, pat, binds),
-        _ => vm.session.arena.structural_eq(expr, pat),
+        Shape::List(items) => TermPattern::Sequence(items.into_iter().map(|i| lower_from_dialect_term(vm, i)).collect()),
+        _ => TermPattern::Exact(pat),
     }
 }
 
-/// List↔List / App↔App 结构匹配；App 的 head 按算子名一致判定
-/// （legacy head term 匹配对符号 head 等价于名相等）。
-fn structural_bind(vm: &mut Vm<'_>, expr: TermId, pat: TermId, binds: &mut HashMap<SymbolId, TermId>) -> bool {
-    let Some(p) = vm.shape(pat)
-    else {
-        return vm.session.arena.structural_eq(expr, pat);
-    };
-    let (pat_app, pat_items) = match p {
-        Shape::List(v) => (false, v),
-        Shape::Application(op, v) => (true, v),
-        _ => return vm.session.arena.structural_eq(expr, pat),
-    };
-    let Some(e) = vm.shape(expr)
-    else {
-        return false;
-    };
-    let (expr_app, expr_items) = match e {
-        Shape::List(v) => (false, v),
-        Shape::Application(_, v) => (true, v),
-        _ => return false,
-    };
-    if pat_app != expr_app {
-        return false;
+/// 对中性 [`TermPattern`] 做结构匹配并收集绑定。
+pub(crate) fn match_term_pattern(
+    vm: &mut Vm<'_>,
+    expr: TermId,
+    pattern: &TermPattern,
+    binds: &mut HashMap<SymbolId, TermId>,
+) -> bool {
+    match pattern {
+        TermPattern::Any => true,
+        TermPattern::HeadConstraint { head_name } => head_constraint_holds(vm, expr, head_name),
+        TermPattern::Bind { name, inner } => {
+            if match_term_pattern(vm, expr, inner, binds) {
+                binds.insert(*name, expr);
+                true
+            }
+            else {
+                false
+            }
+        }
+        TermPattern::Exact(literal) => vm.session.arena.structural_eq(expr, *literal),
+        TermPattern::Sequence(items) => {
+            let Some(Shape::List(expr_items)) = vm.shape(expr)
+            else {
+                return false;
+            };
+            zip_match(vm, &expr_items, items, binds)
+        }
+        TermPattern::StructuralApplication(items) => {
+            let Some(Shape::Application(_, args)) = vm.shape(expr)
+            else {
+                return false;
+            };
+            zip_match(vm, &args, items, binds)
+        }
     }
-    pat_items.len() == expr_items.len()
-        && pat_items.iter().zip(expr_items.iter()).all(|(p2, e2)| pattern_bind(vm, *e2, *p2, binds))
 }
 
-/// `Blank[h]` 的 head 判定（legacy `expr_has_head`）。
-pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> bool {
-    let Some(Shape::Symbol(_)) = vm.shape(head_pat)
-    else {
+fn zip_match(
+    vm: &mut Vm<'_>,
+    exprs: &[TermId],
+    patterns: &[TermPattern],
+    binds: &mut HashMap<SymbolId, TermId>,
+) -> bool {
+    if exprs.len() != patterns.len() {
         return false;
-    };
-    let Some(name) = vm.head_name(head_pat)
-    else {
-        return false;
-    };
-    match name.as_str() {
+    }
+    exprs.iter().zip(patterns.iter()).all(|(e, p)| match_term_pattern(vm, *e, p, binds))
+}
+
+fn head_constraint_holds(vm: &mut Vm<'_>, expr: TermId, head_name: &str) -> bool {
+    match head_name {
         "Integer" => match vm.shape(expr) {
             Some(Shape::Number) => match vm.session.arena.get(expr) {
                 Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) => {
@@ -102,6 +126,15 @@ pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> 
         "String" => matches!(vm.shape(expr), Some(Shape::String(_))),
         other => vm.head_name(expr).is_some_and(|h| h == other),
     }
+}
+
+/// head 约束判定（经中性 `HeadConstraint`）。
+pub(crate) fn expr_has_head(vm: &mut Vm<'_>, expr: TermId, head_pat: TermId) -> bool {
+    let Some(head_name) = vm.head_name(head_pat)
+    else {
+        return false;
+    };
+    match_term_pattern(vm, expr, &TermPattern::HeadConstraint { head_name }, &mut HashMap::new())
 }
 
 /// `Pattern` 名下的绑定替换（legacy `substitute_pattern_binds`）：符号原子替换，未命中共享。

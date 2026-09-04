@@ -3,3 +3,5 @@
 pub mod mgraph;
 pub mod rewrite;
 pub mod solver;
+pub mod trs;
+
