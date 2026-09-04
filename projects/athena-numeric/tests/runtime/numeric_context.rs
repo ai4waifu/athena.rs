@@ -90,8 +90,7 @@ fn can_reuse_destination_false_matches_default_results() {
 
     let limbs = vec![u64::MAX; 6];
     let heap = GcHeap::new_shared(HeapBudget::default());
-    let a =
-        Natural::from_limbs_in(&NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()), limbs.clone()).unwrap();
+    let a = Natural::from_limbs_in(&NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()), limbs.clone()).unwrap();
     let b = Natural::from_limbs_in(&NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone()), limbs).unwrap();
 
     let ctx_reuse = NumericContext::with_heap(ExecutionBudget::unlimited(), heap.clone());

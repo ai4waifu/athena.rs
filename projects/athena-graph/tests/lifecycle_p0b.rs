@@ -2,9 +2,9 @@
 
 use athena_gc::{GcHeap, HeapBudget, SegmentKind, Trace};
 use athena_graph::{
-    ChunkRegistry, ChunkResidency, ChunkSet, FrontierCheckpoint, GraphAlgorithmCheckpoint, GraphChunkId, GraphError, GraphId,
-    GraphRevision, GraphRevisionId, GraphRevisionRecord, GraphSnapshot, GraphSnapshotId, GraphSnapshotRecord, GraphWorkspaceId,
-    RecordingTracer, RepresentationId, SpillObjectId,
+    ChunkRegistry, ChunkResidency, ChunkSet, FrontierCheckpoint, GraphAlgorithmCheckpoint, GraphChunkId, GraphError, GraphId, GraphRevision,
+    GraphRevisionId, GraphRevisionRecord, GraphSnapshot, GraphSnapshotId, GraphSnapshotRecord, GraphWorkspaceId, RecordingTracer,
+    RepresentationId, SpillObjectId,
 };
 
 #[test]

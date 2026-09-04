@@ -49,9 +49,7 @@ pub fn solve_linear_congruence(a: &Integer, b: &Integer, modulus: &Modulus) -> N
 
     if g.is_one() {
         return NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass {
-                residue: ModularValue::new(x0, clone_modulus(&modulus)),
-            }),
+            value: NumberTheoryValue::Congruence(CongruenceSolution::UniqueClass { residue: ModularValue::new(x0, clone_modulus(&modulus)) }),
         };
     }
 

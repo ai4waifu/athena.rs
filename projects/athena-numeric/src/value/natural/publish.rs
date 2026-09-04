@@ -94,11 +94,7 @@ impl Natural {
     /// Kernel `*_into` 后 canonicalize 并发布（值层 executor，非 machine kernel）。
     pub(crate) fn publish_with_kernel(
         ctx: &NumericContext,
-        write: impl FnOnce(
-            &mut LimbBuffer,
-            &mut crate::kernel::ScratchWorkspace,
-            &crate::policy::execution_budget::ExecutionBudget,
-        ) -> Result<()>,
+        write: impl FnOnce(&mut LimbBuffer, &mut crate::kernel::ScratchWorkspace, &crate::policy::execution_budget::ExecutionBudget) -> Result<()>,
     ) -> Result<Self> {
         Self::publish_into(ctx, write)
     }
@@ -109,11 +105,7 @@ impl Natural {
     /// 输出 `LimbBuffer` 容量；否则使用临时缓冲。Heap 结果经 GC `OwnedLimbBuffer` 接管。
     pub(super) fn publish_into(
         ctx: &NumericContext,
-        write: impl FnOnce(
-            &mut LimbBuffer,
-            &mut crate::kernel::ScratchWorkspace,
-            &crate::policy::execution_budget::ExecutionBudget,
-        ) -> Result<()>,
+        write: impl FnOnce(&mut LimbBuffer, &mut crate::kernel::ScratchWorkspace, &crate::policy::execution_budget::ExecutionBudget) -> Result<()>,
     ) -> Result<Self> {
         ctx.check_entry()?;
         if ctx.can_reuse_destination() {

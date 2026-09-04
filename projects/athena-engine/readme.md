@@ -9,7 +9,8 @@
 - **M-Graph**：`MGraphCore`（scope/relation index + admit/close）、`DerivedIndexes`、OperationalState
 - **`solve/`**：`SolveProblem` / `SolutionSet` / `CoverageStatus` 数学合同（Living `21`）
 - **`solver/`**：Reflector / Registry / Frontier / `SolverRequest` 调度协议（非 Solve 数学对象）
-- **`optimization/`**：优化问题合同（Living `16`：`DecisionVariable` / `FeasibleSet` / `OptimizationProblem` / `BoundCertificate`；**不是** Solve 别名；算法前仅骨架）
+- **`optimization/`**：优化问题合同（Living `16`：`DecisionVariable` / `FeasibleSet` / `OptimizationProblem` /
+  `BoundCertificate`； **不是** Solve 别名；算法前仅骨架）
 - 化简 / 重写流水线编排（调用 `athena-rewriter`）
 - 微分、积分及其他领域操作编排
 - 资源 / 递归限制与取消检查

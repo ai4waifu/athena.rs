@@ -2,10 +2,7 @@
 
 use athena_engine::domains::{
     algebra::{FieldTable, PropertyState},
-    field::{
-        FieldDescriptor, FieldElementRepr, add_field_elements, canonical_extension_element, inv_field_element,
-        mul_field_elements,
-    },
+    field::{FieldDescriptor, FieldElementRepr, add_field_elements, canonical_extension_element, inv_field_element, mul_field_elements},
 };
 use athena_numeric::Integer;
 use athena_types::DiagnosticCode;
@@ -30,8 +27,7 @@ fn polynomial_basis_field_interns_idempotently() {
 #[test]
 fn reducible_modulus_rejected() {
     let mut table = FieldTable::new();
-    let err =
-        table.polynomial_basis_field(Integer::from_i64(2), vec![Integer::zero(), Integer::zero(), Integer::one()]).unwrap_err();
+    let err = table.polynomial_basis_field(Integer::from_i64(2), vec![Integer::zero(), Integer::zero(), Integer::one()]).unwrap_err();
     assert_eq!(err.code.as_str(), DiagnosticCode::FieldModulusReducible.as_str());
 }
 
@@ -71,9 +67,7 @@ fn gf8_degree_three_extension() {
 #[test]
 fn extension_field_has_same_characteristic_as_base() {
     let mut table = FieldTable::new();
-    let f9 = table
-        .polynomial_basis_field(Integer::from_i64(3), vec![Integer::from_i64(1), Integer::zero(), Integer::one()])
-        .unwrap();
+    let f9 = table.polynomial_basis_field(Integer::from_i64(3), vec![Integer::from_i64(1), Integer::zero(), Integer::one()]).unwrap();
     assert_eq!(table.characteristic(f9), Some(Integer::from_i64(3)));
 }
 

@@ -79,13 +79,7 @@ impl<'batch> EphemeralInteger<'batch> {
     }
 
     /// 同号相加 / 异号相减的批内加法（幅度借用）。
-    pub fn try_add(
-        lhs_limbs: &[u64],
-        lhs_neg: bool,
-        rhs_limbs: &[u64],
-        rhs_neg: bool,
-        batch: &'batch mut NumericBatch<'_>,
-    ) -> Result<Self> {
+    pub fn try_add(lhs_limbs: &[u64], lhs_neg: bool, rhs_limbs: &[u64], rhs_neg: bool, batch: &'batch mut NumericBatch<'_>) -> Result<Self> {
         let lz = limb_kernel::is_zero(lhs_limbs);
         let rz = limb_kernel::is_zero(rhs_limbs);
         if lz && rz {

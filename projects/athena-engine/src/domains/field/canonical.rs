@@ -5,13 +5,10 @@ use athena_types::{AlgebraMapId, AutomorphismId, Diagnostic, DiagnosticCode, Fie
 
 use crate::{
     domains::algebra::{
-        AlgebraParentId, FieldTable, MapTable, add_coords, add_nf_coords, canonical_coords, canonical_nf_coords,
-        embed_base_coords, inv_coords, inv_nf_coords, inv_relative_nf_coords, mul_coords, mul_nf_coords,
-        mul_relative_nf_coords,
+        AlgebraParentId, FieldTable, MapTable, add_coords, add_nf_coords, canonical_coords, canonical_nf_coords, embed_base_coords, inv_coords,
+        inv_nf_coords, inv_relative_nf_coords, mul_coords, mul_nf_coords, mul_relative_nf_coords,
     },
-    runtime::values::numeric_clone::{
-        clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals,
-    },
+    runtime::values::numeric_clone::{clone_integer, clone_integers, clone_rational, clone_rationals, resize_integers, resize_rationals},
 };
 
 use super::types::{FieldElement, FieldElementRepr};
@@ -88,12 +85,7 @@ pub fn apply_prime_subfield_embedding(
 }
 
 /// 经已注册基域嵌入将 K 元素映到 L（数域塔）。
-pub fn apply_base_field_embedding(
-    table: &FieldTable,
-    maps: &MapTable,
-    map_id: AlgebraMapId,
-    element: &FieldElement,
-) -> Result<FieldElement> {
+pub fn apply_base_field_embedding(table: &FieldTable, maps: &MapTable, map_id: AlgebraMapId, element: &FieldElement) -> Result<FieldElement> {
     let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
     map.require_proven()?;
     let (source, target) = field_endpoints(map)?;
@@ -124,15 +116,9 @@ pub fn apply_base_field_embedding(
 }
 
 /// 对 𝔽_{p^n} 元素应用已注册 Frobenius 自同构。
-pub fn apply_field_automorphism(
-    table: &FieldTable,
-    maps: &MapTable,
-    aut: AutomorphismId,
-    element: &FieldElement,
-) -> Result<FieldElement> {
-    let power = maps
-        .automorphism_frobenius_power(aut)
-        .ok_or_else(|| Diagnostic::new(DiagnosticCode::AutomorphismInvalid).detail("domain", "field"))?;
+pub fn apply_field_automorphism(table: &FieldTable, maps: &MapTable, aut: AutomorphismId, element: &FieldElement) -> Result<FieldElement> {
+    let power =
+        maps.automorphism_frobenius_power(aut).ok_or_else(|| Diagnostic::new(DiagnosticCode::AutomorphismInvalid).detail("domain", "field"))?;
     let extension = table.extension_by_field(element.field).ok_or_else(|| field_element_invalid("not_extension_field"))?;
     match &element.repr {
         FieldElementRepr::ExtensionCoords { coords } => {
@@ -144,12 +130,7 @@ pub fn apply_field_automorphism(
 }
 
 /// 经已注册 canonical embedding 将 ℚ 元素映到 𝔽_p。
-pub fn apply_field_embedding(
-    table: &FieldTable,
-    maps: &MapTable,
-    map_id: AlgebraMapId,
-    element: &FieldElement,
-) -> Result<FieldElement> {
+pub fn apply_field_embedding(table: &FieldTable, maps: &MapTable, map_id: AlgebraMapId, element: &FieldElement) -> Result<FieldElement> {
     let map = maps.get(map_id).ok_or_else(|| field_element_invalid("unknown_map"))?;
     map.require_proven()?;
     let (source, target) = field_endpoints(map)?;
@@ -221,8 +202,7 @@ pub fn mul_field_elements(table: &FieldTable, lhs: &FieldElement, rhs: &FieldEle
                 mul_nf_coords(a, b, &spec.absolute_modulus)
             }
             else {
-                let base_spec =
-                    table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+                let base_spec = table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
                 mul_relative_nf_coords(
                     a,
                     b,
@@ -265,8 +245,7 @@ pub fn inv_field_element(table: &FieldTable, element: &FieldElement) -> Result<F
                 inv_nf_coords(coords, &spec.absolute_modulus)?
             }
             else {
-                let base_spec =
-                    table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
+                let base_spec = table.number_field_spec(spec.base).ok_or_else(|| field_element_invalid("relative_base_missing"))?;
                 inv_relative_nf_coords(
                     coords,
                     &base_spec.absolute_modulus,

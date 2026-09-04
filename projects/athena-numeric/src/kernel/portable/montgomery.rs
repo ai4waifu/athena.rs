@@ -110,13 +110,7 @@ pub(crate) fn montgomery_precompute(modulus: &[u64]) -> (u64, Vec<u64>) {
     (n_prime, r2)
 }
 
-pub(crate) fn mod_pow_montgomery_precomputed(
-    base: &[u64],
-    exp: &[u64],
-    modulus: &[u64],
-    n_prime: u64,
-    r2_mod_m: &[u64],
-) -> Vec<u64> {
+pub(crate) fn mod_pow_montgomery_precomputed(base: &[u64], exp: &[u64], modulus: &[u64], n_prime: u64, r2_mod_m: &[u64]) -> Vec<u64> {
     assert!(!is_zero(modulus));
     if is_one(modulus) {
         return vec![0];

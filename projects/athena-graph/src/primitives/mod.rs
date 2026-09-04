@@ -9,8 +9,8 @@ mod union_find;
 
 pub use components::{connected_components, strongly_connected_components, topological_sort};
 pub use frontier::{
-    CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, deterministic_bfs,
-    resume_deterministic_bfs, sort_neighbors_deterministic,
+    CancelFlag, DeterministicBfsOutcome, DeterministicFrontier, FrontierCheckpoint, deterministic_bfs, resume_deterministic_bfs,
+    sort_neighbors_deterministic,
 };
 pub use traversal::bfs_order;
 pub use union_find::UnionFind;

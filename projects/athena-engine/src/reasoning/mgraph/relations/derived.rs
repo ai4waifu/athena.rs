@@ -36,11 +36,7 @@ impl DerivedIndexes {
         }
         match &claim.claim.proposition {
             Proposition::PolynomialResult { .. } => {
-                self.rewrite_witnesses.push(RewriteWitness {
-                    provider: POLYNOMIAL_PROVIDER_ID,
-                    inputs: Vec::new(),
-                    outputs: Vec::new(),
-                });
+                self.rewrite_witnesses.push(RewriteWitness { provider: POLYNOMIAL_PROVIDER_ID, inputs: Vec::new(), outputs: Vec::new() });
             }
             Proposition::Congruence { .. } => {}
         }

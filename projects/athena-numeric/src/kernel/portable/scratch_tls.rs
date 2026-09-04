@@ -9,10 +9,7 @@ thread_local! {
 }
 
 /// 借用线程本地 scratch 执行 kernel（调用结束清空）。
-pub(crate) fn with_kernel_scratch<R>(
-    budget: &ExecutionBudget,
-    f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R,
-) -> R {
+pub(crate) fn with_kernel_scratch<R>(budget: &ExecutionBudget, f: impl FnOnce(&mut ScratchWorkspace, &ExecutionBudget) -> R) -> R {
     KERNEL_SCRATCH.with(|cell| {
         if let Ok(mut scratch) = cell.try_borrow_mut() {
             let result = f(&mut *scratch, budget);

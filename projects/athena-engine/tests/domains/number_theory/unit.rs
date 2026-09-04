@@ -3,8 +3,8 @@
 use std::str::FromStr;
 
 use athena_engine::domains::number_theory::{
-    CompositeWitness, FactorBaseStatus, FactorLimits, FactorizationCompleteness, MillerRabinBaseSelection, Primality,
-    extended_gcd, factor_integer, gcd, mod_inverse, mod_pow, primality_test, verify_factorization,
+    CompositeWitness, FactorBaseStatus, FactorLimits, FactorizationCompleteness, MillerRabinBaseSelection, Primality, extended_gcd,
+    factor_integer, gcd, mod_inverse, mod_pow, primality_test, verify_factorization,
 };
 use athena_numeric::{Integer, Modulus, PrimeModulus};
 use athena_types::DiagnosticCode;

@@ -11,9 +11,7 @@ use crate::{
     domains::{
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
-        polynomial::{
-            PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
-        },
+        polynomial::{PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings},
     },
     execution::{self, environment::DefinitionLayer, vm::UnitCache},
     reasoning::mgraph::MGraphState,
@@ -184,8 +182,7 @@ impl Session {
         builder: athena_graph::GraphBuilder<N, E>,
         registry: &mut athena_graph::ChunkRegistry,
         budget: athena_ndarray::MemoryBudget,
-    ) -> core::result::Result<(athena_graph::PublishedImmutableGraph<N, E>, athena_graph::CsrOnHeap), athena_graph::GraphError>
-    {
+    ) -> core::result::Result<(athena_graph::PublishedImmutableGraph<N, E>, athena_graph::CsrOnHeap), athena_graph::GraphError> {
         builder.finish_csr_on_heap(&mut self.heap.borrow_mut(), registry, budget)
     }
 

@@ -16,8 +16,7 @@ fn rejects_nan_endpoints() {
 
 #[test]
 fn full_unbounded_promotes_to_entire() {
-    let iv = Interval::try_bounded(Real::machine(f64::NEG_INFINITY), Real::machine(f64::INFINITY), IntervalDecoration::Trivial)
-        .unwrap();
+    let iv = Interval::try_bounded(Real::machine(f64::NEG_INFINITY), Real::machine(f64::INFINITY), IntervalDecoration::Trivial).unwrap();
     assert!(iv.is_entire());
 }
 
@@ -30,8 +29,7 @@ fn point_interval() {
 
 #[test]
 fn add_encloses_true_sum() {
-    let a =
-        Interval::try_bounded(Real::machine(1.0_f64), Real::machine(1.0_f64.next_up()), IntervalDecoration::Trivial).unwrap();
+    let a = Interval::try_bounded(Real::machine(1.0_f64), Real::machine(1.0_f64.next_up()), IntervalDecoration::Trivial).unwrap();
     let b = Interval::try_bounded(Real::machine(2.0_f64), Real::machine(2.0_f64), IntervalDecoration::Trivial).unwrap();
     let sum = a.add(&b).unwrap();
     let (lo, hi) = sum.as_f64_bounds().unwrap();

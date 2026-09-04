@@ -1,8 +1,8 @@
 //! 二进制 wire 往返与 ANV1 Int/Rat/Real/Complex/Interval/Algebraic/FiniteField/Modular/PAdic reject 矩阵。
 
 use athena_numeric::{
-    AlgebraicNumber, AlgebraicRepresentation, BranchPolicy, Complex, FiniteFieldValue, Integer, Interval, IntervalDecoration,
-    ModularValue, Modulus, NumericValue, NumericValueWire, PAdicValue, PolynomialFingerprint, Rational, Real,
+    AlgebraicNumber, AlgebraicRepresentation, BranchPolicy, Complex, FiniteFieldValue, Integer, Interval, IntervalDecoration, ModularValue,
+    Modulus, NumericValue, NumericValueWire, PAdicValue, PolynomialFingerprint, Rational, Real,
 };
 use athena_types::{FieldId, NumericKind};
 use std::str::FromStr;
@@ -393,9 +393,7 @@ fn modular_wire(sign: u8, payload: Vec<u8>) -> NumericValueWire {
 fn binary_interval_roundtrip_variants() {
     let empty = NumericValue::interval(Interval::empty());
     let entire = NumericValue::interval(Interval::entire_with(IntervalDecoration::Defined));
-    let bounded = NumericValue::interval(
-        Interval::try_bounded(Real::machine(-1.0), Real::machine(2.5), IntervalDecoration::Certain).unwrap(),
-    );
+    let bounded = NumericValue::interval(Interval::try_bounded(Real::machine(-1.0), Real::machine(2.5), IntervalDecoration::Certain).unwrap());
     for v in [empty, entire, bounded] {
         let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
         assert_eq!(back, v);
@@ -550,12 +548,7 @@ fn reject_algebraic_empty_interval() {
 #[test]
 fn binary_finite_field_roundtrip() {
     let v = NumericValue::finite_field(
-        FiniteFieldValue::try_new(
-            FieldId(4),
-            athena_types::FieldPresentationId(2),
-            vec![Integer::from_i64(1), Integer::from_i64(-2)],
-        )
-        .unwrap(),
+        FiniteFieldValue::try_new(FieldId(4), athena_types::FieldPresentationId(2), vec![Integer::from_i64(1), Integer::from_i64(-2)]).unwrap(),
     );
     let back = NumericValueWire::encode(&v).unwrap().decode().unwrap();
     assert_eq!(back, v);
@@ -620,12 +613,11 @@ fn reject_padic_precision_zero() {
 
 #[test]
 fn fuzz_padic_blob_mutations() {
-    let base = NumericValueWire::encode(&NumericValue::padic(
-        PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap(),
-    ))
-    .unwrap()
-    .to_bytes()
-    .unwrap();
+    let base =
+        NumericValueWire::encode(&NumericValue::padic(PAdicValue::from_integer(&Integer::from_i64(12), Integer::from_i64(5), 4).unwrap()))
+            .unwrap()
+            .to_bytes()
+            .unwrap();
     for i in 0..base.len() {
         for delta in [1u8, 0x7f, 0xff] {
             let mut mut_bytes = base.clone();

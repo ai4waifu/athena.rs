@@ -75,12 +75,7 @@ pub(crate) fn mul_2x1(a: [u64; 2], b: u64) -> ([u64; 3], usize) {
     let (hi1, mid_lo) = mul_wide(a[1], b);
     let (mid, c1) = adc(mid_lo, hi0, 0);
     let hi = hi1 + c1;
-    if hi == 0 {
-        if mid == 0 { ([lo, 0, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, mid, 0], 2) }
-    }
-    else {
-        ([lo, mid, hi], 3)
-    }
+    if hi == 0 { if mid == 0 { ([lo, 0, 0], if lo == 0 { 0 } else { 1 }) } else { ([lo, mid, 0], 2) } } else { ([lo, mid, hi], 3) }
 }
 
 /// `Limb1 − Limb1`（要求 `a >= b`）。

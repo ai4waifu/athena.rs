@@ -3,8 +3,8 @@
 use std::str::FromStr;
 
 use athena_engine::domains::number_theory::{
-    NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, PrimeIterator, execute_number_theory, is_perfect_power, isqrt,
-    jacobi_symbol, kronecker_symbol, next_prime_after, perfect_power_decomposition, primes_up_to,
+    NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, PrimeIterator, execute_number_theory, is_perfect_power, isqrt, jacobi_symbol,
+    kronecker_symbol, next_prime_after, perfect_power_decomposition, primes_up_to,
 };
 use athena_numeric::{Integer, Modulus, ModulusContext};
 

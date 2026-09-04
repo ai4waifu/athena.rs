@@ -17,11 +17,13 @@ primitives/   frontier · bfs_order · UnionFind · 分量扫描原语
 
 ## 已实现
 
-- **身份**：`GraphId` · `GraphRevision` · `NodeRef`/`EdgeRef`（绑 revision）· `ViewNodeRef`/`SourceNodeRef` · `GraphSnapshot`
+- **身份**：`GraphId` · `GraphRevision` · `NodeRef`/`EdgeRef`（绑 revision）· `ViewNodeRef`/`SourceNodeRef` ·
+  `GraphSnapshot`
 - **表示**：内存邻接表 · `CsrGraph` · `CscGraph`
 - **视图**：`ReversedGraphView` · `InducedSubgraphView` · `EdgeFilteredView`（过期 `StaleView`）
 - **转换**：`graph_to_csr` · `edge_list_to_csr` · `csr_to_csc`
-- **L0 原语**：确定性 BFS / frontier · `UnionFind` · `primitives::{connected_components, strongly_connected_components, topological_sort}`
+- **L0 原语**：确定性 BFS / frontier · `UnionFind` ·
+  `primitives::{connected_components, strongly_connected_components, topological_sort}`
 - **Capability**：`GraphAlgorithmRequirements` · `GraphCapabilities`
 
 M-Graph（`athena-engine::mgraph`）即使复用本 crate 的 CSR/frontier，也不属于 `athena-graph`。

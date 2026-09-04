@@ -1,8 +1,8 @@
 //! 身份分离与 `AssumptionScope` 合同。
 
 use athena_types::{
-    AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, Predicate, ProofRef, ResultId,
-    ScopeApplicability, ScopeConflictKind, ScopeMergeOutcome, SymbolId, TermId, TheoryContext, TheoryContextId, ValueId,
+    AssumptionBranchPolicy, AssumptionScope, AssumptionScopeId, AssumptionSet, Predicate, ProofRef, ResultId, ScopeApplicability,
+    ScopeConflictKind, ScopeMergeOutcome, SymbolId, TermId, TheoryContext, TheoryContextId, ValueId,
 };
 
 #[test]
@@ -45,11 +45,8 @@ fn assumption_scope_merge_unions_compatible_predicates() {
 #[test]
 fn assumption_scope_inherit_and_expand() {
     let parent_id = AssumptionScopeId(7);
-    let parent = AssumptionScope {
-        id: Some(parent_id),
-        predicates: vec![Predicate::SymbolReal(SymbolId(1))],
-        ..AssumptionScope::unconditional()
-    };
+    let parent =
+        AssumptionScope { id: Some(parent_id), predicates: vec![Predicate::SymbolReal(SymbolId(1))], ..AssumptionScope::unconditional() };
     let child = AssumptionScope::inherit(parent_id, vec![Predicate::SymbolNonZero(SymbolId(1))]);
     let expanded = child.inherited_predicates(|id| if id == parent_id { Some(parent.clone()) } else { None });
     assert_eq!(expanded.len(), 2);

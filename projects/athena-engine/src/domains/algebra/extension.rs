@@ -25,13 +25,7 @@ pub struct FieldExtension {
 
 impl FieldExtension {
     /// 构造已证明次数的有限域多项式基扩张记录。
-    pub fn finite_field_polynomial(
-        id: ExtensionId,
-        base: FieldId,
-        field: FieldId,
-        degree: u32,
-        embedding: AlgebraMapId,
-    ) -> Self {
+    pub fn finite_field_polynomial(id: ExtensionId, base: FieldId, field: FieldId, degree: u32, embedding: AlgebraMapId) -> Self {
         let witness = PropertyWitness::placeholder("finite_field_polynomial_basis");
         Self {
             id,
@@ -45,26 +39,13 @@ impl FieldExtension {
     }
 
     /// 构造数域幂基 / 相对塔扩张记录。
-    pub fn number_field(
-        id: ExtensionId,
-        base: FieldId,
-        field: FieldId,
-        degree: u32,
-        embedding: AlgebraMapId,
-        separable: bool,
-    ) -> Self {
+    pub fn number_field(id: ExtensionId, base: FieldId, field: FieldId, degree: u32, embedding: AlgebraMapId, separable: bool) -> Self {
         Self {
             id,
             base,
             field,
-            degree: PropertyState::Proven {
-                value: degree,
-                witness: PropertyWitness::placeholder("number_field_defining_polynomial"),
-            },
-            separable: PropertyState::Proven {
-                value: separable,
-                witness: PropertyWitness::placeholder("char0_separable_irreducible"),
-            },
+            degree: PropertyState::Proven { value: degree, witness: PropertyWitness::placeholder("number_field_defining_polynomial") },
+            separable: PropertyState::Proven { value: separable, witness: PropertyWitness::placeholder("char0_separable_irreducible") },
             normal: PropertyState::Unknown,
             embedding,
         }
@@ -80,10 +61,7 @@ impl FieldExtension {
 }
 
 /// 沿 base 链自素域（或链顶基域）到 L 的域 id 塔（升序）。
-pub fn extension_tower_fields(
-    extension: &FieldExtension,
-    resolve_field_extension: impl Fn(FieldId) -> Option<FieldExtension>,
-) -> Vec<FieldId> {
+pub fn extension_tower_fields(extension: &FieldExtension, resolve_field_extension: impl Fn(FieldId) -> Option<FieldExtension>) -> Vec<FieldId> {
     let mut chain = vec![extension.base, extension.field];
     let mut cursor = extension.base;
     while let Some(parent) = resolve_field_extension(cursor) {

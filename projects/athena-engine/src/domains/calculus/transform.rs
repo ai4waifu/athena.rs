@@ -105,14 +105,7 @@ pub fn laplace_checked(
         None => CalculusResult::Unevaluated {
             expression: TransformResult {
                 kind: TransformKind::Laplace,
-                expression: echo_transform(
-                    cc,
-                    TransformKind::Laplace,
-                    "LaplaceTransform",
-                    expression,
-                    time_variable,
-                    transform_variable,
-                ),
+                expression: echo_transform(cc, TransformKind::Laplace, "LaplaceTransform", expression, time_variable, transform_variable),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
                 region_of_convergence: RegionOfConvergence::unknown(),
@@ -146,14 +139,7 @@ pub fn fourier_checked(
         None => CalculusResult::Unevaluated {
             expression: TransformResult {
                 kind: TransformKind::Fourier,
-                expression: echo_transform(
-                    cc,
-                    TransformKind::Fourier,
-                    "FourierTransform",
-                    expression,
-                    time_variable,
-                    transform_variable,
-                ),
+                expression: echo_transform(cc, TransformKind::Fourier, "FourierTransform", expression, time_variable, transform_variable),
                 time_variable: time_variable.to_string(),
                 transform_variable: transform_variable.to_string(),
                 region_of_convergence: RegionOfConvergence::unknown(),
@@ -457,10 +443,7 @@ fn is_square_of(cc: &CalculusCtx<'_>, term: TermId, var: &str) -> bool {
     else {
         return false;
     };
-    h == "Power"
-        && args.len() == 2
-        && is_symbol_named(cc, args[0], var)
-        && cc.number_of(args[1]).and_then(|n| n.as_integer_exp()) == Some(2)
+    h == "Power" && args.len() == 2 && is_symbol_named(cc, args[0], var) && cc.number_of(args[1]).and_then(|n| n.as_integer_exp()) == Some(2)
 }
 
 fn evaluate_neg_number(cc: &mut CalculusCtx<'_>, n: &Number) -> Option<Number> {
@@ -510,10 +493,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
         return Some((cc.in_(1), RegionOfConvergence::entire_plane(cc, z)));
     }
     if is_unit_step(cc, expr, n) {
-        return Some((
-            z_over_z_minus(cc, z, &Number::small_int(1)),
-            RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1)),
-        ));
+        return Some((z_over_z_minus(cc, z, &Number::small_int(1)), RegionOfConvergence::abs_z_greater(cc, z, Number::small_int(1))));
     }
     let (h, args) = cc.application(expr)?;
     match h.as_str() {
@@ -544,12 +524,7 @@ fn z_one(cc: &mut CalculusCtx<'_>, expr: TermId, n: &str, z: &str) -> Option<(Te
                 parts.push(fa);
             }
             let body = if parts.len() == 1 { parts[0] } else { cc.eval(cc.apply("Plus", parts)) };
-            let roc = if all_entire {
-                RegionOfConvergence::entire_plane(cc, z)
-            }
-            else {
-                RegionOfConvergence::abs_z_greater(cc, z, radius)
-            };
+            let roc = if all_entire { RegionOfConvergence::entire_plane(cc, z) } else { RegionOfConvergence::abs_z_greater(cc, z, radius) };
             Some((body, roc))
         }
         "Times" if args.len() == 2 => {

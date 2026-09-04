@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::number_theory::{
-        CongruenceSolution, CrtResult, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, RationalReconstruction,
-        chinese_remainder, chinese_remainder_pair, execute_number_theory, rational_reconstruction, solve_linear_congruence,
+        CongruenceSolution, CrtResult, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, RationalReconstruction, chinese_remainder,
+        chinese_remainder_pair, execute_number_theory, rational_reconstruction, solve_linear_congruence,
     },
     runtime::values::numeric_clone::clone_modulus,
 };
@@ -31,12 +31,7 @@ fn linear_multiple_classes() {
     match out {
         NumberTheoryResult::Exact {
             value:
-                NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses {
-                    base_residue,
-                    reduced_modulus,
-                    ambient_modulus,
-                    multiplicity,
-                }),
+                NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses { base_residue, reduced_modulus, ambient_modulus, multiplicity }),
         } => {
             assert_eq!(base_residue, Integer::from_i64(2));
             assert_eq!(reduced_modulus.value(), Integer::from_i64(3));
@@ -102,10 +97,8 @@ fn crt_inconsistent() {
 
 #[test]
 fn crt_multi_via_request() {
-    let out = chinese_remainder(
-        &[2.into(), 3.into(), 2.into()],
-        &[Modulus::new(3).unwrap(), Modulus::new(5).unwrap(), Modulus::new(7).unwrap()],
-    );
+    let out =
+        chinese_remainder(&[2.into(), 3.into(), 2.into()], &[Modulus::new(3).unwrap(), Modulus::new(5).unwrap(), Modulus::new(7).unwrap()]);
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Crt(CrtResult::Consistent { solution, modulus_lcm }) } => {
             assert_eq!(modulus_lcm.value(), Integer::from_i64(105));
@@ -144,8 +137,5 @@ fn modulus_table_intern_idempotent() {
 fn domain_linear_congruence() {
     let m = Modulus::new(6).unwrap();
     let out = execute_number_theory(NumberTheoryRequest::SolveLinearCongruence { a: 2.into(), b: 4.into(), modulus: m });
-    assert!(matches!(
-        out,
-        NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses { .. }) }
-    ));
+    assert!(matches!(out, NumberTheoryResult::Exact { value: NumberTheoryValue::Congruence(CongruenceSolution::MultipleClasses { .. }) }));
 }

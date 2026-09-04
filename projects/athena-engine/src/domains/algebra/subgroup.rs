@@ -43,11 +43,7 @@ pub fn is_normal(_parent: &BsgsChain, parent_generators: &[RawPerm], subgroup: &
 }
 
 /// 商群 `G/N` 的生成元（右陪集乘法 `Hg · g' = H(g g')`）。
-pub fn quotient_generators(
-    parent: &BsgsChain,
-    parent_generators: &[RawPerm],
-    subgroup: &BsgsChain,
-) -> Result<(Vec<RawPerm>, u32)> {
+pub fn quotient_generators(parent: &BsgsChain, parent_generators: &[RawPerm], subgroup: &BsgsChain) -> Result<(Vec<RawPerm>, u32)> {
     let reps = coset_representatives(parent, subgroup);
     let index = reps.len() as u32;
     if index == 0 {

@@ -2,9 +2,8 @@
 
 use athena_engine::{
     domains::polynomial::{
-        CoefficientDomain, GroebnerComputation, GroebnerLimits, GroebnerStatus, MonomialOrder, PolynomialBuilder,
-        PolynomialRequest, PolynomialResult, RingTable, compute_groebner_basis, ideal_membership, reduce_by_verified,
-        reduce_ideal, verify_groebner_basis,
+        CoefficientDomain, GroebnerComputation, GroebnerLimits, GroebnerStatus, MonomialOrder, PolynomialBuilder, PolynomialRequest,
+        PolynomialResult, RingTable, compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, verify_groebner_basis,
     },
     runtime::Session,
 };
@@ -90,8 +89,7 @@ fn elimination_ideal_in_y() {
     let (rings, ring) = q_xy_elim_x();
     let f1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
     let f2 = build(&rings, ring, &[(1, 1, vec![1, 0]), (1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
-    let out =
-        athena_engine::domains::polynomial::compute_elimination_basis(vec![f1, f2], &rings, GroebnerLimits::default()).unwrap();
+    let out = athena_engine::domains::polynomial::compute_elimination_basis(vec![f1, f2], &rings, GroebnerLimits::default()).unwrap();
     assert_eq!(out.status(), GroebnerStatus::Verified);
     assert!(out.certificate().elimination_elements.is_some());
     assert!(out.polynomials().iter().all(|p| p.terms().iter().all(|t| t.exponents()[0] == 0)));
@@ -112,8 +110,7 @@ fn session_groebner_via_execute_polynomial() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let g = build(&session.rings, ring, &[(1, 1, vec![1]), (-1, 1, vec![0])]);
-    let out =
-        session.execute_polynomial(PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() });
+    let out = session.execute_polynomial(PolynomialRequest::Groebner { generators: vec![g], limits: GroebnerLimits::default() });
     match out {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(v) => {
@@ -132,8 +129,7 @@ fn session_groebner_via_execute_polynomial() {
 fn eliminate_requires_elimination_order() {
     let (rings, ring) = q_xy_lex();
     let g = build(&rings, ring, &[(1, 1, vec![1, 0])]);
-    let err =
-        athena_engine::domains::polynomial::compute_elimination_basis(vec![g], &rings, GroebnerLimits::default()).unwrap_err();
+    let err = athena_engine::domains::polynomial::compute_elimination_basis(vec![g], &rings, GroebnerLimits::default()).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_POLYNOMIAL_ORDER_INVALID");
 }
 
@@ -142,8 +138,7 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
-    let computation =
-        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     assert_eq!(computation.status(), GroebnerStatus::Partial);
     assert!(!computation.certificate().verification.is_proven());
@@ -156,8 +151,7 @@ fn basis_size_limit_yields_resource_limited() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
-    let computation =
-        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 10_000, max_basis_size: 2 }).unwrap();
+    let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 10_000, max_basis_size: 2 }).unwrap();
     // 可能为 Partial 或 ResourceLimited（取决于何时触达规模上限）；二者均未验证。
     assert!(!computation.is_verified());
     assert!(matches!(
@@ -193,8 +187,7 @@ fn reduce_by_verified_rejects_unverified_certificate() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
     let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
-    let computation =
-        compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     // 经 API 构造证书不完整的假 `VerifiedGroebnerBasis` 必须不可行；
     // membership / reduce_by_verified 仅接受来自 Complete 的 `VerifiedGroebnerBasis`。

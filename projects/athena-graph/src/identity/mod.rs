@@ -8,10 +8,9 @@ mod semantics;
 pub use direction::GraphDirection;
 pub use graph::{GraphBuilder, GraphView, ImmutableGraph, MutableGraph};
 pub use id::{
-    EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId, SourceEdgeRef, SourceNodeRef, ViewEdgeRef,
-    ViewNodeRef,
+    EdgeId, EdgeRef, GraphId, GraphRevision, NodeId, NodeRef, RepresentationId, SourceEdgeRef, SourceNodeRef, ViewEdgeRef, ViewNodeRef,
 };
 pub use semantics::{
-    GraphFingerprint, GraphSemantics, GraphSnapshot, GraphStorageMetadata, MultiplicityPolicy, SelfLoopDegree, ViewFingerprint,
-    ViewMapping, ViewTransform,
+    GraphFingerprint, GraphSemantics, GraphSnapshot, GraphStorageMetadata, MultiplicityPolicy, SelfLoopDegree, ViewFingerprint, ViewMapping,
+    ViewTransform,
 };

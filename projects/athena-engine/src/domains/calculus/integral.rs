@@ -91,13 +91,7 @@ pub fn integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str) -> C
 }
 
 /// 经原函数求值 `F(upper) - F(lower)` 的定积分。
-pub fn definite_integrate_checked(
-    cc: &mut CalculusCtx<'_>,
-    expr: TermId,
-    var: &str,
-    lower: TermId,
-    upper: TermId,
-) -> CalculusResult<TermId> {
+pub fn definite_integrate_checked(cc: &mut CalculusCtx<'_>, expr: TermId, var: &str, lower: TermId, upper: TermId) -> CalculusResult<TermId> {
     let echo = |cc: &mut CalculusCtx<'_>| {
         let iter = cc.list(vec![cc.symbol(var), lower, upper]);
         cc.apply("Integrate", vec![expr, iter])
@@ -107,10 +101,7 @@ pub fn definite_integrate_checked(
             let at_upper = cc.eval(replace_symbol(cc, antideriv, var, upper));
             let at_lower = cc.eval(replace_symbol(cc, antideriv, var, lower));
             if contains_symbol(cc, at_upper, var) || contains_symbol(cc, at_lower, var) {
-                return CalculusResult::Unevaluated {
-                    expression: echo(cc),
-                    reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid),
-                };
+                return CalculusResult::Unevaluated { expression: echo(cc), reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid) };
             }
             let neg = cc.apply("Times", vec![cc.in_(-1), at_lower]);
             let value = cc.eval(cc.apply("Plus", vec![at_upper, neg]));

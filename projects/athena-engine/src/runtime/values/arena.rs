@@ -140,13 +140,8 @@ pub fn copy_term_subtree(session: &mut Session, id: TermId) -> athena_types::Res
     copy_term_subtree_inner(session, id, &ctx)
 }
 
-fn copy_term_subtree_inner(
-    session: &mut Session,
-    id: TermId,
-    ctx: &athena_numeric::NumericContext,
-) -> athena_types::Result<TermId> {
-    let kind =
-        session.arena.get(id).ok_or_else(|| athena_types::Diagnostic::new(athena_types::DiagnosticCode::InvalidIndex))?;
+fn copy_term_subtree_inner(session: &mut Session, id: TermId, ctx: &athena_numeric::NumericContext) -> athena_types::Result<TermId> {
+    let kind = session.arena.get(id).ok_or_else(|| athena_types::Diagnostic::new(athena_types::DiagnosticCode::InvalidIndex))?;
     let cloned = kind.try_clone_in(ctx)?;
     let span = session.arena.span(id).unwrap_or_default();
     Ok(session.arena.push(cloned, span))

@@ -24,17 +24,13 @@ fn intern_over_prime_field_paths_share_field_id() {
         panic!("expected Field parent");
     };
     assert_eq!(rings.coefficient_parent(via_recommended), Some(CoefficientParent::Field(field)));
-    assert_eq!(
-        rings.coefficient_parent(via_recommended).and_then(|p| p.as_algebra_parent()),
-        Some(AlgebraParentId::Field(field))
-    );
+    assert_eq!(rings.coefficient_parent(via_recommended).and_then(|p| p.as_algebra_parent()), Some(AlgebraParentId::Field(field)));
 }
 
 #[test]
 fn unregistered_finite_field_rejected() {
     let mut rings = RingTable::new();
-    let err =
-        rings.intern(CoefficientDomain::FiniteField { field: FieldId(99) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
+    let err = rings.intern(CoefficientDomain::FiniteField { field: FieldId(99) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_UNSUPPORTED_OPERATION");
 }
 

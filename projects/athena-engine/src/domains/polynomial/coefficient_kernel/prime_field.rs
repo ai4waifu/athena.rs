@@ -14,9 +14,7 @@ impl FpWordKernel {
     /// 由已验证素数（`2 ≤ p ≤ u64::MAX`）构造。
     pub fn new(p: u64) -> Result<Self> {
         if p < 2 {
-            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid)
-                .detail("domain", "polynomial")
-                .detail("operation", "fp_word_prime"));
+            return Err(Diagnostic::new(DiagnosticCode::ModulusInvalid).detail("domain", "polynomial").detail("operation", "fp_word_prime"));
         }
         Ok(Self { p })
     }

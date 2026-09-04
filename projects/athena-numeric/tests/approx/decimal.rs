@@ -4,8 +4,7 @@ use athena_numeric::{Decimal, RoundingStatus, integer::Sign, natural::Natural};
 
 #[test]
 fn f64_exact_roundtrip_normals_and_subnormals() {
-    let samples =
-        [0.0, -0.0, 1.0, -1.0, 0.5, 3.0, f64::MIN_POSITIVE, f64::MAX, f64::MIN, 1.5, f64::from_bits(0x0000_0000_0000_0001)];
+    let samples = [0.0, -0.0, 1.0, -1.0, 0.5, 3.0, f64::MIN_POSITIVE, f64::MAX, f64::MIN, 1.5, f64::from_bits(0x0000_0000_0000_0001)];
     for x in samples {
         let bf = Decimal::from_f64(x).expect("finite");
         bf.validate().expect("valid");

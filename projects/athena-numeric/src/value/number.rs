@@ -3,9 +3,8 @@
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 use crate::{
-    algebraic::AlgebraicNumber, complex::Complex, decimal::Decimal, domain::NumericDomain, finite_field::FiniteFieldValue,
-    integer::Integer, interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo,
-    rational::Rational, real::Real,
+    algebraic::AlgebraicNumber, complex::Complex, decimal::Decimal, domain::NumericDomain, finite_field::FiniteFieldValue, integer::Integer,
+    interval::Interval, modular::ModularValue, p_adic::PAdicValue, precision::PrecisionInfo, rational::Rational, real::Real,
 };
 
 /// 带域语义的数值载荷（唯一执行真相源；域与精度由 variant 推导）。

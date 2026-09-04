@@ -45,9 +45,7 @@ impl NumericExecutor {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
                 let kernels = ctx.kernels();
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.add_into(ctx.kernel_token(), a, b, out, scratch, budget)
-                })
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| kernels.add_into(ctx.kernel_token(), a, b, out, scratch, budget))
             }
         }
     }
@@ -82,9 +80,7 @@ impl NumericExecutor {
                 let b = width_limbs(rhs, lb);
                 let plan = ctx.planner().plan_mul(a.len(), b.len());
                 let kernels = ctx.kernels();
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget)
-                })
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| kernels.mul_into(ctx.kernel_token(), a, b, plan, out, scratch, budget))
             }
         }
     }
@@ -118,9 +114,7 @@ impl NumericExecutor {
                 let a = width_limbs(lhs, la);
                 let b = width_limbs(rhs, lb);
                 let kernels = ctx.kernels();
-                Natural::publish_with_kernel(ctx, |out, scratch, budget| {
-                    kernels.sub_into(ctx.kernel_token(), a, b, out, scratch, budget)
-                })
+                Natural::publish_with_kernel(ctx, |out, scratch, budget| kernels.sub_into(ctx.kernel_token(), a, b, out, scratch, budget))
             }
         }
     }
@@ -187,9 +181,7 @@ impl NumericExecutor {
     pub fn div_rem_limbs(lhs: &[u64], rhs: &[u64], ctx: &NumericContext) -> Result<(Natural, Natural)> {
         ctx.check_entry()?;
         if limb_kernel::is_zero(rhs) || rhs.is_empty() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "natural_div_rem"));
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "natural_div_rem"));
         }
         if limb_kernel::is_zero(lhs) || lhs.is_empty() {
             return Ok((Natural::zero(), Natural::zero()));
@@ -223,16 +215,7 @@ impl NumericExecutor {
                     ctx.with_out_buf(|q| {
                         ctx.with_out_buf2(|r| {
                             ctx.with_scratch_frame(|scratch, budget| {
-                                ctx.kernels().div_rem_into(
-                                    ctx.kernel_token(),
-                                    &lhs[..a_len],
-                                    &rhs[..b_len],
-                                    plan,
-                                    q,
-                                    r,
-                                    scratch,
-                                    budget,
-                                )
+                                ctx.kernels().div_rem_into(ctx.kernel_token(), &lhs[..a_len], &rhs[..b_len], plan, q, r, scratch, budget)
                             })?;
                             let quot = Natural::from_limb_slice_in(ctx, q.as_canonical())?;
                             let rem = Natural::from_limb_slice_in(ctx, r.as_canonical())?;
@@ -246,21 +229,9 @@ impl NumericExecutor {
                     let mut q = crate::kernel::LimbBuffer::zero();
                     let mut r = crate::kernel::LimbBuffer::zero();
                     ctx.with_scratch_frame(|scratch, budget| {
-                        ctx.kernels().div_rem_into(
-                            ctx.kernel_token(),
-                            &lhs[..a_len],
-                            &rhs[..b_len],
-                            plan,
-                            &mut q,
-                            &mut r,
-                            scratch,
-                            budget,
-                        )
+                        ctx.kernels().div_rem_into(ctx.kernel_token(), &lhs[..a_len], &rhs[..b_len], plan, &mut q, &mut r, scratch, budget)
                     })?;
-                    Ok((
-                        Natural::from_limb_slice_in(ctx, q.as_canonical())?,
-                        Natural::from_limb_slice_in(ctx, r.as_canonical())?,
-                    ))
+                    Ok((Natural::from_limb_slice_in(ctx, q.as_canonical())?, Natural::from_limb_slice_in(ctx, r.as_canonical())?))
                 }
             }
         }

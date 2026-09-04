@@ -43,8 +43,7 @@ fn sample_square_on_unit_interval() {
 fn sample_sin_has_finite_points() {
     let mut s = Session::new();
     let expr = apply("Sin", vec![symbol("x", &mut s)], &mut s);
-    let curve = sample_1d(&mut s, expr, "x", SampleDomain::new(0.0, std::f64::consts::PI), SamplingPolicy::samples(17))
-        .expect("sample");
+    let curve = sample_1d(&mut s, expr, "x", SampleDomain::new(0.0, std::f64::consts::PI), SamplingPolicy::samples(17)).expect("sample");
     let valid = curve.points.iter().filter(|p| p.valid).count();
     assert!(valid >= 15);
     assert!((curve.points[0].y).abs() < 1e-9);

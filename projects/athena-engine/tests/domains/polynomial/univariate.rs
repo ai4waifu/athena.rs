@@ -42,10 +42,7 @@ fn rational_univariate_division() {
     let (rings, ring) = q_x();
     let dividend = uni(&rings, ring, &[(1, 2), (-1, 0)]);
     let divisor = uni(&rings, ring, &[(1, 1), (-1, 0)]);
-    let result = execute_polynomial_with_rings(
-        PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::FieldDivision },
-        &rings,
-    );
+    let result = execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::FieldDivision }, &rings);
     match result {
         PolynomialResult::Exact { value } => match value {
             athena_engine::domains::polynomial::PolynomialDomainValue::UnivariateDivision(d) => {
@@ -66,8 +63,7 @@ fn integer_exact_division_rejects_nonzero_remainder() {
     let (rings, ring) = z_x();
     let dividend = uni(&rings, ring, &[(1, 1), (1, 0)]);
     let divisor = uni(&rings, ring, &[(2, 1), (1, 0)]);
-    let err =
-        execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly }, &rings);
+    let err = execute_polynomial_with_rings(PolynomialRequest::Div { dividend, divisor, policy: DivisionPolicy::ExactOnly }, &rings);
     assert!(matches!(err, PolynomialResult::Unevaluated { .. }));
 }
 

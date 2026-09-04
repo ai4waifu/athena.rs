@@ -30,13 +30,11 @@ pub use result::{CalculusResult, ConditionalResult, unresolved, unresolved_from_
 pub use series::{Remainder, Series, asymptotic, laurent, taylor};
 pub use transform::{RegionOfConvergence, TransformResult, fourier_checked, laplace_checked, z_checked};
 pub use value::{
-    CalculusValue, map_curl_result, map_divergence_result, map_gradient_result, map_hessian_result, map_jacobian_result,
-    map_ode_result, map_residue_result, map_series_result, map_term_result, map_transform_result,
-    materialize_calculus_result_term,
+    CalculusValue, map_curl_result, map_divergence_result, map_gradient_result, map_hessian_result, map_jacobian_result, map_ode_result,
+    map_residue_result, map_series_result, map_term_result, map_transform_result, materialize_calculus_result_term,
 };
 pub use vector::{
-    Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked,
-    jacobian_checked,
+    Curl, Divergence, Gradient, Hessian, Jacobian, curl_checked, divergence_checked, gradient_checked, hessian_checked, jacobian_checked,
 };
 
 use athena_types::{Diagnostic, DiagnosticCode};
@@ -114,9 +112,7 @@ pub fn execute_calculus(session: &mut Session, request: CalculusRequest) -> Calc
             TransformKind::Fourier => {
                 map_transform_result(fourier_checked(&mut cc, expression, &time_variable, &transform_variable, &assumptions))
             }
-            TransformKind::Z => {
-                map_transform_result(z_checked(&mut cc, expression, &time_variable, &transform_variable, &assumptions))
-            }
+            TransformKind::Z => map_transform_result(z_checked(&mut cc, expression, &time_variable, &transform_variable, &assumptions)),
         },
     }
 }

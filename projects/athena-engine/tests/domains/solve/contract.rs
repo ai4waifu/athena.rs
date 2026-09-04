@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::solve::{
-        BindingMap, BoundSymbol, Constraint, ConstraintSet, CoverageStatus, ExecutionLimits, ResumeToken, SolutionBranch,
-        SolutionSet, SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SolveRelationKind,
+        BindingMap, BoundSymbol, Constraint, ConstraintSet, CoverageStatus, ExecutionLimits, ResumeToken, SolutionBranch, SolutionSet,
+        SolveDomain, SolveGoal, SolvePolicy, SolveProblem, SolveRelationKind,
     },
     reasoning::solver::{DomainRef, SolverOperation, SolverRequest},
 };

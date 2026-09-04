@@ -3,8 +3,8 @@
 use athena_engine::domains::{
     algebra::{AlgebraMapKind, GroupTable},
     group::{
-        GroupDomainValue, GroupElementRepr, GroupRequest, GroupResult, Permutation, apply_group_homomorphism,
-        canonical_permutation, execute_group_with_table_mut, group_membership, project_quotient_element,
+        GroupDomainValue, GroupElementRepr, GroupRequest, GroupResult, Permutation, apply_group_homomorphism, canonical_permutation,
+        execute_group_with_table_mut, group_membership, project_quotient_element,
     },
 };
 use athena_numeric::Integer;
@@ -71,8 +71,7 @@ fn sign_homomorphism_s3_to_z2() {
     let mut table = GroupTable::new();
     let s3 = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
     let z2 = table.permutation_group(2, &[transposition_01(2)]).unwrap();
-    let map =
-        table.homomorphism_from_generator_images(s3, z2, &[transposition_01(2), Permutation { images: vec![0, 1] }]).unwrap();
+    let map = table.homomorphism_from_generator_images(s3, z2, &[transposition_01(2), Permutation { images: vec![0, 1] }]).unwrap();
     let s = canonical_permutation(&table, s3, transposition_01(3).images, GroupElementId(1)).unwrap();
     let c = canonical_permutation(&table, s3, cycle_012().images, GroupElementId(2)).unwrap();
     let fs = apply_group_homomorphism(&table, map, &s).unwrap();
@@ -86,9 +85,7 @@ fn invalid_homomorphism_rejected() {
     let mut table = GroupTable::new();
     let s3 = table.permutation_group(3, &[transposition_01(3), cycle_012()]).unwrap();
     let z2 = table.permutation_group(2, &[transposition_01(2)]).unwrap();
-    let err = table
-        .homomorphism_from_generator_images(s3, z2, &[Permutation { images: vec![0, 1] }, transposition_01(2)])
-        .unwrap_err();
+    let err = table.homomorphism_from_generator_images(s3, z2, &[Permutation { images: vec![0, 1] }, transposition_01(2)]).unwrap_err();
     assert_eq!(err.code.as_str(), DiagnosticCode::GroupElementInvalid.as_str());
 }
 

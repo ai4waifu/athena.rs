@@ -23,11 +23,7 @@ impl Fixture for JitAvailabilityFixture {
         if !matches!(parity, ParityOutcome::JitUnavailable) {
             return Err(format!("expected JitUnavailable, got {parity:?}"));
         }
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "athena-jit unavailable stub parity",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "athena-jit unavailable stub parity"))
     }
 
     fn run_once(&self) {

@@ -6,8 +6,8 @@ use athena_engine::{
 };
 use athena_gc::GcHeap;
 use athena_graph::{
-    CancelFlag, ChunkRegistry, ChunkResidency, DeterministicBfsOutcome, FrontierCheckpoint, GraphBuilder, GraphDirection,
-    GraphError, GraphRevision, NodeId,
+    CancelFlag, ChunkRegistry, ChunkResidency, DeterministicBfsOutcome, FrontierCheckpoint, GraphBuilder, GraphDirection, GraphError,
+    GraphRevision, NodeId,
 };
 use athena_ndarray::MemoryBudget;
 
@@ -63,8 +63,7 @@ fn checkpoint_resume_rejects_wrong_chunk_identity() {
     )
     .unwrap();
     checkpoint.revision = GraphRevision(99);
-    let err =
-        resume_from_algorithm_checkpoint(published.graph.as_graph(), &published.publication, checkpoint, None).unwrap_err();
+    let err = resume_from_algorithm_checkpoint(published.graph.as_graph(), &published.publication, checkpoint, None).unwrap_err();
     assert!(matches!(err, GraphError::CheckpointIdentityMismatch));
 }
 
@@ -83,8 +82,7 @@ fn checkpoint_resume_does_not_need_raw_pointers() {
         panic!("expected cancelled");
     };
     let (checkpoint, _) = bind_algorithm_checkpoint(&published.publication, &mut h, frontier).unwrap();
-    let resumed =
-        resume_from_algorithm_checkpoint(published.graph.as_graph(), &published.publication, checkpoint, None).unwrap();
+    let resumed = resume_from_algorithm_checkpoint(published.graph.as_graph(), &published.publication, checkpoint, None).unwrap();
     let DeterministicBfsOutcome::Complete(order) = resumed
     else {
         panic!("expected complete");

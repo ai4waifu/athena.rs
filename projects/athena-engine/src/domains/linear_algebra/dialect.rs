@@ -30,11 +30,7 @@ pub enum DialectMatrixOp {
 }
 
 /// 将方言算子 + 操作数 lowering 为内核 [`LinearAlgebraRequest`]。
-pub fn lower_dialect_op(
-    origin: DialectOrigin,
-    op: DialectMatrixOp,
-    args: DialectArgs,
-) -> Result<LinearAlgebraRequest, Diagnostic> {
+pub fn lower_dialect_op(origin: DialectOrigin, op: DialectMatrixOp, args: DialectArgs) -> Result<LinearAlgebraRequest, Diagnostic> {
     let _ = origin;
     match (op, args) {
         (DialectMatrixOp::MatMul, DialectArgs::Binary { lhs, rhs }) => Ok(LinearAlgebraRequest::MatMul { lhs, rhs }),

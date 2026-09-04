@@ -64,12 +64,8 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
     match request {
         NumberTheoryRequest::Gcd { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(gcd(&a, &b)) },
         NumberTheoryRequest::Lcm { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(lcm(&a, &b)) },
-        NumberTheoryRequest::ExtendedGcd { a, b } => {
-            NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)) }
-        }
-        NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => {
-            wrap_primality(primality_test(&n, miller_rabin_rounds))
-        }
+        NumberTheoryRequest::ExtendedGcd { a, b } => NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(extended_gcd(&a, &b)) },
+        NumberTheoryRequest::PrimalityTest { n, miller_rabin_rounds } => wrap_primality(primality_test(&n, miller_rabin_rounds)),
         NumberTheoryRequest::FactorInteger { n, limits } => match factor_integer(&n, &limits) {
             Ok(f) => wrap_factorization(f),
             Err(reason) => NumberTheoryResult::InvalidInput { reason },
@@ -97,16 +93,14 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
         }
         NumberTheoryRequest::SolveLinearCongruence { a, b, modulus } => solve_linear_congruence(&a, &b, &modulus),
         NumberTheoryRequest::ChineseRemainder { residues, moduli } => chinese_remainder(&residues, &moduli),
-        NumberTheoryRequest::RationalReconstruction { residue, modulus, max_numerator, max_denominator } => {
-            NumberTheoryResult::Exact {
-                value: NumberTheoryValue::RationalReconstruction(rational_reconstruction(
-                    &residue,
-                    &modulus,
-                    max_numerator.as_ref(),
-                    max_denominator.as_ref(),
-                )),
-            }
-        }
+        NumberTheoryRequest::RationalReconstruction { residue, modulus, max_numerator, max_denominator } => NumberTheoryResult::Exact {
+            value: NumberTheoryValue::RationalReconstruction(rational_reconstruction(
+                &residue,
+                &modulus,
+                max_numerator.as_ref(),
+                max_denominator.as_ref(),
+            )),
+        },
         NumberTheoryRequest::Isqrt { n } => NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(isqrt(&n)) },
         NumberTheoryRequest::PerfectPower { n } => {
             if let Some((base, exponent)) = perfect_power_decomposition(&n) {
@@ -124,12 +118,10 @@ pub fn execute_number_theory(request: NumberTheoryRequest) -> NumberTheoryResult
                     .detail("reason", "n_must_be_positive_odd"),
             },
         },
-        NumberTheoryRequest::KroneckerSymbol { a, n } => NumberTheoryResult::Exact {
-            value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(kronecker_symbol(&a, &n)))),
-        },
-        NumberTheoryRequest::PrimesUpTo { limit } => {
-            NumberTheoryResult::Exact { value: NumberTheoryValue::IntegerList(primes_up_to(limit)) }
+        NumberTheoryRequest::KroneckerSymbol { a, n } => {
+            NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(Integer::from_i64(i64::from(kronecker_symbol(&a, &n)))) }
         }
+        NumberTheoryRequest::PrimesUpTo { limit } => NumberTheoryResult::Exact { value: NumberTheoryValue::IntegerList(primes_up_to(limit)) },
         NumberTheoryRequest::AlgebraicScaffold => algebraic_scaffold(),
     }
 }

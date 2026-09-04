@@ -110,15 +110,7 @@ fn mont_dbl(n: &Integer, a24: &Integer, x: &Integer, z: &Integer) -> (Integer, I
     (x2, z2)
 }
 
-fn mont_add(
-    n: &Integer,
-    x2: &Integer,
-    z2: &Integer,
-    x3: &Integer,
-    z3: &Integer,
-    x1: &Integer,
-    z1: &Integer,
-) -> (Integer, Integer) {
+fn mont_add(n: &Integer, x2: &Integer, z2: &Integer, x3: &Integer, z3: &Integer, x1: &Integer, z1: &Integer) -> (Integer, Integer) {
     let a = x2.sub(z2).rem(n).expect("rem");
     let b = x2.add(z2).rem(n).expect("rem");
     let c = x3.sub(z3).rem(n).expect("rem");

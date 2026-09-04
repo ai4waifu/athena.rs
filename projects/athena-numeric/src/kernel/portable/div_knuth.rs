@@ -160,9 +160,7 @@ pub(super) fn div_rem_knuth_into(
         let mut qhat = if u_jn >= v_n1 { u64::MAX } else { (top / u128::from(v_n1)) as u64 };
         let mut rhat = top - u128::from(qhat) * u128::from(v_n1);
 
-        while u128::from(qhat) >= (1u128 << 64)
-            || (u128::from(qhat) * u128::from(v_n2) > (rhat << 64) + u128::from(u_work[j + n - 2]))
-        {
+        while u128::from(qhat) >= (1u128 << 64) || (u128::from(qhat) * u128::from(v_n2) > (rhat << 64) + u128::from(u_work[j + n - 2])) {
             qhat = qhat.wrapping_sub(1);
             rhat += u128::from(v_n1);
             if rhat >= (1u128 << 64) {

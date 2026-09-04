@@ -365,9 +365,7 @@ fn unpack_words(words: &[u64], variable_count: usize, bits: u8) -> Vec<u32> {
 }
 
 fn degree_overflow() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::PolynomialDegreeOverflow)
-        .detail("domain", "polynomial")
-        .detail("operation", "packed_exponent_overflow")
+    Diagnostic::new(DiagnosticCode::PolynomialDegreeOverflow).detail("domain", "polynomial").detail("operation", "packed_exponent_overflow")
 }
 
 fn total_degree(v: &[u32]) -> u64 {

@@ -224,17 +224,11 @@ fn part_span_and_functions() {
 fn linear_algebra_paths() {
     let mut s = Session::new();
     // Det[{{1, 2}, {3, 4}}] → -2
-    let m = list(
-        vec![list(vec![int(1, &mut s), int(2, &mut s)], &mut s), list(vec![int(3, &mut s), int(4, &mut s)], &mut s)],
-        &mut s,
-    );
+    let m = list(vec![list(vec![int(1, &mut s), int(2, &mut s)], &mut s), list(vec![int(3, &mut s), int(4, &mut s)], &mut s)], &mut s);
     let e = apply("Det", vec![m], &mut s);
     assert_eq!(eval(&mut s, e), "-2");
     // LinearSolve[{{2, 0}, {0, 2}}, {{4}, {6}}] → {{2}, {3}}（列向量形态）
-    let m = list(
-        vec![list(vec![int(2, &mut s), int(0, &mut s)], &mut s), list(vec![int(0, &mut s), int(2, &mut s)], &mut s)],
-        &mut s,
-    );
+    let m = list(vec![list(vec![int(2, &mut s), int(0, &mut s)], &mut s), list(vec![int(0, &mut s), int(2, &mut s)], &mut s)], &mut s);
     let rhs = list(vec![list(vec![int(4, &mut s)], &mut s), list(vec![int(6, &mut s)], &mut s)], &mut s);
     let e = apply("LinearSolve", vec![m, rhs], &mut s);
     let r = eval(&mut s, e);

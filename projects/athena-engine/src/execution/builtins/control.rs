@@ -50,12 +50,7 @@ fn compound_into(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             };
         }
     }
-    Outcome {
-        term: last,
-        kind: crate::execution::EvalKind::Value,
-        status: athena_types::ComputationStatus::Exact,
-        diagnostics: diags,
-    }
+    Outcome { term: last, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
 }
 
 pub(crate) fn h_if(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
@@ -203,12 +198,7 @@ fn while_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
     }
     let term = vm.push_application("While", args.to_vec());
     diags.push(athena_types::Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation).detail("operation", "While"));
-    Outcome {
-        term,
-        kind: crate::execution::EvalKind::Unevaluated,
-        status: athena_types::ComputationStatus::Invalid,
-        diagnostics: diags,
-    }
+    Outcome { term, kind: crate::execution::EvalKind::Unevaluated, status: athena_types::ComputationStatus::Invalid, diagnostics: diags }
 }
 
 /// `For[var, iterator, body]`（语句位 · 继承 env）。
@@ -257,12 +247,7 @@ fn for_loop(vm: &mut Vm<'_>, args: &[TermId]) -> Outcome {
             };
         }
     }
-    Outcome {
-        term: last,
-        kind: crate::execution::EvalKind::Value,
-        status: athena_types::ComputationStatus::Exact,
-        diagnostics: diags,
-    }
+    Outcome { term: last, kind: crate::execution::EvalKind::Value, status: athena_types::ComputationStatus::Exact, diagnostics: diags }
 }
 
 /// `Try[body, catch]`：body Error 时求值 catch。

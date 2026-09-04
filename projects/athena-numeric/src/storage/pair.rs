@@ -14,8 +14,8 @@ use athena_gc::{GcHeap, heap_id_for_limbs};
 
 use super::{
     meta::{
-        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, is_negative,
-        mode_of, try_mode_of,
+        META_SIGN_BIT, Mode, encode_heap_meta, encode_limb1_meta, encode_limb2_meta, encode_zero_meta, heap_len, is_negative, mode_of,
+        try_mode_of,
     },
     owned::OwnedLimbBuffer,
     union::{HeapPayload, Magnitude},
@@ -47,12 +47,7 @@ impl MagnitudePair {
     /// 由双 limb 构造（`hi != 0`；否则退化为 `from_u64(lo)`）。
     #[inline]
     pub(crate) fn from_limb2(limbs: [u64; 2]) -> Self {
-        if limbs[1] == 0 {
-            Self::from_u64(limbs[0])
-        }
-        else {
-            Self { meta: encode_limb2_meta(false), magnitude: Magnitude { limb2: limbs } }
-        }
+        if limbs[1] == 0 { Self::from_u64(limbs[0]) } else { Self { meta: encode_limb2_meta(false), magnitude: Magnitude { limb2: limbs } } }
     }
 
     /// 由 `u128` 构造（结果为 Zero / Limb1 / Limb2，**不经堆**）。
@@ -103,12 +98,7 @@ impl MagnitudePair {
             0 => Ok(Self::zero()),
             1 => {
                 let limb = limbs[0];
-                Ok(if limb == 0 {
-                    Self::zero()
-                }
-                else {
-                    Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } }
-                })
+                Ok(if limb == 0 { Self::zero() } else { Self { meta: encode_limb1_meta(false), magnitude: Magnitude { limb1: limb } } })
             }
             2 => {
                 let lo = limbs[0];

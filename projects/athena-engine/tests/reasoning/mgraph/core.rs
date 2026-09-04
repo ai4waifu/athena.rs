@@ -1,9 +1,8 @@
 //! M-Graph 实现层：`MGraphCore` · scope/relation 索引 · admit 路径。
 
 use athena_engine::reasoning::mgraph::{
-    AdmissionGate, Claim, ClosureSeeds, Evidence, Guarantee, MGraphCore, MGraphView, OuterCandidate, POLYNOMIAL_PROVIDER_ID,
-    Proposition, RelationStatus, Scope, ScopeRef, ScopeRelationKind, SemanticCore, VerificationPolicy, scope_from_ref,
-    scope_to_ref,
+    AdmissionGate, Claim, ClosureSeeds, Evidence, Guarantee, MGraphCore, MGraphView, OuterCandidate, POLYNOMIAL_PROVIDER_ID, Proposition,
+    RelationStatus, Scope, ScopeRef, ScopeRelationKind, SemanticCore, VerificationPolicy, scope_from_ref, scope_to_ref,
 };
 
 #[test]

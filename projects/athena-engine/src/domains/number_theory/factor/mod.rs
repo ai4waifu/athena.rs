@@ -35,11 +35,7 @@ pub fn factor_integer(n: &Integer, limits: &FactorLimits) -> Result<Factorizatio
 }
 
 /// 带可插拔 producer 的分解入口（外部 GMP-ECM 等可选挂接）。
-pub fn factor_integer_with_producer<P: FactorProducer>(
-    n: &Integer,
-    limits: &FactorLimits,
-    producer: &P,
-) -> Result<Factorization, Diagnostic> {
+pub fn factor_integer_with_producer<P: FactorProducer>(n: &Integer, limits: &FactorLimits, producer: &P) -> Result<Factorization, Diagnostic> {
     if n.is_zero() {
         return Err(factor_zero_invalid());
     }
@@ -62,13 +58,8 @@ pub fn factor_integer_with_producer<P: FactorProducer>(
         });
     }
 
-    let mut frontier = FactorFrontier {
-        unit,
-        factors_found: Vec::new(),
-        unresolved_cofactors: vec![m],
-        steps_used: 0,
-        resource_exhausted: false,
-    };
+    let mut frontier =
+        FactorFrontier { unit, factors_found: Vec::new(), unresolved_cofactors: vec![m], steps_used: 0, resource_exhausted: false };
 
     if limits.policy.algorithms.trial {
         let Some(remaining) = frontier.unresolved_cofactors.pop()
@@ -148,14 +139,7 @@ fn finalize_frontier(frontier: FactorFrontier) -> Factorization {
 
 fn complete_factorization(unit: Integer, mut factors: Vec<FactorComponent>, resource_exhausted: bool) -> Factorization {
     sort_factors(&mut factors);
-    Factorization {
-        unit,
-        factors,
-        cofactor: Integer::one(),
-        cofactor_status: CofactorStatus::One,
-        input_rejected: false,
-        resource_exhausted,
-    }
+    Factorization { unit, factors, cofactor: Integer::one(), cofactor_status: CofactorStatus::One, input_rejected: false, resource_exhausted }
 }
 
 fn sort_factors(factors: &mut Vec<FactorComponent>) {
@@ -197,11 +181,7 @@ fn trial_division(m: &mut Integer, limits: &FactorLimits, factors: &mut Vec<Fact
             e += 1;
         }
         if e > 0 {
-            factors.push(FactorComponent {
-                base: pb,
-                exponent: e,
-                status: FactorBaseStatus::ProvenPrime { certificate: trial_cert.clone() },
-            });
+            factors.push(FactorComponent { base: pb, exponent: e, status: FactorBaseStatus::ProvenPrime { certificate: trial_cert.clone() } });
         }
         p = p.saturating_add(2);
         if p > trial_cap {
@@ -244,13 +224,7 @@ fn run_composite_pipeline<P: FactorProducer>(frontier: &mut FactorFrontier, limi
     }
 }
 
-fn try_split<P: FactorProducer>(
-    n: &Integer,
-    limits: &FactorLimits,
-    steps: &mut u64,
-    max_steps: u64,
-    producer: &P,
-) -> Option<Integer> {
+fn try_split<P: FactorProducer>(n: &Integer, limits: &FactorLimits, steps: &mut u64, max_steps: u64, producer: &P) -> Option<Integer> {
     if *steps >= max_steps {
         return None;
     }

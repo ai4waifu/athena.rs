@@ -37,8 +37,7 @@ impl AthenaEngine {
 
     /// 先求导再求值（session arena · Living `25`）。
     pub fn differentiate_expression(&self, session: &mut Session, expr: TermId, var: &str) -> TermId {
-        let d =
-            crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), expr, var);
+        let d = crate::domains::calculus::differentiate(&mut crate::domains::calculus::ctx::CalculusCtx::new(session), expr, var);
         execution::vm::evaluate_session(session, d).term
     }
 
@@ -69,12 +68,10 @@ impl AthenaEngine {
             }
             AthenaRequest::Command(_) | AthenaRequest::Control(_) => {
                 let operation = request.kind_name();
-                let diagnostic = Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("phase", "request_boundary")
-                    .detail("operation", operation);
-                let result =
-                    ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
-                        .with_diagnostic(diagnostic.clone());
+                let diagnostic =
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("phase", "request_boundary").detail("operation", operation);
+                let result = ComputationResult::with_status(athena_types::ComputationStatus::Invalid, CoverageStatus::Unsupported)
+                    .with_diagnostic(diagnostic.clone());
                 let _ = session.insert_result(result);
                 Err(diagnostic)
             }

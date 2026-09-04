@@ -152,12 +152,7 @@ impl NumericContext {
         Self::assemble_with(budget, heap, capabilities, false)
     }
 
-    fn assemble_with(
-        budget: ExecutionBudget,
-        heap: Rc<RefCell<GcHeap>>,
-        capabilities: CapabilityBundle,
-        publish_gc_owned: bool,
-    ) -> Self {
+    fn assemble_with(budget: ExecutionBudget, heap: Rc<RefCell<GcHeap>>, capabilities: CapabilityBundle, publish_gc_owned: bool) -> Self {
         let kernels = KernelTable::bind(capabilities.machine);
         Self {
             budget,
@@ -177,8 +172,7 @@ impl NumericContext {
     /// Living 18：共享默认 heap 路径。Session 算术请用 [`Self::session_default`]。
     pub fn portable_default() -> Self {
         let mut caps = CapabilityBundle::portable_default();
-        caps.resource =
-            crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PortableBackend::default()).limits);
+        caps.resource = crate::dispatch::ResourceCapability::from_limits(NumericBackend::contract(&PortableBackend::default()).limits);
         Self::assemble(
             ExecutionBudget::from_limits(&NumericBackend::contract(&PortableBackend::default()).limits),
             GcHeap::shared_default(),

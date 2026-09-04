@@ -75,41 +75,17 @@ pub struct SolutionSet {
 impl SolutionSet {
     /// 空解集且声明完整（无解的已证情形仍需单独 proof）。
     pub fn empty_complete(variables: Vec<BoundSymbol>, domain: SolveDomain) -> Self {
-        Self {
-            variables,
-            branches: Vec::new(),
-            coverage: CoverageStatus::Complete,
-            domain,
-            proof: None,
-            residual: None,
-            frontier: None,
-        }
+        Self { variables, branches: Vec::new(), coverage: CoverageStatus::Complete, domain, proof: None, residual: None, frontier: None }
     }
 
     /// 局部-only 单分支包装（`FindRoot` / `fsolve` 路径）。
     pub fn local_only(variables: Vec<BoundSymbol>, domain: SolveDomain, branch: SolutionBranch) -> Self {
-        Self {
-            variables,
-            branches: vec![branch],
-            coverage: CoverageStatus::LocalOnly,
-            domain,
-            proof: None,
-            residual: None,
-            frontier: None,
-        }
+        Self { variables, branches: vec![branch], coverage: CoverageStatus::LocalOnly, domain, proof: None, residual: None, frontier: None }
     }
 
     /// 模型查找子集（`FindInstance`，不得冒充完整）。
     pub fn certified_subset(variables: Vec<BoundSymbol>, domain: SolveDomain, branches: Vec<SolutionBranch>) -> Self {
-        Self {
-            variables,
-            branches,
-            coverage: CoverageStatus::CertifiedSubset,
-            domain,
-            proof: None,
-            residual: None,
-            frontier: None,
-        }
+        Self { variables, branches, coverage: CoverageStatus::CertifiedSubset, domain, proof: None, residual: None, frontier: None }
     }
 
     /// 是否允许进入 exact union-find。

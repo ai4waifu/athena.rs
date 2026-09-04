@@ -81,8 +81,7 @@ pub fn publish_array_snapshot(
     let snapshot_id = allocate_array_snapshot_id(heap)?;
     let wire = ArraySnapshot::new(array_id, revision, shape, layout);
     let snapshot_record = ArraySnapshotRecord { id: snapshot_id, snapshot: wire.clone(), revision_id, chunks: chunks.clone() };
-    let revision_record =
-        ArrayRevisionRecord { id: revision_id, array_id, revision, snapshot_id: Some(snapshot_id), chunks: chunks.clone() };
+    let revision_record = ArrayRevisionRecord { id: revision_id, array_id, revision, snapshot_id: Some(snapshot_id), chunks: chunks.clone() };
     let snapshot_root = heap.roots_mut().register(snapshot_id.as_object(), RootKind::Array);
     let revision_root = heap.roots_mut().register(revision_id.as_object(), RootKind::Array);
     let chunk_roots = chunks.iter().map(|id| heap.roots_mut().register(id.as_object(), RootKind::Array)).collect();

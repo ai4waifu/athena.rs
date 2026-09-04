@@ -200,13 +200,7 @@ pub fn cases_for_op(operation: BigIntOp) -> Vec<BenchCase> {
             if !implementation.feature_enabled() {
                 continue;
             }
-            out.push(BenchCase {
-                operation,
-                bits,
-                implementation,
-                layer: BenchLayer::Peer,
-                context_policy: ContextPolicy::Reused,
-            });
+            out.push(BenchCase { operation, bits, implementation, layer: BenchLayer::Peer, context_policy: ContextPolicy::Reused });
         }
     }
     out

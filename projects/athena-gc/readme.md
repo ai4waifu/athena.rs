@@ -1,6 +1,7 @@
 # `athena-gc`
 
-`athena-gc` 是 Athena CAS runtime 的基础内存与生命周期层。它提供 segmented non-moving heap、allocation header、scratch frame、root registry、pin 与 `GcMode` 作用域 guard。
+`athena-gc` 是 Athena CAS runtime 的基础内存与生命周期层。它提供 segmented non-moving heap、allocation header、scratch
+frame、root registry、pin 与 `GcMode` 作用域 guard。
 
 ## 职责
 

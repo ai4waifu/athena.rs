@@ -31,8 +31,7 @@ impl BenchEnv {
         Self {
             commit: git_head(),
             rustc: rustc_version(),
-            target_triple: std::env::var("TARGET")
-                .unwrap_or_else(|_| format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)),
+            target_triple: std::env::var("TARGET").unwrap_or_else(|_| format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)),
             cpu: cpu_brand(),
             gpu: None,
             threads: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1),

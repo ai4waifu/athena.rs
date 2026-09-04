@@ -241,11 +241,7 @@ impl Decimal {
         let bits = self.significand_bits();
         if bits <= u64::from(precision_bits) {
             return Ok((
-                Self::from_parts(
-                    self.significand.try_clone().expect("portable default unbounded"),
-                    self.exponent,
-                    precision_bits,
-                ),
+                Self::from_parts(self.significand.try_clone().expect("portable default unbounded"), self.exponent, precision_bits),
                 RoundingStatus::Exact,
             ));
         }
@@ -294,11 +290,8 @@ impl Decimal {
             // 进位超出 p 位窗口：`1 << precision_bits`。
             if truncated.bits() > u64::from(precision_bits) {
                 truncated = truncated.shr_bits(1);
-                let exp = self
-                    .exponent
-                    .checked_add(discard as i64)
-                    .and_then(|e| e.checked_add(1))
-                    .ok_or_else(|| invalid("exponent_overflow"))?;
+                let exp =
+                    self.exponent.checked_add(discard as i64).and_then(|e| e.checked_add(1)).ok_or_else(|| invalid("exponent_overflow"))?;
                 let dyadic = Dyadic::try_new(self.sign(), truncated, exp)?;
                 let value = Self::try_from_dyadic(dyadic, precision_bits)?;
                 return Ok((value, status));

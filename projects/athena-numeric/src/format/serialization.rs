@@ -6,11 +6,10 @@ use crate::{
     number::NumericValue,
     precision::PrecisionInfo,
     wire_binary::{
-        WireBlobParts, decode_algebraic_payload, decode_blob, decode_complex_payload, decode_finite_field_payload,
-        decode_integer_payload, decode_interval_payload, decode_modular_payload, decode_padic_payload, decode_rational_payload,
-        decode_real_payload, encode_algebraic_payload, encode_blob, encode_complex_payload, encode_finite_field_payload,
-        encode_integer_payload, encode_interval_payload, encode_modular_payload, encode_padic_payload, encode_rational_payload,
-        encode_real_payload,
+        WireBlobParts, decode_algebraic_payload, decode_blob, decode_complex_payload, decode_finite_field_payload, decode_integer_payload,
+        decode_interval_payload, decode_modular_payload, decode_padic_payload, decode_rational_payload, decode_real_payload,
+        encode_algebraic_payload, encode_blob, encode_complex_payload, encode_finite_field_payload, encode_integer_payload,
+        encode_interval_payload, encode_modular_payload, encode_padic_payload, encode_rational_payload, encode_real_payload,
     },
 };
 

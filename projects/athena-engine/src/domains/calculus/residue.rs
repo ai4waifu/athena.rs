@@ -37,8 +37,7 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &
     let zero = cc.in_(0);
     match laurent(cc, expression, variable, point, 0) {
         CalculusResult::Exact { value: series, conditions } => {
-            let pole_order =
-                series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
+            let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
             let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| *c).unwrap_or(zero);
             // 若余项未知且无主部，不假装精确 0
             if matches!(series.remainder, Remainder::Unknown) && pole_order == 0 && is_zero_like(cc, value) {
@@ -60,13 +59,9 @@ pub fn residue_checked(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &
             }
         }
         CalculusResult::Conditional { value: series, conditions } => {
-            let pole_order =
-                series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
+            let pole_order = series.terms.iter().filter_map(|(_, p)| if *p < 0 { Some((-*p) as u32) } else { None }).max().unwrap_or(0);
             let value = series.terms.iter().find(|(_, p)| *p == -1).map(|(c, _)| *c).unwrap_or(zero);
-            CalculusResult::Conditional {
-                value: Residue { expression, variable: variable.to_string(), point, value, pole_order },
-                conditions,
-            }
+            CalculusResult::Conditional { value: Residue { expression, variable: variable.to_string(), point, value, pole_order }, conditions }
         }
         CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
             expression: Residue {

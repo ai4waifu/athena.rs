@@ -36,11 +36,7 @@ fn execute_request_command_is_explicit_unsupported() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
     let value = session.builder().int(1, Default::default());
-    let request = AthenaRequest::Command(SessionCommand::Define {
-        symbol: SymbolId(0),
-        value,
-        timing: DefinitionEvaluationTiming::Immediate,
-    });
+    let request = AthenaRequest::Command(SessionCommand::Define { symbol: SymbolId(0), value, timing: DefinitionEvaluationTiming::Immediate });
     assert_eq!(request.kind_name(), "Command");
     let err = engine.execute_request(&mut session, request).expect_err("command unsupported");
     assert_eq!(err.code, DiagnosticCode::UnsupportedOperation);

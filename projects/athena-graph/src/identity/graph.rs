@@ -206,10 +206,7 @@ impl<N, E> MutableGraph<N, E> {
             self.out_neighbors(node).collect()
         }
         else {
-            self.incoming
-                .get(node.0 as usize)
-                .map(|list| list.iter().map(|edge| self.source_of_edge(*edge)).collect())
-                .unwrap_or_default()
+            self.incoming.get(node.0 as usize).map(|list| list.iter().map(|edge| self.source_of_edge(*edge)).collect()).unwrap_or_default()
         }
     }
 
@@ -273,12 +270,7 @@ impl<N, E> MutableGraph<N, E> {
 
     /// 校验是否满足算法需求。
     pub fn ensure_capabilities(&self, req: GraphAlgorithmRequirements) -> Result<(), crate::GraphError> {
-        if self.capabilities().satisfies(req) {
-            Ok(())
-        }
-        else {
-            Err(crate::GraphError::CapabilityMismatch { requirement: req })
-        }
+        if self.capabilities().satisfies(req) { Ok(()) } else { Err(crate::GraphError::CapabilityMismatch { requirement: req }) }
     }
 
     fn target_of_edge(&self, edge: EdgeId, from: NodeId) -> NodeId {
@@ -352,10 +344,7 @@ impl<N, E> GraphBuilder<N, E> {
     }
 
     /// 完成构造并在 [`GcHeap`](athena_gc::GcHeap) 上发布 snapshot 根与空 [`ChunkSet`](crate::ChunkSet)。
-    pub fn finish_on_heap(
-        self,
-        heap: &mut athena_gc::GcHeap,
-    ) -> Result<crate::lifecycle::PublishedImmutableGraph<N, E>, GraphError> {
+    pub fn finish_on_heap(self, heap: &mut athena_gc::GcHeap) -> Result<crate::lifecycle::PublishedImmutableGraph<N, E>, GraphError> {
         crate::lifecycle::finish_on_heap(self.graph, heap)
     }
 

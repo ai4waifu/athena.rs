@@ -26,15 +26,9 @@ impl GcHeap {
             self.objects.push(None);
             i
         };
-        let generation =
-            self.objects.get(index as usize).and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1))).unwrap_or(1);
-        let (seg_id, ptr) = self.allocate_payload(
-            SegmentKind::LongLivedObject,
-            BlockKind::Object,
-            payload_bytes,
-            index,
-            NumericOwnership::Unspecified,
-        )?;
+        let generation = self.objects.get(index as usize).and_then(|s| s.as_ref().map(|o| o.generation.wrapping_add(1).max(1))).unwrap_or(1);
+        let (seg_id, ptr) =
+            self.allocate_payload(SegmentKind::LongLivedObject, BlockKind::Object, payload_bytes, index, NumericOwnership::Unspecified)?;
         self.objects[index as usize] = Some(ObjectSlot {
             generation,
             mark: Cell::new(MarkState::White),

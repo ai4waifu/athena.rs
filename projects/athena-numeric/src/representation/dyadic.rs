@@ -33,9 +33,7 @@ impl core::fmt::Debug for Dyadic {
 
 impl PartialEq for Dyadic {
     fn eq(&self, other: &Self) -> bool {
-        self.sign() == other.sign()
-            && self.significand.as_limbs() == other.significand.as_limbs()
-            && self.exponent == other.exponent
+        self.sign() == other.sign() && self.significand.as_limbs() == other.significand.as_limbs() && self.exponent == other.exponent
     }
 }
 
@@ -91,11 +89,7 @@ impl Dyadic {
             (if negative { Sign::Negative } else { Sign::Positive }, Natural::from_u64(frac), 1i64 - 1023 - 52)
         }
         else {
-            (
-                if negative { Sign::Negative } else { Sign::Positive },
-                Natural::from_u64(frac | (1u64 << 52)),
-                i64::from(exp_field) - 1023 - 52,
-            )
+            (if negative { Sign::Negative } else { Sign::Positive }, Natural::from_u64(frac | (1u64 << 52)), i64::from(exp_field) - 1023 - 52)
         };
 
         let mut v = Self::from_sign_mag(sign, significand, exponent);
@@ -139,12 +133,7 @@ impl Dyadic {
 
     /// 尾数位宽（零 → 0）。
     pub fn significand_bits(&self) -> u64 {
-        if self.is_zero() {
-            0
-        }
-        else {
-            Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits()
-        }
+        if self.is_zero() { 0 } else { Natural::from_pair(self.significand.try_clone_clear_sign().expect("portable default unbounded")).bits() }
     }
 
     /// 去掉末尾二进制零并规范零的符号。

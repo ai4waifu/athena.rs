@@ -50,7 +50,6 @@ fn decode_wire_integer(s: &str) -> Result<Integer> {
             .detail("domain", "numeric")
             .detail("operation", "wire_payload_limit"));
     }
-    Integer::from_str(s).map_err(|_| {
-        Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", "from_wire")
-    })
+    Integer::from_str(s)
+        .map_err(|_| Diagnostic::new(DiagnosticCode::NumericConversionForbidden).detail("domain", "numeric").detail("operation", "from_wire"))
 }

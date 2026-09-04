@@ -85,12 +85,8 @@ impl Fixture for TableLazyFixture {
             return Err("limit row count".into());
         }
         let field = Field::new("x", LogicalType::Int(64), false);
-        let col = column_from_store(
-            field,
-            athena_ndarray::InMemoryStorage::from_vec((0i64..4).collect()),
-            MemoryBudget::new(16).unwrap(),
-        )
-        .map_err(|e| format!("{e:?}"))?;
+        let col = column_from_store(field, athena_ndarray::InMemoryStorage::from_vec((0i64..4).collect()), MemoryBudget::new(16).unwrap())
+            .map_err(|e| format!("{e:?}"))?;
         if col.len() != 4 {
             return Err("column length".into());
         }

@@ -87,8 +87,5 @@ fn has_duplicate_symbols(symbols: &[BoundSymbol]) -> bool {
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::TypeMismatch)
-        .detail("domain", "solve")
-        .detail("operation", "validate_problem")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("domain", "solve").detail("operation", "validate_problem").detail("reason", reason)
 }

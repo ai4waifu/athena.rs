@@ -1,8 +1,7 @@
 //! Dixon QS + Fermat QS 阶段测试。
 
 use athena_engine::domains::number_theory::{
-    FactorAlgorithms, FactorLimits, FactorizationCompleteness, dixon_split, factor_integer, fermat_split, qs_split,
-    verify_factorization,
+    FactorAlgorithms, FactorLimits, FactorizationCompleteness, dixon_split, factor_integer, fermat_split, qs_split, verify_factorization,
 };
 use athena_numeric::Integer;
 
@@ -37,8 +36,7 @@ fn qs_split_prefers_fermat_then_dixon() {
 fn qs_pipeline_only_splits_semiprime() {
     let n = Integer::from_i64(8051);
     let mut limits = FactorLimits::default();
-    limits.policy.algorithms =
-        FactorAlgorithms { trial: false, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: true };
+    limits.policy.algorithms = FactorAlgorithms { trial: false, pollard_rho: false, pollard_p1: false, ecm: false, quadratic_sieve: true };
     limits.budget.max_steps = Some(200_000);
     let f = factor_integer(&n, &limits).expect("factor");
     assert_eq!(f.completeness(), FactorizationCompleteness::Complete);

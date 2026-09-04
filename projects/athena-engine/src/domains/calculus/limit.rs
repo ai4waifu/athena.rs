@@ -252,8 +252,7 @@ fn limit_infinity(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, 
         if !positive && degree % 2 == 1 {
             sign_positive = !sign_positive;
         }
-        let value =
-            if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
+        let value = if sign_positive { cc.symbol("Infinity") } else { cc.apply("Times", vec![cc.in_(-1), cc.symbol("Infinity")]) };
         return CalculusResult::Exact { value, conditions: Vec::new() };
     }
     unevaluated_limit(
@@ -315,13 +314,7 @@ fn is_open_limit_head(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
     matches!(cc.head_name(expr).as_deref(), Some("Limit") | Some("Indeterminate"))
 }
 
-fn limit_form(
-    cc: &mut CalculusCtx<'_>,
-    expression: TermId,
-    variable: &str,
-    approach: &LimitApproach,
-    direction: LimitDirection,
-) -> TermId {
+fn limit_form(cc: &mut CalculusCtx<'_>, expression: TermId, variable: &str, approach: &LimitApproach, direction: LimitDirection) -> TermId {
     let approach_term = match approach {
         LimitApproach::Finite(t) => *t,
         LimitApproach::PositiveInfinity => cc.symbol("Infinity"),
@@ -358,9 +351,7 @@ fn is_indeterminate_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
         return false;
     };
     match h.as_str() {
-        "Divide" if args.len() == 2 => {
-            cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.number_of(args[1]).is_some_and(|n| n.is_zero())
-        }
+        "Divide" if args.len() == 2 => cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.number_of(args[1]).is_some_and(|n| n.is_zero()),
         "Times" => {
             let has_zero = args.iter().any(|a| cc.number_of(*a).is_some_and(|n| n.is_zero()));
             let has_singular_pow = args.iter().any(|a| {
@@ -389,9 +380,7 @@ fn is_singular_form(cc: &CalculusCtx<'_>, expr: TermId) -> bool {
         "Divide" if args.len() == 2 => {
             cc.number_of(args[1]).is_some_and(|n| n.is_zero()) && cc.number_of(args[0]).is_some_and(|n| !n.is_zero())
         }
-        "Power" if args.len() == 2 => {
-            cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.int_exp(args[1]).is_some_and(|e| e < 0)
-        }
+        "Power" if args.len() == 2 => cc.number_of(args[0]).is_some_and(|n| n.is_zero()) && cc.int_exp(args[1]).is_some_and(|e| e < 0),
         _ => false,
     }
 }

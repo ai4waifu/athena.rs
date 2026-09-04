@@ -199,13 +199,7 @@ pub struct GraphPropertyResult<T> {
 
 impl<T> GraphPropertyResult<T> {
     /// 已证精确结果（默认摘要强度；verifier 通过后升级）。
-    pub fn proven(
-        kind: GraphPropertyKind,
-        value: T,
-        algorithm: &'static str,
-        certificate: GraphCertificate,
-        snapshot: GraphSnapshot,
-    ) -> Self {
+    pub fn proven(kind: GraphPropertyKind, value: T, algorithm: &'static str, certificate: GraphCertificate, snapshot: GraphSnapshot) -> Self {
         Self {
             kind,
             state: GraphPropertyState::ProvenTrue,

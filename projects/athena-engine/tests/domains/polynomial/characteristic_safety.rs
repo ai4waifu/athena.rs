@@ -2,9 +2,7 @@
 
 use athena_engine::domains::{
     algebra::CoefficientParent,
-    polynomial::{
-        CoefficientDomain, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, add_polynomial, mul_polynomial,
-    },
+    polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, RingCharacteristic, RingTable, add_polynomial, mul_polynomial},
 };
 use athena_numeric::{Integer, Modulus, Number};
 use athena_types::SymbolId;
@@ -55,7 +53,7 @@ fn finite_field_characteristic_from_descriptor() {
     assert_eq!(desc.characteristic, RingCharacteristic::Positive(Integer::from_i64(7)));
     let coeff_ring = desc.coefficient_ring;
     assert!(matches!(
-        table.coeff_rings().coefficient_parent(coeff_ring),
+        table.coefficient_rings().coefficient_parent(coeff_ring),
         CoefficientParent::Field(f) if f == field
     ));
 }

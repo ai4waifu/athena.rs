@@ -8,22 +8,15 @@ fn padic_add_mul_inv_mod_five() {
     let a = PAdicValue::from_integer(&2.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap();
     let b = PAdicValue::from_integer(&3.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap();
     let sum = a.add(&b).unwrap();
-    assert_eq!(
-        sum,
-        PAdicValue::from_integer(&5.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap()
-    );
+    assert_eq!(sum, PAdicValue::from_integer(&5.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap());
     assert!(!sum.is_zero());
 
-    let zero = a
-        .add(&PAdicValue::from_integer(&(-2).into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap())
-        .unwrap();
+    let zero =
+        a.add(&PAdicValue::from_integer(&(-2).into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap()).unwrap();
     assert!(zero.is_zero());
 
     let prod = a.mul(&b).unwrap();
-    assert_eq!(
-        prod,
-        PAdicValue::from_integer(&6.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap()
-    );
+    assert_eq!(prod, PAdicValue::from_integer(&6.into(), p.try_clone_in(&NumericContext::portable_default()).unwrap(), 4).unwrap());
 
     let inv = a.inv().unwrap();
     let one = a.mul(&inv).unwrap();

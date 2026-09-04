@@ -95,10 +95,7 @@ fn assumption_scope_table_intern_inherit_and_merge() {
 #[test]
 fn assumption_scope_table_rejects_local_conflict() {
     let mut table = AssumptionScopeTable::new();
-    let bad = AssumptionScope::from_predicates(vec![
-        Predicate::Equal(TermId(1), TermId(2)),
-        Predicate::NotEqual(TermId(1), TermId(2)),
-    ]);
+    let bad = AssumptionScope::from_predicates(vec![Predicate::Equal(TermId(1), TermId(2)), Predicate::NotEqual(TermId(1), TermId(2))]);
     let err = table.intern(bad).expect_err("conflict");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("local_conflict"));
 }

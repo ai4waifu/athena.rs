@@ -15,12 +15,12 @@ mod result;
 pub use athena_graph::{GraphId, GraphRevision, GraphSnapshot, RepresentationId};
 pub use lifecycle::{GraphResidencyController, bind_algorithm_checkpoint, resume_from_algorithm_checkpoint};
 pub use object::{
-    GraphAssumptions, GraphDomainSemantics, GraphHandle, GraphNodeId, GraphObject, GraphPresentation, GraphProvenance,
-    MemoryGraph, WeightDomain,
+    GraphAssumptions, GraphDomainSemantics, GraphHandle, GraphNodeId, GraphObject, GraphPresentation, GraphProvenance, MemoryGraph,
+    WeightDomain,
 };
 pub use property::{CertificateStrength, GraphCertificate, GraphPropertyKind, GraphPropertyResult, GraphPropertyState};
 pub use request::GraphTheoryRequest;
 pub use result::{
-    BipartiteResult, ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult,
-    ShortestPathResult, SpanningEdge, StronglyConnectedComponentsResult, execute_graph_theory, operation_name,
+    BipartiteResult, ConnectedComponentsResult, GraphTheoryResult, GraphTheoryValue, MinimumSpanningForestResult, ShortestPathResult,
+    SpanningEdge, StronglyConnectedComponentsResult, execute_graph_theory, operation_name,
 };

@@ -115,8 +115,7 @@ impl GcHeap {
         let mut swept = 0u64;
         let indices: Vec<usize> = (0..self.objects.len()).collect();
         for index in indices {
-            let should_sweep =
-                self.objects[index].as_ref().is_some_and(|s| s.block.is_some() && s.mark.get() == MarkState::White);
+            let should_sweep = self.objects[index].as_ref().is_some_and(|s| s.block.is_some() && s.mark.get() == MarkState::White);
             if !should_sweep {
                 continue;
             }

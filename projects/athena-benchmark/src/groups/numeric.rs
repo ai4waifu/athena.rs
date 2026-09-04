@@ -37,23 +37,15 @@ impl Fixture for RationalNormalizeFixture {
     fn validate(&self) -> Result<ValidationSummary, String> {
         let r = Rational::new(Integer::from_i64(-2), Integer::from_i64(-4)).normalize();
         if r.numerator().to_decimal_string() != "1" || r.denominator().to_decimal_string() != "2" {
-            return Err(format!(
-                "normalize expected 1/2, got {}/{}",
-                r.numerator().to_decimal_string(),
-                r.denominator().to_decimal_string()
-            ));
+            return Err(format!("normalize expected 1/2, got {}/{}", r.numerator().to_decimal_string(), r.denominator().to_decimal_string()));
         }
         let a = NumericValue::integer(Integer::from_i64(5));
-        let promoted = DefaultPromotion::promote(a, &NumericDomain::Rational, &PromotionPolicy::default())
-            .map_err(|d| d.code.as_str().to_string())?;
+        let promoted =
+            DefaultPromotion::promote(a, &NumericDomain::Rational, &PromotionPolicy::default()).map_err(|d| d.code.as_str().to_string())?;
         if promoted.domain() != NumericDomain::Rational {
             return Err("promotion to rational failed".into());
         }
-        Ok(ValidationSummary::passed(
-            ExactnessKind::Exact,
-            DeterminacyKind::Deterministic,
-            "rational normalize + integer→rational promotion",
-        ))
+        Ok(ValidationSummary::passed(ExactnessKind::Exact, DeterminacyKind::Deterministic, "rational normalize + integer→rational promotion"))
     }
 
     fn run_once(&self) {

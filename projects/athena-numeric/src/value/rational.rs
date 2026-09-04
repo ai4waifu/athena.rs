@@ -116,9 +116,7 @@ impl Rational {
     /// 依赖该数学不变量，而非“按理说不会失败”。
     fn normalize_pair(numer: Integer, denom: Integer) -> Result<Self, Diagnostic> {
         if denom.is_zero() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "rational_normalize"));
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "rational_normalize"));
         }
         let g = numer.abs().gcd(&denom.abs());
         let mut n = if g.is_one() { numer } else { numer.div(&g).expect("gcd") };
@@ -156,12 +154,7 @@ impl Rational {
 
     /// 分母（恒为正；整数 / 零时为 1）。
     pub fn denominator(&self) -> Integer {
-        if self.is_zero() {
-            Integer::one()
-        }
-        else {
-            Integer::from_positive_natural(Natural::from_pair(Self::owning_copy_pair(&self.denom)))
-        }
+        if self.is_zero() { Integer::one() } else { Integer::from_positive_natural(Natural::from_pair(Self::owning_copy_pair(&self.denom))) }
     }
 
     /// 是否为零。
@@ -280,9 +273,7 @@ impl Rational {
     pub fn try_div_ctx(&self, rhs: &Self, ctx: &NumericContext) -> Result<Self, Diagnostic> {
         ctx.check_entry()?;
         if rhs.is_zero() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "rational_div"));
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "rational_div"));
         }
         let (n, d) = cross_cancel_mul_ctx(self.numerator(), self.denominator(), rhs.denominator(), rhs.numerator(), ctx)?;
         Self::normalize_pair(n, d)
@@ -347,13 +338,7 @@ impl Rational {
 }
 
 /// 相乘 `a/b * c/d` 前交叉约分（服从预算）。
-fn cross_cancel_mul_ctx(
-    a: Integer,
-    b: Integer,
-    c: Integer,
-    d: Integer,
-    ctx: &NumericContext,
-) -> Result<(Integer, Integer), Diagnostic> {
+fn cross_cancel_mul_ctx(a: Integer, b: Integer, c: Integer, d: Integer, ctx: &NumericContext) -> Result<(Integer, Integer), Diagnostic> {
     let mut a = a;
     let mut b = b;
     let mut c = c;

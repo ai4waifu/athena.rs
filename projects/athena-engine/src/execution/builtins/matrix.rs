@@ -42,8 +42,7 @@ pub(crate) fn dot_binop(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
-            let (a, b) =
-                (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
+            let (a, b) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if a.len() != b.len() {
                 let echo = vm.rebuild_application_operator(op, vec![left, right]);
                 return Outcome::invalid(
@@ -172,10 +171,7 @@ fn matrix_fill(vm: &mut Vm<'_>, head: &str, args: &[TermId], fill: i64) -> Outco
     let n = match rows.checked_mul(cols) {
         Some(v) => v as usize,
         None => {
-            return Outcome::invalid(
-                vm.push_list(vec![]),
-                Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"),
-            );
+            return Outcome::invalid(vm.push_list(vec![]), Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "dims_overflow"));
         }
     };
     let fill_r = Rational::new(Integer::from_i64(fill), Integer::one());
@@ -285,10 +281,7 @@ pub(crate) fn mldivide(vm: &mut Vm<'_>, head: &str, a: TermId, b: TermId, echo: 
                 crate::domains::linear_algebra::SolveDisposition::Singular => "singular",
                 crate::domains::linear_algebra::SolveDisposition::ResourceLimited => "resource_limited",
             };
-            Outcome::invalid(
-                echo,
-                Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail),
-            )
+            Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", head).detail("reason", detail))
         }
         Err(d) => Outcome::invalid(echo, d),
     }
@@ -306,9 +299,7 @@ pub(crate) fn array_sum(vm: &mut Vm<'_>, arg: TermId) -> Outcome {
         match m.get(i, j)? {
             MatrixEntry::Rational(r) => Ok(r),
             MatrixEntry::Integer(n) => Ok(Rational::from_integer(n)),
-            MatrixEntry::MachineF64(_) => {
-                Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "sum_requires_exact"))
-            }
+            MatrixEntry::MachineF64(_) => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "sum_requires_exact")),
         }
     };
     if rows == 1 || cols == 1 {
@@ -403,10 +394,7 @@ pub(crate) fn matrix_to_nested_list(vm: &mut Vm<'_>, m: &MatrixValue) -> std::re
                         row.push(vm.push_int(i64v));
                     }
                     else {
-                        row.push(push_number(
-                            vm,
-                            athena_numeric::Number::integer(crate::runtime::values::numeric_clone::clone_integer(&n)),
-                        ));
+                        row.push(push_number(vm, athena_numeric::Number::integer(crate::runtime::values::numeric_clone::clone_integer(&n))));
                     }
                 }
                 MatrixEntry::MachineF64(x) => row.push(push_number(vm, athena_numeric::Number::machine(x))),

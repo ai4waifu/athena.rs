@@ -83,8 +83,7 @@ fn eval_compare(vm: &mut Vm<'_>, head: &str, left: TermId, right: TermId, cmp: f
     let r_list = matches!(vm.session.arena.get(right), Some(TermNode::List(_)));
     match (l_list, r_list) {
         (true, true) => {
-            let (xs, ys) =
-                (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
+            let (xs, ys) = (vm.application_arguments(left).unwrap_or_default(), vm.application_arguments(right).unwrap_or_default());
             if xs.len() != ys.len() {
                 return vm.push_application(head, vec![left, right]);
             }
@@ -389,8 +388,7 @@ fn is_trig_sq(vm: &Vm<'_>, expr: TermId, name: &str) -> bool {
     if args.len() != 2 || !is_application_named(vm, expr, "Power") {
         return false;
     }
-    let exp_is_two =
-        matches!(vm.session.arena.get(args[1]), Some(TermNode::Atom(Atom::Number(n))) if *n == Number::small_int(2));
+    let exp_is_two = matches!(vm.session.arena.get(args[1]), Some(TermNode::Atom(Atom::Number(n))) if *n == Number::small_int(2));
     exp_is_two
         && matches!(vm.session.arena.get(args[0]), Some(TermNode::Application { arguments: a, .. }) if a.len() == 1 && vm.head_name(args[0]).is_some_and(|h| h == name))
 }
@@ -514,11 +512,8 @@ pub(crate) fn h_error(vm: &mut Vm<'_>, operands: &[TermId]) -> Outcome {
         Some(TermNode::Atom(Atom::String(s))) => s.clone(),
         _ => "error".to_string(),
     };
-    Outcome::invalid(
-        echo,
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "error").detail("message", msg),
-    )
-    .with_diagnostics(diags)
+    Outcome::invalid(echo, Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("operation", "error").detail("message", msg))
+        .with_diagnostics(diags)
 }
 
 /// 值位 `Set` / `SetDelayed` quirk：参数已求值，再求值 rhs 一次（legacy 双重求值一致）。

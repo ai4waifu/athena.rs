@@ -80,8 +80,7 @@ impl GroupTable {
         self.next_group_id = self.next_group_id.wrapping_add(1);
         let presentation_id = GroupPresentationId(self.next_presentation_id);
         self.next_presentation_id = self.next_presentation_id.wrapping_add(1);
-        let presentation =
-            GroupPresentation { id: presentation_id, group, kind: GroupPresentationKind::Permutation { degree } };
+        let presentation = GroupPresentation { id: presentation_id, group, kind: GroupPresentationKind::Permutation { degree } };
         self.by_key.insert(key, group);
         self.group_to_presentation.insert(group, presentation_id);
         self.presentations.insert(presentation_id, presentation);
@@ -104,13 +103,7 @@ impl GroupTable {
         self.next_subgroup_id = self.next_subgroup_id.wrapping_add(1);
         let sub_presentation = self.presentation_id(subgroup_group)?;
         let parent_presentation = self.presentation_id(parent)?;
-        let inclusion = self.map_table.register_subgroup_inclusion(
-            subgroup_id,
-            subgroup_group,
-            parent,
-            sub_presentation,
-            parent_presentation,
-        );
+        let inclusion = self.map_table.register_subgroup_inclusion(subgroup_id, subgroup_group, parent, sub_presentation, parent_presentation);
         self.subgroups.insert(subgroup_id, SubgroupRecord { id: subgroup_id, parent, subgroup: subgroup_group, inclusion });
         Ok(subgroup_id)
     }
@@ -135,9 +128,7 @@ impl GroupTable {
             return Ok(q);
         }
         if !self.is_normal_subgroup(subgroup)? {
-            return Err(Diagnostic::new(DiagnosticCode::GroupNotNormal)
-                .detail("domain", "group")
-                .detail("operation", "quotient"));
+            return Err(Diagnostic::new(DiagnosticCode::GroupNotNormal).detail("domain", "group").detail("operation", "quotient"));
         }
         let (parent, subgroup_gid) = {
             let r = self.subgroups.get(&subgroup).ok_or_else(|| unknown_subgroup(subgroup))?;
@@ -163,8 +154,7 @@ impl GroupTable {
     ) -> Result<AlgebraMapId> {
         let source_spec = self.permutation_spec(source).ok_or_else(|| unknown_group(source))?;
         let target_spec = self.permutation_spec(target).ok_or_else(|| unknown_group(target))?;
-        let images: Result<Vec<RawPerm>> =
-            generator_images.iter().map(|p| RawPerm::new(p.images.clone(), target_spec.degree)).collect();
+        let images: Result<Vec<RawPerm>> = generator_images.iter().map(|p| RawPerm::new(p.images.clone(), target_spec.degree)).collect();
         let images = images?;
         let cache = verify_homomorphism_and_cache(&source_spec.bsgs, &source_spec.generators, &target_spec.bsgs, &images)?;
         let source_presentation = self.presentation_id(source)?;

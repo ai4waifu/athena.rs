@@ -12,7 +12,7 @@ fn coefficient_ring_intern_idempotent() {
     let desc_a = table.get(ring_a).unwrap();
     let desc_b = table.get(ring_b).unwrap();
     assert_eq!(desc_a.coefficient_ring, desc_b.coefficient_ring);
-    assert_eq!(table.coeff_rings().len(), 1);
+    assert_eq!(table.coefficient_rings().len(), 1);
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn distinct_coefficient_domains_get_distinct_ids() {
     assert_ne!(z_id, q_id);
     assert_ne!(z_id, fp_id);
     assert_ne!(q_id, fp_id);
-    assert_eq!(table.coeff_rings().len(), 3);
+    assert_eq!(table.coefficient_rings().len(), 3);
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn coeff_ring_descriptor_matches_domain() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(11), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let coeff_id = table.get(ring).unwrap().coefficient_ring;
-    let desc = table.coeff_rings().get(coeff_id).unwrap();
+    let desc = table.coefficient_rings().get(coeff_id).unwrap();
     assert!(matches!(desc.domain, CoefficientDomain::FiniteField { .. }));
 }
 

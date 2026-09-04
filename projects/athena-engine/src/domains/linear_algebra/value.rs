@@ -204,10 +204,7 @@ impl MatrixValue {
     fn linear_index(&self, row: u64, col: u64) -> Result<usize, Diagnostic> {
         super::index::IndexSpec::check_scalar(self.shape, row, col)?;
         let off = self.layout.offset(row, col)?;
-        let idx = self
-            .offset
-            .checked_add(off)
-            .ok_or_else(|| Diagnostic::new(DiagnosticCode::InvalidIndex).detail("reason", "view_offset"))?;
+        let idx = self.offset.checked_add(off).ok_or_else(|| Diagnostic::new(DiagnosticCode::InvalidIndex).detail("reason", "view_offset"))?;
         if idx < 0 {
             return Err(Diagnostic::new(DiagnosticCode::InvalidIndex).detail("reason", "negative_index"));
         }

@@ -33,11 +33,7 @@ pub fn is_galois_extension(table: &FieldTable, extension: ExtensionId) -> Result
 }
 
 /// 构造 `𝔽_{pⁿ}/𝔽_p` 的完整伽罗瓦群（循环群 `Cₙ`）。
-pub fn galois_group_of_extension(
-    table: &mut FieldTable,
-    groups: &mut GroupTable,
-    extension: ExtensionId,
-) -> Result<GaloisGroup> {
+pub fn galois_group_of_extension(table: &mut FieldTable, groups: &mut GroupTable, extension: ExtensionId) -> Result<GaloisGroup> {
     let (base, field, degree) = {
         let record = table.extension_record(extension).ok_or_else(|| unknown_extension(extension))?;
         (record.base, record.field, record.proven_degree().ok_or_else(|| unsupported_extension(extension))?)
@@ -60,12 +56,7 @@ pub fn field_automorphism(table: &mut FieldTable, extension: ExtensionId, froben
         .automorphism_map(aut_id)
         .ok_or_else(|| Diagnostic::new(DiagnosticCode::AutomorphismInvalid).detail("domain", "galois"))?;
     let degree = table.extension_record(extension).and_then(|r| r.proven_degree()).unwrap_or(1);
-    let inverse = if frobenius_power == 0 {
-        None
-    }
-    else {
-        Some(table.register_frobenius_automorphism(extension, degree - frobenius_power)?)
-    };
+    let inverse = if frobenius_power == 0 { None } else { Some(table.register_frobenius_automorphism(extension, degree - frobenius_power)?) };
     Ok(FieldAutomorphism {
         id: aut_id,
         extension,
@@ -76,12 +67,7 @@ pub fn field_automorphism(table: &mut FieldTable, extension: ExtensionId, froben
 }
 
 /// 对扩张坐标应用 σ^k。
-pub fn apply_frobenius_coords(
-    table: &FieldTable,
-    extension: ExtensionId,
-    coords: &[Integer],
-    power: u32,
-) -> Result<Vec<Integer>> {
+pub fn apply_frobenius_coords(table: &FieldTable, extension: ExtensionId, coords: &[Integer], power: u32) -> Result<Vec<Integer>> {
     let record = table.extension_record(extension).ok_or_else(|| unknown_extension(extension))?;
     let spec = table.finite_field_poly_spec(record.field).ok_or_else(|| unsupported_extension(extension))?;
     let p = table.prime_modulus(record.field)?;

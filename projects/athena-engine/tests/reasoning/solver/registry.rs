@@ -5,8 +5,7 @@ use std::sync::Arc;
 use athena_engine::reasoning::{
     mgraph::{CapabilityProviderId, ClosureLimits, MGraphState, SolverCandidate, run_closure_step},
     solver::{
-        DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverOperation, SolverRegistry, SolverRequest,
-        score_candidate,
+        DomainRef, ReflectionResult, Reflector, SolverContext, SolverLimits, SolverOperation, SolverRegistry, SolverRequest, score_candidate,
     },
 };
 use athena_types::{AssumptionSetId, Diagnostic, TermId};
@@ -14,12 +13,7 @@ use athena_types::{AssumptionSetId, Diagnostic, TermId};
 struct StubReflector;
 
 impl Reflector for StubReflector {
-    fn reflect(
-        &self,
-        _state: &MGraphState,
-        _request: &SolverRequest,
-        _context: &SolverContext,
-    ) -> Result<ReflectionResult, Diagnostic> {
+    fn reflect(&self, _state: &MGraphState, _request: &SolverRequest, _context: &SolverContext) -> Result<ReflectionResult, Diagnostic> {
         Ok(ReflectionResult::empty())
     }
 }

@@ -70,8 +70,7 @@ impl Default for AlgorithmCapability {
 
 impl AlgorithmCapability {
     /// 默认 pure-Rust 算法面（含 Toom-3 / BZ 门控路径）。
-    pub const DEFAULT: Self =
-        Self { schoolbook: true, karatsuba: true, toom: true, bz_division: true, half_gcd: true, montgomery: true };
+    pub const DEFAULT: Self = Self { schoolbook: true, karatsuba: true, toom: true, bz_division: true, half_gcd: true, montgomery: true };
 }
 
 /// 资源能力（预算 / scratch / 目标复用）。
@@ -100,12 +99,7 @@ impl ResourceCapability {
     /// 无上限（测试）。
     pub fn unlimited() -> Self {
         Self {
-            limits: NumericBackendLimits {
-                max_limbs: None,
-                max_significand_bits: None,
-                max_wire_payload_bytes: None,
-                max_pow_exp: None,
-            },
+            limits: NumericBackendLimits { max_limbs: None, max_significand_bits: None, max_wire_payload_bytes: None, max_pow_exp: None },
             can_reuse_destination: true,
             constant_time: false,
         }

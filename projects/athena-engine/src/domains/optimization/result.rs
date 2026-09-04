@@ -3,8 +3,7 @@
 use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode};
 
 use super::{
-    certificate::BoundCertificate, fingerprint::OptimizationFingerprint, frontier::OptimizationFrontier,
-    request::OptimizationRequest,
+    certificate::BoundCertificate, fingerprint::OptimizationFingerprint, frontier::OptimizationFrontier, request::OptimizationRequest,
 };
 
 /// 优化领域结果。

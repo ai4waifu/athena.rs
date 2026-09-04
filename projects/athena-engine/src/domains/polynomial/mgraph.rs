@@ -26,11 +26,7 @@ pub fn execute_polynomial_mgraph(request: PolynomialRequest, rings: &RingTable, 
 }
 
 /// 将已有结果写入 M-Graph（测试 / 外部 orchestrator）。
-pub fn record_polynomial_result(
-    key: PolynomialCacheKey,
-    result: PolynomialResult,
-    state: &mut MGraphState,
-) -> Result<(), Diagnostic> {
+pub fn record_polynomial_result(key: PolynomialCacheKey, result: PolynomialResult, state: &mut MGraphState) -> Result<(), Diagnostic> {
     match &result {
         PolynomialResult::Exact { .. } => {
             record_polynomial_cache(key, result, state);

@@ -151,15 +151,7 @@ pub fn solve_ode_checked(
     }
 }
 
-fn apply_ivp(
-    cc: &mut CalculusCtx<'_>,
-    dependent: &str,
-    independent: &str,
-    f: TermId,
-    particular: TermId,
-    x0: TermId,
-    y0: TermId,
-) -> TermId {
+fn apply_ivp(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, f: TermId, particular: TermId, x0: TermId, y0: TermId) -> TermId {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
     if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
         let ax0 = cc.eval(cc.apply("Times", vec![cc.num(cc.copy(&a)), x0]));
@@ -360,12 +352,7 @@ fn match_g_times_y_power(cc: &mut CalculusCtx<'_>, f: TermId, dependent: &str) -
     None
 }
 
-fn recognize_y_prime_equals(
-    cc: &mut CalculusCtx<'_>,
-    equation: TermId,
-    dependent: &str,
-    independent: &str,
-) -> Option<FirstOrderRhs> {
+fn recognize_y_prime_equals(cc: &mut CalculusCtx<'_>, equation: TermId, dependent: &str, independent: &str) -> Option<FirstOrderRhs> {
     // 形态：Equal[D[y,x], rhs]
     let (h, args) = cc.application(equation)?;
     if h == "Equal" && args.len() == 2 && is_d_of(cc, args[0], dependent, independent) {
@@ -483,12 +470,7 @@ fn placeholder(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, equ
     }
 }
 
-fn unsupported(
-    cc: &mut CalculusCtx<'_>,
-    dependent: &str,
-    independent: &str,
-    equation: TermId,
-) -> CalculusResult<DifferentialSolution> {
+fn unsupported(cc: &mut CalculusCtx<'_>, dependent: &str, independent: &str, equation: TermId) -> CalculusResult<DifferentialSolution> {
     CalculusResult::Unevaluated {
         expression: placeholder(cc, dependent, independent, equation),
         reason: Diagnostic::new(DiagnosticCode::OdeUnsupported),

@@ -6,8 +6,7 @@ use athena_ndarray::{ArrayStorage, ChunkedArray, InMemoryStorage, LogicalShape, 
 use crate::{
     CscGraph, CsrGraph, EdgeId, GraphDirection, GraphError, MutableGraph, NodeId,
     lifecycle::{
-        ChunkRegistry, ChunkSet, GraphPublication, PublishedImmutableGraph, allocate_chunk_id, finish_on_heap,
-        publication_attach_chunks,
+        ChunkRegistry, ChunkSet, GraphPublication, PublishedImmutableGraph, allocate_chunk_id, finish_on_heap, publication_attach_chunks,
     },
     storage::gc_payload::GcPayloadStorage,
 };

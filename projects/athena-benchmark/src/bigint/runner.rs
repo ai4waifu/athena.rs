@@ -204,19 +204,12 @@ impl BigIntPrepared {
         heap.borrow_mut()
             .with_numeric_batch(|batch| match self.case.operation {
                 BigIntOp::Add => {
-                    let e = EphemeralInteger::try_add(
-                        ops.a.as_limbs(),
-                        ops.a.is_negative(),
-                        ops.b.as_limbs(),
-                        ops.b.is_negative(),
-                        batch,
-                    )
-                    .expect("ephemeral add");
+                    let e = EphemeralInteger::try_add(ops.a.as_limbs(), ops.a.is_negative(), ops.b.as_limbs(), ops.b.is_negative(), batch)
+                        .expect("ephemeral add");
                     out = Some(e.promote(persist).expect("promote add"));
                 }
                 BigIntOp::Mul => {
-                    let e =
-                        EphemeralNatural::try_mul_schoolbook(ops.a.as_limbs(), ops.b.as_limbs(), batch).expect("ephemeral mul");
+                    let e = EphemeralNatural::try_mul_schoolbook(ops.a.as_limbs(), ops.b.as_limbs(), batch).expect("ephemeral mul");
                     let n = e.promote(persist).expect("promote mul mag");
                     let mut i = Integer::from_limbs_in(persist, n.as_limbs()).expect("int from limbs");
                     if ops.a.is_negative() != ops.b.is_negative() && !i.is_zero() {
@@ -354,12 +347,9 @@ pub fn prepare(case: BenchCase) -> BigIntPrepared {
     };
 
     let athena_int = match case.implementation {
-        Implementation::Athena if matches!(case.layer, BenchLayer::Numeric | BenchLayer::E2e) => Some(AthenaIntOps {
-            a: clone_integer(&a_ref),
-            b: clone_integer(&b_ref),
-            prod: prod_ref.as_ref().map(|n| clone_integer(n)),
-            exp,
-        }),
+        Implementation::Athena if matches!(case.layer, BenchLayer::Numeric | BenchLayer::E2e) => {
+            Some(AthenaIntOps { a: clone_integer(&a_ref), b: clone_integer(&b_ref), prod: prod_ref.as_ref().map(|n| clone_integer(n)), exp })
+        }
         _ => None,
     };
 

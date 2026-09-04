@@ -4,36 +4,36 @@ mod integer;
 mod prime_field;
 mod rational;
 
-pub use integer::ZCoeffKernel;
+pub use integer::ZCoefficientKernel;
 pub use prime_field::{FpBigKernel, FpWordKernel};
-pub use rational::QCoeffKernel;
+pub use rational::QCoefficientKernel;
 
 use athena_numeric::Modulus;
 use athena_types::{CoefficientRingId, Diagnostic, DiagnosticCode, Result};
 
-use super::{coeff_ring_table::CoeffRingTable, ring::CoefficientDomain};
+use super::{coefficient_ring_table::CoefficientRingTable, ring::CoefficientDomain};
 use crate::runtime::values::numeric_clone::clone_modulus;
 use prime_field::{FpKernelKind, select_fp_kernel};
 
 /// 已解析的系数环内核（enum dispatch，无 trait object）。
 #[derive(Debug)]
-pub enum SpecializedCoeffKernel {
+pub enum SpecializedCoefficientKernel {
     /// ℤ。
-    Integer(ZCoeffKernel),
+    Integer(ZCoefficientKernel),
     /// ℚ。
-    Rational(QCoeffKernel),
+    Rational(QCoefficientKernel),
     /// 𝔽_p · `u64` 字路径。
     FpWord(FpWordKernel),
     /// 𝔽_p · 大素数 `Modulus` path。
     FpBig(FpBigKernel),
 }
 
-impl SpecializedCoeffKernel {
+impl SpecializedCoefficientKernel {
     /// 由系数域与预计算模数构造（intern 时调用一次）。
     pub(crate) fn build(domain: &CoefficientDomain, prime_modulus: Option<&Modulus>) -> Result<Self> {
         match domain {
-            CoefficientDomain::Integer => Ok(Self::Integer(ZCoeffKernel)),
-            CoefficientDomain::Rational => Ok(Self::Rational(QCoeffKernel)),
+            CoefficientDomain::Integer => Ok(Self::Integer(ZCoefficientKernel)),
+            CoefficientDomain::Rational => Ok(Self::Rational(QCoefficientKernel)),
             CoefficientDomain::FiniteField { .. } => {
                 let modulus = prime_modulus.map(clone_modulus).ok_or_else(unsupported_domain)?;
                 match select_fp_kernel(modulus)? {
@@ -62,19 +62,19 @@ impl SpecializedCoeffKernel {
 }
 
 /// 绑定 [`CoefficientRingId`] 的系数环运算（Session 内快速路径）。
-pub struct CoeffRing<'a> {
-    kernel: &'a SpecializedCoeffKernel,
+pub struct CoefficientRing<'a> {
+    kernel: &'a SpecializedCoefficientKernel,
 }
 
-impl<'a> CoeffRing<'a> {
+impl<'a> CoefficientRing<'a> {
     /// 由 intern 表解析专用内核。
-    pub fn resolve(id: CoefficientRingId, table: &'a CoeffRingTable) -> Result<Self> {
+    pub fn resolve(id: CoefficientRingId, table: &'a CoefficientRingTable) -> Result<Self> {
         let kernel = table.kernel(id)?;
         Ok(Self { kernel })
     }
 
     /// 由环描述符解析（读 [`super::ring::RingDescriptor::coefficient_ring`]）。
-    pub fn for_descriptor(coefficient_ring: CoefficientRingId, table: &'a CoeffRingTable) -> Result<Self> {
+    pub fn for_descriptor(coefficient_ring: CoefficientRingId, table: &'a CoefficientRingTable) -> Result<Self> {
         Self::resolve(coefficient_ring, table)
     }
 
@@ -86,10 +86,10 @@ impl<'a> CoeffRing<'a> {
     /// 系数加法。
     pub fn add(&self, a: athena_numeric::Number, b: athena_numeric::Number) -> Result<athena_numeric::Number> {
         match self.kernel {
-            SpecializedCoeffKernel::Integer(k) => k.add(a, b),
-            SpecializedCoeffKernel::Rational(k) => k.add(a, b),
-            SpecializedCoeffKernel::FpWord(k) => k.add(a, b),
-            SpecializedCoeffKernel::FpBig(k) => k.add(a, b),
+            SpecializedCoefficientKernel::Integer(k) => k.add(a, b),
+            SpecializedCoefficientKernel::Rational(k) => k.add(a, b),
+            SpecializedCoefficientKernel::FpWord(k) => k.add(a, b),
+            SpecializedCoefficientKernel::FpBig(k) => k.add(a, b),
         }
     }
 
@@ -101,40 +101,40 @@ impl<'a> CoeffRing<'a> {
     /// 系数乘法。
     pub fn mul(&self, a: athena_numeric::Number, b: athena_numeric::Number) -> Result<athena_numeric::Number> {
         match self.kernel {
-            SpecializedCoeffKernel::Integer(k) => k.mul(a, b),
-            SpecializedCoeffKernel::Rational(k) => k.mul(a, b),
-            SpecializedCoeffKernel::FpWord(k) => k.mul(a, b),
-            SpecializedCoeffKernel::FpBig(k) => k.mul(a, b),
+            SpecializedCoefficientKernel::Integer(k) => k.mul(a, b),
+            SpecializedCoefficientKernel::Rational(k) => k.mul(a, b),
+            SpecializedCoefficientKernel::FpWord(k) => k.mul(a, b),
+            SpecializedCoefficientKernel::FpBig(k) => k.mul(a, b),
         }
     }
 
     /// 系数取负。
     pub fn neg(&self, a: athena_numeric::Number) -> Result<athena_numeric::Number> {
         match self.kernel {
-            SpecializedCoeffKernel::Integer(k) => k.neg(a),
-            SpecializedCoeffKernel::Rational(k) => k.neg(a),
-            SpecializedCoeffKernel::FpWord(k) => k.neg(a),
-            SpecializedCoeffKernel::FpBig(k) => k.neg(a),
+            SpecializedCoefficientKernel::Integer(k) => k.neg(a),
+            SpecializedCoefficientKernel::Rational(k) => k.neg(a),
+            SpecializedCoefficientKernel::FpWord(k) => k.neg(a),
+            SpecializedCoefficientKernel::FpBig(k) => k.neg(a),
         }
     }
 
     /// 系数域是否为域。
     pub fn is_field(&self) -> bool {
         match self.kernel {
-            SpecializedCoeffKernel::Integer(k) => k.is_field(),
-            SpecializedCoeffKernel::Rational(k) => k.is_field(),
-            SpecializedCoeffKernel::FpWord(k) => k.is_field(),
-            SpecializedCoeffKernel::FpBig(k) => k.is_field(),
+            SpecializedCoefficientKernel::Integer(k) => k.is_field(),
+            SpecializedCoefficientKernel::Rational(k) => k.is_field(),
+            SpecializedCoefficientKernel::FpWord(k) => k.is_field(),
+            SpecializedCoefficientKernel::FpBig(k) => k.is_field(),
         }
     }
 
     /// 域除法。
     pub fn div(&self, a: athena_numeric::Number, b: athena_numeric::Number) -> Result<athena_numeric::Number> {
         match self.kernel {
-            SpecializedCoeffKernel::Integer(k) => k.div(a, b),
-            SpecializedCoeffKernel::Rational(k) => k.div(a, b),
-            SpecializedCoeffKernel::FpWord(k) => k.div(a, b),
-            SpecializedCoeffKernel::FpBig(k) => k.div(a, b),
+            SpecializedCoefficientKernel::Integer(k) => k.div(a, b),
+            SpecializedCoefficientKernel::Rational(k) => k.div(a, b),
+            SpecializedCoefficientKernel::FpWord(k) => k.div(a, b),
+            SpecializedCoefficientKernel::FpBig(k) => k.div(a, b),
         }
     }
 
@@ -147,12 +147,10 @@ impl<'a> CoeffRing<'a> {
 impl CoefficientDomain {
     /// 精确系数内核支持的系数域。
     pub fn is_f3_supported(&self) -> bool {
-        SpecializedCoeffKernel::supports(self)
+        SpecializedCoefficientKernel::supports(self)
     }
 }
 
 fn unsupported_domain() -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-        .detail("domain", "polynomial")
-        .detail("operation", "coeff_domain_unsupported")
+    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "polynomial").detail("operation", "coefficient_domain_unsupported")
 }

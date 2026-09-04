@@ -70,20 +70,13 @@ impl EvidenceVerifier {
             return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: claim.guarantee };
         }
         if !policy.accepts(claim.guarantee) {
-            return AdmissionOutcome::Rejected {
-                reason: reject_reason_for_guarantee(claim.guarantee),
-                guarantee: claim.guarantee,
-            };
+            return AdmissionOutcome::Rejected { reason: reject_reason_for_guarantee(claim.guarantee), guarantee: claim.guarantee };
         }
         AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim.clone()))
     }
 
     /// 验证多项式 solver 产出（Claim 合同判据，非 `PolynomialResult::Exact` 名称）。
-    pub fn verify_polynomial(
-        key: &PolynomialCacheKey,
-        result: &PolynomialResult,
-        policy: &VerificationPolicy,
-    ) -> AdmissionOutcome {
+    pub fn verify_polynomial(key: &PolynomialCacheKey, result: &PolynomialResult, policy: &VerificationPolicy) -> AdmissionOutcome {
         match result {
             PolynomialResult::Exact { value } => {
                 let guarantee = classify_polynomial_guarantee(value);
@@ -119,12 +112,7 @@ impl AdmissionGate {
     }
 
     /// 接纳多项式结果：operational cache 始终写入，semantic core 仅 verified claim。
-    pub fn commit_polynomial(
-        state: &mut MGraphState,
-        key: PolynomialCacheKey,
-        result: PolynomialResult,
-        policy: &VerificationPolicy,
-    ) {
+    pub fn commit_polynomial(state: &mut MGraphState, key: PolynomialCacheKey, result: PolynomialResult, policy: &VerificationPolicy) {
         let outcome = EvidenceVerifier::verify_polynomial(&key, &result, policy);
         state.operational.result_cache.store_polynomial(key, result, &outcome);
         if let AdmissionOutcome::Admitted(vc) = outcome {
@@ -213,8 +201,5 @@ fn guarantee_rank(g: Guarantee) -> u8 {
 }
 
 fn evidence_from_witness(witness: &PolynomialWitness) -> Evidence {
-    Evidence::TrustedKernel {
-        provider: POLYNOMIAL_PROVIDER_ID,
-        summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary),
-    }
+    Evidence::TrustedKernel { provider: POLYNOMIAL_PROVIDER_ID, summary: format!("{}:{}", witness.operation.as_str(), witness.output_summary) }
 }

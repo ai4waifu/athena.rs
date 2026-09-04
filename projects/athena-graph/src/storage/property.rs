@@ -82,11 +82,7 @@ pub struct GcDenseU64Column {
 
 impl GcDenseU64Column {
     /// 在 heap 上分配 GraphProperty 列，并登记 chunk。
-    pub fn allocate(
-        heap: &mut athena_gc::GcHeap,
-        registry: &mut crate::lifecycle::ChunkRegistry,
-        values: &[u64],
-    ) -> Result<Self, GraphError> {
+    pub fn allocate(heap: &mut athena_gc::GcHeap, registry: &mut crate::lifecycle::ChunkRegistry, values: &[u64]) -> Result<Self, GraphError> {
         let chunk_id = crate::lifecycle::allocate_chunk_id(heap)?;
         registry.register_resident(chunk_id)?;
         let storage = crate::storage::gc_payload::GcPayloadStorage::allocate_property(heap, values, chunk_id)?;
@@ -184,12 +180,7 @@ impl<N, E> PropertyStore<N, E> {
     }
 
     /// 插入节点属性列；长度须等于 `node_count`。
-    pub fn insert_node_column(
-        &mut self,
-        name: impl Into<String>,
-        node_count: u64,
-        column: PropertyColumn<N>,
-    ) -> Result<(), GraphError> {
+    pub fn insert_node_column(&mut self, name: impl Into<String>, node_count: u64, column: PropertyColumn<N>) -> Result<(), GraphError> {
         if column.len() != node_count {
             return Err(GraphError::PropertyLengthMismatch { expected: node_count, actual: column.len() });
         }
@@ -204,12 +195,7 @@ impl<N, E> PropertyStore<N, E> {
     }
 
     /// 插入边属性列；长度须等于 `edge_count`。
-    pub fn insert_edge_column(
-        &mut self,
-        name: impl Into<String>,
-        edge_count: u64,
-        column: PropertyColumn<E>,
-    ) -> Result<(), GraphError> {
+    pub fn insert_edge_column(&mut self, name: impl Into<String>, edge_count: u64, column: PropertyColumn<E>) -> Result<(), GraphError> {
         if column.len() != edge_count {
             return Err(GraphError::PropertyLengthMismatch { expected: edge_count, actual: column.len() });
         }

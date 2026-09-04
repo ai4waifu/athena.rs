@@ -47,9 +47,7 @@ impl PAdicValue {
         }
         let modulus = pow_prime(&prime, precision)?;
         let inv_den = inv_mod(&den, &modulus).ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "padic_from_rational_inv")
+            Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "padic_from_rational_inv")
         })?;
         let num = r.numerator().rem_euclid(&modulus)?;
         let residue = num.mul(&inv_den).rem_euclid(&modulus)?;
@@ -60,9 +58,7 @@ impl PAdicValue {
     pub fn validate(&self) -> Result<()> {
         validate_prime_precision(&self.prime, self.precision)?;
         let p = self.prime.to_u64().ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
-                .detail("domain", "numeric")
-                .detail("operation", "padic_prime_too_large")
+            Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", "padic_prime_too_large")
         })?;
         if self.digits.len() > self.precision as usize {
             return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
@@ -94,9 +90,7 @@ impl PAdicValue {
     /// 零扩展到更大精度（同 `p`）。
     pub fn lift(&self, new_precision: u32) -> Result<Self> {
         if new_precision < self.precision {
-            return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
-                .detail("domain", "numeric")
-                .detail("operation", "padic_lift"));
+            return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", "padic_lift"));
         }
         Self::try_new(self.prime.try_clone_in(&NumericContext::portable_default())?, new_precision, self.digits.clone())
     }
@@ -135,14 +129,11 @@ impl PAdicValue {
     /// 逆元（须为 `p`-adic 单位）。
     pub fn inv(&self) -> Result<Self> {
         if !self.is_unit() {
-            return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
-                .detail("domain", "numeric")
-                .detail("operation", "padic_inv_non_unit"));
+            return Err(Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "padic_inv_non_unit"));
         }
         let m = pow_prime(&self.prime, self.precision)?;
-        let inv = inv_mod(&self.residue(), &m).ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "padic_inv")
-        })?;
+        let inv = inv_mod(&self.residue(), &m)
+            .ok_or_else(|| Diagnostic::new(DiagnosticCode::DivideByZero).detail("domain", "numeric").detail("operation", "padic_inv"))?;
         Ok(from_residue(inv, self.prime.try_clone_in(&NumericContext::portable_default())?, self.precision))
     }
 
@@ -180,9 +171,7 @@ impl PAdicValue {
 
 fn same_domain(a: &PAdicValue, b: &PAdicValue) -> Result<()> {
     if a.prime != b.prime || a.precision != b.precision {
-        return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch)
-            .detail("domain", "numeric")
-            .detail("operation", "padic_domain"));
+        return Err(Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", "padic_domain"));
     }
     Ok(())
 }
@@ -230,9 +219,9 @@ fn is_prime_u64(n: u64) -> bool {
 }
 
 fn pow_prime(prime: &Integer, n: u32) -> Result<Integer> {
-    prime.pow_u32(n).map_err(|_| {
-        Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", "padic_pow")
-    })
+    prime
+        .pow_u32(n)
+        .map_err(|_| Diagnostic::new(DiagnosticCode::NumericDomainMismatch).detail("domain", "numeric").detail("operation", "padic_pow"))
 }
 
 fn normalize_mod(r: Integer, m: &Integer) -> Integer {

@@ -253,9 +253,7 @@ fn combine_like_powers(vm: &mut Vm<'_>, factors: Vec<TermId>) -> Vec<TermId> {
     let mut rest = Vec::new();
     for f in factors {
         let base_exp = match vm.shape(f) {
-            Some(Shape::Application(op, args)) if vm.session.operators.name(op) == Some("Power") && args.len() == 2 => {
-                Some((args[0], args[1]))
-            }
+            Some(Shape::Application(op, args)) if vm.session.operators.name(op) == Some("Power") && args.len() == 2 => Some((args[0], args[1])),
             Some(Shape::Symbol(_)) => {
                 let one = vm.push_int(1);
                 Some((f, one))
@@ -363,10 +361,9 @@ pub(crate) fn power(vm: &mut Vm<'_>, base: TermId, exp: TermId) -> TermId {
             }
         }
     }
-    if let (Some(b), Some(e)) = (
-        number_of(vm, base).map(|n| vm.copy_number(n).expect("b copy")),
-        number_of(vm, exp).map(|n| vm.copy_number(n).expect("e copy")),
-    ) {
+    if let (Some(b), Some(e)) =
+        (number_of(vm, base).map(|n| vm.copy_number(n).expect("b copy")), number_of(vm, exp).map(|n| vm.copy_number(n).expect("e copy")))
+    {
         if let Ok(v) = num_pow(&b, &e) {
             return push_number(vm, v);
         }

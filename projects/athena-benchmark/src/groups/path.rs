@@ -68,14 +68,7 @@ struct AllocBlock4 {
 }
 impl Fixture for AllocBlock4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.alloc_numeric_block_4",
-            "4_limbs",
-            "gc_heap",
-            BenchLayer::Numeric,
-            ContextPolicy::Reused,
-            "disabled",
-        )
+        FixtureMeta::path("path.alloc_numeric_block_4", "4_limbs", "gc_heap", BenchLayer::Numeric, ContextPolicy::Reused, "disabled")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         let block = self.bundle.ctx.allocate_numeric_block(4).map_err(|d| d.code.as_str().to_string())?;
@@ -94,14 +87,7 @@ struct PublishLimbs4 {
 }
 impl Fixture for PublishLimbs4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.publish_from_limbs_4",
-            "4_limbs",
-            "natural_publish",
-            BenchLayer::Numeric,
-            ContextPolicy::Reused,
-            "disabled",
-        )
+        FixtureMeta::path("path.publish_from_limbs_4", "4_limbs", "natural_publish", BenchLayer::Numeric, ContextPolicy::Reused, "disabled")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         let n = Natural::from_limbs_in(&self.bundle.ctx, LIMBS4.to_vec()).map_err(|d| d.code.as_str().to_string())?;
@@ -121,14 +107,7 @@ struct CloneHeapNatural {
 }
 impl Fixture for CloneHeapNatural {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.clone_heap_natural_4",
-            "4_limbs",
-            "magnitude_clone",
-            BenchLayer::Numeric,
-            ContextPolicy::Reused,
-            "disabled",
-        )
+        FixtureMeta::path("path.clone_heap_natural_4", "4_limbs", "magnitude_clone", BenchLayer::Numeric, ContextPolicy::Reused, "disabled")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         if self.n.as_limbs() != LIMBS4 {
@@ -165,14 +144,7 @@ struct NaturalTryAdd4 {
 }
 impl Fixture for NaturalTryAdd4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.natural_try_add_4",
-            "4_limbs",
-            "natural_heap",
-            BenchLayer::Numeric,
-            ContextPolicy::Reused,
-            "disabled",
-        )
+        FixtureMeta::path("path.natural_try_add_4", "4_limbs", "natural_heap", BenchLayer::Numeric, ContextPolicy::Reused, "disabled")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         if self.a.as_limbs() != LIMBS4 || self.b.as_limbs() != LIMBS4_B {
@@ -214,14 +186,7 @@ struct IntegerTryAdd4 {
 }
 impl Fixture for IntegerTryAdd4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.integer_try_add_4",
-            "4_limbs",
-            "integer_shared_auto",
-            BenchLayer::E2e,
-            ContextPolicy::Reused,
-            "auto",
-        )
+        FixtureMeta::path("path.integer_try_add_4", "4_limbs", "integer_shared_auto", BenchLayer::E2e, ContextPolicy::Reused, "auto")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         let s = self.a.try_add(&self.b, &self.ctx).map_err(|d| d.code.as_str().to_string())?;
@@ -279,14 +244,7 @@ struct IntegerAddE2e4 {
 }
 impl Fixture for IntegerAddE2e4 {
     fn meta(&self) -> FixtureMeta {
-        FixtureMeta::path(
-            "path.integer_add_e2e_4",
-            "4_limbs",
-            "integer_per_call",
-            BenchLayer::E2e,
-            ContextPolicy::PerCall,
-            "auto",
-        )
+        FixtureMeta::path("path.integer_add_e2e_4", "4_limbs", "integer_per_call", BenchLayer::E2e, ContextPolicy::PerCall, "auto")
     }
     fn validate(&self) -> Result<ValidationSummary, String> {
         let s = self.a.add(&self.b);

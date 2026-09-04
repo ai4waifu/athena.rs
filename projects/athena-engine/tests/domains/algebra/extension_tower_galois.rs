@@ -95,9 +95,8 @@ fn extension_record_roundtrip_by_id() {
 fn galois_requests_for_separable_and_normal() {
     let mut fields = FieldTable::new();
     let mut groups = GroupTable::new();
-    let f8 = fields
-        .polynomial_basis_field(Integer::from_i64(2), vec![Integer::one(), Integer::one(), Integer::zero(), Integer::one()])
-        .unwrap();
+    let f8 =
+        fields.polynomial_basis_field(Integer::from_i64(2), vec![Integer::one(), Integer::one(), Integer::zero(), Integer::one()]).unwrap();
     let ext = fields.extension_by_field(f8).unwrap().id;
     for req in [
         GaloisRequest::IsExtensionSeparable { extension: ext },

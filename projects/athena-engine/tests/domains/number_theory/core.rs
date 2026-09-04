@@ -4,9 +4,7 @@ use athena_engine::{
     api::AthenaEngine,
     domains::{
         DomainRequest, DomainResult,
-        number_theory::{
-            FactorLimits, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality,
-        },
+        number_theory::{FactorLimits, FactorizationCompleteness, NumberTheoryRequest, NumberTheoryResult, NumberTheoryValue, Primality},
     },
     runtime::{Session, values::numeric_clone::clone_modulus},
 };
@@ -24,27 +22,23 @@ fn expect_nt(r: Result<DomainResult, athena_types::Diagnostic>) -> NumberTheoryR
 fn gcd_lcm_egcd_via_domain() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
-    let out = expect_nt(
-        engine
-            .execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::Gcd { a: 48.into(), b: 18.into() })),
-    );
+    let out =
+        expect_nt(engine.execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::Gcd { a: 48.into(), b: 18.into() })));
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(g) } => assert_eq!(g, Integer::from_i64(6)),
         other => panic!("gcd: {other:?}"),
     }
 
-    let out = expect_nt(
-        engine.execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::Lcm { a: 4.into(), b: 6.into() })),
-    );
+    let out =
+        expect_nt(engine.execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::Lcm { a: 4.into(), b: 6.into() })));
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Integer(l) } => assert_eq!(l, Integer::from_i64(12)),
         other => panic!("lcm: {other:?}"),
     }
 
-    let out = expect_nt(engine.execute_domain(
-        &mut session,
-        DomainRequest::NumberTheory(NumberTheoryRequest::ExtendedGcd { a: 240.into(), b: 46.into() }),
-    ));
+    let out = expect_nt(
+        engine.execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::ExtendedGcd { a: 240.into(), b: 46.into() })),
+    );
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::ExtendedGcd(e) } => {
             assert_eq!(e.g, Integer::from_i64(2));
@@ -116,10 +110,11 @@ fn modular_inverse_and_pow() {
         other => panic!("inv: {other:?}"),
     }
 
-    let out = expect_nt(engine.execute_domain(
-        &mut session,
-        DomainRequest::NumberTheory(NumberTheoryRequest::ModPow { base: 3.into(), exp: 5.into(), modulus: m }),
-    ));
+    let out =
+        expect_nt(engine.execute_domain(
+            &mut session,
+            DomainRequest::NumberTheory(NumberTheoryRequest::ModPow { base: 3.into(), exp: 5.into(), modulus: m }),
+        ));
     match out {
         NumberTheoryResult::Exact { value: NumberTheoryValue::Modular(v) } => assert_eq!(v.residue(), Integer::from_i64(5)),
         other => panic!("pow: {other:?}"),
@@ -131,10 +126,9 @@ fn modular_inverse_missing() {
     let engine = AthenaEngine::new();
     let mut session = Session::new();
     let m = Modulus::new(15).unwrap();
-    let out = expect_nt(engine.execute_domain(
-        &mut session,
-        DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 6.into(), modulus: m }),
-    ));
+    let out = expect_nt(
+        engine.execute_domain(&mut session, DomainRequest::NumberTheory(NumberTheoryRequest::ModInverse { a: 6.into(), modulus: m })),
+    );
     match out {
         NumberTheoryResult::Unevaluated { reason } => {
             assert_eq!(reason.code, DiagnosticCode::ModularInverseMissing);

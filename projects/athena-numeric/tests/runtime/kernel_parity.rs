@@ -2,8 +2,7 @@
 
 use athena_gc::{GcHeap, HeapBudget};
 use athena_numeric::{
-    CapabilityBundle, ExecutionBudget, ExecutionToken, KernelTable, MachineCapability, NumericContext, algorithm::DivStrategy,
-    natural::Natural,
+    CapabilityBundle, ExecutionBudget, ExecutionToken, KernelTable, MachineCapability, NumericContext, algorithm::DivStrategy, natural::Natural,
 };
 
 #[test]
@@ -106,8 +105,7 @@ fn schoolbook_width_mul_div_parity_pure_vs_isa() {
     caps_sb.algorithm.karatsuba = false;
     caps_sb.algorithm.toom = false;
     let heap2 = GcHeap::new_shared(HeapBudget::default());
-    let ctx_sb_pure =
-        NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap2.clone(), caps_sb).with_portable_kernels();
+    let ctx_sb_pure = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap2.clone(), caps_sb).with_portable_kernels();
     let mut caps_sb_isa = caps_sb;
     caps_sb_isa.machine = MachineCapability { adx: true, bmi2: true, ..MachineCapability::PORTABLE };
     let ctx_sb_isa = NumericContext::with_capabilities(ExecutionBudget::unlimited(), heap2, caps_sb_isa);

@@ -148,8 +148,5 @@ fn binding_value_from_entry(entry: MatrixEntry) -> Result<BindingValue, Diagnost
 }
 
 fn diag(reason: &str) -> Diagnostic {
-    Diagnostic::new(DiagnosticCode::TypeMismatch)
-        .detail("domain", "solve")
-        .detail("operation", "adapt_linear")
-        .detail("reason", reason)
+    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("domain", "solve").detail("operation", "adapt_linear").detail("reason", reason)
 }

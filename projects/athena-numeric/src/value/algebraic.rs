@@ -43,11 +43,7 @@ impl AlgebraicNumber {
                 AlgebraicRepresentation::MinimalPolynomial { polynomial: *polynomial, root_index: *root_index }
             }
         };
-        Ok(Self {
-            minimal_polynomial: self.minimal_polynomial,
-            isolating_interval: self.isolating_interval.try_clone_in(ctx)?,
-            representation,
-        })
+        Ok(Self { minimal_polynomial: self.minimal_polynomial, isolating_interval: self.isolating_interval.try_clone_in(ctx)?, representation })
     }
 
     /// 校验并构造。

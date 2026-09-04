@@ -10,8 +10,7 @@ mod property;
 
 pub use capability::{GraphAlgorithmRequirements, GraphCapabilities};
 pub use conversion::{
-    CsrOnHeap, attach_csr_chunks, csr_to_csc, edge_list_to_csr, finish_csr_on_heap, graph_edge_list, graph_to_csr,
-    graph_to_csr_on_heap,
+    CsrOnHeap, attach_csr_chunks, csr_to_csc, edge_list_to_csr, finish_csr_on_heap, graph_edge_list, graph_to_csr, graph_to_csr_on_heap,
 };
 pub use csc::CscGraph;
 pub use csr::CsrGraph;

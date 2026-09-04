@@ -136,9 +136,7 @@ impl PolynomialFactorization {
         match self.cofactor_status {
             PolynomialCofactorStatus::One if all_proven && !has_probable => PolynomialFactorizationCompleteness::Complete,
             PolynomialCofactorStatus::One if has_probable => PolynomialFactorizationCompleteness::Probable,
-            PolynomialCofactorStatus::Unsplit | PolynomialCofactorStatus::Unknown => {
-                PolynomialFactorizationCompleteness::Partial
-            }
+            PolynomialCofactorStatus::Unsplit | PolynomialCofactorStatus::Unknown => PolynomialFactorizationCompleteness::Partial,
             PolynomialCofactorStatus::One => PolynomialFactorizationCompleteness::Partial,
         }
     }
@@ -163,19 +161,13 @@ impl Clone for PolynomialFactorization {
 /// - ℚ/ℤ：有理根试除；二次无有理根且判别式非平方 → 不可约 `Complete`
 /// - 更高未裂余式 → `Partial`（cofactor）
 /// - `deg > max_degree` → `ResourceLimited` + `input_rejected`
-pub fn factor_univariate(
-    polynomial: Polynomial,
-    rings: &RingTable,
-    limits: PolynomialFactorLimits,
-) -> Result<PolynomialFactorization> {
+pub fn factor_univariate(polynomial: Polynomial, rings: &RingTable, limits: PolynomialFactorLimits) -> Result<PolynomialFactorization> {
     let poly = canonicalize_polynomial(polynomial, rings)?;
     let ring = poly.ring();
     let desc = rings.get(ring).ok_or_else(|| ring_unknown(ring))?;
 
     if poly.terms().is_empty() {
-        return Err(Diagnostic::new(DiagnosticCode::DomainError)
-            .detail("domain", "polynomial")
-            .detail("operation", "factor_zero_polynomial"));
+        return Err(Diagnostic::new(DiagnosticCode::DomainError).detail("domain", "polynomial").detail("operation", "factor_zero_polynomial"));
     }
 
     let deg = total_degree_univariate(&poly)?;
@@ -208,11 +200,7 @@ pub fn factor_univariate(
         return Ok(PolynomialFactorization {
             ring,
             unit: Number::small_int(1),
-            factors: vec![PolynomialFactorComponent {
-                base: poly,
-                exponent: 1,
-                status: PolynomialFactorStatus::ProvenIrreducible,
-            }],
+            factors: vec![PolynomialFactorComponent { base: poly, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible }],
             cofactor: Polynomial::zero(ring),
             cofactor_status: PolynomialCofactorStatus::One,
             input_rejected: false,
@@ -272,11 +260,7 @@ fn factor_rational_roots(mut poly: Polynomial, rings: &RingTable, max_steps: u32
             });
         }
         if deg == 1 {
-            factors.push(PolynomialFactorComponent {
-                base: poly,
-                exponent: 1,
-                status: PolynomialFactorStatus::ProvenIrreducible,
-            });
+            factors.push(PolynomialFactorComponent { base: poly, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible });
             return Ok(PolynomialFactorization {
                 ring,
                 unit,
@@ -297,11 +281,7 @@ fn factor_rational_roots(mut poly: Polynomial, rings: &RingTable, max_steps: u32
                     .detail("operation", "rational_root_division")
                     .detail("reason", "nonzero_remainder"));
             }
-            factors.push(PolynomialFactorComponent {
-                base: linear,
-                exponent: 1,
-                status: PolynomialFactorStatus::ProvenIrreducible,
-            });
+            factors.push(PolynomialFactorComponent { base: linear, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible });
             poly = div.quotient;
             continue;
         }
@@ -309,16 +289,8 @@ fn factor_rational_roots(mut poly: Polynomial, rings: &RingTable, max_steps: u32
         if deg == 2 {
             match split_quadratic_over_rationals(&poly, rings)? {
                 QuadraticSplit::TwoLinears(f1, f2) => {
-                    factors.push(PolynomialFactorComponent {
-                        base: f1,
-                        exponent: 1,
-                        status: PolynomialFactorStatus::ProvenIrreducible,
-                    });
-                    factors.push(PolynomialFactorComponent {
-                        base: f2,
-                        exponent: 1,
-                        status: PolynomialFactorStatus::ProvenIrreducible,
-                    });
+                    factors.push(PolynomialFactorComponent { base: f1, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible });
+                    factors.push(PolynomialFactorComponent { base: f2, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible });
                     return Ok(PolynomialFactorization {
                         ring,
                         unit,
@@ -330,11 +302,7 @@ fn factor_rational_roots(mut poly: Polynomial, rings: &RingTable, max_steps: u32
                     });
                 }
                 QuadraticSplit::Irreducible => {
-                    factors.push(PolynomialFactorComponent {
-                        base: poly,
-                        exponent: 1,
-                        status: PolynomialFactorStatus::ProvenIrreducible,
-                    });
+                    factors.push(PolynomialFactorComponent { base: poly, exponent: 1, status: PolynomialFactorStatus::ProvenIrreducible });
                     return Ok(PolynomialFactorization {
                         ring,
                         unit,

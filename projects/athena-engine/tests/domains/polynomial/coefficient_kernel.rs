@@ -1,8 +1,6 @@
 //! 专用系数内核：ℤ、ℚ、`FpWord`、`FpBig`。
 
-use athena_engine::domains::polynomial::{
-    CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable, add_polynomial, mul_polynomial,
-};
+use athena_engine::domains::polynomial::{CoefficientDomain, MonomialOrder, PolynomialBuilder, RingTable, add_polynomial, mul_polynomial};
 use athena_numeric::{Integer, Number};
 use athena_types::SymbolId;
 
@@ -11,15 +9,15 @@ fn integer_and_rational_select_dedicated_kernels() {
     let mut table = RingTable::new();
     let z = table.intern(CoefficientDomain::Integer, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let q = table.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    assert_eq!(table.coeff_kernel(z).unwrap().kind_tag(), "Z");
-    assert_eq!(table.coeff_kernel(q).unwrap().kind_tag(), "Q");
+    assert_eq!(table.coefficient_kernel(z).unwrap().kind_tag(), "Z");
+    assert_eq!(table.coefficient_kernel(q).unwrap().kind_tag(), "Q");
 }
 
 #[test]
 fn small_prime_field_selects_fp_word_kernel() {
     let mut table = RingTable::new();
     let ring = table.intern_over_prime_field(Integer::from_i64(17), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    assert_eq!(table.coeff_kernel(ring).unwrap().kind_tag(), "FpWord");
+    assert_eq!(table.coefficient_kernel(ring).unwrap().kind_tag(), "FpWord");
 }
 
 #[test]
@@ -72,5 +70,5 @@ fn same_small_prime_reuses_word_kernel_entry() {
     let a = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let b = table.intern_over_prime_field(Integer::from_i64(5), vec![SymbolId(1)], MonomialOrder::GrLex).unwrap();
     assert_eq!(table.get(a).unwrap().coefficient_ring, table.get(b).unwrap().coefficient_ring);
-    assert_eq!(table.coeff_kernel(a).unwrap().kind_tag(), "FpWord");
+    assert_eq!(table.coefficient_kernel(a).unwrap().kind_tag(), "FpWord");
 }

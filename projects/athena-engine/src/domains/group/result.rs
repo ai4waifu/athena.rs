@@ -28,9 +28,7 @@ pub enum GroupResult {
 /// 执行群论请求（无 Session 上下文）。
 pub fn execute_group(request: GroupRequest) -> GroupResult {
     let op = operation_name(&request);
-    GroupResult::Unevaluated {
-        reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "group").detail("operation", op),
-    }
+    GroupResult::Unevaluated { reason: Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "group").detail("operation", op) }
 }
 
 /// 经 [`GroupTable`] 执行群论请求。
@@ -86,15 +84,13 @@ pub fn execute_group_with_table_mut(request: GroupRequest, table: &mut GroupTabl
             },
             Err(reason) => GroupResult::Unevaluated { reason },
         },
-        GroupRequest::SubgroupFromGenerators { parent, generators } => {
-            match table.subgroup_from_generators(parent, &generators) {
-                Ok(subgroup) => match table.subgroup_record(subgroup) {
-                    Ok(s) => GroupResult::Exact { value: GroupDomainValue::Subgroup(s) },
-                    Err(reason) => GroupResult::Unevaluated { reason },
-                },
+        GroupRequest::SubgroupFromGenerators { parent, generators } => match table.subgroup_from_generators(parent, &generators) {
+            Ok(subgroup) => match table.subgroup_record(subgroup) {
+                Ok(s) => GroupResult::Exact { value: GroupDomainValue::Subgroup(s) },
                 Err(reason) => GroupResult::Unevaluated { reason },
-            }
-        }
+            },
+            Err(reason) => GroupResult::Unevaluated { reason },
+        },
         GroupRequest::QuotientGroup { subgroup } => match table.quotient_group(subgroup) {
             Ok(group) => match table.group_record(group) {
                 Ok(g) => GroupResult::Exact { value: GroupDomainValue::Group(g) },
@@ -113,9 +109,9 @@ pub fn execute_group_with_table_mut(request: GroupRequest, table: &mut GroupTabl
 }
 
 fn is_abelian(table: &GroupTable, group: athena_types::GroupId) -> athena_types::Result<bool> {
-    let spec = table.permutation_spec(group).ok_or_else(|| {
-        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "group").detail("operation", "is_abelian")
-    })?;
+    let spec = table
+        .permutation_spec(group)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "group").detail("operation", "is_abelian"))?;
     let gens = &spec.generators;
     for (i, a) in gens.iter().enumerate() {
         for b in &gens[i + 1..] {

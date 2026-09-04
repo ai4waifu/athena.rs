@@ -10,9 +10,7 @@ impl NumericValueWire {
         match value {
             NumericValue::Integer(n) => Ok(n.to_decimal_string()),
             NumericValue::Rational(r) => Ok(r.to_wire_string()),
-            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                .detail("domain", "numeric")
-                .detail("operation", "encode_text")),
+            _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "encode_text")),
         }
     }
 

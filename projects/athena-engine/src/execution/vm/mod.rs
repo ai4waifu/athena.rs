@@ -451,8 +451,7 @@ impl<'a> Vm<'a> {
             }
             pc += 1;
         }
-        let (term, kind, status) =
-            stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
+        let (term, kind, status) = stack.pop().unwrap_or((self.push_null(), EvalKind::Value, athena_types::ComputationStatus::Exact));
         Outcome { term, kind, status, diagnostics: diags }
     }
 }

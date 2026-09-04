@@ -7,12 +7,7 @@ use crate::domains::algebra::{GroupTable, RawPerm};
 use super::types::{GroupElement, GroupElementRepr, Permutation};
 
 /// 构造 canonical 置换元素。
-pub fn canonical_permutation(
-    table: &GroupTable,
-    group: GroupId,
-    images: Vec<u32>,
-    element_id: GroupElementId,
-) -> Result<GroupElement> {
+pub fn canonical_permutation(table: &GroupTable, group: GroupId, images: Vec<u32>, element_id: GroupElementId) -> Result<GroupElement> {
     table.ensure_computable(group)?;
     table.validate_permutation(group, &images)?;
     let presentation = table.presentation_id(group)?;
@@ -95,8 +90,7 @@ pub fn project_quotient_element(table: &GroupTable, subgroup: SubgroupId, elemen
         _ => return Err(group_element_invalid("quotient_not_permutation")),
     };
     let image = table.project_quotient(subgroup, &raw)?;
-    let quotient =
-        table.map_table().quotient_group(subgroup).ok_or_else(|| group_element_invalid("quotient_not_registered"))?;
+    let quotient = table.map_table().quotient_group(subgroup).ok_or_else(|| group_element_invalid("quotient_not_registered"))?;
     table.ensure_computable(quotient)?;
     canonical_permutation(table, quotient, image.images().to_vec(), GroupElementId(0))
 }

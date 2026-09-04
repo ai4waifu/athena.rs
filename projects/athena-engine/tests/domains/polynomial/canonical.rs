@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::polynomial::{
-        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult, RingTable,
-        canonicalize_polynomial, execute_polynomial_with_rings, polynomial_canonical_hash,
+        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialRequest, PolynomialResult, RingTable, canonicalize_polynomial,
+        execute_polynomial_with_rings, polynomial_canonical_hash,
     },
     runtime::Session,
 };

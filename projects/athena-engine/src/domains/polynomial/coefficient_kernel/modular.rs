@@ -5,11 +5,11 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 模整数环系数算术。
 #[derive(Debug, PartialEq, Eq)]
-pub struct ZnCoeffKernel {
+pub struct ZnCoefficientKernel {
     modulus: Modulus,
 }
 
-impl ZnCoeffKernel {
+impl ZnCoefficientKernel {
     /// 由已验证模数构造。
     pub fn new(modulus: Modulus) -> Self {
         Self { modulus }

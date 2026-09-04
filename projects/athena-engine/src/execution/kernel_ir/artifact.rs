@@ -44,8 +44,7 @@ impl KernelIR {
         let mut operations = Vec::new();
         for claim in fact_log.claims() {
             if let Proposition::PolynomialResult { operation, request_fingerprint } = &claim.claim.proposition {
-                operations
-                    .push(KernelOperation::Polynomial { operation: *operation, request_fingerprint: *request_fingerprint });
+                operations.push(KernelOperation::Polynomial { operation: *operation, request_fingerprint: *request_fingerprint });
             }
         }
         let fingerprint = hash_operations(&operations);

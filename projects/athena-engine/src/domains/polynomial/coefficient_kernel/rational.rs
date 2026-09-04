@@ -5,9 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 有理数域系数算术。
 #[derive(Debug, Copy, Clone, Default)]
-pub struct QCoeffKernel;
+pub struct QCoefficientKernel;
 
-impl QCoeffKernel {
+impl QCoefficientKernel {
     /// 系数加法。
     pub fn add(&self, a: Number, b: Number) -> Result<Number> {
         num_add(a, b)

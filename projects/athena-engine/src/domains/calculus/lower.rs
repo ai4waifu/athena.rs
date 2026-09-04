@@ -243,13 +243,7 @@ fn lower_dsolve(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusReq
     };
     let dependent = symbol_name(cc, *dep)?;
     let independent = symbol_name(cc, *indep)?;
-    Some(CalculusRequest::SolveOde {
-        equation: *equation,
-        dependent,
-        independent,
-        initial: None,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::SolveOde { equation: *equation, dependent, independent, initial: None, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_laplace(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {
@@ -308,11 +302,7 @@ fn lower_divergence(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<Calculu
         return None;
     };
     let variables: Option<Vec<String>> = var_terms.iter().map(|v| symbol_name(cc, *v)).collect();
-    Some(CalculusRequest::Divergence {
-        components: components.to_vec(),
-        variables: variables?,
-        assumptions: AssumptionSet::empty(),
-    })
+    Some(CalculusRequest::Divergence { components: components.to_vec(), variables: variables?, assumptions: AssumptionSet::empty() })
 }
 
 fn lower_curl(cc: &mut CalculusCtx<'_>, args: &[TermId]) -> Option<CalculusRequest> {

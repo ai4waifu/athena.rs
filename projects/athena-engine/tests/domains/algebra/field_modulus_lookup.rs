@@ -9,14 +9,14 @@ fn finite_field_domain_is_field_id_only() {
     let mut rings = RingTable::new();
     let ring = rings.intern_over_prime_field(Integer::from_i64(13), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
     let coeff_id = rings.get(ring).unwrap().coefficient_ring;
-    assert!(matches!(rings.coeff_rings().get(coeff_id).unwrap().domain, CoefficientDomain::FiniteField { field: _ }));
+    assert!(matches!(rings.coefficient_rings().get(coeff_id).unwrap().domain, CoefficientDomain::FiniteField { field: _ }));
 }
 
 #[test]
-fn coeff_kernel_modulus_from_presentation_not_domain_payload() {
+fn coefficient_kernel_modulus_from_presentation_not_domain_payload() {
     let mut rings = RingTable::new();
     let ring = rings.intern_over_prime_field(Integer::from_i64(7), vec![SymbolId(0)], MonomialOrder::Lex).unwrap();
-    let kernel = rings.coeff_kernel(ring).unwrap();
+    let kernel = rings.coefficient_kernel(ring).unwrap();
     let prod = kernel.mul(Number::small_int(3), Number::small_int(5)).unwrap();
     assert_eq!(prod, Number::small_int(1));
 }
@@ -24,8 +24,7 @@ fn coeff_kernel_modulus_from_presentation_not_domain_payload() {
 #[test]
 fn unregistered_field_id_rejected_without_characteristic_in_domain() {
     let mut rings = RingTable::new();
-    let err =
-        rings.intern(CoefficientDomain::FiniteField { field: FieldId(42) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
+    let err = rings.intern(CoefficientDomain::FiniteField { field: FieldId(42) }, vec![SymbolId(0)], MonomialOrder::Lex).unwrap_err();
     assert_eq!(err.code.as_str(), "ATHENA_UNSUPPORTED_OPERATION");
 }
 

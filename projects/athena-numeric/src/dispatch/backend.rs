@@ -2,9 +2,7 @@
 //!
 //! 与 [`crate::kernel::portable`] 算法实现正交：本模块只广告 capability / wire 上限。
 
-use super::{
-    NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode,
-};
+use super::{NumericBackend, NumericBackendContract, NumericBackendLimits, NumericCapability, NumericOperation, NumericResultMode};
 use crate::{domain::NumericDomain, precision::PrecisionKind};
 
 const PORTABLE_WIRE_PAYLOAD_LIMIT: u32 = 1 << 20;
@@ -112,13 +110,8 @@ impl NumericBackend for PortableBackend {
             (NumericDomain::Real, NumericOperation::Promote, NumericResultMode::ArbitrarySkeleton) => {
                 self.has_capability(NumericCapability::ArbitraryRealSkeleton)
             }
-            (
-                NumericDomain::Interval,
-                NumericOperation::IntervalAdd | NumericOperation::IntervalMul,
-                NumericResultMode::IntervalEnclosure,
-            ) => {
-                self.has_capability(NumericCapability::IntervalEnclosure)
-                    && self.has_capability(NumericCapability::DirectedRounding)
+            (NumericDomain::Interval, NumericOperation::IntervalAdd | NumericOperation::IntervalMul, NumericResultMode::IntervalEnclosure) => {
+                self.has_capability(NumericCapability::IntervalEnclosure) && self.has_capability(NumericCapability::DirectedRounding)
             }
             (
                 NumericDomain::Modular { .. },

@@ -2,8 +2,8 @@
 
 use athena_engine::{
     domains::polynomial::{
-        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialCacheOp, PolynomialRequest, RingTable,
-        cache_key_for_request, fnv1a64, polynomial_canonical_hash, polynomial_fingerprint,
+        CoefficientDomain, MonomialOrder, PolynomialBuilder, PolynomialCacheOp, PolynomialRequest, RingTable, cache_key_for_request, fnv1a64,
+        polynomial_canonical_hash, polynomial_fingerprint,
     },
     runtime::Session,
 };

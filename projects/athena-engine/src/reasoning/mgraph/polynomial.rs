@@ -72,11 +72,7 @@ impl PolynomialMGraphStore {
     /// 写入缓存；verified 层且含 witness 时返回 rewrite witness。
     pub fn insert(&mut self, entry: PolynomialCacheEntry) -> Option<RewriteWitness> {
         let edge = if entry.tier == PolynomialCacheTier::Verified {
-            entry.witness.as_ref().map(|_| RewriteWitness {
-                provider: POLYNOMIAL_PROVIDER_ID,
-                inputs: Vec::new(),
-                outputs: Vec::new(),
-            })
+            entry.witness.as_ref().map(|_| RewriteWitness { provider: POLYNOMIAL_PROVIDER_ID, inputs: Vec::new(), outputs: Vec::new() })
         }
         else {
             debug_assert!(entry.witness.is_none());

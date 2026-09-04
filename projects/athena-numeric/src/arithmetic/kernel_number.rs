@@ -15,12 +15,11 @@ fn lift(n: &NumericValue) -> Result<Lifted> {
         NumericValue::Integer(i) => Ok(Lifted::Integer(i.try_clone_in(&NumericContext::portable_default())?)),
         NumericValue::Rational(r) => Ok(Lifted::Rational(r.try_clone_in(&NumericContext::portable_default())?)),
         NumericValue::Real(Real::Machine(x)) => Ok(Lifted::Real(*x)),
-        NumericValue::Real(Real::Decimal(b)) => b.to_f64_approximate().map(Lifted::Real).ok_or_else(|| {
-            Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "kernel_lift")
-        }),
-        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-            .detail("domain", "numeric")
-            .detail("operation", "kernel_lift")),
+        NumericValue::Real(Real::Decimal(b)) => b
+            .to_f64_approximate()
+            .map(Lifted::Real)
+            .ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "kernel_lift")),
+        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "kernel_lift")),
     }
 }
 

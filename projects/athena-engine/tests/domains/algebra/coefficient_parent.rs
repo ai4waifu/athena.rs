@@ -17,7 +17,7 @@ fn ring_descriptor_coefficients_is_coefficient_parent() {
         panic!("expected Ring parent for Z");
     };
     assert_eq!(coeff_ring, desc.coefficient_ring);
-    assert!(matches!(rings.coeff_rings().get(coeff_ring).unwrap().domain, CoefficientDomain::Integer));
+    assert!(matches!(rings.coefficient_rings().get(coeff_ring).unwrap().domain, CoefficientDomain::Integer));
 
     let field = rings.field_table_mut().prime_field(Integer::from_i64(11)).unwrap();
     let fp = rings.intern_over_field(field, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();

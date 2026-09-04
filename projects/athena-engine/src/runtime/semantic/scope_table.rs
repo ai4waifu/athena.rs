@@ -60,11 +60,7 @@ impl AssumptionScopeTable {
     }
 
     /// 合并两个已 intern 作用域，成功则 intern 结果。
-    pub fn merge_interned(
-        &mut self,
-        left: AssumptionScopeId,
-        right: AssumptionScopeId,
-    ) -> Result<AssumptionScopeId, Diagnostic> {
+    pub fn merge_interned(&mut self, left: AssumptionScopeId, right: AssumptionScopeId) -> Result<AssumptionScopeId, Diagnostic> {
         let a = self.get(left).cloned().ok_or_else(|| missing(left))?;
         let b = self.get(right).cloned().ok_or_else(|| missing(right))?;
         match a.merge(&b) {

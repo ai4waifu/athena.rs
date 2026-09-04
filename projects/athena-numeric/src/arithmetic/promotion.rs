@@ -3,8 +3,7 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use crate::{
-    decimal::Decimal, domain::NumericDomain, integer::Integer, number::NumericValue, precision::PrecisionKind,
-    rational::Rational, real::Real,
+    decimal::Decimal, domain::NumericDomain, integer::Integer, number::NumericValue, precision::PrecisionKind, rational::Rational, real::Real,
 };
 
 /// Promotion 策略。
@@ -79,12 +78,7 @@ impl Promotion for DefaultPromotion {
             }
             (NumericDomain::Rational, NumericDomain::Integer) => {
                 if let NumericValue::Rational(r) = value {
-                    if r.is_integer() {
-                        Ok(NumericValue::integer(r.numerator()))
-                    }
-                    else {
-                        Err(forbidden("rational_to_integer"))
-                    }
+                    if r.is_integer() { Ok(NumericValue::integer(r.numerator())) } else { Err(forbidden("rational_to_integer")) }
                 }
                 else {
                     Err(failed("promote"))
@@ -106,9 +100,7 @@ impl Promotion for DefaultPromotion {
                     Err(failed("promote"))
                 }
             }
-            (NumericDomain::Real, NumericDomain::Integer) | (NumericDomain::Real, NumericDomain::Rational) => {
-                Err(forbidden("real_to_exact"))
-            }
+            (NumericDomain::Real, NumericDomain::Integer) | (NumericDomain::Real, NumericDomain::Rational) => Err(forbidden("real_to_exact")),
             _ => Err(failed("promote")),
         }
     }
@@ -157,9 +149,9 @@ fn exact_to_machine_int(n: &Integer, policy: &PromotionPolicy) -> Result<Numeric
     }
     match n.try_to_f64_exact() {
         Some(x) => Ok(NumericValue::machine_real(x)),
-        None => Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss)
-            .detail("domain", "numeric")
-            .detail("operation", "integer_to_machine")),
+        None => {
+            Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss).detail("domain", "numeric").detail("operation", "integer_to_machine"))
+        }
     }
 }
 
@@ -169,9 +161,9 @@ fn exact_to_machine_rat(r: &Rational, policy: &PromotionPolicy) -> Result<Numeri
     }
     match r.try_to_f64_exact() {
         Some(x) => Ok(NumericValue::machine_real(x)),
-        None => Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss)
-            .detail("domain", "numeric")
-            .detail("operation", "rational_to_machine")),
+        None => {
+            Err(Diagnostic::new(DiagnosticCode::NumericPrecisionLoss).detail("domain", "numeric").detail("operation", "rational_to_machine"))
+        }
     }
 }
 

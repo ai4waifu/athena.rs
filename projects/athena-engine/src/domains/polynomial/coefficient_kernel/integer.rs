@@ -5,9 +5,9 @@ use athena_types::{Diagnostic, DiagnosticCode, Result};
 
 /// 整数环系数算术。
 #[derive(Debug, Copy, Clone, Default)]
-pub struct ZCoeffKernel;
+pub struct ZCoefficientKernel;
 
-impl ZCoeffKernel {
+impl ZCoefficientKernel {
     /// 系数加法。
     pub fn add(&self, a: Number, b: Number) -> Result<Number> {
         num_add(a, b)

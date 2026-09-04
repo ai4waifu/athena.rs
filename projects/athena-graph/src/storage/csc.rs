@@ -16,11 +16,7 @@ pub struct CscGraph<O, I> {
 
 impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
     /// 创建并全量校验 CSC invariants（含 offsets 单调）。
-    pub fn new(
-        nodes: u64,
-        column_offsets: ChunkedArray<u64, O>,
-        row_indices: ChunkedArray<u64, I>,
-    ) -> Result<Self, GraphError> {
+    pub fn new(nodes: u64, column_offsets: ChunkedArray<u64, O>, row_indices: ChunkedArray<u64, I>) -> Result<Self, GraphError> {
         Self::new_with_metadata(nodes, column_offsets, row_indices, None)
     }
 
@@ -106,11 +102,7 @@ impl<O: ArrayStorage<u64>, I: ArrayStorage<u64>> CscGraph<O, I> {
     }
 }
 
-fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(
-    offsets: &ChunkedArray<u64, O>,
-    nodes: u64,
-    edges: u64,
-) -> Result<(), GraphError> {
+fn validate_column_offsets_monotonic<O: ArrayStorage<u64>>(offsets: &ChunkedArray<u64, O>, nodes: u64, edges: u64) -> Result<(), GraphError> {
     let first = offsets.read_range(0, 1)?[0];
     if first != 0 {
         return Err(GraphError::Boundary);

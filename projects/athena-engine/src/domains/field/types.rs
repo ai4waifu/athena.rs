@@ -85,9 +85,7 @@ impl FieldDescriptor {
         match self {
             Self::Rationals => Self::Rationals,
             Self::Prime { characteristic } => Self::Prime { characteristic: clone_integer(characteristic) },
-            Self::Extension { base, extension, degree } => {
-                Self::Extension { base: *base, extension: *extension, degree: degree.clone() }
-            }
+            Self::Extension { base, extension, degree } => Self::Extension { base: *base, extension: *extension, degree: degree.clone() },
         }
     }
 }
