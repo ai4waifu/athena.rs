@@ -58,10 +58,17 @@ impl AthenaEngine {
         }
     }
 
-    /// 经 `Simplify` 头部化简（KernelIR + VM）。
+    /// 经 `Simplify` 头部化简（唯一 `ExecutionIR` 路径）。
     pub fn simplify(&self, session: &mut Session, term: TermId) -> TermId {
         let wrapped = execution::push_application(session, "Simplify", vec![term]);
-        execution::vm::evaluate_session(session, wrapped).term
+        match execution::execute_ir_request(session, AthenaRequest::Term(wrapped)) {
+            Ok(result_id) => session
+                .results
+                .get(result_id)
+                .and_then(|r| r.symbolic_term)
+                .unwrap_or(wrapped),
+            Err(_) => wrapped,
+        }
     }
 
     /// 占位：无 arena 的桩求值（正式路径请用 [`Self::evaluate`] / [`Self::execute_request`]）。
