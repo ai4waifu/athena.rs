@@ -127,6 +127,31 @@ fn session_groebner_via_execute_polynomial() {
 }
 
 #[test]
+fn session_partial_groebner_preserves_frontier_for_resume() {
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    let g1 = build(&session.rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&session.rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let r1 = session.polynomial_objects.intern(g1, &session.rings);
+    let r2 = session.polynomial_objects.intern(g2, &session.rings);
+    let out = session.execute_polynomial(PolynomialRequest::Groebner {
+        generators: vec![r1, r2],
+        limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
+    });
+    let PolynomialResult::Exact {
+        value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb),
+    } = out
+    else {
+        panic!("expected Exact GroebnerBasis, got {out:?}");
+    };
+    assert_eq!(gb.status, GroebnerStatus::Partial);
+    assert!(gb.has_resumable_work());
+    let frontier = gb.into_frontier().expect("frontier");
+    let resumed = athena_engine::domains::polynomial::resume_groebner_basis(frontier, &session.rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(resumed.status(), GroebnerStatus::Verified);
+}
+
+#[test]
 fn eliminate_requires_elimination_order() {
     let (rings, ring) = q_xy_lex();
     let g = build(&rings, ring, &[(1, 1, vec![1, 0])]);
