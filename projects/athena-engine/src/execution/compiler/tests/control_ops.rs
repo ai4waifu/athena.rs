@@ -601,3 +601,28 @@ fn compile_and_execute_sameq_and_trueq() {
         other => panic!("expected Equal[3,3] == True, got {other:?}"),
     }
 }
+
+#[test]
+fn equal_symbolic_stays_residual_identical_is_structural() {
+    use athena_ir::{ApplicationHead, SemanticOperator, TermNode};
+    let mut session = Session::new();
+    let x = session.builder().symbol("x", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let pow = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Power), vec![x, two], Default::default());
+    let eq = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Equal), vec![pow, one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(eq)).expect("eq");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application { head, .. }) if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Equal)) => {}
+        other => panic!("expected residual Equal, got {other:?}"),
+    }
+    let same = session.builder().application(ApplicationHead::Semantic(SemanticOperator::Identical), vec![one, two], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(same)).expect("same");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Boolean(false))) => {}
+        other => panic!("expected Identical false, got {other:?}"),
+    }
+}

@@ -313,6 +313,11 @@ fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, 
                 let n = cc.int_exp(args[1])?;
                 Some((n, Number::small_int(1)))
             }
+            ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
+                let inv = cc.apply_semantic(SemanticOperator::Power, vec![args[1], cc.in_(-1)]);
+                let rewritten = cc.apply_semantic(SemanticOperator::Multiply, vec![args[0], inv]);
+                polynomial_degree_leading(cc, rewritten, var)
+            }
             ApplicationHead::Semantic(SemanticOperator::Subtract) if args.len() == 2 => {
                 let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), args[1]]);
                 let rewritten = cc.apply_semantic(SemanticOperator::Add, vec![args[0], neg]);
