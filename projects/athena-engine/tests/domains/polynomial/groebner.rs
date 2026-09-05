@@ -145,6 +145,48 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
     assert!(!computation.certificate().verification.is_proven());
     assert!(!computation.certificate().complete);
     assert!(computation.as_verified().is_none());
+    let GroebnerComputation::Partial(frontier) = computation else {
+        panic!("expected Partial");
+    };
+    assert!(frontier.has_resumable_work());
+    assert!(!frontier.pending_pairs().is_empty());
+}
+
+#[test]
+fn resume_partial_groebner_frontier_to_verified() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    let partial = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    let GroebnerComputation::Partial(frontier) = partial else {
+        panic!("expected Partial");
+    };
+    let resumed = athena_engine::domains::polynomial::resume_groebner_basis(frontier, &rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(resumed.status(), GroebnerStatus::Verified);
+    let gb = resumed.as_verified().expect("verified after resume");
+    assert!(gb.certificate.complete);
+    assert!(gb.verification.all_s_pairs_reduce_to_zero);
+}
+
+#[test]
+fn resume_partial_with_tiny_budget_stays_partial() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let partial = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    let GroebnerComputation::Partial(frontier) = partial else {
+        panic!("expected Partial");
+    };
+    let still = athena_engine::domains::polynomial::resume_groebner_basis(
+        frontier,
+        &rings,
+        GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
+    )
+    .unwrap();
+    let GroebnerComputation::Partial(again) = still else {
+        panic!("expected Partial again");
+    };
+    assert!(again.has_resumable_work());
 }
 
 #[test]

@@ -49,7 +49,7 @@ pub use fingerprint::{
 };
 pub use groebner::{
     GroebnerComputation, GroebnerFrontier, GroebnerLimits, GroebnerVerificationReport, VerifiedGroebnerBasis, compute_elimination_basis,
-    compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, verify_groebner_basis,
+    compute_groebner_basis, ideal_membership, reduce_by_verified, reduce_ideal, resume_groebner_basis, verify_groebner_basis,
 };
 pub use hash::canonical_hash as polynomial_canonical_hash;
 pub use ideal::Ideal;
