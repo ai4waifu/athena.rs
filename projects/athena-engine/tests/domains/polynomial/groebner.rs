@@ -152,6 +152,41 @@ fn session_partial_groebner_preserves_frontier_for_resume() {
 }
 
 #[test]
+fn session_resume_groebner_request_reaches_verified() {
+    let mut session = Session::default();
+    let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    let g1 = build(&session.rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&session.rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let r1 = session.polynomial_objects.intern(g1, &session.rings);
+    let r2 = session.polynomial_objects.intern(g2, &session.rings);
+    let partial = session.execute_polynomial(PolynomialRequest::Groebner {
+        generators: vec![r1, r2],
+        limits: GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 },
+    });
+    let PolynomialResult::Exact {
+        value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(gb),
+    } = partial
+    else {
+        panic!("expected Partial GroebnerBasis, got {partial:?}");
+    };
+    assert_eq!(gb.status, GroebnerStatus::Partial);
+    let resume = gb
+        .to_resume_request(&mut session.polynomial_objects, &session.rings, GroebnerLimits::default())
+        .expect("resume request");
+    let out = session.execute_polynomial(resume);
+    match out {
+        PolynomialResult::Exact {
+            value: athena_engine::domains::polynomial::PolynomialDomainValue::GroebnerBasis(done),
+        } => {
+            assert_eq!(done.status, GroebnerStatus::Verified);
+            assert!(done.is_exact_witness());
+            assert!(!done.has_resumable_work());
+        }
+        other => panic!("expected Verified after ResumeGroebner, got {other:?}"),
+    }
+}
+
+#[test]
 fn eliminate_requires_elimination_order() {
     let (rings, ring) = q_xy_lex();
     let g = build(&rings, ring, &[(1, 1, vec![1, 0])]);

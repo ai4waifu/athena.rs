@@ -4,8 +4,9 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     canonical::canonicalize_polynomial,
+    certificate::{GroebnerAlgorithm, GroebnerCertificate},
     factor::factor_univariate,
-    groebner::{compute_elimination_basis, compute_groebner_basis},
+    groebner::{GroebnerFrontier, compute_elimination_basis, compute_groebner_basis, resume_groebner_basis},
     object_ref::PolynomialObjectStore,
     operations::{add_polynomial, mul_polynomial},
     request::PolynomialRequest,
@@ -13,6 +14,7 @@ use super::{
     univariate::{div_univariate, gcd_univariate},
     value::{GroebnerBasisValue, PolynomialDomainValue, PolynomialValue, UnivariateDivisionValue},
 };
+use crate::domains::algebra::PropertyState;
 
 /// 多项式域结果。
 #[derive(Debug, Clone, PartialEq)]
@@ -131,6 +133,57 @@ pub fn execute_polynomial_with_rings(request: PolynomialRequest, rings: &RingTab
                 Err(reason) => PolynomialResult::Unevaluated { reason },
             }
         }
+        PolynomialRequest::ResumeGroebner {
+            candidates,
+            pending_pairs,
+            pending_insertion,
+            input_generators,
+            prior_s_pair_steps,
+            limits,
+        } => {
+            let candidates = match resolve_generators(store, &candidates) {
+                Ok(g) => g,
+                Err(reason) => return PolynomialResult::Unevaluated { reason },
+            };
+            let pending_insertion = match pending_insertion {
+                Some(r) => match store.resolve_owning(r) {
+                    Ok(p) => Some(p),
+                    Err(reason) => return PolynomialResult::Unevaluated { reason },
+                },
+                None => None,
+            };
+            if candidates.is_empty() {
+                return PolynomialResult::Unevaluated {
+                    reason: Diagnostic::new(DiagnosticCode::DomainError)
+                        .detail("domain", "polynomial")
+                        .detail("operation", "resume_groebner_empty_candidates"),
+                };
+            }
+            let ring = candidates[0].ring();
+            let basis_elements = candidates.len();
+            let frontier = GroebnerFrontier {
+                ring,
+                candidates,
+                pending_pairs,
+                pending_insertion,
+                certificate: GroebnerCertificate {
+                    algorithm: GroebnerAlgorithm::Buchberger,
+                    ring,
+                    input_generators,
+                    basis_elements,
+                    s_pair_steps: prior_s_pair_steps,
+                    complete: false,
+                    verification: PropertyState::Unknown,
+                    elimination_elements: None,
+                },
+            };
+            match resume_groebner_basis(frontier, rings, limits) {
+                Ok(computation) => {
+                    PolynomialResult::Exact { value: PolynomialDomainValue::GroebnerBasis(GroebnerBasisValue::from_computation(computation)) }
+                }
+                Err(reason) => PolynomialResult::Unevaluated { reason },
+            }
+        }
     }
 }
 
@@ -151,5 +204,6 @@ fn operation_name(request: &PolynomialRequest) -> &'static str {
         PolynomialRequest::Factor { .. } => "factor",
         PolynomialRequest::Groebner { .. } => "groebner",
         PolynomialRequest::Eliminate { .. } => "eliminate",
+        PolynomialRequest::ResumeGroebner { .. } => "resume_groebner",
     }
 }

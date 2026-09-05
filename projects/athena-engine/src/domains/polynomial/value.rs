@@ -86,6 +86,28 @@ impl GroebnerBasisValue {
             certificate: self.certificate,
         })
     }
+
+    /// 经 DomainObject 仓物化为 [`super::request::PolynomialRequest::ResumeGroebner`]。
+    pub fn to_resume_request(
+        &self,
+        store: &mut super::object_ref::PolynomialObjectStore,
+        rings: &super::ring_table::RingTable,
+        limits: super::groebner::GroebnerLimits,
+    ) -> Option<super::request::PolynomialRequest> {
+        if !self.has_resumable_work() {
+            return None;
+        }
+        let candidates: Vec<_> = self.basis.iter().map(|p| store.intern(p.owning_copy(), rings)).collect();
+        let pending_insertion = self.pending_insertion.as_ref().map(|p| store.intern(p.owning_copy(), rings));
+        Some(super::request::PolynomialRequest::ResumeGroebner {
+            candidates,
+            pending_pairs: self.pending_pairs.clone(),
+            pending_insertion,
+            input_generators: self.certificate.input_generators,
+            prior_s_pair_steps: self.certificate.s_pair_steps,
+            limits,
+        })
+    }
 }
 
 /// 单变量除法结果值。
