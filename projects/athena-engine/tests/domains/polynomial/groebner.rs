@@ -206,6 +206,18 @@ fn buchberger_skips_coprime_leading_monomial_pairs() {
 }
 
 #[test]
+fn buchberger_with_chain_criterion_still_verifies() {
+    let (rings, ring) = q_xy_lex();
+    // Generators that create opportunities for criterion 2 during growth.
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
+    let g3 = build(&rings, ring, &[(1, 1, vec![0, 2]), (-1, 1, vec![1, 0])]);
+    let computation = compute_groebner_basis(vec![g1, g2, g3], &rings, GroebnerLimits::default()).unwrap();
+    assert_eq!(computation.status(), GroebnerStatus::Verified);
+    assert!(computation.as_verified().unwrap().verification.all_s_pairs_reduce_to_zero);
+}
+
+#[test]
 fn resume_partial_with_tiny_budget_stays_partial() {
     let (rings, ring) = q_xy_lex();
     let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
