@@ -267,6 +267,10 @@ fn run_buchberger(
     let mut resource_limited = false;
     let mut deferred_insertion: Option<Polynomial> = None;
     while let Some((i, j)) = pairs.pop() {
+        // Buchberger criterion 1: coprime leading monomials ⇒ S-pair reduces to 0.
+        if leading_monomials_coprime(&basis[i], &basis[j]) {
+            continue;
+        }
         if steps >= limits.max_s_pairs {
             pairs.push((i, j));
             truncated_pairs = true;
@@ -506,6 +510,22 @@ fn normalize_generators(gens: Vec<Polynomial>, rings: &RingTable) -> Result<Vec<
 
 fn leading_term(poly: &Polynomial) -> Option<super::object::MonomialTerm> {
     poly.terms().first().map(|t| t.owning_copy())
+}
+
+/// Buchberger first criterion: `LM(f)` and `LM(g)` coprime ⇒ `S(f,g)` → 0.
+fn leading_monomials_coprime(f: &Polynomial, g: &Polynomial) -> bool {
+    let Some(lf) = f.terms().first()
+    else {
+        return false;
+    };
+    let Some(lg) = g.terms().first()
+    else {
+        return false;
+    };
+    if lf.exponents().len() != lg.exponents().len() {
+        return false;
+    }
+    lf.exponents().iter().zip(lg.exponents().iter()).all(|(a, b)| *a == 0 || *b == 0)
 }
 
 fn s_polynomial(f: &Polynomial, g: &Polynomial, rings: &RingTable, layout: &MonomialLayout, coeff: &CoefficientRing<'_>) -> Result<Polynomial> {

@@ -137,8 +137,9 @@ fn eliminate_requires_elimination_order() {
 #[test]
 fn pair_budget_exhaustion_yields_partial_not_verified() {
     let (rings, ring) = q_xy_lex();
-    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
-    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    // Leading monomials share `x` so Buchberger criterion 1 does not skip the pair.
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     assert_eq!(computation.status(), GroebnerStatus::Partial);
@@ -155,8 +156,8 @@ fn pair_budget_exhaustion_yields_partial_not_verified() {
 #[test]
 fn resume_partial_groebner_frontier_to_verified() {
     let (rings, ring) = q_xy_lex();
-    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
-    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let partial = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     let GroebnerComputation::Partial(frontier) = partial else {
         panic!("expected Partial");
@@ -166,6 +167,17 @@ fn resume_partial_groebner_frontier_to_verified() {
     let gb = resumed.as_verified().expect("verified after resume");
     assert!(gb.certificate.complete);
     assert!(gb.verification.all_s_pairs_reduce_to_zero);
+}
+
+#[test]
+fn buchberger_skips_coprime_leading_monomial_pairs() {
+    let (rings, ring) = q_xy_lex();
+    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1])]);
+    let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
+    assert_eq!(computation.status(), GroebnerStatus::Verified);
+    assert_eq!(computation.certificate().s_pair_steps, 0);
+    assert!(computation.as_verified().unwrap().verification.all_s_pairs_reduce_to_zero);
 }
 
 #[test]
@@ -228,8 +240,8 @@ fn verify_rejects_non_groebner_pair() {
 #[test]
 fn reduce_by_verified_rejects_unverified_certificate() {
     let (rings, ring) = q_xy_lex();
-    let g1 = build(&rings, ring, &[(1, 1, vec![1, 0]), (-1, 1, vec![0, 1])]);
-    let g2 = build(&rings, ring, &[(1, 1, vec![0, 1]), (-1, 1, vec![0, 0])]);
+    let g1 = build(&rings, ring, &[(1, 1, vec![2, 0]), (-1, 1, vec![0, 1])]);
+    let g2 = build(&rings, ring, &[(1, 1, vec![1, 1]), (-1, 1, vec![0, 0])]);
     let computation = compute_groebner_basis(vec![g1, g2], &rings, GroebnerLimits { max_s_pairs: 0, max_basis_size: 128 }).unwrap();
     assert!(matches!(computation, GroebnerComputation::Partial(_)));
     // 经 API 构造证书不完整的假 `VerifiedGroebnerBasis` 必须不可行；

@@ -62,12 +62,13 @@ fn groebner_complete_admitted_to_claims() {
 fn groebner_partial_cached_but_not_admitted() {
     let mut session = Session::default();
     let ring = session.rings.intern(CoefficientDomain::Rational, vec![SymbolId(0), SymbolId(1)], MonomialOrder::Lex).unwrap();
+    // Non-coprime leading monomials so max_s_pairs=0 still yields Partial.
     let mut b1 = PolynomialBuilder::new(ring);
-    b1.push_term(Number::small_int(1), vec![1, 0]).unwrap();
+    b1.push_term(Number::small_int(1), vec![2, 0]).unwrap();
     b1.push_term(Number::small_int(-1), vec![0, 1]).unwrap();
     let g1 = b1.build(&session.rings).unwrap();
     let mut b2 = PolynomialBuilder::new(ring);
-    b2.push_term(Number::small_int(1), vec![0, 1]).unwrap();
+    b2.push_term(Number::small_int(1), vec![1, 1]).unwrap();
     b2.push_term(Number::small_int(-1), vec![0, 0]).unwrap();
     let g2 = b2.build(&session.rings).unwrap();
     let r1 = session.polynomial_objects.intern(g1, &session.rings);
