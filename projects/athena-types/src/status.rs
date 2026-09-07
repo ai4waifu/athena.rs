@@ -13,6 +13,8 @@ pub enum ComputationStatus {
     Exact,
     /// 依赖显式假设 / 条件。
     Conditional,
+    /// 完整近似（如机器浮点算法跑完），不是搜索候选，也不是部分截断。
+    Approximate,
     /// 概率性结论。
     Probable,
     /// 候选，尚未接纳。
@@ -49,6 +51,7 @@ impl ComputationStatus {
             Self::Verified => "Verified",
             Self::Exact => "Exact",
             Self::Conditional => "Conditional",
+            Self::Approximate => "Approximate",
             Self::Probable => "Probable",
             Self::Candidate => "Candidate",
             Self::Partial => "Partial",

@@ -271,8 +271,8 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
     match value {
         LinearAlgebraValue::Matrix(matrix) => {
             if matrix.parent().element.is_machine() {
-                // 机器矩阵完整交付：近似保证，覆盖 Full（非 Partial 截断）。
-                (ComputationStatus::Candidate, CoverageStatus::Full)
+                // 机器矩阵完整交付：Approximate + Full（非 Partial 截断，非搜索 Candidate）。
+                (ComputationStatus::Approximate, CoverageStatus::Full)
             } else {
                 (ComputationStatus::Exact, CoverageStatus::Full)
             }
@@ -307,8 +307,8 @@ fn algorithm_guarantee_status(guarantee: crate::domains::linear_algebra::Algorit
     match guarantee {
         AlgorithmGuarantee::Exact => (ComputationStatus::Exact, CoverageStatus::Full),
         AlgorithmGuarantee::Probable => (ComputationStatus::Probable, CoverageStatus::Full),
-        // 完整近似 ≠ 部分覆盖。状态不抬 Exact，覆盖范围仍可为 Full。
-        AlgorithmGuarantee::Approximate => (ComputationStatus::Candidate, CoverageStatus::Full),
+        // 完整近似 ≠ 搜索候选。状态用 Approximate，覆盖可为 Full。
+        AlgorithmGuarantee::Approximate => (ComputationStatus::Approximate, CoverageStatus::Full),
         AlgorithmGuarantee::Partial => (ComputationStatus::Partial, CoverageStatus::Partial),
         AlgorithmGuarantee::Unsupported => (ComputationStatus::Unknown, CoverageStatus::Unsupported),
     }
@@ -324,7 +324,7 @@ fn map_optimization(result: &OptimizationResult) -> DomainMeta {
         | OptimizationResult::ResourceLimited { status, .. }
         | OptimizationResult::NumericalCandidate { status, .. } => {
             let coverage = match status {
-                ComputationStatus::Exact | ComputationStatus::Verified => CoverageStatus::Full,
+                ComputationStatus::Exact | ComputationStatus::Verified | ComputationStatus::Approximate => CoverageStatus::Full,
                 ComputationStatus::Partial
                 | ComputationStatus::Conditional
                 | ComputationStatus::Probable
