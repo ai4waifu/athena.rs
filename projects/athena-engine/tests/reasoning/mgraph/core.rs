@@ -57,24 +57,10 @@ fn relation_index_groups_by_scope() {
 
 #[test]
 fn admit_maps_congruence_predicate() {
+    let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
-    let id = admit_ok(
-        &mut semantic,
-        Claim {
-            proposition: Proposition::Congruence { modulus_fingerprint: 7, left: 1, right: 8 },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: POLYNOMIAL_PROVIDER_ID,
-                certificate: athena_engine::reasoning::mgraph::EvidenceCertificate::CongruenceExact {
-                    modulus_fingerprint: 7,
-                    left: 1,
-                    right: 8,
-                },
-                summary: "test".into(),
-            },
-        },
-    );
+    // 1 ≡ 8 (mod 7): via verify_congruence, reject field-only admit_claim
+    let id = AdmissionGate::admit_congruence(&mut store, &mut semantic, 7, 1, 8, &VerificationPolicy::default()).expect("admit");
     let view = semantic.view();
     let rec = view.relation(id).unwrap();
     assert_eq!(rec.predicate, athena_engine::reasoning::mgraph::predicates::CONGRUENCE);
