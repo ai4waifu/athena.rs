@@ -57,6 +57,11 @@ pub enum LinearAlgebraRequest {
         /// 右端 `m×1`。
         b: MatrixRef,
     },
+    /// 矩阵逆（精确路径）。
+    Inverse {
+        /// 输入方阵。
+        matrix: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -71,6 +76,7 @@ impl LinearAlgebraRequest {
             Self::Det { matrix } => Self::Det { matrix: *matrix },
             Self::Rref { matrix } => Self::Rref { matrix: *matrix },
             Self::Solve { a, b } => Self::Solve { a: *a, b: *b },
+            Self::Inverse { matrix } => Self::Inverse { matrix: *matrix },
         }
     }
 }
