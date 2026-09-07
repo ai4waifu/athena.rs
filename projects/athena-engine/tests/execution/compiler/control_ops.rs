@@ -219,6 +219,39 @@ fn compile_and_execute_control_index_scalar() {
 }
 
 #[test]
+fn compile_and_execute_control_index_resolves_own_binding() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind, IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let ten = session.builder().int(10, Default::default());
+    let twenty = session.builder().int(20, Default::default());
+    let list = session.builder().list(vec![ten, twenty], Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol: match session.arena.get(a) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            other => panic!("expected symbol A, got {other:?}"),
+        },
+        value: list,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let index = AthenaRequest::Control(ControlPlan::Index {
+        target: a,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, index],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("define+index");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
+        other => panic!("expected Own A then Index[..., 2] == 20, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_term_counted_loop_range() {
     let mut session = Session::new();
     let var = session.builder().symbol("i", Default::default());

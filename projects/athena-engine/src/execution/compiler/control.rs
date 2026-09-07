@@ -91,7 +91,7 @@ impl ExecutionCompiler {
         self.lower_term(session, builder, blocks, entry, collection)
     }
 
-    /// 加载目标项，再发出中立的 [`OperationKind::Index`]。
+    /// Resolve the target (including Own bindings), then emit neutral [`OperationKind::Index`].
     pub(crate) fn lower_index(
         &self,
         session: &mut Session,
@@ -101,29 +101,20 @@ impl ExecutionCompiler {
         target: TermId,
         axes: &[athena_types::IndexSpec],
     ) -> Result<SsaValueId> {
-        let _ = session;
-        let root = builder.push_term_root_id(&session.arena, target)?;
-        let load = builder.ssa();
+        let mut operations = Vec::new();
+        let load = self.lower_pure_expr(session, builder, &mut operations, target)?;
         let indexed = builder.ssa();
+        operations.push(Operation {
+            result: Some(indexed),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::Index { target: load, axes: axes.to_vec() },
+            effect_in: None,
+            effect_out: None,
+        });
         blocks.push(BasicBlock {
             id: entry,
             parameters: Vec::new(),
-            operations: vec![
-                Operation {
-                    result: Some(load),
-                    result_type: ExecutionValueType::Term,
-                    kind: OperationKind::LoadTerm { root },
-                    effect_in: None,
-                    effect_out: None,
-                },
-                Operation {
-                    result: Some(indexed),
-                    result_type: ExecutionValueType::Term,
-                    kind: OperationKind::Index { target: load, axes: axes.to_vec() },
-                    effect_in: None,
-                    effect_out: None,
-                },
-            ],
+            operations,
             terminator: Terminator::return_value(indexed),
         });
         Ok(indexed)
