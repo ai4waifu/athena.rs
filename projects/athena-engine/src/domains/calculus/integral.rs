@@ -4,6 +4,7 @@ use athena_ir::{ApplicationHead, SemanticOperator, UnaryFunction};
 use athena_types::{Diagnostic, DiagnosticCode, Result, SymbolId, TermId};
 
 use super::{
+    derivative::differentiate,
     result::CalculusResult,
     symbol_rewrite::{contains_symbol, is_symbol_id, replace_symbol},
 };
@@ -44,17 +45,16 @@ fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Symb
                 dc.fold_term(dc.apply_semantic(SemanticOperator::Add, iss?))?
             }
             ApplicationHead::Semantic(SemanticOperator::Multiply) if args.len() == 2 => {
-                let (coeff, rest) = if dc.number_of(args[0]).is_some() {
-                    (args[0], args[1])
+                if let Some((c, r)) = split_numeric_factor(dc, args[0], args[1]) {
+                    let ir = integrate_symbol(dc, r, var)?;
+                    dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![c, ir]))?
                 }
-                else if dc.number_of(args[1]).is_some() {
-                    (args[1], args[0])
+                else if let Some(parts) = try_integrate_by_parts(dc, args[0], args[1], var)? {
+                    parts
                 }
                 else {
-                    return Ok(residual_integrate(dc, expr, var));
-                };
-                let ir = integrate_symbol(dc, rest, var)?;
-                dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))?
+                    residual_integrate(dc, expr, var)
+                }
             }
             ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
                 let inv = dc.apply_semantic(SemanticOperator::Power, vec![args[1], dc.in_(-1)]);
@@ -96,6 +96,65 @@ fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Symb
     })
 }
 
+fn split_numeric_factor(dc: &DomainExecutionContext<'_>, a: TermId, b: TermId) -> Option<(TermId, TermId)> {
+    if dc.number_of(a).is_some() {
+        Some((a, b))
+    }
+    else if dc.number_of(b).is_some() {
+        Some((b, a))
+    }
+    else {
+        None
+    }
+}
+
+/// `∫ u dv` with `u` a power of `var` and `dv` = `Sin`/`Cos` of `var`.
+fn try_integrate_by_parts(dc: &mut DomainExecutionContext<'_>, a: TermId, b: TermId, var: SymbolId) -> Result<Option<TermId>> {
+    let (u, dv) = if is_poly_power_of_var(dc, a, var) && is_sin_or_cos_of_var(dc, b, var) {
+        (a, b)
+    }
+    else if is_poly_power_of_var(dc, b, var) && is_sin_or_cos_of_var(dc, a, var) {
+        (b, a)
+    }
+    else {
+        return Ok(None);
+    };
+    let du = differentiate(dc, u, var)?;
+    let v = integrate_symbol(dc, dv, var)?;
+    if is_integrate_residual(dc, v) {
+        return Ok(None);
+    }
+    let uv = dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![u, v]))?;
+    let v_du = dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![v, du]))?;
+    let int_v_du = integrate_symbol(dc, v_du, var)?;
+    if is_integrate_residual(dc, int_v_du) {
+        return Ok(None);
+    }
+    let minus = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), int_v_du]);
+    Ok(Some(dc.fold_term(dc.apply_semantic(SemanticOperator::Add, vec![uv, minus]))?))
+}
+
+fn is_poly_power_of_var(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> bool {
+    if is_symbol_id(dc, expr, var) {
+        return true;
+    }
+    matches!(
+        dc.application_head(expr),
+        Some((ApplicationHead::Semantic(SemanticOperator::Power), args))
+            if args.len() == 2 && is_symbol_id(dc, args[0], var) && dc.int_exp(args[1]).is_some_and(|n| n >= 1)
+    )
+}
+
+fn is_sin_or_cos_of_var(dc: &DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> bool {
+    matches!(
+        dc.application_head(expr),
+        Some((ApplicationHead::Semantic(op), args))
+            if args.len() == 1
+                && is_symbol_id(dc, args[0], var)
+                && matches!(op.as_unary(), Some(UnaryFunction::Sin | UnaryFunction::Cos))
+    )
+}
+
 fn residual_integrate(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> TermId {
     dc.apply_semantic(SemanticOperator::Integrate, vec![expr, dc.symbol_id(var)])
 }
@@ -123,28 +182,37 @@ pub fn definite_integrate_checked(
     lower: TermId,
     upper: TermId,
 ) -> Result<CalculusResult<TermId>> {
-    let echo = |dc: &mut DomainExecutionContext<'_>| {
-        let iter = dc.ordered(vec![dc.symbol_id(var), lower, upper]);
-        dc.apply_semantic(SemanticOperator::Integrate, vec![expr, iter])
-    };
     Ok(match integrate_checked(dc, expr, var)? {
-        CalculusResult::Exact { value: antideriv, conditions } => {
-            let at_upper = dc.fold_term(replace_symbol(dc, antideriv, var, upper))?;
-            let at_lower = dc.fold_term(replace_symbol(dc, antideriv, var, lower))?;
-            if contains_symbol(dc, at_upper, var) || contains_symbol(dc, at_lower, var) {
-                return Ok(CalculusResult::Unevaluated { expression: echo(dc), reason: Diagnostic::new(DiagnosticCode::IntegrationDomainInvalid) });
-            }
+        CalculusResult::Exact { value: anti, conditions } => {
+            let at_upper = dc.fold_term(replace_symbol(dc, anti, var, upper))?;
+            let at_lower = dc.fold_term(replace_symbol(dc, anti, var, lower))?;
             let neg = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), at_lower]);
             let value = dc.fold_term(dc.apply_semantic(SemanticOperator::Add, vec![at_upper, neg]))?;
-            CalculusResult::Exact { value, conditions }
+            if contains_symbol(dc, value, var) {
+                CalculusResult::Unevaluated {
+                    expression: residual_definite(dc, expr, var, lower, upper),
+                    reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary),
+                }
+            }
+            else {
+                CalculusResult::Exact { value, conditions }
+            }
         }
-        CalculusResult::Conditional { value: antideriv, conditions } => {
-            let at_upper = dc.fold_term(replace_symbol(dc, antideriv, var, upper))?;
-            let at_lower = dc.fold_term(replace_symbol(dc, antideriv, var, lower))?;
+        CalculusResult::Conditional { value: anti, conditions } => {
+            let at_upper = dc.fold_term(replace_symbol(dc, anti, var, upper))?;
+            let at_lower = dc.fold_term(replace_symbol(dc, anti, var, lower))?;
             let neg = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), at_lower]);
             let value = dc.fold_term(dc.apply_semantic(SemanticOperator::Add, vec![at_upper, neg]))?;
             CalculusResult::Conditional { value, conditions }
         }
-        CalculusResult::Unevaluated { reason, .. } => CalculusResult::Unevaluated { expression: echo(dc), reason },
+        CalculusResult::Unevaluated { .. } => CalculusResult::Unevaluated {
+            expression: residual_definite(dc, expr, var, lower, upper),
+            reason: Diagnostic::new(DiagnosticCode::IntegralNotElementary),
+        },
     })
+}
+
+fn residual_definite(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId, lower: TermId, upper: TermId) -> TermId {
+    let iter = dc.ordered(vec![dc.symbol_id(var), lower, upper]);
+    dc.apply_semantic(SemanticOperator::Integrate, vec![expr, iter])
 }
