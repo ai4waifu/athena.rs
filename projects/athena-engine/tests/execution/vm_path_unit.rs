@@ -510,6 +510,63 @@ fn execute_ir_request_elementwise_multiply_uses_vm_host() {
 }
 
 #[test]
+fn execute_ir_request_elementwise_or_and_zips_boolean_like() {
+    use athena_types::CollectionKind;
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(0, Default::default());
+    let c = session.builder().int(0, Default::default());
+    let d = session.builder().int(1, Default::default());
+    let left =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![a, b] }, TermNode::default_span());
+    let right =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![c, d] }, TermNode::default_span());
+    let term = session.arena.push(
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::ElementwiseOr), arguments: vec![left, right] },
+        TermNode::default_span(),
+    );
+    let result_id = execute_ir_request(&mut session, AthenaRequest::Term(term)).expect("elementwise or");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
+            for (i, expected) in [true, true].into_iter().enumerate() {
+                match session.arena.get(elements[i]) {
+                    Some(TermNode::Atom(Atom::Boolean(v))) if *v == expected => {}
+                    other => panic!("expected boolean {expected}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected elementwise or list, got {other:?}"),
+    }
+
+    let e = session.builder().int(1, Default::default());
+    let f = session.builder().int(0, Default::default());
+    let g = session.builder().int(1, Default::default());
+    let h = session.builder().int(1, Default::default());
+    let left2 =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![e, f] }, TermNode::default_span());
+    let right2 =
+        session.arena.push(TermNode::Collection { kind: CollectionKind::OrderedCollection, elements: vec![g, h] }, TermNode::default_span());
+    let and_term = session.arena.push(
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::ElementwiseAnd), arguments: vec![left2, right2] },
+        TermNode::default_span(),
+    );
+    let and_id = execute_ir_request(&mut session, AthenaRequest::Term(and_term)).expect("elementwise and");
+    let and_out = session.results.get(and_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(and_out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
+            for (i, expected) in [true, false].into_iter().enumerate() {
+                match session.arena.get(elements[i]) {
+                    Some(TermNode::Atom(Atom::Boolean(v))) if *v == expected => {}
+                    other => panic!("expected boolean {expected}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected elementwise and list, got {other:?}"),
+    }
+}
+
+#[test]
 fn execute_ir_request_control_index_uses_vm_path() {
     use athena_types::{IndexSpec, IntegerIndex};
 
