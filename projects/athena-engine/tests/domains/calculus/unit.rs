@@ -124,6 +124,57 @@ fn residue_shifted_simple_pole_is_one() {
 }
 
 #[test]
+fn gradient_of_product_xy() {
+    let mut session = Session::new();
+    let (expression, variables) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let x = dc.intern("x");
+        let y = dc.intern("y");
+        let expression = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.symbol_id(x), dc.symbol_id(y)]);
+        (expression, vec![x, y])
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Gradient { expression, variables: variables.clone(), assumptions: AssumptionSet::empty() },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Gradient(g), .. } => {
+            let mut dc = DomainExecutionContext::new(&mut session);
+            g.materialize_list_expression(&mut dc)
+        }
+        other => panic!("expected Exact Gradient, got {other:?}"),
+    };
+    let Some(TermNode::Collection { elements, .. }) = session.arena.get(term)
+    else {
+        panic!("expected OrderedCollection, got {:?}", session.arena.get(term));
+    };
+    assert_eq!(elements.len(), 2);
+    assert!(matches!(session.arena.get(elements[0]), Some(TermNode::Atom(Atom::Symbol(s))) if *s == variables[1]));
+    assert!(matches!(session.arena.get(elements[1]), Some(TermNode::Atom(Atom::Symbol(s))) if *s == variables[0]));
+}
+
+#[test]
+fn divergence_of_identity_field() {
+    let mut session = Session::new();
+    let (components, variables) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let x = dc.intern("x");
+        let y = dc.intern("y");
+        (vec![dc.symbol_id(x), dc.symbol_id(y)], vec![x, y])
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Divergence { components, variables, assumptions: AssumptionSet::empty() },
+    );
+    match result {
+        CalculusResult::Exact { value: CalculusValue::Divergence(d), .. } => {
+            assert!(matches!(session.arena.get(d.value), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
+        }
+        other => panic!("expected Exact Divergence 2, got {other:?}"),
+    }
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
