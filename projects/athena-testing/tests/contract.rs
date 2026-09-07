@@ -393,21 +393,25 @@ fn egraph_extract_result_cost_prefers_admitted_rep() {
         let c_one = session.egraph.add_term(&session.arena, one).expect("one");
         session.egraph.union_classes(c_add, c_one);
     }
-    AdmissionGate::admit_claim(
-        &mut fx.session_mut().mgraph.semantic,
-        Claim {
-            proposition: Proposition::TermEquality { left: one, right: add },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::StructuralTermEquality { left: one, right: add },
-                summary: "seed-one-add".into(),
+    {
+        let session = fx.session_mut();
+        AdmissionGate::admit_claim(
+            &session.arena,
+            &mut session.mgraph.semantic,
+            Claim {
+                proposition: Proposition::TermEquality { left: one, right: add },
+                scope: Scope::Unconditional,
+                guarantee: Guarantee::ProvenExact,
+                evidence: Evidence::TrustedKernel {
+                    provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                    certificate: EvidenceCertificate::TestHarness,
+                    summary: "seed-one-add".into(),
+                },
             },
-        },
-        &VerificationPolicy::default(),
-    )
-    .expect("seed");
+            &VerificationPolicy::for_test_harness(),
+        )
+        .expect("seed");
+    }
     let class = fx.session().egraph.class_of_term(add).expect("class");
     let (extracted, cost) = fx.session().extract_egraph_class_with_cost(class, ExtractionPreference::ResultCost).expect("extract");
     assert_eq!(extracted, one);
@@ -431,21 +435,25 @@ fn application_congruence_rebuild_admits_from_exact_uf() {
         let add_yz = t.add([y, z]);
         (x, y, add_xz, add_yz)
     };
-    AdmissionGate::admit_claim(
-        &mut fx.session_mut().mgraph.semantic,
-        Claim {
-            proposition: Proposition::TermEquality { left: x, right: y },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
-                summary: "seed-xy".into(),
+    {
+        let session = fx.session_mut();
+        AdmissionGate::admit_claim(
+            &session.arena,
+            &mut session.mgraph.semantic,
+            Claim {
+                proposition: Proposition::TermEquality { left: x, right: y },
+                scope: Scope::Unconditional,
+                guarantee: Guarantee::ProvenExact,
+                evidence: Evidence::TrustedKernel {
+                    provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                    certificate: EvidenceCertificate::TestHarness,
+                    summary: "seed-xy".into(),
+                },
             },
-        },
-        &VerificationPolicy::default(),
-    )
-    .expect("seed");
+            &VerificationPolicy::for_test_harness(),
+        )
+        .expect("seed");
+    }
     {
         let session = fx.session_mut();
         session.egraph.add_term(&session.arena, add_xz).expect("add xz");
@@ -473,21 +481,25 @@ fn typed_egraph_admit_pipeline_closes_application_congruence() {
         let z = t.symbol("z");
         (x, y, t.add([x, z]), t.add([y, z]))
     };
-    AdmissionGate::admit_claim(
-        &mut fx.session_mut().mgraph.semantic,
-        Claim {
-            proposition: Proposition::TermEquality { left: x, right: y },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
-                summary: "seed-xy".into(),
+    {
+        let session = fx.session_mut();
+        AdmissionGate::admit_claim(
+            &session.arena,
+            &mut session.mgraph.semantic,
+            Claim {
+                proposition: Proposition::TermEquality { left: x, right: y },
+                scope: Scope::Unconditional,
+                guarantee: Guarantee::ProvenExact,
+                evidence: Evidence::TrustedKernel {
+                    provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
+                    certificate: EvidenceCertificate::TestHarness,
+                    summary: "seed-xy".into(),
+                },
             },
-        },
-        &VerificationPolicy::default(),
-    )
-    .expect("seed");
+            &VerificationPolicy::for_test_harness(),
+        )
+        .expect("seed");
+    }
     let report = fx.session_mut().run_typed_egraph_admit_pipeline(&[add_xz, add_yz], None, 8);
     assert!(report.structural_admitted.is_empty());
     assert!(report.rewrite_admitted.is_empty());
@@ -611,19 +623,21 @@ fn mgraph_closure_materializes_transitivity_in_proof_forest() {
         (t.symbol("a"), t.symbol("b"), t.symbol("c"))
     };
     for (left, right) in [(a, b), (b, c)] {
+        let session = fx.session_mut();
         AdmissionGate::admit_claim(
-            &mut fx.session_mut().mgraph.semantic,
+            &session.arena,
+            &mut session.mgraph.semantic,
             Claim {
                 proposition: Proposition::TermEquality { left, right },
                 scope: Scope::Unconditional,
                 guarantee: Guarantee::ProvenExact,
                 evidence: Evidence::TrustedKernel {
                     provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                    certificate: EvidenceCertificate::StructuralTermEquality { left, right },
+                    certificate: EvidenceCertificate::TestHarness,
                     summary: "seed".into(),
                 },
             },
-            &VerificationPolicy::default(),
+            &VerificationPolicy::for_test_harness(),
         )
         .expect("seed");
     }

@@ -287,6 +287,7 @@ fn application_congruence_admits_when_args_exact_equal() {
 
     let mut semantic = SemanticCore::new();
     AdmissionGate::admit_claim(
+        &store,
         &mut semantic,
         Claim {
             proposition: Proposition::TermEquality { left: x, right: y },
@@ -294,11 +295,11 @@ fn application_congruence_admits_when_args_exact_equal() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
+                certificate: EvidenceCertificate::TestHarness,
                 summary: "seed-xy".into(),
             },
         },
-        &VerificationPolicy::default(),
+        &VerificationPolicy::for_test_harness(),
     )
     .expect("seed");
 
@@ -338,6 +339,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
     let add_yz =
         session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![y, z] }, span);
     AdmissionGate::admit_claim(
+        &session.arena,
         &mut session.mgraph.semantic,
         Claim {
             proposition: Proposition::TermEquality { left: x, right: y },
@@ -345,11 +347,11 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
             guarantee: Guarantee::ProvenExact,
             evidence: Evidence::TrustedKernel {
                 provider: athena_engine::reasoning::egraph::EGRAPH_PROVIDER_ID,
-                certificate: EvidenceCertificate::StructuralTermEquality { left: x, right: y },
+                certificate: EvidenceCertificate::TestHarness,
                 summary: "seed-xy".into(),
             },
         },
-        &VerificationPolicy::default(),
+        &VerificationPolicy::for_test_harness(),
     )
     .expect("seed");
 

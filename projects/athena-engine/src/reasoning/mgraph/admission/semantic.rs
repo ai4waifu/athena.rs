@@ -16,12 +16,14 @@ use crate::reasoning::mgraph::{
 /// 数学语义状态（admission journal + scoped relation index + 派生索引）。
 ///
 /// **不**实现 [`Clone`]（含 owning journal / relation 载荷）。
+/// journal 写权限仅经 [`Self::commit`]（`AdmissionGate`）；外部只读 [`Self::admission_journal`]。
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SemanticCore {
     /// Scoped relation 索引与 admit/close 入口（查询面，可从 journal 重建）。
     pub core: MGraphCore,
     /// 唯一追加的接纳事件源。`RelationIndex` / `DerivedIndexes` 均可由此重建。
-    pub admission_journal: AdmissionJournal,
+    /// 字段对外只读：可变访问不得暴露，以防绕过 [`crate::reasoning::mgraph::admission::AdmissionGate`]。
+    admission_journal: AdmissionJournal,
     /// 由 journal 派生的索引（可丢弃后重建）。
     pub derived: DerivedIndexes,
     /// 已接纳事实的证明依赖（· 不随 `rebuild_derived` 丢弃）。
@@ -32,6 +34,11 @@ impl SemanticCore {
     /// 空 semantic core。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 只读接纳 journal（权威事件源；不可经此追加）。
+    pub fn admission_journal(&self) -> &AdmissionJournal {
+        &self.admission_journal
     }
 
     /// 仅由 [`crate::reasoning::mgraph::admission::gate::AdmissionGate`] 调用。

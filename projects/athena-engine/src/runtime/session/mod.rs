@@ -425,6 +425,7 @@ impl Session {
     /// 接纳无条件精确模同余（写入 modulus-isolated `CongruenceIndex`）。
     pub fn admit_congruence(&mut self, modulus_fingerprint: u64, left: u64, right: u64) -> Result<FactId, AdmissionRejectReason> {
         crate::reasoning::mgraph::AdmissionGate::admit_congruence(
+            &self.arena,
             &mut self.mgraph.semantic,
             modulus_fingerprint,
             left,
@@ -458,7 +459,7 @@ impl Session {
         &mut self,
         claim: crate::reasoning::mgraph::Claim,
     ) -> Result<(crate::reasoning::mgraph::FactId, crate::reasoning::mgraph::WakeReport), AdmissionRejectReason> {
-        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&mut self.mgraph, claim, &VerificationPolicy::default())
+        crate::reasoning::mgraph::AdmissionGate::admit_claim_into_state(&self.arena, &mut self.mgraph, claim, &VerificationPolicy::default())
     }
 
     /// 将一批唤醒的 Reflector 结果写入运行态队列。

@@ -24,8 +24,11 @@ impl AdmissionJournal {
         Self::default()
     }
 
-    /// 追加已验证 claim（单调增长，不可撤销）。仅 admission 路径可写。
-    pub fn append(&mut self, claim: VerifiedClaim) -> FactId {
+    /// 追加已验证 claim（单调增长，不可撤销）。
+    ///
+    /// 仅 crate 内 admission 路径可写（`SemanticCore::commit`）。外部不得经 journal
+    /// 绕过 [`crate::reasoning::mgraph::admission::AdmissionGate`]。
+    pub(crate) fn append(&mut self, claim: VerifiedClaim) -> FactId {
         let id = FactId(self.claims.len() as u64);
         self.claims.push(claim);
         id

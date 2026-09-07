@@ -26,8 +26,8 @@ pub mod semantic_entry;
 
 pub use admission::{
     AdmissionGate, AdmissionOutcome, AdmissionRejectReason, CALCULUS_PROVIDER_ID, CONGRUENCE_PROVIDER_ID, EvidenceVerifier,
-    HYPER_EDGE_STAGING_PROVIDER_ID, OUTER_STRUCTURAL_PROVIDER_ID, OuterAdmitReport, OuterCandidate, SemanticCore, VerificationPolicy,
-    admit_outer_pool_if_structural, admit_polynomial_exact, admit_polynomial_result, admit_polynomial_result_with_rings,
+    HYPER_EDGE_STAGING_PROVIDER_ID, OUTER_STRUCTURAL_PROVIDER_ID, OuterAdmitReport, OuterCandidate, SemanticCore, VerificationContext,
+    VerificationPolicy, admit_outer_pool_if_structural, admit_polynomial_exact, admit_polynomial_result, admit_polynomial_result_with_rings,
     hyper_edge_to_outer_candidate, is_admitted,
 };
 pub use cache::ResultCache;
