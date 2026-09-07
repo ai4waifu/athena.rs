@@ -26,10 +26,10 @@ fn lease_registers_and_drops_object_root() {
 fn lease_pins_term_refs_and_clears_on_drop() {
     let heap = GcHeap::new_shared(HeapBudget::default());
     let mut lease = ExecutionLease::new(Rc::clone(&heap));
-    lease.register_term(TermRef::new(TermId(3), 1));
-    lease.register_term(TermRef::new(TermId(7), 1));
+    lease.register_term(TermRef::new(TermId(3), 1, 1));
+    lease.register_term(TermRef::new(TermId(7), 1, 1));
     assert_eq!(lease.term_pin_count(), 2);
-    assert_eq!(lease.term_pins(), &[TermRef::new(TermId(3), 1), TermRef::new(TermId(7), 1)]);
+    assert_eq!(lease.term_pins(), &[TermRef::new(TermId(3), 1, 1), TermRef::new(TermId(7), 1, 1)]);
     lease.release_all();
     assert_eq!(lease.term_pin_count(), 0);
 }

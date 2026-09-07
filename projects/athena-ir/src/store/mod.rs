@@ -1,6 +1,9 @@
 //! `TermStore` — Core IR 唯一符号项存储（结构 hash-cons）。
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use athena_types::{CollectionKind, Diagnostic, DiagnosticCode, Result, SourceSpan, TermId, TermRef};
 
@@ -14,6 +17,9 @@ use crate::{
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
+/// 下一 `TermStore` 实例身份（从 1 起；0 保留为非法 / 未绑定）。
+static NEXT_TERM_STORE_ID: AtomicU64 = AtomicU64::new(1);
+
 /// Core CAS IR 符号项存储。
 #[derive(Debug)]
 pub struct TermStore {
@@ -24,18 +30,27 @@ pub struct TermStore {
     by_hash: HashMap<u64, Vec<TermId>>,
     /// 整库代际（过渡：reset / 未来 reclaim 时递增；[`TermRef`] 校验用）。
     epoch: u32,
+    /// 本实例稳定身份（写入 [`TermRef::store_id`]）。
+    store_id: u64,
 }
 
 impl Default for TermStore {
     fn default() -> Self {
-        Self { nodes: Vec::new(), spans: Vec::new(), symbols: SymbolTable::default(), by_hash: HashMap::new(), epoch: 1 }
+        Self::new()
     }
 }
 
 impl TermStore {
     /// 空存储。
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            nodes: Vec::new(),
+            spans: Vec::new(),
+            symbols: SymbolTable::default(),
+            by_hash: HashMap::new(),
+            epoch: 1,
+            store_id: NEXT_TERM_STORE_ID.fetch_add(1, Ordering::Relaxed),
+        }
     }
 
     /// 当前 store epoch（写入 [`TermRef::generation`]）。
@@ -44,15 +59,33 @@ impl TermStore {
         self.epoch
     }
 
-    /// 将裸 [`TermId`] 提升为带当前 epoch 的 [`TermRef`]。
+    /// 本 store 实例身份（写入 [`TermRef::store_id`]）。
+    #[inline]
+    pub fn store_id(&self) -> u64 {
+        self.store_id
+    }
+
+    /// 将裸 [`TermId`] 提升为带当前 epoch 与 store 身份的 [`TermRef`]。
     ///
     /// 若 id 越界返回 `None`（不推进 epoch）。
     pub fn term_ref(&self, id: TermId) -> Option<TermRef> {
-        if (id.0 as usize) < self.nodes.len() { Some(TermRef::new(id, self.epoch)) } else { None }
+        if (id.0 as usize) < self.nodes.len() {
+            Some(TermRef::new(id, self.epoch, self.store_id))
+        } else {
+            None
+        }
     }
 
-    /// 校验 [`TermRef`] 仍指向本 store 当前代际中的有效节点。
+    /// 校验 [`TermRef`] 仍指向**本** store 当前代际中的有效节点。
     pub fn check_ref(&self, term: TermRef) -> Result<TermId> {
+        if term.store_id != self.store_id {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "TermStore")
+                .detail("reason", "foreign_term_store")
+                .detail("expected_store", self.store_id)
+                .detail("actual_store", term.store_id)
+                .detail("term", term.id.0));
+        }
         if term.generation != self.epoch {
             return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "TermStore")

@@ -88,6 +88,7 @@ fn hash_captured_root(hasher: &mut DefaultHasher, root: &CapturedRoot) {
         CapturedRoot::Term(term_ref) => {
             term_ref.id.0.hash(hasher);
             term_ref.generation.hash(hasher);
+            term_ref.store_id.hash(hasher);
         }
         CapturedRoot::Value(v) => v.0.hash(hasher),
         CapturedRoot::Result(r) => r.0.hash(hasher),
