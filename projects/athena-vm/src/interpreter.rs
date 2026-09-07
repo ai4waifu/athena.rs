@@ -43,6 +43,8 @@ pub struct Interpreter {
     last_return_slot: Option<u32>,
     /// 本轮是否见到宿主 [`HostOutcome::Residual`]（覆盖映射用）。
     host_residual: bool,
+    /// 本轮已解释步数（供外层共享预算扣减）。
+    last_steps: u64,
 }
 
 impl Interpreter {
@@ -71,6 +73,11 @@ impl Interpreter {
         self.last_return_slot
     }
 
+    /// 本轮已消耗的解释步数。
+    pub fn steps_executed(&self) -> u64 {
+        self.last_steps
+    }
+
     fn reset_for_module(&mut self, module: &VmModule) {
         self.slots.ensure(module.locals);
         for i in 0..module.locals {
@@ -80,6 +87,7 @@ impl Interpreter {
         self.frames.push(Frame::new(0, module.locals));
         self.last_return_slot = None;
         self.host_residual = false;
+        self.last_steps = 0;
     }
 
     fn check_budget_and_cancel(&self, steps: u64, config: &VmConfig) -> Option<VmExit> {
@@ -203,6 +211,7 @@ impl VmExecutor for Interpreter {
         let len = module.instructions.len() as u32;
         while (pc as usize) < module.instructions.len() {
             steps = steps.saturating_add(1);
+            self.last_steps = steps;
             if let Some(exit) = self.check_budget_and_cancel(steps, config) {
                 return Ok(exit);
             }

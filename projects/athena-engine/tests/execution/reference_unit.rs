@@ -275,3 +275,41 @@ fn execute_configured_honours_max_steps() {
     let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("budget");
     assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("budget_exceeded"));
 }
+
+#[test]
+fn nested_map_re_eval_shares_outer_cancellation() {
+    use athena_ir::{ApplicationHead, SemanticOperator, TermNode};
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let list = session.builder().list(vec![one, two], Default::default());
+    let x_sym = session.arena.symbols_mut().intern("x");
+    let slot = session.builder().symbol_id(x_sym, Default::default());
+    let body = slot;
+    let function = session.arena.push(
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), arguments: vec![slot, body] },
+        Default::default(),
+    );
+    let mapped = session.arena.push(
+        TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Map), arguments: vec![function, list] },
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(mapped)).expect("compile");
+    let token = athena_vm::CancellationToken::new();
+    token.cancel();
+    let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_cancellation(token);
+    let err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg).expect_err("cancelled");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("cancelled"));
+    assert!(session.shared_execution().is_none(), "root shared control must clear after execute");
+}
+
+#[test]
+fn nested_execute_consumes_shared_step_budget() {
+    let mut session = Session::new();
+    let term = session.builder().int(1, Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+    let cfg = athena_engine::execution::vm::vm_config_from_session(&session).with_max_steps(1);
+    let _ = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &cfg);
+    assert!(session.shared_execution().is_none());
+}

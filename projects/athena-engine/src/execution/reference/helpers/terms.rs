@@ -19,12 +19,12 @@ use crate::{
     },
 };
 
-/// 编译并再求值一项（失败则保留原项）。共享给 `Map` / `Apply` / iterator fold。
+/// 编译并再求值一项。失败与取消/预算诊断向上传播，禁止吞成原项。
+///
+/// 嵌套入口经 Session [`crate::runtime::session::SharedExecutionControl`] 继承取消与剩余预算。
 pub(crate) fn re_eval_term(session: &mut Session, term: TermId) -> Result<TermId> {
-    match execute_ir_request(session, AthenaRequest::Term(term)) {
-        Ok(result_id) => Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term)),
-        Err(_) => Ok(term),
-    }
+    let result_id = execute_ir_request(session, AthenaRequest::Term(term))?;
+    Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
 }
 
 /// `Unary(f)[arg]` — 精确三角折叠 / machine 实数折叠，否则残差。
