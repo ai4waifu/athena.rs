@@ -1,8 +1,9 @@
 //! 中立 `IndexSpec` 求值（Reference 与 `ExecutionHost` 共用）。
 
+use athena_ir::{ApplicationHead, SemanticOperator};
 use athena_types::{Diagnostic, IndexSpec, IntegerIndex, IntegerOffset, Result, TermId};
 
-use super::expand_span_3;
+use super::{evaluate_apply_head_terms, expand_span_3};
 use crate::runtime::{session::Session, values::arena::push_list};
 
 /// 单轴索引步骤结果。
@@ -115,6 +116,14 @@ pub(crate) fn index_one(session: &mut Session, expr: TermId, spec: &IndexSpec) -
 
 /// 对目标项执行完整轴序列。
 pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: &[IndexSpec]) -> Result<IndexOutcome> {
+    // MATLAB `f(k)` is parsed as Part/Index. When Own is `Function[var, body]`, apply instead.
+    if is_function_term(session, cur) {
+        if let Some(args) = function_call_args_from_axes(session, axes) {
+            let term = evaluate_apply_head_terms(session, cur, args)?;
+            return Ok(IndexOutcome::Term(term));
+        }
+    }
+
     if let [IndexSpec::All, rest @ ..] = axes {
         if !rest.is_empty() {
             if let Some(athena_ir::TermNode::Collection { elements: rows, .. }) = session.arena.get(cur) {
@@ -199,6 +208,22 @@ fn rewrite_linear_column_major(session: &Session, target: TermId, k: i64) -> Vec
         }
     }
     vec![IndexSpec::Scalar(IntegerIndex(k))]
+}
+
+fn is_function_term(session: &Session, term: TermId) -> bool {
+    matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Function), .. })
+    )
+}
+
+fn function_call_args_from_axes(session: &mut Session, axes: &[IndexSpec]) -> Option<Vec<TermId>> {
+    match axes {
+        [IndexSpec::Scalar(IntegerIndex(k))] | [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => {
+            Some(vec![session.builder().int(*k, Default::default())])
+        }
+        _ => None,
+    }
 }
 
 fn flatten_column_major(session: &mut Session, target: TermId) -> TermId {
