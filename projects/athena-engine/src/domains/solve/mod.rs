@@ -17,6 +17,7 @@ mod constraint;
 mod coverage;
 mod dispatch;
 mod domain;
+mod execute;
 pub mod frontier;
 mod goal;
 mod map_coverage;
@@ -25,6 +26,8 @@ mod policy;
 mod problem;
 mod problem_from_ir;
 mod relation;
+mod request;
+mod result;
 mod solution;
 mod value_table;
 
@@ -43,6 +46,7 @@ pub use dispatch::{
     execute_polynomial_root_goal_with_session, require_goal,
 };
 pub use domain::SolveDomain;
+pub use execute::execute_solve;
 pub use frontier::{ResumeKind, ResumeToken};
 pub use goal::SolveGoal;
 pub use map_coverage::{coverage_from_exact_disposition, coverage_from_factorization, coverage_from_machine_disposition};
@@ -51,5 +55,7 @@ pub use policy::{ExecutionLimits, SolvePolicy};
 pub use problem::SolveProblem;
 pub use problem_from_ir::assemble_solve_problem;
 pub use relation::SolveRelationKind;
+pub use request::SolveRequest;
+pub use result::SolveResult;
 pub use solution::{BranchStatus, MultiplicityInfo, SolutionBranch, SolutionSet};
 pub use value_table::{BindingValue, BindingValueTable};
