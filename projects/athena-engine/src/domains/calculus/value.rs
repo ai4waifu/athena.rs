@@ -116,7 +116,9 @@ impl CalculusValue {
             Self::Curl(c) => c.materialize_list_expression(cc),
             Self::Residue(r) => r.materialize_expression(),
             Self::DifferentialSolution(d) => d.to_equal_term(cc),
-            Self::Transform(t) => t.materialize_expression(cc),
+            // Exact images already live in `expression`. Re-wrapping as `LaplaceTransform[…]`
+            // nests ROCUnknown and hides the closed form from dialect renders.
+            Self::Transform(t) => t.expression,
         })
     }
 }
