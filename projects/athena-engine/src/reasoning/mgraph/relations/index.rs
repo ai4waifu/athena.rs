@@ -97,7 +97,13 @@ fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<Sem
             ],
             TheoryContextId::CONGRUENCE,
         ),
-        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
+        Proposition::CalculusRelation {
+            kind,
+            expression_fingerprint,
+            variable_fingerprint,
+            request_identity,
+            result_term,
+        } => {
             let predicate = match kind {
                 crate::reasoning::mgraph::facts::claim::CalculusRelationKind::DerivativeOf => predicates::DERIVATIVE_OF,
                 crate::reasoning::mgraph::facts::claim::CalculusRelationKind::IntegralOf => predicates::INTEGRAL_OF,
@@ -108,6 +114,7 @@ fn predicate_subjects_theory(proposition: &Proposition) -> (PredicateId, Vec<Sem
                 vec![
                     SemanticRef::Object(ObjectRef::new(TheoryContextId::CALCULUS, *expression_fingerprint)),
                     SemanticRef::Object(ObjectRef::new(TheoryContextId::CALCULUS, *variable_fingerprint)),
+                    SemanticRef::Object(ObjectRef::new(TheoryContextId::CALCULUS, *request_identity)),
                     SemanticRef::Term(*result_term),
                 ],
                 TheoryContextId::CALCULUS,

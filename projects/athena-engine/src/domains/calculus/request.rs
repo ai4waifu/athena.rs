@@ -306,3 +306,112 @@ impl CalculusRequest {
         }
     }
 }
+
+/// 微积分请求身份指纹（不含结果项）。
+///
+/// 用于 M-Graph 义务 / `CalculusRelation` 区分同表达式不同阶数、上下限、级数中心等。
+/// `expression` / `variable` 仍单独作为 `ObjectRef` 携带，本指纹覆盖其余语义参数。
+pub fn calculus_request_identity(request: &CalculusRequest) -> u64 {
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
+
+    fn hash_assumptions(hasher: &mut DefaultHasher, assumptions: &AssumptionSet) {
+        assumptions.id.map(|id| id.0).hash(hasher);
+        for pred in &assumptions.predicates {
+            core::mem::discriminant(pred).hash(hasher);
+            match pred {
+                athena_types::Predicate::Equal(a, b)
+                | athena_types::Predicate::NotEqual(a, b)
+                | athena_types::Predicate::Less(a, b)
+                | athena_types::Predicate::LessEqual(a, b)
+                | athena_types::Predicate::Greater(a, b)
+                | athena_types::Predicate::GreaterEqual(a, b) => {
+                    a.0.hash(hasher);
+                    b.0.hash(hasher);
+                }
+                athena_types::Predicate::Integer(t)
+                | athena_types::Predicate::Positive(t)
+                | athena_types::Predicate::NonNegative(t)
+                | athena_types::Predicate::Real(t)
+                | athena_types::Predicate::Complex(t)
+                | athena_types::Predicate::NonZero(t) => t.0.hash(hasher),
+                athena_types::Predicate::SymbolNonZero(s) | athena_types::Predicate::SymbolReal(s) => s.0.hash(hasher),
+            }
+        }
+    }
+
+    let mut hasher = DefaultHasher::new();
+    0x4341_4c43_5245_5101u64.hash(&mut hasher); // "CALCREQ\x01"
+    core::mem::discriminant(request).hash(&mut hasher);
+    match request {
+        CalculusRequest::Derivative { order, assumptions, .. } => {
+            core::mem::discriminant(order).hash(&mut hasher);
+            match order {
+                DerivativeOrder::First => {}
+                DerivativeOrder::Repeated(n) => n.hash(&mut hasher),
+            }
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Integral { assumptions, .. } => hash_assumptions(&mut hasher, assumptions),
+        CalculusRequest::DefiniteIntegral { lower, upper, assumptions, .. } => {
+            lower.0.hash(&mut hasher);
+            upper.0.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Series { center, order, assumptions, .. }
+        | CalculusRequest::Laurent { center, order, assumptions, .. } => {
+            center.0.hash(&mut hasher);
+            order.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Asymptotic { order, assumptions, .. } => {
+            order.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Limit { approach, direction, assumptions, .. } => {
+            core::mem::discriminant(approach).hash(&mut hasher);
+            if let LimitApproach::Finite(t) = approach {
+                t.0.hash(&mut hasher);
+            }
+            core::mem::discriminant(direction).hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Residue { point, assumptions, .. } => {
+            point.0.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Gradient { variables, assumptions, .. }
+        | CalculusRequest::Hessian { variables, assumptions, .. } => {
+            for v in variables {
+                v.0.hash(&mut hasher);
+            }
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Jacobian { expressions, variables, assumptions, .. }
+        | CalculusRequest::Divergence { components: expressions, variables, assumptions, .. }
+        | CalculusRequest::Curl { components: expressions, variables, assumptions, .. } => {
+            for e in expressions {
+                e.0.hash(&mut hasher);
+            }
+            for v in variables {
+                v.0.hash(&mut hasher);
+            }
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::SolveOde { dependent, independent, initial, assumptions, .. } => {
+            dependent.0.hash(&mut hasher);
+            independent.0.hash(&mut hasher);
+            initial.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+        CalculusRequest::Transform { kind, time_variable, transform_variable, assumptions, .. } => {
+            core::mem::discriminant(kind).hash(&mut hasher);
+            time_variable.0.hash(&mut hasher);
+            transform_variable.0.hash(&mut hasher);
+            hash_assumptions(&mut hasher, assumptions);
+        }
+    }
+    hasher.finish()
+}

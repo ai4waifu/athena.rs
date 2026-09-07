@@ -36,11 +36,18 @@ fn hash_certificate(provider: CapabilityProviderId, certificate: &EvidenceCertif
         EvidenceCertificate::TestHarness => {
             mix_tag(&mut state, b"test");
         }
-        EvidenceCertificate::CalculusExact { kind, expression_fingerprint, variable_fingerprint, result_term } => {
+        EvidenceCertificate::CalculusExact {
+            kind,
+            expression_fingerprint,
+            variable_fingerprint,
+            request_identity,
+            result_term,
+        } => {
             mix_tag(&mut state, b"calculus");
             mix_u64(&mut state, calculus_kind_tag(*kind));
             mix_u64(&mut state, *expression_fingerprint);
             mix_u64(&mut state, *variable_fingerprint);
+            mix_u64(&mut state, *request_identity);
             mix_u64(&mut state, u64::from(result_term.0));
         }
         EvidenceCertificate::StructuralTermEquality { left, right } => {

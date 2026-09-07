@@ -566,10 +566,11 @@ fn predicate_registry_and_hyper_edge_staging_are_typed() {
     let calc = HyperEdge { nodes: vec![expr, var, result], predicate: predicates::DERIVATIVE_OF };
     let calc_outer = hyper_edge_to_outer_candidate(&fx.session().arena, &calc).expect("calculus");
     match calc_outer.claim.proposition {
-        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, result_term } => {
+        Proposition::CalculusRelation { kind, expression_fingerprint, variable_fingerprint, request_identity, result_term } => {
             assert_eq!(kind, CalculusRelationKind::DerivativeOf);
             assert_eq!(expression_fingerprint, canonical_hash(&fx.session().arena, expr));
             assert_eq!(variable_fingerprint, canonical_hash(&fx.session().arena, var));
+            assert_eq!(request_identity, 0);
             assert_eq!(result_term, result);
         }
         other => panic!("expected CalculusRelation, got {other:?}"),

@@ -50,33 +50,27 @@ pub enum DomainSemanticOutcome {
 /// 多项式请求会先 intern 进 [`Session::polynomial_objects`]，义务携带 `PolynomialRef` 对应的 [`ObjectRef`]。
 pub fn obligation_from_domain_request(session: &mut Session, request: &DomainRequest) -> Option<ProofObligation> {
     match request {
-        DomainRequest::Calculus(CalculusRequest::Derivative { expression, variable, .. }) => Some(ProofObligation {
-            predicate: predicates::DERIVATIVE_OF,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(expression.0)),
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(variable.0)),
-            ],
-        }),
-        DomainRequest::Calculus(CalculusRequest::Integral { expression, variable, .. })
-        | DomainRequest::Calculus(CalculusRequest::DefiniteIntegral { expression, variable, .. }) => Some(ProofObligation {
-            predicate: predicates::INTEGRAL_OF,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(expression.0)),
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(variable.0)),
-            ],
-        }),
-        DomainRequest::Calculus(CalculusRequest::Series { expression, variable, .. })
-        | DomainRequest::Calculus(CalculusRequest::Laurent { expression, variable, .. })
-        | DomainRequest::Calculus(CalculusRequest::Asymptotic { expression, variable, .. }) => Some(ProofObligation {
-            predicate: predicates::SERIES_EXPANSION,
-            scope: ScopeRef::UNCONDITIONAL,
-            known_objects: vec![
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(expression.0)),
-                ObjectRef::new(TheoryContextId::CALCULUS, u64::from(variable.0)),
-            ],
-        }),
+        DomainRequest::Calculus(calc) => {
+            let (predicate, expression, variable) = match calc {
+                CalculusRequest::Derivative { expression, variable, .. } => (predicates::DERIVATIVE_OF, *expression, *variable),
+                CalculusRequest::Integral { expression, variable, .. }
+                | CalculusRequest::DefiniteIntegral { expression, variable, .. } => (predicates::INTEGRAL_OF, *expression, *variable),
+                CalculusRequest::Series { expression, variable, .. }
+                | CalculusRequest::Laurent { expression, variable, .. }
+                | CalculusRequest::Asymptotic { expression, variable, .. } => (predicates::SERIES_EXPANSION, *expression, *variable),
+                _ => return None,
+            };
+            let identity = crate::domains::calculus::calculus_request_identity(calc);
+            Some(ProofObligation {
+                predicate,
+                scope: ScopeRef::UNCONDITIONAL,
+                known_objects: vec![
+                    ObjectRef::new(TheoryContextId::CALCULUS, u64::from(expression.0)),
+                    ObjectRef::new(TheoryContextId::CALCULUS, u64::from(variable.0)),
+                    ObjectRef::new(TheoryContextId::CALCULUS, identity),
+                ],
+            })
+        }
         DomainRequest::Polynomial(poly_req) => {
             let interned = crate::domains::polynomial::intern_request_object_refs(poly_req, &session.rings, &mut session.polynomial_objects)
                 .unwrap_or_default();
@@ -125,17 +119,19 @@ pub(crate) fn try_admit_calculus_exact(session: &mut Session, obligation: &Proof
     else {
         return;
     };
-    if obligation.known_objects.len() < 2 {
+    if obligation.known_objects.len() < 3 {
         return;
     }
     let expression_fingerprint = obligation.known_objects[0].fingerprint;
     let variable_fingerprint = obligation.known_objects[1].fingerprint;
+    let request_identity = obligation.known_objects[2].fingerprint;
     let _ = AdmissionGate::admit_calculus_relation(
         &session.arena,
         &mut session.mgraph.semantic,
         kind,
         expression_fingerprint,
         variable_fingerprint,
+        request_identity,
         *result_term,
         &VerificationPolicy::default(),
     );
