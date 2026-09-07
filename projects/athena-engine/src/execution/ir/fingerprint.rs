@@ -219,6 +219,7 @@ fn hash_index_spec(hasher: &mut DefaultHasher, axis: &IndexSpec) {
     core::mem::discriminant(axis).hash(hasher);
     match axis {
         IndexSpec::Scalar(v) => v.0.hash(hasher),
+        IndexSpec::LinearColumnMajor(v) => v.0.hash(hasher),
         IndexSpec::Range { start, end, step } => {
             start.0.hash(hasher);
             end.0.hash(hasher);
