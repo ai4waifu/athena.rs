@@ -73,7 +73,7 @@ pub fn admit_typed_rewrite_candidate(
     policy: &VerificationPolicy,
 ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
     let claim = verify_typed_rewrite_candidate(store, rules, candidate)?;
-    AdmissionGate::admit_claim_with_typed_rules(store, rules, semantic, claim, policy)
+    AdmissionGate::admit_claim(store, semantic, claim, policy, Some(rules))
 }
 
 /// 接纳在 `rules` 下回放成功的全部候选（跳过非规则 / 回放失败者）。

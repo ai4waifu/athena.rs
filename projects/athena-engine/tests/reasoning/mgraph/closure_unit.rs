@@ -23,8 +23,7 @@ fn seed_equality(store: &mut TermStore, state: &mut MGraphState, left: u32, righ
                 summary: "seed".into(),
             },
         },
-        &VerificationPolicy::for_test_harness(),
-    )
+        &VerificationPolicy::for_test_harness(), None)
     .expect("admit");
 }
 

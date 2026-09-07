@@ -146,7 +146,7 @@ fn admit_into_state_wakes_matching_obligation() {
     });
     let mut store = TermStore::new();
     let (id, wake) =
-        AdmissionGate::admit_claim_into_state(&mut store, &mut state, sample_claim(55), &VerificationPolicy::default()).expect("admit");
+        AdmissionGate::admit_claim_into_state(&mut store, &mut state, sample_claim(55), &VerificationPolicy::default(), None).expect("admit");
     assert_eq!(wake.wakes.len(), 1);
     assert_eq!(wake.wakes[0].relation, id);
     assert!(state.operational.obligation_index.is_empty());
@@ -209,8 +209,7 @@ fn candidate_guarantee_is_rejected_by_admission_gate() {
                 summary: "forge".into(),
             },
         },
-        &VerificationPolicy::default(),
-    )
+        &VerificationPolicy::default(), None)
     .unwrap_err();
     assert_eq!(err, athena_engine::reasoning::mgraph::AdmissionRejectReason::InsufficientGuarantee);
     assert_eq!(semantic.relation_count(), 0);
@@ -301,8 +300,8 @@ fn admit_claim_with_premises_records_proof_dependencies() {
     let mut semantic = SemanticCore::new();
     let policy = VerificationPolicy::default();
     let mut store = TermStore::new();
-    let a = AdmissionGate::admit_claim(&mut store, &mut semantic, sample_claim(501), &policy).expect("a");
-    let (b, dep) = AdmissionGate::admit_claim_with_premises(&mut store, &mut semantic, sample_claim(502), &policy, &[a]).expect("b");
+    let a = AdmissionGate::admit_claim(&mut store, &mut semantic, sample_claim(501), &policy, None).expect("a");
+    let (b, dep) = AdmissionGate::admit_claim_with_premises(&mut store, &mut semantic, sample_claim(502), &policy, &[a], None).expect("b");
     dep.expect("dependency ok");
     assert!(semantic.proof_dependencies.depends_on(b, a));
     assert_eq!(semantic.proof_dependencies.premises(b), &[a]);
@@ -310,7 +309,7 @@ fn admit_claim_with_premises_records_proof_dependencies() {
 
 fn admit_ok(semantic: &mut SemanticCore, claim: Claim) -> athena_engine::reasoning::mgraph::FactId {
     let mut store = TermStore::new();
-    AdmissionGate::admit_claim(&mut store, semantic, claim, &VerificationPolicy::default()).expect("should admit")
+    AdmissionGate::admit_claim(&mut store, semantic, claim, &VerificationPolicy::default(), None).expect("should admit")
 }
 
 fn sample_claim(fingerprint: u64) -> Claim {

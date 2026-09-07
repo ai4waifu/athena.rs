@@ -66,5 +66,5 @@ fn try_admit_outer_if_structural(
             summary: format!("outer-structural:{left:?}:{right:?}"),
         },
     };
-    AdmissionGate::admit_claim(store, semantic, claim, policy).map(|_| ())
+    AdmissionGate::admit_claim(store, semantic, claim, policy, None).map(|_| ())
 }
