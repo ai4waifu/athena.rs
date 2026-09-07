@@ -56,12 +56,18 @@ fn integrate_symbol(dc: &mut DomainExecutionContext<'_>, expr: TermId, var: Symb
                 let ir = integrate_symbol(dc, rest, var)?;
                 dc.fold_term(dc.apply_semantic(SemanticOperator::Multiply, vec![coeff, ir]))?
             }
+            ApplicationHead::Semantic(SemanticOperator::Divide) if args.len() == 2 => {
+                let inv = dc.apply_semantic(SemanticOperator::Power, vec![args[1], dc.in_(-1)]);
+                let rewritten = dc.apply_semantic(SemanticOperator::Multiply, vec![args[0], inv]);
+                integrate_symbol(dc, rewritten, var)?
+            }
             ApplicationHead::Semantic(SemanticOperator::Power) if args.len() == 2 && is_symbol_id(dc, args[0], var) => {
                 if let Some(n) = dc.int_exp(args[1]) {
-                    if n != -1 {
-                        let p = dc.apply_semantic(SemanticOperator::Power, vec![args[0], dc.in_(n + 1)]);
-                        return Ok(dc.fold_term(dc.apply_semantic(SemanticOperator::Divide, vec![p, dc.in_(n + 1)]))?);
+                    if n == -1 {
+                        return Ok(dc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Log), vec![args[0]]));
                     }
+                    let p = dc.apply_semantic(SemanticOperator::Power, vec![args[0], dc.in_(n + 1)]);
+                    return Ok(dc.fold_term(dc.apply_semantic(SemanticOperator::Divide, vec![p, dc.in_(n + 1)]))?);
                 }
                 residual_integrate(dc, expr, var)
             }
