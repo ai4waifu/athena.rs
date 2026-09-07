@@ -48,7 +48,7 @@ fn evaluate_add_integers() {
         let b = t.integer(3);
         t.add([a, b])
     };
-    let result = fx.evaluate_term(term);
+    let result = fx.evaluate_term(term).expect("evaluate");
     assert_exact_integer(fx.session(), result, 5);
     let _ = term_request(term);
 }

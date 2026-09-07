@@ -39,8 +39,8 @@ impl SessionFixture {
         DomainRequestBuilder
     }
 
-    /// 经 engine IR 路径求值 term。
-    pub fn evaluate_term(&mut self, term: TermId) -> TermId {
+    /// 经 engine IR 路径求值 term。执行失败经 [`athena_types::Result`] 传播，禁止吞错。
+    pub fn evaluate_term(&mut self, term: TermId) -> athena_types::Result<TermId> {
         self.engine.evaluate(&mut self.session, term)
     }
 

@@ -268,14 +268,12 @@ impl Session {
         out
     }
 
-    /// 在本 Session 定义表上求值（唯一 `ExecutionIR` 路径）。
+    /// 在本 Session 定义表上求值（唯一 `ExecutionIR` 路径）。执行失败经 [`Result`] 传播，禁止吞错。
     ///
-    /// 返回归约后的 [`TermId`]。正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
-    pub fn evaluate(&mut self, expr: TermId) -> TermId {
-        match execution::execute_ir_request(self, AthenaRequest::Term(expr)) {
-            Ok(result_id) => self.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr),
-            Err(_) => expr,
-        }
+    /// 正式公共结果见 [`crate::api::AthenaEngine::execute_request`] → [`ComputationResult`]。
+    pub fn evaluate(&mut self, expr: TermId) -> athena_types::Result<TermId> {
+        let result_id = execution::execute_ir_request(self, AthenaRequest::Term(expr))?;
+        Ok(self.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr))
     }
 
     /// 清除符号定义（不触及 heap / rings）。

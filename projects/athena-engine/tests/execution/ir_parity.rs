@@ -26,7 +26,7 @@ impl C {
 }
 
 fn t(e: Tid, c: &mut C) -> String {
-    let out = c.s.evaluate(e);
+    let out = c.s.evaluate(e).expect("evaluate");
     term_debug(&c.s, out)
 }
 

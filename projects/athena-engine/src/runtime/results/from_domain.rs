@@ -23,8 +23,16 @@ use crate::{
 };
 
 /// 将域结果写入 `ValueStore` / `ComputationResult`（保留完整 `DomainResult`）。
+///
+/// **禁止**把领域枚举名 `Exact` 自动抬成 [`ComputationStatus::Exact`]。
+///
+/// - 微积分：仅 `AdmissionGate` journal 已接纳同结果项时抬 `Exact`/`Full`
+/// - 图论 / 群 / 域 / 伽罗瓦：摘要或骨架证书 → `Candidate`/`Partial`
+/// - 多项式：无结果级 admission 绑定时不得抬升（`Exact` 枚举名 ≠ 已准入）
+/// - 数论可信 kernel（如 gcd）可带 provider stamp 保留 `Exact`（非字段伪造路径）
+/// - 线性代数：跟 `AlgorithmGuarantee`，禁止机器近似抬 Exact
 pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> ComputationResult {
-    let mapped = map_domain_meta(&domain);
+    let mapped = map_domain_meta(session, &domain);
     let value_id = session.insert_value(RuntimeValue::Domain(domain));
     let mut result = ComputationResult::with_status(mapped.status, mapped.coverage)
         .with_value(value_id)
@@ -57,9 +65,9 @@ struct DomainMeta {
     provider: Option<ResultProviderStamp>,
 }
 
-fn map_domain_meta(domain: &DomainResult) -> DomainMeta {
+fn map_domain_meta(session: &Session, domain: &DomainResult) -> DomainMeta {
     match domain {
-        DomainResult::Calculus(r) => map_calculus(r),
+        DomainResult::Calculus(r) => map_calculus(session, r),
         DomainResult::NumberTheory(r) => map_number_theory(r),
         DomainResult::Polynomial(r) => map_polynomial(r),
         DomainResult::GroupTheory(r) => map_group(r),
@@ -71,17 +79,38 @@ fn map_domain_meta(domain: &DomainResult) -> DomainMeta {
     }
 }
 
-fn map_calculus(result: &CalculusResult<CalculusValue>) -> DomainMeta {
+fn candidate_provider(provider: ResultProviderId) -> DomainMeta {
+    DomainMeta {
+        status: ComputationStatus::Candidate,
+        coverage: CoverageStatus::Partial,
+        symbolic_term: None,
+        conditions: Vec::new(),
+        diagnostics: Vec::new(),
+        evidence: Vec::new(),
+        provider: Some(provider.stamped()),
+    }
+}
+
+fn map_calculus(session: &Session, result: &CalculusResult<CalculusValue>) -> DomainMeta {
     match result {
-        CalculusResult::Exact { value, conditions } => DomainMeta {
-            status: ComputationStatus::Exact,
-            coverage: CoverageStatus::Full,
-            symbolic_term: calculus_term(value),
-            conditions: conditions.clone(),
-            diagnostics: Vec::new(),
-            evidence: Vec::new(),
-            provider: Some(ResultProviderId::CALCULUS.stamped()),
-        },
+        CalculusResult::Exact { value, conditions } => {
+            // 领域 Exact ≠ 已准入。仅当 journal 中已有同结果项的 `CalculusRelation` 才抬 Exact/Full。
+            let (status, coverage) = match (calculus_term(value), conditions.is_empty()) {
+                (Some(term), true) if calculus_result_admitted(session, term) => {
+                    (ComputationStatus::Exact, CoverageStatus::Full)
+                }
+                _ => (ComputationStatus::Candidate, CoverageStatus::Partial),
+            };
+            DomainMeta {
+                status,
+                coverage,
+                symbolic_term: calculus_term(value),
+                conditions: conditions.clone(),
+                diagnostics: Vec::new(),
+                evidence: Vec::new(),
+                provider: Some(ResultProviderId::CALCULUS.stamped()),
+            }
+        }
         CalculusResult::Conditional { value, conditions } => DomainMeta {
             status: ComputationStatus::Conditional,
             coverage: CoverageStatus::Partial,
@@ -101,6 +130,16 @@ fn map_calculus(result: &CalculusResult<CalculusValue>) -> DomainMeta {
             provider: Some(ResultProviderId::CALCULUS.stamped()),
         },
     }
+}
+
+fn calculus_result_admitted(session: &Session, result_term: TermId) -> bool {
+    use crate::reasoning::mgraph::Proposition;
+    session.mgraph.semantic.admission_journal().claims().iter().any(|verified| {
+        matches!(
+            &verified.claim().proposition,
+            Proposition::CalculusRelation { result_term: t, .. } if *t == result_term
+        )
+    })
 }
 
 fn calculus_term(value: &CalculusValue) -> Option<TermId> {
@@ -164,35 +203,37 @@ fn map_number_theory(result: &NumberTheoryResult) -> DomainMeta {
 
 fn map_polynomial(result: &PolynomialResult) -> DomainMeta {
     match result {
-        PolynomialResult::Exact { .. } => exact_provider(ResultProviderId::POLYNOMIAL),
+        // 多项式 Exact 枚举名 ≠ 已准入；结果级 admission 绑定前不得抬 Exact/Full。
+        PolynomialResult::Exact { .. } => candidate_provider(ResultProviderId::POLYNOMIAL),
         PolynomialResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::POLYNOMIAL),
     }
 }
 
 fn map_group(result: &GroupResult) -> DomainMeta {
     match result {
-        GroupResult::Exact { .. } => exact_provider(ResultProviderId::GROUP),
+        GroupResult::Exact { .. } => candidate_provider(ResultProviderId::GROUP),
         GroupResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::GROUP),
     }
 }
 
 fn map_field(result: &FieldResult) -> DomainMeta {
     match result {
-        FieldResult::Exact { .. } => exact_provider(ResultProviderId::FIELD),
+        FieldResult::Exact { .. } => candidate_provider(ResultProviderId::FIELD),
         FieldResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::FIELD),
     }
 }
 
 fn map_galois(result: &GaloisResult) -> DomainMeta {
     match result {
-        GaloisResult::Exact { .. } => exact_provider(ResultProviderId::GALOIS),
+        GaloisResult::Exact { .. } => candidate_provider(ResultProviderId::GALOIS),
         GaloisResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::GALOIS),
     }
 }
 
 fn map_graph(result: &GraphTheoryResult) -> DomainMeta {
     match result {
-        GraphTheoryResult::Exact { .. } => exact_provider(ResultProviderId::GRAPH_THEORY),
+        // 图论 L1 多为摘要证书，不得把领域枚举 Exact 抬成 ComputationStatus::Exact/Full。
+        GraphTheoryResult::Exact { .. } => candidate_provider(ResultProviderId::GRAPH_THEORY),
         GraphTheoryResult::Unevaluated { reason } => unevaluated(reason, ResultProviderId::GRAPH_THEORY),
     }
 }
