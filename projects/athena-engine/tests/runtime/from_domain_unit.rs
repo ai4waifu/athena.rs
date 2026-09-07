@@ -59,6 +59,46 @@ fn exact_rank_still_projects_exact_full() {
 }
 
 #[test]
+fn calculus_series_projects_symbolic_polynomial_term() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        domains::{DomainRequest, calculus::*},
+        execution::execute_ir_request,
+    };
+    use athena_ir::{SemanticOperator, UnaryFunction};
+    use athena_types::AssumptionSet;
+
+    let mut session = Session::new();
+    let (expression, variable, center) = {
+        let dc = athena_engine::domains::DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Unary(UnaryFunction::Exp), vec![xs]);
+        (expression, variable, dc.in_(0))
+    };
+    let result_id = execute_ir_request(
+        &mut session,
+        AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Series {
+            expression,
+            variable,
+            center,
+            order: 2,
+            assumptions: AssumptionSet::empty(),
+        }))),
+    )
+    .expect("series goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("series bridge term");
+    // Expect a Plus tree with three summands (1 + x + (1/2) x^2), not residual Series[…].
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Application {
+            head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+        }) if arguments.len() == 3
+    ));
+}
+
+#[test]
 fn calculus_exact_projects_candidate_until_admitted() {
     use athena_engine::domains::calculus::{CalculusResult, CalculusValue};
 
