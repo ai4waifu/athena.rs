@@ -3,8 +3,11 @@
 use athena_engine::{
     Session,
     domains::{calculus::*, context::DomainExecutionContext},
+    execution::execute_ir_request,
+    api::{AthenaRequest, DomainGoal},
+    domains::DomainRequest,
 };
-use athena_ir::SemanticOperator;
+use athena_ir::{Atom, SemanticOperator, TermNode, UnaryFunction};
 use athena_types::AssumptionSet;
 
 #[test]
@@ -29,4 +32,77 @@ fn series_goal_interns_series_ref_into_session() {
         }
         other => panic!("expected SeriesRef payload, got {other:?}"),
     }
+}
+
+#[test]
+fn integrate_reciprocal_yields_log() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(-1)]);
+        (expression, variable)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Integral { expression, variable, assumptions: AssumptionSet::empty() },
+    );
+    match result {
+        CalculusResult::Exact { value: CalculusValue::Expression(term), .. } => {
+            match session.arena.get(term) {
+                Some(TermNode::Application {
+                    head: athena_ir::ApplicationHead::Semantic(op),
+                    arguments,
+                }) if op.as_unary() == Some(UnaryFunction::Log) && arguments.len() == 1 => {
+                    assert!(matches!(session.arena.get(arguments[0]), Some(TermNode::Atom(Atom::Symbol(s))) if *s == variable));
+                }
+                other => panic!("expected Log[x], got {other:?}"),
+            }
+        }
+        other => panic!("expected Exact Log, got {other:?}"),
+    }
+}
+
+#[test]
+fn limit_reciprocal_at_positive_infinity_is_zero() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(-1)]);
+        (expression, variable)
+    };
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Limit {
+        expression,
+        variable,
+        approach: LimitApproach::PositiveInfinity,
+        direction: LimitDirection::TwoSided,
+        assumptions: AssumptionSet::empty(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("limit");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
+}
+
+#[test]
+fn derivative_order_two_of_x_squared() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(2)]);
+        (expression, variable)
+    };
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Derivative {
+        expression,
+        variable,
+        order: DerivativeOrder::Repeated(2),
+        assumptions: AssumptionSet::empty(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("d2");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
 }
