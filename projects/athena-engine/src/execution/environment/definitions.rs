@@ -149,13 +149,15 @@ impl DefinitionLayer {
     }
 }
 
-/// 局部绑定：已初始化值，或未初始化时的唯一化符号（逃逸物化）。
+/// 局部绑定：已初始化值、未初始化唯一化符号，或动态清空（遮蔽外层 Own）。
 #[derive(Debug, Clone, Copy)]
 pub enum LocalBinding {
     /// 已初始化值。
     Value(TermId),
     /// 未初始化局部的唯一化符号。
     Unique(TermId),
+    /// 作用域内显式清除：隐藏外层 Own，直到 `ExitScope`。
+    Cleared,
 }
 
 /// 作用域帧：局部符号 → 绑定。
@@ -180,7 +182,12 @@ impl ScopeFrame {
         self.locals.get(&symbol).copied()
     }
 
-    /// 移除局部绑定。
+    /// 标记符号在本帧中已清除（仍占据槽位，避免回落到外层 Own）。
+    pub fn clear(&mut self, symbol: SymbolId) {
+        self.locals.insert(symbol, LocalBinding::Cleared);
+    }
+
+    /// 移除局部绑定（彻底删除槽位，回落到外层）。
     pub fn unbind(&mut self, symbol: SymbolId) {
         self.locals.remove(&symbol);
     }
