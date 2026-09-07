@@ -298,6 +298,40 @@ fn fourier_exp_neg_x_squared_is_sqrt_pi_gaussian() {
 }
 
 #[test]
+fn z_transform_of_n_is_z_over_z_minus_one_squared() {
+    let mut session = Session::new();
+    let (expression, time_variable, transform_variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let n = dc.intern("n");
+        let z = dc.intern("z");
+        (dc.symbol_id(n), n, z)
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Transform {
+            kind: TransformKind::Z,
+            expression,
+            time_variable,
+            transform_variable,
+            assumptions: AssumptionSet::empty(),
+        },
+    );
+    let term = match result {
+        CalculusResult::Exact { value: CalculusValue::Transform(tr), .. } => tr.expression,
+        other => panic!("expected Exact Z image, got {other:?}"),
+    };
+    fn mentions(session: &Session, term: athena_types::TermId, sym: athena_types::SymbolId) -> bool {
+        match session.arena.get(term) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s == sym,
+            Some(TermNode::Application { arguments, .. }) => arguments.iter().any(|a| mentions(session, *a, sym)),
+            Some(TermNode::Collection { elements, .. }) => elements.iter().any(|a| mentions(session, *a, sym)),
+            _ => false,
+        }
+    }
+    assert!(mentions(&session, term, transform_variable), "missing z in {:?}", session.arena.get(term));
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
