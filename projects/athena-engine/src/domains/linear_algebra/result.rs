@@ -9,7 +9,7 @@ use super::{
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
-    ops::{hadamard, index_scalar, matmul, transpose},
+    ops::{dot, hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
     value::MatrixValue,
@@ -38,6 +38,8 @@ pub enum LinearAlgebraValue {
     ExactDet(ExactDetResult),
     /// 精确矩阵迹。
     ExactTrace(ExactTraceResult),
+    /// `Dot` 收缩结果（向量投影为平坦 List，标量为原子）。
+    Dot(MatrixValue),
     /// 精确 RREF。
     ExactRref(ExactRrefResult),
     /// 精确求解。
@@ -55,6 +57,7 @@ impl LinearAlgebraValue {
             Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
             Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
             Self::ExactTrace(r) => Self::ExactTrace(r.owning_copy()),
+            Self::Dot(m) => Self::Dot(m.owning_copy()),
             Self::ExactRref(r) => Self::ExactRref(r.owning_copy()),
             Self::ExactSolve(r) => Self::ExactSolve(r.owning_copy()),
             Self::MachineSolve(r) => Self::MachineSolve(r.owning_copy()),
@@ -90,6 +93,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Solve { .. } => "solve",
         LinearAlgebraRequest::Inverse { .. } => "inverse",
         LinearAlgebraRequest::Trace { .. } => "trace",
+        LinearAlgebraRequest::Dot { .. } => "dot",
     }
 }
 
@@ -186,6 +190,11 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
                     .detail("hint", "use exact parent"));
             }
             Ok(LinearAlgebraValue::ExactTrace(trace_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::Dot { lhs, rhs } => {
+            let lhs = resolve(store, lhs)?;
+            let rhs = resolve(store, rhs)?;
+            Ok(LinearAlgebraValue::Dot(dot(&lhs, &rhs)?))
         }
     }
 }

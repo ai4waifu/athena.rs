@@ -518,6 +518,44 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
     Ok(push_list(session, out))
 }
 
+fn matrix_entry_to_term_session(session: &mut Session, m: &MatrixValue, row: u64, col: u64) -> Result<TermId> {
+    Ok(match m.get(row, col)? {
+        MatrixEntry::Rational(r) => rational_to_term_session(session, &r),
+        MatrixEntry::Integer(n) => {
+            if let Some(i64v) = n.to_i64() {
+                session.builder().int(i64v, Default::default())
+            }
+            else {
+                push_number(session, Number::integer(clone_integer(&n)))
+            }
+        }
+        MatrixEntry::MachineF64(x) => push_number(session, Number::machine(x)),
+    })
+}
+
+/// `Dot` 结果：`1×1` → 标量，行/列向量 → 平坦 List，否则嵌套矩阵。
+pub(crate) fn matrix_to_dot_term_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
+    let (rows, cols) = (m.shape().rows, m.shape().cols);
+    if rows == 1 && cols == 1 {
+        return matrix_entry_to_term_session(session, m, 0, 0);
+    }
+    if cols == 1 {
+        let mut out = Vec::with_capacity(rows as usize);
+        for i in 0..rows {
+            out.push(matrix_entry_to_term_session(session, m, i, 0)?);
+        }
+        return Ok(push_list(session, out));
+    }
+    if rows == 1 {
+        let mut out = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            out.push(matrix_entry_to_term_session(session, m, 0, j)?);
+        }
+        return Ok(push_list(session, out));
+    }
+    matrix_to_nested_list_session(session, m)
+}
+
 /// 投影缺少内置符号项的领域结果（例如精确线性求解）。
 pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate::domains::dispatch::DomainResult) -> Option<TermId> {
     use crate::domains::{
@@ -529,6 +567,7 @@ pub(crate) fn domain_result_symbolic_term(session: &mut Session, domain: &crate:
     match domain {
         DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) => match value {
             LinearAlgebraValue::Matrix(m) => matrix_to_nested_list_session(session, m).ok(),
+            LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, m).ok(),
             LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, m).ok(),
             LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
             LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
