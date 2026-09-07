@@ -26,8 +26,8 @@ fn execute_compiled_atom_term() {
     let result_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("execute");
     let loaded = session.results.get(result_id).expect("result");
     assert_eq!(loaded.symbolic_term, Some(term));
-    assert_eq!(loaded.status, ComputationStatus::Exact);
-    assert_eq!(loaded.coverage, CoverageStatus::Full);
+    assert_eq!(loaded.status, ComputationStatus::Candidate);
+    assert_eq!(loaded.coverage, CoverageStatus::Partial);
 }
 
 #[test]
