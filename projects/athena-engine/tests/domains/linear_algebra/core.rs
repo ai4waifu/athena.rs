@@ -160,3 +160,35 @@ fn domain_request_dispatches_linear_algebra() {
     };
     assert_eq!(d.det, q(7, 1));
 }
+
+#[test]
+fn goal_transpose_projects_nested_list_via_execution() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose { matrix })));
+    let result_id = execute_ir_request(&mut session, request).expect("transpose goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    // {{1, 3}, {2, 4}}
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
+    else {
+        panic!("expected nested list");
+    };
+    assert_eq!(rows.len(), 2);
+    let TermNode::Collection { elements: r0, .. } = session.arena.get(rows[0]).expect("r0")
+    else {
+        panic!("row0");
+    };
+    let TermNode::Collection { elements: r1, .. } = session.arena.get(rows[1]).expect("r1")
+    else {
+        panic!("row1");
+    };
+    assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+    assert!(matches!(session.arena.get(r1[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)));
+    assert!(matches!(session.arena.get(r1[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)));
+}
