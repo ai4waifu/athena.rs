@@ -146,6 +146,30 @@ fn effect_predecessor_must_exist() {
 }
 
 #[test]
+fn mutual_effect_predecessor_cycle_is_rejected() {
+    use athena_engine::execution::ir::{EffectEdge, EffectKind, EffectToken};
+
+    let mut module = ExecutionModule::empty();
+    module.effect_edges.push(EffectEdge::after(EffectToken(0), EffectToken(1), EffectKind::WriteBinding));
+    module.effect_edges.push(EffectEdge::after(EffectToken(1), EffectToken(0), EffectKind::ReadBinding));
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    let err = verify_module(&module).expect_err("effect cycle");
+    assert_eq!(err.details.get("reason").map(|v| v.to_string()).as_deref(), Some("effect_cycle"));
+}
+
+#[test]
+fn linear_effect_chain_is_accepted() {
+    use athena_engine::execution::ir::{EffectEdge, EffectKind, EffectToken};
+
+    let mut module = ExecutionModule::empty();
+    module.effect_edges.push(EffectEdge::entry(EffectToken(0), EffectKind::EnterScope));
+    module.effect_edges.push(EffectEdge::after(EffectToken(1), EffectToken(0), EffectKind::WriteBinding));
+    module.effect_edges.push(EffectEdge::after(EffectToken(2), EffectToken(1), EffectKind::ExitScope));
+    module.fingerprint = ModuleFingerprint::of_module(&module);
+    verify_module(&module).expect("linear effect chain");
+}
+
+#[test]
 fn guard_exit_must_be_declared() {
     use athena_engine::execution::ir::{GuardFailure, OperationKind};
 
