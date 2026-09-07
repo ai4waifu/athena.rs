@@ -28,3 +28,11 @@ fn matches_captures_second_arg() {
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Matches, 2, 0), ArgumentEvaluationKind::Evaluate);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Matches, 2, 1), ArgumentEvaluationKind::CaptureAsTerm);
 }
+
+#[test]
+fn rule_evaluates_rhs_rule_deferred_captures_both() {
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Rule, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Rule, 2, 1), ArgumentEvaluationKind::Evaluate);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::RuleDeferred, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::RuleDeferred, 2, 1), ArgumentEvaluationKind::CaptureAsTerm);
+}
