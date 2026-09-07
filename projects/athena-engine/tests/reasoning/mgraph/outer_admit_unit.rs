@@ -25,7 +25,7 @@ fn structural_outer_pair_admits_and_clears_pool() {
     assert_eq!(drain_hyper_edges_to_outer_pool(&store, &mut state).staged, 1);
     assert_eq!(state.operational.outer_candidates.len(), 1);
 
-    let report = admit_outer_pool_if_structural(&store, &mut state, &VerificationPolicy::default());
+    let report = admit_outer_pool_if_structural(&mut store, &mut state, &VerificationPolicy::default());
     assert_eq!(report.admitted, 1);
     assert_eq!(report.retained, 0);
     assert!(state.operational.outer_candidates.is_empty());
@@ -53,7 +53,7 @@ fn unequal_outer_pair_stays_in_pool() {
         },
     }));
 
-    let report = admit_outer_pool_if_structural(&store, &mut state, &VerificationPolicy::default());
+    let report = admit_outer_pool_if_structural(&mut store, &mut state, &VerificationPolicy::default());
     assert_eq!(report.admitted, 0);
     assert_eq!(report.retained, 1);
     assert_eq!(state.operational.outer_candidates.len(), 1);

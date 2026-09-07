@@ -51,7 +51,7 @@ pub fn verify_structural_term_equality(store: &TermStore, left: TermId, right: T
 
 /// 验证结构相等后接纳进语义核心（写入 ExactUF + ProofForest）。
 pub fn admit_structural_term_equality(
-    store: &TermStore,
+    store: &mut TermStore,
     semantic: &mut SemanticCore,
     left: TermId,
     right: TermId,
@@ -65,14 +65,18 @@ pub fn admit_structural_term_equality(
 ///
 /// 会改变结构的规则驱动重写仍保持为外层候选，并被跳过。
 pub fn admit_structural_candidates(
-    store: &TermStore,
+    store: &mut TermStore,
     semantic: &mut SemanticCore,
     candidates: &[CandidateEquivalence],
     policy: &VerificationPolicy,
 ) -> Vec<Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason>> {
-    candidates
+    let structural: Vec<_> = candidates
         .iter()
         .filter(|c| store.structural_eq(c.left_term, c.right_term))
-        .map(|c| admit_structural_term_equality(store, semantic, c.left_term, c.right_term, policy))
+        .map(|c| (c.left_term, c.right_term))
+        .collect();
+    structural
+        .into_iter()
+        .map(|(left, right)| admit_structural_term_equality(store, semantic, left, right, policy))
         .collect()
 }

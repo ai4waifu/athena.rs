@@ -94,7 +94,7 @@ fn structural_admit_writes_exact_uf_and_proof_forest() {
     assert_eq!(claim.guarantee, Guarantee::ProvenExact);
 
     let mut semantic = SemanticCore::new();
-    let fact = admit_structural_term_equality(&store, &mut semantic, a, b, &VerificationPolicy::default()).expect("admit");
+    let fact = admit_structural_term_equality(&mut store, &mut semantic, a, b, &VerificationPolicy::default()).expect("admit");
     assert_eq!(fact.0, 0);
     assert_eq!(semantic.derived.exact_uf.find(a), semantic.derived.exact_uf.find(b));
     assert_eq!(semantic.derived.proof_forest.len(), 1);
@@ -287,7 +287,7 @@ fn application_congruence_admits_when_args_exact_equal() {
 
     let mut semantic = SemanticCore::new();
     AdmissionGate::admit_claim(
-        &store,
+        &mut store,
         &mut semantic,
         Claim {
             proposition: Proposition::TermEquality { left: x, right: y },
@@ -312,7 +312,7 @@ fn application_congruence_admits_when_args_exact_equal() {
     let pair = (candidates[0].left_term, candidates[0].right_term);
     assert!(pair == (fx, fy) || pair == (fy, fx));
 
-    let fact = athena_engine::reasoning::egraph::admit_application_congruence(&store, &mut semantic, fx, fy, &VerificationPolicy::default())
+    let fact = athena_engine::reasoning::egraph::admit_application_congruence(&mut store, &mut semantic, fx, fy, &VerificationPolicy::default())
         .expect("admit app congruence");
     assert_eq!(fact.0, 1);
     assert_eq!(semantic.derived.exact_uf.find(fx), semantic.derived.exact_uf.find(fy));
@@ -339,7 +339,7 @@ fn typed_admit_pipeline_runs_congruence_after_seed() {
     let add_yz =
         session.arena.push(TermNode::Application { head: ApplicationHead::Semantic(SemanticOperator::Add), arguments: vec![y, z] }, span);
     AdmissionGate::admit_claim(
-        &session.arena,
+        &mut session.arena,
         &mut session.mgraph.semantic,
         Claim {
             proposition: Proposition::TermEquality { left: x, right: y },

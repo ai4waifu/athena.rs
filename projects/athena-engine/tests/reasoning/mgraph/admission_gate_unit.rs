@@ -15,11 +15,11 @@ use athena_types::TermId;
 
 #[test]
 fn admit_congruence_rebuilds_modulus_isolated_index() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
     let policy = VerificationPolicy::default();
-    AdmissionGate::admit_congruence(&store, &mut semantic, 7, 10, 20, &policy).expect("mod7");
-    AdmissionGate::admit_congruence(&store, &mut semantic, 11, 10, 30, &policy).expect("mod11");
+    AdmissionGate::admit_congruence(&mut store, &mut semantic, 7, 10, 20, &policy).expect("mod7");
+    AdmissionGate::admit_congruence(&mut store, &mut semantic, 11, 10, 30, &policy).expect("mod11");
     assert_eq!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 20));
     assert_ne!(semantic.derived.congruence.find(7, 10), semantic.derived.congruence.find(7, 30));
     assert_eq!(semantic.derived.congruence.modulus_count(), 2);
@@ -129,7 +129,7 @@ fn forged_true_equals_false_structural_equality_is_rejected() {
             summary: "forged-true-eq-false".into(),
         },
     };
-    let err = AdmissionGate::admit_claim(&session.arena, &mut session.mgraph.semantic, forged, &VerificationPolicy::default())
+    let err = AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, forged, &VerificationPolicy::default())
         .expect_err("true = false must not admit");
     assert_eq!(err, AdmissionRejectReason::NotExact);
     assert_eq!(session.mgraph.semantic.relation_count(), 0);
@@ -150,7 +150,7 @@ fn structural_equality_of_identical_term_admits() {
             summary: "reflexive".into(),
         },
     };
-    AdmissionGate::admit_claim(&session.arena, &mut session.mgraph.semantic, claim, &VerificationPolicy::default()).expect("reflexive admit");
+    AdmissionGate::admit_claim(&mut session.arena, &mut session.mgraph.semantic, claim, &VerificationPolicy::default()).expect("reflexive admit");
     assert_eq!(session.mgraph.semantic.relation_count(), 1);
 }
 
@@ -169,16 +169,39 @@ fn verify_in_rejects_false_equality_even_when_fields_match() {
             summary: "fields-ok-math-false".into(),
         },
     };
-    let ctx = VerificationContext::with_terms(&session.arena, None);
-    match EvidenceVerifier::verify_in(&claim, &VerificationPolicy::default(), &ctx) {
+    let mut ctx = VerificationContext::with_terms(&mut session.arena, None);
+    match EvidenceVerifier::verify_in(&claim, &VerificationPolicy::default(), &mut ctx) {
         AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, .. } => {}
         other => panic!("expected NotExact, got {other:?}"),
     }
 }
 
 #[test]
+fn forged_typed_rewrite_without_rules_is_rejected() {
+    let mut store = TermStore::new();
+    let mut semantic = SemanticCore::new();
+    let claim = Claim {
+        proposition: Proposition::TermEquality { left: TermId(0), right: TermId(1) },
+        scope: Scope::Unconditional,
+        guarantee: Guarantee::ProvenExact,
+        evidence: Evidence::TrustedKernel {
+            provider: CapabilityProviderId(0),
+            certificate: EvidenceCertificate::TypedRewriteReplay {
+                rule: athena_rewriter::RewriteRuleId(0),
+                left: TermId(0),
+                right: TermId(1),
+            },
+            summary: "forged-rewrite".into(),
+        },
+    };
+    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default()).expect_err("no rules");
+    assert_eq!(err, AdmissionRejectReason::NotExact);
+    assert_eq!(semantic.relation_count(), 0);
+}
+
+#[test]
 fn rejected_certificate_never_admits() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut semantic = SemanticCore::new();
     let claim = Claim {
         proposition: Proposition::TermEquality { left: TermId(0), right: TermId(1) },
@@ -190,7 +213,7 @@ fn rejected_certificate_never_admits() {
             summary: "rejected".into(),
         },
     };
-    let err = AdmissionGate::admit_claim(&store, &mut semantic, claim, &VerificationPolicy::default()).expect_err("rejected cert");
+    let err = AdmissionGate::admit_claim(&mut store, &mut semantic, claim, &VerificationPolicy::default()).expect_err("rejected cert");
     assert_eq!(err, AdmissionRejectReason::EvidenceMismatch);
     assert_eq!(semantic.relation_count(), 0);
 }

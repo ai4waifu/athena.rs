@@ -9,7 +9,7 @@ use athena_engine::reasoning::mgraph::{
 use athena_ir::TermStore;
 
 /// 非结构相等的 ExactUF 种子：仅测试夹具策略可写（生产路径禁止）。
-fn seed_equality(store: &TermStore, state: &mut MGraphState, left: u32, right: u32) {
+fn seed_equality(store: &mut TermStore, state: &mut MGraphState, left: u32, right: u32) {
     AdmissionGate::admit_claim(
         store,
         &mut state.semantic,
@@ -30,7 +30,7 @@ fn seed_equality(store: &TermStore, state: &mut MGraphState, left: u32, right: u
 
 #[test]
 fn empty_state_is_already_saturated() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut state = MGraphState::new();
     let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
     assert_eq!(result.stop, ClosureStopReason::Saturated);
@@ -41,10 +41,10 @@ fn empty_state_is_already_saturated() {
 
 #[test]
 fn closure_materializes_transitivity_proof_edge() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut state = MGraphState::new();
-    seed_equality(&store, &mut state, 1, 2);
-    seed_equality(&store, &mut state, 2, 3);
+    seed_equality(&mut store, &mut state, 1, 2);
+    seed_equality(&mut store, &mut state, 2, 3);
     assert_eq!(state.semantic.derived.proof_forest.len(), 2);
 
     let result = run_closure_step(&store, &mut state, &ClosureLimits::default());
@@ -59,11 +59,11 @@ fn closure_materializes_transitivity_proof_edge() {
 
 #[test]
 fn step_budget_stops_before_saturation() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut state = MGraphState::new();
-    seed_equality(&store, &mut state, 1, 2);
-    seed_equality(&store, &mut state, 2, 3);
-    seed_equality(&store, &mut state, 3, 4);
+    seed_equality(&mut store, &mut state, 1, 2);
+    seed_equality(&mut store, &mut state, 2, 3);
+    seed_equality(&mut store, &mut state, 3, 4);
     let result = run_closure_step(&store, &mut state, &ClosureLimits { max_steps: 1 });
     assert_eq!(result.stop, ClosureStopReason::StepBudget);
     assert_eq!(result.steps_applied, 1);

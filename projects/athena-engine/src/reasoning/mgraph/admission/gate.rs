@@ -93,23 +93,36 @@ impl VerificationPolicy {
 }
 
 /// 实质证据检查所需的运行时上下文（非证书字段）。
-#[derive(Debug, Default, Clone, Copy)]
+///
+/// `terms` 为可变借用：`TypedRewriteReplay` 重放 `substitute` 可能写入 hash-cons 节点。
+#[derive(Debug, Default)]
 pub struct VerificationContext<'a> {
-    /// 结构相等 / 应用同余所需的项存储。
-    pub terms: Option<&'a TermStore>,
+    /// 结构相等 / 应用同余 / 类型化改写所需的项存储。
+    pub terms: Option<&'a mut TermStore>,
     /// 应用同余所需的已接纳 exact union-find。
     pub exact_uf: Option<&'a ExactUnionFind>,
+    /// `TypedRewriteReplay` 所需规则表（缺则该证书实质检查失败）。
+    pub typed_rules: Option<&'a crate::reasoning::egraph::TypedRuleSet>,
 }
 
 impl<'a> VerificationContext<'a> {
     /// 空上下文（仅字段重放类证书可过，例如多项式指纹 / 同余指纹）。
     pub const fn empty() -> Self {
-        Self { terms: None, exact_uf: None }
+        Self { terms: None, exact_uf: None, typed_rules: None }
     }
 
     /// 携带 [`TermStore`]（及可选 ExactUF）。
-    pub fn with_terms(terms: &'a TermStore, exact_uf: Option<&'a ExactUnionFind>) -> Self {
-        Self { terms: Some(terms), exact_uf }
+    pub fn with_terms(terms: &'a mut TermStore, exact_uf: Option<&'a ExactUnionFind>) -> Self {
+        Self { terms: Some(terms), exact_uf, typed_rules: None }
+    }
+
+    /// 携带 [`TermStore`]、ExactUF 与类型化改写规则表。
+    pub fn with_terms_and_typed_rules(
+        terms: &'a mut TermStore,
+        exact_uf: Option<&'a ExactUnionFind>,
+        typed_rules: &'a crate::reasoning::egraph::TypedRuleSet,
+    ) -> Self {
+        Self { terms: Some(terms), exact_uf, typed_rules: Some(typed_rules) }
     }
 }
 
@@ -119,13 +132,14 @@ pub struct EvidenceVerifier;
 impl EvidenceVerifier {
     /// 无运行时上下文的验证（`StructuralTermEquality` / `ApplicationCongruence` 将失败）。
     pub fn verify(claim: &Claim, policy: &VerificationPolicy) -> AdmissionOutcome {
-        Self::verify_in(claim, policy, &VerificationContext::empty())
+        let mut ctx = VerificationContext::empty();
+        Self::verify_in(claim, policy, &mut ctx)
     }
 
     /// 验证候选 claim 是否可接纳为 [`VerifiedClaim`]。
     ///
     /// 顺序：Probable 拒绝 → 保证门槛 → **证书↔命题重放** → **实质证据** → Admitted。
-    pub fn verify_in(claim: &Claim, policy: &VerificationPolicy, ctx: &VerificationContext<'_>) -> AdmissionOutcome {
+    pub fn verify_in(claim: &Claim, policy: &VerificationPolicy, ctx: &mut VerificationContext<'_>) -> AdmissionOutcome {
         if claim.guarantee == Guarantee::Probable {
             return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::ProbableResult, guarantee: claim.guarantee };
         }
@@ -212,24 +226,25 @@ fn certificate_replays_proposition(claim: &Claim, policy: &VerificationPolicy) -
 }
 
 /// 实质证据：字段一致之外，关系类证书必须在上下文中独立成立。
-fn substantive_evidence_holds(claim: &Claim, ctx: &VerificationContext<'_>) -> bool {
+fn substantive_evidence_holds(claim: &Claim, ctx: &mut VerificationContext<'_>) -> bool {
     let Evidence::TrustedKernel { certificate, .. } = &claim.evidence;
     match certificate {
         EvidenceCertificate::StructuralTermEquality { left, right } => {
-            let Some(store) = ctx.terms
+            let Some(store) = ctx.terms.as_ref()
             else {
                 return false;
             };
             store.structural_eq(*left, *right)
         }
-        EvidenceCertificate::ApplicationCongruence { left, right } => match (ctx.terms, ctx.exact_uf) {
+        EvidenceCertificate::ApplicationCongruence { left, right } => match (ctx.terms.as_ref(), ctx.exact_uf) {
             (Some(store), Some(uf)) => applications_congruent(store, uf, *left, *right),
             _ => false,
         },
-        // TypedRewriteReplay 仍依赖专用路径先构造；本轮不在通用门重放规则表。
-        // 残余：无规则上下文时仅字段一致，仍可被直接 `admit_claim` 伪造——须后续收紧。
-        EvidenceCertificate::TypedRewriteReplay { .. }
-        | EvidenceCertificate::PolynomialExact { .. }
+        EvidenceCertificate::TypedRewriteReplay { rule, left, right } => match (ctx.terms.as_mut(), ctx.typed_rules) {
+            (Some(store), Some(rules)) => crate::reasoning::egraph::typed_rewrite_holds(store, rules, *rule, *left, *right),
+            _ => false,
+        },
+        EvidenceCertificate::PolynomialExact { .. }
         | EvidenceCertificate::CongruenceExact { .. }
         | EvidenceCertificate::CalculusExact { .. }
         | EvidenceCertificate::TestHarness
@@ -243,16 +258,37 @@ pub struct AdmissionGate;
 impl AdmissionGate {
     /// 经 [`EvidenceVerifier`] 后写入 semantic core（通用 claim 唯一公开路径）。
     ///
-    /// `terms` 供 `StructuralTermEquality` / `ApplicationCongruence` 实质检查；指纹类证书可传空 store。
+    /// `terms` 供 `StructuralTermEquality` / `ApplicationCongruence` /（可选规则下）
+    /// `TypedRewriteReplay` 实质检查；指纹类证书可传空 store。
     pub fn admit_claim(
-        terms: &TermStore,
+        terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         claim: Claim,
         policy: &VerificationPolicy,
     ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
         let outcome = {
-            let ctx = VerificationContext::with_terms(terms, Some(&semantic.derived.exact_uf));
-            EvidenceVerifier::verify_in(&claim, policy, &ctx)
+            let uf = &semantic.derived.exact_uf;
+            let mut ctx = VerificationContext::with_terms(terms, Some(uf));
+            EvidenceVerifier::verify_in(&claim, policy, &mut ctx)
+        };
+        match outcome {
+            AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
+            AdmissionOutcome::Rejected { reason, .. } => Err(reason),
+        }
+    }
+
+    /// 与 [`Self::admit_claim`] 相同，但携带类型化改写规则表供 `TypedRewriteReplay` 重放。
+    pub fn admit_claim_with_typed_rules(
+        terms: &mut TermStore,
+        rules: &crate::reasoning::egraph::TypedRuleSet,
+        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        claim: Claim,
+        policy: &VerificationPolicy,
+    ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
+        let outcome = {
+            let uf = &semantic.derived.exact_uf;
+            let mut ctx = VerificationContext::with_terms_and_typed_rules(terms, Some(uf), rules);
+            EvidenceVerifier::verify_in(&claim, policy, &mut ctx)
         };
         match outcome {
             AdmissionOutcome::Admitted(vc) => Ok(semantic.commit(vc)),
@@ -264,7 +300,7 @@ impl AdmissionGate {
     ///
     /// Dependency 登记失败时事实仍保留；调用方须处理诊断（bootstrap：不得静默丢依赖）。
     pub fn admit_claim_with_premises(
-        terms: &TermStore,
+        terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         claim: Claim,
         policy: &VerificationPolicy,
@@ -277,7 +313,7 @@ impl AdmissionGate {
 
     /// 接纳进 [`MGraphState`]，并唤醒匹配的操作义务。
     pub fn admit_claim_into_state(
-        terms: &TermStore,
+        terms: &mut TermStore,
         state: &mut MGraphState,
         claim: Claim,
         policy: &VerificationPolicy,
@@ -311,7 +347,7 @@ impl AdmissionGate {
     /// **残余（报告 P1）**：此处仍从参数构造同内容证书，未独立验证微积分关系。
     /// 本轮仅闭合结构相等与写路径封装；微积分真 verifier 另项。
     pub fn admit_calculus_relation(
-        terms: &TermStore,
+        terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         kind: CalculusRelationKind,
         expression_fingerprint: u64,
@@ -347,7 +383,7 @@ impl AdmissionGate {
 
     /// 接纳无条件 `ProvenExact` 模同余关系（写入 modulus-isolated `CongruenceIndex`）。
     pub fn admit_congruence(
-        terms: &TermStore,
+        terms: &mut TermStore,
         semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
         modulus_fingerprint: u64,
         left: u64,

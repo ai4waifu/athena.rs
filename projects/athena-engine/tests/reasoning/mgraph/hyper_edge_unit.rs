@@ -86,7 +86,7 @@ fn polynomial_result_hyper_edge_stages_request_fingerprint() {
 
 #[test]
 fn missing_term_is_malformed() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let edge = HyperEdge { nodes: vec![TermId(1), TermId(2)], predicate: predicates::REWRITE_EQUIVALENT };
     assert_eq!(hyper_edge_to_outer_candidate(&store, &edge), Err(AdmissionRejectReason::MalformedRelation));
 }

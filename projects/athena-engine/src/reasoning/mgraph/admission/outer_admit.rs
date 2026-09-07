@@ -28,7 +28,7 @@ pub struct OuterAdmitReport {
 ///
 /// 不匹配 / 非 `TermEquality` 的候选留在 `outer_candidates`。
 /// **不会** 为重写形态的不等式伪造证明。
-pub fn admit_outer_pool_if_structural(store: &TermStore, state: &mut MGraphState, policy: &VerificationPolicy) -> OuterAdmitReport {
+pub fn admit_outer_pool_if_structural(store: &mut TermStore, state: &mut MGraphState, policy: &VerificationPolicy) -> OuterAdmitReport {
     let pending = std::mem::take(&mut state.operational.outer_candidates);
     let mut retained = Vec::new();
     let mut admitted = 0u32;
@@ -44,7 +44,7 @@ pub fn admit_outer_pool_if_structural(store: &TermStore, state: &mut MGraphState
 }
 
 fn try_admit_outer_if_structural(
-    store: &TermStore,
+    store: &mut TermStore,
     semantic: &mut crate::reasoning::mgraph::SemanticCore,
     outer: &OuterCandidate,
     policy: &VerificationPolicy,

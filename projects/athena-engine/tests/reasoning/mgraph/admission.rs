@@ -8,11 +8,11 @@ use athena_ir::TermStore;
 
 #[test]
 fn admission_journal_is_append_only_monotonic() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut core = SemanticCore::new();
     assert_eq!(core.admission_journal().count(), 0);
-    let id0 = admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 1));
-    let id1 = admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 2));
+    let id0 = admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 1));
+    let id1 = admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 2));
     assert_eq!(id0, FactId(0));
     assert_eq!(id1, FactId(1));
     assert_eq!(core.admission_journal().count(), 2);
@@ -21,10 +21,10 @@ fn admission_journal_is_append_only_monotonic() {
 
 #[test]
 fn derived_indexes_rebuild_matches_incremental() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut core = SemanticCore::new();
-    admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 10));
-    admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 20));
+    admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 10));
+    admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 20));
     let incremental_witnesses = core.derived.rewrite_witnesses.len();
     core.rebuild_derived();
     assert_eq!(core.derived.rewrite_witnesses.len(), incremental_witnesses);
@@ -32,10 +32,10 @@ fn derived_indexes_rebuild_matches_incremental() {
 
 #[test]
 fn relation_index_rebuild_from_journal_matches_incremental() {
-    let store = TermStore::new();
+    let mut store = TermStore::new();
     let mut core = SemanticCore::new();
-    admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 10));
-    admit_ok(&store, &mut core, sample_claim(Guarantee::ProvenExact, 20));
+    admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 10));
+    admit_ok(&mut store, &mut core, sample_claim(Guarantee::ProvenExact, 20));
     let expected = RelationIndex::rebuild_from(core.admission_journal());
     assert_eq!(core.core.relation_index().records(), expected.records());
     core.rebuild_from_journal();
@@ -51,7 +51,7 @@ fn mgraph_state_splits_semantic_and_operational() {
     assert!(state.operational.hyper_edges.is_empty());
 }
 
-fn admit_ok(terms: &TermStore, semantic: &mut SemanticCore, claim: Claim) -> FactId {
+fn admit_ok(terms: &mut TermStore, semantic: &mut SemanticCore, claim: Claim) -> FactId {
     AdmissionGate::admit_claim(terms, semantic, claim, &VerificationPolicy::default()).expect("should admit")
 }
 
