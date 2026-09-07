@@ -136,6 +136,36 @@ fn limit_reciprocal_at_positive_infinity_is_zero() {
 }
 
 #[test]
+fn limit_one_plus_x_to_reciprocal_at_zero_is_e() {
+    let mut session = Session::new();
+    let (expression, variable) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("x");
+        let xs = dc.symbol_id(variable);
+        let base = dc.apply_semantic(SemanticOperator::Add, vec![dc.in_(1), xs]);
+        let exp = dc.apply_semantic(SemanticOperator::Power, vec![xs, dc.in_(-1)]);
+        let expression = dc.apply_semantic(SemanticOperator::Power, vec![base, exp]);
+        (expression, variable)
+    };
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::Calculus(CalculusRequest::Limit {
+        expression,
+        variable,
+        approach: LimitApproach::Finite({
+            let dc = DomainExecutionContext::new(&mut session);
+            dc.in_(0)
+        }),
+        direction: LimitDirection::TwoSided,
+        assumptions: AssumptionSet::empty(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("e-limit");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(TermNode::Atom(Atom::Constant(athena_ir::MathematicalConstant::EulerNumber)))
+    ));
+}
+
+#[test]
 fn derivative_order_two_of_x_squared() {
     let mut session = Session::new();
     let (expression, variable) = {
