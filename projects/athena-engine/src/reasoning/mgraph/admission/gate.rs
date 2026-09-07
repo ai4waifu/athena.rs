@@ -7,9 +7,13 @@
 //! [`TermStore::structural_eq`]）。
 
 use athena_ir::TermStore;
+use athena_types::TermId;
 
 use crate::{
-    domains::polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult, RingTable, verify_groebner_basis},
+    domains::{
+        calculus::{CalculusRequest, CalculusResult, CalculusValue, calculus_request_identity, execute_calculus},
+        polynomial::{PolynomialCacheKey, PolynomialDomainValue, PolynomialResult, RingTable, verify_groebner_basis},
+    },
     reasoning::{
         egraph::applications_congruent,
         mgraph::{
@@ -22,6 +26,7 @@ use crate::{
             polynomial::{POLYNOMIAL_PROVIDER_ID, PolynomialWitness, witness_from_exact},
         },
     },
+    runtime::session::Session,
 };
 
 /// 微积分域 capability provider 身份。
@@ -183,6 +188,93 @@ impl EvidenceVerifier {
             }
         }
     }
+
+    /// 微积分精确关系：对 [`CalculusRequest`] 独立重算，再与声称结果项结构相等。
+    ///
+    /// **禁止**仅凭证书字段与命题一致即 `Admitted`。通用 [`Self::verify_in`] 对
+    /// [`EvidenceCertificate::CalculusExact`] 实质检查恒失败，生产路径须走本入口。
+    pub fn verify_calculus(
+        session: &mut Session,
+        request: &CalculusRequest,
+        kind: CalculusRelationKind,
+        claimed_result: TermId,
+        policy: &VerificationPolicy,
+    ) -> AdmissionOutcome {
+        let Some((expression, variable)) = calculus_expression_variable(request)
+        else {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::MalformedRelation, guarantee: Guarantee::Unknown };
+        };
+        if !calculus_kind_matches_request(kind, request) {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, guarantee: Guarantee::Unknown };
+        }
+        let expression_fingerprint = u64::from(expression.0);
+        let variable_fingerprint = u64::from(variable.0);
+        let request_identity = calculus_request_identity(request);
+        let replay = execute_calculus(session, request.owning_copy());
+        let CalculusResult::Exact { value: CalculusValue::Expression(replay_term), conditions } = replay
+        else {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+        };
+        if !conditions.is_empty() {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::InsufficientGuarantee, guarantee: Guarantee::ConditionalExact };
+        }
+        if !session.arena.structural_eq(replay_term, claimed_result) {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+        }
+        let claim = Claim {
+            proposition: Proposition::CalculusRelation {
+                kind,
+                expression_fingerprint,
+                variable_fingerprint,
+                request_identity,
+                result_term: claimed_result,
+            },
+            scope: Scope::Unconditional,
+            guarantee: Guarantee::ProvenExact,
+            evidence: Evidence::TrustedKernel {
+                provider: CALCULUS_PROVIDER_ID,
+                certificate: EvidenceCertificate::CalculusExact {
+                    kind,
+                    expression_fingerprint,
+                    variable_fingerprint,
+                    request_identity,
+                    result_term: claimed_result,
+                },
+                summary: format!("calculus:{kind:?}:{request_identity}:{claimed_result:?}"),
+            },
+        };
+        if !policy.accepts(claim.guarantee) {
+            return AdmissionOutcome::Rejected { reason: reject_reason_for_guarantee(claim.guarantee), guarantee: claim.guarantee };
+        }
+        if !certificate_replays_proposition(&claim, policy) {
+            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::EvidenceMismatch, guarantee: claim.guarantee };
+        }
+        AdmissionOutcome::Admitted(VerifiedClaim::from_admission(claim))
+    }
+}
+
+fn calculus_expression_variable(request: &CalculusRequest) -> Option<(TermId, athena_types::SymbolId)> {
+    match request {
+        CalculusRequest::Derivative { expression, variable, .. }
+        | CalculusRequest::Integral { expression, variable, .. }
+        | CalculusRequest::DefiniteIntegral { expression, variable, .. }
+        | CalculusRequest::Series { expression, variable, .. }
+        | CalculusRequest::Laurent { expression, variable, .. }
+        | CalculusRequest::Asymptotic { expression, variable, .. } => Some((*expression, *variable)),
+        _ => None,
+    }
+}
+
+fn calculus_kind_matches_request(kind: CalculusRelationKind, request: &CalculusRequest) -> bool {
+    match (kind, request) {
+        (CalculusRelationKind::DerivativeOf, CalculusRequest::Derivative { .. }) => true,
+        (CalculusRelationKind::IntegralOf, CalculusRequest::Integral { .. } | CalculusRequest::DefiniteIntegral { .. }) => true,
+        (
+            CalculusRelationKind::SeriesExpansion,
+            CalculusRequest::Series { .. } | CalculusRequest::Laurent { .. } | CalculusRequest::Asymptotic { .. },
+        ) => true,
+        _ => false,
+    }
 }
 
 /// 回放门控：证书载荷必须与所声明命题一致。
@@ -244,9 +336,12 @@ fn substantive_evidence_holds(claim: &Claim, ctx: &mut VerificationContext<'_>) 
             (Some(store), Some(rules)) => crate::reasoning::egraph::typed_rewrite_holds(store, rules, *rule, *left, *right),
             _ => false,
         },
+        EvidenceCertificate::CalculusExact { .. } => {
+            // 字段一致 ≠ 微积分成立。须经 [`EvidenceVerifier::verify_calculus`] 独立重算。
+            false
+        }
         EvidenceCertificate::PolynomialExact { .. }
         | EvidenceCertificate::CongruenceExact { .. }
-        | EvidenceCertificate::CalculusExact { .. }
         | EvidenceCertificate::TestHarness
         | EvidenceCertificate::Rejected { .. } => true,
     }
@@ -331,41 +426,18 @@ impl AdmissionGate {
 
     /// 接纳微积分精确表达式关系（无条件 `ProvenExact`）。
     ///
-    /// **残余（报告 P1）**：此处仍从参数构造同内容证书，未独立验证微积分关系。
-    /// 本轮仅闭合结构相等与写路径封装；微积分真 verifier 另项。
+    /// 经 [`EvidenceVerifier::verify_calculus`]：**独立重算**请求并与 `result_term` 结构相等后才写入。
     pub fn admit_calculus_relation(
-        terms: &mut TermStore,
-        semantic: &mut crate::reasoning::mgraph::admission::semantic::SemanticCore,
+        session: &mut Session,
+        request: &CalculusRequest,
         kind: CalculusRelationKind,
-        expression_fingerprint: u64,
-        variable_fingerprint: u64,
-        request_identity: u64,
         result_term: athena_types::TermId,
         policy: &VerificationPolicy,
     ) -> Result<crate::reasoning::mgraph::facts::FactId, AdmissionRejectReason> {
-        let claim = Claim {
-            proposition: Proposition::CalculusRelation {
-                kind,
-                expression_fingerprint,
-                variable_fingerprint,
-                request_identity,
-                result_term,
-            },
-            scope: Scope::Unconditional,
-            guarantee: Guarantee::ProvenExact,
-            evidence: Evidence::TrustedKernel {
-                provider: CALCULUS_PROVIDER_ID,
-                certificate: EvidenceCertificate::CalculusExact {
-                    kind,
-                    expression_fingerprint,
-                    variable_fingerprint,
-                    request_identity,
-                    result_term,
-                },
-                summary: format!("calculus:{kind:?}:{request_identity}:{result_term:?}"),
-            },
-        };
-        Self::admit_claim(terms, semantic, claim, policy, None)
+        match EvidenceVerifier::verify_calculus(session, request, kind, result_term, policy) {
+            AdmissionOutcome::Admitted(vc) => Ok(session.mgraph.semantic.commit(vc)),
+            AdmissionOutcome::Rejected { reason, .. } => Err(reason),
+        }
     }
 
     /// 接纳无条件 `ProvenExact` 模同余关系（写入 modulus-isolated `CongruenceIndex`）。
