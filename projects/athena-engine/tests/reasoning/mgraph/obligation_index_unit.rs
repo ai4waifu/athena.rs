@@ -46,7 +46,7 @@ fn finer_admit_does_not_wake_coarser_obligation() {
 }
 
 #[test]
-fn wake_respects_compatible_and_incompatible() {
+fn wake_respects_incompatible_and_ignores_compatible() {
     let mut index = ObligationIndex::new();
     let a = ScopeRef(5);
     let b = ScopeRef(6);
@@ -60,6 +60,8 @@ fn wake_respects_compatible_and_incompatible() {
 
     let mut scopes2 = ScopeIndex::new();
     scopes2.try_add_relation(a, b, ScopeRelationKind::CompatibleWith).expect("compatible");
-    let hit = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(10), &scopes2);
-    assert_eq!(hit.wakes.len(), 1);
+    // CompatibleWith 不授予唤醒可见性。
+    let missed = index.wake_matching(b, predicates::POLYNOMIAL_RESULT, FactId(10), &scopes2);
+    assert!(missed.wakes.is_empty());
+    assert_eq!(index.len(), 1);
 }

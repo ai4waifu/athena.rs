@@ -151,7 +151,9 @@ impl ScopeIndex {
         self.edges.iter().any(|e| e.from == from && e.to == to && e.kind == ScopeRelationKind::CompatibleWith)
     }
 
-    /// `from` 的直接 `CompatibleWith` 对端（`from` 可在局部查阅 `to`）。
+    /// `from` 的直接 `CompatibleWith` 对端（假设可组合登记）。
+    ///
+    /// **不**表示 `from` 可查询 `to` 的局部事实。
     pub fn compatible_peers(&self, from: ScopeRef) -> impl Iterator<Item = ScopeRef> + '_ {
         self.edges.iter().filter(move |e| e.from == from && e.kind == ScopeRelationKind::CompatibleWith).map(|e| e.to)
     }
