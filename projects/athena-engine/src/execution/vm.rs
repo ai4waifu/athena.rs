@@ -72,6 +72,27 @@ pub fn execute_verified_cfg_on_vm_with_config(
     module: &crate::execution::ir::ExecutionModule,
     config: &VmConfig,
 ) -> athena_types::Result<VerifiedVmOutcome> {
+    execute_verified_cfg_on_vm_with_config_and_frames(session, module, config, None)
+}
+
+/// 同上，但宿主 [`ExecutionHost`] 共享调用方提供的局部 [`ScopeFrame`] 栈。
+///
+/// 用于参数化复用：同一 `ExecutionModule` 多次执行，只替换帧内绑定，不重新 compile。
+pub fn execute_verified_cfg_on_vm_with_frames(
+    session: &mut Session,
+    module: &crate::execution::ir::ExecutionModule,
+    frames: &mut Vec<crate::execution::ScopeFrame>,
+) -> athena_types::Result<VerifiedVmOutcome> {
+    let config = vm_config_from_session(session);
+    execute_verified_cfg_on_vm_with_config_and_frames(session, module, &config, Some(frames))
+}
+
+fn execute_verified_cfg_on_vm_with_config_and_frames(
+    session: &mut Session,
+    module: &crate::execution::ir::ExecutionModule,
+    config: &VmConfig,
+    frames: Option<&mut Vec<crate::execution::ScopeFrame>>,
+) -> athena_types::Result<VerifiedVmOutcome> {
     use crate::runtime::session::SharedExecutionControl;
 
     let installed = session.begin_shared_execution_root(SharedExecutionControl::from_vm_config(config));
@@ -82,7 +103,12 @@ pub fn execute_verified_cfg_on_vm_with_config(
         pin_module_terms(&mut lease, &session.arena, module)?;
         let mut interpreter = Interpreter::new();
         let exit = {
-            let mut host = ExecutionHost::new(session, module.provider_calls.clone(), lowered.index_axes);
+            let mut host = match frames {
+                Some(frames) => {
+                    ExecutionHost::with_shared_frames(session, frames, module.provider_calls.clone(), lowered.index_axes.clone())
+                }
+                None => ExecutionHost::new(session, module.provider_calls.clone(), lowered.index_axes.clone()),
+            };
             let mut ctx = VmExecutionContext::with_lease(&mut lease);
             interpreter.execute_with_context(&lowered.module, &effective, &mut host, &mut ctx)?
         };

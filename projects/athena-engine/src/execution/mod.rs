@@ -12,6 +12,7 @@ pub mod compiler;
 pub mod environment;
 pub mod execution_host;
 pub mod ir;
+pub mod parameterized;
 pub mod provider;
 pub mod reference;
 pub(crate) mod shape;
@@ -24,6 +25,7 @@ use athena_types::{ComputationStatus, Diagnostic, Result as AthenaResult, Result
 use crate::{api::request::AthenaRequest, runtime::session::Session};
 
 pub use environment::{CompiledRuleStore, DefinitionLayer, LocalBinding, ScopeFrame};
+pub use parameterized::ParameterizedTermPlan;
 
 /// 仅在 `ExecutionIR` 路径上编译并执行一次请求。
 ///
