@@ -215,8 +215,8 @@ fn try_onesided_simple_pole(
 
     let num_at = cc.fold_term(replace_symbol(cc, num, variable, point))?;
     let den_at = cc.fold_term(replace_symbol(cc, den, variable, point))?;
-    let Some(num_n) = cc.number_of(num_at).map(|n| cc.copy(n)) else { return Ok(None) };
-    let Some(den_n) = cc.number_of(den_at).map(|n| cc.copy(n)) else { return Ok(None) };
+    let Some(num_n) = cc.number_of(num_at) else { return Ok(None) };
+    let Some(den_n) = cc.number_of(den_at) else { return Ok(None) };
     if den_n.is_zero() && !num_n.is_zero() {
         let eps = cc.in_(1);
         let probe = match direction {
@@ -228,7 +228,7 @@ fn try_onesided_simple_pole(
             LimitDirection::TwoSided => return Ok(None),
         };
         let den_side = cc.fold_term(replace_symbol(cc, den, variable, probe))?;
-        let Some(den_side_n) = cc.number_of(den_side).map(|n| cc.copy(n)) else { return Ok(None) };
+        let Some(den_side_n) = cc.number_of(den_side) else { return Ok(None) };
         let Some(sign_den) = num_compare(&den_side_n, &Number::small_int(0)) else { return Ok(None) };
         let Some(sign_num) = num_compare(&num_n, &Number::small_int(0)) else { return Ok(None) };
         use std::cmp::Ordering::*;
@@ -290,7 +290,7 @@ fn limit_infinity(cc: &mut DomainExecutionContext<'_>, expression: TermId, varia
 
 fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, var: SymbolId) -> Result<Option<(i64, Number)>> {
     match cc.shape(expr) {
-        Some(Shape::Number) => Ok(Some((0, cc.number_of(expr).map(|n| cc.copy(n)).expect("number")))),
+        Some(Shape::Number) => Ok(Some((0, cc.number_of(expr).expect("number")))),
         Some(Shape::Symbol(s)) if cc.symbol_id_is(s, var) => Ok(Some((1, Number::small_int(1)))),
         Some(Shape::Symbol(_) | Shape::String(_) | Shape::Bool(_) | Shape::Null | Shape::Constant(_) | Shape::Collection(_)) => Ok(None),
         Some(Shape::Application(head, args)) => match head {

@@ -240,9 +240,15 @@ pub fn curl_checked(
     let d_fx_dy = differentiate_checked(cc, fx, y, assumptions)?;
     merge_conditions(&mut conditions, &mut unresolved, d_fx_dy.conditions, d_fx_dy.unresolved);
 
-    let cx = sub_terms(cc, cc.fold_term(d_fz_dy.value)?, cc.fold_term(d_fy_dz.value)?)?;
-    let cy = sub_terms(cc, cc.fold_term(d_fx_dz.value)?, cc.fold_term(d_fz_dx.value)?)?;
-    let cz = sub_terms(cc, cc.fold_term(d_fy_dx.value)?, cc.fold_term(d_fx_dy.value)?)?;
+    let fz_dy = cc.fold_term(d_fz_dy.value)?;
+    let fy_dz = cc.fold_term(d_fy_dz.value)?;
+    let cx = sub_terms(cc, fz_dy, fy_dz)?;
+    let fx_dz = cc.fold_term(d_fx_dz.value)?;
+    let fz_dx = cc.fold_term(d_fz_dx.value)?;
+    let cy = sub_terms(cc, fx_dz, fz_dx)?;
+    let fy_dx = cc.fold_term(d_fy_dx.value)?;
+    let fx_dy = cc.fold_term(d_fx_dy.value)?;
+    let cz = sub_terms(cc, fy_dx, fx_dy)?;
 
     Ok(finish_vector(
         Curl { components: components.to_vec(), variables: variables.to_vec(), curl_components: vec![cx, cy, cz] },

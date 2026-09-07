@@ -97,13 +97,14 @@ pub fn solve_ode_checked(
         return Ok(unsupported(cc, dependent, independent, equation));
     };
 
-    let mut explicit = if let Some(a) = cc.number_of(rhs.f).map(|n| cc.copy(n)) {
+    let mut explicit = if let Some(a) = cc.number_of(rhs.f) {
         let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
         cc.fold_term(times)?
     }
     else if let Some(a) = match_times_const_y(cc, rhs.f, dependent) {
         let times = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(a), cc.symbol_id(independent)]);
-        let exp = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![cc.fold_term(times)?]);
+        let folded = cc.fold_term(times)?;
+        let exp = cc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![folded]);
         exp
     }
     else if let Some((p, q)) = match_as_linear_forced(cc, rhs.f, dependent) {
@@ -141,7 +142,8 @@ pub fn solve_ode_checked(
             let at = cc.fold_term(replace_symbol(cc, explicit, independent, x0))?;
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), y0]);
             let sum = cc.apply_semantic(SemanticOperator::Add, vec![at, neg]);
-            is_zero_term(cc, cc.fold_term(sum)?)
+            let folded = cc.fold_term(sum)?;
+            is_zero_term(cc, folded)
         }
         None => true,
     };
@@ -170,7 +172,7 @@ fn apply_ivp(
     y0: TermId,
 ) -> Result<TermId> {
     // 常系数：y' = a → y = a·x + C，C = y0 − a·x0
-    if let Some(a) = cc.number_of(f).map(|n| cc.copy(n)) {
+    if let Some(a) = cc.number_of(f) {
         let ax0 = cc.fold_term(cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&a)), x0]))?;
         let c = cc.fold_term(
             cc.apply_semantic(SemanticOperator::Add, vec![y0, cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), ax0])]),
@@ -310,14 +312,14 @@ fn match_scaled_power_of_y(cc: &mut DomainExecutionContext<'_>, f: TermId, depen
         return Some((Number::small_int(1), n));
     }
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
-        if let Some(c) = cc.number_of(args[0]).map(|n| cc.copy(n)) {
+        if let Some(c) = cc.number_of(args[0]) {
             let (one, n) = match_scaled_power_of_y(cc, args[1], dependent)?;
             if !one.is_one() {
                 return None;
             }
             return Some((c, n));
         }
-        if let Some(c) = cc.number_of(args[1]).map(|n| cc.copy(n)) {
+        if let Some(c) = cc.number_of(args[1]) {
             let (one, n) = match_scaled_power_of_y(cc, args[0], dependent)?;
             if !one.is_one() {
                 return None;
@@ -396,7 +398,7 @@ fn recognize_y_prime_equals(
     // 形态：Equal[Plus[D[y,x], Times[p,y]], q]  ⇒  y' = q - p y
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Equal)) && args.len() == 2 {
         if let Some(p) = match_d_plus_p_y(cc, args[0], dependent, independent) {
-            let q = cc.number_of(args[1]).map(|n| cc.copy(n)).unwrap_or_else(|| Number::small_int(0));
+            let q = cc.number_of(args[1]).unwrap_or_else(|| Number::small_int(0));
             let py = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.num(cc.copy(&p)), cc.symbol_id(dependent)]);
             let neg = cc.apply_semantic(SemanticOperator::Multiply, vec![cc.in_(-1), py]);
             let f = cc.fold_term(cc.apply_semantic(SemanticOperator::Add, vec![cc.num(q), neg]))?;
@@ -435,7 +437,7 @@ fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, depend
     else {
         return None;
     };
-    let q = cc.copy(cc.number_of(q_term)?);
+    let q = cc.number_of(q_term)?;
     let (th, targs) = cc.application_head(py_term)?;
     if !matches!(th, ApplicationHead::Semantic(SemanticOperator::Multiply)) {
         return None;
@@ -447,7 +449,7 @@ fn match_as_linear_forced(cc: &mut DomainExecutionContext<'_>, f: TermId, depend
             saw_y = true;
         }
         else if let Some(n) = cc.number_of(t) {
-            coef = num_mul(coef, cc.copy(n)).ok()?;
+            coef = num_mul(coef, n).ok()?;
         }
         else {
             return None;
@@ -482,10 +484,10 @@ fn match_times_const_y(cc: &mut DomainExecutionContext<'_>, term: TermId, depend
     };
     if matches!(h, ApplicationHead::Semantic(SemanticOperator::Multiply)) && args.len() == 2 {
         if is_symbol_id(cc, args[1], dependent) {
-            return cc.number_of(args[0]).map(|n| cc.copy(n));
+            return cc.number_of(args[0]);
         }
         if is_symbol_id(cc, args[0], dependent) {
-            return cc.number_of(args[1]).map(|n| cc.copy(n));
+            return cc.number_of(args[1]);
         }
         return None;
     }
