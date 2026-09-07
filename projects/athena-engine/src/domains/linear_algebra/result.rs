@@ -3,7 +3,10 @@
 use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
-    exact::{ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, det_bareiss, invert_exact, rank_exact, rref_rational, solve_exact},
+    exact::{
+        ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, rank_exact,
+        rref_rational, solve_exact, trace_exact,
+    },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{hadamard, index_scalar, matmul, transpose},
@@ -33,6 +36,8 @@ pub enum LinearAlgebraValue {
     },
     /// 精确行列式。
     ExactDet(ExactDetResult),
+    /// 精确矩阵迹。
+    ExactTrace(ExactTraceResult),
     /// 精确 RREF。
     ExactRref(ExactRrefResult),
     /// 精确求解。
@@ -49,6 +54,7 @@ impl LinearAlgebraValue {
             Self::ExactRank(r) => Self::ExactRank(*r),
             Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
             Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
+            Self::ExactTrace(r) => Self::ExactTrace(r.owning_copy()),
             Self::ExactRref(r) => Self::ExactRref(r.owning_copy()),
             Self::ExactSolve(r) => Self::ExactSolve(r.owning_copy()),
             Self::MachineSolve(r) => Self::MachineSolve(r.owning_copy()),
@@ -83,6 +89,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Rref { .. } => "rref",
         LinearAlgebraRequest::Solve { .. } => "solve",
         LinearAlgebraRequest::Inverse { .. } => "inverse",
+        LinearAlgebraRequest::Trace { .. } => "trace",
     }
 }
 
@@ -170,6 +177,15 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
                     .detail("hint", "use exact parent"));
             }
             Ok(LinearAlgebraValue::Matrix(invert_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::Trace { matrix } => {
+            let matrix = resolve(store, matrix)?;
+            if matrix.parent().element.is_machine() {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("reason", "machine_trace_deferred")
+                    .detail("hint", "use exact parent"));
+            }
+            Ok(LinearAlgebraValue::ExactTrace(trace_exact(&matrix)?))
         }
     }
 }

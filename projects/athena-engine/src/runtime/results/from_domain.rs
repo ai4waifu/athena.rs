@@ -294,6 +294,7 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
         LinearAlgebraValue::ExactRank(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::MachineRank { guarantee, .. } => algorithm_guarantee_status(*guarantee),
         LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::ExactTrace(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactRref(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactSolve(r) => {
             let (status, coverage) = algorithm_guarantee_status(r.guarantee);
