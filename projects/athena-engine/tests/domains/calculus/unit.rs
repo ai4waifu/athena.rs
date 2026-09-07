@@ -175,6 +175,33 @@ fn divergence_of_identity_field() {
 }
 
 #[test]
+fn curl_2d_rotation_field_is_two() {
+    let mut session = Session::new();
+    let (components, variables) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let x = dc.intern("x");
+        let y = dc.intern("y");
+        let fx = dc.apply_semantic(SemanticOperator::Multiply, vec![dc.in_(-1), dc.symbol_id(y)]);
+        let fy = dc.symbol_id(x);
+        (vec![fx, fy], vec![x, y])
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Curl { components, variables, assumptions: AssumptionSet::empty() },
+    );
+    match result {
+        CalculusResult::Exact { value: CalculusValue::Curl(c), .. } => {
+            assert_eq!(c.curl_components.len(), 1);
+            assert!(matches!(
+                session.arena.get(c.curl_components[0]),
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)
+            ));
+        }
+        other => panic!("expected Exact Curl scalar 2, got {other:?}"),
+    }
+}
+
+#[test]
 fn integrate_reciprocal_yields_log() {
     let mut session = Session::new();
     let (expression, variable) = {
