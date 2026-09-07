@@ -1,6 +1,6 @@
 //! Session 与求值环境。
 
-use std::{cell::RefCell, ptr::NonNull, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ptr::NonNull, rc::Rc};
 
 use athena_gc::{CollectReport, GcHeap, GcMode, GcObjectId, HeapBudget, Result as GcResult, RootKind, RootToken};
 use athena_ir::{ExtensionRegistry, TermBuilder, TermStore};
@@ -19,6 +19,7 @@ use crate::{
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         group::{GroupRequest, GroupResult, execute_group_with_table_mut},
         linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, execute_linear_algebra},
+        payload::DomainPayloadStore,
         polynomial::{
             PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
         },
@@ -72,24 +73,24 @@ impl TypedEgraphAdmitReport {
 
 /// 一次顶层请求共享的执行控制（嵌套 `re_eval` / host 子调用继承）。
 ///
-/// 取消令牌可克隆共享。`steps_remaining` 为跨嵌套入口的剩余步数预算。
+/// 取消令牌与步数预算均可克隆共享；步进在 VM 解释循环中实时扣减。
 #[derive(Debug, Clone)]
 pub struct SharedExecutionControl {
     /// 协作取消（嵌套入口共用同一令牌）。
     pub cancellation: athena_vm::CancellationToken,
-    /// 剩余解释步数（`None` = 本层不设上限）。
-    pub steps_remaining: Option<u64>,
+    /// 共享解释步数预算（嵌套入口共用同一计数）。
+    pub step_budget: athena_vm::StepBudget,
 }
 
 impl SharedExecutionControl {
     /// 由显式 [`athena_vm::VmConfig`] 安装根控制。
     pub fn from_vm_config(config: &athena_vm::VmConfig) -> Self {
-        Self { cancellation: config.cancellation.clone(), steps_remaining: config.max_steps }
+        Self { cancellation: config.cancellation.clone(), step_budget: config.step_budget.clone() }
     }
 
     /// 默认根控制（新取消令牌 · 无步数上限）。
     pub fn new_root() -> Self {
-        Self { cancellation: athena_vm::CancellationToken::new(), steps_remaining: None }
+        Self { cancellation: athena_vm::CancellationToken::new(), step_budget: athena_vm::StepBudget::unlimited() }
     }
 }
 
@@ -115,6 +116,8 @@ pub struct Session {
     pub series_objects: SeriesObjectStore,
     /// 矩阵 DomainObject 仓（`MatrixRef` → payload · `MatrixId` 语义）。
     pub matrix_objects: MatrixObjectStore,
+    /// Goal→`CallProvider` 领域请求载荷仓（描述符绑定 · 禁止 host 侧通道）。
+    pub domain_payloads: DomainPayloadStore,
     /// M-Graph 状态（多项式缓存 · witness）。
     pub mgraph: MGraphState,
     /// Scope-local E-Graph（候选搜索 · 不得绕过 AdmissionGate）。
@@ -133,6 +136,8 @@ pub struct Session {
     heap: Rc<RefCell<GcHeap>>,
     /// 当前顶层请求的共享执行控制（嵌套求值继承；无外层时为 `None`）。
     shared_execution: Option<SharedExecutionControl>,
+    /// 可信微积分内核本轮精确结果（`request_identity` → 结果项），供准入免重算。
+    trusted_calculus: HashMap<u64, TermId>,
 }
 
 impl core::fmt::Debug for Session {
@@ -147,6 +152,7 @@ impl core::fmt::Debug for Session {
             .field("polynomial_objects_len", &self.polynomial_objects.len())
             .field("series_objects_len", &self.series_objects.len())
             .field("matrix_objects_len", &self.matrix_objects.len())
+            .field("domain_payloads_len", &self.domain_payloads.len())
             .field("mgraph", &self.mgraph)
             .field("egraph_eclasses", &self.egraph.eclass_count())
             .field("egraph_budget", &self.egraph_budget)
@@ -185,6 +191,7 @@ impl Session {
             polynomial_objects: PolynomialObjectStore::new(),
             series_objects: SeriesObjectStore::new(),
             matrix_objects: MatrixObjectStore::new(),
+            domain_payloads: DomainPayloadStore::new(),
             mgraph: MGraphState::default(),
             egraph: EGraph::new(),
             egraph_budget: SaturationBudget::smoke(),
@@ -194,6 +201,7 @@ impl Session {
             assumption_scopes: AssumptionScopeTable::default(),
             heap,
             shared_execution: None,
+            trusted_calculus: HashMap::new(),
         }
     }
 
@@ -218,13 +226,22 @@ impl Session {
         }
     }
 
-    /// 从本轮 VM 解释步数扣减共享剩余预算。
-    pub(crate) fn consume_execution_steps(&mut self, used: u64) {
-        if let Some(ctrl) = self.shared_execution.as_mut() {
-            if let Some(rem) = ctrl.steps_remaining.as_mut() {
-                *rem = rem.saturating_sub(used);
-            }
+    /// 登记可信微积分内核刚算出的精确结果（供准入免重算核对）。
+    pub(crate) fn remember_trusted_calculus(&mut self, request_identity: u64, result_term: TermId) {
+        self.trusted_calculus.insert(request_identity, result_term);
+    }
+
+    /// 若登记的可信结果与声称项结构相等，则消费登记并返回 `true`。
+    pub(crate) fn take_trusted_calculus_if_matches(&mut self, request_identity: u64, claimed: TermId) -> bool {
+        let Some(trusted) = self.trusted_calculus.get(&request_identity).copied()
+        else {
+            return false;
+        };
+        if !self.arena.structural_eq(trusted, claimed) {
+            return false;
         }
+        self.trusted_calculus.remove(&request_identity);
+        true
     }
 
     /// 获取可变 [`TermBuilder`]。

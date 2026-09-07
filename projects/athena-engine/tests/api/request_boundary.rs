@@ -27,7 +27,7 @@ fn execute_request_term_records_computation_result() {
     let loaded = session.results.get(result_id).expect("payload");
     assert!(loaded.symbolic_term.is_some());
     assert!(loaded.value.is_some());
-    assert_eq!(loaded.coverage, CoverageStatus::Partial);
+    assert_eq!(loaded.coverage, CoverageStatus::Full);
     assert!(loaded.provenance.is_some());
     assert_eq!(session.results.count(), 1);
 }
@@ -82,7 +82,7 @@ fn execute_request_command_define_via_execution_ir() {
     assert_eq!(request.kind_name(), "Command");
     let result_id = engine.execute_request(&mut session, request).expect("define");
     let stored = session.results.get(result_id).expect("stored");
-    assert_eq!(stored.coverage, CoverageStatus::Partial);
+    assert_eq!(stored.coverage, CoverageStatus::Full);
     assert_eq!(session.defs.binding(symbol), Some(value));
 }
 
@@ -97,7 +97,7 @@ fn execute_request_control_lexical_scope_via_execution_ir() {
     let result_id = engine.execute_request(&mut session, request).expect("scope");
     let stored = session.results.get(result_id).expect("stored");
     assert_eq!(stored.symbolic_term, Some(body_term));
-    assert_eq!(stored.coverage, CoverageStatus::Partial);
+    assert_eq!(stored.coverage, CoverageStatus::Full);
 }
 
 #[test]

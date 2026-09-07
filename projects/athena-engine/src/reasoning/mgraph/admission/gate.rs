@@ -189,10 +189,11 @@ impl EvidenceVerifier {
         }
     }
 
-    /// 微积分精确关系：对 [`CalculusRequest`] 独立重算，再与声称结果项结构相等。
+    /// 微积分精确关系：优先核对 Session 登记的可信内核结果；无登记时再独立重算。
     ///
-    /// **禁止**仅凭证书字段与命题一致即 `Admitted`。通用 [`Self::verify_in`] 对
-    /// [`EvidenceCertificate::CalculusExact`] 实质检查恒失败，生产路径须走本入口。
+    /// 同算法重算只能防字段伪造，**不是**独立数学证明。正常 `execute_calculus` → 准入热路径
+    /// 经 [`Session::remember_trusted_calculus`] 免二次计算；外部 / 伪造声称仍走重算。
+    /// 通用 [`Self::verify_in`] 对 [`EvidenceCertificate::CalculusExact`] 实质检查恒失败。
     pub fn verify_calculus(
         session: &mut Session,
         request: &CalculusRequest,
@@ -210,16 +211,19 @@ impl EvidenceVerifier {
         let expression_fingerprint = u64::from(expression.0);
         let variable_fingerprint = u64::from(variable.0);
         let request_identity = calculus_request_identity(request);
-        let replay = execute_calculus(session, request.owning_copy());
-        let CalculusResult::Exact { value: CalculusValue::Expression(replay_term), conditions } = replay
-        else {
-            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
-        };
-        if !conditions.is_empty() {
-            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::InsufficientGuarantee, guarantee: Guarantee::ConditionalExact };
-        }
-        if !session.arena.structural_eq(replay_term, claimed_result) {
-            return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+        let matched_trusted = session.take_trusted_calculus_if_matches(request_identity, claimed_result);
+        if !matched_trusted {
+            let replay = execute_calculus(session, request.owning_copy());
+            let CalculusResult::Exact { value: CalculusValue::Expression(replay_term), conditions } = replay
+            else {
+                return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+            };
+            if !conditions.is_empty() {
+                return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::InsufficientGuarantee, guarantee: Guarantee::ConditionalExact };
+            }
+            if !session.arena.structural_eq(replay_term, claimed_result) {
+                return AdmissionOutcome::Rejected { reason: AdmissionRejectReason::NotExact, guarantee: Guarantee::Unknown };
+            }
         }
         let claim = Claim {
             proposition: Proposition::CalculusRelation {
@@ -337,7 +341,7 @@ fn substantive_evidence_holds(claim: &Claim, ctx: &mut VerificationContext<'_>) 
             _ => false,
         },
         EvidenceCertificate::CalculusExact { .. } => {
-            // 字段一致 ≠ 微积分成立。须经 [`EvidenceVerifier::verify_calculus`] 独立重算。
+            // 字段一致 ≠ 微积分成立。须经 [`EvidenceVerifier::verify_calculus`]（可信登记或重算）。
             false
         }
         EvidenceCertificate::PolynomialExact { .. }
@@ -426,7 +430,7 @@ impl AdmissionGate {
 
     /// 接纳微积分精确表达式关系（无条件 `ProvenExact`）。
     ///
-    /// 经 [`EvidenceVerifier::verify_calculus`]：**独立重算**请求并与 `result_term` 结构相等后才写入。
+    /// 经可信内核结果核对或独立重算后写入。正常热路径免二次 `execute_calculus`。
     pub fn admit_calculus_relation(
         session: &mut Session,
         request: &CalculusRequest,

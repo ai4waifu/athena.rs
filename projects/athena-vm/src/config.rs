@@ -2,7 +2,7 @@
 
 use athena_gc::GcMode;
 
-use crate::cancel::CancellationToken;
+use crate::{budget::StepBudget, cancel::CancellationToken};
 
 /// VM 运行配置。
 ///
@@ -11,8 +11,8 @@ use crate::cancel::CancellationToken;
 pub struct VmConfig {
     /// 本执行有效的 GC 模式。
     pub gc_mode: GcMode,
-    /// 最大解释步数（`None` 表示不设 VM 层步数上限）。
-    pub max_steps: Option<u64>,
+    /// 共享解释步数预算（嵌套入口克隆同一 [`StepBudget`]）。
+    pub step_budget: StepBudget,
     /// 协作式取消令牌。
     pub cancellation: CancellationToken,
 }
@@ -20,12 +20,18 @@ pub struct VmConfig {
 impl VmConfig {
     /// 默认配置（延迟 GC · 无步数上限 · 未取消）。
     pub fn new() -> Self {
-        Self { gc_mode: GcMode::Deferred, max_steps: None, cancellation: CancellationToken::new() }
+        Self { gc_mode: GcMode::Deferred, step_budget: StepBudget::unlimited(), cancellation: CancellationToken::new() }
     }
 
-    /// 设置最大解释步数。
+    /// 设置最大解释步数（安装独立 [`StepBudget::limited`]）。
     pub fn with_max_steps(mut self, max_steps: u64) -> Self {
-        self.max_steps = Some(max_steps);
+        self.step_budget = StepBudget::limited(max_steps);
+        self
+    }
+
+    /// 绑定共享步数预算（嵌套入口继承）。
+    pub fn with_step_budget(mut self, budget: StepBudget) -> Self {
+        self.step_budget = budget;
         self
     }
 
@@ -39,5 +45,10 @@ impl VmConfig {
     pub fn with_cancellation(mut self, token: CancellationToken) -> Self {
         self.cancellation = token;
         self
+    }
+
+    /// 兼容旧字段名：有限预算时的当前剩余，无上限为 `None`。
+    pub fn max_steps(&self) -> Option<u64> {
+        self.step_budget.remaining()
     }
 }

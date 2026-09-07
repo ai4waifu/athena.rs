@@ -44,7 +44,8 @@ pub fn pin_module_terms(lease: &mut ExecutionLease, store: &athena_ir::TermStore
 
 /// 降级并经 [`ExecutionHost`] 在 VM 上执行 verified CFG 子集 module。
 ///
-/// `pending_domain` 供首条 `CallProvider` 消费（与 Reference 路径同合同）。
+/// 领域 Goal 载荷经 module [`crate::execution::ir::ProviderCallDescriptor::payload`] 解析，
+/// **禁止** host 侧通道。
 /// Verified CFG 在 `athena-vm` 上的执行结果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedVmOutcome {
@@ -58,19 +59,17 @@ pub struct VerifiedVmOutcome {
 pub fn execute_verified_cfg_on_vm(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
-    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
 ) -> athena_types::Result<VerifiedVmOutcome> {
     let config = vm_config_from_session(session);
-    execute_verified_cfg_on_vm_with_config(session, module, pending_domain, &config)
+    execute_verified_cfg_on_vm_with_config(session, module, &config)
 }
 
 /// 在 `athena-vm` 上执行已验证 CFG 子集 module（显式 [`VmConfig`]）。
 ///
-/// 若 Session 尚无共享执行控制，则用 `config` 安装根控制；嵌套入口继承取消与剩余预算。
+/// 若 Session 尚无共享执行控制，则用 `config` 安装根控制；嵌套入口继承取消与共享步数预算。
 pub fn execute_verified_cfg_on_vm_with_config(
     session: &mut Session,
     module: &crate::execution::ir::ExecutionModule,
-    pending_domain: Option<crate::domains::dispatch::DomainRequest>,
     config: &VmConfig,
 ) -> athena_types::Result<VerifiedVmOutcome> {
     use crate::runtime::session::SharedExecutionControl;
@@ -83,11 +82,11 @@ pub fn execute_verified_cfg_on_vm_with_config(
         pin_module_terms(&mut lease, &session.arena, module)?;
         let mut interpreter = Interpreter::new();
         let exit = {
-            let mut host = ExecutionHost::new(session, module.provider_calls.clone(), pending_domain, lowered.index_axes);
+            let mut host = ExecutionHost::new(session, module.provider_calls.clone(), lowered.index_axes);
             let mut ctx = VmExecutionContext::with_lease(&mut lease);
             interpreter.execute_with_context(&lowered.module, &effective, &mut host, &mut ctx)?
         };
-        session.consume_execution_steps(interpreter.steps_executed());
+        // 步数已在解释循环中经共享 `StepBudget` 实时扣减。
         let residual = interpreter.saw_host_residual();
         drop(lease);
         match exit {
@@ -128,12 +127,12 @@ pub fn materialize_verified_vm_outcome(
     use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
     use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode};
 
-    // VM 成功返回 ≠ 数学 Exact / Full。无 residual 仅表示宿主未标残差，保证为 Candidate。
-    // `SlotValue::Result` 已由 provider / 上游携带正确状态，直接透传。
+    // 分轴：residual → 未完成；无 residual 的 IR 宿主返回 → 可信内核完成（Exact/Full）。
+    // 真正的搜索候选 / 领域保证由 `SlotValue::Result` 透传，不得在此一律降为 Candidate。
     let (status, coverage) = if outcome.residual {
         (ComputationStatus::Unknown, CoverageStatus::Partial)
     } else {
-        (ComputationStatus::Candidate, CoverageStatus::Partial)
+        (ComputationStatus::Exact, CoverageStatus::Full)
     };
     match outcome.value {
         SlotValue::Result(result_id) => Ok(result_id),
@@ -188,9 +187,9 @@ pub fn materialize_verified_vm_outcome(
 pub fn vm_config_from_session(session: &Session) -> VmConfig {
     let gc_mode = session.heap().borrow().effective_mode();
     if let Some(ctrl) = session.shared_execution() {
-        VmConfig { gc_mode, max_steps: ctrl.steps_remaining, cancellation: ctrl.cancellation.clone() }
+        VmConfig { gc_mode, step_budget: ctrl.step_budget.clone(), cancellation: ctrl.cancellation.clone() }
     } else {
-        VmConfig { gc_mode, max_steps: None, cancellation: CancellationToken::new() }
+        VmConfig { gc_mode, step_budget: athena_vm::StepBudget::unlimited(), cancellation: CancellationToken::new() }
     }
 }
 

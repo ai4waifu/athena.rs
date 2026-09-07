@@ -1,7 +1,7 @@
 //! [`ExecutionHost`]：engine 综合体向 `athena-vm` 提供的 [`VmHost`] 实现。
 //!
 //! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、`Join` / `Range`、session / 局部 binding、
-//! scope 帧栈、`Index`，以及运行时注入 domain 载荷的 `CallProvider`。
+//! scope 帧栈、`Index`，以及经 [`ProviderCallDescriptor::payload`] 绑定的 `CallProvider`。
 
 use athena_ir::SemanticOperator;
 use athena_numeric::compare as num_compare;
@@ -10,7 +10,6 @@ use athena_vm::{ExtensionOpId, HostOutcome, IndexAxesId, ProviderOpId, SemanticO
 
 use crate::{
     api::request::AthenaRequest,
-    domains::dispatch::DomainRequest,
     reasoning::mgraph::execute_domain_via_semantic_entry,
     execution::{
         LocalBinding, ScopeFrame, execute_ir_request,
@@ -36,7 +35,6 @@ pub struct ExecutionHost<'a> {
     session: &'a mut Session,
     frames: FrameStorage<'a>,
     provider_calls: Vec<ProviderCallDescriptor>,
-    pending_domain: Option<DomainRequest>,
     index_axes: Vec<Vec<IndexSpec>>,
 }
 
@@ -63,14 +61,9 @@ impl FrameStorage<'_> {
 }
 
 impl<'a> ExecutionHost<'a> {
-    /// 构造（持有 session；可选 domain 载荷供首条 `CallProvider` 消费）。
-    pub fn new(
-        session: &'a mut Session,
-        provider_calls: Vec<ProviderCallDescriptor>,
-        pending_domain: Option<DomainRequest>,
-        index_axes: Vec<Vec<IndexSpec>>,
-    ) -> Self {
-        Self { session, frames: FrameStorage::Owned(Vec::new()), provider_calls, pending_domain, index_axes }
+    /// 构造（持有 session；领域载荷经 [`ProviderCallDescriptor::payload`] 解析）。
+    pub fn new(session: &'a mut Session, provider_calls: Vec<ProviderCallDescriptor>, index_axes: Vec<Vec<IndexSpec>>) -> Self {
+        Self { session, frames: FrameStorage::Owned(Vec::new()), provider_calls, index_axes }
     }
 
     /// 与 Reference / 外部作用域帧栈共享同一 `frames`（收窄第二套循环）。
@@ -78,10 +71,9 @@ impl<'a> ExecutionHost<'a> {
         session: &'a mut Session,
         frames: &'a mut Vec<ScopeFrame>,
         provider_calls: Vec<ProviderCallDescriptor>,
-        pending_domain: Option<DomainRequest>,
         index_axes: Vec<Vec<IndexSpec>>,
     ) -> Self {
-        Self { session, frames: FrameStorage::Borrowed(frames), provider_calls, pending_domain, index_axes }
+        Self { session, frames: FrameStorage::Borrowed(frames), provider_calls, index_axes }
     }
 
     fn unsupported(op: SemanticOpId) -> HostOutcome {
@@ -690,16 +682,26 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("reason", "provider_call_id_mismatch"),
             ));
         }
-        let handoff = ProviderCallHandoff::from_descriptor(descriptor);
-        let Some(domain) = self.pending_domain.take()
+        let Some(payload_id) = descriptor.payload
         else {
             return Ok(HostOutcome::Diagnostic(
                 Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("component", "ExecutionHost")
-                    .detail("reason", "provider_domain_missing")
+                    .detail("reason", "provider_payload_unbound")
                     .detail("op", op.0),
             ));
         };
+        let Some(domain) = self.session.domain_payloads.get(payload_id).map(|r| r.owning_copy())
+        else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "provider_payload_missing")
+                    .detail("op", op.0)
+                    .detail("payload", payload_id.0),
+            ));
+        };
+        let handoff = ProviderCallHandoff::from_descriptor(descriptor);
         // Goal→VM→CallProvider 必须与 `AthenaEngine::execute_domain` 同走 semantic entry，
         // 禁止再直达 `domains::execute_domain` 旁路 M-Graph 查询/准入。
         let domain_result = execute_domain_via_semantic_entry(self.session, domain)?;

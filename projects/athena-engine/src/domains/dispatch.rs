@@ -46,6 +46,23 @@ pub enum DomainRequest {
     Optimization(OptimizationRequest),
 }
 
+impl DomainRequest {
+    /// Owning 复制（领域请求载荷不实现 [`Clone`]）。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Calculus(r) => Self::Calculus(r.owning_copy()),
+            Self::NumberTheory(r) => Self::NumberTheory(r.owning_copy()),
+            Self::Polynomial(r) => Self::Polynomial(r.owning_copy()),
+            Self::GroupTheory(r) => Self::GroupTheory(r.owning_copy()),
+            Self::FieldTheory(r) => Self::FieldTheory(r.owning_copy()),
+            Self::GaloisTheory(r) => Self::GaloisTheory(r.owning_copy()),
+            Self::GraphTheory(r) => Self::GraphTheory(r.owning_copy()),
+            Self::LinearAlgebra(r) => Self::LinearAlgebra(r.owning_copy()),
+            Self::Optimization(r) => Self::Optimization(r.owning_copy()),
+        }
+    }
+}
+
 /// 顶层域结果 — 按域区分，禁止压成单一类型 map。
 #[derive(Debug, PartialEq)]
 pub enum DomainResult {

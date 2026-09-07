@@ -87,7 +87,7 @@ fn reject_module() -> ExecutionModule {
 fn run_vm(session: &mut Session, module: &ExecutionModule, config: &VmConfig) -> athena_types::Result<VmExit> {
     let lowered = try_lower_verified_cfg_module(module)?;
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(session, Vec::new(), Vec::new());
     interpreter.execute_with_host(&lowered.module, config, &mut host)
 }
 
@@ -101,7 +101,7 @@ fn parity_not_boolean_value() {
     let module = not_module(true);
     verify_module(&module).expect("verify");
 
-    let ref_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("reference");
+    let ref_id = ReferenceExecutor::new().execute(&mut session, &module).expect("reference");
     let ref_term = session.results.get(ref_id).and_then(|r| r.symbolic_term).expect("term");
     match session.arena.get(ref_term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(false))) => {}
@@ -111,7 +111,7 @@ fn parity_not_boolean_value() {
     let cfg = VmConfig::default();
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), Vec::new());
     let exit = interpreter.execute_with_host(&lowered.module, &cfg, &mut host).expect("vm");
     assert_eq!(exit, VmExit::Returned);
     let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);
@@ -126,7 +126,7 @@ fn parity_cancelled() {
     token.cancel();
     let config = VmConfig::default().with_cancellation(token);
 
-    let ref_err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &config).expect_err("reference cancel");
+    let ref_err = ReferenceExecutor::new().execute_configured(&mut session, &module, &config).expect_err("reference cancel");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("cancelled"));
 
     let vm_exit = run_vm(&mut session, &module, &config).expect("vm runs to exit");
@@ -139,7 +139,7 @@ fn parity_budget_exceeded() {
     let module = not_module(true);
     let config = VmConfig::default().with_max_steps(0);
 
-    let ref_err = ReferenceExecutor::new().execute_configured(&mut session, &module, None, &config).expect_err("reference budget");
+    let ref_err = ReferenceExecutor::new().execute_configured(&mut session, &module, &config).expect_err("reference budget");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("budget_exceeded"));
 
     let vm_exit = run_vm(&mut session, &module, &config).expect("vm runs to exit");
@@ -152,7 +152,7 @@ fn parity_reject_terminator() {
     let module = reject_module();
     verify_module(&module).expect("verify");
 
-    let ref_err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("reference reject");
+    let ref_err = ReferenceExecutor::new().execute(&mut session, &module).expect_err("reference reject");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("rejected"));
 
     let vm_exit = run_vm(&mut session, &module, &VmConfig::default()).expect("vm");
@@ -211,7 +211,7 @@ fn parity_guard_reject() {
     let module = guard_reject_module(false);
     verify_module(&module).expect("verify");
 
-    let ref_err = ReferenceExecutor::new().execute(&mut session, &module, None).expect_err("reference guard");
+    let ref_err = ReferenceExecutor::new().execute(&mut session, &module).expect_err("reference guard");
     assert_eq!(reason_of(&ref_err).as_deref(), Some("rejected"));
 
     let vm_exit = run_vm(&mut session, &module, &VmConfig::default()).expect("vm");
@@ -224,7 +224,7 @@ fn parity_guard_pass() {
     let module = guard_reject_module(true);
     verify_module(&module).expect("verify");
 
-    let ref_id = ReferenceExecutor::new().execute(&mut session, &module, None).expect("reference");
+    let ref_id = ReferenceExecutor::new().execute(&mut session, &module).expect("reference");
     let ref_term = session.results.get(ref_id).and_then(|r| r.symbolic_term).expect("term");
     match session.arena.get(ref_term) {
         Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(true))) => {}
@@ -233,7 +233,7 @@ fn parity_guard_pass() {
 
     let lowered = try_lower_verified_cfg_module(&module).expect("lower");
     let mut interpreter = Interpreter::new();
-    let mut host = ExecutionHost::new(&mut session, Vec::new(), None, Vec::new());
+    let mut host = ExecutionHost::new(&mut session, Vec::new(), Vec::new());
     let exit = interpreter.execute_with_host(&lowered.module, &VmConfig::default(), &mut host).expect("vm");
     assert_eq!(exit, VmExit::Returned);
     let slot = interpreter.last_return_slot().unwrap_or(lowered.result_slot);

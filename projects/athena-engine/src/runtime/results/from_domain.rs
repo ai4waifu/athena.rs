@@ -271,7 +271,8 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
     match value {
         LinearAlgebraValue::Matrix(matrix) => {
             if matrix.parent().element.is_machine() {
-                (ComputationStatus::Candidate, CoverageStatus::Partial)
+                // 机器矩阵完整交付：近似保证，覆盖 Full（非 Partial 截断）。
+                (ComputationStatus::Candidate, CoverageStatus::Full)
             } else {
                 (ComputationStatus::Exact, CoverageStatus::Full)
             }
@@ -290,13 +291,12 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
             }
         }
         LinearAlgebraValue::MachineSolve(r) => {
-            let (status, _) = algorithm_guarantee_status(r.guarantee);
+            let (status, coverage) = algorithm_guarantee_status(r.guarantee);
             match &r.disposition {
                 SolveDisposition::ResourceLimited => (ComputationStatus::ResourceLimited, CoverageStatus::Partial),
                 SolveDisposition::Singular => (ComputationStatus::Partial, CoverageStatus::Partial),
-                SolveDisposition::Unique | SolveDisposition::Infinite { .. } | SolveDisposition::Inconsistent => {
-                    (status, CoverageStatus::Partial)
-                }
+                SolveDisposition::Infinite { .. } => (status, CoverageStatus::Partial),
+                SolveDisposition::Unique | SolveDisposition::Inconsistent => (status, coverage),
             }
         }
     }
@@ -306,8 +306,9 @@ fn algorithm_guarantee_status(guarantee: crate::domains::linear_algebra::Algorit
     use crate::domains::linear_algebra::AlgorithmGuarantee;
     match guarantee {
         AlgorithmGuarantee::Exact => (ComputationStatus::Exact, CoverageStatus::Full),
-        AlgorithmGuarantee::Probable => (ComputationStatus::Probable, CoverageStatus::Partial),
-        AlgorithmGuarantee::Approximate => (ComputationStatus::Candidate, CoverageStatus::Partial),
+        AlgorithmGuarantee::Probable => (ComputationStatus::Probable, CoverageStatus::Full),
+        // 完整近似 ≠ 部分覆盖。状态不抬 Exact，覆盖范围仍可为 Full。
+        AlgorithmGuarantee::Approximate => (ComputationStatus::Candidate, CoverageStatus::Full),
         AlgorithmGuarantee::Partial => (ComputationStatus::Partial, CoverageStatus::Partial),
         AlgorithmGuarantee::Unsupported => (ComputationStatus::Unknown, CoverageStatus::Unsupported),
     }

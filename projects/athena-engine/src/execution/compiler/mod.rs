@@ -103,7 +103,12 @@ impl ExecutionCompiler {
             AthenaRequest::Term(term) => self.lower_term(session, builder, blocks, block_id, *term),
             AthenaRequest::Control(plan) => self.lower_control(session, builder, blocks, block_id, plan),
             AthenaRequest::Command(command) => self.lower_command(session, builder, blocks, block_id, command),
-            AthenaRequest::Goal(_) => self.lower_goal_provider(builder, blocks, block_id),
+            AthenaRequest::Goal(goal) => match goal {
+                crate::api::request::DomainGoal::Dispatch(domain) => {
+                    let payload = session.domain_payloads.intern(domain.owning_copy());
+                    self.lower_goal_provider(builder, blocks, block_id, payload)
+                }
+            },
         }
     }
 
@@ -152,15 +157,23 @@ impl ExecutionCompiler {
 impl ExecutionCompiler {
     /// 领域目标 lowering 为显式 `CallProvider` + `PublishResult` 边。
     ///
-    /// `DomainRequest` 载荷由运行时 `execute_ir_request` 提供
-    /// （不存入 module），因此各后端共享同一 IR 形态。
-    fn lower_goal_provider(&self, builder: &mut ModuleBuilder, blocks: &mut Vec<BasicBlock>, block_id: BlockId) -> Result<SsaValueId> {
+    /// `DomainRequest` 经 Session [`crate::domains::DomainPayloadStore`] intern，
+    /// 句柄写入 [`ProviderCallDescriptor::payload`]（module 自包含绑定）。
+    fn lower_goal_provider(
+        &self,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        block_id: BlockId,
+        payload: crate::domains::DomainPayloadId,
+    ) -> Result<SsaValueId> {
         use athena_types::ExtensionOperatorId;
 
-        let call = builder.push_provider_call(ProviderCallDescriptor::new(ProviderCallId(0), ExtensionOperatorId(0), ExecutionValueType::Unit));
+        let call = builder.push_provider_call(
+            ProviderCallDescriptor::new(ProviderCallId(0), ExtensionOperatorId(0), ExecutionValueType::Unit).with_domain_payload(payload),
+        );
         let effect_call_in = builder.push_effect(EffectKind::CallProvider, None);
         let effect_call_out = builder.push_effect(EffectKind::CallProvider, Some(effect_call_in));
-        let payload = builder.ssa();
+        let payload_ssa = builder.ssa();
         let effect_pub_in = builder.push_effect(EffectKind::PublishResult, Some(effect_call_out));
         let effect_pub_out = builder.push_effect(EffectKind::PublishResult, Some(effect_pub_in));
         let published = builder.ssa();
@@ -169,7 +182,7 @@ impl ExecutionCompiler {
             parameters: Vec::new(),
             operations: vec![
                 Operation {
-                    result: Some(payload),
+                    result: Some(payload_ssa),
                     result_type: ExecutionValueType::Unit,
                     kind: OperationKind::CallProvider { call, args: Vec::new() },
                     effect_in: Some(effect_call_in),
@@ -178,7 +191,7 @@ impl ExecutionCompiler {
                 Operation {
                     result: Some(published),
                     result_type: ExecutionValueType::Unit,
-                    kind: OperationKind::PublishResult { source: payload },
+                    kind: OperationKind::PublishResult { source: payload_ssa },
                     effect_in: Some(effect_pub_in),
                     effect_out: Some(effect_pub_out),
                 },

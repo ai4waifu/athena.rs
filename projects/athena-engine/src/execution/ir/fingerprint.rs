@@ -118,6 +118,7 @@ fn hash_provider_call(hasher: &mut DefaultHasher, call: &ProviderCallDescriptor)
     }
     hash_value_type(hasher, &call.result_type);
     call.safepoint.hash(hasher);
+    call.payload.map(|p| p.0).hash(hasher);
 }
 
 fn hash_block(hasher: &mut DefaultHasher, block: &BasicBlock) {

@@ -24,6 +24,28 @@ fn max_steps_budget() {
 }
 
 #[test]
+fn shared_step_budget_counts_across_nested_runs() {
+    use athena_vm::StepBudget;
+
+    // 每轮 `Safepoint` + `Return` 消耗 2 步。共享预算在嵌套入口间实时扣减。
+    let budget = StepBudget::limited(4);
+    let module = VmModule::from_instructions(vec![Instruction::Safepoint, Instruction::Return], 0);
+    let cfg = VmConfig::new().with_step_budget(budget.clone());
+
+    let mut first = Interpreter::new();
+    assert_eq!(first.execute(&module, &cfg).expect("first"), VmExit::Returned);
+    assert_eq!(budget.remaining(), Some(2));
+
+    let mut second = Interpreter::new();
+    assert_eq!(second.execute(&module, &cfg).expect("second"), VmExit::Returned);
+    assert_eq!(budget.remaining(), Some(0));
+
+    let mut third = Interpreter::new();
+    assert_eq!(third.execute(&module, &cfg).expect("third"), VmExit::BudgetExceeded);
+    assert_eq!(budget.remaining(), Some(0));
+}
+
+#[test]
 fn cancel_at_safepoint() {
     let token = CancellationToken::new();
     token.cancel();

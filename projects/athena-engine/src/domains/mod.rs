@@ -11,6 +11,7 @@ pub mod group;
 pub mod linear_algebra;
 pub mod number_theory;
 pub mod optimization;
+pub mod payload;
 pub mod plan_exec;
 pub mod plan_normalize;
 pub mod plan_select;
@@ -22,6 +23,7 @@ pub mod views;
 
 pub use context::DomainExecutionContext;
 pub use dispatch::{DomainRequest, DomainResult, execute_domain};
+pub use payload::{DomainPayloadId, DomainPayloadStore};
 pub use plan_exec::{PlanStepReport, interpret_domain_plan};
 pub use planner::{DomainPlan, PlanStep, plan_domain};
 pub use verify_replay::{VerifySnapshot, verify_recompute_domain_result};

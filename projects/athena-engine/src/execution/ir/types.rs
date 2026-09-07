@@ -3,6 +3,7 @@
 use athena_types::{ExtensionOperatorId, ResultId, SymbolId, TermId, TermRef, ValueId};
 
 use super::ids::{CapturedRootId, ConstantId, InputId, ProviderCallId};
+use crate::domains::DomainPayloadId;
 
 /// SSA 值的封闭值类型格。
 ///
@@ -76,6 +77,10 @@ pub struct ProviderCallDescriptor {
     pub result_type: ExecutionValueType,
     /// 该调用是否为 GC / 预算 / 取消 safepoint。
     pub safepoint: bool,
+    /// Session [`DomainPayloadId`]：Goal→`CallProvider` 的自包含载荷绑定。
+    ///
+    /// **禁止**再经 host `pending_domain` 侧通道注入。
+    pub payload: Option<DomainPayloadId>,
 }
 
 /// Module 表的便捷构造。
@@ -111,9 +116,15 @@ impl CapturedRoot {
 }
 
 impl ProviderCallDescriptor {
-    /// 最小 provider 描述符。
+    /// 最小 provider 描述符（无领域载荷）。
     pub fn new(id: ProviderCallId, operator: ExtensionOperatorId, result_type: ExecutionValueType) -> Self {
-        Self { id, operator, argument_types: Vec::new(), result_type, safepoint: true }
+        Self { id, operator, argument_types: Vec::new(), result_type, safepoint: true, payload: None }
+    }
+
+    /// Goal 路径：绑定 Session 领域载荷句柄。
+    pub fn with_domain_payload(mut self, payload: DomainPayloadId) -> Self {
+        self.payload = Some(payload);
+        self
     }
 }
 
