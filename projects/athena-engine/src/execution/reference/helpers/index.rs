@@ -108,6 +108,7 @@ pub(crate) fn index_one(session: &mut Session, expr: TermId, spec: &IndexSpec) -
         IndexSpec::LinearColumnMajor(IntegerIndex(idx)) => {
             index_one(session, expr, &IndexSpec::Scalar(IntegerIndex(*idx)))
         }
+        IndexSpec::ColumnMajorFlatten => Ok(IndexStep::Residual),
         IndexSpec::DomainSpecific(_) => Ok(IndexStep::Residual),
     }
 }
@@ -135,6 +136,11 @@ pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: 
                 return Ok(IndexOutcome::Term(push_list(session, out)));
             }
         }
+    }
+
+    // MATLAB `A(:)`: column-major flatten once the runtime target shape is known.
+    if let [IndexSpec::ColumnMajorFlatten] = axes {
+        return Ok(IndexOutcome::Term(flatten_column_major(session, cur)));
     }
 
     // MATLAB `A(k)`: rewrite column-major linear index once the runtime target shape is known.
@@ -193,4 +199,31 @@ fn rewrite_linear_column_major(session: &Session, target: TermId, k: i64) -> Vec
         }
     }
     vec![IndexSpec::Scalar(IntegerIndex(k))]
+}
+
+fn flatten_column_major(session: &mut Session, target: TermId) -> TermId {
+    let Some((nrows, ncols)) = nested_matrix_shape(session, target)
+    else {
+        // Flat / non-matrix: All semantics — return the collection as-is via IndexSpec::All.
+        return match index_one(session, target, &IndexSpec::All) {
+            Ok(IndexStep::Next(t)) => t,
+            _ => target,
+        };
+    };
+    let rows = match session.arena.get(target) {
+        Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+        _ => return target,
+    };
+    let mut out = Vec::with_capacity(nrows * ncols);
+    for c in 0..ncols {
+        for r in 0..nrows {
+            if let Some(athena_ir::TermNode::Collection { elements: cols, .. }) = session.arena.get(rows[r]) {
+                if let Some(cell) = cols.get(c) {
+                    // Column vector as nested 1-cell rows: [[e1],[e2],…]
+                    out.push(push_list(session, vec![*cell]));
+                }
+            }
+        }
+    }
+    push_list(session, out)
 }

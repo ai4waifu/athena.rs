@@ -220,6 +220,7 @@ fn hash_index_spec(hasher: &mut DefaultHasher, axis: &IndexSpec) {
     match axis {
         IndexSpec::Scalar(v) => v.0.hash(hasher),
         IndexSpec::LinearColumnMajor(v) => v.0.hash(hasher),
+        IndexSpec::ColumnMajorFlatten => {}
         IndexSpec::Range { start, end, step } => {
             start.0.hash(hasher);
             end.0.hash(hasher);

@@ -252,6 +252,49 @@ fn compile_and_execute_control_index_resolves_own_binding() {
 }
 
 #[test]
+fn compile_and_execute_control_index_column_major_flatten() {
+    use athena_types::IndexSpec;
+
+    let mut session = Session::new();
+    // [1, 2; 3, 4] → column-major flatten [1; 3; 2; 4]
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let r0 = session.builder().list(vec![one, two], Default::default());
+    let r1 = session.builder().list(vec![three, four], Default::default());
+    let matrix = session.builder().list(vec![r0, r1], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Index {
+        target: matrix,
+        axes: vec![IndexSpec::ColumnMajorFlatten],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("flatten");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: rows, .. }) => {
+            assert_eq!(rows.len(), 4, "expected 4×1 column vector");
+            let rows = rows.clone();
+            let mut vals = Vec::with_capacity(4);
+            for row in rows {
+                match session.arena.get(row) {
+                    Some(TermNode::Collection { elements: cols, .. }) => {
+                        assert_eq!(cols.len(), 1);
+                        match session.arena.get(cols[0]) {
+                            Some(TermNode::Atom(Atom::Number(n))) => vals.push(n.as_exact_integer().expect("int")),
+                            other => panic!("expected number cell, got {other:?}"),
+                        }
+                    }
+                    other => panic!("expected row collection, got {other:?}"),
+                }
+            }
+            assert_eq!(vals, vec![1, 3, 2, 4]);
+        }
+        other => panic!("expected flattened collection, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_term_counted_loop_range() {
     let mut session = Session::new();
     let var = session.builder().symbol("i", Default::default());
