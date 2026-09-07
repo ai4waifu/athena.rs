@@ -3,7 +3,7 @@
 //! 过渡期覆盖 Boolean、标量算术 / 比较 / 一元、`Join` / `Range`、session / 局部 binding、
 //! scope 帧栈、`Index`，以及经 [`ProviderCallDescriptor::payload`] 绑定的 `CallProvider`。
 
-use athena_ir::SemanticOperator;
+use athena_ir::{ApplicationHead, SemanticOperator, TermNode};
 use athena_numeric::compare as num_compare;
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, IndexSpec, Result, SymbolId, TermId};
 use athena_vm::{ExtensionOpId, HostOutcome, IndexAxesId, ProviderOpId, SemanticOpId, SlotValue, VmHost};
@@ -101,8 +101,7 @@ impl<'a> ExecutionHost<'a> {
             terms.push(self.slot_as_term(*slot)?);
         }
         if op.as_unary().is_some() {
-            let term = evaluate_special_unary_terms(self.session, op, terms)?;
-            return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            return self.outcome_special_unary(op, terms);
         }
         let term = push_semantic(self.session, op, terms);
         Ok(HostOutcome::Residual(SlotValue::Term(term)))
@@ -389,8 +388,21 @@ impl<'a> ExecutionHost<'a> {
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
+        self.outcome_special_unary(op, terms)
+    }
+
+    /// 精确 / machine 折叠 → Value；仍为一元应用残差 → Residual（不得抬 Exact）。
+    fn outcome_special_unary(&mut self, op: SemanticOperator, terms: Vec<TermId>) -> Result<HostOutcome> {
         let term = evaluate_special_unary_terms(self.session, op, terms)?;
-        Ok(HostOutcome::Value(SlotValue::Term(term)))
+        let residual = matches!(
+            self.session.arena.get(term),
+            Some(TermNode::Application { head: ApplicationHead::Semantic(sem), .. }) if sem.as_unary().is_some()
+        );
+        if residual {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        } else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
     }
 
     /// `Identical` 结构比较。`Equal` / `Unequal`：可判定原子 → Boolean，否则残差项（不静默 `False`）。
