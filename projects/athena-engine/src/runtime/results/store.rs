@@ -29,6 +29,8 @@ impl ResultProviderId {
     pub const LINEAR_ALGEBRA: Self = Self(8);
     /// 优化。
     pub const OPTIMIZATION: Self = Self(9);
+    /// 方程求解。
+    pub const SOLVE: Self = Self(10);
 
     /// 结果层 provider 合同版本（Frontier resume 兼容检查）。
     ///

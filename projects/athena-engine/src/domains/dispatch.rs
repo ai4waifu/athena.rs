@@ -18,6 +18,7 @@ use crate::{
         plan_exec::interpret_domain_plan,
         planner::plan_domain,
         polynomial::{PolynomialRequest, PolynomialResult, execute_polynomial_with_rings},
+        solve::{SolveRequest, SolveResult, execute_solve},
         views::SeriesPolynomialView,
     },
     runtime::session::Session,
@@ -44,6 +45,8 @@ pub enum DomainRequest {
     LinearAlgebra(LinearAlgebraRequest),
     /// 优化与规划（，非 Solve 别名）。
     Optimization(OptimizationRequest),
+    /// 方程求解（`SolveProblem` / 一元根集）。
+    Solve(SolveRequest),
 }
 
 impl DomainRequest {
@@ -59,6 +62,7 @@ impl DomainRequest {
             Self::GraphTheory(r) => Self::GraphTheory(r.owning_copy()),
             Self::LinearAlgebra(r) => Self::LinearAlgebra(r.owning_copy()),
             Self::Optimization(r) => Self::Optimization(r.owning_copy()),
+            Self::Solve(r) => Self::Solve(r.owning_copy()),
         }
     }
 }
@@ -84,6 +88,8 @@ pub enum DomainResult {
     LinearAlgebra(LinearAlgebraResult),
     /// 优化结果。
     Optimization(OptimizationResult),
+    /// 方程求解结果。
+    Solve(SolveResult),
 }
 
 /// 分派顶层 [`DomainRequest`]（经 DomainPlanner 产出 [`DomainPlan`] 并逐步解释）。
@@ -111,5 +117,6 @@ pub fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Re
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
         DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req, &session.matrix_objects))),
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
+        DomainRequest::Solve(req) => Ok(DomainResult::Solve(execute_solve(session, req))),
     }
 }
