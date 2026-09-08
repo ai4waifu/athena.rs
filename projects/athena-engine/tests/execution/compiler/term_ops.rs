@@ -532,3 +532,61 @@ fn compile_unknown_head_stays_residual() {
         other => panic!("expected Foo[x] residual, got {other:?}"),
     }
 }
+
+fn assert_indeterminate(session: &Session, term_id: athena_types::TermId) {
+    match session.arena.get(term_id) {
+        Some(TermNode::Application { head, arguments })
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Indeterminate)) && arguments.is_empty() => {}
+        other => panic!("expected Indeterminate[], got {other:?}"),
+    }
+}
+
+#[test]
+fn singular_forms_fold_to_indeterminate() {
+    let mut session = Session::new();
+    let zero = session.builder().int(0, Default::default());
+    let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+    let power = ApplicationHead::Semantic(SemanticOperator::Power);
+    let subtract = ApplicationHead::Semantic(SemanticOperator::Subtract);
+
+    let div = session.builder().application(divide, vec![zero, zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(div)).expect("0/0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+
+    let pow = session.builder().application(power, vec![zero, zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(pow)).expect("0^0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+
+    let infinity = session.builder().symbol("Infinity", Default::default());
+    let inf_minus_inf = session.builder().application(subtract, vec![infinity, infinity], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(inf_minus_inf)).expect("inf-inf");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+}
+
+#[test]
+fn nonzero_over_zero_keeps_divide_residual() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let zero = session.builder().int(0, Default::default());
+    let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+    let term = session.builder().application(divide, vec![one, zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("1/0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application { head, arguments })
+            if matches!(*head, ApplicationHead::Semantic(SemanticOperator::Divide))
+                && arguments.len() == 2
+                && matches!(
+                    session.arena.get(arguments[0]),
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)
+                )
+                && matches!(
+                    session.arena.get(arguments[1]),
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)
+                ) => {}
+        other => panic!("expected Divide[1,0] residual, got {other:?}"),
+    }
+}
