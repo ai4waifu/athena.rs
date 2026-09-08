@@ -207,6 +207,14 @@ pub enum SemanticOperator {
     FreeQ,
     /// 按位置提取（方言 `Extract`；1-based 整数下标）。
     Extract,
+    /// 左侧填充（方言 `PadLeft`；默认填 0）。
+    PadLeft,
+    /// 交错合并（方言 `Riffle`）。
+    Riffle,
+    /// 位置收集（方言 `Position`；顶层 1-based）。
+    Position,
+    /// 下标数组构造（方言 `Array`；`Array[f, n]` → `{f[1],…,f[n]}`）。
+    Array,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -367,6 +375,10 @@ impl SemanticOperator {
             Self::Differences => 246,
             Self::FreeQ => 247,
             Self::Extract => 248,
+            Self::PadLeft => 249,
+            Self::Riffle => 250,
+            Self::Position => 251,
+            Self::Array => 252,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -424,7 +436,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–248）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–252）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -472,6 +484,10 @@ impl SemanticOperator {
             246 => Some(Self::Differences),
             247 => Some(Self::FreeQ),
             248 => Some(Self::Extract),
+            249 => Some(Self::PadLeft),
+            250 => Some(Self::Riffle),
+            251 => Some(Self::Position),
+            252 => Some(Self::Array),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -581,6 +597,10 @@ impl SemanticOperator {
             Self::Differences => "Differences",
             Self::FreeQ => "FreeQ",
             Self::Extract => "Extract",
+            Self::PadLeft => "PadLeft",
+            Self::Riffle => "Riffle",
+            Self::Position => "Position",
+            Self::Array => "Array",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
