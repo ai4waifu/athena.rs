@@ -20,7 +20,9 @@ pub enum ArgumentEvaluationKind {
 /// 当前表仍是迁移期内核默认值（历史 evaluator 属性的显式化）。
 /// 禁止在 `lower_pure_expr` 外再复制一份 `Hold`/`Sum` 特例。
 pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: usize, index: usize) -> ArgumentEvaluationKind {
-    if matches!(operator, SemanticOperator::Hold | SemanticOperator::Function) {
+    // `Simplify` captures its argument: it is an algebraic transform of a value, not a fresh
+    // source evaluation. Evaluating first would re-apply ambient Own (result transform leak).
+    if matches!(operator, SemanticOperator::Hold | SemanticOperator::Function | SemanticOperator::Simplify) {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
     // `Rule` (`->`): evaluate RHS at construction. Capture LHS (patterns / unevaluated heads).

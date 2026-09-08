@@ -331,13 +331,16 @@ pub(crate) fn evaluate_replace_all_terms(session: &mut Session, expr: TermId, ru
     re_eval_term(session, cur)
 }
 
-/// `Simplify[expr]` — 再求值后尝试勾股恒等。
+/// `Simplify[expr]` — algebraic rewrite of an already-produced value.
+///
+/// Does **not** re-evaluate against ambient Own / session definitions. Re-eval would
+/// reinterpret a computation result as a fresh source expression (for example turning a
+/// free `x` left by `DynamicScope` into an outer Own binding).
 pub(crate) fn evaluate_simplify_terms(session: &mut Session, expr: TermId) -> Result<TermId> {
-    let evaluated = re_eval_term(session, expr)?;
-    if let Some(one) = try_pythagorean_session(session, evaluated) {
+    if let Some(one) = try_pythagorean_session(session, expr) {
         return Ok(one);
     }
-    Ok(evaluated)
+    Ok(expr)
 }
 
 pub(crate) fn try_pythagorean_session(session: &mut Session, expr: TermId) -> Option<TermId> {

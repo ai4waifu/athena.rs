@@ -373,6 +373,35 @@ fn compile_and_execute_simplify_pythagorean() {
 }
 
 #[test]
+fn simplify_does_not_reapply_ambient_own_to_free_symbol() {
+    use athena_engine::api::{AthenaEngine, request::SessionCommand};
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let x = session.builder().symbol("x", Default::default());
+    let symbol = match session.arena.get(x) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol atom, got {other:?}"),
+    };
+    let five = session.builder().int(5, Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value: five,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let define_module = ExecutionCompiler::new().compile(&mut session, &define).expect("define");
+    ReferenceExecutor::new().execute(&mut session, &define_module).expect("define exec");
+
+    let engine = AthenaEngine::new();
+    let simplified = engine.simplify(&mut session, x);
+    assert!(
+        session.arena.structural_eq(simplified, x),
+        "Simplify of a free symbol must not substitute ambient Own (result transform contract)"
+    );
+}
+
+#[test]
 fn compile_and_execute_times_zero_and_cos_pi() {
     let mut session = Session::new();
     let zero = session.builder().int(0, Default::default());
