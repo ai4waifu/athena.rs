@@ -367,6 +367,158 @@ fn compile_and_execute_control_store_index_matrix_cell() {
 }
 
 #[test]
+fn compile_and_execute_control_store_index_grow_flat() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind, IndexSpec, IntegerIndex, IntegerOffset};
+
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let five = session.builder().int(5, Default::default());
+    let list = session.builder().list(vec![one, two, three], Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol: match session.arena.get(a) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            other => panic!("expected symbol A, got {other:?}"),
+        },
+        value: list,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    // A(end+1)=5 → [1, 2, 3, 5]
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: a,
+        axes: vec![IndexSpec::EndRelative(IntegerOffset(1))],
+        value: five,
+    });
+    let read = AthenaRequest::Term(a);
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, read],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("store grow");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) => {
+            assert_eq!(elements.len(), 4);
+            let vals: Vec<_> = elements
+                .iter()
+                .map(|e| match session.arena.get(*e) {
+                    Some(TermNode::Atom(Atom::Number(n))) => n.as_exact_integer().expect("int"),
+                    other => panic!("expected int, got {other:?}"),
+                })
+                .collect();
+            assert_eq!(vals, vec![1, 2, 3, 5]);
+        }
+        other => panic!("expected grown list, got {other:?}"),
+    }
+
+    // A(5)=9 on [1,2,3] pads with 0 → [1,2,3,0,9]
+    let mut session = Session::new();
+    let a = session.builder().symbol("A", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let nine = session.builder().int(9, Default::default());
+    let list = session.builder().list(vec![one, two, three], Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol: match session.arena.get(a) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            other => panic!("expected symbol A, got {other:?}"),
+        },
+        value: list,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: a,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(5))],
+        value: nine,
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, AthenaRequest::Term(a)],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("store pad");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) => {
+            let vals: Vec<_> = elements
+                .iter()
+                .map(|e| match session.arena.get(*e) {
+                    Some(TermNode::Atom(Atom::Number(n))) => n.as_exact_integer().expect("int"),
+                    other => panic!("expected int, got {other:?}"),
+                })
+                .collect();
+            assert_eq!(vals, vec![1, 2, 3, 0, 9]);
+        }
+        other => panic!("expected padded list, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_control_store_index_grow_matrix() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind, IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let m = session.builder().symbol("M", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let nine = session.builder().int(9, Default::default());
+    let r0 = session.builder().list(vec![one, two], Default::default());
+    let r1 = session.builder().list(vec![three, four], Default::default());
+    let matrix = session.builder().list(vec![r0, r1], Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol: match session.arena.get(m) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            other => panic!("expected symbol M, got {other:?}"),
+        },
+        value: matrix,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    // M(3,3)=9 on 2×2 → 3×3 with zero pad
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: m,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(3)), IndexSpec::Scalar(IntegerIndex(3))],
+        value: nine,
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, AthenaRequest::Term(m)],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("grow matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: rows, .. }) => {
+            assert_eq!(rows.len(), 3);
+            let mut grid = Vec::new();
+            for row in rows.clone() {
+                match session.arena.get(row) {
+                    Some(TermNode::Collection { elements: cols, .. }) => {
+                        assert_eq!(cols.len(), 3);
+                        for c in cols {
+                            match session.arena.get(*c) {
+                                Some(TermNode::Atom(Atom::Number(n))) => {
+                                    grid.push(n.as_exact_integer().expect("int"));
+                                }
+                                other => panic!("expected int cell, got {other:?}"),
+                            }
+                        }
+                    }
+                    other => panic!("expected row collection, got {other:?}"),
+                }
+            }
+            assert_eq!(grid, vec![1, 2, 0, 3, 4, 0, 0, 0, 9]);
+        }
+        other => panic!("expected grown matrix, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_control_index_column_major_flatten() {
     use athena_types::IndexSpec;
 
