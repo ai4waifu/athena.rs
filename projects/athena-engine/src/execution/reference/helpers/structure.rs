@@ -116,6 +116,57 @@ pub(crate) fn evaluate_prepend_terms(session: &mut Session, list: TermId, elem: 
     }
 }
 
+/// `MemberQ[list, elem]` — 结构相等成员测试。
+pub(crate) fn evaluate_member_q_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let found = items.iter().any(|item| session.arena.structural_eq(*item, elem));
+            Ok(push_bool(session, found))
+        }
+        Some(athena_ir::TermNode::Application { arguments, .. }) => {
+            let found = arguments.iter().any(|item| session.arena.structural_eq(*item, elem));
+            Ok(push_bool(session, found))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::MemberQ, vec![list, elem])),
+    }
+}
+
+/// `Sort[list]` — 全部为精确整数时按升序排序，否则残差。
+pub(crate) fn evaluate_sort_terms(session: &mut Session, list: TermId) -> Result<TermId> {
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Sort, vec![list]));
+    };
+    let items = items.clone();
+    let mut pairs: Vec<(i64, TermId)> = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(n) = number_of(session, item).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Sort, vec![list]));
+        };
+        pairs.push((n, item));
+    }
+    pairs.sort_by_key(|(n, _)| *n);
+    Ok(push_list(session, pairs.into_iter().map(|(_, id)| id).collect()))
+}
+
+/// `DeleteDuplicates[list]` — 按结构相等保留首次出现。
+pub(crate) fn evaluate_delete_duplicates_terms(session: &mut Session, list: TermId) -> Result<TermId> {
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::DeleteDuplicates, vec![list]));
+    };
+    let items = items.clone();
+    let mut out = Vec::new();
+    for item in items {
+        if !out.iter().any(|seen| session.arena.structural_eq(*seen, item)) {
+            out.push(item);
+        }
+    }
+    Ok(push_list(session, out))
+}
+
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
 pub(crate) fn evaluate_range_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
     let ints = terms.iter().map(|t| number_of(session, *t).and_then(|n| n.as_exact_integer())).collect::<Option<Vec<_>>>();

@@ -14,7 +14,8 @@ pub(crate) use self::helpers::{
     evaluate_matrix_constructor_terms, evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
     evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
     evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms,
-    evaluate_prepend_terms, evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes,
+    evaluate_prepend_terms, evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms, evaluate_unary_term,
+    slot_as_boolean_like, compare_list_broadcast, store_index_axes,
 };
 
 use athena_types::{Result, ResultId};
