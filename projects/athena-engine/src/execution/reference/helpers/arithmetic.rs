@@ -354,12 +354,15 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     let (base, exp) = (terms[0], terms[1]);
     if let Some(e) = number_of(session, exp) {
         if e.is_zero() {
-            // 标量 `x^0 → 1`；`0^0` → `Indeterminate`；列表底数保持残差（逐元用 `DotPower`）。
+            // 标量 `x^0 → 1`；`0^0` 按 `session.zero_pow_zero`；列表底数保持残差（逐元用 `DotPower`）。
             if matches!(session.arena.get(base), Some(athena_ir::TermNode::Collection { elements: _, .. })) {
                 return push_semantic(session, SemanticOperator::Power, terms);
             }
             if number_of(session, base).is_some_and(Number::is_zero) {
-                return push_indeterminate(session);
+                return match session.zero_pow_zero {
+                    crate::runtime::session::ZeroPowerZeroConvention::Indeterminate => push_indeterminate(session),
+                    crate::runtime::session::ZeroPowerZeroConvention::One => session.builder().int(1, Default::default()),
+                };
             }
             return session.builder().int(1, Default::default());
         }

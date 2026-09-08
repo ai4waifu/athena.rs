@@ -1091,6 +1091,23 @@ fn singular_forms_fold_to_indeterminate() {
 }
 
 #[test]
+fn zero_pow_zero_one_convention_yields_one() {
+    use athena_engine::runtime::ZeroPowerZeroConvention;
+
+    let mut session = Session::new();
+    session.zero_pow_zero = ZeroPowerZeroConvention::One;
+    let zero = session.builder().int(0, Default::default());
+    let power = ApplicationHead::Semantic(SemanticOperator::Power);
+    let pow = session.builder().application(power, vec![zero, zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(pow)).expect("0^0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1) => {}
+        other => panic!("expected 1 under ZeroPowerZeroConvention::One, got {other:?}"),
+    }
+}
+
+#[test]
 fn nonzero_over_zero_keeps_divide_residual() {
     let mut session = Session::new();
     let one = session.builder().int(1, Default::default());
