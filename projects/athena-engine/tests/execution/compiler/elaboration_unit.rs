@@ -40,7 +40,22 @@ fn matches_captures_second_arg() {
 }
 
 #[test]
+fn map_and_map_indexed_capture_first() {
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Map, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::MapIndexed, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::MapIndexed, 2, 1), ArgumentEvaluationKind::Evaluate);
+}
+
+#[test]
 fn head_captures_first_arg_only() {
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Head, 1, 0), ArgumentEvaluationKind::CaptureAsTerm);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Head, 2, 1), ArgumentEvaluationKind::Evaluate);
+}
+
+#[test]
+fn rule_evaluates_rhs_rule_deferred_captures_both() {
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Rule, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Rule, 2, 1), ArgumentEvaluationKind::Evaluate);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::RuleDeferred, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::RuleDeferred, 2, 1), ArgumentEvaluationKind::CaptureAsTerm);
 }

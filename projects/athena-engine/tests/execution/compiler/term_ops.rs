@@ -275,6 +275,43 @@ fn compile_and_execute_map_symbol() {
 }
 
 #[test]
+fn compile_and_execute_map_indexed_second_slot() {
+    // MapIndexed[Function[{s1,s2}, s2], {a,b}] → {{1},{2}}
+    let mut session = Session::new();
+    let a = session.builder().symbol("a", Default::default());
+    let b = session.builder().symbol("b", Default::default());
+    let list = session.builder().list(vec![a, b], Default::default());
+    let s1 = session.builder().symbol("$slot1", Default::default());
+    let s2 = session.builder().symbol("$slot2", Default::default());
+    let binders = session.builder().list(vec![s1, s2], Default::default());
+    let func = session
+        .builder()
+        .application_semantic(SemanticOperator::Function, vec![binders, s2], Default::default());
+    let term = session
+        .builder()
+        .application_semantic(SemanticOperator::MapIndexed, vec![func, list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("mapindexed");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
+            for (i, item) in items.iter().enumerate() {
+                match session.arena.get(*item) {
+                    Some(TermNode::Collection { elements: idx, .. }) if idx.len() == 1 => {
+                        match session.arena.get(idx[0]) {
+                            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some((i as i64) + 1) => {}
+                            other => panic!("expected index {}, got {other:?}", i + 1),
+                        }
+                    }
+                    other => panic!("expected singleton index list, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected MapIndexed index lists, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_zeros_eye() {
     let mut session = Session::new();
     let two = session.builder().int(2, Default::default());
