@@ -334,3 +334,29 @@ fn goal_cross_projects_flat_list() {
     assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0)));
     assert!(matches!(session.arena.get(items[2]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
 }
+
+#[test]
+fn goal_nullspace_rank1_projects_row_basis() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::NullSpace { matrix })));
+    let result_id = execute_ir_request(&mut session, request).expect("nullspace goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("rows")
+    else {
+        panic!("expected nested list");
+    };
+    assert_eq!(rows.len(), 1);
+    let TermNode::Collection { elements: r0, .. } = session.arena.get(rows[0]).expect("r0")
+    else {
+        panic!("row0");
+    };
+    assert_eq!(r0.len(), 2);
+    assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)));
+    assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+}

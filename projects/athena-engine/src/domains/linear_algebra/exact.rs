@@ -440,3 +440,37 @@ pub fn trace_exact(matrix: &MatrixValue) -> Result<ExactTraceResult, Diagnostic>
     }
     Ok(ExactTraceResult { value: sum, guarantee: AlgorithmGuarantee::Exact })
 }
+
+/// 精确零空间基：RREF 自由列各生成一个行向量（Mathematica `NullSpace` 形状）。
+pub fn nullspace_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "nullspace_exact_rejects_machine"));
+    }
+    let rref = rref_rational(matrix)?;
+    let cols = matrix.shape().cols;
+    let mut is_pivot = vec![false; cols as usize];
+    for &p in &rref.pivot_cols {
+        if (p as usize) < is_pivot.len() {
+            is_pivot[p as usize] = true;
+        }
+    }
+    let free_cols: Vec<u64> = (0..cols).filter(|&j| !is_pivot[j as usize]).collect();
+    if free_cols.is_empty() {
+        return MatrixValue::from_rationals_row_major(0, cols, Vec::new());
+    }
+    let rref_rats = rref.matrix.to_rationals_row_major()?;
+    let rref_cols = rref.matrix.shape().cols;
+    let mut data = Vec::with_capacity(free_cols.len() * cols as usize);
+    for &free_j in &free_cols {
+        let mut row = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            row.push(if j == free_j { Rational::one() } else { Rational::zero() });
+        }
+        for (row_i, &piv_col) in rref.pivot_cols.iter().enumerate() {
+            let coeff = clone_rational(&rref_rats[(row_i as u64 * rref_cols + free_j) as usize]);
+            row[piv_col as usize] = coeff.neg();
+        }
+        data.append(&mut row);
+    }
+    MatrixValue::from_rationals_row_major(free_cols.len() as u64, cols, data)
+}

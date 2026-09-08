@@ -81,6 +81,11 @@ pub enum LinearAlgebraRequest {
         /// 右。
         rhs: MatrixRef,
     },
+    /// 零空间基（精确路径，行向量）。
+    NullSpace {
+        /// 输入。
+        matrix: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -99,6 +104,7 @@ impl LinearAlgebraRequest {
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
+            Self::NullSpace { matrix } => Self::NullSpace { matrix: *matrix },
         }
     }
 }
