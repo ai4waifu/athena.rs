@@ -150,6 +150,7 @@ pub fn materialize_verified_vm_outcome(
     outcome: VerifiedVmOutcome,
     provenance_kind: &'static str,
 ) -> athena_types::Result<athena_types::ResultId> {
+    use crate::execution::reference::symbolic_term_from_value_id;
     use crate::runtime::results::{ComputationResult, CoverageStatus, ResultProvenance};
     use athena_types::{ComputationStatus, Diagnostic, DiagnosticCode};
 
@@ -179,6 +180,14 @@ pub fn materialize_verified_vm_outcome(
             })?;
             let term = session.arena.check_ref(term_ref)?;
             let value_id = session.insert_symbolic_value(term);
+            let result = ComputationResult::with_status(status, coverage)
+                .with_value(value_id)
+                .with_symbolic_term(term)
+                .with_provenance(ResultProvenance::kind(provenance_kind));
+            Ok(session.insert_result(result))
+        }
+        SlotValue::Value(value_id) => {
+            let term = symbolic_term_from_value_id(session, value_id)?;
             let result = ComputationResult::with_status(status, coverage)
                 .with_value(value_id)
                 .with_symbolic_term(term)
