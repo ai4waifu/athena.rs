@@ -36,7 +36,7 @@ pub use dump::{
 pub use elaboration::{ArgumentEvaluationKind, argument_evaluation_for_semantic};
 pub use stages::{
     CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram, StageFingerprint,
-    StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request,
+    StagedCompile, canonicalize_request, materialize_cfg_ssa, materialize_semantic, plan_from_request, request_stage_fingerprint,
 };
 
 use builder::ModuleBuilder;
@@ -51,17 +51,16 @@ impl ExecutionCompiler {
     /// 对照 Session 快照将请求 lowering 为 [`ExecutionModule`]。
     ///
     /// 先产出 [`RequestProgram`] / [`PlanProgram`]，校验阶段链后由二者驱动根路由。
-    /// Term 载荷取自 [`RequestProgram::term_index`]。控制 / 命令 / Goal 载荷仍过渡读
-    /// [`AthenaRequest`]（嵌套体仍走 fused [`Self::lower_request`]）。
+    /// Term / Goal / Command 载荷取自 [`RequestProgram`]；控制流仍过渡读 [`AthenaRequest`]。
     pub fn compile(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
-        let request_prog = canonicalize_request(request);
+        let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
         self.lower_module(session, request, &request_prog, &plan_prog)
     }
 
     /// 分阶段编译：具名 Request → Plan →（fused）module → Semantic / CFG SSA。
     pub fn compile_staged(&self, session: &mut Session, request: &AthenaRequest) -> Result<StagedCompile> {
-        let request_prog = canonicalize_request(request);
+        let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
         let module = self.lower_module(session, request, &request_prog, &plan_prog)?;
         let semantic = materialize_semantic(&module);
@@ -100,7 +99,7 @@ impl ExecutionCompiler {
         builder.finish(blocks, entry)
     }
 
-    /// 根请求：由 [`PlanProgram`] 选择路径。Term 载荷来自 [`RequestProgram`]；其余过渡读 [`AthenaRequest`]。
+    /// 根请求：由 [`PlanProgram`] 选择路径。Term / Goal / Command 来自 [`RequestProgram`]；控制过渡读 [`AthenaRequest`]。
     fn lower_root(
         &self,
         session: &mut Session,
@@ -122,25 +121,20 @@ impl ExecutionCompiler {
                 AthenaRequest::Control(control) => self.lower_control(session, builder, blocks, block_id, control),
                 _ => Err(stage_mismatch("plan_run_control_without_control_request")),
             },
-            PlanIntent::SessionCommand => match request {
-                AthenaRequest::Command(command) => self.lower_command(session, builder, blocks, block_id, command),
-                _ => Err(stage_mismatch("plan_session_command_without_command_request")),
-            },
+            PlanIntent::SessionCommand => {
+                let command = request_prog.command.as_ref().ok_or_else(|| stage_mismatch("plan_session_command_missing_payload"))?;
+                self.lower_command(session, builder, blocks, block_id, command)
+            }
             PlanIntent::DomainProvider => {
                 if !plan.provider_required {
                     return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                         .detail("component", "ExecutionCompiler")
                         .detail("reason", "plan_provider_required_false"));
                 }
-                match request {
-                    AthenaRequest::Goal(goal) => match goal {
-                        crate::api::request::DomainGoal::Dispatch(domain) => {
-                            let payload = session.domain_payloads.intern(domain.owning_copy());
-                            self.lower_goal_provider(builder, blocks, block_id, payload)
-                        }
-                    },
-                    _ => Err(stage_mismatch("plan_domain_provider_without_goal_request")),
-                }
+                let payload = request_prog
+                    .domain_payload
+                    .ok_or_else(|| stage_mismatch("plan_domain_provider_missing_payload"))?;
+                self.lower_goal_provider(builder, blocks, block_id, payload)
             }
         }
     }
@@ -586,6 +580,21 @@ fn stage_mismatch(reason: &str) -> Diagnostic {
         .detail("reason", reason)
 }
 
+/// Compile 路径：canonicalize 后 intern Goal 载荷、克隆 Command，供根 lowering 消费。
+fn prepare_request_program(session: &mut Session, request: &AthenaRequest) -> RequestProgram {
+    let mut prog = canonicalize_request(request);
+    match request {
+        AthenaRequest::Goal(crate::api::request::DomainGoal::Dispatch(domain)) => {
+            prog.domain_payload = Some(session.domain_payloads.intern(domain.owning_copy()));
+        }
+        AthenaRequest::Command(command) => {
+            prog.command = Some(command.clone());
+        }
+        _ => {}
+    }
+    prog
+}
+
 /// 根 lowering 前校验 Request→Plan 阶段链与载荷一致性。
 fn verify_request_plan_chain(request: &AthenaRequest, request_prog: &RequestProgram, plan: &PlanProgram) -> Result<()> {
     if plan.request_fingerprint != request_prog.fingerprint {
@@ -603,11 +612,22 @@ fn verify_request_plan_chain(request: &AthenaRequest, request_prog: &RequestProg
             .detail("request_prog", request_prog.kind)
             .detail("request", request.kind_name()));
     }
-    if plan.intent == PlanIntent::EvaluateTerm {
-        match (request_prog.term_index, request) {
+    match plan.intent {
+        PlanIntent::EvaluateTerm => match (request_prog.term_index, request) {
             (Some(idx), AthenaRequest::Term(term)) if term.0 == idx => {}
             _ => return Err(stage_mismatch("request_term_index_payload_mismatch")),
+        },
+        PlanIntent::SessionCommand => {
+            if request_prog.command.is_none() {
+                return Err(stage_mismatch("request_command_payload_missing"));
+            }
         }
+        PlanIntent::DomainProvider => {
+            if request_prog.domain_payload.is_none() {
+                return Err(stage_mismatch("request_domain_payload_missing"));
+            }
+        }
+        PlanIntent::RunControl => {}
     }
     Ok(())
 }

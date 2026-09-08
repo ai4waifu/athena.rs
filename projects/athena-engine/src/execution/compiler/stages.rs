@@ -1,9 +1,10 @@
 //! Living `04` 薄但真实的编译阶段程序类型。
 //!
 //! `RequestProgram` / `PlanProgram` 在 fused lowering **之前**产出，是管线真实输入决策。
-//! 根 `ExecutionCompiler::compile` 校验 Request→Plan 指纹链，Term 载荷取自
-//! `RequestProgram::term_index`。`SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的
-//! `ExecutionModule` 物化（诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
+//! 根 `ExecutionCompiler::compile` 校验 Request→Plan 指纹链；Term 载荷取自
+//! `term_index`，Goal 取自 `domain_payload`，Command 取自拥有的 `command`。
+//! `SemanticProgram` / `CfgSsaProgram` 仍暂时从已形成的 `ExecutionModule` 物化
+//! （诚实边界：尚未独立 Semantic elaboration / CFG formation pass），
 //! 但它们是具名阶段产物，不再只是 `observe_compile` 的事后视图别名。
 
 use std::{
@@ -13,7 +14,8 @@ use std::{
 };
 
 use crate::{
-    api::request::AthenaRequest,
+    api::request::{AthenaRequest, SessionCommand},
+    domains::DomainPayloadId,
     execution::ir::{ExecutionModule, ExecutionValueType, ModuleFingerprint, OperationKind, Terminator},
 };
 
@@ -47,13 +49,19 @@ pub enum PlanIntent {
     DomainProvider,
 }
 
-/// P0：不可变 Request 程序（薄 canonicalize）。
+/// P0：不可变 Request 程序（薄 canonicalize + 可选 compile 载荷句柄）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestProgram {
     /// `AthenaRequest::kind_name`。
     pub kind: &'static str,
     /// `Term` 请求时的项下标（仅阶段身份，不作跨 session 身份）。
     pub term_index: Option<u32>,
+    /// 控制 / 命令 / Goal 的粗粒度载荷标签（进入 fingerprint）。
+    pub payload_tag: Option<&'static str>,
+    /// Goal compile 路径：Session 内已 intern 的领域载荷（dump 路径可为空）。
+    pub domain_payload: Option<DomainPayloadId>,
+    /// Command compile 路径：拥有的会话命令（dump 路径可为空）。
+    pub command: Option<SessionCommand>,
     /// 本阶段指纹。
     pub fingerprint: StageFingerprint,
 }
@@ -137,18 +145,91 @@ pub(crate) fn stage_fingerprint(stage: CompileStageKind, fill: impl FnOnce(&mut 
     StageFingerprint(hasher.finish())
 }
 
-/// P0：从显式请求 canonicalize 出 Request 程序。
+/// P0：从显式请求 canonicalize 出 Request 程序（无 Session 副作用）。
+///
+/// 不 intern Goal 载荷、不克隆 Command。compile 路径须再经
+/// [`super::ExecutionCompiler`] 的 prepare 步骤填充句柄。
 pub fn canonicalize_request(request: &AthenaRequest) -> RequestProgram {
     let term_index = match request {
         AthenaRequest::Term(term) => Some(term.0),
         _ => None,
     };
+    let payload_tag = request_payload_tag(request);
     let kind = request.kind_name();
-    let fingerprint = stage_fingerprint(CompileStageKind::Request, |h| {
+    let fingerprint = request_stage_fingerprint(kind, term_index, payload_tag);
+    RequestProgram {
+        kind,
+        term_index,
+        payload_tag,
+        domain_payload: None,
+        command: None,
+        fingerprint,
+    }
+}
+
+/// Request 阶段指纹（kind · term_index · payload_tag）。
+pub fn request_stage_fingerprint(kind: &str, term_index: Option<u32>, payload_tag: Option<&str>) -> StageFingerprint {
+    stage_fingerprint(CompileStageKind::Request, |h| {
         kind.hash(h);
         term_index.hash(h);
-    });
-    RequestProgram { kind, term_index, fingerprint }
+        payload_tag.hash(h);
+    })
+}
+
+fn request_payload_tag(request: &AthenaRequest) -> Option<&'static str> {
+    match request {
+        AthenaRequest::Term(_) => None,
+        AthenaRequest::Control(control) => Some(control_plan_tag(control)),
+        AthenaRequest::Command(command) => Some(session_command_tag(command)),
+        AthenaRequest::Goal(goal) => Some(domain_goal_tag(goal)),
+    }
+}
+
+fn control_plan_tag(control: &crate::api::request::ControlPlan) -> &'static str {
+    use crate::api::request::ControlPlan;
+    match control {
+        ControlPlan::Sequence { .. } => "Sequence",
+        ControlPlan::Branch { .. } => "Branch",
+        ControlPlan::Cond { .. } => "Cond",
+        ControlPlan::LoopWhile { .. } => "LoopWhile",
+        ControlPlan::CountedLoop { .. } => "CountedLoop",
+        ControlPlan::Iterate { .. } => "Iterate",
+        ControlPlan::Recover { .. } => "Recover",
+        ControlPlan::Reject => "Reject",
+        ControlPlan::LocalScope { .. } => "LocalScope",
+        ControlPlan::LexicalScope { .. } => "LexicalScope",
+        ControlPlan::DynamicScope { .. } => "DynamicScope",
+        ControlPlan::Index { .. } => "Index",
+        ControlPlan::StoreIndex { .. } => "StoreIndex",
+        ControlPlan::Match { .. } => "Match",
+        ControlPlan::CollectMatches { .. } => "CollectMatches",
+        ControlPlan::CollectRejects { .. } => "CollectRejects",
+    }
+}
+
+fn session_command_tag(command: &SessionCommand) -> &'static str {
+    match command {
+        SessionCommand::Define { .. } => "Define",
+        SessionCommand::RegisterRuleDispatch { .. } => "RegisterRuleDispatch",
+        SessionCommand::ClearDefinition { .. } => "ClearDefinition",
+    }
+}
+
+fn domain_goal_tag(goal: &crate::api::request::DomainGoal) -> &'static str {
+    use crate::api::request::DomainGoal;
+    use crate::domains::DomainRequest;
+    match goal {
+        DomainGoal::Dispatch(DomainRequest::Calculus(_)) => "Calculus",
+        DomainGoal::Dispatch(DomainRequest::NumberTheory(_)) => "NumberTheory",
+        DomainGoal::Dispatch(DomainRequest::Polynomial(_)) => "Polynomial",
+        DomainGoal::Dispatch(DomainRequest::GroupTheory(_)) => "GroupTheory",
+        DomainGoal::Dispatch(DomainRequest::FieldTheory(_)) => "FieldTheory",
+        DomainGoal::Dispatch(DomainRequest::GaloisTheory(_)) => "GaloisTheory",
+        DomainGoal::Dispatch(DomainRequest::GraphTheory(_)) => "GraphTheory",
+        DomainGoal::Dispatch(DomainRequest::LinearAlgebra(_)) => "LinearAlgebra",
+        DomainGoal::Dispatch(DomainRequest::Optimization(_)) => "Optimization",
+        DomainGoal::Dispatch(DomainRequest::Solve(_)) => "Solve",
+    }
 }
 
 /// P1：由 Request 程序产出 Plan 程序（不读 module、不 emit 指令）。

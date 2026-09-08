@@ -70,11 +70,43 @@ fn compile_observed_atom_term_stages() {
 }
 
 #[test]
-fn compile_observed_boolean_constant_cfg_text() {
+fn compile_goal_consumes_domain_payload_from_request_program() {
+    use athena_engine::domains::linear_algebra::{LinearAlgebraRequest, MatrixValue};
+    use athena_engine::api::request::DomainGoal;
+    use athena_engine::domains::DomainRequest;
+    use athena_numeric::Integer;
+
     let mut session = Session::new();
-    let term = session.builder().boolean(true, Default::default());
-    let request = AthenaRequest::Term(term);
-    let (_module, observation) = ExecutionCompiler::new().compile_observed(&mut session, &request).expect("observed");
-    assert!(observation.cfg_ssa.block_count >= 1);
-    assert!(observation.cfg_ssa.text.contains("return %"));
+    let mat = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![Integer::from_i64(1), Integer::from_i64(2), Integer::from_i64(3), Integer::from_i64(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Transpose {
+        matrix: mat,
+    })));
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("goal staged");
+    assert_eq!(staged.request.kind, "Goal");
+    assert_eq!(staged.request.payload_tag, Some("LinearAlgebra"));
+    assert!(staged.request.domain_payload.is_some());
+    assert_eq!(staged.plan.intent, PlanIntent::DomainProvider);
+    assert!(staged.plan.provider_required);
+}
+
+#[test]
+fn compile_command_consumes_owned_session_command() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+
+    let mut session = Session::new();
+    let symbol = session.arena.symbols_mut().intern("x");
+    let value = session.builder().int(1, Default::default());
+    let request = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("command staged");
+    assert_eq!(staged.request.payload_tag, Some("Define"));
+    assert!(staged.request.command.is_some());
+    assert_eq!(staged.plan.intent, PlanIntent::SessionCommand);
 }
