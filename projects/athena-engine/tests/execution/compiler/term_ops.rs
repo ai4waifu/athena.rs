@@ -172,6 +172,39 @@ fn compile_and_execute_most_and_reverse() {
 }
 
 #[test]
+fn compile_and_execute_take_and_drop() {
+    let mut session = Session::new();
+    let a = session.builder().int(1, Default::default());
+    let b = session.builder().int(2, Default::default());
+    let c = session.builder().int(3, Default::default());
+    let d = session.builder().int(4, Default::default());
+    let list = session.builder().list(vec![a, b, c, d], Default::default());
+    let two = session.builder().int(2, Default::default());
+
+    let take_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Take, vec![list, two], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(take_term)).expect("take");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [a, b] => {}
+        other => panic!("expected Take == OrderedCollection[1,2], got {other:?}"),
+    }
+
+    let drop_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Drop, vec![list, two], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(drop_term)).expect("drop");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [c, d] => {}
+        other => panic!("expected Drop == OrderedCollection[3,4], got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
