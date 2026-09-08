@@ -74,6 +74,10 @@ pub fn div(a: NumericValue, b: NumericValue) -> Result<NumericValue> {
 /// 幂。
 pub fn pow(base: &NumericValue, exp: &NumericValue) -> Result<NumericValue> {
     if exp.is_zero() {
+        // 精确域拒绝 `0^0`。符号层可映射为 `Indeterminate`。机器域另议。
+        if base.is_zero() {
+            return Err(Diagnostic::new(DiagnosticCode::DomainError));
+        }
         return Ok(NumericValue::small_int(1));
     }
     if exp.is_one() {
