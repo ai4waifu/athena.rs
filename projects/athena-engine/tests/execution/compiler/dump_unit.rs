@@ -22,6 +22,10 @@ fn compile_staged_builds_request_plan_before_module() {
     assert_eq!(staged.plan.fingerprint, plan_prog.fingerprint);
     assert_eq!(staged.semantic.plan_fingerprint, staged.plan.fingerprint);
     assert_eq!(staged.semantic.operations[0].kind, "TermElaboration");
+    assert_eq!(staged.cfg_outline.semantic_fingerprint, staged.semantic.fingerprint);
+    assert_eq!(staged.cfg_outline.region_count, 1);
+    assert_eq!(staged.cfg_outline.entry_region, 0);
+    assert_eq!(staged.cfg_outline.region_count, staged.cfg_ssa.region_count);
     assert_eq!(staged.cfg_ssa.module_fingerprint, staged.module.fingerprint);
 }
 
@@ -54,6 +58,8 @@ fn compile_observed_atom_term_stages() {
     assert!(!observation.plan.provider_required);
     assert_eq!(observation.plan.request_fingerprint, observation.request.fingerprint);
     assert!(!observation.semantic.operations.is_empty());
+    assert_eq!(observation.cfg_outline.semantic_fingerprint, observation.semantic.fingerprint);
+    assert_eq!(observation.cfg_outline.region_count, observation.cfg_ssa.region_count);
     assert_eq!(observation.cfg_ssa.module_fingerprint, module.fingerprint);
     assert!(observation.cfg_ssa.text.contains("region 0"));
     assert!(observation.cfg_ssa.text.contains("LoadTerm"));
@@ -62,12 +68,14 @@ fn compile_observed_atom_term_stages() {
     assert!(rendered.contains("stage request"));
     assert!(rendered.contains("stage plan"));
     assert!(rendered.contains("stage semantic"));
+    assert!(rendered.contains("stage cfg_outline"));
     assert!(rendered.contains("stage cfg_ssa"));
 
     let again = observe_compile(&request, &module).expect("reobserve");
     assert_eq!(again.request.fingerprint, observation.request.fingerprint);
     assert_eq!(again.plan.fingerprint, observation.plan.fingerprint);
     assert_eq!(again.semantic.fingerprint, observation.semantic.fingerprint);
+    assert_eq!(again.cfg_outline.fingerprint, observation.cfg_outline.fingerprint);
     assert_eq!(again.cfg_ssa.fingerprint, observation.cfg_ssa.fingerprint);
 }
 

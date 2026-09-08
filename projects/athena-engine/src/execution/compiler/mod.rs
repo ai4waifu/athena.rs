@@ -30,14 +30,14 @@ mod helpers;
 mod stages;
 
 pub use dump::{
-    CfgSsaStageView, CompileObservation, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_ssa, dump_plan, dump_request,
-    dump_semantic, dump_semantic_realized, observe_compile, verify_observation,
+    CfgOutlineStageView, CfgSsaStageView, CompileObservation, PlanStageView, RequestStageView, SemanticStageView, dump_cfg_outline,
+    dump_cfg_ssa, dump_plan, dump_request, dump_semantic, dump_semantic_realized, observe_compile, verify_observation,
 };
 pub use elaboration::{ArgumentEvaluationKind, argument_evaluation_for_semantic};
 pub use stages::{
-    CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram, StageFingerprint,
-    StagedCompile, canonicalize_request, elaborate_semantic, materialize_cfg_ssa, materialize_semantic, plan_from_request,
-    request_stage_fingerprint,
+    CfgOutlineProgram, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticOpSummary, SemanticProgram,
+    StageFingerprint, StagedCompile, canonicalize_request, elaborate_cfg_outline, elaborate_semantic, materialize_cfg_ssa,
+    materialize_semantic, plan_from_request, request_stage_fingerprint, verify_cfg_outline,
 };
 
 use builder::ModuleBuilder;
@@ -59,27 +59,37 @@ impl ExecutionCompiler {
         self.lower_module(session, request, &request_prog, &plan_prog)
     }
 
-    /// 分阶段编译：具名 Request → Plan → Semantic elaboration → module → CFG SSA。
+    /// 分阶段编译：Request → Plan → Semantic → CFG outline → module → CFG SSA。
     pub fn compile_staged(&self, session: &mut Session, request: &AthenaRequest) -> Result<StagedCompile> {
         let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
         let semantic = elaborate_semantic(&request_prog, &plan_prog);
+        let cfg_outline = elaborate_cfg_outline(&semantic);
         let module = self.lower_module(session, request, &request_prog, &plan_prog)?;
         let cfg_ssa = materialize_cfg_ssa(&module);
         let observation = CompileObservation::from_programs(
             request_prog.owning_copy(),
             plan_prog.clone(),
             semantic.clone(),
+            cfg_outline.clone(),
             cfg_ssa.clone(),
         );
         verify_observation(&observation, &module)?;
-        Ok(StagedCompile { request: request_prog, plan: plan_prog, semantic, cfg_ssa, module })
+        Ok(StagedCompile {
+            request: request_prog,
+            plan: plan_prog,
+            semantic,
+            cfg_outline,
+            cfg_ssa,
+            module,
+        })
     }
 
-    /// 编译并产出 Living `04` 四阶段可观测 dump（Request / Plan / Semantic / CFG SSA）。
+    /// 编译并产出 Living `04` 可观测 dump（Request / Plan / Semantic / CFG outline / CFG SSA）。
     pub fn compile_observed(&self, session: &mut Session, request: &AthenaRequest) -> Result<(ExecutionModule, CompileObservation)> {
         let staged = self.compile_staged(session, request)?;
-        let observation = CompileObservation::from_programs(staged.request, staged.plan, staged.semantic, staged.cfg_ssa);
+        let observation =
+            CompileObservation::from_programs(staged.request, staged.plan, staged.semantic, staged.cfg_outline, staged.cfg_ssa);
         Ok((staged.module, observation))
     }
 

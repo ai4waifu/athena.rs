@@ -1,7 +1,7 @@
 //! Living `04` 可观测编译阶段投影（迁移切片）。
 //!
 //! 观测视图由 [`super::stages`] 具名程序投影而来。
-//! Request / Plan / Semantic 在 lowering 前真实产出；CFG SSA 仍过渡物化自 module。
+//! Request / Plan / Semantic / CFG outline 在 lowering 前真实产出；CFG SSA 仍过渡物化自 module。
 //! 禁止把 dump 当成第二套执行路径。
 
 use std::fmt::Write as _;
@@ -14,8 +14,9 @@ use crate::{
 };
 
 use super::stages::{
-    self, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, StageFingerprint, canonicalize_request,
-    elaborate_semantic, materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text, request_stage_fingerprint,
+    CfgOutlineProgram, CfgSsaProgram, CompileStageKind, PlanIntent, PlanProgram, RequestProgram, SemanticProgram, canonicalize_request,
+    elaborate_cfg_outline, elaborate_semantic, materialize_cfg_ssa, materialize_semantic, plan_from_request, render_cfg_text,
+    request_stage_fingerprint, verify_cfg_outline,
 };
 
 /// 兼容旧名：Request 阶段视图即 [`RequestProgram`]。
@@ -24,10 +25,12 @@ pub type RequestStageView = RequestProgram;
 pub type PlanStageView = PlanProgram;
 /// 兼容旧名：Semantic 阶段视图即 [`SemanticProgram`]。
 pub type SemanticStageView = SemanticProgram;
+/// 兼容旧名：CFG outline 阶段视图即 [`CfgOutlineProgram`]。
+pub type CfgOutlineStageView = CfgOutlineProgram;
 /// 兼容旧名：CFG SSA 阶段视图即 [`CfgSsaProgram`]。
 pub type CfgSsaStageView = CfgSsaProgram;
 
-/// 一次编译的四阶段观测（由具名程序投影）。
+/// 一次编译的阶段观测（由具名程序投影）。
 ///
 /// **不**实现 [`Clone`]。`RequestProgram` 含控制计划 owning 拷贝。
 #[derive(Debug, PartialEq)]
@@ -38,17 +41,31 @@ pub struct CompileObservation {
     pub plan: PlanProgram,
     /// Semantic 程序。
     pub semantic: SemanticProgram,
+    /// CFG outline 程序。
+    pub cfg_outline: CfgOutlineProgram,
     /// CFG SSA 程序。
     pub cfg_ssa: CfgSsaProgram,
 }
 
 impl CompileObservation {
     /// 由具名阶段程序构造观测。
-    pub fn from_programs(request: RequestProgram, plan: PlanProgram, semantic: SemanticProgram, cfg_ssa: CfgSsaProgram) -> Self {
-        Self { request, plan, semantic, cfg_ssa }
+    pub fn from_programs(
+        request: RequestProgram,
+        plan: PlanProgram,
+        semantic: SemanticProgram,
+        cfg_outline: CfgOutlineProgram,
+        cfg_ssa: CfgSsaProgram,
+    ) -> Self {
+        Self {
+            request,
+            plan,
+            semantic,
+            cfg_outline,
+            cfg_ssa,
+        }
     }
 
-    /// 渲染四阶段稳定观测文本。
+    /// 渲染阶段稳定观测文本。
     pub fn render(&self) -> String {
         let mut out = String::new();
         let _ = writeln!(
@@ -75,6 +92,14 @@ impl CompileObservation {
         }
         let _ = writeln!(
             out,
+            "stage cfg_outline regions={} entry={} semantic_fp={:#x} fp={:#x}",
+            self.cfg_outline.region_count,
+            self.cfg_outline.entry_region,
+            self.cfg_outline.semantic_fingerprint.0,
+            self.cfg_outline.fingerprint.0
+        );
+        let _ = writeln!(
+            out,
             "stage cfg_ssa regions={} blocks={} entry={} module_fp={:#x} fp={:#x}",
             self.cfg_ssa.region_count,
             self.cfg_ssa.block_count,
@@ -87,13 +112,14 @@ impl CompileObservation {
     }
 }
 
-/// 由请求与已校验 module 构造四阶段观测（Request/Plan/Semantic 先于 module 决策）。
+/// 由请求与已校验 module 构造阶段观测（Request/Plan/Semantic/outline 先于 module 决策）。
 pub fn observe_compile(request: &AthenaRequest, module: &ExecutionModule) -> Result<CompileObservation> {
     let request_prog = canonicalize_request(request);
     let plan_prog = plan_from_request(&request_prog);
     let semantic = elaborate_semantic(&request_prog, &plan_prog);
+    let cfg_outline = elaborate_cfg_outline(&semantic);
     let cfg_ssa = materialize_cfg_ssa(module);
-    let observation = CompileObservation::from_programs(request_prog, plan_prog, semantic, cfg_ssa);
+    let observation = CompileObservation::from_programs(request_prog, plan_prog, semantic, cfg_outline, cfg_ssa);
     verify_observation(&observation, module)?;
     Ok(observation)
 }
@@ -115,6 +141,14 @@ pub fn dump_semantic(request: &AthenaRequest) -> SemanticStageView {
     elaborate_semantic(&request_prog, &plan_prog)
 }
 
+/// CFG outline 阶段（Semantic 驱动）。
+pub fn dump_cfg_outline(request: &AthenaRequest) -> CfgOutlineStageView {
+    let request_prog = canonicalize_request(request);
+    let plan_prog = plan_from_request(&request_prog);
+    let semantic = elaborate_semantic(&request_prog, &plan_prog);
+    elaborate_cfg_outline(&semantic)
+}
+
 /// 调试：从 module 物化 Semantic 视图（非 staged 主路径）。
 pub fn dump_semantic_realized(module: &ExecutionModule) -> SemanticStageView {
     materialize_semantic(module)
@@ -125,7 +159,7 @@ pub fn dump_cfg_ssa(module: &ExecutionModule) -> CfgSsaStageView {
     materialize_cfg_ssa(module)
 }
 
-/// 校验四阶段观测与 module 一致，并复跑结构 verifier。
+/// 校验阶段观测与 module 一致，并复跑结构 verifier。
 pub fn verify_observation(observation: &CompileObservation, module: &ExecutionModule) -> Result<()> {
     verify_module(module)?;
 
@@ -141,6 +175,12 @@ pub fn verify_observation(observation: &CompileObservation, module: &ExecutionMo
     }
     if observation.semantic.plan_fingerprint != observation.plan.fingerprint {
         return Err(stage_diag(CompileStageKind::Semantic, "plan_semantic_chain_mismatch"));
+    }
+    if observation.cfg_outline.semantic_fingerprint != observation.semantic.fingerprint {
+        return Err(stage_diag(CompileStageKind::CfgSsa, "semantic_cfg_outline_chain_mismatch"));
+    }
+    if let Err(reason) = verify_cfg_outline(&observation.cfg_outline, &observation.cfg_ssa) {
+        return Err(stage_diag(CompileStageKind::CfgSsa, reason));
     }
 
     if observation.cfg_ssa.module_fingerprint != module.fingerprint {
@@ -160,6 +200,10 @@ pub fn verify_observation(observation: &CompileObservation, module: &ExecutionMo
     let recomputed_semantic = elaborate_semantic(&observation.request, &observation.plan);
     if observation.semantic.fingerprint != recomputed_semantic.fingerprint {
         return Err(stage_diag(CompileStageKind::Semantic, "semantic_fingerprint_drift"));
+    }
+    let recomputed_outline = elaborate_cfg_outline(&observation.semantic);
+    if observation.cfg_outline.fingerprint != recomputed_outline.fingerprint {
+        return Err(stage_diag(CompileStageKind::CfgSsa, "cfg_outline_fingerprint_drift"));
     }
     let recomputed_request =
         request_stage_fingerprint(observation.request.kind, observation.request.term_index, observation.request.payload_tag);
