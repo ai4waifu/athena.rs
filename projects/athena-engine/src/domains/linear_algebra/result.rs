@@ -4,8 +4,8 @@ use athena_types::{Diagnostic, DiagnosticCode};
 
 use super::{
     exact::{
-        ExactDetResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact, nullspace_exact,
-        rank_exact, rref_rational, solve_exact, trace_exact,
+        ExactDetResult, ExactNormResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss, invert_exact,
+        norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
     object_ref::{MatrixObjectStore, MatrixRef},
@@ -38,6 +38,8 @@ pub enum LinearAlgebraValue {
     ExactDet(ExactDetResult),
     /// 精确矩阵迹。
     ExactTrace(ExactTraceResult),
+    /// 精确欧几里得范数。
+    ExactNorm(ExactNormResult),
     /// `Dot` 收缩结果（向量投影为平坦 List，标量为原子）。
     Dot(MatrixValue),
     /// 精确 RREF。
@@ -57,6 +59,7 @@ impl LinearAlgebraValue {
             Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
             Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
             Self::ExactTrace(r) => Self::ExactTrace(r.owning_copy()),
+            Self::ExactNorm(r) => Self::ExactNorm(r.owning_copy()),
             Self::Dot(m) => Self::Dot(m.owning_copy()),
             Self::ExactRref(r) => Self::ExactRref(r.owning_copy()),
             Self::ExactSolve(r) => Self::ExactSolve(r.owning_copy()),
@@ -96,6 +99,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Dot { .. } => "dot",
         LinearAlgebraRequest::Cross { .. } => "cross",
         LinearAlgebraRequest::NullSpace { .. } => "nullspace",
+        LinearAlgebraRequest::Norm { .. } => "norm",
     }
 }
 
@@ -211,6 +215,15 @@ fn run(request: LinearAlgebraRequest, store: &MatrixObjectStore) -> Result<Linea
                     .detail("hint", "use exact parent"));
             }
             Ok(LinearAlgebraValue::Matrix(nullspace_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::Norm { matrix } => {
+            let matrix = resolve(store, matrix)?;
+            if matrix.parent().element.is_machine() {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("reason", "machine_norm_deferred")
+                    .detail("hint", "use exact parent"));
+            }
+            Ok(LinearAlgebraValue::ExactNorm(norm2_exact(&matrix)?))
         }
     }
 }

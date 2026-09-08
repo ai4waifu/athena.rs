@@ -86,6 +86,11 @@ pub enum LinearAlgebraRequest {
         /// 输入。
         matrix: MatrixRef,
     },
+    /// 欧几里得 2-范数（精确完美平方）。
+    Norm {
+        /// 输入向量。
+        matrix: MatrixRef,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -105,6 +110,7 @@ impl LinearAlgebraRequest {
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
             Self::NullSpace { matrix } => Self::NullSpace { matrix: *matrix },
+            Self::Norm { matrix } => Self::Norm { matrix: *matrix },
         }
     }
 }

@@ -295,6 +295,7 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
         LinearAlgebraValue::MachineRank { guarantee, .. } => algorithm_guarantee_status(*guarantee),
         LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactTrace(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::ExactNorm(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::Dot(matrix) => {
             if matrix.parent().element.is_machine() {
                 (ComputationStatus::Approximate, CoverageStatus::Full)

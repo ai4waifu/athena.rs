@@ -360,3 +360,18 @@ fn goal_nullspace_rank1_projects_row_basis() {
     assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)));
     assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
 }
+
+#[test]
+fn goal_norm_projects_integer() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 2, vec![i(3), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Norm { matrix })));
+    let result_id = execute_ir_request(&mut session, request).expect("norm goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5)));
+}
