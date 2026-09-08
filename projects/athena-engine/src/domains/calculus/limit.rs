@@ -374,7 +374,7 @@ fn polynomial_degree_leading(cc: &mut DomainExecutionContext<'_>, expr: TermId, 
 fn is_open_limit_head(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool {
     match cc.application_head(expr) {
         Some((ApplicationHead::Semantic(SemanticOperator::Limit), _)) => true,
-        Some((head, _)) if cc.is_indeterminate_extension(head) => true,
+        Some((head, _)) if cc.is_indeterminate(head) => true,
         _ => false,
     }
 }
@@ -438,7 +438,7 @@ fn is_indeterminate_form(cc: &DomainExecutionContext<'_>, expr: TermId) -> bool 
             });
             has_zero && has_singular_pow
         }
-        head if cc.is_indeterminate_extension(head) => true,
+        head if cc.is_indeterminate(head) => true,
         _ => false,
     }
 }

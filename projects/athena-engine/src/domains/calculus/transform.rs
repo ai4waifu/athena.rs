@@ -24,14 +24,14 @@ impl RegionOfConvergence {
 
     /// 已知半平面 `Re[s] > a`（`a` 可为符号项）。
     pub fn re_s_greater_term(cc: &mut DomainExecutionContext<'_>, s: SymbolId, a: TermId) -> Self {
-        let re = cc.apply_extension(cc.residual_extensions().re, vec![cc.symbol_id(s)]);
+        let re = cc.apply_semantic(SemanticOperator::RealPart, vec![cc.symbol_id(s)]);
         let greater = cc.apply_semantic(SemanticOperator::Greater, vec![re, a]);
         Self { predicate: Some(greater), known: true }
     }
 
     /// Fourier 频率在实轴上（经典 L¹ / Schwartz 像）。
     pub fn real_line(cc: &mut DomainExecutionContext<'_>, omega: SymbolId) -> Self {
-        let element = cc.apply_extension(cc.residual_extensions().element, vec![cc.symbol_id(omega), cc.symbol("Reals")]);
+        let element = cc.apply_semantic(SemanticOperator::MemberOf, vec![cc.symbol_id(omega), cc.symbol("Reals")]);
         Self { predicate: Some(element), known: true }
     }
 
@@ -44,7 +44,7 @@ impl RegionOfConvergence {
 
     /// 全平面收敛（如 `KroneckerDelta[n]`）。
     pub fn entire_plane(cc: &mut DomainExecutionContext<'_>, z: SymbolId) -> Self {
-        let element = cc.apply_extension(cc.residual_extensions().element, vec![cc.symbol_id(z), cc.symbol("Complexes")]);
+        let element = cc.apply_semantic(SemanticOperator::MemberOf, vec![cc.symbol_id(z), cc.symbol("Complexes")]);
         Self { predicate: Some(element), known: true }
     }
 
@@ -393,7 +393,7 @@ fn is_unit_step(cc: &DomainExecutionContext<'_>, term: TermId, t: SymbolId) -> b
     else {
         return false;
     };
-    cc.is_unit_step_extension(head) && args.len() == 1 && is_symbol_id(cc, args[0], t)
+    cc.is_unit_step(head) && args.len() == 1 && is_symbol_id(cc, args[0], t)
 }
 
 /// `Times[-a, Abs[t]]` 或等价，返回 a（要求最终为正衰减系数）。
@@ -564,7 +564,7 @@ fn z_one(cc: &mut DomainExecutionContext<'_>, expr: TermId, n: SymbolId, z: Symb
                 }
                 else if matches!(
                     roc.predicate,
-                    Some(pred) if cc.application_head(pred).is_some_and(|(ph, _)| cc.is_element_extension(ph))
+                    Some(pred) if cc.application_head(pred).is_some_and(|(ph, _)| cc.is_member_of(ph))
                 ) {
                     // 整平面收敛 — 半径保持不变
                 }
@@ -629,7 +629,7 @@ fn is_kronecker_delta(cc: &DomainExecutionContext<'_>, term: TermId, n: SymbolId
     else {
         return false;
     };
-    cc.is_delta_extension(head) && args.len() == 1 && is_symbol_id(cc, args[0], n)
+    cc.is_delta(head) && args.len() == 1 && is_symbol_id(cc, args[0], n)
 }
 
 fn match_n_times_power(cc: &DomainExecutionContext<'_>, args: &[TermId], n: SymbolId) -> Option<Number> {

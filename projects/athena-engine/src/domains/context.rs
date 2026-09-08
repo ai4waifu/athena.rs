@@ -17,25 +17,6 @@ use crate::{
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
 
-/// 预驻留的残差扩展标识（按 [`ExtensionOperatorId`] 比较，绝不按显示名）。
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ResidualExtensionIds {
-    /// 残差不定式标记。
-    pub indeterminate: ExtensionOperatorId,
-    /// 收敛域谓词中使用的实部残差。
-    pub re: ExtensionOperatorId,
-    /// 收敛域 / 定义域谓词中使用的属于残差。
-    pub element: ExtensionOperatorId,
-    /// 单位阶跃 / Heaviside 因果标记。
-    pub unit_step: ExtensionOperatorId,
-    /// Heaviside 别名（同一语义残差族）。
-    pub heaviside_theta: ExtensionOperatorId,
-    /// Kronecker δ 残差。
-    pub kronecker_delta: ExtensionOperatorId,
-    /// 离散 δ 残差。
-    pub discrete_delta: ExtensionOperatorId,
-}
-
 /// 领域提供者共享的项读/建能力。
 ///
 /// 构造时吃掉独占 [`Session`] 借用并收成裸指针，用 [`PhantomData`] 绑定生命周期。
@@ -44,56 +25,39 @@ pub(crate) struct ResidualExtensionIds {
 /// - 原子建项（`in_` / `num` / `apply_*`）可用 `&self`，便于 `apply(vec![in_(1), …])` 嵌套
 /// - `fold_term` / `session_mut` **必须** `&mut self`，禁止从共享借用制造第二份 `&mut Session`
 /// - `number_of` 返回拥有副本，禁止长寿命 `&Number` 与建项交错
+/// - 阶跃 / 成员 / δ / 不定式 / 实部经 [`SemanticOperator`] 识别，禁止表面名 Extension intern
 pub struct DomainExecutionContext<'a> {
     session: *mut Session,
-    ext: ResidualExtensionIds,
     _borrow: PhantomData<&'a mut Session>,
 }
 
 impl<'a> DomainExecutionContext<'a> {
     /// 在领域调用期间绑定独占的会话借用。
     pub fn new(session: &'a mut Session) -> Self {
-        let ext = ResidualExtensionIds {
-            indeterminate: session.extensions.intern("Indeterminate"),
-            re: session.extensions.intern("Re"),
-            element: session.extensions.intern("Element"),
-            unit_step: session.extensions.intern("UnitStep"),
-            heaviside_theta: session.extensions.intern("HeavisideTheta"),
-            kronecker_delta: session.extensions.intern("KroneckerDelta"),
-            discrete_delta: session.extensions.intern("DiscreteDelta"),
-        };
-        Self { session: session as *mut Session, ext, _borrow: PhantomData }
+        Self { session: session as *mut Session, _borrow: PhantomData }
     }
 
-    /// 本会话的残差扩展 id 表。
-    pub(crate) fn residual_extensions(&self) -> ResidualExtensionIds {
-        self.ext
+    /// `Indeterminate` 中性算子头。
+    pub(crate) fn is_indeterminate(&self, head: ApplicationHead) -> bool {
+        matches!(head, ApplicationHead::Semantic(SemanticOperator::Indeterminate))
     }
 
-    /// `head` 是否为预驻留的 `Indeterminate` 残差。
-    pub(crate) fn is_indeterminate_extension(&self, head: ApplicationHead) -> bool {
-        matches!(head, ApplicationHead::Extension(id) if id == self.ext.indeterminate)
+    /// 单位阶跃中性算子头。
+    pub(crate) fn is_unit_step(&self, head: ApplicationHead) -> bool {
+        matches!(head, ApplicationHead::Semantic(SemanticOperator::UnitStep))
     }
 
-    /// `UnitStep` 或 `HeavisideTheta` 残差头。
-    pub(crate) fn is_unit_step_extension(&self, head: ApplicationHead) -> bool {
+    /// Kronecker / 离散 δ 中性算子头。
+    pub(crate) fn is_delta(&self, head: ApplicationHead) -> bool {
         matches!(
             head,
-            ApplicationHead::Extension(id) if id == self.ext.unit_step || id == self.ext.heaviside_theta
+            ApplicationHead::Semantic(SemanticOperator::KroneckerDelta | SemanticOperator::DiscreteDelta)
         )
     }
 
-    /// `KroneckerDelta` 或 `DiscreteDelta` 残差头。
-    pub(crate) fn is_delta_extension(&self, head: ApplicationHead) -> bool {
-        matches!(
-            head,
-            ApplicationHead::Extension(id) if id == self.ext.kronecker_delta || id == self.ext.discrete_delta
-        )
-    }
-
-    /// `Element` 残差头。
-    pub(crate) fn is_element_extension(&self, head: ApplicationHead) -> bool {
-        matches!(head, ApplicationHead::Extension(id) if id == self.ext.element)
+    /// 集合成员关系中性算子头。
+    pub(crate) fn is_member_of(&self, head: ApplicationHead) -> bool {
+        matches!(head, ApplicationHead::Semantic(SemanticOperator::MemberOf))
     }
 
     /// 驻留扩展算子 id（ODE 因变量头等 · 非核心数学）。
