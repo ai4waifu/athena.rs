@@ -50,10 +50,10 @@ pub fn sample_1d(session: &mut Session, expr: TermId, var: &str, domain: SampleD
         let x = domain.start + span * t;
         let point = push_number(session, Number::machine(x));
         let value = match plan.execute_with_locals(session, &[(vs, point)]) {
-            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(expr),
-            Err(_) => expr,
+            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term),
+            Err(_) => None,
         };
-        let (y, valid) = match number_of(session, value).and_then(|num| num_to_f64_lossy(num)) {
+        let (y, valid) = match value.and_then(|term| number_of(session, term)).and_then(|num| num_to_f64_lossy(num)) {
             Some(y) if y.is_finite() => (y, true),
             _ => (f64::NAN, false),
         };

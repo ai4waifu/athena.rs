@@ -1099,7 +1099,7 @@ impl VmHost for ExecutionHost<'_> {
         }
         if let Some(term) = self.session.defs.residual_binding(symbol) {
             let result_id = execute_ir_request(self.session, AthenaRequest::Term(term))?;
-            let out = self.session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term);
+            let out = self.session.results.require_symbolic_term(result_id)?;
             return Ok(HostOutcome::Value(SlotValue::Term(out)));
         }
         if let Some(matrix) = self.session.defs.matrix_binding(symbol) {

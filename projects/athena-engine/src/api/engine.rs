@@ -30,7 +30,7 @@ impl AthenaEngine {
     /// 在内建定义下求值（唯一 `ExecutionIR` 路径）。执行失败经 [`Result`] 传播，禁止吞错。
     pub fn evaluate(&self, session: &mut Session, term: TermId) -> Result<TermId> {
         let result_id = execution::execute_ir_request(session, AthenaRequest::Term(term))?;
-        Ok(session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(term))
+        session.results.require_symbolic_term(result_id)
     }
 
     /// 先求导再求值（session arena · 求导后走 `ExecutionIR`）。执行失败经 [`Result`] 传播，禁止吞错。
@@ -74,12 +74,12 @@ impl AthenaEngine {
     }
 
     /// 经 `SemanticOperator::Simplify` 化简（唯一 `ExecutionIR` 路径）。
-    pub fn simplify(&self, session: &mut Session, term: TermId) -> TermId {
+    ///
+    /// 缺少符号项投影时硬失败，禁止回落到输入项。
+    pub fn simplify(&self, session: &mut Session, term: TermId) -> Result<TermId> {
         let wrapped = execution::push_semantic(session, athena_ir::SemanticOperator::Simplify, vec![term]);
-        match execution::execute_ir_request(session, AthenaRequest::Term(wrapped)) {
-            Ok(result_id) => session.results.get(result_id).and_then(|r| r.symbolic_term).unwrap_or(wrapped),
-            Err(_) => wrapped,
-        }
+        let result_id = execution::execute_ir_request(session, AthenaRequest::Term(wrapped))?;
+        session.results.require_symbolic_term(result_id)
     }
 
     /// 占位：无 arena 的桩求值（正式路径请用 [`Self::evaluate`] / [`Self::execute_request`]）。
