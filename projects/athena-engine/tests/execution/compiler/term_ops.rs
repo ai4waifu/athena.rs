@@ -205,6 +205,26 @@ fn compile_and_execute_take_and_drop() {
 }
 
 #[test]
+fn compile_and_execute_flatten_nested() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let inner = session.builder().list(vec![one, two], Default::default());
+    let outer = session.builder().list(vec![inner, three], Default::default());
+    let term = session
+        .builder()
+        .application_semantic(SemanticOperator::Flatten, vec![outer], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("flatten");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, two, three] => {}
+        other => panic!("expected Flatten nested list, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
