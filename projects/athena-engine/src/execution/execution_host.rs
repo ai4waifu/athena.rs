@@ -31,7 +31,7 @@ use crate::{
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
-            store_index_axes_matrix,
+            store_index_axes_matrix, symbolic_term_from_value_id,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -128,6 +128,7 @@ impl<'a> ExecutionHost<'a> {
             SlotValue::Boolean(value) => Ok(self.session.builder().boolean(value, Default::default())),
             SlotValue::Symbol(symbol) => Ok(self.session.builder().symbol_id(symbol, Default::default())),
             SlotValue::Unit => Ok(self.session.builder().null(Default::default())),
+            SlotValue::Value(value_id) => symbolic_term_from_value_id(self.session, value_id),
             other => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                 .detail("component", "ExecutionHost")
                 .detail("reason", "slot_not_term_like")
