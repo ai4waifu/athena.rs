@@ -20,6 +20,8 @@ fn compile_staged_builds_request_plan_before_module() {
     let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("staged");
     assert_eq!(staged.request.fingerprint, request_prog.fingerprint);
     assert_eq!(staged.plan.fingerprint, plan_prog.fingerprint);
+    assert_eq!(staged.semantic.plan_fingerprint, staged.plan.fingerprint);
+    assert_eq!(staged.semantic.operations[0].kind, "TermElaboration");
     assert_eq!(staged.cfg_ssa.module_fingerprint, staged.module.fingerprint);
 }
 
