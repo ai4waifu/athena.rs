@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    evaluate_arithmetic_terms, fold_plus_symbolic, nested_list_shape, parse_matrix_dims, rational_to_term_session,
-    term_to_rational_matrix_session, terms::expand_span_3,
+    evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape, parse_matrix_dims,
+    rational_to_term_session, term_to_rational_matrix_session, terms::expand_span_3,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -217,6 +217,142 @@ pub(crate) fn evaluate_constant_array_terms(session: &mut Session, elem: TermId,
         return Ok(push_semantic(session, SemanticOperator::ConstantArray, vec![elem, count]));
     }
     Ok(push_list(session, vec![elem; n as usize]))
+}
+
+fn collection_elements(session: &Session, list: TermId) -> Option<Vec<TermId>> {
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => Some(items.clone()),
+        _ => None,
+    }
+}
+
+fn sort_exact_integer_ids(session: &Session, items: &[TermId]) -> Option<Vec<TermId>> {
+    let mut pairs: Vec<(i64, TermId)> = Vec::with_capacity(items.len());
+    for item in items {
+        let n = number_of(session, *item)?.as_exact_integer()?;
+        pairs.push((n, *item));
+    }
+    pairs.sort_by_key(|(n, _)| *n);
+    Some(pairs.into_iter().map(|(_, id)| id).collect())
+}
+
+/// `Union[list…]` — 展平并结构去重；全为精确整数时升序。
+pub(crate) fn evaluate_union_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
+    let mut merged = Vec::new();
+    for term in &terms {
+        let Some(items) = collection_elements(session, *term)
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Union, terms));
+        };
+        for item in items {
+            if !merged.iter().any(|seen| session.arena.structural_eq(*seen, item)) {
+                merged.push(item);
+            }
+        }
+    }
+    if let Some(sorted) = sort_exact_integer_ids(session, &merged) {
+        return Ok(push_list(session, sorted));
+    }
+    Ok(push_list(session, merged))
+}
+
+/// `Intersection[list…]` — 出现在所有列表中的元素；全精确整数时升序。
+pub(crate) fn evaluate_intersection_terms(session: &mut Session, terms: Vec<TermId>) -> Result<TermId> {
+    if terms.is_empty() {
+        return Ok(push_list(session, Vec::new()));
+    }
+    let mut lists = Vec::with_capacity(terms.len());
+    for term in &terms {
+        let Some(items) = collection_elements(session, *term)
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Intersection, terms));
+        };
+        lists.push(items);
+    }
+    let first = &lists[0];
+    let mut out = Vec::new();
+    for item in first {
+        if out.iter().any(|seen| session.arena.structural_eq(*seen, *item)) {
+            continue;
+        }
+        let in_all = lists[1..].iter().all(|list| list.iter().any(|x| session.arena.structural_eq(*x, *item)));
+        if in_all {
+            out.push(*item);
+        }
+    }
+    if let Some(sorted) = sort_exact_integer_ids(session, &out) {
+        return Ok(push_list(session, sorted));
+    }
+    Ok(push_list(session, out))
+}
+
+/// `Accumulate[list]` — 前缀和。
+pub(crate) fn evaluate_accumulate_terms(session: &mut Session, list: TermId) -> Result<TermId> {
+    let Some(items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Accumulate, vec![list]));
+    };
+    if items.is_empty() {
+        return Ok(push_list(session, Vec::new()));
+    }
+    let mut out = Vec::with_capacity(items.len());
+    let mut running = items[0];
+    out.push(running);
+    for item in items.into_iter().skip(1) {
+        running = fold_plus_symbolic(session, vec![running, item]);
+        out.push(running);
+    }
+    Ok(push_list(session, out))
+}
+
+/// `Differences[list]` — 相邻差分 `aᵢ₊₁ - aᵢ`。
+pub(crate) fn evaluate_differences_terms(session: &mut Session, list: TermId) -> Result<TermId> {
+    let Some(items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Differences, vec![list]));
+    };
+    if items.len() < 2 {
+        return Ok(push_list(session, Vec::new()));
+    }
+    let mut out = Vec::with_capacity(items.len() - 1);
+    for window in items.windows(2) {
+        let diff = fold_subtract_symbolic(session, vec![window[1], window[0]]);
+        out.push(diff);
+    }
+    Ok(push_list(session, out))
+}
+
+/// `FreeQ[list, elem]` — 顶层无结构相等成员。
+pub(crate) fn evaluate_free_q_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) => {
+            let free = !items.iter().any(|item| session.arena.structural_eq(*item, elem));
+            Ok(push_bool(session, free))
+        }
+        Some(athena_ir::TermNode::Application { arguments, .. }) => {
+            let free = !arguments.iter().any(|item| session.arena.structural_eq(*item, elem));
+            Ok(push_bool(session, free))
+        }
+        _ => Ok(push_semantic(session, SemanticOperator::FreeQ, vec![list, elem])),
+    }
+}
+
+/// `Extract[list, n]` — 1-based 整数下标提取。
+pub(crate) fn evaluate_extract_terms(session: &mut Session, list: TermId, index: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, index).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Extract, vec![list, index]));
+    };
+    if n <= 0 {
+        return Ok(push_semantic(session, SemanticOperator::Extract, vec![list, index]));
+    }
+    let idx = (n as usize) - 1;
+    match session.arena.get(list) {
+        Some(athena_ir::TermNode::Collection { elements: items, .. }) if idx < items.len() => Ok(items[idx]),
+        Some(athena_ir::TermNode::Application { arguments, .. }) if idx < arguments.len() => Ok(arguments[idx]),
+        _ => Ok(push_semantic(session, SemanticOperator::Extract, vec![list, index])),
+    }
 }
 
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。

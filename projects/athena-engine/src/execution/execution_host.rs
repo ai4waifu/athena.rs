@@ -24,7 +24,9 @@ use crate::{
             evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
-            evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_matrix_constructor_terms,
+            evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
+            evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
+            evaluate_extract_terms, evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
@@ -279,6 +281,62 @@ impl<'a> ExecutionHost<'a> {
         let elem = self.slot_as_term(args[0])?;
         let count = self.slot_as_term(args[1])?;
         let term = evaluate_constant_array_terms(self.session, elem, count)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_union(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_union_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_intersection(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_intersection_terms(self.session, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_accumulate(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Accumulate.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let term = evaluate_accumulate_terms(self.session, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_differences(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Differences.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let term = evaluate_differences_terms(self.session, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_free_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::FreeQ.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_free_q_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_extract(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Extract.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let index = self.slot_as_term(args[1])?;
+        let term = evaluate_extract_terms(self.session, list, index)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -790,6 +848,24 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::ConstantArray.discriminant() {
             return self.apply_constant_array(args);
+        }
+        if op.0 == SemanticOperator::Union.discriminant() {
+            return self.apply_union(args);
+        }
+        if op.0 == SemanticOperator::Intersection.discriminant() {
+            return self.apply_intersection(args);
+        }
+        if op.0 == SemanticOperator::Accumulate.discriminant() {
+            return self.apply_accumulate(args);
+        }
+        if op.0 == SemanticOperator::Differences.discriminant() {
+            return self.apply_differences(args);
+        }
+        if op.0 == SemanticOperator::FreeQ.discriminant() {
+            return self.apply_free_q(args);
+        }
+        if op.0 == SemanticOperator::Extract.discriminant() {
+            return self.apply_extract(args);
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);

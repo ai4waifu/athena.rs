@@ -361,6 +361,97 @@ fn compile_and_execute_count_partition_constant_array() {
 }
 
 #[test]
+fn compile_and_execute_union_accumulate_free_q_extract() {
+    use athena_engine::runtime::values::arena::as_boolean_id;
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let nine = session.builder().int(9, Default::default());
+
+    let left = session.builder().list(vec![one, two], Default::default());
+    let right = session.builder().list(vec![two, three], Default::default());
+    let union_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Union, vec![left, right], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(union_term)).expect("union");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, two, three] => {}
+        other => panic!("expected Union, got {other:?}"),
+    }
+
+    let inter_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Intersection, vec![left, right], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(inter_term)).expect("inter");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [two] => {}
+        other => panic!("expected Intersection, got {other:?}"),
+    }
+
+    let acc_list = session.builder().list(vec![one, two, three], Default::default());
+    let acc = session
+        .builder()
+        .application_semantic(SemanticOperator::Accumulate, vec![acc_list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(acc)).expect("accum");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
+            for (item, expect) in items.iter().zip([1i64, 3, 6]) {
+                match session.arena.get(*item) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect) => {}
+                    other => panic!("expected Accumulate {expect}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Accumulate, got {other:?}"),
+    }
+
+    let diff_list = session.builder().list(vec![one, four, nine], Default::default());
+    let diff = session
+        .builder()
+        .application_semantic(SemanticOperator::Differences, vec![diff_list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(diff)).expect("diff");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
+            for (item, expect) in items.iter().zip([3i64, 5]) {
+                match session.arena.get(*item) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect) => {}
+                    other => panic!("expected Differences {expect}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Differences, got {other:?}"),
+    }
+
+    let free_list = session.builder().list(vec![one, two], Default::default());
+    let free = session
+        .builder()
+        .application_semantic(SemanticOperator::FreeQ, vec![free_list, three], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(free)).expect("freeq");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert_eq!(as_boolean_id(&session, out), Some(true));
+
+    let extract_list = session.builder().list(vec![one, two, three], Default::default());
+    let extract = session
+        .builder()
+        .application_semantic(SemanticOperator::Extract, vec![extract_list, two], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(extract)).expect("extract");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_eq!(session.results.get(result_id).expect("result").symbolic_term, Some(two));
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
