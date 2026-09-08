@@ -29,12 +29,16 @@ fn computation_result_with_provider_stamps_version() {
 #[test]
 fn result_store_links_derived_from_parent() {
     use athena_engine::runtime::results::ResultStore;
-    use athena_types::ResultId;
+    use athena_types::{Condition, Predicate, ResultId, TermId};
 
     let mut store = ResultStore::new();
-    let parent = store.insert(ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full));
+    let parent_cond = Condition { predicate: Predicate::NonZero(TermId(1)), resolved: false };
+    let parent = store.insert(
+        ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full).with_condition(parent_cond.clone()),
+    );
     let child = store.insert(ComputationResult::with_status(ComputationStatus::Exact, CoverageStatus::Full));
     assert!(store.link_derived_from(child, parent));
     assert_eq!(store.get(child).and_then(|r| r.derived_from), Some(parent));
+    assert_eq!(store.get(child).map(|r| r.conditions.as_slice()), Some([parent_cond].as_slice()));
     assert!(!store.link_derived_from(child, ResultId(999)));
 }

@@ -225,16 +225,26 @@ impl ResultStore {
         self.results.get_mut(&id)
     }
 
-    /// 将 `child` 标记为派生自 `parent`（二者均须已存在）。
+    /// 将 `child` 标记为派生自 `parent`，并继承父结果尚未出现的 `conditions`。
+    ///
+    /// 二者均须已存在。父条件排在前，子结果自有条件去重后追加。不复制诊断（避免重复噪声）。
     pub fn link_derived_from(&mut self, child: ResultId, parent: ResultId) -> bool {
-        if !self.contains(parent) {
+        if !self.contains(parent) || !self.contains(child) {
             return false;
         }
+        let parent_conditions = self.results.get(&parent).map(|r| r.conditions.clone()).unwrap_or_default();
         let Some(result) = self.results.get_mut(&child)
         else {
             return false;
         };
         result.derived_from = Some(parent);
+        let mut merged = parent_conditions;
+        for cond in result.conditions.drain(..) {
+            if !merged.contains(&cond) {
+                merged.push(cond);
+            }
+        }
+        result.conditions = merged;
         true
     }
 
