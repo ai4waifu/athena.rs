@@ -123,7 +123,7 @@ fn normalize_rejects_missing_matrix_ref() {
     use athena_engine::domains::linear_algebra::{LinearAlgebraRequest, MatrixRef};
 
     let mut session = Session::new();
-    let request = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: MatrixRef(7) });
+    let request = DomainRequest::LinearAlgebra(LinearAlgebraRequest::Det { matrix: MatrixRef(7).into() });
     let plan = DomainPlan { steps: vec![PlanStep::Normalize, PlanStep::CallDomainProvider, PlanStep::MaterializeResult] };
     let err = interpret_domain_plan(&mut session, &plan, request, |s, r| athena_engine::domains::dispatch::call_domain_provider(s, r))
         .expect_err("missing");

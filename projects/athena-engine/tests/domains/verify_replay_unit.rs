@@ -70,7 +70,7 @@ fn linear_algebra_det_recompute_accepts_honest_claim() {
     )
     .expect("matrix");
     let matrix_ref = session.matrix_objects.intern(matrix);
-    let request = LinearAlgebraRequest::Det { matrix: matrix_ref };
+    let request = LinearAlgebraRequest::Det { matrix: matrix_ref.into() };
     let honest = DomainResult::LinearAlgebra(execute_linear_algebra(request.owning_copy(), &session.matrix_objects));
     let snapshot = VerifySnapshot::LinearAlgebra(request);
     verify_recompute_domain_result(&mut session, &snapshot, &honest).expect("honest");
@@ -113,7 +113,7 @@ fn linear_algebra_forged_det_fails_recompute() {
     )
     .expect("matrix");
     let matrix_ref = session.matrix_objects.intern(matrix);
-    let snapshot = VerifySnapshot::LinearAlgebra(LinearAlgebraRequest::Det { matrix: matrix_ref });
+    let snapshot = VerifySnapshot::LinearAlgebra(LinearAlgebraRequest::Det { matrix: matrix_ref.into() });
     let forged = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
         value: LinearAlgebraValue::ExactDet(ExactDetResult {
             det: Rational::from_integer(Integer::from_i64(99)),

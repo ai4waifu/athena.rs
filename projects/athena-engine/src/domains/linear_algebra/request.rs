@@ -37,18 +37,18 @@ pub enum LinearAlgebraRequest {
     },
     /// 秩（按元素 parent 分派精确/机器）。
     Rank {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 行列式。
     Det {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 行最简形（精确路径）。
     Rref {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 线性求解 `A x = b`。
     Solve {
@@ -59,13 +59,13 @@ pub enum LinearAlgebraRequest {
     },
     /// 矩阵逆（精确路径）。
     Inverse {
-        /// 输入方阵。
-        matrix: MatrixRef,
+        /// 输入方阵（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 矩阵迹（精确路径）。
     Trace {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 点积 / 矩阵乘收缩（Mathematica `Dot`）。
     Dot {
@@ -83,13 +83,13 @@ pub enum LinearAlgebraRequest {
     },
     /// 零空间基（精确路径，行向量）。
     NullSpace {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 欧几里得 2-范数（精确完美平方）。
     Norm {
-        /// 输入向量。
-        matrix: MatrixRef,
+        /// 输入向量（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
 }
 
