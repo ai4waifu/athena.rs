@@ -75,7 +75,7 @@ fn map_domain_meta(session: &mut Session, domain: &DomainResult) -> DomainMeta {
         DomainResult::FieldTheory(r) => map_field(r),
         DomainResult::GaloisTheory(r) => map_galois(r),
         DomainResult::GraphTheory(r) => map_graph(r),
-        DomainResult::LinearAlgebra(r) => map_linear_algebra(r),
+        DomainResult::LinearAlgebra(r) => map_linear_algebra(session, r),
         DomainResult::Optimization(r) => map_optimization(r),
         DomainResult::Solve(r) => map_solve(r),
     }
@@ -252,14 +252,16 @@ fn map_graph(result: &GraphTheoryResult) -> DomainMeta {
     }
 }
 
-fn map_linear_algebra(result: &LinearAlgebraResult) -> DomainMeta {
+fn map_linear_algebra(session: &mut Session, result: &LinearAlgebraResult) -> DomainMeta {
     match result {
         LinearAlgebraResult::Ok { value } => {
             let (status, coverage) = linear_algebra_status_coverage(value);
+            // 发布时即写入可渲染项，避免宿主 evaluate 成功但 toString 因缺 symbolic_term 硬失败。
+            let symbolic_term = crate::execution::reference::linear_algebra_value_symbolic_term(session, value);
             DomainMeta {
                 status,
                 coverage,
-                symbolic_term: None,
+                symbolic_term,
                 conditions: Vec::new(),
                 diagnostics: Vec::new(),
                 evidence: Vec::new(),
