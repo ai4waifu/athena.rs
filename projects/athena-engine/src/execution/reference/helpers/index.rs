@@ -118,7 +118,15 @@ pub(crate) fn index_one(session: &mut Session, expr: TermId, spec: &IndexSpec) -
 pub(crate) fn evaluate_index_axes(session: &mut Session, mut cur: TermId, axes: &[IndexSpec]) -> Result<IndexOutcome> {
     // MATLAB `f(k)` is parsed as Part/Index. When Own is `Function[var, body]`, apply instead.
     if is_function_term(session, cur) {
-        if let Some(args) = function_call_args_from_axes(session, axes) {
+        if let Some(args) = call_args_from_axes(session, axes) {
+            let term = evaluate_apply_head_terms(session, cur, args)?;
+            return Ok(IndexOutcome::Term(term));
+        }
+    }
+
+    // Free / non-indexable head (`speye(2)` before any Own): keep call args, do not strip to `speye`.
+    if !is_indexable_target(session, cur) {
+        if let Some(args) = call_args_from_axes(session, axes) {
             let term = evaluate_apply_head_terms(session, cur, args)?;
             return Ok(IndexOutcome::Term(term));
         }
@@ -217,13 +225,28 @@ fn is_function_term(session: &Session, term: TermId) -> bool {
     )
 }
 
-fn function_call_args_from_axes(session: &mut Session, axes: &[IndexSpec]) -> Option<Vec<TermId>> {
-    match axes {
-        [IndexSpec::Scalar(IntegerIndex(k))] | [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => {
-            Some(vec![session.builder().int(*k, Default::default())])
-        }
-        _ => None,
+fn is_indexable_target(session: &Session, term: TermId) -> bool {
+    matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Collection { .. } | athena_ir::TermNode::Application { .. })
+    )
+}
+
+/// Rebuild call arguments from Index axes when the target is a call head, not a container.
+fn call_args_from_axes(session: &mut Session, axes: &[IndexSpec]) -> Option<Vec<TermId>> {
+    if axes.is_empty() {
+        return None;
     }
+    let mut args = Vec::with_capacity(axes.len());
+    for axis in axes {
+        match axis {
+            IndexSpec::Scalar(IntegerIndex(k)) | IndexSpec::LinearColumnMajor(IntegerIndex(k)) => {
+                args.push(session.builder().int(*k, Default::default()));
+            }
+            _ => return None,
+        }
+    }
+    Some(args)
 }
 
 fn flatten_column_major(session: &mut Session, target: TermId) -> TermId {

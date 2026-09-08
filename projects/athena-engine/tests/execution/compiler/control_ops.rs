@@ -252,6 +252,38 @@ fn compile_and_execute_control_index_resolves_own_binding() {
 }
 
 #[test]
+fn compile_and_execute_control_index_free_symbol_becomes_apply() {
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let speye = session.builder().symbol("speye", Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Index {
+        target: speye,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("index free");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::ApplyHead),
+            arguments,
+        }) => {
+            assert_eq!(arguments.len(), 2, "ApplyHead[speye, 2], got {arguments:?}");
+            match session.arena.get(arguments[0]) {
+                Some(TermNode::Atom(Atom::Symbol(_))) => {}
+                other => panic!("expected speye symbol head, got {other:?}"),
+            }
+            match session.arena.get(arguments[1]) {
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+                other => panic!("expected arg 2, got {other:?}"),
+            }
+        }
+        other => panic!("expected ApplyHead residual for free speye(2), got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_control_index_column_major_flatten() {
     use athena_types::IndexSpec;
 
