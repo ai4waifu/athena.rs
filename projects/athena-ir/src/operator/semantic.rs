@@ -173,6 +173,10 @@ pub enum SemanticOperator {
     Most,
     /// 反转集合（方言 `Reverse`）。
     Reverse,
+    /// 取前缀（方言 `Take`；`Take[list, n]`）。
+    Take,
+    /// 丢弃前缀（方言 `Drop`；`Drop[list, n]`）。
+    Drop,
     /// 阶乘。
     Factorial,
     /// 平方根（亦见 [`UnaryFunction::Sqrt`]）。
@@ -316,6 +320,8 @@ impl SemanticOperator {
             Self::Rest => 24,
             Self::Most => 230,
             Self::Reverse => 231,
+            Self::Take => 232,
+            Self::Drop => 233,
             Self::Factorial => 25,
             Self::Sqrt => 26,
             Self::Join => 27,
@@ -373,7 +379,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–231）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–233）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -404,6 +410,8 @@ impl SemanticOperator {
             24 => Some(Self::Rest),
             230 => Some(Self::Most),
             231 => Some(Self::Reverse),
+            232 => Some(Self::Take),
+            233 => Some(Self::Drop),
             25 => Some(Self::Factorial),
             26 => Some(Self::Sqrt),
             27 => Some(Self::Join),
@@ -496,6 +504,8 @@ impl SemanticOperator {
             Self::Rest => "Rest",
             Self::Most => "Most",
             Self::Reverse => "Reverse",
+            Self::Take => "Take",
+            Self::Drop => "Drop",
             Self::Factorial => "Factorial",
             Self::Sqrt => "Sqrt",
             Self::Join => "Join",
