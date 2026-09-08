@@ -118,6 +118,8 @@ pub struct ComputationResult {
     pub provider: Option<ResultProviderStamp>,
     /// 来源审计。
     pub provenance: Option<ResultProvenance>,
+    /// 本结果由哪次先前结果变换而来（如 evaluate → Simplify 策略）。
+    pub derived_from: Option<ResultId>,
 }
 
 impl ComputationResult {
@@ -133,6 +135,7 @@ impl ComputationResult {
             evidence: Vec::new(),
             provider: None,
             provenance: None,
+            derived_from: None,
         }
     }
 
@@ -169,6 +172,12 @@ impl ComputationResult {
     /// 附加来源。
     pub fn with_provenance(mut self, provenance: ResultProvenance) -> Self {
         self.provenance = Some(provenance);
+        self
+    }
+
+    /// 标记本结果派生自先前 [`ResultId`]（宿主策略变换链）。
+    pub fn with_derived_from(mut self, parent: ResultId) -> Self {
+        self.derived_from = Some(parent);
         self
     }
 
@@ -209,6 +218,24 @@ impl ResultStore {
     /// 读取载荷。
     pub fn get(&self, id: ResultId) -> Option<&ComputationResult> {
         self.results.get(&id)
+    }
+
+    /// 可变读取载荷。
+    pub fn get_mut(&mut self, id: ResultId) -> Option<&mut ComputationResult> {
+        self.results.get_mut(&id)
+    }
+
+    /// 将 `child` 标记为派生自 `parent`（二者均须已存在）。
+    pub fn link_derived_from(&mut self, child: ResultId, parent: ResultId) -> bool {
+        if !self.contains(parent) {
+            return false;
+        }
+        let Some(result) = self.results.get_mut(&child)
+        else {
+            return false;
+        };
+        result.derived_from = Some(parent);
+        true
     }
 
     /// 是否已分配。
