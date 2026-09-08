@@ -193,6 +193,8 @@ pub enum SemanticOperator {
     Map,
     /// 带索引的 map（方言 `MapIndexed`；`f[elem, {i}]`，`i` 从 1 起）。
     MapIndexed,
+    /// 多列表并行 map（方言 `MapThread`；`f[aᵢ, bᵢ, …]`）。
+    MapThread,
     /// 零矩阵 / 数组构造。
     Zeros,
     /// 全一阵 / 数组构造。
@@ -320,6 +322,7 @@ impl SemanticOperator {
             Self::Determinant => 34,
             Self::Map => 35,
             Self::MapIndexed => 228,
+            Self::MapThread => 229,
             Self::Zeros => 36,
             Self::Ones => 37,
             Self::Eye => 38,
@@ -364,7 +367,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–228）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–229）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -405,6 +408,7 @@ impl SemanticOperator {
             34 => Some(Self::Determinant),
             35 => Some(Self::Map),
             228 => Some(Self::MapIndexed),
+            229 => Some(Self::MapThread),
             36 => Some(Self::Zeros),
             37 => Some(Self::Ones),
             38 => Some(Self::Eye),
@@ -494,6 +498,7 @@ impl SemanticOperator {
             Self::Determinant => "Determinant",
             Self::Map => "Map",
             Self::MapIndexed => "MapIndexed",
+            Self::MapThread => "MapThread",
             Self::Zeros => "Zeros",
             Self::Ones => "Ones",
             Self::Eye => "Eye",
