@@ -22,7 +22,7 @@ use crate::{
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
             evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
-            evaluate_take_terms, evaluate_drop_terms, evaluate_matrix_constructor_terms,
+            evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms, evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
@@ -199,6 +199,26 @@ impl<'a> ExecutionHost<'a> {
         let list = self.slot_as_term(args[0])?;
         let count = self.slot_as_term(args[1])?;
         let term = evaluate_drop_terms(self.session, list, count)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_append(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Append.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_append_terms(self.session, list, elem)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_prepend(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Prepend.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let elem = self.slot_as_term(args[1])?;
+        let term = evaluate_prepend_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -686,6 +706,12 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Drop.discriminant() {
             return self.apply_drop(args);
+        }
+        if op.0 == SemanticOperator::Append.discriminant() {
+            return self.apply_append(args);
+        }
+        if op.0 == SemanticOperator::Prepend.discriminant() {
+            return self.apply_prepend(args);
         }
         if op.0 == SemanticOperator::Range.discriminant() {
             return self.apply_range(args);

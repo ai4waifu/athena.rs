@@ -225,6 +225,38 @@ fn compile_and_execute_flatten_nested() {
 }
 
 #[test]
+fn compile_and_execute_append_and_prepend() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let list = session.builder().list(vec![one, two], Default::default());
+
+    let append_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Append, vec![list, three], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(append_term)).expect("append");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, two, three] => {}
+        other => panic!("expected Append, got {other:?}"),
+    }
+
+    let base = session.builder().list(vec![two, three], Default::default());
+    let prepend_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Prepend, vec![base, one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(prepend_term)).expect("prepend");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, two, three] => {}
+        other => panic!("expected Prepend, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
