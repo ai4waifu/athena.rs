@@ -28,11 +28,14 @@ fn compile_routes_root_by_plan_intent() {
     let mut session = Session::new();
     let term = session.builder().int(7, Default::default());
     let request = AthenaRequest::Term(term);
-    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("compile consumes plan");
+    let request_prog = canonicalize_request(&request);
+    assert_eq!(request_prog.term_index, Some(term.0));
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("compile consumes request and plan");
     assert!(!module.regions.is_empty());
 
     let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("staged");
     assert_eq!(staged.plan.intent, PlanIntent::EvaluateTerm);
+    assert_eq!(staged.plan.request_fingerprint, request_prog.fingerprint);
     assert!(!staged.plan.provider_required);
 }
 
