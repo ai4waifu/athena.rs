@@ -95,7 +95,7 @@ fn crt_combine_two_primes_then_reconstruct() {
 }
 
 #[test]
-fn smoke_groebner_over_fp_then_reconstruct() {
+fn groebner_over_fp_then_reconstruct() {
     use athena_engine::domains::polynomial::{GroebnerLimits, compute_groebner_basis, reconstruct_polynomial_from_modular_image};
     let mut rings = RingTable::new();
     let q = rings.intern(CoefficientDomain::Rational, vec![SymbolId(0)], MonomialOrder::Lex).unwrap();

@@ -1,4 +1,4 @@
-//! Session 语义表冒烟测试。
+//! Session 语义表合同测试。
 
 use athena_engine::runtime::{
     ComputationResult, CoverageStatus, ResultStore, RuntimeValue, Session, ValueStore, semantic::AssumptionScopeTable,

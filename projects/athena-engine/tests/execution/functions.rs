@@ -1,4 +1,4 @@
-//! Built-in unary function registry smoke.
+//! Built-in unary function registry contract.
 
 use athena_engine::execution::builtins::registry::lookup_unary;
 use athena_ir::UnaryFunction;

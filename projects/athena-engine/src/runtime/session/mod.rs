@@ -194,7 +194,7 @@ impl Session {
             domain_payloads: DomainPayloadStore::new(),
             mgraph: MGraphState::default(),
             egraph: EGraph::new(),
-            egraph_budget: SaturationBudget::smoke(),
+            egraph_budget: SaturationBudget::tight(),
             values: ValueStore::default(),
             results: ResultStore::default(),
             frontiers: FrontierStore::new(),

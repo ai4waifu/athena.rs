@@ -168,11 +168,13 @@ fn outer_candidate_is_not_stored_in_core() {
 }
 
 #[test]
-fn close_seeds_placeholder_does_not_panic() {
+fn close_seeds_preserves_admitted_relation_count() {
     let mut semantic = SemanticCore::new();
     admit_ok(&mut semantic, sample_claim(1));
+    assert_eq!(semantic.relation_count(), 1);
     semantic.core.close(&ClosureSeeds { scopes: vec![ScopeRef::UNCONDITIONAL] });
     assert_eq!(semantic.relation_count(), 1);
+    assert!(!semantic.admission_journal().is_empty());
 }
 
 #[test]

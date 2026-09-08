@@ -1,4 +1,4 @@
-//! Real 表示冒烟测试。
+//! Real 表示合同测试。
 
 use athena_numeric::{Decimal, Real};
 

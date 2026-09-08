@@ -127,7 +127,7 @@ fn large_integer_coefficients_mul() {
 }
 
 #[test]
-fn distributive_law_smoke() {
+fn distributive_law_holds_for_univariate() {
     let (rings, ring) = z_x_ring();
     let a = build_univariate(&rings, ring, &[(2, 1)]);
     let b = build_univariate(&rings, ring, &[(1, 1), (1, 0)]);

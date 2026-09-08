@@ -1,4 +1,4 @@
-//! Execution smoke via neutral term request builders.
+//! Neutral term request builders drive ExecutionIR evaluation.
 
 use athena_testing::{SessionFixture, assert_exact_integer, term_request};
 

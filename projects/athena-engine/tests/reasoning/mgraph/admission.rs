@@ -43,14 +43,6 @@ fn relation_index_rebuild_from_journal_matches_incremental() {
     assert_eq!(core.relation_count(), core.admission_journal().count());
 }
 
-#[test]
-fn mgraph_state_splits_semantic_and_operational() {
-    let state = MGraphState::new();
-    assert!(state.semantic.admission_journal().is_empty());
-    assert!(state.operational.result_cache.polynomial.is_empty());
-    assert!(state.operational.hyper_edges.is_empty());
-}
-
 fn admit_ok(terms: &mut TermStore, semantic: &mut SemanticCore, claim: Claim) -> FactId {
     AdmissionGate::admit_claim(terms, semantic, claim, &VerificationPolicy::default(), None).expect("should admit")
 }

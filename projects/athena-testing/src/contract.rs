@@ -1,4 +1,4 @@
-//! 合同冒烟 — 仅类型化构造与求值。
+//! 中性合同 — 仅类型化构造与求值。
 //!
 //! 这些 lib 测试为中立验收套件播种。产品 crate 仍拥有
 //! `tests/main.rs` 下的大型集成覆盖。本包绝不可
@@ -18,7 +18,7 @@ use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, T
 use athena_numeric::Integer;
 use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, ComputationStatus};
 
-use athena_testing::{SessionFixture, assert_exact_integer, goal_request};
+use crate::{SessionFixture, assert_exact_integer, goal_request};
 
 #[test]
 fn math_constant_pi_is_typed_atom_not_user_symbol() {
@@ -267,11 +267,12 @@ fn structural_term_equality_admits_into_exact_uf_and_proof_forest() {
 #[test]
 fn congruence_admit_keeps_classes_per_modulus() {
     let mut fx = SessionFixture::new();
-    fx.session_mut().admit_congruence(7, 10, 20).expect("mod7");
-    fx.session_mut().admit_congruence(11, 10, 30).expect("mod11");
+    // 10 ≡ 17 (mod 7)，10 ≡ 21 (mod 11)
+    fx.session_mut().admit_congruence(7, 10, 17).expect("mod7");
+    fx.session_mut().admit_congruence(11, 10, 21).expect("mod11");
     let congruence = &fx.session().mgraph.semantic.derived.congruence;
-    assert_eq!(congruence.find(7, 10), congruence.find(7, 20));
-    assert_ne!(congruence.find(7, 10), congruence.find(7, 30));
+    assert_eq!(congruence.find(7, 10), congruence.find(7, 17));
+    assert_ne!(congruence.find(7, 10), congruence.find(7, 21));
     assert_eq!(congruence.modulus_count(), 2);
 }
 

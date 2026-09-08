@@ -1,4 +1,4 @@
-//! BSGS 链冒烟测试（自 `src/algebra/bsgs.rs` 迁出）。
+//! BSGS 链合同测试（自 `src/algebra/bsgs.rs` 迁出）。
 
 use athena_engine::domains::algebra::{BsgsChain, RawPerm};
 use athena_numeric::Integer;
