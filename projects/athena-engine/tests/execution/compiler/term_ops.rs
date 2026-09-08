@@ -300,6 +300,67 @@ fn compile_and_execute_member_q_sort_and_dedupe() {
 }
 
 #[test]
+fn compile_and_execute_count_partition_constant_array() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+
+    let list = session.builder().list(vec![one, one, two], Default::default());
+    let count_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Count, vec![list, one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(count_term)).expect("count");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2) => {}
+        other => panic!("expected Count==2, got {other:?}"),
+    }
+
+    let seq = session.builder().list(vec![one, two, three, four], Default::default());
+    let part_term = session
+        .builder()
+        .application_semantic(SemanticOperator::Partition, vec![seq, two], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(part_term)).expect("partition");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: chunks, .. }) if chunks.len() == 2 => {
+            match session.arena.get(chunks[0]) {
+                Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, two] => {}
+                other => panic!("expected first chunk, got {other:?}"),
+            }
+            match session.arena.get(chunks[1]) {
+                Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [three, four] => {}
+                other => panic!("expected second chunk, got {other:?}"),
+            }
+        }
+        other => panic!("expected Partition, got {other:?}"),
+    }
+
+    let zero = session.builder().int(0, Default::default());
+    let three_n = session.builder().int(3, Default::default());
+    let const_term = session
+        .builder()
+        .application_semantic(SemanticOperator::ConstantArray, vec![zero, three_n], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(const_term)).expect("const");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
+            for item in items {
+                match session.arena.get(*item) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(0) => {}
+                    other => panic!("expected 0, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected ConstantArray, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 
