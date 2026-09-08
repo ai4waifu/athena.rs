@@ -1,6 +1,6 @@
 //! 封闭数学常量（前端中立原子）。
 //!
-//! 方言表层名（`Pi`、`pi`、`π`、`E`、`e`、`ℯ`）仅在 SXO lowering 映射到此。
+//! 方言表层名（`Pi`、`pi`、`π`、`E`、`e`、`ℯ`、`Infinity`、`Inf`）仅在 SXO lowering 映射到此。
 //! Athena 执行不得从用户符号显示名反向推断这些常量。
 
 /// 类型化数学常量原子载荷。
@@ -10,6 +10,8 @@ pub enum MathematicalConstant {
     Pi,
     /// 自然对数底 e。
     EulerNumber,
+    /// 正无穷（无向/正号无穷；负无穷由 `-Infinity` 积表示）。
+    Infinity,
 }
 
 impl MathematicalConstant {
@@ -18,6 +20,7 @@ impl MathematicalConstant {
         match self {
             Self::Pi => 1,
             Self::EulerNumber => 2,
+            Self::Infinity => 3,
         }
     }
 
@@ -26,6 +29,7 @@ impl MathematicalConstant {
         match self {
             Self::Pi => "Pi",
             Self::EulerNumber => "E",
+            Self::Infinity => "Infinity",
         }
     }
 }

@@ -61,6 +61,25 @@ fn math_constant_euler_number_is_not_user_symbol_e() {
 }
 
 #[test]
+fn math_constant_infinity_is_typed_atom_not_user_symbol() {
+    let mut fx = SessionFixture::new();
+    let inf = {
+        let mut t = fx.terms();
+        t.math_constant(MathematicalConstant::Infinity)
+    };
+    let named = {
+        let mut t = fx.terms();
+        t.symbol("Infinity")
+    };
+    assert!(!fx.structural_eq(inf, named));
+    match fx.session().arena.get(inf) {
+        Some(TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity))) => {}
+        other => panic!("expected typed Infinity constant, got {other:?}"),
+    }
+    assert_eq!(MathematicalConstant::Infinity.discriminant(), 3);
+}
+
+#[test]
 fn ordered_collection_carries_explicit_kind() {
     let mut fx = SessionFixture::new();
     let one = {
