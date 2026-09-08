@@ -27,7 +27,7 @@ pub use exact::{
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
 pub use object_ref::{MatrixObjectStore, MatrixRef};
-pub use ops::{dot, hadamard, index_scalar, matmul, slice_matrix, transpose};
+pub use ops::{cross, dot, hadamard, index_scalar, matmul, slice_matrix, transpose};
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;
 pub use result::{DEFAULT_PIVOT_THRESHOLD, LinearAlgebraResult, LinearAlgebraValue, execute_linear_algebra, operation_name};
