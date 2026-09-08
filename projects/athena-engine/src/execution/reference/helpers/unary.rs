@@ -121,6 +121,12 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                     Ok(push_symbol_name(session, &name))
                 }
             },
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Number(n))) if n.as_exact_integer().is_some() => {
+                Ok(push_symbol_name(session, "Integer"))
+            }
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Symbol(_))) => Ok(push_symbol_name(session, "Symbol")),
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::String(_))) => Ok(push_symbol_name(session, "String")),
+            Some(athena_ir::TermNode::Atom(athena_ir::Atom::Boolean(_))) => Ok(push_symbol_name(session, "Symbol")),
             _ => Ok(push_semantic(session, SemanticOperator::Head, vec![term])),
         },
         _ => Err(diag("semantic_operator_not_implemented")),

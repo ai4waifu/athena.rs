@@ -20,8 +20,12 @@ pub enum ArgumentEvaluationKind {
 /// 当前表仍是迁移期内核默认值（历史 evaluator 属性的显式化）。
 /// 禁止在 `lower_pure_expr` 外再复制一份 `Hold`/`Sum` 特例。
 pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: usize, index: usize) -> ArgumentEvaluationKind {
-    // `Simplify` captures its argument: it is an algebraic transform of a value, not a fresh
-    // source evaluation. Evaluating first would re-apply ambient Own (result transform leak).
+    // Migration-default captures. Prefer dialect-injected policy long-term (Living `04`).
+    // Hold / HoldComplete / Unevaluated / Function: true hold barriers.
+    // Timing / Trace / ParallelEvaluate: Mathematica HoldAll — capture is language-correct;
+    //   wall-clock / step-list / scheduler runtimes are still missing (residuals).
+    // InputForm / Cancel: **not** HoldAll in Mathematica — kept here only as temporary
+    //   Form-preservation stubs; must move to presentation / algebra contracts, not stay as capture.
     if matches!(
         operator,
         SemanticOperator::Hold
@@ -60,9 +64,7 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
     if index == 1 && matches!(operator, SemanticOperator::CollectMatches | SemanticOperator::Matches) && arg_count >= 2 {
         return ArgumentEvaluationKind::CaptureAsTerm;
     }
-    // `Head`: HoldFirst — capture arg 0 so `Head[1+2]` sees `Add`, not `3`.
-    if index == 0 && operator == SemanticOperator::Head {
-        return ArgumentEvaluationKind::CaptureAsTerm;
-    }
+    // `Head` evaluates its argument (Mathematica default). Do **not** HoldFirst:
+    // `Head[1+2]` must see the value `3`, not unevaluated `Add`.
     ArgumentEvaluationKind::Evaluate
 }
