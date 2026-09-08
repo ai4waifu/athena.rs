@@ -241,6 +241,7 @@ fn lower_ops(
                     ConstantValue::Unit => VmConstant::Unit,
                     ConstantValue::Term(term) => VmConstant::Term(*term),
                     ConstantValue::Symbol(symbol) => VmConstant::Symbol(*symbol),
+                    ConstantValue::Value(value) => VmConstant::Value(*value),
                 };
                 let const_index = constants.len() as u32;
                 constants.push(vm_const);

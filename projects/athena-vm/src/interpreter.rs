@@ -115,6 +115,7 @@ impl Interpreter {
             VmConstant::Unit => SlotValue::Unit,
             VmConstant::Term(term) => SlotValue::Term(term),
             VmConstant::Symbol(symbol) => SlotValue::Symbol(symbol),
+            VmConstant::Value(value) => SlotValue::Value(value),
         };
         self.slots.set(dst, slot);
         None

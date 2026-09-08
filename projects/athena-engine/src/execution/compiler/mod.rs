@@ -291,6 +291,50 @@ impl ExecutionCompiler {
                         .detail("reason", "missing_term")),
                 }
             }
+            SessionCommand::DefineMatrix { symbol, matrix } => {
+                let value_id = session.insert_matrix_value(*matrix);
+                let key = builder.ssa();
+                let key_constant = builder.push_constant(ConstantValue::symbol(*symbol));
+                let value_ssa = builder.ssa();
+                let value_constant = builder.push_constant(ConstantValue::value(value_id));
+                let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
+                let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));
+                let result = builder.ssa();
+                blocks.push(BasicBlock {
+                    id: block_id,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            result: Some(key),
+                            result_type: ExecutionValueType::Symbol,
+                            kind: OperationKind::Constant { constant: key_constant },
+                            effect_in: None,
+                            effect_out: None,
+                        },
+                        Operation {
+                            result: Some(value_ssa),
+                            result_type: ExecutionValueType::Value,
+                            kind: OperationKind::Constant { constant: value_constant },
+                            effect_in: None,
+                            effect_out: None,
+                        },
+                        Operation {
+                            result: Some(result),
+                            result_type: ExecutionValueType::Unit,
+                            kind: OperationKind::WriteBinding {
+                                key,
+                                value: value_ssa,
+                                kind: BindingKind::Session,
+                                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                            },
+                            effect_in: Some(effect_in),
+                            effect_out: Some(effect_out),
+                        },
+                    ],
+                    terminator: Terminator::return_value(result),
+                });
+                Ok(result)
+            }
             SessionCommand::RegisterRuleDispatch { table, rule } => {
                 let effect_in = builder.push_effect(EffectKind::WriteBinding, None);
                 let effect_out = builder.push_effect(EffectKind::WriteBinding, Some(effect_in));

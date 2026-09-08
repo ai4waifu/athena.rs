@@ -78,6 +78,7 @@ fn hash_constant(hasher: &mut DefaultHasher, constant: &ConstantValue) {
         ConstantValue::Boolean(v) => v.hash(hasher),
         ConstantValue::Symbol(s) => s.0.hash(hasher),
         ConstantValue::Term(t) => t.0.hash(hasher),
+        ConstantValue::Value(v) => v.0.hash(hasher),
         ConstantValue::Unit => {}
     }
 }

@@ -40,6 +40,8 @@ pub enum ConstantValue {
     Symbol(SymbolId),
     /// 已存在于 `TermStore` 的 intern 项根。
     Term(TermId),
+    /// 已存在于 `ValueStore` 的运行时值句柄（含矩阵 DomainObject）。
+    Value(ValueId),
     /// Unit 常量。
     Unit,
 }
@@ -98,6 +100,11 @@ impl ConstantValue {
     /// Term 常量。
     pub fn term(term: TermId) -> Self {
         Self::Term(term)
+    }
+
+    /// ValueStore 句柄常量。
+    pub fn value(value: ValueId) -> Self {
+        Self::Value(value)
     }
 }
 
