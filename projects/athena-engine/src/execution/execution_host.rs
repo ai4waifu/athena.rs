@@ -22,7 +22,7 @@ use crate::{
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
             evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_join_terms, evaluate_map_terms, evaluate_matches_terms, evaluate_matrix_constructor_terms,
-            evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
+            evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
         },
@@ -248,6 +248,15 @@ impl<'a> ExecutionHost<'a> {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_matrix_constructor_terms(self.session, op, terms)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_diagonal_matrix(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        let mut terms = Vec::with_capacity(args.len());
+        for slot in args {
+            terms.push(self.slot_as_term(*slot)?);
+        }
+        let term = evaluate_diagonal_matrix_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
@@ -640,6 +649,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Eye.discriminant() {
             return self.apply_matrix_constructor(SemanticOperator::Eye, args);
+        }
+        if op.0 == SemanticOperator::DiagonalMatrix.discriminant() {
+            return self.apply_diagonal_matrix(args);
         }
         if op.0 == SemanticOperator::ElementwiseMultiply.discriminant() {
             return self.apply_elementwise(SemanticOperator::ElementwiseMultiply, args);

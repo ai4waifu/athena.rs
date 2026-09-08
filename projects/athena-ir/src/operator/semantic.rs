@@ -197,6 +197,8 @@ pub enum SemanticOperator {
     Ones,
     /// 单位矩阵构造。
     Eye,
+    /// 对角矩阵构造（由对角元向量）。
+    DiagonalMatrix,
     /// 立即重写规则。
     Rule,
     /// 延迟重写规则。
@@ -290,6 +292,7 @@ impl SemanticOperator {
             Self::Zeros => 36,
             Self::Ones => 37,
             Self::Eye => 38,
+            Self::DiagonalMatrix => 49,
             Self::Rule => 39,
             Self::RuleDeferred => 40,
             Self::ReplaceAll => 41,
@@ -359,6 +362,7 @@ impl SemanticOperator {
             36 => Some(Self::Zeros),
             37 => Some(Self::Ones),
             38 => Some(Self::Eye),
+            49 => Some(Self::DiagonalMatrix),
             39 => Some(Self::Rule),
             40 => Some(Self::RuleDeferred),
             41 => Some(Self::ReplaceAll),
@@ -432,6 +436,7 @@ impl SemanticOperator {
             Self::Zeros => "Zeros",
             Self::Ones => "Ones",
             Self::Eye => "Eye",
+            Self::DiagonalMatrix => "DiagonalMatrix",
             Self::Rule => "Rule",
             Self::RuleDeferred => "RuleDeferred",
             Self::ReplaceAll => "ReplaceAll",
