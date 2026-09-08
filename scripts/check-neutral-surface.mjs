@@ -52,8 +52,8 @@ const banned = [
     re: /operators\.intern\(\s*"(Plus|Times|Simplify|Integrate|Limit|Define|LinearSolve|Cond|Recover|Sin|Cos|D|SetDelayed|RuleDelayed|OwnValue|DownValue)"\s*\)/,
     why: "Extension intern of core surface name",
   },
-  {
-    re: /\.extensions\.intern\(\s*"(Indeterminate|Re|Element|UnitStep|HeavisideTheta|KroneckerDelta|DiscreteDelta)"\s*\)/,
+    {
+    re: /\.extensions\.intern\(\s*"(Indeterminate|Re|Element|UnitStep|HeavisideTheta|KroneckerDelta|DiscreteDelta|HoldComplete|Unevaluated)"\s*\)/,
     why: "Extension intern of core math surface name (use SemanticOperator)",
   },
   {
