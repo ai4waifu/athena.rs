@@ -1,6 +1,6 @@
-//! 线性代数强类型请求（输入为 [`MatrixRef`]）。
+//! 线性代数强类型请求（输入为 [`MatrixRef`] / [`super::operand::MatrixOperand`]）。
 
-use super::object_ref::MatrixRef;
+use super::{object_ref::MatrixRef, operand::MatrixOperand};
 
 /// 线性代数域请求（禁止字符串算法名）。
 ///
@@ -9,8 +9,8 @@ use super::object_ref::MatrixRef;
 pub enum LinearAlgebraRequest {
     /// 转置。
     Transpose {
-        /// 输入。
-        matrix: MatrixRef,
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
     },
     /// 标量索引（内核 0-based）。
     Index {
@@ -94,7 +94,7 @@ pub enum LinearAlgebraRequest {
 }
 
 impl LinearAlgebraRequest {
-    /// Owning 复制（仅 `MatrixRef` 句柄）。
+    /// Owning 复制（仅句柄）。
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::Transpose { matrix } => Self::Transpose { matrix: *matrix },

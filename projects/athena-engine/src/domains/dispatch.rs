@@ -12,7 +12,7 @@ use crate::{
         galois::{GaloisRequest, GaloisResult, execute_galois_with_tables},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         group::{GroupRequest, GroupResult, execute_group_with_table_mut},
-        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra},
+        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, execute_linear_algebra_with_bindings},
         number_theory::{NumberTheoryRequest, NumberTheoryResult, execute_number_theory},
         optimization::{OptimizationRequest, OptimizationResult, execute_optimization},
         plan_exec::interpret_domain_plan,
@@ -115,7 +115,11 @@ pub fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Re
             Ok(DomainResult::GaloisTheory(execute_galois_with_tables(req, session.rings.field_table_mut(), &mut session.groups)))
         }
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
-        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra(req, &session.matrix_objects))),
+        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra_with_bindings(
+            req,
+            &session.matrix_objects,
+            &|symbol| session.defs.matrix_binding(symbol),
+        ))),
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
         DomainRequest::Solve(req) => Ok(DomainResult::Solve(execute_solve(session, req))),
     }

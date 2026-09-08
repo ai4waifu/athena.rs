@@ -18,7 +18,7 @@ use crate::{
         galois::{GaloisRequest, GaloisResult, execute_galois_with_tables},
         graph_theory::{GraphTheoryRequest, GraphTheoryResult, execute_graph_theory},
         group::{GroupRequest, GroupResult, execute_group_with_table_mut},
-        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, MatrixRef, execute_linear_algebra},
+        linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, MatrixObjectStore, MatrixRef, execute_linear_algebra_with_bindings},
         payload::DomainPayloadStore,
         polynomial::{
             PolynomialObjectStore, PolynomialRequest, PolynomialResult, RingTable, execute_polynomial_mgraph, execute_polynomial_with_rings,
@@ -408,9 +408,9 @@ impl Session {
         execute_graph_theory(request)
     }
 
-    /// 执行线性代数域请求（经 `Session::matrix_objects` 解析）。
+    /// 执行线性代数域请求（经 `Session::matrix_objects` 与矩阵绑定解析）。
     pub fn execute_linear_algebra(&self, request: LinearAlgebraRequest) -> LinearAlgebraResult {
-        execute_linear_algebra(request, &self.matrix_objects)
+        execute_linear_algebra_with_bindings(request, &self.matrix_objects, &|symbol| self.defs.matrix_binding(symbol))
     }
 
     /// 经 `Session::groups` 执行群论域请求（可 intern）。

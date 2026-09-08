@@ -11,6 +11,7 @@ mod exact;
 mod index;
 mod machine;
 mod object_ref;
+mod operand;
 mod ops;
 mod parent;
 mod request;
@@ -27,10 +28,13 @@ pub use exact::{
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
 pub use object_ref::{MatrixObjectStore, MatrixRef};
+pub use operand::MatrixOperand;
 pub use ops::{cross, dot, hadamard, index_scalar, matmul, slice_matrix, transpose};
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;
-pub use result::{DEFAULT_PIVOT_THRESHOLD, LinearAlgebraResult, LinearAlgebraValue, execute_linear_algebra, operation_name};
+pub use result::{
+    DEFAULT_PIVOT_THRESHOLD, LinearAlgebraResult, LinearAlgebraValue, execute_linear_algebra, execute_linear_algebra_with_bindings, operation_name,
+};
 pub use shape::{Layout, MatrixShape, StorageOrder};
 pub use status::{AlgorithmGuarantee, MachineSolveWitness, SolveDisposition};
 pub use value::{MatrixBuffer, MatrixEntry, MatrixValue};
