@@ -5,7 +5,12 @@ use athena_ir::SemanticOperator;
 
 #[test]
 fn hold_and_function_capture_all_args() {
-    for op in [SemanticOperator::Hold, SemanticOperator::Function] {
+    for op in [
+        SemanticOperator::Hold,
+        SemanticOperator::HoldComplete,
+        SemanticOperator::Unevaluated,
+        SemanticOperator::Function,
+    ] {
         assert_eq!(argument_evaluation_for_semantic(op, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
         assert_eq!(argument_evaluation_for_semantic(op, 2, 1), ArgumentEvaluationKind::CaptureAsTerm);
     }
