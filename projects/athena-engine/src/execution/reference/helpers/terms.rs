@@ -521,7 +521,7 @@ pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixVal
     Ok(push_list(session, out))
 }
 
-fn matrix_entry_to_term_session(session: &mut Session, m: &MatrixValue, row: u64, col: u64) -> Result<TermId> {
+pub(crate) fn matrix_entry_to_term_session(session: &mut Session, m: &MatrixValue, row: u64, col: u64) -> Result<TermId> {
     Ok(match m.get(row, col)? {
         MatrixEntry::Rational(r) => rational_to_term_session(session, &r),
         MatrixEntry::Integer(n) => {

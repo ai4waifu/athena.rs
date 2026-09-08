@@ -18,10 +18,10 @@ use crate::{
         provider::ProviderCallHandoff,
         push_semantic,
         reference::{
-            CompareOutcome, IndexOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
+            CompareOutcome, IndexOutcome, MatrixStoreOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
             evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
-            evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
+            evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
@@ -31,6 +31,7 @@ use crate::{
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
+            store_index_axes_matrix,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -1238,6 +1239,22 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("axes", op.0),
             ));
         };
+        if let SlotValue::Value(value_id) = target {
+            if let Some(matrix_ref) = self.session.matrix_of_value(value_id) {
+                let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+                else {
+                    return Ok(HostOutcome::Diagnostic(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ExecutionHost")
+                            .detail("reason", "index_matrix_missing"),
+                    ));
+                };
+                return Ok(match evaluate_index_axes_matrix(self.session, &matrix, &axes)? {
+                    IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
+                    IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
+                });
+            }
+        }
         let cur = self.slot_as_term(target)?;
         Ok(match evaluate_index_axes(self.session, cur, &axes)? {
             IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
@@ -1255,6 +1272,23 @@ impl VmHost for ExecutionHost<'_> {
                     .detail("axes", op.0),
             ));
         };
+        if let SlotValue::Value(value_id) = target {
+            if let Some(matrix_ref) = self.session.matrix_of_value(value_id) {
+                let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+                else {
+                    return Ok(HostOutcome::Diagnostic(
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("component", "ExecutionHost")
+                            .detail("reason", "store_index_matrix_missing"),
+                    ));
+                };
+                let val = self.slot_as_term(value)?;
+                return Ok(match store_index_axes_matrix(self.session, matrix, &axes, val)? {
+                    MatrixStoreOutcome::Value(stored) => HostOutcome::Value(SlotValue::Value(stored)),
+                    MatrixStoreOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
+                });
+            }
+        }
         let cur = self.slot_as_term(target)?;
         let val = self.slot_as_term(value)?;
         Ok(match store_index_axes(self.session, cur, &axes, val)? {
