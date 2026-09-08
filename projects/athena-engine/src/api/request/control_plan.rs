@@ -111,4 +111,11 @@ pub enum ControlPlan {
         /// 中性模式。
         pattern: crate::reasoning::trs::TermPattern,
     },
+    /// 中性模式剔除（方言 `DeleteCases` 等 lowering 目标 · ）。
+    CollectRejects {
+        /// 源集合项。
+        source: TermId,
+        /// 中性模式。
+        pattern: crate::reasoning::trs::TermPattern,
+    },
 }

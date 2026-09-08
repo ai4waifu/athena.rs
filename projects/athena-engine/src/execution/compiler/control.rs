@@ -46,6 +46,7 @@ impl ExecutionCompiler {
             }
             ControlPlan::Match { target, pattern } => self.lower_match_pattern(session, builder, blocks, block_id, *target, pattern),
             ControlPlan::CollectMatches { source, pattern } => self.lower_collect_matches(session, builder, blocks, block_id, *source, pattern),
+            ControlPlan::CollectRejects { source, pattern } => self.lower_collect_rejects(session, builder, blocks, block_id, *source, pattern),
         }
     }
 
@@ -87,6 +88,35 @@ impl ExecutionCompiler {
         for item in items {
             let mut binds = std::collections::HashMap::new();
             if crate::execution::builtins::patterns::match_term_pattern(session, item, pattern, &mut binds) {
+                out.push(item);
+            }
+        }
+        let collection = session.builder().collection(CollectionKind::OrderedCollection, out, Default::default());
+        self.lower_term(session, builder, blocks, entry, collection)
+    }
+
+    /// 用 [`TermPattern`] 在编译期剔除已物化集合中的匹配项。
+    pub(crate) fn lower_collect_rejects(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        blocks: &mut Vec<BasicBlock>,
+        entry: BlockId,
+        source: TermId,
+        pattern: &crate::reasoning::trs::TermPattern,
+    ) -> Result<SsaValueId> {
+        let items = match session.arena.get(source) {
+            Some(TermNode::Collection { elements, .. }) => elements.clone(),
+            _ => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionCompiler")
+                    .detail("status", "collect_rejects_source_not_collection"));
+            }
+        };
+        let mut out = Vec::new();
+        for item in items {
+            let mut binds = std::collections::HashMap::new();
+            if !crate::execution::builtins::patterns::match_term_pattern(session, item, pattern, &mut binds) {
                 out.push(item);
             }
         }
