@@ -110,3 +110,19 @@ fn compile_command_consumes_owned_session_command() {
     assert!(staged.request.command.is_some());
     assert_eq!(staged.plan.intent, PlanIntent::SessionCommand);
 }
+
+#[test]
+fn compile_control_consumes_owned_control_plan() {
+    use athena_engine::api::request::ControlPlan;
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![AthenaRequest::Term(one), AthenaRequest::Term(two)],
+    });
+    let staged = ExecutionCompiler::new().compile_staged(&mut session, &request).expect("control staged");
+    assert_eq!(staged.request.payload_tag, Some("Sequence"));
+    assert!(staged.request.control.is_some());
+    assert_eq!(staged.plan.intent, PlanIntent::RunControl);
+}

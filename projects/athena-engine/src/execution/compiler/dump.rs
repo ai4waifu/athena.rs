@@ -28,7 +28,9 @@ pub type SemanticStageView = SemanticProgram;
 pub type CfgSsaStageView = CfgSsaProgram;
 
 /// 一次编译的四阶段观测（由具名程序投影）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// **不**实现 [`Clone`]。`RequestProgram` 含控制计划 owning 拷贝。
+#[derive(Debug, PartialEq)]
 pub struct CompileObservation {
     /// Request 程序。
     pub request: RequestProgram,

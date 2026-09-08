@@ -5,6 +5,8 @@ use athena_types::TermId;
 use super::AthenaRequest;
 
 /// 控制流计划。分支、循环、作用域执行走此路径，不得只压成普通符号应用。
+///
+/// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
 #[derive(Debug, PartialEq)]
 pub enum ControlPlan {
     /// 顺序执行若干子请求，结果取最后一项（空序列无值）。
@@ -118,4 +120,77 @@ pub enum ControlPlan {
         /// 中性模式。
         pattern: crate::reasoning::trs::TermPattern,
     },
+}
+
+impl ControlPlan {
+    /// Owning 复制。
+    pub fn owning_copy(&self) -> Self {
+        match self {
+            Self::Sequence { steps } => Self::Sequence {
+                steps: steps.iter().map(AthenaRequest::owning_copy).collect(),
+            },
+            Self::Branch { condition, then_branch, else_branch } => Self::Branch {
+                condition: *condition,
+                then_branch: Box::new(then_branch.owning_copy()),
+                else_branch: else_branch.as_ref().map(|b| Box::new(b.owning_copy())),
+            },
+            Self::Cond { arms, otherwise } => Self::Cond {
+                arms: arms
+                    .iter()
+                    .map(|(cond, branch)| (*cond, Box::new(branch.owning_copy())))
+                    .collect(),
+                otherwise: otherwise.as_ref().map(|b| Box::new(b.owning_copy())),
+            },
+            Self::LoopWhile { condition, body } => Self::LoopWhile {
+                condition: *condition,
+                body: Box::new(body.owning_copy()),
+            },
+            Self::CountedLoop { variable, iterator, body } => Self::CountedLoop {
+                variable: *variable,
+                iterator: *iterator,
+                body: Box::new(body.owning_copy()),
+            },
+            Self::Iterate { binder, range, body, evaluation } => Self::Iterate {
+                binder: *binder,
+                range: *range,
+                body: Box::new(body.owning_copy()),
+                evaluation: *evaluation,
+            },
+            Self::Recover { body, handler } => Self::Recover {
+                body: Box::new(body.owning_copy()),
+                handler: Box::new(handler.owning_copy()),
+            },
+            Self::Reject => Self::Reject,
+            Self::LocalScope { body } => Self::LocalScope {
+                body: Box::new(body.owning_copy()),
+            },
+            Self::LexicalScope { body } => Self::LexicalScope {
+                body: Box::new(body.owning_copy()),
+            },
+            Self::DynamicScope { body } => Self::DynamicScope {
+                body: Box::new(body.owning_copy()),
+            },
+            Self::Index { target, axes } => Self::Index {
+                target: *target,
+                axes: axes.clone(),
+            },
+            Self::StoreIndex { target, axes, value } => Self::StoreIndex {
+                target: *target,
+                axes: axes.clone(),
+                value: *value,
+            },
+            Self::Match { target, pattern } => Self::Match {
+                target: *target,
+                pattern: pattern.owning_copy(),
+            },
+            Self::CollectMatches { source, pattern } => Self::CollectMatches {
+                source: *source,
+                pattern: pattern.owning_copy(),
+            },
+            Self::CollectRejects { source, pattern } => Self::CollectRejects {
+                source: *source,
+                pattern: pattern.owning_copy(),
+            },
+        }
+    }
 }
