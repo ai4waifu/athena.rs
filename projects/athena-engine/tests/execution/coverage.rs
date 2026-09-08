@@ -386,7 +386,7 @@ fn linear_solve_via_domain_goal() {
         vec![Rational::new(Integer::from_i64(2), Integer::from_i64(1)), Rational::new(Integer::from_i64(3), Integer::from_i64(1))],
     )
     .unwrap();
-    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a, b })));
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a: a.into(), b: b.into() })));
     let result_id = execution::execute_ir_request(&mut c.s, request).expect("goal");
     let loaded = c.s.results.get(result_id).expect("result");
     let value_id = loaded.value.expect("value");

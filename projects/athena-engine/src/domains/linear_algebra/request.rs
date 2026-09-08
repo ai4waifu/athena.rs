@@ -23,17 +23,17 @@ pub enum LinearAlgebraRequest {
     },
     /// 矩阵乘。
     MatMul {
-        /// 左。
-        lhs: MatrixRef,
-        /// 右。
-        rhs: MatrixRef,
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
     },
     /// 逐元素乘。
     Hadamard {
-        /// 左。
-        lhs: MatrixRef,
-        /// 右。
-        rhs: MatrixRef,
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
     },
     /// 秩（按元素 parent 分派精确/机器）。
     Rank {
@@ -52,10 +52,10 @@ pub enum LinearAlgebraRequest {
     },
     /// 线性求解 `A x = b`。
     Solve {
-        /// 系数。
-        a: MatrixRef,
-        /// 右端 `m×1`。
-        b: MatrixRef,
+        /// 系数（对象句柄或符号绑定）。
+        a: MatrixOperand,
+        /// 右端 `m×1`（对象句柄或符号绑定）。
+        b: MatrixOperand,
     },
     /// 矩阵逆（精确路径）。
     Inverse {
@@ -69,17 +69,17 @@ pub enum LinearAlgebraRequest {
     },
     /// 点积 / 矩阵乘收缩（Mathematica `Dot`）。
     Dot {
-        /// 左。
-        lhs: MatrixRef,
-        /// 右。
-        rhs: MatrixRef,
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
     },
     /// 三维叉积（Mathematica `Cross`）。
     Cross {
-        /// 左。
-        lhs: MatrixRef,
-        /// 右。
-        rhs: MatrixRef,
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
     },
     /// 零空间基（精确路径，行向量）。
     NullSpace {

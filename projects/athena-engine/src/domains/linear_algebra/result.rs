@@ -144,13 +144,13 @@ fn run(
             Ok(LinearAlgebraValue::Matrix(index_scalar(&matrix, row, col)?))
         }
         LinearAlgebraRequest::MatMul { lhs, rhs } => {
-            let lhs = resolve(store, lhs)?;
-            let rhs = resolve(store, rhs)?;
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::Matrix(matmul(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Hadamard { lhs, rhs } => {
-            let lhs = resolve(store, lhs)?;
-            let rhs = resolve(store, rhs)?;
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::Matrix(hadamard(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
@@ -180,8 +180,8 @@ fn run(
             Ok(LinearAlgebraValue::ExactRref(rref_rational(&matrix)?))
         }
         LinearAlgebraRequest::Solve { a, b } => {
-            let a = resolve(store, a)?;
-            let b = resolve(store, b)?;
+            let a = a.resolve_value(store, matrix_binding)?;
+            let b = b.resolve_value(store, matrix_binding)?;
             if a.parent().element.is_machine() || b.parent().element.is_machine() {
                 if !(a.parent().element.is_machine() && b.parent().element.is_machine()) {
                     return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "solve_parent_mixed"));
@@ -211,13 +211,13 @@ fn run(
             Ok(LinearAlgebraValue::ExactTrace(trace_exact(&matrix)?))
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => {
-            let lhs = resolve(store, lhs)?;
-            let rhs = resolve(store, rhs)?;
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::Dot(dot(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Cross { lhs, rhs } => {
-            let lhs = resolve(store, lhs)?;
-            let rhs = resolve(store, rhs)?;
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::Dot(cross(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::NullSpace { matrix } => {
