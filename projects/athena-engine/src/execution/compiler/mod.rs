@@ -50,8 +50,8 @@ impl ExecutionCompiler {
 
     /// 对照 Session 快照将请求 lowering 为 [`ExecutionModule`]。
     ///
-    /// 先产出 [`RequestProgram`] / [`PlanProgram`]，校验阶段链后由二者驱动根路由。
-    /// Term / Goal / Command / Control 载荷取自 [`RequestProgram`]（嵌套体仍 fused）。
+    /// 先产出 [`RequestProgram`] / [`PlanProgram`]，校验阶段链后由二者驱动根与嵌套 lowering。
+    /// 嵌套子请求同样 prepare→plan→[`Self::lower_prepared`]。
     pub fn compile(&self, session: &mut Session, request: &AthenaRequest) -> Result<ExecutionModule> {
         let request_prog = prepare_request_program(session, request);
         let plan_prog = plan_from_request(&request_prog);
@@ -93,7 +93,7 @@ impl ExecutionCompiler {
         let mut builder = ModuleBuilder::default();
         let entry = builder.block_id();
         let mut blocks = Vec::new();
-        let value = self.lower_root(session, &mut builder, &mut blocks, entry, request, request_prog, plan)?;
+        let value = self.lower_prepared(session, &mut builder, &mut blocks, entry, request_prog, plan)?;
         // 当 lowering 只产生单块返回时，确保入口块存在并返回。
         if blocks.iter().all(|b| b.id != entry) {
             blocks.insert(
@@ -104,14 +104,13 @@ impl ExecutionCompiler {
         builder.finish(blocks, entry)
     }
 
-    /// 根请求：由 [`PlanProgram`] 选择路径。四种根载荷均来自 [`RequestProgram`]。
-    fn lower_root(
+    /// 根 / 嵌套共用：按已校验的 [`RequestProgram`] / [`PlanProgram`] 选择 lowering 路径。
+    fn lower_prepared(
         &self,
         session: &mut Session,
         builder: &mut ModuleBuilder,
         blocks: &mut Vec<BasicBlock>,
         block_id: BlockId,
-        _request: &AthenaRequest,
         request_prog: &RequestProgram,
         plan: &PlanProgram,
     ) -> Result<SsaValueId> {
@@ -144,7 +143,7 @@ impl ExecutionCompiler {
         }
     }
 
-    /// Nested / fused lowering：直接按请求载荷分支（控制体、Define RHS 等）。
+    /// Nested lowering：对子请求同样 prepare→plan→[`Self::lower_prepared`]（不再按 raw 枚举旁路）。
     fn lower_request(
         &self,
         session: &mut Session,
@@ -153,17 +152,10 @@ impl ExecutionCompiler {
         block_id: BlockId,
         request: &AthenaRequest,
     ) -> Result<SsaValueId> {
-        match request {
-            AthenaRequest::Term(term) => self.lower_term(session, builder, blocks, block_id, *term),
-            AthenaRequest::Control(plan) => self.lower_control(session, builder, blocks, block_id, plan),
-            AthenaRequest::Command(command) => self.lower_command(session, builder, blocks, block_id, command),
-            AthenaRequest::Goal(goal) => match goal {
-                crate::api::request::DomainGoal::Dispatch(domain) => {
-                    let payload = session.domain_payloads.intern(domain.owning_copy());
-                    self.lower_goal_provider(builder, blocks, block_id, payload)
-                }
-            },
-        }
+        let request_prog = prepare_request_program(session, request);
+        let plan = plan_from_request(&request_prog);
+        verify_request_plan_chain(request, &request_prog, &plan)?;
+        self.lower_prepared(session, builder, blocks, block_id, &request_prog, &plan)
     }
 
     /// Lowering 项请求。控制 / 绑定形式仅经 [`AthenaRequest::Control`]
