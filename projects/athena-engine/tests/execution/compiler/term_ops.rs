@@ -593,6 +593,24 @@ fn compile_and_execute_head_of_add_and_list() {
         }) if arguments.is_empty() => {}
         other => panic!("expected 0-ary Add from Head[a+b], got {other:?}"),
     }
+
+    let foo = session.extensions.intern("Foo");
+    let foo_app = session
+        .builder()
+        .application(ApplicationHead::Extension(foo), vec![one], Default::default());
+    let head_foo = session
+        .builder()
+        .application_semantic(SemanticOperator::Head, vec![foo_app], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(head_foo)).expect("head ext");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Extension(id),
+            arguments,
+        }) if *id == foo && arguments.is_empty() => {}
+        other => panic!("expected 0-ary Extension Head result, got {other:?}"),
+    }
 }
 
 #[test]
