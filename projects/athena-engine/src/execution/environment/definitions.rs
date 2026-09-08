@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use athena_types::{DispatchTableId, ExtensionOperatorId, SymbolId, TermId};
 
+use crate::domains::linear_algebra::MatrixRef;
 use crate::reasoning::trs::TermPattern;
 
 /// 语句层定义（立即绑定 / 残余绑定 / 规则分派）。
@@ -15,6 +16,8 @@ use crate::reasoning::trs::TermPattern;
 pub struct DefinitionLayer {
     bindings: HashMap<SymbolId, TermId>,
     residual_bindings: HashMap<SymbolId, TermId>,
+    /// 矩阵 DomainObject 绑定（与 term 绑定互斥）。
+    matrix_bindings: HashMap<SymbolId, MatrixRef>,
     /// 规则分派表（一等键）。
     dispatch_tables: HashMap<DispatchTableId, Vec<(TermPattern, TermId)>>,
     /// Extension head → 其分派表（apply 路径索引，非字符串）。
@@ -30,10 +33,11 @@ impl DefinitionLayer {
         Self::default()
     }
 
-    /// 写入立即求值绑定（替换同符号的残余绑定与其拥有的 extension 规则）。
+    /// 写入立即求值绑定（替换同符号的残余绑定、矩阵绑定与其拥有的 extension 规则）。
     pub fn write_binding(&mut self, symbol: SymbolId, value: TermId) {
         self.bindings.insert(symbol, value);
         self.residual_bindings.remove(&symbol);
+        self.matrix_bindings.remove(&symbol);
         self.clear_owned_extension(symbol);
     }
 
@@ -41,6 +45,15 @@ impl DefinitionLayer {
     pub fn write_residual_binding(&mut self, symbol: SymbolId, value: TermId) {
         self.residual_bindings.insert(symbol, value);
         self.bindings.remove(&symbol);
+        self.matrix_bindings.remove(&symbol);
+        self.clear_owned_extension(symbol);
+    }
+
+    /// 写入矩阵 DomainObject 绑定（替换同符号的 term / 残余绑定）。
+    pub fn write_matrix_binding(&mut self, symbol: SymbolId, matrix: MatrixRef) {
+        self.matrix_bindings.insert(symbol, matrix);
+        self.bindings.remove(&symbol);
+        self.residual_bindings.remove(&symbol);
         self.clear_owned_extension(symbol);
     }
 
@@ -78,6 +91,7 @@ impl DefinitionLayer {
     pub fn register_extension_rule_for_symbol(&mut self, symbol: SymbolId, op: ExtensionOperatorId, pattern: TermPattern, replacement: TermId) {
         self.bindings.remove(&symbol);
         self.residual_bindings.remove(&symbol);
+        self.matrix_bindings.remove(&symbol);
         self.extension_rule_owners.insert(symbol, op);
         self.register_extension_rule(op, pattern, replacement);
     }
@@ -90,6 +104,11 @@ impl DefinitionLayer {
     /// 查残余绑定。
     pub fn residual_binding(&self, symbol: SymbolId) -> Option<TermId> {
         self.residual_bindings.get(&symbol).copied()
+    }
+
+    /// 查矩阵 DomainObject 绑定。
+    pub fn matrix_binding(&self, symbol: SymbolId) -> Option<MatrixRef> {
+        self.matrix_bindings.get(&symbol).copied()
     }
 
     /// Extension apply：经 `ExtensionOperatorId` → [`DispatchTableId`] 取规则。
@@ -107,6 +126,7 @@ impl DefinitionLayer {
     pub fn clear_symbol(&mut self, symbol: SymbolId) {
         self.bindings.remove(&symbol);
         self.residual_bindings.remove(&symbol);
+        self.matrix_bindings.remove(&symbol);
         self.clear_owned_extension(symbol);
     }
 
@@ -122,6 +142,7 @@ impl DefinitionLayer {
     pub fn clear(&mut self) {
         self.bindings.clear();
         self.residual_bindings.clear();
+        self.matrix_bindings.clear();
         self.dispatch_tables.clear();
         self.operator_tables.clear();
         self.extension_rule_owners.clear();
@@ -149,11 +170,13 @@ impl DefinitionLayer {
     }
 }
 
-/// 局部绑定：已初始化值、未初始化唯一化符号，或动态清空（遮蔽外层 Own）。
+/// 局部绑定：已初始化值、矩阵 DomainObject、未初始化唯一化符号，或动态清空（遮蔽外层 Own）。
 #[derive(Debug, Clone, Copy)]
 pub enum LocalBinding {
-    /// 已初始化值。
+    /// 已初始化符号项值。
     Value(TermId),
+    /// 已初始化矩阵 DomainObject。
+    Matrix(MatrixRef),
     /// 未初始化局部的唯一化符号。
     Unique(TermId),
     /// 作用域内显式清除：隐藏外层 Own，直到 `ExitScope`。
