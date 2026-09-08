@@ -124,6 +124,30 @@ fn residue_shifted_simple_pole_is_one() {
 }
 
 #[test]
+fn residue_exp_over_z_at_zero_is_one() {
+    use athena_ir::UnaryFunction;
+
+    let mut session = Session::new();
+    let (expression, variable, point) = {
+        let dc = DomainExecutionContext::new(&mut session);
+        let variable = dc.intern("z");
+        let zs = dc.symbol_id(variable);
+        let exp = dc.apply_semantic(SemanticOperator::from_unary(UnaryFunction::Exp), vec![zs]);
+        let expression = dc.apply_semantic(SemanticOperator::Divide, vec![exp, zs]);
+        (expression, variable, dc.in_(0))
+    };
+    let result = execute_calculus(
+        &mut session,
+        CalculusRequest::Residue { expression, variable, point, assumptions: AssumptionSet::empty() },
+    );
+    let value = match result {
+        CalculusResult::Exact { value: CalculusValue::Residue(r), .. } => r.value,
+        other => panic!("expected Exact Residue 1 for Exp[z]/z, got {other:?}"),
+    };
+    assert!(matches!(session.arena.get(value), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+}
+
+#[test]
 fn gradient_of_product_xy() {
     let mut session = Session::new();
     let (expression, variables) = {
