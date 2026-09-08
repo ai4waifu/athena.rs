@@ -191,6 +191,8 @@ pub enum SemanticOperator {
     Determinant,
     /// 对集合做 map。
     Map,
+    /// 带索引的 map（方言 `MapIndexed`；`f[elem, {i}]`，`i` 从 1 起）。
+    MapIndexed,
     /// 零矩阵 / 数组构造。
     Zeros,
     /// 全一阵 / 数组构造。
@@ -317,6 +319,7 @@ impl SemanticOperator {
             Self::Product => 33,
             Self::Determinant => 34,
             Self::Map => 35,
+            Self::MapIndexed => 228,
             Self::Zeros => 36,
             Self::Ones => 37,
             Self::Eye => 38,
@@ -361,7 +364,7 @@ impl SemanticOperator {
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–227）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold / meta 残差 200–228）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -401,6 +404,7 @@ impl SemanticOperator {
             33 => Some(Self::Product),
             34 => Some(Self::Determinant),
             35 => Some(Self::Map),
+            228 => Some(Self::MapIndexed),
             36 => Some(Self::Zeros),
             37 => Some(Self::Ones),
             38 => Some(Self::Eye),
@@ -489,6 +493,7 @@ impl SemanticOperator {
             Self::Product => "Product",
             Self::Determinant => "Determinant",
             Self::Map => "Map",
+            Self::MapIndexed => "MapIndexed",
             Self::Zeros => "Zeros",
             Self::Ones => "Ones",
             Self::Eye => "Eye",
