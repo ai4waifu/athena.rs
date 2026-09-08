@@ -99,6 +99,10 @@ fn observe_kind(kind: &OperationKind, max: &mut u32, bump: impl Fn(&mut u32, Ssa
             }
         }
         OperationKind::Index { target, .. } => bump(max, *target),
+        OperationKind::StoreIndex { target, value, .. } => {
+            bump(max, *target);
+            bump(max, *value);
+        }
         OperationKind::ReadBinding { key } => bump(max, *key),
         OperationKind::WriteBinding { key, value, .. } => {
             bump(max, *key);

@@ -483,6 +483,7 @@ fn operands_of(kind: &OperationKind) -> Vec<SsaValueId> {
         OperationKind::ApplySemanticOperator { args, .. } | OperationKind::ApplyExtensionOperator { args, .. } => args.clone(),
         OperationKind::ConstructCollection { elements, .. } => elements.clone(),
         OperationKind::Index { target, .. } => vec![*target],
+        OperationKind::StoreIndex { target, value, .. } => vec![*target, *value],
         OperationKind::ReadBinding { key } => vec![*key],
         OperationKind::WriteBinding { key, value, .. } => vec![*key, *value],
         OperationKind::RegisterRuleDispatch { head, pattern, replacement, .. } => vec![*head, *pattern, *replacement],

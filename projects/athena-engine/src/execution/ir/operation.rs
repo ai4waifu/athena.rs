@@ -71,6 +71,15 @@ pub enum OperationKind {
         /// 各轴下标规格。
         axes: Vec<IndexSpec>,
     },
+    /// 对值 / 集合做下标写入（返回写入后的新集合项）。
+    StoreIndex {
+        /// 目标 SSA 值（已解析的集合 / 应用）。
+        target: SsaValueId,
+        /// 各轴下标规格。
+        axes: Vec<IndexSpec>,
+        /// 写入值 SSA。
+        value: SsaValueId,
+    },
     /// 读取 Session / 作用域绑定。
     ReadBinding {
         /// 绑定键 SSA 值（符号 / 槽句柄）。

@@ -137,6 +137,17 @@ pub enum Instruction {
         /// 轴规格表 ID（host 侧 `IndexSpec` 序列）。
         axes: IndexAxesId,
     },
+    /// 经 [`crate::host::VmHost::apply_store_index`] 对目标做下标写入。
+    StoreIndex {
+        /// 结果槽（写入后的新集合）。
+        dst: SlotIndex,
+        /// 目标槽。
+        target: SlotIndex,
+        /// 写入值槽。
+        value: SlotIndex,
+        /// 轴规格表 ID。
+        axes: IndexAxesId,
+    },
     /// 经 [`crate::host::VmHost::apply_extension`] 应用扩展算子。
     ApplyExtension {
         /// 结果槽。

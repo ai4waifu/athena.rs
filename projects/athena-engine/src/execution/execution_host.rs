@@ -24,7 +24,7 @@ use crate::{
             evaluate_join_terms, evaluate_map_terms, evaluate_matches_terms, evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
-            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like,
+            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
         },
     },
     runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
@@ -896,6 +896,24 @@ impl VmHost for ExecutionHost<'_> {
         };
         let cur = self.slot_as_term(target)?;
         Ok(match evaluate_index_axes(self.session, cur, &axes)? {
+            IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
+            IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
+        })
+    }
+
+    fn apply_store_index(&mut self, op: IndexAxesId, target: SlotValue, value: SlotValue) -> Result<HostOutcome> {
+        let Some(axes) = self.index_axes.get(op.0 as usize).cloned()
+        else {
+            return Ok(HostOutcome::Diagnostic(
+                Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "ExecutionHost")
+                    .detail("reason", "store_index_axes_out_of_range")
+                    .detail("axes", op.0),
+            ));
+        };
+        let cur = self.slot_as_term(target)?;
+        let val = self.slot_as_term(value)?;
+        Ok(match store_index_axes(self.session, cur, &axes, val)? {
             IndexOutcome::Term(term) => HostOutcome::Value(SlotValue::Term(term)),
             IndexOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
         })

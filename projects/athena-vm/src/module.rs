@@ -190,6 +190,21 @@ impl ModuleFingerprint {
                         mix(&mut hash, b);
                     }
                 }
+                Instruction::StoreIndex { dst, target, value, axes } => {
+                    mix(&mut hash, 36);
+                    for b in dst.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in target.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in value.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                    for b in axes.0.to_le_bytes() {
+                        mix(&mut hash, b);
+                    }
+                }
                 Instruction::ApplyExtension { dst, op, argc, args } => {
                     mix(&mut hash, 27);
                     for b in dst.to_le_bytes() {

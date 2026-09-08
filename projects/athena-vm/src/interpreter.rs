@@ -369,6 +369,21 @@ impl VmExecutor for Interpreter {
                     }
                     pc = pc.saturating_add(1);
                 }
+                Instruction::StoreIndex { dst, target, value, axes } => {
+                    let target_value = match self.slots.get(target) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("store_index_target_undefined")),
+                    };
+                    let value_slot = match self.slots.get(value) {
+                        Some(v) => v,
+                        None => return Ok(Self::diagnostic("store_index_value_undefined")),
+                    };
+                    let outcome = host.apply_store_index(axes, target_value, value_slot)?;
+                    if let Some(exit) = self.apply_host_outcome(dst, outcome) {
+                        return Ok(exit);
+                    }
+                    pc = pc.saturating_add(1);
+                }
                 Instruction::ApplyExtension { dst, op, argc, args } => {
                     let values = match self.collect_args(argc, &args) {
                         Ok(v) => v,

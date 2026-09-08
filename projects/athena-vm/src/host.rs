@@ -134,6 +134,16 @@ pub trait VmHost {
         ))
     }
 
+    /// 对目标值按已登记轴规格写入，返回更新后的集合项。
+    fn apply_store_index(&mut self, op: IndexAxesId, target: SlotValue, value: SlotValue) -> Result<HostOutcome> {
+        let _ = (op, target, value);
+        Ok(HostOutcome::Diagnostic(
+            Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "VmHost")
+                .detail("reason", "apply_store_index_unimplemented"),
+        ))
+    }
+
     /// 应用扩展算子（下行值绑定或残差）。
     fn apply_extension(&mut self, op: ExtensionOpId, args: &[SlotValue]) -> Result<HostOutcome> {
         let _ = (op, args);
