@@ -17,7 +17,8 @@ pub(crate) use self::helpers::{
     evaluate_prepend_terms, evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
     evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
     evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
-    evaluate_extract_terms, evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes,
+    evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
+    evaluate_unary_term, slot_as_boolean_like, compare_list_broadcast, store_index_axes,
 };
 
 use athena_types::{Result, ResultId};

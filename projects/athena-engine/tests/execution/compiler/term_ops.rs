@@ -452,6 +452,106 @@ fn compile_and_execute_union_accumulate_free_q_extract() {
 }
 
 #[test]
+fn compile_and_execute_pad_riffle_position_array() {
+    // Narrow contracts (not full Mathematica):
+    // PadLeft: left-pad exact 0 to length n (or left-truncate).
+    // Riffle: top-level zip of two collections, shorter length wins.
+    // Position: top-level structural_eq, 1-based `{{i},…}`.
+    // Array: `{f[1],…,f[n]}` for callable / symbol head and exact n.
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+
+    let list = session.builder().list(vec![one, two], Default::default());
+    let pad = session
+        .builder()
+        .application_semantic(SemanticOperator::PadLeft, vec![list, four], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(pad)).expect("pad");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 4 => {
+            for (item, expect) in items.iter().zip([0i64, 0, 1, 2]) {
+                match session.arena.get(*item) {
+                    Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect) => {}
+                    other => panic!("expected PadLeft {expect}, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected PadLeft, got {other:?}"),
+    }
+
+    let a = session.builder().symbol("a", Default::default());
+    let b = session.builder().symbol("b", Default::default());
+    let left = session.builder().list(vec![one, two], Default::default());
+    let right = session.builder().list(vec![a, b], Default::default());
+    let riffle = session
+        .builder()
+        .application_semantic(SemanticOperator::Riffle, vec![left, right], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(riffle)).expect("riffle");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.as_slice() == [one, a, two, b] => {}
+        other => panic!("expected Riffle, got {other:?}"),
+    }
+
+    let pos_list = session.builder().list(vec![one, two, one], Default::default());
+    let pos = session
+        .builder()
+        .application_semantic(SemanticOperator::Position, vec![pos_list, one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(pos)).expect("position");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
+            for (item, expect) in items.iter().zip([1i64, 3]) {
+                match session.arena.get(*item) {
+                    Some(TermNode::Collection { elements: idx, .. }) if idx.len() == 1 => {
+                        match session.arena.get(idx[0]) {
+                            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(expect) => {}
+                            other => panic!("expected Position index {expect}, got {other:?}"),
+                        }
+                    }
+                    other => panic!("expected singleton position, got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Position, got {other:?}"),
+    }
+
+    let f = session.extensions.intern("f");
+    let f_head = session.builder().application_extension_id(f, vec![], Default::default());
+    let arr = session
+        .builder()
+        .application_semantic(SemanticOperator::Array, vec![f_head, three], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(arr)).expect("array");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 3 => {
+            for (i, item) in items.iter().enumerate() {
+                match session.arena.get(*item) {
+                    Some(TermNode::Application {
+                        head: ApplicationHead::Extension(id),
+                        arguments,
+                    }) if session.extensions.display_name(*id) == Some("f") && arguments.len() == 1 => {
+                        match session.arena.get(arguments[0]) {
+                            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some((i as i64) + 1) => {}
+                            other => panic!("expected f[{}], got {other:?}", i + 1),
+                        }
+                    }
+                    other => panic!("expected f[i], got {other:?}"),
+                }
+            }
+        }
+        other => panic!("expected Array, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_head_of_add_and_list() {
     use athena_engine::runtime::values::arena::symbol_name;
 

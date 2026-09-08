@@ -45,6 +45,8 @@ fn map_and_map_indexed_capture_first() {
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::MapIndexed, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::MapIndexed, 2, 1), ArgumentEvaluationKind::Evaluate);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::MapThread, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Array, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Array, 2, 1), ArgumentEvaluationKind::Evaluate);
 }
 
 #[test]

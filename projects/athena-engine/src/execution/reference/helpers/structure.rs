@@ -11,7 +11,8 @@ use crate::{
 
 use super::{
     evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape, parse_matrix_dims,
-    rational_to_term_session, term_to_rational_matrix_session, terms::expand_span_3,
+    rational_to_term_session, re_eval_term, rebuild_application, term_to_rational_matrix_session, terms::expand_span_3,
+    try_apply_callable,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -353,6 +354,91 @@ pub(crate) fn evaluate_extract_terms(session: &mut Session, list: TermId, index:
         Some(athena_ir::TermNode::Application { arguments, .. }) if idx < arguments.len() => Ok(arguments[idx]),
         _ => Ok(push_semantic(session, SemanticOperator::Extract, vec![list, index])),
     }
+}
+
+/// `PadLeft[list, n]` — 左侧用 `0` 填充到长度 `n`（已更长则截断左侧）。
+pub(crate) fn evaluate_pad_left_terms(session: &mut Session, list: TermId, len: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, len).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::PadLeft, vec![list, len]));
+    };
+    if n < 0 {
+        return Ok(push_semantic(session, SemanticOperator::PadLeft, vec![list, len]));
+    }
+    let n = n as usize;
+    let Some(items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::PadLeft, vec![list, len]));
+    };
+    let zero = session.builder().int(0, Default::default());
+    let mut out = Vec::with_capacity(n);
+    if items.len() >= n {
+        out.extend_from_slice(&items[items.len() - n..]);
+    }
+    else {
+        for _ in 0..(n - items.len()) {
+            out.push(zero);
+        }
+        out.extend_from_slice(&items);
+    }
+    Ok(push_list(session, out))
+}
+
+/// `Riffle[a, b]` — 交错两列表元素；长度取较短一侧。
+pub(crate) fn evaluate_riffle_terms(session: &mut Session, left: TermId, right: TermId) -> Result<TermId> {
+    let Some(a) = collection_elements(session, left)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Riffle, vec![left, right]));
+    };
+    let Some(b) = collection_elements(session, right)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Riffle, vec![left, right]));
+    };
+    let n = a.len().min(b.len());
+    let mut out = Vec::with_capacity(n * 2);
+    for i in 0..n {
+        out.push(a[i]);
+        out.push(b[i]);
+    }
+    Ok(push_list(session, out))
+}
+
+/// `Position[list, elem]` — 顶层 1-based 位置列表 `{{i},…}`。
+pub(crate) fn evaluate_position_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
+    let Some(items) = collection_elements(session, list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Position, vec![list, elem]));
+    };
+    let mut out = Vec::new();
+    for (i, item) in items.into_iter().enumerate() {
+        if session.arena.structural_eq(item, elem) {
+            let idx = session.builder().int((i as i64) + 1, Default::default());
+            out.push(push_list(session, vec![idx]));
+        }
+    }
+    Ok(push_list(session, out))
+}
+
+/// `Array[f, n]` — `{f[1],…,f[n]}`。
+pub(crate) fn evaluate_array_terms(session: &mut Session, func: TermId, count: TermId) -> Result<TermId> {
+    let Some(n) = number_of(session, count).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Array, vec![func, count]));
+    };
+    if n < 0 {
+        return Ok(push_semantic(session, SemanticOperator::Array, vec![func, count]));
+    }
+    let mut out = Vec::with_capacity(n as usize);
+    for i in 1..=n {
+        let idx = session.builder().int(i, Default::default());
+        if let Some(term) = try_apply_callable(session, func, &[idx])? {
+            out.push(term);
+            continue;
+        }
+        let app = rebuild_application(session, func, vec![idx]);
+        out.push(re_eval_term(session, app)?);
+    }
+    Ok(push_list(session, out))
 }
 
 /// `Range[n]` / `Range[a,b]` / `Range[a,b,step]` — 精确整数展开；否则残差。
