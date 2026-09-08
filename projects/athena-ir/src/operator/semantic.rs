@@ -225,6 +225,8 @@ pub enum SemanticOperator {
     ParallelEvaluate,
     /// 输入形式包装（方言 `InputForm`；HoldAllComplete 捕获，无格式化 runtime 时保持残差）。
     InputForm,
+    /// 有理消去包装（方言 `Cancel`；捕获实参，无 Cancel kernel 时保持残差，禁止提前代数改写）。
+    Cancel,
     /// 匿名函数绑定器。
     Function,
     /// 封闭一元特殊函数。
@@ -352,10 +354,11 @@ impl SemanticOperator {
             Self::Trace => 223,
             Self::ParallelEvaluate => 224,
             Self::InputForm => 225,
+            Self::Cancel => 226,
         }
     }
 
-    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–225）。
+    /// 由 [`Self::discriminant`] 还原（含 `Unary` 段 100–116 与微积分 / hold 残差 200–226）。
     pub const fn from_discriminant(d: u32) -> Option<Self> {
         match d {
             1 => Some(Self::Add),
@@ -437,6 +440,7 @@ impl SemanticOperator {
             223 => Some(Self::Trace),
             224 => Some(Self::ParallelEvaluate),
             225 => Some(Self::InputForm),
+            226 => Some(Self::Cancel),
             _ => None,
         }
     }
@@ -498,6 +502,7 @@ impl SemanticOperator {
             Self::Trace => "Trace",
             Self::ParallelEvaluate => "ParallelEvaluate",
             Self::InputForm => "InputForm",
+            Self::Cancel => "Cancel",
             Self::Function => "Function",
             Self::Unary(f) => f.debug_label(),
             Self::PolyGamma => "PolyGamma",
