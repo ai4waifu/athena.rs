@@ -141,6 +141,38 @@ fn compile_and_execute_first_rest_join() {
 }
 
 #[test]
+fn compile_and_execute_head_of_add_and_list() {
+    use athena_engine::runtime::values::arena::symbol_name;
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let sum = session.builder().application_semantic(SemanticOperator::Add, vec![one, two], Default::default());
+    let head_sum = session
+        .builder()
+        .application_semantic(SemanticOperator::Head, vec![sum], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(head_sum)).expect("head add");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+        }) if arguments.is_empty() => {}
+        other => panic!("expected 0-ary Add from Head[1+2], got {other:?}"),
+    }
+
+    let list = session.builder().list(vec![one, two], Default::default());
+    let head_list = session
+        .builder()
+        .application_semantic(SemanticOperator::Head, vec![list], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(head_list)).expect("head list");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert_eq!(symbol_name(&session, out).as_deref(), Some("List"));
+}
+
+#[test]
 fn compile_and_execute_factorial() {
     let mut session = Session::new();
     let n = session.builder().int(5, Default::default());
