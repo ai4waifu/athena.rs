@@ -324,6 +324,49 @@ fn compile_and_execute_control_store_index_scalar() {
 }
 
 #[test]
+fn compile_and_execute_control_store_index_matrix_cell() {
+    use athena_types::{BindingEvaluationPolicy, BindingKind, IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let m = session.builder().symbol("M", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let nine = session.builder().int(9, Default::default());
+    let r0 = session.builder().list(vec![one, two], Default::default());
+    let r1 = session.builder().list(vec![three, four], Default::default());
+    let matrix = session.builder().list(vec![r0, r1], Default::default());
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol: match session.arena.get(m) {
+            Some(TermNode::Atom(Atom::Symbol(s))) => *s,
+            other => panic!("expected symbol M, got {other:?}"),
+        },
+        value: matrix,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+    });
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: m,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+        value: nine,
+    });
+    let read = AthenaRequest::Control(ControlPlan::Index {
+        target: m,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+    });
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![define, store, read],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("store matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(9) => {}
+        other => panic!("expected M(1,2) == 9 after StoreIndex, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_control_index_column_major_flatten() {
     use athena_types::IndexSpec;
 
