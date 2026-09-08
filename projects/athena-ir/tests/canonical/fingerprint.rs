@@ -1,5 +1,5 @@
 use athena_ir::{
-    ApplicationHead, Atom, ExtensionRegistry, SemanticOperator, TermBuilder, TermNode, TermStore, canonical_hash, canonical_hash_named, fnv1a64,
+    ApplicationHead, Atom, ExtensionRegistry, SemanticOperator, TermBuilder, TermNode, TermStore, canonical_hash, fnv1a64,
 };
 use athena_types::SourceSpan;
 
@@ -32,11 +32,10 @@ fn canonical_hash_semantic_stable_without_registry() {
     let (a1, r1) = build_add_x_y();
     let (a2, r2) = build_add_x_y();
     assert_eq!(canonical_hash(&a1, r1), canonical_hash(&a2, r2));
-    assert_eq!(canonical_hash_named(&a1, &ExtensionRegistry::new(), r1), canonical_hash(&a1, r1));
 }
 
 #[test]
-fn canonical_hash_named_extension_registry_order_independent() {
+fn extension_fingerprint_is_session_local_id_not_display_name() {
     let mut reg_a = ExtensionRegistry::new();
     reg_a.intern("Sin");
     let plus_a = reg_a.intern("Foo");
@@ -57,15 +56,15 @@ fn canonical_hash_named_extension_registry_order_independent() {
     let two_b = b_b.int(2, SPAN);
     let t_b = b_b.application(ApplicationHead::Extension(plus_b), vec![one_b, two_b], SPAN);
 
-    assert_eq!(canonical_hash_named(&arena_a, &reg_a, t_a), canonical_hash_named(&arena_b, &reg_b, t_b));
-    // 无 registry 时，跨 registry 的扩展 id 不同 → hash 不同。
+    // Same display name, different ExtensionOperatorId allocation order → different math identity.
+    assert_ne!(plus_a.0, plus_b.0);
     assert_ne!(canonical_hash(&arena_a, t_a), canonical_hash(&arena_b, t_b));
 }
 
 #[test]
 fn structural_eq_value_and_structure() {
     let (arena, r1) = build_add_x_y();
-    let (arena2, r2) = build_add_x_y();
+    let (_arena2, r2) = build_add_x_y();
     assert!(arena.structural_eq(r1, r2));
 
     let mut arena3 = TermStore::new();
@@ -104,7 +103,7 @@ fn number_fingerprint_uses_stable_domain_tag_not_debug() {
             assert_eq!(ni.fingerprint_domain_tag(), 1);
             assert_eq!(nr.fingerprint_domain_tag(), 2);
             assert_ne!(ni.fingerprint_content_hash(), nr.fingerprint_content_hash());
-            // 内容 hash 不得仅依赖十进制渲染文本。
+            // Content hash must not depend only on decimal render text.
             assert_eq!(
                 ni.fingerprint_content_hash(),
                 athena_numeric::Number::Integer(athena_numeric::Integer::from_i64(2)).fingerprint_content_hash()

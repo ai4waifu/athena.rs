@@ -16,7 +16,7 @@ pub mod trace;
 pub use athena_numeric as numeric;
 
 pub use build::TermBuilder;
-pub use canonical::{canonical_hash, canonical_hash_named, fnv1a64};
+pub use canonical::{canonical_hash, fnv1a64};
 pub use node::{Atom, MathematicalConstant, TermNode};
 pub use operator::{ApplicationHead, ExtensionRegistry, SemanticOperator, UnaryFunction};
 pub use store::TermStore;
