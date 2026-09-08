@@ -174,7 +174,6 @@ impl ExecutionCompiler {
                         | SemanticOperator::Trace
                         | SemanticOperator::ParallelEvaluate
                         | SemanticOperator::InputForm
-                        | SemanticOperator::Cancel
                 ),
                 ..
             })
