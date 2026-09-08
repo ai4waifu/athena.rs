@@ -215,10 +215,18 @@ pub(crate) fn evaluate_index_axes_matrix(session: &mut Session, matrix: &MatrixV
                 .detail("component", "evaluate_index_axes_matrix")
                 .detail("reason", "unsupported_matrix_index_axes"),
         }),
+        MatrixAxes::Grow { .. } => Ok(IndexOutcome::Invalid {
+            echo,
+            diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                .detail("component", "evaluate_index_axes_matrix")
+                .detail("reason", "matrix_index_grow_on_read"),
+        }),
     }
 }
 
 /// 对矩阵 DomainObject 写入后 intern 新句柄（写时复制）。
+///
+/// 支持行/列向量线性扩容、`end+k`，以及二维单元格越界扩形（零填充）。
 pub(crate) fn store_index_axes_matrix(
     session: &mut Session,
     mut matrix: MatrixValue,
@@ -226,8 +234,20 @@ pub(crate) fn store_index_axes_matrix(
     value: TermId,
 ) -> Result<MatrixStoreOutcome> {
     let echo = matrix_to_nested_list_session(session, &matrix).unwrap_or_else(|_| session.builder().null(Default::default()));
-    let (row, col) = match matrix_axes_to_cell(&matrix, axes) {
+    let (row, col) = match matrix_axes_to_store_target(&matrix, axes, true) {
         MatrixAxes::Cell(row, col) => (row, col),
+        MatrixAxes::Grow { row, col, rows, cols } => {
+            let grown = if cols == 1 && matrix.shape().cols > 1 {
+                column_major_grow_vector(&matrix, rows)
+            } else {
+                matrix.resize_owned(rows, cols)
+            };
+            match grown {
+                Ok(m) => matrix = m,
+                Err(diagnostic) => return Ok(MatrixStoreOutcome::Invalid { echo, diagnostic }),
+            }
+            (row, col)
+        }
         MatrixAxes::Invalid(index) => {
             return Ok(MatrixStoreOutcome::Invalid {
                 echo,
@@ -256,46 +276,109 @@ pub(crate) fn store_index_axes_matrix(
 
 enum MatrixAxes {
     Cell(u64, u64),
+    /// 写入前需扩容到 `(rows, cols)`，再写 `(row, col)`。
+    Grow {
+        row: u64,
+        col: u64,
+        rows: u64,
+        cols: u64,
+    },
     Flatten,
     Invalid(i64),
     Unsupported,
 }
 
 fn matrix_axes_to_cell(matrix: &MatrixValue, axes: &[IndexSpec]) -> MatrixAxes {
+    // 读路径不允许扩容：越界为正下标时返回 Invalid。
+    matrix_axes_to_store_target(matrix, axes, false)
+}
+
+/// 解析矩阵读写目标。`allow_grow` 为 true 时，越界正下标可扩容。
+fn matrix_axes_to_store_target(matrix: &MatrixValue, axes: &[IndexSpec], allow_grow: bool) -> MatrixAxes {
     let nrows = matrix.shape().rows;
     let ncols = matrix.shape().cols;
     match axes {
-        [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => linear_column_major_cell(nrows, ncols, *k),
-        [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => one_based_cell(*r, *c, nrows, ncols),
+        [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => linear_column_major_target(nrows, ncols, *k, allow_grow),
+        // 单轴 Scalar 与线性同合同（部分宿主未改写为 LinearColumnMajor）。
+        [IndexSpec::Scalar(IntegerIndex(k))] => linear_column_major_target(nrows, ncols, *k, allow_grow),
+        [IndexSpec::EndRelative(IntegerOffset(off))] => {
+            let numel = nrows.saturating_mul(ncols) as i64;
+            linear_column_major_target(nrows, ncols, numel + *off, allow_grow)
+        }
+        [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => one_based_cell_target(*r, *c, nrows, ncols, allow_grow),
         [IndexSpec::ColumnMajorFlatten] => MatrixAxes::Flatten,
         _ => MatrixAxes::Unsupported,
     }
 }
 
-fn linear_column_major_cell(nrows: u64, ncols: u64, k: i64) -> MatrixAxes {
+fn linear_column_major_target(nrows: u64, ncols: u64, k: i64, allow_grow: bool) -> MatrixAxes {
     if k < 1 {
         return MatrixAxes::Invalid(k);
     }
     let n = (k as u64) - 1;
     let len = nrows.saturating_mul(ncols);
-    if n >= len || nrows == 0 {
+    if n < len && nrows > 0 {
+        let col = n / nrows;
+        let row = n % nrows;
+        return MatrixAxes::Cell(row, col);
+    }
+    if !allow_grow {
         return MatrixAxes::Invalid(k);
     }
-    let col = n / nrows;
-    let row = n % nrows;
-    MatrixAxes::Cell(row, col)
+    // 行向量保形扩列；列向量保形扩行；一般矩阵线性越界 → 列向量（MATLAB 合同）。
+    if nrows == 1 {
+        MatrixAxes::Grow {
+            row: 0,
+            col: n,
+            rows: 1,
+            cols: n + 1,
+        }
+    } else {
+        MatrixAxes::Grow {
+            row: n,
+            col: 0,
+            rows: n + 1,
+            cols: 1,
+        }
+    }
 }
 
-fn one_based_cell(row_1: i64, col_1: i64, nrows: u64, ncols: u64) -> MatrixAxes {
+fn one_based_cell_target(row_1: i64, col_1: i64, nrows: u64, ncols: u64, allow_grow: bool) -> MatrixAxes {
     if row_1 < 1 || col_1 < 1 {
         return MatrixAxes::Invalid(row_1);
     }
     let row = (row_1 as u64) - 1;
     let col = (col_1 as u64) - 1;
-    if row >= nrows || col >= ncols {
+    if row < nrows && col < ncols {
+        return MatrixAxes::Cell(row, col);
+    }
+    if !allow_grow {
         return MatrixAxes::Invalid(row_1);
     }
-    MatrixAxes::Cell(row, col)
+    MatrixAxes::Grow {
+        row,
+        col,
+        rows: nrows.max(row + 1),
+        cols: ncols.max(col + 1),
+    }
+}
+
+/// 列优先展平后扩成 `new_len×1` 列向量（一般矩阵线性越界写入）。
+fn column_major_grow_vector(matrix: &MatrixValue, new_len: u64) -> Result<MatrixValue> {
+    use crate::domains::linear_algebra::{MatrixShape, StorageOrder};
+    let (nrows, ncols) = (matrix.shape().rows, matrix.shape().cols);
+    let mut out = MatrixValue::zeros(matrix.parent(), MatrixShape::new(new_len, 1), StorageOrder::RowMajor)?;
+    let mut i = 0u64;
+    for c in 0..ncols {
+        for r in 0..nrows {
+            if i >= new_len {
+                break;
+            }
+            out.set_owned(i, 0, matrix.get(r, c)?)?;
+            i += 1;
+        }
+    }
+    Ok(out)
 }
 
 fn flatten_matrix_column_major(session: &mut Session, matrix: &MatrixValue) -> Result<IndexOutcome> {

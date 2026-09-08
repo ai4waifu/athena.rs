@@ -319,6 +319,28 @@ impl MatrixValue {
         }
     }
 
+    /// 扩容为新 shape（右下零填充）。保留左上角原有元素。
+    ///
+    /// 仅允许非缩减尺寸。物化为稠密行主序后重写。
+    pub fn resize_owned(&self, new_rows: u64, new_cols: u64) -> Result<Self, Diagnostic> {
+        if new_rows < self.shape.rows || new_cols < self.shape.cols {
+            return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+                .detail("reason", "matrix_resize_shrink_unsupported")
+                .detail("rows", format!("{}→{}", self.shape.rows, new_rows))
+                .detail("cols", format!("{}→{}", self.shape.cols, new_cols)));
+        }
+        if new_rows == self.shape.rows && new_cols == self.shape.cols {
+            return self.materialize_row_major();
+        }
+        let mut out = Self::zeros(self.parent, MatrixShape::new(new_rows, new_cols), StorageOrder::RowMajor)?;
+        for r in 0..self.shape.rows {
+            for c in 0..self.shape.cols {
+                out.set_owned(r, c, self.get(r, c)?)?;
+            }
+        }
+        Ok(out)
+    }
+
     /// 提升 `ℤ` → `ℚ`（精确路径）。
     pub fn promote_integers_to_rationals(&self) -> Result<Self, Diagnostic> {
         match &self.data {
