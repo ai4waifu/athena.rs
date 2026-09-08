@@ -312,6 +312,38 @@ fn compile_and_execute_map_indexed_second_slot() {
 }
 
 #[test]
+fn compile_and_execute_map_thread_plus() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let left = session.builder().list(vec![one, two], Default::default());
+    let right = session.builder().list(vec![three, four], Default::default());
+    let lists = session.builder().list(vec![left, right], Default::default());
+    let plus = session.builder().application_semantic(SemanticOperator::Add, vec![], Default::default());
+    let term = session
+        .builder()
+        .application_semantic(SemanticOperator::MapThread, vec![plus, lists], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("mapthread");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements: items, .. }) if items.len() == 2 => {
+            match session.arena.get(items[0]) {
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4) => {}
+                other => panic!("expected 1+3==4, got {other:?}"),
+            }
+            match session.arena.get(items[1]) {
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6) => {}
+                other => panic!("expected 2+4==6, got {other:?}"),
+            }
+        }
+        other => panic!("expected MapThread Plus results, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_zeros_eye() {
     let mut session = Session::new();
     let two = session.builder().int(2, Default::default());

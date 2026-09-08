@@ -137,3 +137,57 @@ pub(crate) fn evaluate_map_indexed_terms(session: &mut Session, func: TermId, li
     }
     Ok(push_list(session, out))
 }
+
+/// `MapThread[func, {list₁, list₂, …}]` — 按列 zip 后应用 `func`。
+pub(crate) fn evaluate_map_thread_terms(session: &mut Session, func: TermId, lists: TermId) -> Result<TermId> {
+    let rows = match session.arena.get(lists) {
+        Some(TermNode::Collection { elements: rows, .. }) if !rows.is_empty() => rows.clone(),
+        _ => return Ok(push_semantic(session, SemanticOperator::MapThread, vec![func, lists])),
+    };
+    let mut columns: Vec<Vec<TermId>> = Vec::with_capacity(rows.len());
+    let mut len: Option<usize> = None;
+    for row in &rows {
+        let Some(TermNode::Collection { elements: items, .. }) = session.arena.get(*row)
+        else {
+            return Ok(push_semantic(session, SemanticOperator::MapThread, vec![func, lists]));
+        };
+        if let Some(n) = len {
+            if items.len() != n {
+                return Ok(push_semantic(session, SemanticOperator::MapThread, vec![func, lists]));
+            }
+        }
+        else {
+            len = Some(items.len());
+        }
+        columns.push(items.clone());
+    }
+    let n = len.unwrap_or(0);
+    let arity = columns.len();
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut args = Vec::with_capacity(arity);
+        for col in &columns {
+            args.push(col[i]);
+        }
+        if let Some(term) = try_apply_callable(session, func, &args)? {
+            out.push(term);
+            continue;
+        }
+        // Bare operator head: rebuild `f[a,b,…]` then re-eval.
+        if let Some(TermNode::Application { head, arguments }) = session.arena.get(func) {
+            if arguments.is_empty() {
+                let mapped = match *head {
+                    ApplicationHead::Semantic(op) => push_semantic(session, op, args),
+                    ApplicationHead::Extension(id) => {
+                        let mut b = athena_ir::TermBuilder::new(&mut session.arena);
+                        b.application_extension_id(id, args, TermNode::default_span())
+                    }
+                };
+                out.push(re_eval_term(session, mapped)?);
+                continue;
+            }
+        }
+        return Ok(push_semantic(session, SemanticOperator::MapThread, vec![func, lists]));
+    }
+    Ok(push_list(session, out))
+}
