@@ -66,6 +66,8 @@ pub fn adapt_univariate_factorization(
 
     let coverage = match completeness {
         PolynomialFactorizationCompleteness::Complete if all_extracted_linear => CoverageStatus::Complete,
+        // 因式完全但余下高次不可表根：已抽出的一次根仍是真解子集，不得标 Unsupported 却丢覆盖语义。
+        PolynomialFactorizationCompleteness::Complete if !branches.is_empty() => CoverageStatus::CertifiedSubset,
         PolynomialFactorizationCompleteness::Complete => CoverageStatus::Unsupported,
         other => coverage_from_factorization(other),
     };

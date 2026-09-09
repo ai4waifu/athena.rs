@@ -375,15 +375,21 @@ fn map_optimization(result: &OptimizationResult) -> DomainMeta {
 
 fn map_solve(result: &crate::domains::solve::SolveResult) -> DomainMeta {
     match result {
-        crate::domains::solve::SolveResult::Exact { term } => DomainMeta {
-            status: ComputationStatus::Candidate,
-            coverage: CoverageStatus::Partial,
-            symbolic_term: Some(*term),
-            conditions: Vec::new(),
-            diagnostics: Vec::new(),
-            evidence: Vec::new(),
-            provider: Some(ResultProviderId::SOLVE.stamped()),
-        },
+        crate::domains::solve::SolveResult::Exact { term, coverage } => {
+            let (status, result_coverage) = solve_coverage_to_result(coverage);
+            DomainMeta {
+                status,
+                coverage: result_coverage,
+                symbolic_term: Some(*term),
+                conditions: Vec::new(),
+                diagnostics: Vec::new(),
+                evidence: vec![ResultEvidence::TrustedKernelSummary {
+                    provider: ResultProviderId::SOLVE,
+                    summary: format!("solution_rules coverage={}", solve_coverage_name(coverage)),
+                }],
+                provider: Some(ResultProviderId::SOLVE.stamped()),
+            }
+        }
         crate::domains::solve::SolveResult::Unevaluated { expression, reason } => DomainMeta {
             status: ComputationStatus::Unknown,
             coverage: CoverageStatus::Unsupported,
@@ -393,6 +399,36 @@ fn map_solve(result: &crate::domains::solve::SolveResult) -> DomainMeta {
             evidence: Vec::new(),
             provider: Some(ResultProviderId::SOLVE.stamped()),
         },
+    }
+}
+
+/// 解域覆盖 → 结果层状态 / 覆盖。禁止把子集根集抬成 Full。
+fn solve_coverage_to_result(coverage: &crate::domains::solve::CoverageStatus) -> (ComputationStatus, CoverageStatus) {
+    use crate::domains::solve::CoverageStatus as SolveCoverage;
+    match coverage {
+        SolveCoverage::Complete | SolveCoverage::CompleteUnderAssumptions => (ComputationStatus::Candidate, CoverageStatus::Full),
+        SolveCoverage::CertifiedSubset
+        | SolveCoverage::CertifiedSuperset
+        | SolveCoverage::LocalOnly
+        | SolveCoverage::Probable => (ComputationStatus::Candidate, CoverageStatus::Partial),
+        SolveCoverage::ResourceLimited { .. } => (ComputationStatus::ResourceLimited, CoverageStatus::Partial),
+        SolveCoverage::Unsupported => (ComputationStatus::Unknown, CoverageStatus::Unsupported),
+        SolveCoverage::Invalid => (ComputationStatus::Invalid, CoverageStatus::Unsupported),
+    }
+}
+
+fn solve_coverage_name(coverage: &crate::domains::solve::CoverageStatus) -> &'static str {
+    use crate::domains::solve::CoverageStatus as SolveCoverage;
+    match coverage {
+        SolveCoverage::Complete => "Complete",
+        SolveCoverage::CompleteUnderAssumptions => "CompleteUnderAssumptions",
+        SolveCoverage::CertifiedSubset => "CertifiedSubset",
+        SolveCoverage::CertifiedSuperset => "CertifiedSuperset",
+        SolveCoverage::LocalOnly => "LocalOnly",
+        SolveCoverage::Probable => "Probable",
+        SolveCoverage::ResourceLimited { .. } => "ResourceLimited",
+        SolveCoverage::Unsupported => "Unsupported",
+        SolveCoverage::Invalid => "Invalid",
     }
 }
 
