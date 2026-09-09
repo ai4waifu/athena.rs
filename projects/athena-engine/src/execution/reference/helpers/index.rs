@@ -204,6 +204,17 @@ pub(crate) fn evaluate_index_axes_matrix(session: &mut Session, matrix: &MatrixV
             Ok(term) => Ok(IndexOutcome::Term(term)),
             Err(diagnostic) => Ok(IndexOutcome::Invalid { echo, diagnostic }),
         },
+        MatrixAxes::Row(row) => {
+            let cols = matrix.shape().cols;
+            let mut cells = Vec::with_capacity(cols as usize);
+            for col in 0..cols {
+                match matrix_entry_to_term_session(session, matrix, row, col) {
+                    Ok(term) => cells.push(term),
+                    Err(diagnostic) => return Ok(IndexOutcome::Invalid { echo, diagnostic }),
+                }
+            }
+            Ok(IndexOutcome::Term(push_list(session, cells)))
+        }
         MatrixAxes::Flatten => flatten_matrix_column_major(session, matrix),
         MatrixAxes::Invalid(index) => Ok(IndexOutcome::Invalid {
             echo,
@@ -248,6 +259,14 @@ pub(crate) fn store_index_axes_matrix(
             }
             (row, col)
         }
+        MatrixAxes::Row(_) => {
+            return Ok(MatrixStoreOutcome::Invalid {
+                echo,
+                diagnostic: Diagnostic::new(athena_types::DiagnosticCode::UnsupportedOperation)
+                    .detail("component", "store_index_axes_matrix")
+                    .detail("reason", "matrix_row_store_unsupported"),
+            });
+        }
         MatrixAxes::Invalid(index) => {
             return Ok(MatrixStoreOutcome::Invalid {
                 echo,
@@ -276,6 +295,8 @@ pub(crate) fn store_index_axes_matrix(
 
 enum MatrixAxes {
     Cell(u64, u64),
+    /// Full row (0-based) for first-axis [`IndexSpec::Scalar`] on `m×n` with `m>1` and `n>1`.
+    Row(u64),
     /// 写入前需扩容到 `(rows, cols)`，再写 `(row, col)`。
     Grow {
         row: u64,
@@ -298,16 +319,38 @@ fn matrix_axes_to_store_target(matrix: &MatrixValue, axes: &[IndexSpec], allow_g
     let nrows = matrix.shape().rows;
     let ncols = matrix.shape().cols;
     match axes {
+        // MATLAB `A(k)` — dialect emits [`IndexSpec::LinearColumnMajor`].
         [IndexSpec::LinearColumnMajor(IntegerIndex(k))] => linear_column_major_target(nrows, ncols, *k, allow_grow),
-        // 单轴 Scalar 与线性同合同（部分宿主未改写为 LinearColumnMajor）。
-        [IndexSpec::Scalar(IntegerIndex(k))] => linear_column_major_target(nrows, ncols, *k, allow_grow),
+        // First-axis [`IndexSpec::Scalar`]: vector element, or Mathematica `A[[k]]` row on `m×n`.
+        [IndexSpec::Scalar(IntegerIndex(k))] => {
+            if nrows == 1 {
+                one_based_cell_target(1, *k, nrows, ncols, allow_grow)
+            } else if ncols == 1 {
+                one_based_cell_target(*k, 1, nrows, ncols, allow_grow)
+            } else {
+                first_axis_row_target(*k, nrows)
+            }
+        }
         [IndexSpec::EndRelative(IntegerOffset(off))] => {
+            // Shared with MATLAB `end` linear addressing on matrices / vectors.
             let numel = nrows.saturating_mul(ncols) as i64;
             linear_column_major_target(nrows, ncols, numel + *off, allow_grow)
         }
         [IndexSpec::Scalar(IntegerIndex(r)), IndexSpec::Scalar(IntegerIndex(c))] => one_based_cell_target(*r, *c, nrows, ncols, allow_grow),
         [IndexSpec::ColumnMajorFlatten] => MatrixAxes::Flatten,
         _ => MatrixAxes::Unsupported,
+    }
+}
+
+fn first_axis_row_target(row_1: i64, nrows: u64) -> MatrixAxes {
+    if row_1 < 1 {
+        return MatrixAxes::Invalid(row_1);
+    }
+    let row = (row_1 as u64) - 1;
+    if row < nrows {
+        MatrixAxes::Row(row)
+    } else {
+        MatrixAxes::Invalid(row_1)
     }
 }
 
