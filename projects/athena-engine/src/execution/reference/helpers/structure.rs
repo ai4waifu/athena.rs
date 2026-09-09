@@ -1,18 +1,16 @@
-//! 结构算子（`Join` / `Range` / `Size` / `Sum` / `Determinant` / 矩阵构造）的纯 term 折叠。
+//! 结构算子（`Join` / `Range` / `Size` / `Sum` / 矩阵构造）的纯 term 折叠。
 
 use athena_ir::SemanticOperator;
-use athena_types::{Diagnostic, Result, TermId};
+use athena_types::{Result, TermId};
 
 use crate::{
-    domains::linear_algebra::det_bareiss,
     execution::{number_of, push_semantic},
     runtime::{session::Session, values::arena::push_list},
 };
 
 use super::{
     evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape, parse_matrix_dims,
-    rational_to_term_session, re_eval_term, rebuild_application, term_to_rational_matrix_session, terms::expand_span_3,
-    try_apply_callable,
+    re_eval_term, rebuild_application, terms::expand_span_3, try_apply_callable,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -519,19 +517,6 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
         return Ok(push_list(session, out));
     }
     Ok(fold_plus_symbolic(session, items))
-}
-
-/// `Determinant[m]` — 有理矩阵 Bareiss；非矩阵或失败时残差，失败诊断可选。
-pub(crate) fn evaluate_determinant_term(session: &mut Session, term: TermId) -> Result<(TermId, Option<Diagnostic>)> {
-    let echo = push_semantic(session, SemanticOperator::Determinant, vec![term]);
-    let Some(matrix) = term_to_rational_matrix_session(session, term)
-    else {
-        return Ok((echo, None));
-    };
-    match det_bareiss(&matrix) {
-        Ok(result) => Ok((rational_to_term_session(session, &result.det), None)),
-        Err(diagnostic) => Ok((echo, Some(diagnostic))),
-    }
 }
 
 /// `Zeros` / `Ones` / `Eye` — 按维度构造有理整数矩阵；非法维度则残差。

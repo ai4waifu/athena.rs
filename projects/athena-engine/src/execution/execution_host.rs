@@ -31,7 +31,7 @@ use crate::{
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
-            store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims, term_scalar_rational_session,
+            store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             rational_to_term_session, expand_span_3, term_to_rational_matrix_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
@@ -1863,54 +1863,38 @@ impl<'a> ExecutionHost<'a> {
 
     fn try_diagonal_matrix_value(&mut self, slot: SlotValue) -> Result<Option<crate::domains::linear_algebra::MatrixValue>> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixParent, MatrixShape, MatrixValue, StorageOrder};
-        use athena_ir::TermNode;
         use athena_numeric::Rational;
 
-        let mut diag: Vec<Rational> = Vec::new();
-        if let Some(matrix_ref) = self.matrix_ref_from_slot(slot) {
-            let Some(src) = self.session.matrix_objects.get(matrix_ref)
-            else {
-                return Ok(None);
-            };
-            let rows = src.shape().rows;
-            let cols = src.shape().cols;
-            let entries = if rows == 1 {
-                (0..cols).map(|j| src.get(0, j)).collect::<std::result::Result<Vec<_>, _>>()
-            }
-            else if cols == 1 {
-                (0..rows).map(|i| src.get(i, 0)).collect::<std::result::Result<Vec<_>, _>>()
-            }
-            else {
-                return Ok(None);
-            };
-            let Ok(entries) = entries
-            else {
-                return Ok(None);
-            };
-            for entry in entries {
-                match entry {
-                    MatrixEntry::Integer(z) => diag.push(Rational::from_integer(z)),
-                    MatrixEntry::Rational(r) => diag.push(r),
-                    MatrixEntry::MachineF64(_) => return Ok(None),
-                }
-            }
+        // Living 16: diagonal vector from MatrixRef or numeric Collection (interned once).
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
+        else {
+            return Ok(None);
+        };
+        let Some(src) = self.session.matrix_objects.get(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let rows = src.shape().rows;
+        let cols = src.shape().cols;
+        let entries = if rows == 1 {
+            (0..cols).map(|j| src.get(0, j)).collect::<std::result::Result<Vec<_>, _>>()
+        }
+        else if cols == 1 {
+            (0..rows).map(|i| src.get(i, 0)).collect::<std::result::Result<Vec<_>, _>>()
         }
         else {
-            let term = self.slot_as_term(slot)?;
-            let Some(TermNode::Collection { elements, .. }) = self.session.arena.get(term)
-            else {
-                return Ok(None);
-            };
-            let elements = elements.clone();
-            if elements.is_empty() || elements.len() > 4096 {
-                return Ok(None);
-            }
-            for cell in elements {
-                let Some(r) = term_scalar_rational_session(self.session, cell)
-                else {
-                    return Ok(None);
-                };
-                diag.push(r);
+            return Ok(None);
+        };
+        let Ok(entries) = entries
+        else {
+            return Ok(None);
+        };
+        let mut diag: Vec<Rational> = Vec::with_capacity(entries.len());
+        for entry in entries {
+            match entry {
+                MatrixEntry::Integer(z) => diag.push(Rational::from_integer(z)),
+                MatrixEntry::Rational(r) => diag.push(r),
+                MatrixEntry::MachineF64(_) => return Ok(None),
             }
         }
         let n = diag.len() as u64;
