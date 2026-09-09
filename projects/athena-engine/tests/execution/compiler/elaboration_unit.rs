@@ -30,6 +30,7 @@ fn iterator_sum_and_product_capture_first() {
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Sum, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Sum, 2, 1), ArgumentEvaluationKind::Evaluate);
     assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Product, 2, 0), ArgumentEvaluationKind::CaptureAsTerm);
+    assert_eq!(argument_evaluation_for_semantic(SemanticOperator::Product, 1, 0), ArgumentEvaluationKind::Evaluate);
 }
 
 #[test]
