@@ -1186,20 +1186,92 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::PadLeft.discriminant())));
         }
+        // Living 16: PadLeft on typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_pad_left(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let len = self.slot_as_term(args[1])?;
         let term = evaluate_pad_left_terms(self.session, list, len)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn host_matrix_pad_left(&mut self, list_slot: SlotValue, len_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::pad_left_row_vector;
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        else {
+            return Ok(None);
+        };
+        let len_term = self.slot_as_term(len_slot)?;
+        let Some(n) = number_of(self.session, len_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        if n < 0 {
+            return Ok(None);
+        }
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        if matrix.shape().rows != 1 {
+            return Ok(None);
+        }
+        match pad_left_row_vector(&matrix, n as u64) {
+            Ok(padded) => {
+                let matrix_ref = self.session.matrix_objects.intern(padded);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
+        }
+    }
+
     fn apply_riffle(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Riffle.discriminant())));
+        }
+        // Living 16: Riffle on typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_riffle(args[0], args[1])? {
+            return Ok(outcome);
         }
         let left = self.slot_as_term(args[0])?;
         let right = self.slot_as_term(args[1])?;
         let term = evaluate_riffle_terms(self.session, left, right)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_riffle(&mut self, left_slot: SlotValue, right_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::riffle_row_vectors;
+
+        let Some(left_ref) = self.matrix_ref_from_slot(left_slot)
+        else {
+            return Ok(None);
+        };
+        let Some(right_ref) = self.matrix_ref_from_slot(right_slot)
+        else {
+            return Ok(None);
+        };
+        let Some(left) = self.session.matrix_objects.resolve_owning(left_ref)
+        else {
+            return Ok(None);
+        };
+        let Some(right) = self.session.matrix_objects.resolve_owning(right_ref)
+        else {
+            return Ok(None);
+        };
+        if left.shape().rows != 1 || right.shape().rows != 1 {
+            return Ok(None);
+        }
+        match riffle_row_vectors(&left, &right) {
+            Ok(riffled) => {
+                let matrix_ref = self.session.matrix_objects.intern(riffled);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
+        }
     }
 
     fn apply_position(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {

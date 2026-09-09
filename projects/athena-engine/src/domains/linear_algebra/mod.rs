@@ -33,7 +33,7 @@ pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
 pub use ops::{
     cross, dot, elementwise_divide, elementwise_power, extend_row_vector_scalar, flatten_row_major, hadamard, index_scalar, join_matrices,
-    matmul, reverse_matrix, slice_matrix, transpose,
+    matmul, pad_left_row_vector, reverse_matrix, riffle_row_vectors, slice_matrix, transpose,
 };
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;

@@ -666,6 +666,124 @@ pub fn extend_row_vector_scalar(matrix: &MatrixValue, scalar: MatrixEntry, prepe
     }
 }
 
+/// `PadLeft` on a typed `1×n` row: pad with zeros on the left, or keep the trailing `n` entries.
+pub fn pad_left_row_vector(matrix: &MatrixValue, n: u64) -> Result<MatrixValue, Diagnostic> {
+    if matrix.shape().rows != 1 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "pad_left_requires_row_vector"));
+    }
+    let cols = matrix.shape().cols;
+    if cols >= n {
+        return slice_matrix(
+            matrix,
+            &IndexSpec::Slice {
+                rows: super::index::AxisRange::All,
+                cols: super::index::AxisRange::Range {
+                    start: cols - n,
+                    end: cols,
+                },
+            },
+        );
+    }
+    let pad = n - cols;
+    match matrix.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(n as usize);
+            for _ in 0..pad {
+                data.push(Integer::from(0));
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::Integer(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_integers_row_major(1, n, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(n as usize);
+            for _ in 0..pad {
+                data.push(Rational::from_integer(Integer::from(0)));
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::Rational(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_rationals_row_major(1, n, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity(n as usize);
+            for _ in 0..pad {
+                data.push(0.0);
+            }
+            for j in 0..cols {
+                match matrix.get(0, j)? {
+                    MatrixEntry::MachineF64(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_f64_row_major(1, n, data)
+        }
+    }
+}
+
+/// `Riffle` of two typed `1×n` rows: interleave until the shorter length.
+pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if left.shape().rows != 1 || right.shape().rows != 1 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "riffle_requires_row_vectors"));
+    }
+    if left.parent().element != right.parent().element {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "riffle_parent_mismatch"));
+    }
+    let n = left.shape().cols.min(right.shape().cols);
+    let out_cols = n.saturating_mul(2);
+    match left.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(out_cols as usize);
+            for j in 0..n {
+                match left.get(0, j)? {
+                    MatrixEntry::Integer(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+                match right.get(0, j)? {
+                    MatrixEntry::Integer(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_integers_row_major(1, out_cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(out_cols as usize);
+            for j in 0..n {
+                match left.get(0, j)? {
+                    MatrixEntry::Rational(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+                match right.get(0, j)? {
+                    MatrixEntry::Rational(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_rationals_row_major(1, out_cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity(out_cols as usize);
+            for j in 0..n {
+                match left.get(0, j)? {
+                    MatrixEntry::MachineF64(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+                match right.get(0, j)? {
+                    MatrixEntry::MachineF64(v) => data.push(v),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_f64_row_major(1, out_cols, data)
+        }
+    }
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not
