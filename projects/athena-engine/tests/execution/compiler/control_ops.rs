@@ -213,6 +213,42 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 
 #[test]
 #[test]
+fn compile_and_execute_det_on_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+            Integer::from(4),
+        ]).expect("matrix"));
+    let det = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Determinant), vec![a_term], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix }),
+            AthenaRequest::Term(det),
+        ],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("det matrix");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-2)));
+}
+
+#[test]
 fn compile_and_execute_size_on_matrix_binding() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
