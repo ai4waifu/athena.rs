@@ -218,6 +218,7 @@ fn compile_and_execute_multiply_matrix_bindings_via_slot_projection() {
     use athena_ir::ApplicationHead;
     use athena_numeric::Integer;
 
+    // Living 16: `Times` on two `RuntimeValue::Matrix` slots uses MatMul, not nested-List reverse recognition.
     let mut session = Session::new();
     let a_term = session.builder().symbol("A", Default::default());
     let b_term = session.builder().symbol("B", Default::default());
@@ -248,7 +249,14 @@ fn compile_and_execute_multiply_matrix_bindings_via_slot_projection() {
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
     // [[19,22],[43,50]]
     match session.arena.get(term) {
-        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {}
+        Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
+            let r0 = match session.arena.get(rows[0]) {
+                Some(TermNode::Collection { elements: cells, .. }) => cells.clone(),
+                other => panic!("row0: {other:?}"),
+            };
+            assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(19)));
+            assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(22)));
+        }
         other => panic!("expected matrix product nested list, got {other:?}"),
     }
 }

@@ -138,6 +138,30 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: matrix × matrix stays on typed MatrixRef / MatMul. Do not project both
+        // operands to nested List and reverse-recognize them as matrices.
+        if op == SemanticOperator::Multiply && args.len() == 2 {
+            if let (SlotValue::Value(lhs_id), SlotValue::Value(rhs_id)) = (args[0], args[1]) {
+                if let (Some(lhs), Some(rhs)) = (self.session.matrix_of_value(lhs_id), self.session.matrix_of_value(rhs_id)) {
+                    use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+                    let request = LinearAlgebraRequest::MatMul {
+                        lhs: MatrixOperand::object(lhs),
+                        rhs: MatrixOperand::object(rhs),
+                    };
+                    match self.session.execute_linear_algebra(request) {
+                        LinearAlgebraResult::Ok { value: LinearAlgebraValue::Matrix(envelope) } => {
+                            let matrix_ref = self.session.matrix_objects.intern(envelope.value);
+                            let value_id = self.session.insert_matrix_value(matrix_ref);
+                            return Ok(HostOutcome::Value(SlotValue::Value(value_id)));
+                        }
+                        LinearAlgebraResult::Err { diagnostic } => {
+                            return Ok(HostOutcome::Diagnostic(diagnostic));
+                        }
+                        LinearAlgebraResult::Ok { .. } => {}
+                    }
+                }
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
