@@ -408,6 +408,89 @@ pub fn flatten_row_major(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
     }
 }
 
+/// `1×n` 按列反转；多行按行反转（Mathematica `Reverse` 对 List / 嵌套 List）。
+pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    if rows == 0 || cols == 0 {
+        return Ok(matrix.owning_copy());
+    }
+    if rows == 1 {
+        match matrix.parent().element {
+            ElementParentKind::Integers => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for j in (0..cols).rev() {
+                    match matrix.get(0, j)? {
+                        MatrixEntry::Integer(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+                MatrixValue::from_integers_row_major(1, cols, data)
+            }
+            ElementParentKind::Rationals => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for j in (0..cols).rev() {
+                    match matrix.get(0, j)? {
+                        MatrixEntry::Rational(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+                MatrixValue::from_rationals_row_major(1, cols, data)
+            }
+            ElementParentKind::MachineReal => {
+                let mut data = Vec::with_capacity(cols as usize);
+                for j in (0..cols).rev() {
+                    match matrix.get(0, j)? {
+                        MatrixEntry::MachineF64(x) => data.push(x),
+                        _ => unreachable!(),
+                    }
+                }
+                MatrixValue::from_f64_row_major(1, cols, data)
+            }
+        }
+    }
+    else {
+        match matrix.parent().element {
+            ElementParentKind::Integers => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for i in (0..rows).rev() {
+                    for j in 0..cols {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::Integer(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_integers_row_major(rows, cols, data)
+            }
+            ElementParentKind::Rationals => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for i in (0..rows).rev() {
+                    for j in 0..cols {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::Rational(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_rationals_row_major(rows, cols, data)
+            }
+            ElementParentKind::MachineReal => {
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for i in (0..rows).rev() {
+                    for j in 0..cols {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::MachineF64(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                MatrixValue::from_f64_row_major(rows, cols, data)
+            }
+        }
+    }
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not
