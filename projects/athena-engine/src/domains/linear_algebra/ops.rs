@@ -1,4 +1,4 @@
-//! 矩阵算子：索引、切片、转置、矩阵乘、逐元素乘 / 除。
+//! 矩阵算子：索引、切片、转置、矩阵乘、逐元素乘 / 除 / 幂。
 
 use athena_numeric::{Integer, Rational};
 use athena_types::{Diagnostic, DiagnosticCode};
@@ -278,6 +278,83 @@ pub fn elementwise_divide(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<Matrix
                         _ => unreachable!(),
                     };
                     data.push(a / b);
+                }
+            }
+            MatrixValue::from_f64_row_major(out_shape.rows, out_shape.cols, data)
+        }
+    }
+}
+
+/// 逐元素幂；shape 必须一致。
+///
+/// Exact parents require a non-negative integer exponent that fits `u32`. Machine real uses `powf`.
+pub fn elementwise_power(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    require_same_element_parent(lhs, rhs)?;
+    let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
+    match lhs.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let a = match lhs.get(i, j)? {
+                        MatrixEntry::Integer(x) => x,
+                        _ => unreachable!(),
+                    };
+                    let b = match rhs.get(i, j)? {
+                        MatrixEntry::Integer(x) => x,
+                        _ => unreachable!(),
+                    };
+                    let powered = a.pow(&b).map_err(|_| {
+                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_integer")
+                    })?;
+                    data.push(powered);
+                }
+            }
+            MatrixValue::from_integers_row_major(out_shape.rows, out_shape.cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let a = match lhs.get(i, j)? {
+                        MatrixEntry::Rational(x) => x,
+                        _ => unreachable!(),
+                    };
+                    let b = match rhs.get(i, j)? {
+                        MatrixEntry::Rational(x) => x,
+                        _ => unreachable!(),
+                    };
+                    if !b.is_integer() {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_exp_not_int"));
+                    }
+                    let Some(exp_i) = b.numerator().to_i64()
+                    else {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_exp_too_large"));
+                    };
+                    if exp_i < 0 {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_neg_exp"));
+                    }
+                    if exp_i > u32::MAX as i64 {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_exp_too_large"));
+                    }
+                    data.push(a.pow_u32(exp_i as u32)?);
+                }
+            }
+            MatrixValue::from_rationals_row_major(out_shape.rows, out_shape.cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let a = match lhs.get(i, j)? {
+                        MatrixEntry::MachineF64(x) => x,
+                        _ => unreachable!(),
+                    };
+                    let b = match rhs.get(i, j)? {
+                        MatrixEntry::MachineF64(x) => x,
+                        _ => unreachable!(),
+                    };
+                    data.push(a.powf(b));
                 }
             }
             MatrixValue::from_f64_row_major(out_shape.rows, out_shape.cols, data)
