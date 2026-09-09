@@ -370,6 +370,12 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Accumulate.discriminant())));
         }
+        // Living 16: vector MatrixRef prefix sums without nested-list reverse recognition.
+        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            if let Some(outcome) = self.accumulate_matrix_ref(matrix_ref)? {
+                return Ok(outcome);
+            }
+        }
         let list = self.slot_as_term(args[0])?;
         let term = evaluate_accumulate_terms(self.session, list)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
@@ -379,9 +385,114 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Differences.discriminant())));
         }
+        // Living 16: vector MatrixRef adjacent differences without nested-list reverse recognition.
+        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            if let Some(outcome) = self.differences_matrix_ref(matrix_ref)? {
+                return Ok(outcome);
+            }
+        }
         let list = self.slot_as_term(args[0])?;
         let term = evaluate_differences_terms(self.session, list)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn vector_entries_rational(
+        &self,
+        matrix: &crate::domains::linear_algebra::MatrixValue,
+    ) -> Option<(bool, Vec<athena_numeric::Rational>)> {
+        use crate::domains::linear_algebra::MatrixEntry;
+        use athena_numeric::Rational;
+
+        let rows = matrix.shape().rows;
+        let cols = matrix.shape().cols;
+        let as_row = if rows == 1 {
+            true
+        }
+        else if cols == 1 {
+            false
+        }
+        else {
+            return None;
+        };
+        let n = if as_row { cols } else { rows };
+        let mut out = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            let entry = if as_row {
+                matrix.get(0, i).ok()?
+            }
+            else {
+                matrix.get(i, 0).ok()?
+            };
+            out.push(match entry {
+                MatrixEntry::Integer(z) => Rational::from_integer(z),
+                MatrixEntry::Rational(r) => r,
+                MatrixEntry::MachineF64(_) => return None,
+            });
+        }
+        Some((as_row, out))
+    }
+
+    fn matrix_from_vector_rationals(
+        &mut self,
+        as_row: bool,
+        values: Vec<athena_numeric::Rational>,
+    ) -> Option<HostOutcome> {
+        use crate::domains::linear_algebra::MatrixValue;
+
+        let n = values.len() as u64;
+        if n == 0 {
+            return None;
+        }
+        let matrix = if as_row {
+            MatrixValue::from_rationals_row_major(1, n, values).ok()?
+        }
+        else {
+            MatrixValue::from_rationals_row_major(n, 1, values).ok()?
+        };
+        let matrix_ref = self.session.matrix_objects.intern(matrix);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Some(HostOutcome::Value(SlotValue::Value(value_id)))
+    }
+
+    fn accumulate_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+        use crate::runtime::values::numeric_clone::clone_rational;
+        use athena_numeric::Rational;
+
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let Some((as_row, values)) = self.vector_entries_rational(&matrix)
+        else {
+            return Ok(None);
+        };
+        let mut prefix = Vec::with_capacity(values.len());
+        let mut acc = Rational::zero();
+        for value in values {
+            acc = acc.add(&value);
+            prefix.push(clone_rational(&acc));
+        }
+        Ok(self.matrix_from_vector_rationals(as_row, prefix))
+    }
+
+    fn differences_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let Some((as_row, values)) = self.vector_entries_rational(&matrix)
+        else {
+            return Ok(None);
+        };
+        if values.len() < 2 {
+            use crate::runtime::values::arena::push_list;
+            return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, Vec::new())))));
+        }
+        let mut diffs = Vec::with_capacity(values.len() - 1);
+        for window in values.windows(2) {
+            diffs.push(window[1].sub(&window[0]));
+        }
+        Ok(self.matrix_from_vector_rationals(as_row, diffs))
     }
 
     fn apply_free_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {

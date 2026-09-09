@@ -212,6 +212,92 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 }
 
 #[test]
+fn compile_and_execute_accumulate_on_row_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::{MatrixEntry, MatrixValue};
+    use athena_engine::runtime::RuntimeValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![Integer::from(1), Integer::from(2), Integer::from(3)]).expect("matrix"));
+    let acc = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Accumulate), vec![a_term], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix }),
+            AthenaRequest::Term(acc),
+        ],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("accumulate");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let out = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(out.shape().rows, 1);
+    assert_eq!(out.shape().cols, 3);
+    // prefix sums 1, 3, 6
+    let e0 = out.get(0, 0).expect("e0");
+    let e1 = out.get(0, 1).expect("e1");
+    let e2 = out.get(0, 2).expect("e2");
+    assert!(matches!(e0, MatrixEntry::Rational(ref r) if r.is_integer() && r.numerator().to_i64() == Some(1)));
+    assert!(matches!(e1, MatrixEntry::Rational(ref r) if r.is_integer() && r.numerator().to_i64() == Some(3)));
+    assert!(matches!(e2, MatrixEntry::Rational(ref r) if r.is_integer() && r.numerator().to_i64() == Some(6)));
+}
+
+#[test]
+fn compile_and_execute_differences_on_row_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::{MatrixEntry, MatrixValue};
+    use athena_engine::runtime::RuntimeValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![Integer::from(1), Integer::from(3), Integer::from(6)]).expect("matrix"));
+    let diffs = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Differences), vec![a_term], Default::default());
+    let request = AthenaRequest::Control(ControlPlan::Sequence {
+        steps: vec![
+            AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix }),
+            AthenaRequest::Term(diffs),
+        ],
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &request).expect("differences");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let out = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(out.shape().rows, 1);
+    assert_eq!(out.shape().cols, 2);
+    let e0 = out.get(0, 0).expect("e0");
+    let e1 = out.get(0, 1).expect("e1");
+    assert!(matches!(e0, MatrixEntry::Rational(ref r) if r.is_integer() && r.numerator().to_i64() == Some(2)));
+    assert!(matches!(e1, MatrixEntry::Rational(ref r) if r.is_integer() && r.numerator().to_i64() == Some(3)));
+}
+
 #[test]
 fn compile_and_execute_sum_on_matrix_binding() {
     use athena_engine::api::request::SessionCommand;
