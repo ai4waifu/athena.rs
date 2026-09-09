@@ -991,47 +991,70 @@ impl<'a> ExecutionHost<'a> {
 
     fn host_matrix_constant_array(&mut self, elem_slot: SlotValue, count_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::MatrixValue;
+        use athena_ir::TermNode;
         use athena_numeric::Integer;
         use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
 
         let count_term = self.slot_as_term(count_slot)?;
-        let Some(n) = number_of(self.session, count_term).and_then(|v| v.as_exact_integer())
+        let as_dim = |session: &Session, t: TermId| -> Option<u64> {
+            let n = number_of(session, t)?.as_exact_integer()?;
+            if n < 0 { None } else { Some(n as u64) }
+        };
+        let dims = if let Some(n) = as_dim(self.session, count_term) {
+            Some((1u64, n))
+        }
+        else {
+            match self.session.arena.get(count_term) {
+                Some(TermNode::Collection { elements, .. }) if elements.len() == 1 => {
+                    as_dim(self.session, elements[0]).map(|n| (1u64, n))
+                }
+                Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
+                    match (as_dim(self.session, elements[0]), as_dim(self.session, elements[1])) {
+                        (Some(r), Some(c)) => Some((r, c)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        };
+        let Some((rows, cols)) = dims
         else {
             return Ok(None);
         };
-        if n < 0 || n > 4096 {
+        let Some(nelem) = rows.checked_mul(cols).filter(|&v| v <= 4096)
+        else {
             return Ok(None);
-        }
-        let cols = n as u64;
+        };
         let elem_term = self.slot_as_term(elem_slot)?;
         let Some(num) = number_of(self.session, elem_term)
         else {
             return Ok(None);
         };
+        let n = nelem as usize;
         let built = if let Some(i) = num.as_exact_integer() {
-            let mut data = Vec::with_capacity(cols as usize);
-            for _ in 0..cols {
+            let mut data = Vec::with_capacity(n);
+            for _ in 0..n {
                 data.push(Integer::from(i));
             }
-            MatrixValue::from_integers_row_major(1, cols, data).ok()
+            MatrixValue::from_integers_row_major(rows, cols, data).ok()
         }
         else if let Some(z) = num.as_integer() {
-            let mut data = Vec::with_capacity(cols as usize);
-            for _ in 0..cols {
+            let mut data = Vec::with_capacity(n);
+            for _ in 0..n {
                 data.push(clone_integer(z));
             }
-            MatrixValue::from_integers_row_major(1, cols, data).ok()
+            MatrixValue::from_integers_row_major(rows, cols, data).ok()
         }
         else if let Some(r) = num.as_rational() {
-            let mut data = Vec::with_capacity(cols as usize);
-            for _ in 0..cols {
+            let mut data = Vec::with_capacity(n);
+            for _ in 0..n {
                 data.push(clone_rational(r));
             }
-            MatrixValue::from_rationals_row_major(1, cols, data).ok()
+            MatrixValue::from_rationals_row_major(rows, cols, data).ok()
         }
         else if let Some(x) = num.as_machine_f64() {
-            let data = vec![x; cols as usize];
-            MatrixValue::from_f64_row_major(1, cols, data).ok()
+            let data = vec![x; n];
+            MatrixValue::from_f64_row_major(rows, cols, data).ok()
         }
         else {
             None
