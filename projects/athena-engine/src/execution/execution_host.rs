@@ -147,11 +147,17 @@ impl<'a> ExecutionHost<'a> {
     }
 
     /// Living 16: reuse typed MatrixRef, or intern a numeric Collection literal once.
+    ///
+    /// Scalars are never coerced to `1×1` matrices here — that would corrupt `Length` / `Size` /
+    /// `Multiply` and other list-or-scalar polymorphic ops.
     fn matrix_ref_or_intern_numeric(&mut self, slot: SlotValue) -> Result<Option<crate::domains::linear_algebra::MatrixRef>> {
         if let Some(matrix_ref) = self.matrix_ref_from_slot(slot) {
             return Ok(Some(matrix_ref));
         }
         let term = self.slot_as_term(slot)?;
+        if !matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
+            return Ok(None);
+        }
         Ok(term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix)))
     }
 
@@ -228,7 +234,10 @@ impl<'a> ExecutionHost<'a> {
         // Living 16: `Multiply` on typed matrices is Hadamard (element-wise), never MatMul.
         // Dialects must lower MATLAB `A*B` / Mathematica `Dot` to explicit MatMul / Dot goals.
         if op == SemanticOperator::Multiply && args.len() == 2 {
-            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+            if let (Some(lhs), Some(rhs)) = (
+                self.matrix_ref_or_intern_numeric(args[0])?,
+                self.matrix_ref_or_intern_numeric(args[1])?,
+            ) {
                 if let Some(outcome) = self.host_hadamard(lhs, rhs)? {
                     return Ok(outcome);
                 }
@@ -488,7 +497,7 @@ impl<'a> ExecutionHost<'a> {
 
         let mut refs = Vec::with_capacity(args.len());
         for slot in args {
-            let Some(matrix_ref) = self.matrix_ref_from_slot(*slot)
+            let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(*slot)?
             else {
                 return Ok(None);
             };
@@ -630,7 +639,7 @@ impl<'a> ExecutionHost<'a> {
         use athena_numeric::{Integer, Rational};
         use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
 
-        let Some(base_ref) = self.matrix_ref_from_slot(list_slot)
+        let Some(base_ref) = self.matrix_ref_or_intern_numeric(list_slot)?
         else {
             return Ok(None);
         };
@@ -639,7 +648,7 @@ impl<'a> ExecutionHost<'a> {
             return Ok(None);
         };
 
-        if let Some(elem_ref) = self.matrix_ref_from_slot(elem_slot) {
+        if let Some(elem_ref) = self.matrix_ref_or_intern_numeric(elem_slot)? {
             let Some(elem) = self.session.matrix_objects.resolve_owning(elem_ref)
             else {
                 return Ok(None);
@@ -1111,7 +1120,7 @@ impl<'a> ExecutionHost<'a> {
         }
         let mut refs = Vec::with_capacity(args.len());
         for slot in args {
-            let Some(matrix_ref) = self.matrix_ref_from_slot(*slot)
+            let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(*slot)?
             else {
                 return Ok(None);
             };
@@ -1450,11 +1459,11 @@ impl<'a> ExecutionHost<'a> {
     fn host_matrix_riffle(&mut self, left_slot: SlotValue, right_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::riffle_row_vectors;
 
-        let Some(left_ref) = self.matrix_ref_from_slot(left_slot)
+        let Some(left_ref) = self.matrix_ref_or_intern_numeric(left_slot)?
         else {
             return Ok(None);
         };
-        let Some(right_ref) = self.matrix_ref_from_slot(right_slot)
+        let Some(right_ref) = self.matrix_ref_or_intern_numeric(right_slot)?
         else {
             return Ok(None);
         };
@@ -1924,23 +1933,32 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
         }
-        // Living 16: typed matrix elementwise ops stay on MatrixRef (no nested-list reverse recognition).
+        // Living 16: typed matrix elementwise ops stay on MatrixRef (numeric Collections intern once).
         if op == SemanticOperator::ElementwiseMultiply {
-            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+            if let (Some(lhs), Some(rhs)) = (
+                self.matrix_ref_or_intern_numeric(args[0])?,
+                self.matrix_ref_or_intern_numeric(args[1])?,
+            ) {
                 if let Some(outcome) = self.host_hadamard(lhs, rhs)? {
                     return Ok(outcome);
                 }
             }
         }
         if op == SemanticOperator::ElementwiseDivide {
-            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+            if let (Some(lhs), Some(rhs)) = (
+                self.matrix_ref_or_intern_numeric(args[0])?,
+                self.matrix_ref_or_intern_numeric(args[1])?,
+            ) {
                 if let Some(outcome) = self.host_elementwise_divide(lhs, rhs)? {
                     return Ok(outcome);
                 }
             }
         }
         if op == SemanticOperator::ElementwisePower {
-            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+            if let (Some(lhs), Some(rhs)) = (
+                self.matrix_ref_or_intern_numeric(args[0])?,
+                self.matrix_ref_or_intern_numeric(args[1])?,
+            ) {
                 if let Some(outcome) = self.host_elementwise_power(lhs, rhs)? {
                     return Ok(outcome);
                 }
