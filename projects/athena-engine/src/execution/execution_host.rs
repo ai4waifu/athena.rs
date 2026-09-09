@@ -20,7 +20,7 @@ use crate::{
         reference::{
             CompareOutcome, IndexOutcome, MatrixStoreOutcome, compare_list_broadcast, domain_result_symbolic_term, evaluate_apply_head_terms,
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms,
-            evaluate_determinant_term, evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
+            evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
             evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
@@ -32,7 +32,7 @@ use crate::{
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims, term_scalar_rational_session,
-            rational_to_term_session, expand_span_3,
+            rational_to_term_session, expand_span_3, term_to_rational_matrix_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -1755,9 +1755,19 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Determinant.discriminant())));
         }
-        // Living 16: typed MatrixRef → Det goal. Nested Collection reverse recognition stays fallback.
-        if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
-            use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+        use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+
+        // Living 16: Det prefers typed MatrixRef + LinearAlgebraRequest.
+        // Nested Collection literals are interned once (no parallel Bareiss helper path).
+        let from_literal = self.matrix_ref_from_slot(args[0]).is_none();
+        let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            Some(matrix_ref)
+        }
+        else {
+            let term = self.slot_as_term(args[0])?;
+            term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
+        };
+        if let Some(matrix_ref) = matrix_ref {
             let request = LinearAlgebraRequest::Det {
                 matrix: MatrixOperand::object(matrix_ref),
             };
@@ -1769,18 +1779,22 @@ impl<'a> ExecutionHost<'a> {
                     return Ok(HostOutcome::Value(SlotValue::Term(term)));
                 }
                 LinearAlgebraResult::Err { diagnostic } => {
+                    if from_literal {
+                        let term = self.slot_as_term(args[0])?;
+                        let residual = push_semantic(self.session, SemanticOperator::Determinant, vec![term]);
+                        return Ok(HostOutcome::SoftInvalid {
+                            value: SlotValue::Term(residual),
+                            diagnostic,
+                        });
+                    }
                     return Ok(HostOutcome::Diagnostic(diagnostic));
                 }
                 LinearAlgebraResult::Ok { .. } => {}
             }
         }
         let term = self.slot_as_term(args[0])?;
-        let (out, diag_opt) = evaluate_determinant_term(self.session, term)?;
-        // Bareiss 失败：SoftInvalid（VM 解释器提升为硬 Diagnostic，与 Index OOB 同合同）。
-        if let Some(diagnostic) = diag_opt {
-            return Ok(HostOutcome::SoftInvalid { value: SlotValue::Term(out), diagnostic });
-        }
-        Ok(HostOutcome::Value(SlotValue::Term(out)))
+        let residual = push_semantic(self.session, SemanticOperator::Determinant, vec![term]);
+        Ok(HostOutcome::Value(SlotValue::Term(residual)))
     }
 
     fn apply_matrix_constructor(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
