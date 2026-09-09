@@ -212,13 +212,14 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 }
 
 #[test]
-fn compile_and_execute_multiply_matrix_bindings_via_slot_projection() {
+fn compile_and_execute_multiply_matrix_bindings_via_hadamard() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
     use athena_ir::ApplicationHead;
     use athena_numeric::Integer;
 
-    // Living 16: `Times` on two `RuntimeValue::Matrix` slots uses MatMul, not nested-List reverse recognition.
+    // Living 16: `Multiply` on two `RuntimeValue::Matrix` slots is Hadamard, not MatMul /
+    // nested-List reverse recognition. MatMul requires an explicit Domain goal.
     let mut session = Session::new();
     let a_term = session.builder().symbol("A", Default::default());
     let b_term = session.builder().symbol("B", Default::default());
@@ -247,17 +248,17 @@ fn compile_and_execute_multiply_matrix_bindings_via_slot_projection() {
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("mul matrix");
     let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
-    // [[19,22],[43,50]]
+    // Hadamard [[5,12],[21,32]]
     match session.arena.get(term) {
         Some(TermNode::Collection { elements: rows, .. }) if rows.len() == 2 => {
             let r0 = match session.arena.get(rows[0]) {
                 Some(TermNode::Collection { elements: cells, .. }) => cells.clone(),
                 other => panic!("row0: {other:?}"),
             };
-            assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(19)));
-            assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(22)));
+            assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(5)));
+            assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(12)));
         }
-        other => panic!("expected matrix product nested list, got {other:?}"),
+        other => panic!("expected Hadamard nested list, got {other:?}"),
     }
 }
 

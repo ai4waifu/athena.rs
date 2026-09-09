@@ -5,9 +5,8 @@ use athena_types::{Result, TermId};
 
 use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator};
 
-use super::{diag, matrix_to_nested_list_session, term_to_rational_matrix_session};
+use super::diag;
 use crate::{
-    domains::linear_algebra::matmul,
     execution::{number_of, push_number, push_semantic},
     runtime::{session::Session, values::numeric_clone::clone_number},
 };
@@ -447,28 +446,8 @@ pub(crate) fn evaluate_arithmetic_terms(session: &mut Session, op: SemanticOpera
             return Ok(push_number(session, folded));
         }
     }
-    if op == SemanticOperator::Multiply && terms.len() == 2 {
-        // Fallback for nested Collection Terms that never entered `MatrixObjectStore`.
-        // Prefer `apply_arithmetic` MatMul on `RuntimeValue::Matrix` (Living 16) when both
-        // operands already carry MatrixRef handles.
-        if let (Some(a), Some(b)) = (term_to_rational_matrix_session(session, terms[0]), term_to_rational_matrix_session(session, terms[1])) {
-            let left_matrixish = matches!(
-                session.arena.get(terms[0]),
-                Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
-            );
-            let right_matrixish = matches!(
-                session.arena.get(terms[1]),
-                Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty()
-            );
-            if left_matrixish && right_matrixish {
-                if let Ok(product) = matmul(&a, &b) {
-                    if let Ok(term) = matrix_to_nested_list_session(session, &product) {
-                        return Ok(term);
-                    }
-                }
-            }
-        }
-    }
+    // Living 16: never reverse-recognize nested Collections as MatMul/Hadamard here.
+    // Typed matrix products enter via `MatrixRef` slots or explicit Domain goals.
     Ok(match op {
         SemanticOperator::Add => fold_plus_symbolic(session, terms),
         SemanticOperator::Multiply => fold_times_symbolic(session, terms),
