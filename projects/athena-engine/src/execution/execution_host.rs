@@ -201,6 +201,17 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
         }
+        // Living 16: Length of typed MatrixRef matches Own surface (1×n → cols, else rows).
+        if op == SemanticOperator::Length {
+            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
+                    let shape = matrix.shape();
+                    let len = if shape.rows == 1 { shape.cols } else { shape.rows };
+                    let term = self.session.builder().int(len as i64, Default::default());
+                    return Ok(HostOutcome::Value(SlotValue::Term(term)));
+                }
+            }
+        }
         let term = self.slot_as_term(args[0])?;
         let out = evaluate_unary_term(self.session, op, term)?;
         Ok(HostOutcome::Value(SlotValue::Term(out)))
