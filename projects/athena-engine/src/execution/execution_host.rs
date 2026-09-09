@@ -1606,9 +1606,16 @@ impl<'a> ExecutionHost<'a> {
             let term = evaluate_sum_iterator_terms(self.session, body, iter)?;
             return Ok(HostOutcome::Value(SlotValue::Term(term)));
         }
-        // Living 16: typed MatrixRef reduction without nested-list reverse recognition.
+        // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
-            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                Some(matrix_ref)
+            }
+            else {
+                let term = self.slot_as_term(args[0])?;
+                term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
+            };
+            if let Some(matrix_ref) = matrix_ref {
                 if let Some(outcome) = self.sum_matrix_ref(matrix_ref)? {
                     return Ok(outcome);
                 }
@@ -1682,9 +1689,16 @@ impl<'a> ExecutionHost<'a> {
             let term = evaluate_product_iterator_terms(self.session, body, iter)?;
             return Ok(HostOutcome::Value(SlotValue::Term(term)));
         }
-        // Living 16: typed MatrixRef reduction without nested-list reverse recognition.
+        // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
-            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+            let matrix_ref = if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                Some(matrix_ref)
+            }
+            else {
+                let term = self.slot_as_term(args[0])?;
+                term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix))
+            };
+            if let Some(matrix_ref) = matrix_ref {
                 if let Some(outcome) = self.product_matrix_ref(matrix_ref)? {
                     return Ok(outcome);
                 }
